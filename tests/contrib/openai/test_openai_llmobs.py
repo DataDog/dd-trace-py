@@ -360,7 +360,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
-                model_provider="openai",
+                model_provider="azure_openai",
                 input_messages=[{"content": prompt}],
                 output_messages=[{"content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
@@ -390,7 +390,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
-                model_provider="openai",
+                model_provider="azure_openai",
                 input_messages=[{"content": prompt}],
                 output_messages=[{"content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
@@ -479,7 +479,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
-                model_provider="openai",
+                model_provider="azure_openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
@@ -509,7 +509,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
-                model_provider="openai",
+                model_provider="azure_openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
@@ -866,6 +866,38 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
+
+    def test_unserializable_param_is_handled(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with pytest.raises(Exception):
+            model = "babbage-002"
+            client = openai.OpenAI()
+            client.completions.create(
+                model=model,
+                prompt="Hello world",
+                temperature=0.8,
+                n=object(),
+                stop=".",
+                max_tokens=10,
+                user="ddtrace-test",
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        expected_span = _expected_llmobs_llm_span_event(
+            span,
+            model_name=model,
+            model_provider="openai",
+            input_messages=[{"content": "Hello world"}],
+            output_messages=[{"content": ""}],
+            metadata={"temperature": 0.8, "max_tokens": 10, "n": mock.ANY, "stop": ".", "user": "ddtrace-test"},
+            token_metrics={},
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
+            tags={"ml_app": "<ml-app-name>"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected_span)
+        actual_span = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert "[Unserializable object: <object object at " in actual_span["meta"]["metadata"]["n"]
 
 
 @pytest.mark.parametrize(

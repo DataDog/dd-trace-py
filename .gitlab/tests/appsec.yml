@@ -15,6 +15,7 @@ appsec iast:
     SUITE_NAME: "appsec_iast$"
     TEST_POSTGRES_HOST: "postgres"
   retry: 2
+  timeout: 25m
 
 appsec iast tdd_propagation:
   extends: .test_base_riot_snapshot
@@ -26,7 +27,7 @@ appsec iast tdd_propagation:
 
 appsec iast memcheck:
   extends: .test_base_riot_snapshot
-  parallel: 5
+  parallel: 4
   variables:
     SUITE_NAME: "appsec_iast_memcheck"
     CI_DEBUG_TRACE: "true" 
@@ -56,7 +57,7 @@ appsec threats fastapi:
 
 appsec aggregated leak testing:
   extends: .test_base_hatch
-  parallel: 5
+  parallel: 4
   variables:
     SUITE_NAME: "appsec_aggregated_leak_testing"
   retry: 2

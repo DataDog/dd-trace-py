@@ -1,21 +1,36 @@
 import math
 import time
-
-from ddtrace import config
+from typing import Optional
 
 
 class RagasFaithfulnessEvaluator:
-    label = "ragas_faithfulness"
-    metric_type = "score"
+    """A class used by EvaluatorRunner to conduct ragas faithfulness evaluations
+    on LLM Observability span events. The job of an Evaluator is to take a span and
+    submit evaluation metrics based on the span's attributes.
+    """
 
-    @classmethod
-    def evaluate(cls, span):
-        return {
-            "span_id": span.get("span_id"),
-            "trace_id": span.get("trace_id"),
-            "score_value": 1,
-            "ml_app": config._llmobs_ml_app,
-            "timestamp_ms": math.floor(time.time() * 1000),
-            "metric_type": cls.metric_type,
-            "label": cls.label,
-        }
+    LABEL = "ragas_faithfulness"
+    METRIC_TYPE = "score"
+
+    def __init__(self, llmobs_service):
+        self.llmobs_service = llmobs_service
+
+    def run_and_submit_evaluation(self, span: dict) -> None:
+        if not span:
+            return
+        score_result = self.evaluate(span)
+        if score_result:
+            self.llmobs_service.submit_evaluation(
+                span_context=span,
+                label=RagasFaithfulnessEvaluator.LABEL,
+                metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
+                value=score_result,
+                timestamp_ms=math.floor(time.time() * 1000),
+            )
+
+    def evaluate(self, span: dict) -> Optional[float]:
+        """placeholder function"""
+        span_id, trace_id = span.get("span_id"), span.get("trace_id")
+        if not span_id or not trace_id:
+            return None
+        return 1.0

@@ -85,8 +85,8 @@ def get_stats_url():
     return url
 
 
-def info():
-    agent_url = get_trace_url()
+def info(url=None):
+    agent_url = get_trace_url() if url is None else url
     _conn = get_connection(agent_url, timeout=ddconfig._agent_timeout_seconds)
     try:
         _conn.request("GET", "info", headers={"content-type": "application/json"})
