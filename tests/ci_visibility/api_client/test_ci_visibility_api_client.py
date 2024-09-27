@@ -1,6 +1,5 @@
 from contextlib import contextmanager
 import json
-import re
 from unittest import mock
 
 import pytest
@@ -9,6 +8,7 @@ from ddtrace.ext.test_visibility import _get_default_test_visibility_contrib_con
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
+from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
@@ -19,6 +19,8 @@ from tests.ci_visibility.api_client._util import _EVP_PROXY
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
 from tests.ci_visibility.api_client._util import _get_mock_connection
 from tests.ci_visibility.api_client._util import _get_setting_api_response
+from tests.ci_visibility.api_client._util import _get_skippable_api_response
+from tests.ci_visibility.api_client._util import _get_tests_api_response
 from tests.ci_visibility.test_ci_visibility import _dummy_noop_git_client
 from tests.ci_visibility.util import _ci_override_env
 
@@ -64,33 +66,53 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "api_key": "myfakeapikey",
             "agentless_url": None,
             "dd_site": None,
-            "expected_url": "https://api.datadoghq.com/api/v2/libraries/tests/services/setting",
+            "expected_urls": {
+                "setting": "https://api.datadoghq.com/api/v2/libraries/tests/services/setting",
+                "skippable": "https://api.datadoghq.com/api/v2/ci/tests/skippable",
+                "tests": "https://api.datadoghq.com/api/v2/ci/libraries/tests",
+            },
         },
         {
             "mode": _AGENTLESS,
             "api_key": "myfakeapikey",
             "agentless_url": None,
             "dd_site": "datad0g.com",
-            "expected_url": "https://api.datad0g.com/api/v2/libraries/tests/services/setting",
+            "expected_urls": {
+                "setting": "https://api.datad0g.com/api/v2/libraries/tests/services/setting",
+                "skippable": "https://api.datad0g.com/api/v2/ci/tests/skippable",
+                "tests": "https://api.datad0g.com/api/v2/ci/libraries/tests",
+            },
         },
         {
             "mode": _AGENTLESS,
             "api_key": "myfakeapikey",
             "agentless_url": "http://dd",
             "dd_site": None,
-            "expected_url": "http://dd/api/v2/libraries/tests/services/setting",
+            "expected_urls": {
+                "setting": "http://dd/api/v2/libraries/tests/services/setting",
+                "skippable": "http://dd/api/v2/ci/tests/skippable",
+                "tests": "http://dd/api/v2/ci/libraries/tests",
+            },
         },
         {
             "mode": _AGENTLESS,
             "api_key": "myfakeapikey",
             "agentless_url": "http://dd",
             "dd_site": "datad0g.com",
-            "expected_url": "http://dd/api/v2/libraries/tests/services/setting",
+            "expected_urls": {
+                "setting": "http://dd/api/v2/libraries/tests/services/setting",
+                "skippable": "http://dd/api/v2/ci/tests/skippable",
+                "tests": "http://dd/api/v2/ci/libraries/tests",
+            },
         },
         {
             "mode": _EVP_PROXY,
             "agent_url": "http://myagent:1234",
-            "expected_url": "http://myagent:1234/evp_proxy/v2/api/v2/libraries/tests/services/setting",
+            "expected_urls": {
+                "setting": "http://myagent:1234/evp_proxy/v2/api/v2/libraries/tests/services/setting",
+                "skippable": "http://myagent:1234/evp_proxy/v2/api/v2/ci/tests/skippable",
+                "tests": "http://myagent:1234/evp_proxy/v2/api/v2/ci/libraries/tests",
+            },
         },
     ]
 
@@ -102,25 +124,24 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
     ]
 
     # All requests to setting endpoint are the same within a call of _check_enabled_features()
-    expected_do_request_method = "POST"
-    expected_do_request_urls = {
-        REQUESTS_MODE.AGENTLESS_EVENTS: re.compile(
-            r"^https://api\.datad0g\.com/api/v2/libraries/tests/services/setting$"
-        ),
-        REQUESTS_MODE.EVP_PROXY_EVENTS: re.compile(
-            r"^http://notahost:1234/evp_proxy/v2/api/v2/libraries/tests/services/setting$"
-        ),
-    }
     expected_items = {
         _AGENTLESS: {
-            "endpoint": "/api/v2/libraries/tests/services/setting",
+            "endpoints": {
+                "setting": "/api/v2/libraries/tests/services/setting",
+                "skippable": "/api/v2/ci/tests/skippable",
+                "tests": "/api/v2/ci/libraries/tests",
+            },
             "headers": {
                 "dd-api-key": "myfakeapikey",
                 "Content-Type": "application/json",
             },
         },
         _EVP_PROXY: {
-            "endpoint": "/evp_proxy/v2/api/v2/libraries/tests/services/setting",
+            "endpoints": {
+                "setting": "/evp_proxy/v2/api/v2/libraries/tests/services/setting",
+                "skippable": "/evp_proxy/v2/api/v2/ci/tests/skippable",
+                "tests": "/evp_proxy/v2/api/v2/ci/libraries/tests",
+            },
             "headers": {
                 "X-Datadog-EVP-Subdomain": "api",
                 "Content-Type": "application/json",
@@ -155,13 +176,14 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             settings = client.fetch_settings()
             assert settings == TestVisibilityAPISettings()
             mock_get_connection.assert_called_once_with(
-                requests_mode_settings["expected_url"], client_timeout if client_timeout is not None else 12.34
+                requests_mode_settings["expected_urls"]["setting"],
+                client_timeout if client_timeout is not None else 12.34,
             )
             mock_connection.request.assert_called_once()
             call_args = mock_connection.request.call_args_list[0][0]
             assert call_args[0] == "POST"
-            assert call_args[1] == self.expected_items[requests_mode_settings["mode"]]["endpoint"]
-            assert json.loads(call_args[2]) == self._get_expected_do_request_payload(
+            assert call_args[1] == self.expected_items[requests_mode_settings["mode"]]["endpoints"]["setting"]
+            assert json.loads(call_args[2]) == self._get_expected_do_request_setting_payload(
                 ITR_SKIPPING_LEVEL.TEST, dd_service="a_test_service", dd_env="a_test_env"
             )
             assert call_args[3] == self.expected_items[requests_mode_settings["mode"]]["headers"]
@@ -193,7 +215,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             assert mock_do_request.call_count == 1
             call_args = mock_do_request.call_args_list[0][0]
             assert call_args[0] == "POST"
-            assert json.loads(call_args[2]) == self._get_expected_do_request_payload(
+            assert json.loads(call_args[2]) == self._get_expected_do_request_setting_payload(
                 itr_skipping_level, git_data=git_data, dd_service=dd_service, dd_env=dd_env
             )
 
@@ -207,8 +229,6 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         self, requests_mode_settings, client_timeout, request_timeout
     ):
         """Tests that the correct payload and headers are sent to the correct API URL for skippable requests"""
-        pass
-
         client = self._get_test_client(
             requests_mode=requests_mode_settings["mode"],
             api_key=requests_mode_settings.get("api_key"),
@@ -220,22 +240,65 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             client_timeout=client_timeout,
         )
 
-        mock_connection = _get_mock_connection(_get_setting_api_response().body)
+        mock_connection = _get_mock_connection(_get_skippable_api_response().body)
 
         with mock.patch(
             "ddtrace.internal.ci_visibility._api_client.get_connection", return_value=mock_connection
         ) as mock_get_connection:
-            settings = client.fetch_settings()
-            assert settings == TestVisibilityAPISettings()
+            skippable_items = client.fetch_skippable_items(timeout=request_timeout)
+            assert skippable_items == ITRData(correlation_id="1234ideclareacorrelationid")
             mock_get_connection.assert_called_once_with(
-                requests_mode_settings["expected_url"], client_timeout if client_timeout is not None else 12.34
+                requests_mode_settings["expected_urls"]["skippable"],
+                request_timeout if request_timeout is not None else 43.21,
             )
             mock_connection.request.assert_called_once()
             call_args = mock_connection.request.call_args_list[0][0]
             assert call_args[0] == "POST"
-            assert call_args[1] == self.expected_items[requests_mode_settings["mode"]]["endpoint"]
-            assert json.loads(call_args[2]) == self._get_expected_do_request_payload(
+            assert call_args[1] == self.expected_items[requests_mode_settings["mode"]]["endpoints"]["skippable"]
+            assert json.loads(call_args[2]) == self._get_expected_do_request_skippable_payload(
                 ITR_SKIPPING_LEVEL.TEST, dd_service="a_test_service", dd_env="a_test_env"
+            )
+            assert call_args[3] == self.expected_items[requests_mode_settings["mode"]]["headers"]
+            mock_connection.close.assert_called_once()
+
+    @pytest.mark.parametrize("client_timeout", [None, 5])
+    @pytest.mark.parametrize("request_timeout", [None, 10])
+    @pytest.mark.parametrize(
+        "requests_mode_settings",
+        request_mode_settings_parameters,
+    )
+    def test_civisibility_api_client_unique_tests_do_request(
+        self, requests_mode_settings, client_timeout, request_timeout
+    ):
+        """Tests that the correct payload and headers are sent to the correct API URL for unique tests requests"""
+        client = self._get_test_client(
+            requests_mode=requests_mode_settings["mode"],
+            api_key=requests_mode_settings.get("api_key"),
+            dd_site=requests_mode_settings.get("dd_site"),
+            agentless_url=requests_mode_settings.get("agentless_url"),
+            agent_url=requests_mode_settings.get("agent_url"),
+            dd_service="a_test_service",
+            dd_env="a_test_env",
+            client_timeout=client_timeout,
+        )
+
+        mock_connection = _get_mock_connection(_get_tests_api_response().body)
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.get_connection", return_value=mock_connection
+        ) as mock_get_connection:
+            unique_tests = client.fetch_unique_tests()
+            assert unique_tests == set()
+            mock_get_connection.assert_called_once_with(
+                requests_mode_settings["expected_urls"]["tests"],
+                client_timeout if client_timeout is not None else 12.34,
+            )
+            mock_connection.request.assert_called_once()
+            call_args = mock_connection.request.call_args_list[0][0]
+            assert call_args[0] == "POST"
+            assert call_args[1] == self.expected_items[requests_mode_settings["mode"]]["endpoints"]["tests"]
+            assert json.loads(call_args[2]) == self._get_expected_do_request_tests_payload(
+                dd_service="a_test_service", dd_env="a_test_env"
             )
             assert call_args[3] == self.expected_items[requests_mode_settings["mode"]]["headers"]
             mock_connection.close.assert_called_once()
