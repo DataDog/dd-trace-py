@@ -1,6 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
+CI_COMMIT_SHA="41feac6a5584ff6b4df523cb84fb0681b15c226f"
 if [ -z "$CI_COMMIT_SHA" ]; then
   echo "Error: CI_COMMIT_SHA was not provided"
   exit 1
