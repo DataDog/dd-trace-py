@@ -18,9 +18,11 @@ from tests.utils import assert_is_measured
 from ..config import MONGO_CONFIG
 
 
-if pymongo.version_tuple >= (4, 9):
+if pymongo.version_tuple >= (4, 9):  # noqa
+    from pymongo.synchronous.database import Database
     from pymongo.synchronous.server import Server
 else:
+    from pymongo.database import Database  # noqa
     from pymongo.server import Server
 
 
@@ -758,7 +760,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         which fails under some circumstances unless we patch correctly
         """
         # Trigger a command which calls validate_session internal to PyMongo
-        db_conn = pymongo.database.Database(self.client, "foo")
+        db_conn = Database(self.client, "foo")
         collection = db_conn["mycollection"]
         collection.insert_one({"Foo": "Bar"})
 
