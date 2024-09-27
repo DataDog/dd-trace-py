@@ -21,6 +21,7 @@ class DDRuntimeContext:
         Datadog representation in the Global DDtrace Trace Context Provider.
         """
         # Inline opentelemetry imports to avoid circular imports.
+        from opentelemetry.baggage import get_all as get_all_baggage
         from opentelemetry.trace import Span as OtelSpan
         from opentelemetry.trace import get_current_span
 
@@ -46,15 +47,14 @@ class DDRuntimeContext:
                 )
 
         # get current open telemetry baggage and store it on the datadog context object
-        # otel_baggage = get_all_baggage(otel_context)
-        # if otel_baggage:
-        #     if not ddcontext:
-        #         ddcontext = DDContext()
-        #         self._ddcontext_provider.activate(ddcontext)
-        #     for key, value in otel_baggage.items(): #type: ignore
-        #         # value is from opentelemetry and can be any object.
-        #         # make sure this object is compatible w/ datadog internals
-        #         ddcontext._baggage[key] = value  # potentially convert to json
+        otel_baggage = get_all_baggage(otel_context)
+        if otel_baggage:
+            if not ddcontext:
+                ddcontext = DDContext()
+                self._ddcontext_provider.activate(ddcontext)
+            for key, value in otel_baggage.items():  # type: ignore
+                ddcontext._set_baggage_item(key, value)
+                # ddcontext._baggage[key] = value  # potentially convert to json
 
         # A return value with the type `object` is required by the otel api to remove/deactivate spans.
         # Since manually deactivating spans is not supported by ddtrace this object will never be used.

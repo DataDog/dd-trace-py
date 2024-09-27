@@ -13,6 +13,7 @@ from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 
 # from ddtrace.contrib.pytest.plugin import ddspan
+from tests.opentelemetry.flask_app import otel  # noqa: F401
 from tests.utils import flaky
 
 
@@ -142,6 +143,7 @@ def test_otel_baggage_inject(oteltracer):
     with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
         from ddtrace import tracer
 
+        # testing that if baggage is set on a datadog span it is injected into the headers and exists in otel context
         tracer.current_span().context._set_baggage_item("ddkey1", "ddvalue1")
         headers = {}
         context = set_baggage("key1", "value1")
@@ -149,6 +151,7 @@ def test_otel_baggage_inject(oteltracer):
         W3CBaggagePropagator().inject(headers, context)
         assert "key1=value1" in headers["baggage"]
         assert "key2=value2" in headers["baggage"]
+        assert "ddkey1=ddvalue1" in headers["baggage"]
         assert get_baggage("key1", context) == "value1"
         assert get_baggage("key2", context) == "value2"
         assert get_baggage("ddkey1", context) == "ddvalue1"
@@ -156,7 +159,23 @@ def test_otel_baggage_inject(oteltracer):
 
 def test_otel_baggage_extract(oteltracer):
     with oteltracer.start_as_current_span("otel-baggage-extract") as span:  # noqa: F841
-        headers = {"baggage": "key1=value1,key2=value2"}
+        headers = {"baggage": "key1=value1,key2=value2,ddkey1=ddvalue1"}
         context = W3CBaggagePropagator().extract(headers)
         assert get_baggage("key1", context) == "value1"
         assert get_baggage("key2", context) == "value2"
+        assert get_baggage("ddkey1", context) == "ddvalue1"
+
+
+def test_otel_baggage_datadog(oteltracer):
+    # test that if baggage is set on an otel span it is also set on the datadog span
+    with oteltracer.start_as_current_span("otel-baggage-datadog") as span:  # noqa: F841
+        from ddtrace import tracer
+
+        context = set_baggage("otelkey1", "otelvalue1")
+        context = set_baggage("otelkey2", "otelvalue2", context)
+        import pdb
+
+        pdb.set_trace()
+
+        dd_baggage = tracer.current_span().context._baggage
+        assert dd_baggage["otelkey1"] == "otelvalue1"

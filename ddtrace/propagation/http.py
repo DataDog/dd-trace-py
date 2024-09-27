@@ -127,7 +127,7 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
-def _attach_otel_baggage_to_context(headers: Dict[str, str], context: Context):
+def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
     if context is not None:
         for key, value in headers.items():
             if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
@@ -1137,7 +1137,7 @@ class HTTPPropagator(object):
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)  # type: ignore
                     if config.propagation_http_baggage_enabled is True:
-                        _attach_otel_baggage_to_context(normalized_headers, context)
+                        _attach_baggage_to_context(normalized_headers, context)
                     return context
             # loop through all extract propagation styles
             else:
@@ -1146,7 +1146,7 @@ class HTTPPropagator(object):
                 if contexts:
                     context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
                     if config.propagation_http_baggage_enabled is True:
-                        _attach_otel_baggage_to_context(normalized_headers, context)
+                        _attach_baggage_to_context(normalized_headers, context)
                     return context
 
         except Exception:
