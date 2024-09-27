@@ -185,8 +185,10 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
 
+@pytest.mark.skip_iast_check_logs
 def test_log_metric(telemetry_writer):
-    _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+    with override_env({IAST.ENV_DEBUG: "true"}):
+        _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
 
     list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 1
@@ -194,27 +196,30 @@ def test_log_metric(telemetry_writer):
     assert str(list_metrics_logs[0]["stack_trace"]).startswith('  File "/')
 
 
+@pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled(telemetry_writer):
     with override_env({IAST.ENV_DEBUG: "false"}):
-        _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+        _set_iast_error_metric("test_log_metric_debug_disabled raises")
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
-        assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
+        assert list_metrics_logs[0]["message"] == "test_log_metric_debug_disabled raises"
         assert "stack_trace" not in list_metrics_logs[0].keys()
 
 
+@pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled_deduplication(telemetry_writer):
     with override_env({IAST.ENV_DEBUG: "false"}):
         for i in range(10):
-            _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+            _set_iast_error_metric("test_log_metric_debug_disabled_deduplication raises")
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
-        assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
+        assert list_metrics_logs[0]["message"] == "test_log_metric_debug_disabled_deduplication raises"
         assert "stack_trace" not in list_metrics_logs[0].keys()
 
 
+@pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled_deduplication_different_messages(telemetry_writer):
     with override_env({IAST.ENV_DEBUG: "false"}):
         for i in range(10):
