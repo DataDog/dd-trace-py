@@ -10,6 +10,8 @@ from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSamplingRule
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 DUMMY_SPAN = Span("dummy_span")
@@ -159,38 +161,116 @@ def test_evaluator_runner_sampler_no_rule_label_or_name(monkeypatch):
     assert sampling_rules[0].span_name == EvaluatorRunnerSamplingRule.NO_RULE
 
 
-def test_evaluator_runner_sampler_invalid_rule_not_a_list(monkeypatch):
+def test_evaluator_sampler_invalid_json(monkeypatch, mock_evaluator_sampler_logs):
+    monkeypatch.setenv(
+        EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR,
+        "not a json",
+    )
+
+    with override_global_config({"_raise": True}):
+        with pytest.raises(ValueError):
+            EvaluatorRunnerSampler().rules
+
+    with override_global_config({"_raise": False}):
+        sampling_rules = EvaluatorRunnerSampler().rules
+        assert len(sampling_rules) == 0
+        mock_evaluator_sampler_logs.warning.assert_called_once_with(
+            "Failed to parse evaluator sampling rules of: `not a json`", exc_info=True
+        )
+
+
+def test_evaluator_sampler_invalid_rule_not_a_list(monkeypatch, mock_evaluator_sampler_logs):
     monkeypatch.setenv(
         EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR,
         json.dumps({"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"}),
     )
 
+    with override_global_config({"_raise": True}):
+        with pytest.raises(ValueError):
+            EvaluatorRunnerSampler().rules
 
-def test_evaluator_runner_sampler_invalid_rule_sample_rate(monkeypatch):
+    with override_global_config({"_raise": False}):
+        sampling_rules = EvaluatorRunnerSampler().rules
+        assert len(sampling_rules) == 0
+        mock_evaluator_sampler_logs.warning.assert_called_once_with(
+            "Evaluator sampling rules must be a list of dictionaries", exc_info=True
+        )
+
+
+def test_evaluator_sampler_invalid_rule_missing_sample_rate(monkeypatch, mock_evaluator_sampler_logs):
     monkeypatch.setenv(
         EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR,
-        json.dumps([{"sample_rate": "invalid"}]),
+        json.dumps([{"sample_rate": 0.1, "name": "dummy"}, {"name": "dummy2"}]),
     )
 
+    with override_global_config({"_raise": True}):
+        with pytest.raises(KeyError):
+            EvaluatorRunnerSampler().rules
 
-def test_evaluator_runner_sampler_invalid_json(monkeypatch):
-    monkeypatch.setenv(
-        EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR,
-        "invalid_json",
+    with override_global_config({"_raise": False}):
+        sampling_rules = EvaluatorRunnerSampler().rules
+        assert len(sampling_rules) == 1
+        mock_evaluator_sampler_logs.warning.assert_called_once_with(
+            'No sample_rate provided for sampling rule: {"name": "dummy2"}', exc_info=True
+        )
+
+
+def test_evaluator_runner_sampler_no_rules_uses_default_sampling_rate(monkeypatch):
+    assert EvaluatorRunnerSampler.DEFAULT_SAMPLING_RATE == 1.0
+
+    iterations = int(1e4 / EvaluatorRunnerSampler.DEFAULT_SAMPLING_RATE)
+
+    sampled = sum(EvaluatorRunnerSampler().sample("ragas_faithfulness", Span(name=str(i))) for i in range(iterations))
+
+    deviation = abs(sampled - (iterations * EvaluatorRunnerSampler.DEFAULT_SAMPLING_RATE)) / (
+        iterations * EvaluatorRunnerSampler.DEFAULT_SAMPLING_RATE
     )
-
-
-def test_evaluator_runner_sampler_invalid_missing_sample_rate(monkeypatch):
-    monkeypatch.setenv(
-        EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR, json.dumps([{"evaluator_label": "ragas_faithfulness"}])
-    )
-
-
-def test_evaluator_runner_sampler_no_rules(monkeypatch):
-    pass
+    assert deviation < 0.05
 
 
 def test_evaluator_sampling_rule_matches(monkeypatch):
-    monkeypatch.setenv(
-        EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR, json.dumps([{"evaluator_label": "ragas_faithfulness"}])
-    )
+    sample_rate = 0.5
+    span_name_rule = "dummy_span"
+    evaluator_label_rule = "ragas_faithfulness"
+
+    for rule in [
+        {"evaluator_label": evaluator_label_rule},
+        {"evaluator_label": evaluator_label_rule, "name": span_name_rule},
+        {"name": span_name_rule},
+    ]:
+        rule["sample_rate"] = sample_rate
+        with override_env({EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR: json.dumps([rule])}):
+            iterations = int(1e4 / sample_rate)
+            sampled = sum(
+                EvaluatorRunnerSampler().sample(evaluator_label_rule, Span(name=span_name_rule))
+                for i in range(iterations)
+            )
+
+            deviation = abs(sampled - (iterations * sample_rate)) / (iterations * sample_rate)
+            assert deviation < 0.05
+
+
+def test_evaluator_sampling_does_not_match_and_uses_default_sampling_rate(monkeypatch):
+    sample_rate = 0.5
+    span_name_rule = "dummy_span"
+    evaluator_label_rule = "ragas_faithfulness"
+
+    for rule in [
+        {"evaluator_label": evaluator_label_rule},
+        {"evaluator_label": evaluator_label_rule, "name": span_name_rule},
+        {"name": span_name_rule},
+    ]:
+        rule["sample_rate"] = sample_rate
+        with override_env({EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR: json.dumps([rule])}):
+            iterations = int(1e4 / sample_rate)
+
+            label_and_span = "not a matching label", Span(name="not matching span name")
+
+            assert EvaluatorRunnerSampler().rules[0].matches(*label_and_span) is False
+
+            sampled = sum(EvaluatorRunnerSampler().sample(*label_and_span) for i in range(iterations))
+
+            deviation = abs(sampled - (iterations * EvaluatorRunnerSampler.DEFAULT_SAMPLING_RATE)) / (
+                iterations * EvaluatorRunnerSampler.DEFAULT_SAMPLING_RATE
+            )
+            assert deviation < 0.05
