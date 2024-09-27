@@ -486,7 +486,7 @@ else:
     extra_compile_args = ["-DPy_BUILD_CORE"]
     if DEBUG_COMPILE:
         if linux:
-            debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
+            debug_compile_args = ["-ggdb3", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
         else:
             debug_compile_args = [
                 "-g",

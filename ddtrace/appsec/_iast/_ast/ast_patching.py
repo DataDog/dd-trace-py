@@ -301,6 +301,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "uvicorn.",
     "anyio.",
     "httpcore.",
+    "tomli.",
 )
 
 
