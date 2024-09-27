@@ -280,4 +280,4 @@ def test_task_id_from_blank_context():
     context = {}
 
     task_id = retrieve_task_id(context)
-    assert task_id == None
+    assert task_id is None
