@@ -5,8 +5,6 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
-
-# from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.sampling_rule import SamplingRule
 
 
@@ -19,9 +17,9 @@ except ImportError:
 logger = get_logger(__name__)
 
 
-class EvaluatorSamplingRule(SamplingRule):
+class EvaluatorRunnerSamplingRule(SamplingRule):
     def __init__(self, sample_rate: float, evaluator: Optional[str] = None, span_name: Optional[str] = None):
-        super(EvaluatorSamplingRule, self).__init__(sample_rate)
+        super(EvaluatorRunnerSamplingRule, self).__init__(sample_rate)
         self.evaluator_label = evaluator
         self.span_name = span_name
 
@@ -39,7 +37,7 @@ class EvaluatorSamplingRule(SamplingRule):
     __str__ = __repr__
 
 
-class EvaluatorSampler:
+class EvaluatorRunnerSampler:
     DEFAULT_SAMPLING_RATE = 1.0
     SAMPLING_RULES_ENV_VAR = "_DD_LLMOBS_EVALUATOR_SAMPLING_RULES"
 
@@ -56,7 +54,7 @@ class EvaluatorSampler:
         result = self.default_sampling_rule.sample(span)
         return result
 
-    def parse_rules(self) -> List[EvaluatorSamplingRule]:
+    def parse_rules(self) -> List[EvaluatorRunnerSamplingRule]:
         rules = []
         sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR)
         if not sampling_rules_str:
@@ -80,5 +78,5 @@ class EvaluatorSampler:
             sample_rate = float(rule["sample_rate"])
             name = rule.get("span_name", SamplingRule.NO_RULE)
             evaluator_label = rule.get("evaluator_label", SamplingRule.NO_RULE)
-            rules.append(EvaluatorSamplingRule(sample_rate, evaluator_label, name))
+            rules.append(EvaluatorRunnerSamplingRule(sample_rate, evaluator_label, name))
         return rules

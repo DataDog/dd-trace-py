@@ -8,9 +8,8 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-
-from .ragas.faithfulness import RagasFaithfulnessEvaluator
-from .sampler import EvaluatorSampler
+from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 
 
 logger = get_logger(__name__)
@@ -35,6 +34,7 @@ class EvaluatorRunner(PeriodicService):
 
         self.llmobs_service = llmobs_service
         self.executor = futures.ThreadPoolExecutor()
+        self.sampler = EvaluatorRunnerSampler()
         self.evaluators = [] if evaluators is None else evaluators
 
         if len(self.evaluators) > 0:
@@ -48,8 +48,6 @@ class EvaluatorRunner(PeriodicService):
         for evaluator in evaluators:
             if evaluator in SUPPORTED_EVALUATORS:
                 self.evaluators.append(SUPPORTED_EVALUATORS[evaluator](llmobs_service=llmobs_service))
-
-        self.sampler = EvaluatorSampler()
 
     def start(self, *args, **kwargs):
         if not self.evaluators:
@@ -87,14 +85,17 @@ class EvaluatorRunner(PeriodicService):
         with self._lock:
             if not self._buffer:
                 return
-            events = self._buffer  # type: List[Tuple[Dict, Span]]
+            span_events_and_spans = self._buffer  # type: list[tuple[Dict, Span]]
             self._buffer = []
 
         try:
-            self.run(events)
+            self.run(span_events_and_spans)
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)
 
-    def run(self, spans):
+    def run(self, span_events_and_spans):
         for evaluator in self.evaluators:
-            self.executor.map(lambda span: evaluator.run_and_submit_evaluation(span), spans)
+            self.executor.map(
+                lambda span: evaluator.run_and_submit_evaluation(span),
+                [span_event for span_event, span in span_events_and_spans if self.sampler.sample(span)],
+            )
