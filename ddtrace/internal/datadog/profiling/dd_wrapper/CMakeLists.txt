@@ -75,8 +75,6 @@ set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
 set_target_properties(dd_wrapper PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}"
-    VERSION "1.0.0"
-    SOVERSION ""
 )
 
 # The name of the crashtracker executable has to be propagated to a a few different targets, and it needs to be
