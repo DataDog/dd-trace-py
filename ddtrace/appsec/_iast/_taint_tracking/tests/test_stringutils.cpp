@@ -40,6 +40,30 @@ TEST_F(PyReMatchCheck, TEstPyReMatchNullObject)
     ASSERT_FALSE(PyReMatch_Check(null_obj));
 }
 
+using PyIOBaseCheck = PyEnvWithContext;
+
+TEST_F(PyIOBaseCheck, TestPyIOBaseValidObject)
+{
+    py::object io_module = py::module_::import("io");
+    py::object stringio_obj = io_module.attr("StringIO")("a");
+
+    ASSERT_TRUE(PyIOBase_Check(stringio_obj.ptr()));
+}
+
+TEST_F(PyIOBaseCheck, TestPyIOBaseInvalidObject)
+{
+    py::object non_io_obj = py::int_(42); // Not a `_io._IOBase` object
+
+    ASSERT_FALSE(PyIOBase_Check(non_io_obj.ptr()));
+}
+
+TEST_F(PyIOBaseCheck, TestPyIOBaseNullObject)
+{
+    PyObject* null_obj = Py_None;
+
+    ASSERT_FALSE(PyIOBase_Check(null_obj));
+}
+
 using IsFastTaintedCheck = PyEnvCheck;
 
 TEST_F(IsFastTaintedCheck, FastTaintedNullptrReturnsTrue)
