@@ -40,6 +40,8 @@ class EvaluatorRunnerSamplingRule(SamplingRule):
 class EvaluatorRunnerSampler:
     DEFAULT_SAMPLING_RATE = 1.0
     SAMPLING_RULES_ENV_VAR = "_DD_LLMOBS_EVALUATOR_SAMPLING_RULES"
+
+    # default sampling rate will stay hidden from the user
     DEFAULT_SAMPLING_RULE_ENV_VAR = "_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE"
 
     def __init__(self):
