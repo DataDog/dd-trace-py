@@ -45,6 +45,7 @@ def _get_setting_api_response(
     require_git=False,
     itr_enabled=False,
     flaky_test_retries_enabled=False,
+    efd_present=False,  # This controls whether a default EFD response is present (instead of only {"enabled": false}
     efd_detection_enabled=False,
     efd_5s=10,
     efd_10s=5,
@@ -52,29 +53,56 @@ def _get_setting_api_response(
     efd_5m=2,
     efd_session_threshold=30.0,
 ):
-    return Response(
-        status=status_code,
-        body=json.dumps(
+    body = {
+        "data": {
+            "id": "1234",
+            "type": "ci_app_tracers_test_service_settings",
+            "attributes": {
+                "code_coverage": code_coverage,
+                "early_flake_detection": {
+                    "enabled": False,
+                },
+                "flaky_test_retries_enabled": flaky_test_retries_enabled,
+                "itr_enabled": itr_enabled,
+                "require_git": require_git,
+                "tests_skipping": tests_skipping,
+            },
+        }
+    }
+
+    if efd_present or efd_detection_enabled:
+        body["data"]["attributes"]["early_flake_detection"].update(
             {
-                "data": {
-                    "id": "1234",
-                    "type": "ci_app_tracers_test_service_settings",
-                    "attributes": {
-                        "code_coverage": code_coverage,
-                        "early_flake_detection": {
-                            "enabled": efd_detection_enabled,
-                            "slow_test_retries": {"10s": efd_10s, "30s": efd_30s, "5m": efd_5m, "5s": efd_5s},
-                            "faulty_session_threshold": efd_session_threshold,
-                        },
-                        "flaky_test_retries_enabled": flaky_test_retries_enabled,
-                        "itr_enabled": itr_enabled,
-                        "require_git": require_git,
-                        "tests_skipping": tests_skipping,
-                    },
-                }
+                "enabled": efd_detection_enabled,
+                "slow_test_retries": {"10s": efd_10s, "30s": efd_30s, "5m": efd_5m, "5s": efd_5s},
+                "faulty_session_threshold": efd_session_threshold,
+            }
+        )
+
+    return Response(status=status_code, body=json.dumps(body))
+
+
+def _get_skippable_api_response():
+    return Response(
+        200,
+        json.dumps(
+            {
+                "data": [],
+                "meta": {
+                    "correlation_id": "1234ideclareacorrelationid",
+                },
             }
         ),
     )
+
+
+def _get_tests_api_response(tests_body: t.Optional[t.Dict] = None):
+    response = {"data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}}
+
+    if tests_body is not None:
+        response["data"]["attributes"]["tests"].update(tests_body)
+
+    return Response(200, json.dumps(response))
 
 
 def _make_fqdn_internal_test_id(module_name: str, suite_name: str, test_name: str, parameters: t.Optional[str] = None):
@@ -164,7 +192,7 @@ class TestTestVisibilityAPIClientBase:
                 client_timeout,
             )
 
-    def _get_expected_do_request_payload(
+    def _get_expected_do_request_setting_payload(
         self,
         itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
         git_data: GitData = None,
@@ -184,6 +212,64 @@ class TestTestVisibilityAPIClientBase:
                     "repository_url": git_data.repository_url,
                     "sha": git_data.commit_sha,
                     "branch": git_data.branch,
+                    "configurations": {
+                        "os.architecture": "arm64",
+                        "os.platform": "PlatForm",
+                        "os.version": "9.8.a.b",
+                        "runtime.name": "RPython",
+                        "runtime.version": "11.5.2",
+                    },
+                },
+            },
+        }
+
+    def _get_expected_do_request_skippable_payload(
+        self,
+        itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST,
+        git_data: GitData = None,
+        dd_service: t.Optional[str] = None,
+        dd_env: t.Optional[str] = None,
+    ):
+        git_data = self.default_git_data if git_data is None else git_data
+
+        return {
+            "data": {
+                "id": "checkoutmyuuid4",
+                "type": "test_params",
+                "attributes": {
+                    "test_level": "test" if itr_skipping_level == ITR_SKIPPING_LEVEL.TEST else "suite",
+                    "service": dd_service,
+                    "env": dd_env,
+                    "repository_url": git_data.repository_url,
+                    "sha": git_data.commit_sha,
+                    "configurations": {
+                        "os.architecture": "arm64",
+                        "os.platform": "PlatForm",
+                        "os.version": "9.8.a.b",
+                        "runtime.name": "RPython",
+                        "runtime.version": "11.5.2",
+                    },
+                },
+            },
+        }
+
+    def _get_expected_do_request_tests_payload(
+        self,
+        repository_url: str = None,
+        dd_service: t.Optional[str] = None,
+        dd_env: t.Optional[str] = None,
+    ):
+        if repository_url is None:
+            repository_url = self.default_git_data.repository_url
+
+        return {
+            "data": {
+                "id": "checkoutmyuuid4",
+                "type": "ci_app_libraries_tests_request",
+                "attributes": {
+                    "service": dd_service,
+                    "env": dd_env,
+                    "repository_url": repository_url,
                     "configurations": {
                         "os.architecture": "arm64",
                         "os.platform": "PlatForm",
@@ -234,5 +320,5 @@ class TestTestVisibilityAPIClientBase:
     def _test_context_manager(self):
         with mock.patch("ddtrace.internal.ci_visibility._api_client.uuid4", return_value="checkoutmyuuid4"), mock.patch(
             "ddtrace.internal.ci_visibility._api_client.DEFAULT_TIMEOUT", 12.34
-        ):
+        ), mock.patch("ddtrace.internal.ci_visibility._api_client.DEFAULT_ITR_SKIPPABLE_TIMEOUT", 43.21):
             yield
