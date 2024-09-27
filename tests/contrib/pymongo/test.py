@@ -18,7 +18,7 @@ from tests.utils import assert_is_measured
 from ..config import MONGO_CONFIG
 
 
-if pymongo.version_tuple >= (4, 9):  # noqa
+if pymongo.version_tuple >= (4, 9):
     from pymongo.synchronous.database import Database
     from pymongo.synchronous.server import Server
 else:
