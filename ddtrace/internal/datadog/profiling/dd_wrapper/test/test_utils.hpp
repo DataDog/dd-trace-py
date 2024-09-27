@@ -1,3 +1,4 @@
+#include "code_provenance_interface.hpp"
 #include "ddup_interface.hpp"
 
 #include <array>
@@ -7,6 +8,61 @@
 #include <string_view>
 #include <thread>
 #include <vector>
+
+static constexpr std::array<std::array<std::string_view, 7>, 3> names = { {
+  {
+    "Unreliable",
+    "Dastardly",
+    "Careless",
+    "Clever",
+    "Inexpensive",
+    "Righteous",
+    "Wonderful",
+  },
+  {
+    "IBM",
+    "DEC",
+    "HPE",
+    "Fujitsu",
+    "Cray",
+    "NEC",
+    "SGI",
+  },
+  {
+    "Buyer",
+    "Seller",
+    "Trader",
+    "Broker",
+    "Dealer",
+    "Merchant",
+    "Customer",
+  },
+} };
+
+inline static void
+configure_code_provenance()
+{
+    code_provenance_enable(true);
+    code_provenance_set_runtime_version("3.10.6");
+    code_provenance_set_stdlib_path("/usr/lib/python3.10");
+    std::unordered_map<std::string, std::string> packages;
+
+    for (size_t i = 0; i < names[0].size(); i++) {
+        for (size_t j = 0; j < names[1].size(); j++) {
+            for (size_t k = 0; k < names[2].size(); k++) {
+                std::string name =
+                  std::string(names[0][i]) + "_" + std::string(names[1][j]) + "_" + std::string(names[2][k]);
+                packages[name] = "1.0.0";
+            }
+        }
+    }
+
+    std::unordered_map<std::string_view, std::string_view> packages_view;
+    for (const auto& [key, value] : packages) {
+        packages_view[key] = value;
+    }
+    code_provenance_add_packages(packages_view);
+}
 
 inline static void
 configure(const char* service,
@@ -26,41 +82,13 @@ configure(const char* service,
     ddup_config_runtime_version(runtime_version);
     ddup_config_profiler_version(profiler_version);
     ddup_config_max_nframes(max_nframes);
+    configure_code_provenance();
     ddup_start();
 }
 
 inline static std::string
 get_name()
 {
-    constexpr std::array<std::array<std::string_view, 7>, 3> names = { {
-      {
-        "Unreliable",
-        "Dastardly",
-        "Careless",
-        "Clever",
-        "Inexpensive",
-        "Righteous",
-        "Wonderful",
-      },
-      {
-        "IBM",
-        "DEC",
-        "HPE",
-        "Fujitsu",
-        "Cray",
-        "NEC",
-        "SGI",
-      },
-      {
-        "Buyer",
-        "Seller",
-        "Trader",
-        "Broker",
-        "Dealer",
-        "Merchant",
-        "Customer",
-      },
-    } };
     constexpr auto sz = names[0].size();
 
     thread_local static std::random_device rd;
@@ -117,9 +145,9 @@ send_sample(unsigned int id)
     }
 
     for (int i = 0; i < 16; i++) {
-        std::string file = get_name() + std::to_string(i);
+        std::string file = "site-packages/" + get_name() + "/file_" + std::to_string(i) + ".py";
         std::string func = get_name() + std::to_string(i);
-        ddup_push_frame(h, file.c_str(), func.c_str(), i, 0);
+        ddup_push_frame(h, func.c_str(), file.c_str(), i, 0);
     }
     ddup_flush_sample(h);
     ddup_drop_sample(h);
