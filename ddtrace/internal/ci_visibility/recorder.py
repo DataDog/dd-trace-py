@@ -195,6 +195,7 @@ class CIVisibility(Service):
         self._should_upload_git_metadata = True
         self._itr_meta = {}  # type: Dict[str, Any]
         self._itr_data: Optional[ITRData] = None
+        self._unique_tests: Set[InternalTestId] = set()
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -269,6 +270,10 @@ class CIVisibility(Service):
             "API-provided settings: Intelligent Test Runner: %s, test skipping: %s",
             self._api_settings.itr_enabled,
             self._api_settings.skipping_enabled,
+        )
+        log.info(
+            "API-provided settings: early flake detection enabled: %s",
+            self._api_settings.early_flake_detection.enabled,
         )
         log.info("Detected configurations: %s", str(self._configurations))
 
