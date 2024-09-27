@@ -101,7 +101,7 @@ CodeProvenance::try_serialize_to_json_str()
     std::lock_guard<std::mutex> lock(mtx);
 
     std::ostringstream out;
-    // DEV: Simple JSON serialization, consider using a JSON library.
+    // DEV: Simple JSON serialization, maybe consider using a JSON library.
     out << "{\"v1\":["; // Start of the JSON array
     for (const auto& [package, paths] : packages_to_files) {
         out << "{"; // Start of the JSON object
@@ -126,7 +126,7 @@ CodeProvenance::try_serialize_to_json_str()
     out << "\"paths\":[";
     out << "\"" << stdlib_path << "\"";
     out << "]";
-    out << "}"; // End of stdlib JSON object
+    out << "}";  // End of stdlib JSON object
     out << "]}"; // End of the JSON array
 
     // Clear the state
