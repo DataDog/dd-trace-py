@@ -13,7 +13,7 @@ from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 
 
 class TestTestVisibilityAPIClientUniqueTestResponses(TestTestVisibilityAPIClientBase):
-    """Tests that setting responses from the API client are parsed properly"""
+    """Tests that unique tests responses from the API client are parsed properly"""
 
     @pytest.mark.parametrize(
         "unique_test_response,expected_tests",
