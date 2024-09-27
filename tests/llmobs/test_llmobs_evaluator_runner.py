@@ -119,7 +119,7 @@ def test_evaluator_runner_sampler_init(monkeypatch):
 def test_evaluator_runner_sampler_single_rule(monkeypatch):
     monkeypatch.setenv(
         EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR,
-        json.dumps([{"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"}]),
+        json.dumps([{"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "name": "dummy_span"}]),
     )
     sampling_rules = EvaluatorRunnerSampler().rules
     assert len(sampling_rules) == 1
@@ -133,8 +133,8 @@ def test_evaluator_runner_sampler_multiple_rules(monkeypatch):
         EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR,
         json.dumps(
             [
-                {"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"},
-                {"sample_rate": 0.2, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span_2"},
+                {"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "name": "dummy_span"},
+                {"sample_rate": 0.2, "evaluator_label": "ragas_faithfulness", "name": "dummy_span_2"},
             ]
         ),
     )
@@ -182,7 +182,7 @@ def test_evaluator_sampler_invalid_json(monkeypatch, mock_evaluator_sampler_logs
 def test_evaluator_sampler_invalid_rule_not_a_list(monkeypatch, mock_evaluator_sampler_logs):
     monkeypatch.setenv(
         EvaluatorRunnerSampler.SAMPLING_RULES_ENV_VAR,
-        json.dumps({"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "span_name": "dummy_span"}),
+        json.dumps({"sample_rate": 0.5, "evaluator_label": "ragas_faithfulness", "name": "dummy_span"}),
     )
 
     with override_global_config({"_raise": True}):
