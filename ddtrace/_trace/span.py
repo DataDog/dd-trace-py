@@ -113,7 +113,7 @@ class Span(object):
         "duration_ns",
         # Internal attributes
         "_context",
-        "_local_root",
+        "_local_root_value",
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
@@ -206,7 +206,7 @@ class Span(object):
         self._events: List[SpanEvent] = []
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
-        self._local_root: Optional["Span"] = None
+        self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._store: Optional[Dict[str, Any]] = None
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
@@ -594,6 +594,23 @@ class Span(object):
         if self._context is None:
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
         return self._context
+
+    @property
+    def _local_root(self) -> "Span":
+        if self._local_root_value is None:
+            return self
+        return self._local_root_value
+
+    @_local_root.setter
+    def _local_root(self, value: "Span") -> None:
+        if value is not self:
+            self._local_root_value = value
+        else:
+            self._local_root_value = None
+
+    @_local_root.deleter
+    def _local_root(self) -> None:
+        del self._local_root_value
 
     def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
