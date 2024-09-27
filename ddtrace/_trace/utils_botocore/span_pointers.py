@@ -13,6 +13,17 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+_DynamoDBTableName = str
+_DynamoDBItemFieldName = str
+_DynamoDBItemTypeTag = str
+
+_DynamoDBItemValue = Dict[_DynamoDBItemTypeTag, Any]
+_DynamoDBItem = Dict[_DynamoDBItemFieldName, _DynamoDBItemValue]
+
+_DynamoDBItemPrimaryKeyValue = Dict[_DynamoDBItemTypeTag, str]  # must be length 1
+_DynamoDBItemPrimaryKey = Dict[_DynamoDBItemFieldName, _DynamoDBItemPrimaryKeyValue]
+
+
 def extract_span_pointers_from_successful_botocore_response(
     endpoint_name: str,
     operation_name: str,
@@ -23,6 +34,51 @@ def extract_span_pointers_from_successful_botocore_response(
         return _extract_span_pointers_for_s3_response(operation_name, request_parameters, response)
 
     return []
+
+
+def _aws_dynamodb_item_span_pointer_hash(table_name: _DynamoDBTableName, primary_key: _DynamoDBItemPrimaryKey) -> str:
+    if len(primary_key) == 1:
+        key, value_object = next(iter(primary_key.items()))
+        encoded_key_1 = key.encode("utf-8")
+        encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(value_object)
+        encoded_key_2 = b""
+        encoded_value_2 = b""
+
+    elif len(primary_key) == 2:
+        (key_1, value_object_1), (key_2, value_object_2) = sorted(
+            primary_key.items(), key=lambda x: x[0].encode("utf-8")
+        )
+        encoded_key_1 = key_1.encode("utf-8")
+        encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(value_object_1)
+        encoded_key_2 = key_2.encode("utf-8")
+        encoded_value_2 = _aws_dynamodb_item_encode_primary_key_value(value_object_2)
+
+    else:
+        raise ValueError(f"unexpected number of primary key fields: {len(primary_key)}")
+
+    return _standard_hashing_function(
+        table_name.encode("utf-8"),
+        encoded_key_1,
+        encoded_value_1,
+        encoded_key_2,
+        encoded_value_2,
+    )
+
+
+def _aws_dynamodb_item_encode_primary_key_value(value_object: _DynamoDBItemPrimaryKeyValue) -> bytes:
+    if len(value_object) != 1:
+        raise ValueError(f"primary key value object must have exactly one field: {len(value_object)}")
+
+    value_type, value = next(iter(value_object.items()))
+
+    if value_type == "S":
+        return value.encode("utf-8")
+
+    if value_type in ("N", "B"):
+        # these should already be here as ASCII strings
+        return value.encode("ascii")
+
+    raise ValueError(f"unknown primary key value type: {value_type}")
 
 
 def _extract_span_pointers_for_s3_response(

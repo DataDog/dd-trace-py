@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import Dict
 from typing import List
 from typing import NamedTuple
 from typing import Optional
@@ -9,6 +10,7 @@ import pytest
 
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
+from ddtrace._trace.utils_botocore.span_pointers import _aws_dynamodb_item_span_pointer_hash
 from ddtrace._trace.utils_botocore.span_pointers import _aws_s3_object_span_pointer_hash
 from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
 
@@ -54,6 +56,65 @@ class TestS3ObjectPointer:
                 bucket=hashing_case.bucket,
                 key=hashing_case.key,
                 etag=hashing_case.etag,
+            )
+            == hashing_case.pointer_hash
+        )
+
+
+class TestDynamodbItemPointer:
+    class HashingCase(NamedTuple):
+        name: str
+        table_name: str
+        primary_key: Dict[str, Dict[str, str]]
+        pointer_hash: str
+
+    @pytest.mark.parametrize(
+        "hashing_case",
+        [
+            HashingCase(
+                name="one string primary key",
+                table_name="some-table",
+                primary_key={"some-key": {"S": "some-value"}},
+                pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+            ),
+            HashingCase(
+                name="one binary primary key",
+                table_name="some-table",
+                primary_key={"some-key": {"B": "c29tZS12YWx1ZQo="}},
+                pointer_hash="cc789e5ea89c317ac58af92d7a1ba2c2",
+            ),
+            HashingCase(
+                name="one number primary key",
+                table_name="some-table",
+                primary_key={"some-key": {"N": "123.456"}},
+                pointer_hash="434a6dba3997ce4dbbadc98d87a0cc24",
+            ),
+            HashingCase(
+                name="string and number primary key",
+                table_name="some-table",
+                primary_key={
+                    "some-key": {"S": "some-value"},
+                    "other-key": {"N": "123"},
+                },
+                pointer_hash="7aa1b80b0e49bd2078a5453399f4dd67",
+            ),
+            HashingCase(
+                name="string and number primary key reversed",
+                table_name="some-table",
+                primary_key={
+                    "other-key": {"N": "123"},
+                    "some-key": {"S": "some-value"},
+                },
+                pointer_hash="7aa1b80b0e49bd2078a5453399f4dd67",
+            ),
+        ],
+        ids=lambda case: case.name,
+    )
+    def test_hashing(self, hashing_case: HashingCase) -> None:
+        assert (
+            _aws_dynamodb_item_span_pointer_hash(
+                table_name=hashing_case.table_name,
+                primary_key=hashing_case.primary_key,
             )
             == hashing_case.pointer_hash
         )
