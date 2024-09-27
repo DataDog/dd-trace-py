@@ -20,3 +20,7 @@ appsec: &appsec
 iast:
   <<: *appsec
   iast_enabled: true
+span-code-origin:
+  <<: *baseline
+  tracer_enabled: true
+  span_code_origin_enabled: true
