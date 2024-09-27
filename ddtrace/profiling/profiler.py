@@ -236,6 +236,7 @@ class _ProfilerInstance(service.Service):
                     timeline_enabled=config.timeline_enabled,
                     output_filename=config.output_pprof,
                     sample_pool_capacity=config.sample_pool_capacity,
+                    enable_code_provenance=config.code_provenance,
                 )
                 ddup.start()
 
