@@ -238,7 +238,7 @@ exception_wrapper(Func func, const char* aspect_name, Args... args) -> std::opti
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
     } catch (const std::exception& e) {                                                                                \
-        const std::string error_message = "IAST propagation error in " NAME ". " + std::string(e.what());              \
+        const std::string error_message = NAME ". " + std::string(e.what());                                           \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
         return result_o;                                                                                               \

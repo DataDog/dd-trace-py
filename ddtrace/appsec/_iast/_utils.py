@@ -1,8 +1,11 @@
+import os
 import sys
 from typing import List
 from typing import Text
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -63,3 +66,7 @@ if __name__ == "__main__":
     MODULE_PATH = sys.argv[1]
     MODULE_NAME = sys.argv[2]
     print(_get_patched_code(MODULE_PATH, MODULE_NAME))
+
+
+def _is_iast_debug_enabled():
+    return asbool(os.environ.get(IAST.ENV_DEBUG, "false"))
