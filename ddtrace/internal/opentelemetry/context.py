@@ -52,7 +52,7 @@ class DDRuntimeContext:
             if not ddcontext:
                 ddcontext = DDContext()
                 self._ddcontext_provider.activate(ddcontext)
-            for key, value in otel_baggage.items():  # type: ignore
+            for key, value in otel_baggage.items():
                 ddcontext._set_baggage_item(key, value)
                 # ddcontext._baggage[key] = value  # potentially convert to json
 
