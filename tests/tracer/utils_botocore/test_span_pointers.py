@@ -335,6 +335,85 @@ class TestBotocoreSpanPointers:
                 ],
                 expected_warning_regex=None,
             ),
+            PointersCase(
+                name="dynamodb.PutItem",
+                endpoint_name="dynamodb",
+                operation_name="PutItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Item": {
+                        "some-key": {"S": "some-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.PutItem with extra data",
+                endpoint_name="dynamodb",
+                operation_name="PutItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Item": {
+                        "some-key": {"S": "some-value"},
+                        "otehr-key": {"N": "123"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.PutItem unknown table",
+                endpoint_name="dynamodb",
+                operation_name="PutItem",
+                request_parameters={
+                    "TableName": "unknown-table",
+                    "Item": {
+                        "some-key": {"S": "some-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[],
+                expected_warning_regex=".*unknown-table.*",
+            ),
+            PointersCase(
+                name="dynamodb.PutItem missing primary key",
+                endpoint_name="dynamodb",
+                operation_name="PutItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Item": {
+                        "other-key": {"S": "some-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[],
+                expected_warning_regex=".*missing primary key field: some-key",
+            ),
         ],
         ids=lambda case: case.name,
     )
@@ -345,6 +424,9 @@ class TestBotocoreSpanPointers:
         with mock.patch.object(logging.Logger, "warning") as mock_logger:
             assert (
                 extract_span_pointers_from_successful_botocore_response(
+                    dynamodb_primary_key_names_for_tables={
+                        "some-table": {"some-key"},
+                    },
                     endpoint_name=pointers_case.endpoint_name,
                     operation_name=pointers_case.operation_name,
                     request_parameters=pointers_case.request_parameters,

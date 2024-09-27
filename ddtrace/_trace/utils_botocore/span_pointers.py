@@ -3,6 +3,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import NamedTuple
+from typing import Set
 
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
@@ -25,6 +26,7 @@ _DynamoDBItemPrimaryKey = Dict[_DynamoDBItemFieldName, _DynamoDBItemPrimaryKeyVa
 
 
 def extract_span_pointers_from_successful_botocore_response(
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     endpoint_name: str,
     operation_name: str,
     request_parameters: Dict[str, Any],
@@ -33,7 +35,101 @@ def extract_span_pointers_from_successful_botocore_response(
     if endpoint_name == "s3":
         return _extract_span_pointers_for_s3_response(operation_name, request_parameters, response)
 
+    if endpoint_name == "dynamodb":
+        return _extract_span_pointers_for_dynamodb_response(
+            dynamodb_primary_key_names_for_tables, operation_name, request_parameters
+        )
+
     return []
+
+
+def _extract_span_pointers_for_dynamodb_response(
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    operation_name: str,
+    request_parameters: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
+    if operation_name == "PutItem":
+        return _extract_span_pointers_for_dynamodb_putitem_response(
+            dynamodb_primary_key_names_for_tables, request_parameters
+        )
+
+    return []
+
+
+def _extract_span_pointers_for_dynamodb_putitem_response(
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    request_parameters: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
+    try:
+        table_name = request_parameters["TableName"]
+        item = request_parameters["Item"]
+
+        return [
+            _aws_dynamodb_item_span_pointer_description(
+                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                table_name=table_name,
+                primary_key=_aws_dynamodb_item_primary_key_from_item(
+                    dynamodb_primary_key_names_for_tables[table_name], item
+                ),
+            )
+        ]
+
+    except Exception as e:
+        log.warning(
+            "failed to generate DynamoDB.PutItem span pointer: %s",
+            str(e),
+        )
+        return []
+
+
+def _aws_dynamodb_item_primary_key_from_item(
+    primary_key_field_names: Set[_DynamoDBItemFieldName],
+    item: _DynamoDBItem,
+) -> _DynamoDBItemPrimaryKey:
+    if len(primary_key_field_names) not in (1, 2):
+        raise ValueError(f"unexpected number of primary key fields: {len(primary_key_field_names)}")
+
+    return {
+        primary_key_field_name: _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
+            item, primary_key_field_name
+        )
+        for primary_key_field_name in primary_key_field_names
+    }
+
+
+def _aws_dynamodb_item_span_pointer_description(
+    pointer_direction: _SpanPointerDirection,
+    table_name: _DynamoDBTableName,
+    primary_key: _DynamoDBItemPrimaryKey,
+) -> _SpanPointerDescription:
+    return _SpanPointerDescription(
+        pointer_kind="aws.dynamodb.item",
+        pointer_direction=pointer_direction,
+        pointer_hash=_aws_dynamodb_item_span_pointer_hash(table_name, primary_key),
+        extra_attributes={},
+    )
+
+
+def _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
+    item: _DynamoDBItem,
+    primary_key_field_name: _DynamoDBItemFieldName,
+) -> _DynamoDBItemPrimaryKeyValue:
+    if primary_key_field_name not in item:
+        raise ValueError(f"missing primary key field: {primary_key_field_name}")
+
+    value_object = item[primary_key_field_name]
+
+    if len(value_object) != 1:
+        raise ValueError(f"primary key field {primary_key_field_name} must have exactly one value: {len(value_object)}")
+
+    value_type, value_data = next(iter(value_object.items()))
+    if value_type not in ("S", "N", "B"):
+        raise ValueError(f"unexpected primary key field {primary_key_field_name} value type: {value_type}")
+
+    if not isinstance(value_data, str):
+        raise ValueError(f"unexpected primary key field {primary_key_field_name} value data type: {type(value_data)}")
+
+    return {value_type: value_data}
 
 
 def _aws_dynamodb_item_span_pointer_hash(table_name: _DynamoDBTableName, primary_key: _DynamoDBItemPrimaryKey) -> str:

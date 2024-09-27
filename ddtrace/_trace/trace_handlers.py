@@ -9,6 +9,7 @@ from typing import Optional
 
 import wrapt
 
+from ddtrace import config
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
@@ -631,6 +632,7 @@ def _on_botocore_patched_api_call_success(ctx, response):
     set_botocore_response_metadata_tags(span, response)
 
     for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
+        dynamodb_primary_key_names_for_tables=config.botocore.dynamodb_primary_key_names_for_tables,
         endpoint_name=ctx.get_item("endpoint_name"),
         operation_name=ctx.get_item("operation"),
         request_parameters=ctx.get_item("params"),
