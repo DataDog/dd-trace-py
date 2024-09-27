@@ -4,12 +4,12 @@ from envier import En
 class CodeOriginConfig(En):
     __prefix__ = "dd.code_origin"
 
-    max_frame_depth = En.v(
+    max_user_frames = En.v(
         int,
-        "max_frame_depth",
+        "max_user_frames",
         default=8,
         help_type="Integer",
-        help="Maximum number of frames to capture for code origin",
+        help="Maximum number of user frames to capture for code origin",
         private=True,
     )
 

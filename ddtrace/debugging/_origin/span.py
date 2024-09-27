@@ -150,12 +150,12 @@ class EntrySpanWrappingContext(WrappingContext):
 
         # Add tags to the local root
         for s in (root, span):
-            s.set_tag_str("_dd.ld.code_origin.type", "entry")
+            s.set_tag_str("_dd.code_origin.type", "entry")
 
-            s.set_tag_str("_dd.ld.code_origin.frames.0.file", location.file)
-            s.set_tag_str("_dd.ld.code_origin.frames.0.line", str(location.start_line))
-            s.set_tag_str("_dd.ld.code_origin.frames.0.type", location.module)
-            s.set_tag_str("_dd.ld.code_origin.frames.0.method", location.name)
+            s.set_tag_str("_dd.code_origin.frames.0.file", location.file)
+            s.set_tag_str("_dd.code_origin.frames.0.line", str(location.start_line))
+            s.set_tag_str("_dd.code_origin.frames.0.type", location.module)
+            s.set_tag_str("_dd.code_origin.frames.0.method", location.name)
 
         # TODO[gab]: This will be enabled as part of the live debugger/distributed debugging
         # if ld_config.enabled:
@@ -171,8 +171,8 @@ class EntrySpanWrappingContext(WrappingContext):
         #     context = Debugger.get_collector().attach(snapshot)
 
         #     # Correlate the snapshot with the span
-        #     root.set_tag_str("_dd.ld.code_origin.frames.0.snapshot_id", snapshot.uuid)
-        #     span.set_tag_str("_dd.ld.code_origin.frames.0.snapshot_id", snapshot.uuid)
+        #     root.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
+        #     span.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
 
         #     self.set("context", context)
         #     self.set("start_time", compat.monotonic_ns())
@@ -205,7 +205,7 @@ class SpanCodeOriginProcessor(SpanProcessor):
         if span.span_type not in EXIT_SPAN_TYPES:
             return
 
-        span.set_tag_str("_dd.ld.code_origin.type", "exit")
+        span.set_tag_str("_dd.code_origin.type", "exit")
 
         # Add call stack information to the exit span. Report only the part of
         # the stack that belongs to user code.
@@ -216,11 +216,11 @@ class SpanCodeOriginProcessor(SpanProcessor):
 
             if is_user_code(frame_origin):
                 n = next(seq)
-                if n >= co_config.max_frame_depth:
+                if n >= co_config.max_user_frames:
                     break
 
-                span.set_tag_str(f"_dd.ld.code_origin.frames.{n}.file", str(frame_origin.resolve()))
-                span.set_tag_str(f"_dd.ld.code_origin.frames.{n}.line", str(code.co_firstlineno))
+                span.set_tag_str(f"_dd.code_origin.frames.{n}.file", str(frame_origin.resolve()))
+                span.set_tag_str(f"_dd.code_origin.frames.{n}.line", str(code.co_firstlineno))
                 # DEV: Without a function object we cannot infer the function
                 # and any potential class name.
 
@@ -241,7 +241,7 @@ class SpanCodeOriginProcessor(SpanProcessor):
                 #     Debugger.get_collector().push(snapshot)
 
                 #     # Correlate the snapshot with the span
-                #     span.set_tag_str(f"_dd.ld.code_origin.frames.{n}.snapshot_id", snapshot.uuid)
+                #     span.set_tag_str(f"_dd.code_origin.frames.{n}.snapshot_id", snapshot.uuid)
 
     def on_span_finish(self, span: Span) -> None:
         pass
