@@ -807,6 +807,7 @@ def _propagate_context(ctx, headers):
         HTTPPropagator.inject(span.context, headers)
 
 
+# Note: there are number of handlers adding http metadata suggest consolidating this to avoid repetition.
 def _set_http_metadata(ctx, config, request_headers, response_headers, method, url, target_port, status, query):
     trace_utils.set_http_meta(
         ctx[ctx["call_key"]],
@@ -819,6 +820,12 @@ def _set_http_metadata(ctx, config, request_headers, response_headers, method, u
         status_code=status,
         query=query,
     )
+
+
+def _on_requests_add_measured_tag(ctx, span_measured_key):
+    span = ctx[ctx["call_key"]]
+    if span:
+        span.set_tag(span_measured_key)
 
 
 def listen():
@@ -875,7 +882,7 @@ def listen():
     core.on("redis.command.post", _on_redis_command_post)
     core.on("requests.session.span_propagate", _propagate_context)
     core.on("request.session.span_set_http_meta", _set_http_metadata)
-
+    core.on("requests.session.span_add_measured", _on_requests_add_measured_tag)
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
     core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
@@ -897,7 +904,7 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
-        "trace.session.span",
+        "requests.session.span",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

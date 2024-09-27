@@ -91,7 +91,7 @@ def _wrap_send(func, instance, args, kwargs):
 
     analytics_enabled = cfg.get("analytics_enabled")
     with core.context_with_data(
-        "trace.session.span",
+        "requests.session.span",
         pin=pin,
         service=service,
         span_name=operation_name,
@@ -100,7 +100,7 @@ def _wrap_send(func, instance, args, kwargs):
         distributed_headers=request.headers,
         resource=f"{method} {path}",
         span_type=SpanTypes.HTTP,
-        call_key="trace.session.span",
+        call_key="requests.session.span",
         tags={
             COMPONENT: config.requests.integration_name,
             SPAN_KIND: SpanKind.CLIENT,
@@ -108,8 +108,9 @@ def _wrap_send(func, instance, args, kwargs):
         }
         if analytics_enabled
         else {COMPONENT: config.requests.integration_name, SPAN_KIND: SpanKind.CLIENT},
-    ) as ctx, ctx[ctx["call_key"]] as span:
-        span.set_tag(SPAN_MEASURED_KEY)
+    ) as ctx, ctx[ctx["call_key"]]:
+        # Note: Remove measured tag in ddtrace v3.0 as this functionality will get deprecated
+        core.dispatch("requests.session.span_add_measured", [ctx, SPAN_MEASURED_KEY])
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
