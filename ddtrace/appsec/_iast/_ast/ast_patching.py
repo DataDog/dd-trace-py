@@ -347,6 +347,8 @@ def _should_iast_patch(module_name: Text) -> bool:
     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
+    if module_name.startswith("py"):
+        return False
     dotted_module_name = module_name.lower() + "."
     if dotted_module_name.startswith(IAST_ALLOWLIST):
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)

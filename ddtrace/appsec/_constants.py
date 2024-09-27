@@ -71,40 +71,40 @@ class APPSEC(metaclass=Constant_Class):
     CUSTOM_EVENT_PREFIX: Literal["appsec.events"] = "appsec.events"
     USER_LOGIN_EVENT_PREFIX: Literal["_dd.appsec.events.users.login"] = "_dd.appsec.events.users.login"
     USER_LOGIN_EVENT_PREFIX_PUBLIC: Literal["appsec.events.users.login"] = "appsec.events.users.login"
-    USER_LOGIN_EVENT_SUCCESS_TRACK: Literal[
+    USER_LOGIN_EVENT_SUCCESS_TRACK: Literal["appsec.events.users.login.success.track"] = (
         "appsec.events.users.login.success.track"
-    ] = "appsec.events.users.login.success.track"
-    USER_LOGIN_EVENT_FAILURE_TRACK: Literal[
+    )
+    USER_LOGIN_EVENT_FAILURE_TRACK: Literal["appsec.events.users.login.failure.track"] = (
         "appsec.events.users.login.failure.track"
-    ] = "appsec.events.users.login.failure.track"
+    )
     USER_SIGNUP_EVENT: Literal["appsec.events.users.signup.track"] = "appsec.events.users.signup.track"
-    AUTO_LOGIN_EVENTS_SUCCESS_MODE: Literal[
+    AUTO_LOGIN_EVENTS_SUCCESS_MODE: Literal["_dd.appsec.events.users.login.success.auto.mode"] = (
         "_dd.appsec.events.users.login.success.auto.mode"
-    ] = "_dd.appsec.events.users.login.success.auto.mode"
-    AUTO_LOGIN_EVENTS_FAILURE_MODE: Literal[
+    )
+    AUTO_LOGIN_EVENTS_FAILURE_MODE: Literal["_dd.appsec.events.users.login.failure.auto.mode"] = (
         "_dd.appsec.events.users.login.failure.auto.mode"
-    ] = "_dd.appsec.events.users.login.failure.auto.mode"
+    )
     BLOCKED: Literal["appsec.blocked"] = "appsec.blocked"
     EVENT: Literal["appsec.event"] = "appsec.event"
-    AUTOMATIC_USER_EVENTS_TRACKING: Literal[
+    AUTOMATIC_USER_EVENTS_TRACKING: Literal["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"] = (
         "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
-    ] = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
-    AUTO_USER_INSTRUMENTATION_MODE: Literal[
+    )
+    AUTO_USER_INSTRUMENTATION_MODE: Literal["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = (
         "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
-    ] = "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
-    AUTO_USER_INSTRUMENTATION_MODE_ENABLED: Literal[
+    )
+    AUTO_USER_INSTRUMENTATION_MODE_ENABLED: Literal["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = (
         "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"
-    ] = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"
+    )
     USER_MODEL_LOGIN_FIELD: Literal["DD_USER_MODEL_LOGIN_FIELD"] = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD: Literal["DD_USER_MODEL_EMAIL_FIELD"] = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD: Literal["DD_USER_MODEL_NAME_FIELD"] = "DD_USER_MODEL_NAME_FIELD"
     PROPAGATION_HEADER: Literal["_dd.p.appsec"] = "_dd.p.appsec"
-    OBFUSCATION_PARAMETER_KEY_REGEXP: Literal[
+    OBFUSCATION_PARAMETER_KEY_REGEXP: Literal["DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"] = (
         "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
-    ] = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
-    OBFUSCATION_PARAMETER_VALUE_REGEXP: Literal[
+    )
+    OBFUSCATION_PARAMETER_VALUE_REGEXP: Literal["DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"] = (
         "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
-    ] = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
+    )
 
 
 class IAST(metaclass=Constant_Class):
@@ -118,7 +118,7 @@ class IAST(metaclass=Constant_Class):
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
     CONTEXT_KEY: Literal["_iast_data"] = "_iast_data"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
-    DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
+    ENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
     REQUEST_IAST_ENABLED: Literal["_dd.iast.request_enabled"] = "_dd.iast.request_enabled"
     TEXT_TYPES = (str, bytes, bytearray)
@@ -180,9 +180,9 @@ class SPAN_DATA_NAMES(metaclass=Constant_Class):
     REQUEST_BODY: Literal["http.request.body"] = "http.request.body"
     REQUEST_QUERY: Literal["http.request.query"] = "http.request.query"
     REQUEST_HEADERS_NO_COOKIES: Literal["http.request.headers"] = "http.request.headers"
-    REQUEST_HEADERS_NO_COOKIES_CASE: Literal[
+    REQUEST_HEADERS_NO_COOKIES_CASE: Literal["http.request.headers_case_sensitive"] = (
         "http.request.headers_case_sensitive"
-    ] = "http.request.headers_case_sensitive"
+    )
     REQUEST_URI_RAW: Literal["http.request.uri"] = "http.request.uri"
     REQUEST_ROUTE: Literal["http.request.route"] = "http.request.route"
     REQUEST_METHOD: Literal["http.request.method"] = "http.request.method"
