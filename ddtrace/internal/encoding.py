@@ -84,7 +84,7 @@ class _EncoderBase(object):
             d["type"] = span.span_type
 
         if span._links:
-            d["span_links"] = span._links
+            d["span_links"] = [link.to_dict() for link in span._links]
 
         return d
 
