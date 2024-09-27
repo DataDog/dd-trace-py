@@ -97,5 +97,9 @@ class EvaluatorRunner(PeriodicService):
         for evaluator in self.evaluators:
             self.executor.map(
                 lambda span: evaluator.run_and_submit_evaluation(span),
-                [span_event for span_event, span in span_events_and_spans if self.sampler.sample(span)],
+                [
+                    span_event
+                    for span_event, span in span_events_and_spans
+                    if self.sampler.sample(evaluator.LABEL, span)
+                ],
             )

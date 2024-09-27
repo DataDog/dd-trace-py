@@ -30,7 +30,7 @@ class EvaluatorRunnerSamplingRule(SamplingRule):
         return True
 
     def __repr__(self):
-        return "EvaluatorSamplingRule(sample_rate={}, evaluator_label={}, span_name={})".format(
+        return "EvaluatorRunnerSamplingRule(sample_rate={}, evaluator_label={}, span_name={})".format(
             self.sample_rate, self.evaluator_name, self.span_name
         )
 
