@@ -216,9 +216,16 @@ def upload() -> None:
     processor = ddtrace.tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
 
+    # We want to make sure that the endpoint_bytes strings outlive the for loops
+    # below and prevent them to be GC'ed. We do this by storing them in a list.
+    # This is necessary because we pass string_views to the C++ code, which is
+    # a view into the original string. If the original string is GC'ed, the view
+    # will point to garbage.
+    endpoint_bytes_list = []
     cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
     for endpoint, span_ids in endpoint_to_span_ids.items():
         endpoint_bytes = ensure_binary_or_empty(endpoint)
+        endpoint_bytes_list.append(endpoint_bytes)
         for span_id in span_ids:
             span_ids_to_endpoints.insert(
                 pair[int64_t, string_view](
@@ -231,6 +238,7 @@ def upload() -> None:
     cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
     for endpoint, cnt in endpoint_counts.items():
         endpoint_bytes = ensure_binary_or_empty(endpoint)
+        endpoint_bytes_list.append(endpoint_bytes)
         trace_endpoints_to_counts.insert(pair[string_view, int64_t](
             string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
             clamp_to_int64_unsigned(cnt)
