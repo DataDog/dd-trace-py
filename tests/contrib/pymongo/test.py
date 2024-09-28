@@ -18,6 +18,14 @@ from tests.utils import assert_is_measured
 from ..config import MONGO_CONFIG
 
 
+if pymongo.version_tuple >= (4, 9):
+    from pymongo.synchronous.database import Database
+    from pymongo.synchronous.server import Server
+else:
+    from pymongo.database import Database
+    from pymongo.server import Server
+
+
 def test_normalize_filter():
     # ensure we can properly normalize queries FIXME[matt] move to the agent
     cases = [
@@ -713,7 +721,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         super(TestPymongoSocketTracing, self).setUp()
         patch()
         # Override server pin's tracer with our dummy tracer
-        Pin.override(pymongo.server.Server, tracer=self.tracer)
+        Pin.override(Server, tracer=self.tracer)
         # maxPoolSize controls the number of sockets that the client can instantiate
         # and choose from to perform classic operations. For the sake of our tests,
         # let's limit this number to 1
@@ -752,7 +760,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         which fails under some circumstances unless we patch correctly
         """
         # Trigger a command which calls validate_session internal to PyMongo
-        db_conn = pymongo.database.Database(self.client, "foo")
+        db_conn = Database(self.client, "foo")
         collection = db_conn["mycollection"]
         collection.insert_one({"Foo": "Bar"})
 

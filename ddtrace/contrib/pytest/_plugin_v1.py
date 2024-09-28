@@ -448,6 +448,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 def pytest_configure(config):
     unpatch_unittest()
     if is_enabled(config):
+        ddtrace.config.test_visibility._itr_skipping_ignore_parameters = True
         take_over_logger_stream_handler()
         _CIVisibility.enable(config=ddtrace.config.pytest)
     if _is_pytest_cov_enabled(config):
