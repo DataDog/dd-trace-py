@@ -21,34 +21,6 @@ assert telemetry_writer._worker is not None
     assert stderr == b""
 
 
-@pytest.mark.snapshot
-def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    """assert telemetry events are generated after the first trace is flushed to the agent"""
-
-    # Submit a trace to the agent in a subprocess
-    code = """
-from ddtrace import tracer
-
-span = tracer.trace("test-telemetry")
-span.finish()
-    """
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, stderr
-    assert stderr == b""
-    # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
-    # Note event order is reversed e.g. event[0] is actually the last event
-    events = test_agent_session.get_events()
-
-    assert len(events) == 5
-    assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-dependencies-loaded"
-    assert events[2]["request_type"] == "app-integrations-change"
-    assert events[3]["request_type"] == "generate-metrics"
-    assert events[4]["request_type"] == "app-started"
-
-
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
     """assert app-started/app-closing events are only sent in parent process"""
     code = """
@@ -183,9 +155,6 @@ logging.basicConfig()
 
 from ddtrace import tracer
 from ddtrace.filters import TraceFilter
-from ddtrace.settings import _config
-
-_config._telemetry_dependency_collection = False
 
 class FailingFilture(TraceFilter):
     def process_trace(self, trace):
@@ -197,10 +166,10 @@ tracer.configure(
     }
 )
 
-# generate and encode span
+# generate and encode span to trigger sampling failure
 tracer.trace("hello").finish()
 
-# force app_started call instead of waiting for periodic()
+# force app_started event (instead of waiting for 10 seconds)
 from ddtrace.internal.telemetry import telemetry_writer
 telemetry_writer._app_started()
 """
@@ -273,9 +242,6 @@ del sqlite3.connect
 
 from ddtrace import patch, tracer
 patch(raise_errors=False, sqlite3=True)
-
-# Create a span to start the telemetry writer
-tracer.trace("hi").finish()
 """
 
     env = os.environ.copy()
@@ -373,7 +339,7 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
         }
     )
     # Generate a trace to trigger app-started event
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace; ddtrace.tracer.trace('s1').finish()", env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
 
     app_started_event = test_agent_session.get_events("app-started")
@@ -392,8 +358,6 @@ def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_
 
     code = """
 from ddtrace import tracer
-# Create a span to start the telemetry writer
-tracer.trace("hi").finish()
 
 # We want to import the telemetry module even when telemetry is disabled.
 import sys
