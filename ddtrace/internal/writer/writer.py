@@ -370,9 +370,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             encoded, n_traces = client.encoder.encode()
             if encoded is None:
                 return
-        except Exception:
+        except Exception as e:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
-            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+            log.error("failed to encode trace with encoder %r. Error: %s", client.encoder, str(e))
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
 

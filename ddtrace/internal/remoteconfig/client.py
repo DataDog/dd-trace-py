@@ -492,7 +492,7 @@ class RemoteConfigClient:
                     self._apply_callback(list_callbacks, callback, config_content, target, config)
                 except Exception:
                     error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
-                    log.debug(error_message, exc_info=True)
+                    log.debug(error_message)
                     config.apply_state = 3  # Error state
                     config.apply_error = error_message
                     applied_configs[target] = config
@@ -567,7 +567,7 @@ class RemoteConfigClient:
         try:
             payload = AgentPayload(**data)
         except Exception as e:
-            log.debug("invalid agent payload received: %r", data, exc_info=True)
+            log.debug("invalid agent payload received: %r", data)
             msg = f"invalid agent payload received: {e}"
             raise RemoteConfigError(msg)
 
@@ -620,10 +620,10 @@ class RemoteConfigClient:
 
         except RemoteConfigError as e:
             self._last_error = str(e)
-            log.debug("remote configuration client reported an error", exc_info=True)
+            log.debug("remote configuration client reported an error: %s", str(e))
         except ValueError:
-            log.debug("Unexpected response data", exc_info=True)
+            log.debug("Unexpected response data: %s", str(e))
         except Exception:
-            log.debug("Unexpected error", exc_info=True)
+            log.debug("Unexpected error: %s", str(e))
 
         return False

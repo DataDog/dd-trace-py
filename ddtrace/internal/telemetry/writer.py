@@ -169,8 +169,8 @@ class _TelemetryClient:
                 log.debug("sent %d in %.5fs to %s. response: %s", len(rb_json), sw.elapsed(), self.url, resp.status)
             else:
                 log.debug("failed to send telemetry to %s. response: %s", self.url, resp.status)
-        except Exception:
-            log.debug("failed to send telemetry to %s.", self.url, exc_info=True)
+        except Exception as e:
+            log.debug("failed to send instrumentation telemetry to %s. Error: %s", self.url, str(e))
         finally:
             if conn is not None:
                 conn.close()

@@ -45,8 +45,8 @@ def _rc_callback(data, test_tracer=None):
                 try:
                     SymbolDatabaseUploader.install()
                     log.debug("[PID %d] SymDB: Symbol DB uploader installed", os.getpid())
-                except Exception:
-                    log.error("[PID %d] SymDB: Failed to install Symbol DB uploader", os.getpid(), exc_info=True)
+                except Exception as e:
+                    log.error("[PID %d] SymDB: Failed to install Symbol DB uploader, error: %s", os.getpid(), str(e))
                     remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
             else:
                 SymbolDatabaseUploader.update()
@@ -56,8 +56,8 @@ def _rc_callback(data, test_tracer=None):
                 try:
                     SymbolDatabaseUploader.uninstall()
                     log.debug("[PID %d] SymDB: Symbol DB uploader uninstalled", os.getpid())
-                except Exception:
-                    log.error("[PID %d] SymDB: Failed to uninstall Symbol DB uploader", os.getpid(), exc_info=True)
+                except Exception as e:
+                    log.error("[PID %d] SymDB: Failed to uninstall Symbol DB uploader, error: %s", os.getpid(), str(e))
                     remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
         break
 

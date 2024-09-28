@@ -169,8 +169,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
             if restart_on_fork:
                 self._products_to_restart_on_fork.add(product)
-        except Exception:
-            log.debug("error starting the RCM client", exc_info=True)
+        except Exception as e:
+            log.debug("error starting the RCM client: %s", str(e))
 
     def unregister(self, product):
         if rc_config.skip_shutdown:
@@ -181,8 +181,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         try:
             self._client.unregister_product(product)
-        except Exception:
-            log.debug("error starting the RCM client", exc_info=True)
+        except Exception as e:
+            log.debug("error starting the RCM client: %s", str(e))
 
     def get_registered(self, product):
         return self._client._products.get(product)

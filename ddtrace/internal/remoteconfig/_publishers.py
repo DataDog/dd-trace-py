@@ -126,5 +126,5 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
                 result = self._preprocess_results_func(result, pubsub_instance)
             log.debug("[%s][P: %s] PublisherAfterMerge publish %s", os.getpid(), os.getppid(), str(result)[:100])
             self._data_connector.write({}, result)
-        except Exception:
-            log.error("[%s]: PublisherAfterMerge error", os.getpid(), exc_info=True)
+        except Exception as e:
+            log.error("[%s]: PublisherAfterMerge error: %s", os.getpid(), str(e))

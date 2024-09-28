@@ -45,8 +45,8 @@ class RemoteConfigSubscriber(PeriodicService):
             log.debug("[PID %d | PPID %d] %s is getting data", os.getpid(), os.getppid(), self)
             self._get_data_from_connector_and_exec()
             log.debug("[PID %d | PPID %d] %s got data", os.getpid(), os.getppid(), self)
-        except Exception:
-            log.error("[PID %d | PPID %d] %s while getting data", os.getpid(), os.getppid(), self, exc_info=True)
+        except Exception as e:
+            log.error("[PID %d | PPID %d] %s while getting data, error: %s", os.getpid(), os.getppid(), self, str(e))
 
     def force_restart(self, join=False):
         self.stop()
