@@ -558,6 +558,15 @@ class TelemetryTestSession(object):
         requests = self.get_requests(event_type, filter_heartbeats)
         return [req["body"] for req in requests]
 
+    def get_metrics(self, name):
+        metrics = []
+        for event in self.get_events("generate-metrics"):
+            for series in event["payload"]["series"]:
+                if series["metric"] == name:
+                    metrics.append(series)
+        metrics.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+        return metrics
+
 
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):

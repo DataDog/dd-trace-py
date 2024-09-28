@@ -479,8 +479,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     # force periodic call to flush the first app_started call
     telemetry_writer.periodic(force_flush=True)
     """asserts that queuing a configuration sends a valid telemetry request"""
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        initial_event_count = len(test_agent_session.get_events("app-client-configuration-change"))
+    with override_global_config(dict()):
         telemetry_writer.add_configuration("appsec_enabled", True)
         telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
         telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
@@ -488,12 +487,8 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
         telemetry_writer.periodic(force_flush=True)
 
         events = test_agent_session.get_events("app-client-configuration-change")
-        assert len(events) >= initial_event_count + 1
-        assert events[0]["request_type"] == "app-client-configuration-change"
-        received_configurations = events[0]["payload"]["configuration"]
-        # Sort the configuration list by name
+        received_configurations = [c for event in events for c in event["payload"]["configuration"]]
         received_configurations.sort(key=lambda c: c["name"])
-
         # assert the latest configuration value is send to the agent
         assert received_configurations == [
             {

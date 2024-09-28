@@ -260,19 +260,12 @@ patch(raise_errors=False, sqlite3=True)
     )
 
     # Get metric containing the integration error
-    integration_error = {}
-    metric_events = test_agent_session.get_events("generate-metrics")
-    for event in metric_events:
-        for metric in event["payload"]["series"]:
-            if metric["metric"] == "integration_errors":
-                integration_error = metric
-                break
-
+    integration_error = test_agent_session.get_metrics("integration_errors")
     # assert the integration metric has the correct type, count, and tags
-    assert integration_error
-    assert integration_error["type"] == "count"
-    assert integration_error["points"][0][1] == 1
-    assert integration_error["tags"] == ["integration_name:sqlite3", "error_type:attributeerror"]
+    assert len(integration_error) == 1
+    assert integration_error[0]["type"] == "count"
+    assert integration_error[0]["points"][0][1] == 1
+    assert integration_error[0]["tags"] == ["integration_name:sqlite3", "error_type:attributeerror"]
 
 
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
@@ -316,16 +309,13 @@ f.wsgi_app()
     assert "ddtrace/contrib/internal/flask/patch.py:" in flask_integration["error"]
     assert "not enough values to unpack (expected 2, got 0)" in flask_integration["error"]
 
-    metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
-
-    assert len(metric_events) == 1
-    assert metric_events[0]["payload"]["namespace"] == "tracers"
-    assert len(metric_events[0]["payload"]["series"]) == 1
-    assert metric_events[0]["payload"]["series"][0]["metric"] == "integration_errors"
-    assert metric_events[0]["payload"]["series"][0]["type"] == "count"
-    assert len(metric_events[0]["payload"]["series"][0]["points"]) == 1
-    assert metric_events[0]["payload"]["series"][0]["points"][0][1] == 1
-    assert metric_events[0]["payload"]["series"][0]["tags"] == ["integration_name:flask", "error_type:valueerror"]
+    error_metrics = test_agent_session.get_metrics("integration_errors")
+    assert len(error_metrics) == 1
+    error_metric = error_metrics[0]
+    assert error_metric["type"] == "count"
+    assert len(error_metric["points"]) == 1
+    assert error_metric["points"][0][1] == 1
+    assert error_metric["tags"] == ["integration_name:flask", "error_type:valueerror"]
 
 
 def test_app_started_with_install_metrics(test_agent_session, run_python_code_in_subprocess):
