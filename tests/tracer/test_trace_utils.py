@@ -522,6 +522,10 @@ def test_set_http_meta_custom_errors_via_env():
         set_http_meta(span2, config.myint, status_code=403)
         assert span2.error == 0
 
+    with tracer.trace("noterror2") as span3:
+        set_http_meta(span3, config.myint, status_code=413)
+        assert span3.error == 0
+
 
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
 def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
