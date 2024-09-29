@@ -56,7 +56,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         super().__init__(*args, **kwargs)
         # repeat this to please mypy
         self.enable_code_provenance: bool = enable_code_provenance
-        self.endpoint: str = endpoint if endpoint is not None else agent.get_trace_url()
+        self.endpoint: str = endpoint if endpoint is not None else ddtrace.config._trace_agent_url
         self.api_key: typing.Optional[str] = api_key
         # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
         # backend is not as fast as the tracer one.

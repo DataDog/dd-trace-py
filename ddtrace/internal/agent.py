@@ -38,32 +38,6 @@ def is_ipv6_hostname(hostname):
         return False
 
 
-def get_trace_url():
-    # type: () -> str
-    """Return the Agent URL computed from the environment.
-
-    Raises a ``ValueError`` if the URL is not supported by the Agent.
-    """
-    user_supplied_host = ddconfig._trace_agent_hostname is not None
-    user_supplied_port = ddconfig._trace_agent_port is not None
-
-    url = ddconfig._trace_agent_url
-
-    if not url:
-        if user_supplied_host or user_supplied_port:
-            host = ddconfig._trace_agent_hostname or DEFAULT_HOSTNAME
-            port = ddconfig._trace_agent_port or DEFAULT_TRACE_PORT
-            if is_ipv6_hostname(host):
-                host = "[{}]".format(host)
-            url = "http://%s:%s" % (host, port)
-        elif os.path.exists("/var/run/datadog/apm.socket"):
-            url = "unix://%s" % (DEFAULT_UNIX_TRACE_PATH)
-        else:
-            url = "http://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
-
-    return url
-
-
 def get_stats_url():
     # type: () -> str
     user_supplied_host = ddconfig._stats_agent_hostname is not None
@@ -86,7 +60,7 @@ def get_stats_url():
 
 
 def info(url=None):
-    agent_url = get_trace_url() if url is None else url
+    agent_url = ddconfig._trace_agent_url if url is None else url
     _conn = get_connection(agent_url, timeout=ddconfig._agent_timeout_seconds)
     try:
         _conn.request("GET", "info", headers={"content-type": "application/json"})

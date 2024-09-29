@@ -2,7 +2,6 @@ from typing import Callable
 
 from ddtrace import config
 from ddtrace import version
-from ddtrace.internal import agent
 from ddtrace.internal.datadog.profiling import crashtracker
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.runtime import on_runtime_id_change
@@ -30,7 +29,7 @@ def start() -> bool:
 
     import platform
 
-    crashtracker.set_url(crashtracker_config.debug_url or agent.get_trace_url())
+    crashtracker.set_url(crashtracker_config.debug_url or config._trace_agent_url)
     crashtracker.set_service(config.service)
     crashtracker.set_version(config.version)
     crashtracker.set_env(config.env)

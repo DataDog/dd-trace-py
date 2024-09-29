@@ -10,7 +10,6 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
@@ -189,7 +188,7 @@ class _ProfilerInstance(service.Service):
             if isinstance(self.tracer._writer, writer.AgentWriter):
                 endpoint = self.tracer._writer.agent_url
             else:
-                endpoint = agent.get_trace_url()
+                endpoint = config._trace_agent_url
 
         if self.agentless:
             endpoint_path = "/api/v2/profile"

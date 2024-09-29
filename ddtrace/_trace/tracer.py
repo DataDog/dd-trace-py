@@ -238,7 +238,7 @@ class Tracer(object):
         self._maybe_opt_out()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.get_trace_url() if url is None else url
+        self._agent_url: str = config._trace_agent_url if url is None else url
         verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:

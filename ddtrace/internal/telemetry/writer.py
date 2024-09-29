@@ -26,7 +26,6 @@ from ...settings.exception_replay import config as er_config
 from ...settings.peer_service import _ps_config
 from ...settings.profiling import config as prof_config
 from ..agent import get_connection
-from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..compat import httplib
 from ..encoding import JSONEncoderV2
@@ -40,8 +39,9 @@ from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from . import modules
 from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
-from .constants import TELEMETRY_AGENT_HOST
-from .constants import TELEMETRY_AGENT_PORT
+
+# from .constants import TELEMETRY_AGENT_HOST
+# from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_APM_PRODUCT
@@ -191,7 +191,7 @@ class _TelemetryClient:
 
     def get_host(self, site: str, agentless: bool) -> str:
         if not agentless:
-            return get_trace_url()
+            return config._trace_agent_url
         elif site == "datad0g.com":
             return "https://all-http-intake.logs.datad0g.com"
         elif site == "datadoghq.eu":
@@ -488,8 +488,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS, config._trace_writer_connection_reuse, "unknown"),
                 (TELEMETRY_DOGSTATSD_PORT, config._stats_agent_port, "unknown"),
                 (TELEMETRY_DOGSTATSD_URL, config._stats_agent_url, "unknown"),
-                (TELEMETRY_AGENT_HOST, config._trace_agent_hostname, "unknown"),
-                (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
                 (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
                 (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
                 (TELEMETRY_PROFILING_STACK_ENABLED, prof_config.stack.enabled, "unknown"),

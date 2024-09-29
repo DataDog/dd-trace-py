@@ -4,7 +4,6 @@ import typing as t
 from envier import En
 
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import _config as ddconfig
@@ -48,7 +47,7 @@ class DynamicInstrumentationConfig(En):
     __prefix__ = "dd.dynamic_instrumentation"
 
     service_name = En.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
-    _intake_url = En.d(str, lambda _: get_trace_url())
+    _intake_url = En.d(str, lambda _: ddconfig._trace_agent_url)
     max_probes = En.d(int, lambda _: DEFAULT_MAX_PROBES)
     global_rate_limit = En.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
     _tags_in_qs = En.d(bool, lambda _: True)

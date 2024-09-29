@@ -21,11 +21,14 @@ from ddtrace.vendor.debtcollector import deprecate
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.constants import DEFAULT_BUFFER_SIZE
+from ..internal.constants import DEFAULT_HOSTNAME
 from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
 from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
+from ..internal.constants import DEFAULT_TRACE_PORT
+from ..internal.constants import DEFAULT_UNIX_TRACE_PATH
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.logger import get_logger
@@ -410,9 +413,35 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
 
-        self._trace_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
-        self._trace_agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
-        self._trace_agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+        agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
+        agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
+        agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+
+        if os.path.exists("/var/run/datadog/apm.socket"):
+            if agent_url or agent_port or agent_hostname:
+                log.debug(
+                    "Ignoring DD_AGENT_PORT: %s, DD_AGENT_HOST: %s, and DD_TRACE_AGENT_URL: %s because %s exists. "
+                    "Traces will be sent to unix://%s",
+                    agent_port or "unset",
+                    agent_hostname or "unset",
+                    agent_url or "unset",
+                    DEFAULT_UNIX_TRACE_PATH,
+                    DEFAULT_UNIX_TRACE_PATH,
+                )
+            self._trace_agent_url = f"unix://{DEFAULT_UNIX_TRACE_PATH}"
+        elif agent_url:
+            if agent_port or agent_hostname:
+                log.debug(
+                    "Ignoring DD_AGENT_PORT: %s and DD_AGENT_HOST: %s because DD_TRACE_AGENT_URL is set: %s",
+                    agent_port or "uset",
+                    agent_hostname or "unset",
+                    agent_url,
+                )
+            self._trace_agent_url = agent_url
+        else:
+            agent_port = agent_port or DEFAULT_TRACE_PORT
+            agent_hostname = agent_hostname or DEFAULT_HOSTNAME
+            self._trace_agent_url = f"http://{agent_hostname}:{agent_port}"
 
         self._stats_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
         self._stats_agent_port = os.getenv("DD_DOGSTATSD_PORT")

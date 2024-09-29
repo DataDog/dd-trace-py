@@ -233,7 +233,7 @@ class RemoteConfigClient:
         tracer_version = _pep440_to_semver()
 
         self.id = str(uuid.uuid4())
-        self.agent_url = agent.get_trace_url()
+        self.agent_url = ddtrace.config._trace_agent_url
 
         self._headers = {"content-type": "application/json"}
         additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")

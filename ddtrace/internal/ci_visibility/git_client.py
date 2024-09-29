@@ -12,6 +12,7 @@ from typing import Tuple  # noqa:F401
 from urllib.parse import urljoin
 
 from ddtrace import Tracer  # noqa: F401
+from ddtrace import config
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _extract_clone_defaultremotename_with_details
@@ -24,7 +25,6 @@ from ddtrace.ext.git import _unshallow_repository_with_details
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_remote_url
-from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -93,7 +93,7 @@ class CIVisibilityGitClient(object):
         self._metadata_upload_status = Value(c_int, METADATA_UPLOAD_STATUS.PENDING, lock=True)
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            tracer_url = get_trace_url() if tracer is None else tracer._agent_url
+            tracer_url = config._trace_agent_url if tracer is None else tracer._agent_url
             self._base_url = urljoin(tracer_url, EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = urljoin(
