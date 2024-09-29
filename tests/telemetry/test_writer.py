@@ -364,20 +364,17 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     assert telemetry_writer._imported_dependencies["xmltodict"]
 
 
-def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # Fetch modules to reset the state of seen modules
-        modules.get_newly_imported_modules()
+def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    _, stderr, status, _ = run_python_code_in_subprocess("""import ddtrace.auto; import xmltodict""", env=env)
+    assert status == 0, stderr
 
-        import xmltodict
-
-        new_deps = [xmltodict.__name__]
-        telemetry_writer._app_dependencies_loaded_event(new_deps)
-        # force a flush
-        telemetry_writer.periodic(force_flush=True)
-        events = test_agent_session.get_events()
-        for event in events:
-            assert event["request_type"] != "app-dependencies-loaded"
+    events = test_agent_session.get_events()
+    assert events
+    for event in events:
+        assert event["request_type"] != "app-dependencies-loaded"
 
 
 @pytest.mark.skip(reason="FIXME: This test does not generate a dependencies event")
@@ -658,52 +655,55 @@ def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless,
         assert new_telemetry_writer._client._endpoint == expected_endpoint
 
 
+@pytest.mark.subprocess(
+    env={"DD_SITE": "datad0g.com", "DD_API_KEY": "foobarkey", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"}
+)
 def test_telemetry_writer_agentless_setup():
-    with override_global_config(
-        {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": True}
-    ):
-        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._enabled
-        assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-        assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._enabled
+    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
+    assert telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
+    assert telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
 
 
+@pytest.mark.subprocess(
+    env={"DD_SITE": "datadoghq.eu", "DD_API_KEY": "foobarkey", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"}
+)
 def test_telemetry_writer_agentless_setup_eu():
-    with override_global_config(
-        {"_dd_site": "datadoghq.eu", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": True}
-    ):
-        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._enabled
-        assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.datadoghq.eu"
-        assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._enabled
+    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
+    assert telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.datadoghq.eu"
+    assert telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
 
 
+@pytest.mark.subprocess(env={"DD_SITE": "datad0g.com", "DD_API_KEY": "", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"})
 def test_telemetry_writer_agentless_disabled_without_api_key():
-    with override_global_config(
-        {"_dd_site": "datad0g.com", "_dd_api_key": None, "_ci_visibility_agentless_enabled": True}
-    ):
-        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert not new_telemetry_writer._enabled
-        assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-        assert "dd-api-key" not in new_telemetry_writer._client._headers
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert not telemetry_writer._enabled
+    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
+    assert telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
+    assert "dd-api-key" not in telemetry_writer._client._headers
 
 
+@pytest.mark.subprocess(env={"DD_SITE": "datad0g.com", "DD_API_KEY": "foobarkey"})
 def test_telemetry_writer_is_using_agentless_by_default_if_api_key_is_available():
-    with override_global_config({"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey"}):
-        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._enabled
-        assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-        assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._enabled
+    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
+    assert telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
+    assert telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
 
 
+@pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "false"})
 def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available():
-    with override_global_config({"_dd_api_key": None, "_ci_visibility_agentless_enabled": False}):
-        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
-        assert new_telemetry_writer._enabled
-        assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-        assert new_telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
-        assert "dd-api-key" not in new_telemetry_writer._client._headers
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._enabled
+    assert telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
+    assert telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
+    assert "dd-api-key" not in telemetry_writer._client._headers

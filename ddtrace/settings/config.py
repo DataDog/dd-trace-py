@@ -14,6 +14,7 @@ from typing import Union  # noqa:F401
 from ddtrace.internal._file_queue import File_Queue
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
@@ -190,6 +191,22 @@ def get_error_ranges(error_range_str):
         error_range = (min(values), max(values))  # type: ignore[assignment]
         error_ranges.append(error_range)
     return error_ranges  # type: ignore[return-value]
+
+
+def set_config(envs: Union[str, List[str]], default: Any = None, modifier: Optional[Callable[[Any], Any]] = None):
+    val = default
+    source = "default"
+    if isinstance(envs, str):
+        envs = [envs]
+    for env in envs:
+        if env in os.environ:
+            val = os.environ[env]
+            if modifier:
+                val = modifier(val)
+            source = "env_var"
+            break
+    telemetry_writer.add_configuration(env, val, source)
+    return val
 
 
 _ConfigSource = Literal["default", "env_var", "code", "remote_config"]
@@ -381,7 +398,7 @@ class Config(object):
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
-        self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
+        self._remote_config_enabled = set_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
         self._remote_config_poll_interval = float(
             os.getenv(
                 "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
@@ -740,9 +757,7 @@ class Config(object):
             item_names.append(key)
             self._config[key].set_value_source(value, origin)
         if self._telemetry_enabled:
-            from ..internal.telemetry import telemetry_writer
-
-            telemetry_writer.add_configs_changed(item_names)
+            telemetry_writer.add_configs_changed(self, item_names)
         self._notify_subscribers(item_names)
 
     def _reset(self):

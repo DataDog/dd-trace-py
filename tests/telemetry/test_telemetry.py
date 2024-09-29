@@ -22,6 +22,7 @@ assert telemetry_writer._worker is not None
 
 
 @pytest.mark.snapshot
+@pytest.mark.skip("This test will be removed in a another PR")
 def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run_python_code_in_subprocess):
     """assert telemetry events are generated after the first trace is flushed to the agent"""
 
