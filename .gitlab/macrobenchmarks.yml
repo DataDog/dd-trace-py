@@ -341,7 +341,7 @@ attack-appsec-enabled-iast-enabled-ep-enabled:
     BP_ENDPOINT: http://0.0.0.0:8000/api/articles?q=select%20pg_sleep
     DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
-    DD_PROFILING_ENABLED: "true"
+    DD_PROFILING_ENABLED: "false"
     DD_APPSEC_ENABLED: "true"
     DD_IAST_ENABLED: "true"
     DD_APPSEC_RASP_ENABLED: "true"
