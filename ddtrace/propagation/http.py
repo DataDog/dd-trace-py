@@ -925,20 +925,20 @@ class _BaggageHeader:
     @staticmethod
     def _extract(headers: Dict[str, str]) -> Optional[Context]:
         header_value = headers.get("baggage")
-        malformed_header = Context(baggage={})
+
         if not header_value:
-            return malformed_header
+            return None
 
         baggage = {}
         baggages = header_value.split(",")
         for key_value in baggages:
             if "=" not in key_value:
-                return malformed_header
+                return Context(baggage={})
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
             if not key or not value:
-                return malformed_header
+                return Context(baggage={})
             baggage[key] = value
 
         return Context(baggage=baggage)
