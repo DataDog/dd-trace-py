@@ -274,7 +274,7 @@ def test_inject_tags_previous_error(tracer):  # noqa: F811
         assert _HTTP_HEADER_TAGS not in headers
 
 
-def test_extract_special_case_baggage(tracer):  # noqa: F811
+def test_extract(tracer):  # noqa: F811
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
