@@ -2987,7 +2987,7 @@ INJECT_FIXTURES = [
 
 
 @pytest.mark.parametrize("name,styles,context,expected_headers", INJECT_FIXTURES)
-def test_propagation_inject_special_name(name, styles, context, expected_headers, run_python_code_in_subprocess):
+def test_propagation_inject(name, styles, context, expected_headers, run_python_code_in_subprocess):
     # Execute the test code in isolation to ensure env variables work as expected
     code = """
 import json
