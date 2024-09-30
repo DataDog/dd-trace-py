@@ -2,6 +2,7 @@
 
 #include "code_provenance.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <thread>
 
@@ -108,12 +109,16 @@ Datadog::Sample::clear_buffers()
 }
 
 bool
-Datadog::Sample::flush_sample()
+Datadog::Sample::flush_sample(bool reverse_locations)
 {
     if (dropped_frames > 0) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);
+    }
+
+    if (reverse_locations) {
+        std::reverse(locations.begin(), locations.end());
     }
 
     const ddog_prof_Sample sample = {
