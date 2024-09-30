@@ -75,7 +75,7 @@ from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 
 with mock.patch(
-    "ddtrace.internal.writer.HTTPWriter._send_payload",
+    "ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic",
     return_value=Response(
         status=200,
         body="{}",
@@ -93,6 +93,7 @@ with mock.patch(
     evaluator_runner.start()
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"})
 """,
+        env={"OPENAI_API_KEY": "dummy"},
     )
     assert status == 0, err
     assert out == b""
