@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import sys
 import threading
-import time
+from time import monotonic_ns
 from types import FunctionType
 from types import ModuleType
 from types import TracebackType
@@ -229,11 +229,11 @@ class DebuggerWrappingContext(WrappingContext):
             contexts.append(self._collector.attach(signal))
 
         # Save state on the wrapping context
-        self.set("start_time", time.monotonic_ns())
+        self.set("start_time", monotonic_ns())
         self.set("contexts", contexts)
 
     def _close_contexts(self, retval=None, exc_info=(None, None, None)) -> None:
-        end_time = time.monotonic_ns()
+        end_time = monotonic_ns()
         contexts = self.get("contexts")
         while contexts:
             # Open probe signal contexts are ordered, with those that have
