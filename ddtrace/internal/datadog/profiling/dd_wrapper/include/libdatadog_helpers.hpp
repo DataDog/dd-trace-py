@@ -78,6 +78,12 @@ to_slice(std::string_view str)
     return { .ptr = str.data(), .len = str.size() };
 }
 
+inline ddog_ByteSlice
+to_byte_slice(std::string_view str)
+{
+    return { .ptr = reinterpret_cast<const uint8_t*>(str.data()), .len = str.size() };
+}
+
 inline std::string
 err_to_msg(const ddog_Error* err, std::string_view msg)
 {

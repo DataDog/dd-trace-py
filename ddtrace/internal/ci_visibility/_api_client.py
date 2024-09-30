@@ -21,12 +21,18 @@ from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.constants import UNIQUE_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
+from ddtrace.internal.ci_visibility.telemetry.api_request import APIRequestMetricNames
+from ddtrace.internal.ci_visibility.telemetry.api_request import record_api_request
+from ddtrace.internal.ci_visibility.telemetry.api_request import record_api_request_error
 from ddtrace.internal.ci_visibility.telemetry.constants import ERROR_TYPES
-from ddtrace.internal.ci_visibility.telemetry.git import record_settings
-from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skippable_request
-from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skippable_request_error
+from ddtrace.internal.ci_visibility.telemetry.constants import GIT_TELEMETRY
+from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import EARLY_FLAKE_DETECTION_TELEMETRY
+from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import record_early_flake_detection_tests_count
+from ddtrace.internal.ci_visibility.telemetry.git import record_settings_response
+from ddtrace.internal.ci_visibility.telemetry.itr import SKIPPABLE_TESTS_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
 from ddtrace.internal.logger import get_logger
@@ -56,6 +62,7 @@ _BASE_HEADERS: t.Dict[str, str] = {
 
 _SKIPPABLE_ITEM_ID_TYPE = t.Union[InternalTestId, TestSuiteId]
 _CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
+_UNIQUE_TESTS_TYPE = t.Set[InternalTestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
 
@@ -272,11 +279,54 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             if conn is not None:
                 conn.close()
 
+    def _do_request_with_telemetry(
+        self,
+        method: str,
+        endpoint: str,
+        payload: str,
+        metric_names: APIRequestMetricNames,
+        timeout: t.Optional[float] = None,
+    ) -> t.Any:
+        """Performs a request with telemetry submitted according to given names"""
+        sw = StopWatch()
+        sw.start()
+        error_type: t.Optional[ERROR_TYPES] = None
+        response_bytes: t.Optional[int] = None
+        try:
+            try:
+                response = self._do_request(method, endpoint, payload, timeout=timeout)
+            except _NETWORK_ERRORS:
+                error_type = ERROR_TYPES.TIMEOUT
+                raise
+            if response.status >= 400:
+                error_type = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
+                if response.status == 403:
+                    raise CIVisibilityAuthenticationException()
+                raise ValueError("API response status code: %d", response.status)
+            try:
+                sw.stop()  # Stop the timer before parsing the response
+                response_bytes = len(response.body)
+                parsed = json.loads(response.body)
+                return parsed
+            except JSONDecodeError:
+                error_type = ERROR_TYPES.BAD_JSON
+                raise
+        finally:
+            record_api_request(metric_names, sw.elapsed() * 1000, response_bytes=response_bytes, error=error_type)
+
     def fetch_settings(self) -> TestVisibilityAPISettings:
         """Fetches settings from the test visibility API endpoint
 
         This raises encountered exceptions because fetch_settings may be used multiple times during a session.
         """
+
+        metric_names = APIRequestMetricNames(
+            count=GIT_TELEMETRY.SETTINGS_COUNT,
+            duration=GIT_TELEMETRY.SETTINGS_MS,
+            response_bytes=None,
+            error=GIT_TELEMETRY.SETTINGS_ERRORS,
+        )
+
         payload = {
             "data": {
                 "id": str(uuid4()),
@@ -293,56 +343,40 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             }
         }
 
-        sw = StopWatch()
-        sw.start()
-        try:
-            response = self._do_request("POST", SETTING_ENDPOINT, json.dumps(payload), timeout=self._timeout)
-        except _NETWORK_ERRORS:
-            record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.TIMEOUT)
-            raise
-        if response.status >= 400:
-            error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
-            record_settings(sw.elapsed() * 1000, error=error_code)
-            if response.status == 403:
-                raise CIVisibilityAuthenticationException()
-            raise ValueError("API response status code: %d", response.status)
-        try:
-            if isinstance(response.body, bytes):
-                parsed = json.loads(response.body.decode())
-            else:
-                parsed = json.loads(response.body)
-        except JSONDecodeError:
-            record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.BAD_JSON)
-            raise
+        parsed_response = self._do_request_with_telemetry(
+            "POST", SETTING_ENDPOINT, json.dumps(payload), metric_names, timeout=self._timeout
+        )
 
-        if "errors" in parsed:
-            record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.UNKNOWN)
+        if "errors" in parsed_response:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             raise ValueError("Settings response contained an error, disabling Intelligent Test Runner")
 
-        log.debug("Parsed API response: %s", parsed)
+        log.debug("Parsed API response: %s", parsed_response)
 
         try:
-            attributes = parsed["data"]["attributes"]
+            attributes = parsed_response["data"]["attributes"]
             coverage_enabled = attributes["code_coverage"]
             skipping_enabled = attributes["tests_skipping"]
             require_git = attributes["require_git"]
             itr_enabled = attributes["itr_enabled"]
             flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"]
-            early_flake_detection = EarlyFlakeDetectionSettings(
-                enabled=attributes["early_flake_detection"]["enabled"],
-                faulty_session_threshold=attributes["early_flake_detection"]["faulty_session_threshold"],
-                slow_test_retries_5s=attributes["early_flake_detection"]["slow_test_retries"]["5s"],
-                slow_test_retries_10s=attributes["early_flake_detection"]["slow_test_retries"]["10s"],
-                slow_test_retries_30s=attributes["early_flake_detection"]["slow_test_retries"]["30s"],
-                slow_test_retries_5m=attributes["early_flake_detection"]["slow_test_retries"]["5m"],
-            )
+
+            if attributes["early_flake_detection"]["enabled"]:
+                early_flake_detection = EarlyFlakeDetectionSettings(
+                    enabled=attributes["early_flake_detection"]["enabled"],
+                    faulty_session_threshold=attributes["early_flake_detection"]["faulty_session_threshold"],
+                    slow_test_retries_5s=attributes["early_flake_detection"]["slow_test_retries"]["5s"],
+                    slow_test_retries_10s=attributes["early_flake_detection"]["slow_test_retries"]["10s"],
+                    slow_test_retries_30s=attributes["early_flake_detection"]["slow_test_retries"]["30s"],
+                    slow_test_retries_5m=attributes["early_flake_detection"]["slow_test_retries"]["5m"],
+                )
+            else:
+                early_flake_detection = EarlyFlakeDetectionSettings()
         except KeyError:
-            record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.UNKNOWN)
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             raise
 
-        record_settings(sw.elapsed() * 1000, coverage_enabled, skipping_enabled, require_git, itr_enabled)
-
-        return TestVisibilityAPISettings(
+        api_settings = TestVisibilityAPISettings(
             coverage_enabled=coverage_enabled,
             skipping_enabled=skipping_enabled,
             require_git=require_git,
@@ -351,9 +385,32 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             early_flake_detection=early_flake_detection,
         )
 
-    def _do_skippable_request(self, timeout: float) -> t.Optional[_SkippableResponse]:
+        record_settings_response(
+            api_settings.coverage_enabled,
+            api_settings.skipping_enabled,
+            api_settings.require_git,
+            api_settings.itr_enabled,
+            api_settings.early_flake_detection.enabled,
+        )
+
+        return api_settings
+
+    def fetch_skippable_items(
+        self, timeout: t.Optional[float] = None, ignore_test_parameters: bool = False
+    ) -> t.Optional[ITRData]:
+        if timeout is None:
+            timeout = DEFAULT_ITR_SKIPPABLE_TIMEOUT
+
+        metric_names = APIRequestMetricNames(
+            count=SKIPPABLE_TESTS_TELEMETRY.REQUEST,
+            duration=SKIPPABLE_TESTS_TELEMETRY.REQUEST_MS,
+            response_bytes=SKIPPABLE_TESTS_TELEMETRY.RESPONSE_BYTES,
+            error=SKIPPABLE_TESTS_TELEMETRY.REQUEST_ERRORS,
+        )
+
         payload = {
             "data": {
+                "id": str(uuid4()),
                 "type": "test_params",
                 "attributes": {
                     "service": self._service,
@@ -366,60 +423,12 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             }
         }
 
-        error_type: t.Optional[ERROR_TYPES] = None
-        response_bytes: int = 0
-        sw = StopWatch()
-
         try:
-            try:
-                sw.start()
-                response = self._do_request("POST", SKIPPABLE_ENDPOINT, json.dumps(payload), timeout)
-                sw.stop()
-            except _NETWORK_ERRORS as e:
-                sw.stop()
-                log.warning("Error while fetching skippable tests: ", exc_info=True)
-                error_type = ERROR_TYPES.NETWORK if isinstance(e, RemoteDisconnected) else ERROR_TYPES.TIMEOUT
-                return None
-
-            if response.status >= 400:
-                error_type = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
-                log.warning("Skippable tests request responded with status %d", response.status)
-                return None
-            try:
-                response_bytes = len(response.body)
-                if isinstance(response.body, bytes):
-                    parsed = json.loads(response.body.decode())
-                else:
-                    parsed = json.loads(response.body)
-            except json.JSONDecodeError:
-                log.warning("Skippable tests request responded with invalid JSON '%s'", response.body)
-                error_type = ERROR_TYPES.BAD_JSON
-                return None
-
-            return parsed
-
-        except Exception:
-            log.warning("Error retrieving skippable test data, no tests will be skipped", exc_info=True)
-            error_type = ERROR_TYPES.UNKNOWN
-            return None
-
-        finally:
-            record_itr_skippable_request(
-                sw.elapsed() * 1000,
-                response_bytes,
-                TEST if self._itr_skipping_level == ITR_SKIPPING_LEVEL.TEST else SUITE,
-                error=error_type,
+            skippable_response: _SkippableResponse = self._do_request_with_telemetry(
+                "POST", SKIPPABLE_ENDPOINT, json.dumps(payload), metric_names, timeout
             )
-
-    def fetch_skippable_items(
-        self, timeout: t.Optional[float] = None, ignore_test_parameters: bool = False
-    ) -> t.Optional[ITRData]:
-        if timeout is None:
-            timeout = DEFAULT_ITR_SKIPPABLE_TIMEOUT
-
-        error_type: t.Optional[ERROR_TYPES] = None
-
-        skippable_response = self._do_skippable_request(timeout)
+        except Exception:  # noqa: E722
+            return None
 
         covered_files: t.Optional[t.Dict[str, CoverageLines]] = None
 
@@ -427,41 +436,94 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             # We did not fetch any data, but telemetry has already been recorded, and a warning has been logged
             return None
 
+        meta = skippable_response.get("meta")
+        if meta is None:
+            log.debug("Skippable tests response did not contain metadata field, no tests will be skipped")
+            record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
+            return None
+
+        correlation_id = meta.get("correlation_id")
+        if correlation_id is None:
+            log.debug("Skippable tests response missing correlation_id")
+        else:
+            log.debug("Skippable tests response correlation_id: %s", correlation_id)
+
+        covered_files_data = meta.get("coverage")
+        if covered_files_data is not None:
+            covered_files = _parse_covered_files(covered_files_data)
+
+        items_to_skip_data = skippable_response.get("data")
+        if items_to_skip_data is None:
+            log.warning("Skippable tests request missing data, no tests will be skipped")
+            record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
+            return None
+
+        if self._itr_skipping_level == ITR_SKIPPING_LEVEL.TEST:
+            items_to_skip = _parse_skippable_tests(items_to_skip_data, ignore_test_parameters)
+        else:
+            items_to_skip = _parse_skippable_suites(items_to_skip_data)
+        return ITRData(
+            correlation_id=correlation_id,
+            covered_files=covered_files,
+            skippable_items=items_to_skip,
+        )
+
+    def fetch_unique_tests(self) -> t.Optional[t.Set[InternalTestId]]:
+        metric_names = APIRequestMetricNames(
+            count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST,
+            duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS,
+            response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES,
+            error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS,
+        )
+
+        unique_test_ids: t.Set[InternalTestId] = set()
+
+        payload = {
+            "data": {
+                "id": str(uuid4()),
+                "type": "ci_app_libraries_tests_request",
+                "attributes": {
+                    "service": self._service,
+                    "env": self._dd_env,
+                    "repository_url": self._git_data.repository_url,
+                    "configurations": self._configurations,
+                },
+            }
+        }
+
         try:
-            meta = skippable_response.get("meta")
-            if meta is None:
-                log.debug("SKippable tests response did not contain metadata field, no tests will be skipped")
-                error_type = ERROR_TYPES.BAD_JSON
-                return None
-
-            correlation_id = meta.get("correlation_id")
-            if correlation_id is None:
-                log.debug("Skippable tests response missing correlation_id")
-            else:
-                log.debug("Skippable tests response correlation_id: %s", correlation_id)
-
-            covered_files_data = meta.get("coverage")
-            if covered_files_data is not None:
-                covered_files = _parse_covered_files(covered_files_data)
-
-            items_to_skip_data = skippable_response.get("data")
-            if items_to_skip_data is None:
-                log.warning("Skippable tests request missing data, no tests will be skipped")
-                error_type = ERROR_TYPES.BAD_JSON
-                return None
-
-            if self._itr_skipping_level == ITR_SKIPPING_LEVEL.TEST:
-                items_to_skip = _parse_skippable_tests(items_to_skip_data, ignore_test_parameters)
-            else:
-                items_to_skip = _parse_skippable_suites(items_to_skip_data)
-            return ITRData(
-                correlation_id=correlation_id,
-                covered_files=covered_files,
-                skippable_items=items_to_skip,
+            parsed_response = self._do_request_with_telemetry(
+                "POST", UNIQUE_TESTS_ENDPOINT, json.dumps(payload), metric_names
             )
-        finally:
-            if error_type is not None:
-                record_itr_skippable_request_error(error_type)
+        except Exception:  # noqa: E722
+            return None
+
+        if "errors" in parsed_response:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            log.debug("Unique tests response contained an error")
+            return None
+
+        try:
+            tests_data = parsed_response["data"]["attributes"]["tests"]
+        except KeyError:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        try:
+            for module, suites in tests_data.items():
+                module_id = TestModuleId(module)
+                for suite, tests in suites.items():
+                    suite_id = TestSuiteId(module_id, suite)
+                    for test in tests:
+                        unique_test_ids.add(InternalTestId(suite_id, test))
+        except Exception:  # noqa: E722
+            log.debug("Failed to parse unique tests data", exc_info=True)
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        record_early_flake_detection_tests_count(len(unique_test_ids))
+
+        return unique_test_ids
 
 
 class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):

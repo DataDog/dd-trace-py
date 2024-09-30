@@ -108,6 +108,67 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         reset_context()
 
 
+@pytest.mark.asyncio
+@pytest.mark.limit_leaks("8.8 KB", filter_fn=IASTFilter())
+@pytest.mark.parametrize(
+    "origin1, origin2",
+    [
+        ("taintsource1", "taintsource2"),
+        ("taintsource", "taintsource"),
+        (b"taintsource1", "taintsource2"),
+        (b"taintsource1", b"taintsource2"),
+        ("taintsource1", b"taintsource2"),
+        (bytearray(b"taintsource1"), "taintsource2"),
+        (bytearray(b"taintsource1"), bytearray(b"taintsource2")),
+        ("taintsource1", bytearray(b"taintsource2")),
+        (bytearray(b"taintsource1"), b"taintsource2"),
+        (bytearray(b"taintsource1"), bytearray(b"taintsource2")),
+        (b"taintsource1", bytearray(b"taintsource2")),
+    ],
+)
+async def test_propagation_memory_check_async(origin1, origin2, iast_span_defaults):
+    """Biggest allocating functions:
+    - join_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:124 -> 8.0KiB
+    - _prepare_report: ddtrace/appsec/_iast/taint_sinks/_base.py:111 -> 8.0KiB
+    - format_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:347 -> 3.0KiB
+    - modulo_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:214 -> 1.6KiB
+    """
+    _num_objects_tainted = 0
+    _active_map_addreses_size = 0
+    _initializer_size = 0
+    for _ in range(LOOPS):
+        create_context()
+        tainted_string_1 = taint_pyobject(
+            origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH
+        )
+        tainted_string_2 = taint_pyobject(
+            origin2, source_name="path2", source_value=origin2, source_origin=OriginType.PARAMETER
+        )
+        result = await mod.propagation_memory_check_async(tainted_string_1, tainted_string_2)
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert len(span_report.sources) > 0
+        assert len(span_report.vulnerabilities) > 0
+        assert len(get_tainted_ranges(result)) == 6
+
+        if _num_objects_tainted == 0:
+            _num_objects_tainted = num_objects_tainted()
+            assert _num_objects_tainted > 0
+        if _active_map_addreses_size == 0:
+            _active_map_addreses_size = active_map_addreses_size()
+            assert _active_map_addreses_size > 0
+        if _initializer_size == 0:
+            _initializer_size = initializer_size()
+            assert _initializer_size > 0
+
+        # Some tainted pyobject is freed, and Python may reuse the memory address
+        # hence the number of tainted objects may be the same or less
+        assert _num_objects_tainted in (num_objects_tainted() + 1, num_objects_tainted(), num_objects_tainted() - 1)
+        assert _active_map_addreses_size == active_map_addreses_size()
+        assert _initializer_size == initializer_size()
+        reset_context()
+
+
 @pytest.mark.limit_leaks("460 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_check():
     for _ in range(LOOPS):
