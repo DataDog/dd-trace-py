@@ -6,9 +6,20 @@
 #include <signal.h>
 #include <unistd.h>
 
+// If the crashtracker exe target name is not set, then fail
+#ifndef CRASHTRACKER_EXE_TARGET_NAME
+#error "CRASHTRACKER_EXE_TARGET_NAME must be defined"
+#endif
+
 // A global instance of the crashtracker is created here.
 Datadog::Crashtracker crashtracker;
 bool crashtracker_initialized = false;
+
+const char*
+crashtracker_get_exe_name() // cppcheck-suppress unusedFunction
+{
+    return CRASHTRACKER_EXE_TARGET_NAME;
+}
 
 void
 crashtracker_postfork_child()

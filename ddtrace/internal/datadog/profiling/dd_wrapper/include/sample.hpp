@@ -84,7 +84,7 @@ class Sample
     );
 
     // Flushes the current buffer, clearing it
-    bool flush_sample();
+    bool flush_sample(bool reverse_locations = false);
 
     static ddog_prof_Profile& profile_borrow();
     static void profile_release();
