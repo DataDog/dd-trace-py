@@ -14,11 +14,7 @@ StackTraceType = typing.List[DDFrame]
 class Event(object):
     """An event happening at a point in time."""
 
-    __slots__ = ("timestamp",)
-
-    def __init__(self, timestamp=time.time_ns()):
-        # type: (typing.Optional[int]) -> None
-        self.timestamp = timestamp
+    __slots__ = ()
 
     @property
     def name(self):
