@@ -1,7 +1,5 @@
 #include "sample.hpp"
 
-#include "code_provenance.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <thread>
