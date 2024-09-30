@@ -808,8 +808,8 @@ def test_pinecone_vectorstore_similarity_search_by_vector_with_score(
     if langchain_community is None:
         pytest.skip("langchain-community not installed which is required for this test.")
 
-    import pinecone
     from langchain_community.embeddings import FakeEmbeddings
+    import pinecone
 
     embeddings = FakeEmbeddings(size=1536)
     with request_vcr.use_cassette("langchain_pinecone_similarity_search_by_vector_with_score.yaml"):
@@ -858,9 +858,9 @@ def test_qdrant_vectorstore_similarity_search(langchain_openai, request_vcr):
         - 3 vectorstore spans : similarity_search, similarity_search_with_score, similarity_search_with_score_by_vector
         - 1 underlying OpenAI embedding interface span.
     """
+    import langchain_openai
     import langchain_qdrant
     import qdrant_client
-    import langchain_openai
 
     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536] * 2):
         # We mock with two embeddings due to QdrantVectorStore calling embed_documents to get the vector dimensions
@@ -962,7 +962,7 @@ def test_milvus_vectorstore_similarity_search(langchain_openai, langchain_milvus
 
     with request_vcr.use_cassette("langchain_milvus_similarity_search.yaml"):
         with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
-            # We mock a list of one embedding due to QdrantVectorStore calling embed_documents to get the vector dimensions
+            # We mock a list of one embedding due to vectorstore calling embed_documents to get the vector dimensions
             embeddings = langchain_openai.OpenAIEmbeddings(
                 api_key=os.environ.get("OPENAI_API_KEY"), model="text-embedding-3-small"
             )

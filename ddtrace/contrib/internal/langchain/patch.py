@@ -26,16 +26,6 @@ try:
 except ImportError:
     langchain_pinecone = None
 
-try:
-    import langchain_qdrant
-except ImportError:
-    langchain_qdrant = None
-
-try:
-    import langchain_milvus
-except ImportError:
-    langchain_qdrant = None
-
 from ddtrace.appsec._iast import _is_iast_enabled
 
 
@@ -57,9 +47,9 @@ from ddtrace.contrib.internal.langchain.constants import MODEL
 from ddtrace.contrib.internal.langchain.constants import PROMPT_TOKENS
 from ddtrace.contrib.internal.langchain.constants import TOTAL_COST
 from ddtrace.contrib.internal.langchain.constants import agent_output_parser_classes
+from ddtrace.contrib.internal.langchain.constants import langchain_third_party_vectorstore_classes
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
-from ddtrace.contrib.internal.langchain.constants import langchain_third_party_vectorstore_classes
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -957,7 +947,8 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwargs):
     """
-    Traces similarity_search_by_vector, similarity_search_by_vector_with_score, and similarity_search_with_score_by_vector
+    Traces similarity_search_by_vector, similarity_search_by_vector_with_score,
+    and similarity_search_with_score_by_vector
     """
     integration = langchain._datadog_integration
     vector = get_argument_value(args, kwargs, 0, "embedding")
@@ -1358,7 +1349,8 @@ def safe_wrap(module_object, func_name, traced_func, fixture, path_to_func=None)
     """
     Safely wraps a function in a module with a traced function,
     ensuring that the method is implemented and not already double-patched.
-        module_object (Union[str, ModuleType]): The module object or the name of the module containing the function to be wrapped.
+        module_object (Union[str, ModuleType]): The module object or the name of the module containing the
+            function to be wrapped.
         func_name (str): The name of the function to be wrapped.
         traced_func (Callable): The traced function to wrap around the target function.
         fixture (Any): The fixture to be passed to the traced function.

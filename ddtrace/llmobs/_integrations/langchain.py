@@ -1,9 +1,9 @@
 import json
 from typing import Any
-from typing import Tuple
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace import config
@@ -61,7 +61,6 @@ class LangChainIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
-        is_workflow: Optional[bool] = None,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -73,7 +72,7 @@ class LangChainIntegration(BaseLLMIntegration):
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
-        is_workflow = False
+        is_workflow: bool = False
 
         if model_provider:
             llmobs_integration = "custom"
@@ -88,7 +87,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         if kwargs.get("is_workflow") is not None:
             # when the traced function forces an is_workflow state
-            is_workflow = kwargs.get("is_workflow")
+            is_workflow = bool(kwargs.get("is_workflow"))
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
@@ -274,7 +273,7 @@ class LangChainIntegration(BaseLLMIntegration):
         span: Span,
         args: List[Any],
         kwargs: Dict[str, Any],
-        output_documents: Union[List[Any], None],
+        output_documents: Union[List[Any], Tuple[List[float], float], Any],
         is_workflow: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "retrieval")
