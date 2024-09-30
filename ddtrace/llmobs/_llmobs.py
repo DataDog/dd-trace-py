@@ -40,6 +40,7 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
@@ -89,13 +90,21 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
-        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
+
+        self._evaluator_runner = EvaluatorRunner(
+            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
+            llmobs_service=self,
+        )
+
+        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluator_runner)
         forksafe.register(self._child_after_fork)
 
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
+        self._evaluator_runner = self._evaluator_runner.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
+        self._trace_processor._evaluator_runner = self._evaluator_runner
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
             tracer_filters += [self._trace_processor]
@@ -105,6 +114,11 @@ class LLMObs(Service):
             self._llmobs_eval_metric_writer.start()
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers after fork")
+
+        try:
+            self._evaluator_runner.start()
+        except ServiceStatusError:
+            log.debug("Error starting evaluator runner after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
@@ -117,12 +131,22 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
+        try:
+            self._evaluator_runner.start()
+        except ServiceStatusError:
+            log.debug("Error starting evaluator runner")
+
     def _stop_service(self) -> None:
         try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
+
+        try:
+            self._evaluator_runner.stop()
+        except ServiceStatusError:
+            log.debug("Error stopping evaluator runner")
 
         try:
             forksafe.unregister(self._child_after_fork)
