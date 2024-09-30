@@ -2,15 +2,81 @@ import os
 import random
 import re
 import subprocess
+import sys
 
 import requests
 
 from tests.utils import override_env
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
+try:
+    patched_tomli = _iast_patched_module("tomli._parser")
+except ImportError:
+    patched_tomli = None
 
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+
+def test_tomli():
+    if not patched_tomli:
+        print("Could not test tomli, import error", file=sys.stderr)
+        return
+
+    toml_content = """
+    [database]
+    server = "192.168.1.1"
+    ports = [ 8001, 8001, 8002 ]
+    connection_max = 5000
+    enabled = true
+
+    [servers.alpha]
+    ip = "10.0.0.1"
+    dc = "eqdc10"
+
+    [servers.beta]
+    ip = "10.0.0.2"
+    dc = "eqdc10"
+    """
+    tainted_toml_content = taint_pyobject(
+        pyobject=toml_content, source_name="toml", source_value=toml_content, source_origin=OriginType.PARAMETER
+    )
+
+    data = patched_tomli.loads(tainted_toml_content)
+    database_server = data["database"]["server"]
+    # non strings:
+    # database_ports = data["database"]["ports"]
+    # database_connection_max = data["database"]["connection_max"]
+    # database_enabled = data["database"]["enabled"]
+    servers_alpha_ip = data["servers"]["alpha"]["ip"]
+    servers_alpha_dc = data["servers"]["alpha"]["dc"]
+    servers_beta_ip = data["servers"]["beta"]["ip"]
+    servers_beta_dc = data["servers"]["beta"]["dc"]
+
+    toml_content2 = "key = 'value'"
+    tainted_toml_content2 = taint_pyobject(
+        pyobject=toml_content2, source_name="toml", source_value=toml_content2, source_origin=OriginType.PARAMETER
+    )
+    data2 = patched_tomli.loads(tainted_toml_content2)
+    value = data2["key"]
+    assert is_pyobject_tainted(value)
+    assert is_pyobject_tainted(database_server)
+    assert is_pyobject_tainted(servers_alpha_ip)
+    assert is_pyobject_tainted(servers_alpha_dc)
+    assert is_pyobject_tainted(servers_beta_ip)
+    assert is_pyobject_tainted(servers_beta_dc)
+
+    broken_toml_content = """
+    [database]
+    server = "
+    ports = [ 8001, 8001, 8002 
+    """
+    try:
+        _ = patched_tomli.loads(broken_toml_content)
+    except patched_tomli.TOMLDecodeError:
+        pass
 
 
 def test_doit():
@@ -94,5 +160,7 @@ def test_doit():
 
     tmp_str2 = "_extend"
     string27 += tmp_str2
+
+    test_tomli()
 
     return string27
