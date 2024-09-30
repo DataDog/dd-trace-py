@@ -42,10 +42,10 @@ class RagasFaithfulnessEvaluator:
         """
         Initialize an evaluator that uses the ragas library to generate a faithfulness score on finished LLM spans.
 
-        Faithfulness measures the factual consistency of an LLM's output against a given context. There are two LLM
-        calls required to generate a faithfulness score - one to generate a set of statements from the answer, and
-        another to measure the faithfulness of those statements against the context using natural language entailment.
-        The score is then computed through dividing the number of faithful statements by the total number of statements.
+        Faithfulness measures the factual consistency of an LLM's output against a given context.
+        There are two LLM calls required to generate a faithfulness score - one to generate a set of statements from
+        the answer, and another to measure the faithfulness of those statements against the context using natural
+        language entailment.
 
         For more information, see https://docs.ragas.io/en/latest/concepts/metrics/faithfulness/
 
