@@ -61,6 +61,8 @@ extern "C"
                          int64_t line);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
+    // Stack v2 specific flush, which reverses the locations
+    void ddup_flush_sample_v2(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
 #ifdef __cplusplus
 } // extern "C"
