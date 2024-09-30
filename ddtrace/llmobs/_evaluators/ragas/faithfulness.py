@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 
 
@@ -43,8 +44,8 @@ class RagasFaithfulnessEvaluator:
 
         Faithfulness measures the factual consistency of an LLM's output against a given context. There are two LLM
         calls required to generate a faithfulness score - one to generate a set of statements from the answer, and
-        another to measure the faithfulness of those statements against the context. The score is then computed through
-        dividing the number of faithful statements by the total number of statements.
+        another to measure the faithfulness of those statements against the context using natural language entailment.
+        The score is then computed through dividing the number of faithful statements by the total number of statements.
 
         For more information, see https://docs.ragas.io/en/latest/concepts/metrics/faithfulness/
 
@@ -89,17 +90,22 @@ class RagasFaithfulnessEvaluator:
     def evaluate(self, span_event: dict) -> Optional[float]:
         if not self.enabled:
             return None
-        score = math.nan
 
-        # initialize defaults for variables we want to annotate on the LLM Observability
-        # trace of the ragas faithfulness evaluations.
-        question, answer, context, statements, faithfulness_list = None, None, None, None, None
+        """Initialize defaults for variables we want to annotate on the LLM Observability trace of the
+        ragas faithfulness evaluations."""
+        score, question, answer, context, statements, faithfulness_list = math.nan, None, None, None, None, None
 
-        with self.llmobs_service.annotation_context(tags={RUNNER_IS_INTEGRATION_SPAN_TAG: RAGAS}):
-            with self.llmobs_service.workflow("ragas_faithfulness") as workflow:
+        ml_app_of_span_event = ""
+
+        span_tags = span_event.get("tags")
+        if span_tags is not None:
+            ml_app_of_span_event = "-{}".format(parse_tags_str(",".join(span_tags)).get("ml_app"))
+
+        with self.llmobs_service.annotation_context(
+            tags={RUNNER_IS_INTEGRATION_SPAN_TAG: RAGAS}, ml_app="ragas{}".format(ml_app_of_span_event)
+        ):
+            with self.llmobs_service.workflow("ragas_faithfulness"):
                 try:
-                    workflow.service = RAGAS
-
                     faithfulness_inputs = self._extract_faithfulness_inputs(span_event)
                     if faithfulness_inputs is None:
                         logger.debug(
@@ -126,25 +132,29 @@ class RagasFaithfulnessEvaluator:
 
                     assert isinstance(statements, List), "statements must be a list"
 
-                    p_value = self._create_nli_prompt(statements, context)
+                    raw_nli_results = self.ragas_faithfulness_instance.llm.generate_text(
+                        self._create_nli_prompt(statements, context)
+                    )
+                    if len(raw_nli_results.generations) == 0:
+                        return None
 
-                    nli_result = self.ragas_faithfulness_instance.llm.generate_text(p_value)
-
-                    nli_result_text = [
-                        nli_result.generations[0][i].text
-                        for i in range(self.ragas_faithfulness_instance._reproducibility)
-                    ]
-                    faithfulness_list = [
-                        self.llm_output_parser_for_faithfulness_score.parse(text) for text in nli_result_text
+                    raw_nli_results_texts = [
+                        raw_nli_results[0][i].text for i in range(self.ragas_faithfulness_instance._reproducibility)
                     ]
 
-                    faithfulness_list = [faith.dicts() for faith in faithfulness_list if faith is not None]
+                    multiple_faithfulness_lists = [
+                        faith.dicts()
+                        for faith in [
+                            self.llm_output_parser_for_faithfulness_score.parse(text) for text in raw_nli_results_texts
+                        ]
+                        if faith is not None
+                    ]
 
-                    if faithfulness_list is None:
+                    if len(multiple_faithfulness_lists) == 0:
                         return None
 
                     faithfulness_list = ensembler.from_discrete(
-                        faithfulness_list,
+                        multiple_faithfulness_lists,
                         "verdict",
                     )
                     try:
@@ -208,8 +218,7 @@ class RagasFaithfulnessEvaluator:
             }
 
     def _create_statements_prompt(self, answer, question):
-        with self.llmobs_service.task("ragas.create_statements_prompt") as task:
-            task.service = RAGAS
+        with self.llmobs_service.task("ragas.create_statements_prompt"):
             sentences = self.split_answer_into_sentences.segment(answer)
             sentences = [sentence for sentence in sentences if sentence.strip().endswith(".")]
             sentences = "\n".join([f"{i}:{x}" for i, x in enumerate(sentences)])
@@ -218,8 +227,7 @@ class RagasFaithfulnessEvaluator:
             )
 
     def _create_nli_prompt(self, statements, context_str):
-        with self.llmobs_service.task("ragas.create_nli_prompt") as task:
-            task.service = RAGAS
+        with self.llmobs_service.task("ragas.create_nli_prompt"):
             statements_str: str = json.dumps(statements)
             prompt_value = self.ragas_faithfulness_instance.nli_statements_message.format(
                 context=context_str, statements=statements_str
@@ -227,8 +235,7 @@ class RagasFaithfulnessEvaluator:
             return prompt_value
 
     def _compute_score(self, answers):
-        with self.llmobs_service.task("ragas.compute_score") as task:
-            task.service = RAGAS
+        with self.llmobs_service.task("ragas.compute_score"):
             faithful_statements = sum(1 if answer.verdict else 0 for answer in answers.__root__)
             num_statements = len(answers.__root__)
             if num_statements:
