@@ -22,9 +22,7 @@ jobs:
       - id: run_needed
         name: Check if run is needed
         run:  |
-          git fetch origin ${{ github.event.pull_request.base.sha || github.sha }}
-          export PATHS=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha || github.sha }})
-          python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml', '.github/workflows/system-tests.yml'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
+          true
         continue-on-error: true
 
   system-tests-build-agent:
