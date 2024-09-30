@@ -193,19 +193,27 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
-def set_config(envs: Union[str, List[str]], default: Any = None, modifier: Optional[Callable[[Any], Any]] = None):
-    val = default
-    source = "default"
+def get_config(
+    envs: Union[str, List[str]],
+    default: Any = None,
+    modifier: Optional[Callable[[Any], Any]] = None,
+    report_telemetry=True,
+):
     if isinstance(envs, str):
         envs = [envs]
+    val = default
+    source = "default"
+    effective_env = envs[0]
     for env in envs:
         if env in os.environ:
             val = os.environ[env]
             if modifier:
                 val = modifier(val)
             source = "env_var"
+            effective_env = env
             break
-    telemetry_writer.add_configuration(env, val, source)
+    if report_telemetry:
+        telemetry_writer.add_configuration(effective_env, val, source)
     return val
 
 
@@ -390,21 +398,19 @@ class Config(object):
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
-        self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
-        self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
+        self._debug_mode = get_config("DD_TRACE_DEBUG", False, asbool)
+        self._startup_logs_enabled = get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
-        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
-        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
-        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
+        self._trace_rate_limit = get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
+        self._partial_flush_enabled = get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
+        self._partial_flush_min_spans = get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
-        self._remote_config_enabled = set_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
-        self._remote_config_poll_interval = float(
-            os.getenv(
-                "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
-            )
+        self._remote_config_enabled = get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
+        self._remote_config_poll_interval = get_config(
+            ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "DD_REMOTECONFIG_POLL_SECONDS"], 5.0, float
         )
-        self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        self._trace_api = get_config("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
             deprecate(
                 "DD_TRACE_API_VERSION=v0.3 is deprecated",
@@ -413,37 +419,33 @@ class Config(object):
                 category=DDTraceDeprecationWarning,
             )
             self._trace_api = "v0.4"
-        self._trace_writer_buffer_size = int(
-            os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
+        self._trace_writer_buffer_size = get_config("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", DEFAULT_BUFFER_SIZE, int)
+        self._trace_writer_payload_size = get_config(
+            "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE, int
         )
-        self._trace_writer_payload_size = int(
-            os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE)
+        self._trace_writer_interval_seconds = get_config(
+            "DD_TRACE_WRITER_INTERVAL_SECONDS", DEFAULT_PROCESSING_INTERVAL, float
         )
-        self._trace_writer_interval_seconds = float(
-            os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL)
+        self._trace_writer_connection_reuse = get_config(
+            "DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS, asbool
         )
-        self._trace_writer_connection_reuse = asbool(
-            os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS)
-        )
-        self._trace_writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+        self._trace_writer_log_err_payload = get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
-        self._trace_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
-        self._trace_agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
-        self._trace_agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+        self._trace_agent_hostname = get_config(["DD_AGENT_HOST", "DD_TRACE_AGENT_HOSTNAME"])
+        self._trace_agent_port = get_config(["DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"])
+        self._trace_agent_url = get_config("DD_TRACE_AGENT_URL")
 
-        self._stats_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
-        self._stats_agent_port = os.getenv("DD_DOGSTATSD_PORT")
-        self._stats_agent_url = os.getenv("DD_DOGSTATSD_URL")
-        self._agent_timeout_seconds = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
+        self._stats_agent_hostname = get_config(["DD_AGENT_HOST", "DD_DOGSTATSD_HOST"])
+        self._stats_agent_port = get_config("DD_DOGSTATSD_PORT")
+        self._stats_agent_url = get_config("DD_DOGSTATSD_URL")
+        self._agent_timeout_seconds = get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
 
-        self._span_traceback_max_size = int(os.getenv("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", default=30))
+        self._span_traceback_max_size = get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        self.analytics_enabled = asbool(
-            os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=os.getenv("DD_ANALYTICS_ENABLED", default=False))
-        )
+        self.analytics_enabled = get_config(["DD_TRACE_ANALYTICS_ENABLED", "DD_ANALYTICS_ENABLED"], False, asbool)
         if self.analytics_enabled:
             deprecate(
                 "Datadog App Analytics is deprecated and will be removed in a future version. "
@@ -453,15 +455,13 @@ class Config(object):
                 category=DDTraceDeprecationWarning,
             )
 
-        self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
-        self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
+        self.client_ip_header = get_config("DD_TRACE_CLIENT_IP_HEADER")
+        self.retrieve_client_ip = get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
 
-        self.propagation_http_baggage_enabled = asbool(
-            os.getenv("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", default=False)
-        )
+        self.propagation_http_baggage_enabled = get_config("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", False, asbool)
 
-        self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+        self.env = get_config("DD_ENV", self.tags.get("env"))
+        self.service = get_config("DD_SERVICE", self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
@@ -470,10 +470,10 @@ class Config(object):
 
         self._extra_services = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
-        self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
+        self.version = get_config("DD_VERSION", self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self._unparsed_service_mapping = os.getenv("DD_SERVICE_MAPPING", default="")
+        self._unparsed_service_mapping = get_config("DD_SERVICE_MAPPING", "")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
 
         # The service tag corresponds to span.service and should not be
@@ -485,19 +485,19 @@ class Config(object):
         if self.version and "version" in self.tags:
             del self.tags["version"]
 
-        self.report_hostname = asbool(os.getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
+        self.report_hostname = get_config("DD_TRACE_REPORT_HOSTNAME", False, asbool)
 
-        self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
+        self.health_metrics_enabled = get_config("DD_TRACE_HEALTH_METRICS_ENABLED", False, asbool)
 
-        self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
-        self._telemetry_heartbeat_interval = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
-        self._telemetry_dependency_collection = asbool(os.getenv("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True))
+        self._telemetry_enabled = get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool)
+        self._telemetry_heartbeat_interval = get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
+        self._telemetry_dependency_collection = get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
 
-        self._runtime_metrics_enabled = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
+        self._runtime_metrics_enabled = get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
 
-        self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True))
+        self._128_bit_trace_id_enabled = get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
 
-        self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+        self._128_bit_trace_id_logging_enabled = get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
         if self._128_bit_trace_id_logging_enabled:
             deprecate(
                 "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
@@ -506,8 +506,8 @@ class Config(object):
                 category=DDTraceDeprecationWarning,
             )
 
-        self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
-        self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
+        self._sampling_rules = get_config("DD_SPAN_SAMPLING_RULES")
+        self._sampling_rules_file = get_config("DD_SPAN_SAMPLING_RULES_FILE")
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
@@ -523,10 +523,10 @@ class Config(object):
         if propagation_style_inject is not None:
             self._propagation_style_inject = propagation_style_inject
 
-        self._propagation_extract_first = asbool(os.getenv("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False))
+        self._propagation_extract_first = get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
 
         # Datadog tracer tags propagation
-        x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
+        x_datadog_tags_max_length = get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
         if x_datadog_tags_max_length < 0:
             log.warning(
                 (
@@ -540,19 +540,17 @@ class Config(object):
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+        self._raise = get_config("DD_TESTING_RAISE", False, asbool)
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function()
-        self._trace_compute_stats = asbool(
-            os.getenv(
-                "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
-            )
+        self._trace_compute_stats = get_config(
+            ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
         )
-        self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
+        self._data_streams_enabled = get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
 
-        legacy_client_tag_enabled = os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", None)
+        legacy_client_tag_enabled = get_config("DD_HTTP_CLIENT_TAG_QUERY_STRING")
         if legacy_client_tag_enabled is None:
-            self._http_client_tag_query_string = os.getenv("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", default="true")
+            self._http_client_tag_query_string = get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
         else:
             deprecate(
                 "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
@@ -562,7 +560,7 @@ class Config(object):
             )
             self._http_client_tag_query_string = legacy_client_tag_enabled.lower()
 
-        dd_trace_obfuscation_query_string_regexp = os.getenv(
+        dd_trace_obfuscation_query_string_regexp = get_config(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
         self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
@@ -578,20 +576,18 @@ class Config(object):
                 log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
-        self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
-        self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
-        self._ci_visibility_intelligent_testrunner_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
-        )
-        self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
-        self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
+        self._ci_visibility_agentless_enabled = get_config("DD_CIVISIBILITY_AGENTLESS_ENABLED", False, asbool)
+        self._ci_visibility_agentless_url = get_config("DD_CIVISIBILITY_AGENTLESS_URL", "")
+        self._ci_visibility_intelligent_testrunner_enabled = get_config("DD_CIVISIBILITY_ITR_ENABLED", False, asbool)
+        self.ci_visibility_log_level = get_config("DD_CIVISIBILITY_LOG_LEVEL", "info")
+        self._otel_enabled = get_config("DD_TRACE_OTEL_ENABLED", False, asbool)
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
-        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
+        self._span_aggregator_rlock = get_config("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True, asbool)
         if self._span_aggregator_rlock is False:
             deprecate(
                 "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
@@ -601,23 +597,23 @@ class Config(object):
                 removal_version="3.0.0",
             )
 
-        self.trace_methods = os.getenv("DD_TRACE_METHODS")
+        self.trace_methods = get_config("DD_TRACE_METHODS")
 
-        self._telemetry_install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", None)
-        self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
-        self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
+        self._telemetry_install_id = get_config("DD_INSTRUMENTATION_INSTALL_ID")
+        self._telemetry_install_type = get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
+        self._telemetry_install_time = get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
 
-        self._dd_api_key = os.getenv("DD_API_KEY")
-        self._dd_site = os.getenv("DD_SITE", "datadoghq.com")
+        self._dd_api_key = get_config("DD_API_KEY")
+        self._dd_site = get_config("DD_SITE", "datadoghq.com")
 
-        self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
-        self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
-        self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP")
-        self._llmobs_agentless_enabled = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
+        self._llmobs_enabled = get_config("DD_LLMOBS_ENABLED", False, asbool)
+        self._llmobs_sample_rate = get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
+        self._llmobs_ml_app = get_config("DD_LLMOBS_ML_APP")
+        self._llmobs_agentless_enabled = get_config("DD_LLMOBS_AGENTLESS_ENABLED", False, asbool)
 
-        self._inject_force = asbool(os.getenv("DD_INJECT_FORCE", False))
+        self._inject_force = get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False
-        self._inject_was_attempted = asbool(os.getenv("_DD_INJECT_WAS_ATTEMPTED", False))
+        self._inject_was_attempted = get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
