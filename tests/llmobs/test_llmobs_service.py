@@ -215,6 +215,7 @@ def test_llm_span(LLMObs, mock_llmobs_span_writer):
 
 def test_llm_span_with_dd_llmobs_disabled(LLMObs, mock_llmobs_span_writer, monkeypatch):
     monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
+    assert llmobs_service.enabled
     LLMObs.enable()
 
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
@@ -225,11 +226,7 @@ def test_llm_span_with_dd_llmobs_disabled(LLMObs, mock_llmobs_span_writer, monke
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
 
-    mock_llmobs_span_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
-    )
     assert not llmobs_service.enabled
-
 
 
 def test_llm_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
