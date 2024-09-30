@@ -3,7 +3,7 @@ import logging
 from math import ceil
 import os
 import threading
-import time
+from time import monotonic_ns
 import typing  # noqa:F401
 
 
@@ -186,7 +186,7 @@ class MemoryCollector(collector.PeriodicCollector):
                 if thread_id in thread_id_ignore_set:
                     continue
                 handle = ddup.SampleHandle()
-                handle.push_monotonic_ns(time.monotonic_ns())
+                handle.push_monotonic_ns(monotonic_ns())
                 handle.push_alloc(int((ceil(size) * alloc_count) / count), count)  # Roundup to help float precision
                 handle.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
