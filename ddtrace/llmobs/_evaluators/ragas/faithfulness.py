@@ -5,8 +5,8 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
+from ddtrace.llmobs._evaluators.ragas.utils import _get_ml_app_for_ragas_trace
 
 
 logger = get_logger(__name__)
@@ -95,14 +95,8 @@ class RagasFaithfulnessEvaluator:
         ragas faithfulness evaluations."""
         score, question, answer, context, statements, faithfulness_list = math.nan, None, None, None, None, None
 
-        ml_app_of_span_event = ""
-
-        span_tags = span_event.get("tags")
-        if span_tags is not None:
-            ml_app_of_span_event = "-{}".format(parse_tags_str(",".join(span_tags)).get("ml_app"))
-
         with self.llmobs_service.annotation_context(
-            tags={RUNNER_IS_INTEGRATION_SPAN_TAG: RAGAS}, ml_app="ragas{}".format(ml_app_of_span_event)
+            tags={RUNNER_IS_INTEGRATION_SPAN_TAG: RAGAS}, ml_app=_get_ml_app_for_ragas_trace(span_event)
         ):
             with self.llmobs_service.workflow("ragas_faithfulness"):
                 try:
