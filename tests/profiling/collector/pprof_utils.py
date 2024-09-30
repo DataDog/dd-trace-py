@@ -28,6 +28,12 @@ def reinterpret_int_as_int64(value: int) -> int:
     return ctypes.c_int64(value).value
 
 
+class StackLocation:
+    def __init__(self, function_name: str, filename: str):
+        self.function_name = function_name
+        self.filename = filename
+
+
 class LockEventType(Enum):
     ACQUIRE = 1
     RELEASE = 2
@@ -50,7 +56,8 @@ class EventBaseClass:
 
 
 class StackEvent(EventBaseClass):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, locations: typing.Optional[typing.Any] = None, *args, **kwargs):
+        self.locations = locations
         super().__init__(*args, **kwargs)
 
 
@@ -263,6 +270,24 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
         )
 
     assert_base_event(profile, sample, expected_event)
+
+
+# helper function to check whether the expected stack event is present in the samples
+def has_sample_with_locations(
+    profile, samples: typing.List[pprof_pb2.Sample], expected_locations: typing.List[StackLocation]
+) -> bool:
+    for sample in samples:
+        for location_id, expected_location in zip(sample.location_id, expected_locations):
+            location = get_location_with_id(profile, location_id)
+            function = get_function_with_id(profile, location.line[0].function_id)
+            if profile.string_table[function.name] != expected_location.function_name:
+                continue
+            if not profile.string_table[function.filename].endswith(expected_location.filename):
+                continue
+
+            return True
+
+    return False
 
 
 def assert_stack_event(profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
