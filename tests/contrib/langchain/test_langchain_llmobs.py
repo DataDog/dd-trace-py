@@ -11,6 +11,7 @@ import pytest
 from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._utils import safe_json
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -198,7 +199,7 @@ class BaseTestLLMObsLangchain:
                 index = pc.Index(name="langchain-retrieval")
 
             vector_db = pinecone_vector_store(index, embedding_model, "text")
-            vector_db.similarity_search_by_vector_with_score(vector, k)
+            vector_db.similarity_search_by_vector_with_score(vector, k=1)
 
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
@@ -458,14 +459,14 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             )
         expected_span = _expected_llmobs_non_llm_span_event(
             trace[0],
-            "retrieval",
+            "workflow",
             input_value="Who was Alan Turing?",
             output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
             output_value="[1 document(s) retrieved]",
             tags={"ml_app": "langchain_test"},
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
-        assert mock_llmobs_span_writer.enqueue.call_count == 2
+        assert mock_llmobs_span_writer.enqueue.call_count == 3
 
 
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
@@ -702,7 +703,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             )
         )
 
-    # TODO : update test
     def test_llmobs_similarity_search(self, langchain_openai, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
         import pinecone
 
@@ -723,7 +723,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 5
         expected_span = _expected_llmobs_non_llm_span_event(
             trace[0],
-            "retrieval",
+            "workflow",
             input_value="Evolution",
             output_documents=[
                 {"text": mock.ANY, "id": mock.ANY, "name": "The Evolution of Communication Technologies"}
@@ -732,6 +732,37 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             tags={"ml_app": "langchain_test"},
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
+
+    def test_llmobs_similarity_search_by_vector_with_score(
+        self, langchain_community, langchain_openai, langchain_pinecone, mock_llmobs_span_writer, mock_tracer
+    ):
+        import pinecone
+
+        if langchain_pinecone is None:
+            pytest.skip("langchain_pinecone not installed which is required for this test.")
+        embedding_model = langchain_community.embeddings.FakeEmbeddings(size=1536)
+        cassette_name = "langchain_pinecone_similarity_search_by_vector_with_score.yaml"
+        with mock.patch("langchain.embeddings.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
+            vector = embedding_model.embed_query("Evolution")
+            trace = self._similarity_search_by_vector_with_score(
+                pinecone=pinecone,
+                pinecone_vector_store=langchain_pinecone.PineconeVectorStore,
+                embedding_model=embedding_model,
+                vector=vector,
+                k=1,
+                mock_tracer=mock_tracer,
+                cassette_name=cassette_name,
+            )
+        expected_span = _expected_llmobs_non_llm_span_event(
+            trace[0],
+            "retrieval",
+            input_value=safe_json(vector),
+            output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY, "score": mock.ANY}],
+            output_value="[1 document(s) retrieved]",
+            tags={"ml_app": "langchain_test"},
+        )
+        mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
 
     def test_llmobs_chat_model_tool_calls(self, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         import langchain_core.tools

@@ -315,7 +315,7 @@ class LangChainIntegration(BaseLLMIntegration):
             if score is not None:
                 document["score"] = score
             documents.append(document)
-        span.set_tag_str(OUTPUT_DOCUMENTS, safe_json(self.format_io(documents)))
+        span.set_tag_str(OUTPUT_DOCUMENTS, safe_json(documents))
         # we set the value as well to ensure that the UI would display it in case the span was the root
         span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
 
