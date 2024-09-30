@@ -20,7 +20,7 @@ class ContextVarManager:
     a level of the tree in order to maintain immutability. This operation requires de-referencing pointers to Python
     objects stored in the Context, which typically includes objects not created or managed by this library. It's
     possible for such objects to have mis-managed reference counts (speculatively:  in order to convert their
-    ContextVar storage from a strong to a weak reference. When such objects are de-referenced--as they would be when
+    ContextVar storage from a strong to a weak reference). When such objects are de-referenced--as they would be when
     a reassoc from this code forces a clone--it could cause heap corruption or a segmentation fault.
 
     Accordingly, we try to prevent reassoc events when possible by storing a long-lived wrapper object and only setting
