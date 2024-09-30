@@ -7,10 +7,10 @@ from logging.handlers import RotatingFileHandler
 import os
 import pathlib
 import shutil
-import tarfile
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+import zipfile
 
 from ddtrace._logger import _add_file_handler
 from ddtrace.internal.logger import get_logger
@@ -18,7 +18,7 @@ from ddtrace.internal.utils.http import get_connection
 
 
 TRACER_FLARE_DIRECTORY = "tracer_flare"
-TRACER_FLARE_TAR = pathlib.Path("tracer_flare.tar")
+TRACER_FLARE_ZIP = pathlib.Path("tracer_flare.zip")
 TRACER_FLARE_ENDPOINT = "/tracer_flare/v1"
 TRACER_FLARE_FILE_HANDLER_NAME = "tracer_flare_file_handler"
 TRACER_FLARE_LOCK = pathlib.Path("tracer_flare.lock")
@@ -163,11 +163,11 @@ class Flare:
         ddlogger.setLevel(self.original_log_level)
 
     def _generate_payload(self, params: Dict[str, str]) -> Tuple[dict, bytes]:
-        tar_stream = io.BytesIO()
-        with tarfile.open(fileobj=tar_stream, mode="w") as tar:
+        zip_stream = io.BytesIO()
+        with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
             for flare_file_name in self.flare_dir.iterdir():
-                tar.add(flare_file_name)
-        tar_stream.seek(0)
+                zipf.write(flare_file_name, arcname=flare_file_name.name)
+        zip_stream.seek(0)
 
         newline = b"\r\n"
 
@@ -181,9 +181,9 @@ class Flare:
             body.write(b"%s%s" % (encoded_value, newline))
 
         body.write(b"--" + boundary + newline)
-        body.write((b'Content-Disposition: form-data; name="flare_file"; filename="flare.tar"%s' % newline))
+        body.write((b'Content-Disposition: form-data; name="flare_file"; filename="flare.zip"%s' % newline))
         body.write(b"Content-Type: application/octet-stream%s%s" % (newline, newline))
-        body.write(tar_stream.getvalue() + newline)
+        body.write(zip_stream.getvalue() + newline)
         body.write(b"--" + boundary + b"--")
         headers = {
             "Content-Type": b"multipart/form-data; boundary=%s" % boundary,
