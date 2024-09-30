@@ -2,9 +2,12 @@
 CAVEAT: the line number is important to some IAST tests, be careful to modify this file and update the tests if you
 make some changes
 """
+import asyncio
 import os
 import re
 import sys
+
+import _io
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -207,4 +210,10 @@ def propagation_memory_check(origin_string1, tainted_string_2):
         _ = m.read()
     except Exception:
         pass
-    return string29
+
+    return _io.StringIO(string29).read()
+
+
+async def propagation_memory_check_async(origin_string1, tainted_string_2):
+    await asyncio.sleep(0.001)
+    return propagation_memory_check(origin_string1, tainted_string_2)

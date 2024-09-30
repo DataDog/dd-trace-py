@@ -262,7 +262,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "cattrs.",
     "ddsketch.",
     "ddtrace.",
-    "encodings.",  # this package is used to load encodings when a module is imported, propagation is not needed
     "envier.",
     "exceptiongroup.",
     "freezegun.",  # Testing utilities for time manipulation
@@ -301,6 +300,11 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "uvicorn.",
     "anyio.",
     "httpcore.",
+    "pypika.",
+    "pydantic.",
+    "pydantic_core.",
+    "pydantic_settings.",
+    "tomli.",
 )
 
 
