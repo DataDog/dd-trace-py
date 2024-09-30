@@ -301,13 +301,34 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
         http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
         http_req.POST = taint_structure(http_req.POST, OriginType.BODY, OriginType.BODY)
-        if not is_pyobject_tainted(getattr(http_req, "_body", None)):
-            http_req._body = taint_pyobject(
-                http_req.body,
-                source_name=origin_to_str(OriginType.BODY),
-                source_value=http_req.body,
-                source_origin=OriginType.BODY,
-            )
+        if (
+            getattr(http_req, "_body", None) is not None
+            and len(getattr(http_req, "_body", None)) > 0
+            and not is_pyobject_tainted(getattr(http_req, "_body", None))
+        ):
+            try:
+                http_req._body = taint_pyobject(
+                    http_req._body,
+                    source_name=origin_to_str(OriginType.BODY),
+                    source_value=http_req._body,
+                    source_origin=OriginType.BODY,
+                )
+            except AttributeError:
+                log.debug("IAST can't set attribute http_req._body", exc_info=True)
+        elif (
+            getattr(http_req, "body", None) is not None
+            and len(getattr(http_req, "body", None)) > 0
+            and not is_pyobject_tainted(getattr(http_req, "body", None))
+        ):
+            try:
+                http_req.body = taint_pyobject(
+                    http_req.body,
+                    source_name=origin_to_str(OriginType.BODY),
+                    source_value=http_req.body,
+                    source_origin=OriginType.BODY,
+                )
+            except AttributeError:
+                log.debug("IAST can't set attribute http_req.body", exc_info=True)
 
         http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
         http_req.path = taint_pyobject(

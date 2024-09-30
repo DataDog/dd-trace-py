@@ -118,7 +118,7 @@ def str_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: A
             offset = result.index(check_offset)
             copy_and_shift_ranges_from_strings(args[0], result, offset)
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. str_aspect. {}".format(e))
+            iast_taint_log_error("str_aspect. {}".format(e))
     return result
 
 
@@ -136,7 +136,7 @@ def bytes_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. bytes_aspect. {}".format(e))
+            iast_taint_log_error("bytes_aspect. {}".format(e))
     return result
 
 
@@ -154,7 +154,7 @@ def bytearray_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. bytearray_aspect. {}".format(e))
+            iast_taint_log_error("bytearray_aspect. {}".format(e))
     return result
 
 
@@ -171,13 +171,8 @@ def join_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
 
     joiner = args[0]
     args = args[flag_added_args:]
-    if not isinstance(joiner, IAST.TEXT_TYPES):
-        return joiner.join(*args, **kwargs)
-    try:
-        return _join_aspect(joiner, *args, **kwargs)
-    except Exception as e:
-        iast_taint_log_error("IAST propagation error. join_aspect. {}".format(e))
-        return joiner.join(*args, **kwargs)
+
+    return _join_aspect(joiner, *args, **kwargs)
 
 
 def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
@@ -199,7 +194,7 @@ def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: 
     try:
         return _extend_aspect(op1, op2)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. extend_aspect. {}".format(e))
+        iast_taint_log_error("extend_aspect. {}".format(e))
         return op1.extend(op2)
 
 
@@ -220,25 +215,26 @@ def ljust_aspect(
     candidate_text = args[0]
     args = args[flag_added_args:]
 
+    result = candidate_text.ljust(*args, **kwargs)
+
     if isinstance(candidate_text, IAST.TEXT_TYPES):
         try:
             ranges_new = get_ranges(candidate_text)
             fillchar = parse_params(1, "fillchar", " ", *args, **kwargs)
             fillchar_ranges = get_ranges(fillchar)
             if ranges_new is None or (not ranges_new and not fillchar_ranges):
-                return candidate_text.ljust(*args, **kwargs)
+                return result
 
             if fillchar_ranges:
                 # Can only be one char, so we create one range to cover from the start to the end
                 ranges_new = ranges_new + [shift_taint_range(fillchar_ranges[0], len(candidate_text))]
 
-            result = candidate_text.ljust(parse_params(0, "width", None, *args, **kwargs), fillchar)
             taint_pyobject_with_ranges(result, ranges_new)
             return result
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. ljust_aspect. {}".format(e))
+            iast_taint_log_error("ljust_aspect. {}".format(e))
 
-    return candidate_text.ljust(*args, **kwargs)
+    return result
 
 
 def zfill_aspect(
@@ -280,7 +276,7 @@ def zfill_aspect(
                 )
         taint_pyobject_with_ranges(result, tuple(ranges_new))
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. format_aspect. {}".format(e))
+        iast_taint_log_error("format_aspect. {}".format(e))
 
     return result
 
@@ -288,7 +284,7 @@ def zfill_aspect(
 def format_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
-    if not orig_function:
+    if orig_function is None:
         orig_function = args[0].format
 
     if not isinstance(orig_function, BuiltinFunctionType):
@@ -312,7 +308,7 @@ def format_aspect(
             params = tuple(args) + tuple(kwargs.values())
             return _format_aspect(candidate_text, params, *args, **kwargs)
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. format_aspect. {}".format(e))
+            iast_taint_log_error("format_aspect. {}".format(e))
 
     return candidate_text.format(*args, **kwargs)
 
@@ -320,18 +316,22 @@ def format_aspect(
 def format_map_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
-    if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function is None:
+        orig_function = args[0].format_map
+
+    if not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
-        return orig_function(*args, **kwargs)
 
-    if orig_function is not None and not args:
         return orig_function(*args, **kwargs)
 
     candidate_text: Text = args[0]
     args = args[flag_added_args:]
+
+    result = candidate_text.format_map(*args, **kwargs)
+
     if not isinstance(candidate_text, IAST.TEXT_TYPES):
-        return candidate_text.format_map(*args, **kwargs)
+        return result
 
     try:
         mapping = parse_params(0, "mapping", None, *args, **kwargs)
@@ -341,7 +341,7 @@ def format_map_aspect(
             args + mapping_tuple,
         )
         if not ranges_orig:
-            return candidate_text.format_map(*args, **kwargs)
+            return result
 
         return _convert_escaped_text_to_tainted_text(
             as_formatted_evidence(
@@ -355,12 +355,15 @@ def format_map_aspect(
                     )
                     for key, value in mapping.items()
                 }
+                if isinstance(mapping, dict)
+                else tuple(mapping)
             ),
             ranges_orig=ranges_orig,
         )
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. format_map_aspect. {}".format(e))
-        return candidate_text.format_map(*args, **kwargs)
+        iast_taint_log_error("format_map_aspect. {}".format(e))
+
+    return result
 
 
 def repr_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
@@ -389,7 +392,7 @@ def repr_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
 
             copy_and_shift_ranges_from_strings(args[0], result, offset, len(check_offset))
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. repr_aspect. {}".format(e))
+            iast_taint_log_error("repr_aspect. {}".format(e))
     return result
 
 
@@ -431,7 +434,7 @@ def format_value_aspect(
         else:
             return format(new_text)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. format_value_aspect. {}".format(e))
+        iast_taint_log_error("format_value_aspect. {}".format(e))
         return new_text
 
 
@@ -499,6 +502,7 @@ def decode_aspect(
     self = args[0]
     args = args[(flag_added_args or 1) :]
     # Assume we call decode method of the first argument
+    result = self.decode(*args, **kwargs)
 
     if is_pyobject_tainted(self) and isinstance(self, bytes):
         try:
@@ -506,8 +510,8 @@ def decode_aspect(
             inc_dec = codecs.getincrementaldecoder(codec)(**kwargs)
             return incremental_translation(self, inc_dec, inc_dec.decode, "")
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. decode_aspect. {}".format(e))
-    return self.decode(*args, **kwargs)
+            iast_taint_log_error("decode_aspect. {}".format(e))
+    return result
 
 
 def encode_aspect(
@@ -521,14 +525,16 @@ def encode_aspect(
     self = args[0]
     args = args[(flag_added_args or 1) :]
 
+    result = self.encode(*args, **kwargs)
+
     if is_pyobject_tainted(self) and isinstance(self, str):
         try:
             codec = args[0] if args else "utf-8"
             inc_enc = codecs.getincrementalencoder(codec)(**kwargs)
             return incremental_translation(self, inc_enc, inc_enc.encode, b"")
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. encode_aspect. {}".format(e))
-    result = self.encode(*args, **kwargs)
+            iast_taint_log_error("encode_aspect. {}".format(e))
+
     return result
 
 
@@ -548,7 +554,7 @@ def upper_aspect(
     try:
         return common_replace("upper", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. upper_aspect. {}".format(e))
+        iast_taint_log_error("upper_aspect. {}".format(e))
         return candidate_text.upper(*args, **kwargs)
 
 
@@ -568,7 +574,7 @@ def lower_aspect(
     try:
         return common_replace("lower", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. lower_aspect. {}".format(e))
+        iast_taint_log_error("lower_aspect. {}".format(e))
         return candidate_text.lower(*args, **kwargs)
 
 
@@ -789,7 +795,7 @@ def replace_aspect(
 
         return aspect_result
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. replace_aspect. {}".format(e))
+        iast_taint_log_error("replace_aspect. {}".format(e))
         return orig_result
 
 
@@ -808,7 +814,7 @@ def swapcase_aspect(
     try:
         return common_replace("swapcase", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. swapcase_aspect. {}".format(e))
+        iast_taint_log_error("swapcase_aspect. {}".format(e))
         return candidate_text.swapcase(*args, **kwargs)
 
 
@@ -827,7 +833,7 @@ def title_aspect(
     try:
         return common_replace("title", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. title_aspect. {}".format(e))
+        iast_taint_log_error("title_aspect. {}".format(e))
         return candidate_text.title(*args, **kwargs)
 
 
@@ -847,7 +853,7 @@ def capitalize_aspect(
     try:
         return common_replace("capitalize", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. capitalize_aspect. {}".format(e))
+        iast_taint_log_error("capitalize_aspect. {}".format(e))
         return candidate_text.capitalize(*args, **kwargs)
 
 
@@ -880,7 +886,7 @@ def casefold_aspect(
     try:
         return common_replace("casefold", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. casefold_aspect. {}".format(e))
+        iast_taint_log_error("casefold_aspect. {}".format(e))
         return candidate_text.casefold(*args, **kwargs)  # type: ignore[union-attr]
 
 
@@ -899,7 +905,7 @@ def translate_aspect(
     try:
         return common_replace("translate", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. translate_aspect. {}".format(e))
+        iast_taint_log_error("translate_aspect. {}".format(e))
         return candidate_text.translate(*args, **kwargs)
 
 

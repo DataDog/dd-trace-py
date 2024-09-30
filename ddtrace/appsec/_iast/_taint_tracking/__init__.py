@@ -1,14 +1,13 @@
-import os
 from typing import Any
 from typing import Tuple
 
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 
 from ..._constants import IAST
 from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
+from .._utils import _is_iast_debug_enabled
 from .._utils import _is_python_version_supported
 
 
@@ -112,18 +111,14 @@ __all__ = [
 ]
 
 
-def _is_iast_debug_enabled():
-    return asbool(os.environ.get(IAST.ENV_DEBUG, "false"))
-
-
 def iast_taint_log_error(msg):
     if _is_iast_debug_enabled():
         import inspect
 
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
-        log.debug("%s:\n%s", msg, frame_info)
-        _set_iast_error_metric("IAST propagation error. %s" % msg)
+        log.debug("[IAST] Propagation error. %s:\n%s", msg, frame_info)
+    _set_iast_error_metric("[IAST] Propagation error. %s" % msg)
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
@@ -164,7 +159,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
         _set_metric_iast_executed_source(source_origin)
         return pyobject_newid
     except ValueError as e:
-        iast_taint_log_error("Tainting object error (pyobject type %s): %s" % (type(pyobject), e))
+        log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e)
     return pyobject
 
 
@@ -206,16 +201,18 @@ if _is_iast_debug_enabled():
             return
         if event == "call":
             f_locals = frame.f_locals
-            if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
-                TAINTED_FRAMES.append(frame)
-                log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
-                log.debug("Tainted arguments:")
-                for arg in f_locals:
-                    if is_pyobject_tainted(f_locals[arg]):
-                        log.debug("\t%s: %s", arg, f_locals[arg])
-                log.debug("-----")
-
-            return trace_calls_and_returns
+            try:
+                if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
+                    TAINTED_FRAMES.append(frame)
+                    log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
+                    log.debug("Tainted arguments:")
+                    for arg in f_locals:
+                        if is_pyobject_tainted(f_locals[arg]):
+                            log.debug("\t%s: %s", arg, f_locals[arg])
+                    log.debug("-----")
+                return trace_calls_and_returns
+            except AttributeError:
+                pass
         elif event == "return":
             if frame in TAINTED_FRAMES:
                 TAINTED_FRAMES.remove(frame)
