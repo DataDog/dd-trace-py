@@ -3169,8 +3169,10 @@ def test_baggageheader_maxbytes_inject():
         ({"baggage": "user!d%28me%29=false"}, {"user!d(me)": "false"}),
         ({"baggage": "userId=Am%C3%A9lie"}, {"userId": "Amélie"}),
         ({"baggage": "serverNode=DF%2028"}, {"serverNode": "DF 28"}),
-        ({"baggage": "%22%2C%3B%5C%28%29%2F%3A%3C%3D%3E%3F%40%5B%5D%7B%7D=%22%2C%3B%5C"}, {'",;\\()/:<=>?@[]{}': '",;\\'}),
-
+        (
+            {"baggage": "%22%2C%3B%5C%28%29%2F%3A%3C%3D%3E%3F%40%5B%5D%7B%7D=%22%2C%3B%5C"},
+            {'",;\\()/:<=>?@[]{}': '",;\\'},
+        ),
     ],
     ids=[
         "single_key_value",
@@ -3186,7 +3188,6 @@ def test_baggageheader_extract(headers, expected_baggage):
 
     context = _BaggageHeader._extract(headers)
     assert context._baggage == expected_baggage
-
 
 
 @pytest.mark.parametrize(
