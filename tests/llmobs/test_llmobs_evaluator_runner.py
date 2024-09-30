@@ -86,7 +86,7 @@ from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvalu
 os.environ["_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE"] = "1.0"
 
 with mock.patch(
-    "ddtrace.internal.writer.HTTPWriter._send_payload",
+    "ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic",
     return_value=Response(
         status=200,
         body="{}",
