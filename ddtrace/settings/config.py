@@ -561,12 +561,17 @@ class Config(object):
                 log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
+        # Test Visibility config items
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
         )
         self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
+        self._test_visibility_early_flake_detection_enabled = asbool(
+            os.getenv("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", default=True)
+        )
+
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext

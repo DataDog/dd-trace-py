@@ -4,8 +4,8 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from tests import utils
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig

@@ -8,6 +8,7 @@ import socket
 import typing as t
 from uuid import uuid4
 
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
@@ -15,7 +16,6 @@ from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
@@ -36,7 +36,7 @@ from ddtrace.internal.ci_visibility.telemetry.itr import SKIPPABLE_TESTS_TELEMET
 from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility.api import InternalTestId
+from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
@@ -84,7 +84,6 @@ class EarlyFlakeDetectionSettings:
     slow_test_retries_10s: int = 5
     slow_test_retries_30s: int = 3
     slow_test_retries_5m: int = 2
-    faulty_session_threshold: float = 30.0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -364,7 +363,6 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(
                     enabled=attributes["early_flake_detection"]["enabled"],
-                    faulty_session_threshold=attributes["early_flake_detection"]["faulty_session_threshold"],
                     slow_test_retries_5s=attributes["early_flake_detection"]["slow_test_retries"]["5s"],
                     slow_test_retries_10s=attributes["early_flake_detection"]["slow_test_retries"]["10s"],
                     slow_test_retries_30s=attributes["early_flake_detection"]["slow_test_retries"]["30s"],

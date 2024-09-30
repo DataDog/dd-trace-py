@@ -75,7 +75,6 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                     efd_10s=25,
                     efd_30s=15,
                     efd_5m=10,
-                    efd_session_threshold=150.150,
                 ),
                 TestVisibilityAPISettings(
                     coverage_enabled=True,
@@ -86,7 +85,6 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                         slow_test_retries_10s=25,
                         slow_test_retries_30s=15,
                         slow_test_retries_5m=10,
-                        faulty_session_threshold=150.150,
                     ),
                 ),
             ],
@@ -99,7 +97,6 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                     efd_10s=2,
                     efd_30s=3,
                     efd_5m=4,
-                    efd_session_threshold=5,
                 ),
                 TestVisibilityAPISettings(
                     early_flake_detection=EarlyFlakeDetectionSettings(

@@ -17,15 +17,16 @@ from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestId
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
@@ -62,6 +63,7 @@ class TestVisibilitySessionSettings:
     itr_test_skipping_level: Optional[ITR_SKIPPING_LEVEL] = None
     itr_correlation_id: str = ""
     coverage_enabled: bool = False
+    efd_settings: Optional[EarlyFlakeDetectionSettings] = None
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
@@ -178,7 +180,7 @@ class TestVisibilityItemBase(abc.ABC):
         log.debug("Started span %s for item %s", self._span, self)
 
     @_require_span
-    def _finish_span(self) -> None:
+    def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
         if self._span is None:
             return
 
@@ -193,7 +195,7 @@ class TestVisibilityItemBase(abc.ABC):
         self._set_span_tags()
 
         self._add_all_tags_to_span()
-        self._span.finish()
+        self._span.finish(finish_time=override_finish_time)
 
     def _set_default_tags(self) -> None:
         """Applies the tags that should be on every span regardless of the item type
@@ -330,15 +332,23 @@ class TestVisibilityItemBase(abc.ABC):
     def is_started(self) -> bool:
         return self._span is not None
 
-    def finish(self, force: bool = False) -> None:
+    def finish(
+        self,
+        force: bool = False,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
+    ) -> None:
         """Finish the span and set the _is_finished flag to True.
 
         Nothing should be called after this method is called.
         """
         log.debug("Test Visibility: finishing %s", self)
 
+        if override_status:
+            self.set_status(override_status)
+
         self._telemetry_record_event_finished()
-        self._finish_span()
+        self._finish_span(override_finish_time=override_finish_time)
 
     def is_finished(self) -> bool:
         return self._span is not None and self._span.finished
@@ -511,7 +521,12 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         # If we somehow got here, something odd happened and we set the status as FAIL out of caution
         return TestStatus.FAIL
 
-    def finish(self, force: bool = False, override_status: Optional[TestStatus] = None) -> None:
+    def finish(
+        self,
+        force: bool = False,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
+    ) -> None:
         """Recursively finish all children and then finish self
 
         An unfinished status is not considered an error condition (eg: some order-randomization plugins may cause
@@ -541,7 +556,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         elif not isinstance(item_status, SPECIAL_STATUS):
             self.set_status(item_status)
 
-        super().finish(force=force)
+        super().finish(force=force, override_status=override_status, override_finish_time=override_finish_time)
 
     def add_child(self, child_item_id: CIDT, child: CITEMT) -> None:
         child.parent = self

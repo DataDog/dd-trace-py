@@ -1,34 +1,24 @@
-import dataclasses
 from pathlib import Path
 import typing as t
+from typing import NamedTuple
 
 from ddtrace import Span
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility._utils import _is_item_finished
+from ddtrace.ext.test_visibility.api import TestExcInfo
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal import core
 from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._efd_mixin import EFDTestMixin
+from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._utils import _get_item_span
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)
-
-
-@dataclasses.dataclass(frozen=True)
-class InternalTestId(ext_api.TestId):
-    retry_number: int = 0
-
-    def __repr__(self):
-        return "TestId(module={}, suite={}, test={}, parameters={}, retry_number={})".format(
-            self.parent_id.parent_id.name,
-            self.parent_id.name,
-            self.name,
-            self.parameters,
-            self.retry_number,
-        )
 
 
 class InternalTestBase(ext_api.TestBase):
@@ -211,7 +201,31 @@ class InternalTestSuite(ext_api.TestSuite, InternalTestBase, ITRMixin):
     pass
 
 
-class InternalTest(ext_api.Test, InternalTestBase, ITRMixin):
+class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin):
+    class FinishArgs(NamedTuple):
+        """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
+
+        test_id: InternalTestId
+        status: TestStatus
+        skip_reason: t.Optional[str] = None
+        exc_info: t.Optional[TestExcInfo] = None
+        override_finish_time: t.Optional[float] = None
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def finish(
+        item_id: InternalTestId,
+        status: ext_api.TestStatus,
+        reason: t.Optional[str] = None,
+        exc_info: t.Optional[ext_api.TestExcInfo] = None,
+        override_finish_time: t.Optional[float] = None,
+    ):
+        log.debug("Finishing test with status: %s, reason: %s", status, reason)
+        core.dispatch(
+            "test_visibility.test.finish",
+            (InternalTest.FinishArgs(item_id, status, reason, exc_info, override_finish_time),),
+        )
+
     class DiscoverEarlyFlakeRetryArgs(t.NamedTuple):
         test_id: InternalTestId
         retry_number: int
