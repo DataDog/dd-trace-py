@@ -967,6 +967,9 @@ class HTTPPropagator(object):
         for prop_style in config._propagation_style_extract:
             propagator = _PROP_STYLES[prop_style]
             context = propagator._extract(normalized_headers)
+            # baggage is handled separately
+            if prop_style == _PROPAGATION_STYLE_BAGGAGE:
+                continue
             if context:
                 contexts.append(context)
                 styles_w_ctx.append(prop_style)
@@ -979,15 +982,6 @@ class HTTPPropagator(object):
 
         for context in contexts[1:]:
             style_w_ctx = styles_w_ctx[contexts.index(context)]
-
-            # special case where baggage is first in propagation styles
-            if style_w_ctx[0] == _PROPAGATION_STYLE_BAGGAGE:
-                baggage_context = contexts[0]
-                contexts.append(baggage_context)
-                del contexts[0]
-                styles_w_ctx.append(_PROPAGATION_STYLE_BAGGAGE)
-                del style_w_ctx[0]
-
             # encoding expects at least trace_id and span_id
             if context.span_id and context.trace_id and context.trace_id != primary_context.trace_id:
                 links.append(
@@ -1023,10 +1017,6 @@ class HTTPPropagator(object):
                         primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(dd_context.span_id)
                     # the span_id in tracecontext takes precedence over the first extracted propagation style
                     primary_context.span_id = context.span_id
-
-            # baggage is always merged into the primary context
-            if style_w_ctx == _PROPAGATION_STYLE_BAGGAGE:
-                primary_context._baggage.update(context._baggage)
 
         primary_context._span_links = links
         return primary_context
@@ -1138,7 +1128,7 @@ class HTTPPropagator(object):
                     context = propagator._extract(normalized_headers)  # type: ignore
                     if config.propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
-                    return context
+
             # loop through all extract propagation styles
             else:
                 contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
@@ -1147,7 +1137,14 @@ class HTTPPropagator(object):
                     context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
                     if config.propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
-                    return context
+
+            # baggage
+            if config._propagation_style_extract and _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
+                baggage_context = _BaggageHeader._extract(normalized_headers)
+                if baggage_context:
+                    context._baggage = baggage_context._baggage
+
+            return context
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)

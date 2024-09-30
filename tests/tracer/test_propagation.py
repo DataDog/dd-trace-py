@@ -274,7 +274,7 @@ def test_inject_tags_previous_error(tracer):  # noqa: F811
         assert _HTTP_HEADER_TAGS not in headers
 
 
-def test_extract(tracer):  # noqa: F811
+def test_extract_special_case_baggage(tracer):  # noqa: F811
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
@@ -282,6 +282,7 @@ def test_extract(tracer):  # noqa: F811
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.test=value,any=tag",
         "ot-baggage-key1": "value1",
+        "baggage": "foo=bar,racoon=cute,serverNode=DF%2028",
     }
 
     context = HTTPPropagator.extract(headers)
@@ -308,6 +309,10 @@ def test_extract(tracer):  # noqa: F811
                 "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
+        assert context._get_baggage_item("foo") == "bar"
+        assert context._get_baggage_item("racoon") == "cute"
+        assert context._get_baggage_item("serverNode") == "DF 28"
+        assert len(context._get_all_baggage_items()) == 3
 
 
 def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(tracer):  # noqa: F811

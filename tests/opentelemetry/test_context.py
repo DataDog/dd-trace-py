@@ -165,6 +165,7 @@ def test_otel_baggage_extract(oteltracer):
         assert get_baggage("key2", context) == "value2"
         assert get_baggage("ddkey1", context) == "ddvalue1"
 
+
 # def test_otel_baggage_datadog(oteltracer):
 #     with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
 #         context = set_baggage("key1", "value1")
@@ -173,4 +174,4 @@ def test_otel_baggage_extract(oteltracer):
 #         assert tracer.current_span().context._get_baggage_item("key1") == "value1"
 
 
-        # testing that if baggage is set on a otel span it is injected into the datadog span context
+# testing that if baggage is set on a otel span it is injected into the datadog span context
