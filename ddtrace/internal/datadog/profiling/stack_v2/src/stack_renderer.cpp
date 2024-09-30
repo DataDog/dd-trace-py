@@ -144,7 +144,7 @@ StackRenderer::render_stack_end()
         return;
     }
 
-    ddup_flush_sample(sample);
+    ddup_flush_sample_v2(sample);
     ddup_drop_sample(sample);
     sample = nullptr;
 }
