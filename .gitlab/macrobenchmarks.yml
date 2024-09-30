@@ -288,16 +288,6 @@ vuln-appsec-enabled-iast-enabled-ep-disabled:
     IAST_WORST: "true"
     DD_SERVICE: "ddtrace-mb-vuln-appsec-enabled-iast-enabled-ep-disabled"
 
-attack-baseline:
-  extends: .macrobenchmarks
-  variables:
-    DD_BENCHMARKS_CONFIGURATION: baseline
-    BP_PYTHON_SCENARIO_DIR: flask-realworld
-    BP_ENDPOINT: http://0.0.0.0:8000/api/articles?q=select%20pg_sleep
-    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
-    IAST_WORST: "true"
-    DD_SERVICE: "ddtrace-mb-attack-baseline"
-
 attack-appsec-disabled-iast-disabled-ep-disabled:
   extends: .macrobenchmarks
   variables:
