@@ -48,7 +48,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         self._lock = threading.RLock()
         self._metadata = {}
         self._init_buffer()
-        self._metadata = {}
+        self._test_session_name = None
 
     def __len__(self):
         with self._lock:
@@ -56,6 +56,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     def set_metadata(self, metadata):
         self._metadata.update(metadata)
+
+    def set_test_session_name(self, test_session_name: str) -> None:
+        self._test_session_name = test_session_name
 
     def _init_buffer(self):
         with self._lock:
@@ -82,10 +85,16 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         if not normalized_spans:
             return None
         record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
-        self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
+        global_metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
+        metadata = {"*": global_metadata}
+
+        if self._test_session_name is not None:
+            for key in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
+                metadata[key] = {"test_session.name": self._test_session_name}
+
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return CIVisibilityEncoderV01._pack_payload(
-            {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": {"*": self._metadata}, "events": normalized_spans}
+            {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": metadata, "events": normalized_spans}
         )
 
     @staticmethod

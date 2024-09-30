@@ -50,6 +50,7 @@ class CIVisibilityEventClient(WriterClientBase):
                 "library_version": ddtrace.__version__,
             }
         )
+        encoder.set_test_session_name(config.test_session_name)
         super(CIVisibilityEventClient, self).__init__(encoder)
 
 

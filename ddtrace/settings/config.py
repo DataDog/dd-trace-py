@@ -567,6 +567,7 @@ class Config(object):
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
         )
         self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
+        self.test_session_name = os.getenv("DD_TEST_SESSION_NAME")
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext

@@ -77,6 +77,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer.writer import Response
+from ddtrace.internal import core
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -720,6 +721,17 @@ class CIVisibility(Service):
 
         return instance._tags.get(ci.PROVIDER_NAME) is None
 
+    @classmethod
+    def set_test_command(cls, command):
+        log.debug("Handling set test command: %s", command)
+        writer = cls._instance.tracer._writer
+        if ddconfig.test_session_name:
+            log.debug("Test session name already set from config, not changing")
+            return
+        if writer is not None:
+            log.debug(f"Setting test session name from test command: {command}")
+            writer._encoder.set_test_session_name(command)
+
 
 def _requires_civisibility_enabled(func):
     def wrapper(*args, **kwargs):
@@ -778,6 +790,7 @@ def _on_discover_session(
     )
 
     CIVisibility.add_session(session)
+    CIVisibility.set_test_command(discover_args.test_command)
 
 
 @_requires_civisibility_enabled
