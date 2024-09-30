@@ -4,7 +4,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
@@ -73,8 +73,8 @@ class PytestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             subprocess.run(
                 ["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"],
@@ -118,8 +118,8 @@ class PytestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             subprocess.run(
                 ["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"],
@@ -153,8 +153,8 @@ class PytestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_call_httpx=test_call_httpx)
         self.testdir.chdir()
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             subprocess.run(
                 ["pytest", "--ddtrace", "--ddtrace-patch-all"],
