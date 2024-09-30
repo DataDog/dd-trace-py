@@ -40,7 +40,8 @@ class PeriodicCollector(Collector, periodic.PeriodicService):
         # type: (...) -> None
         """Collect events and push them into the recorder."""
         for events in self.collect():
-            self.recorder.push_events(events)
+            if self.recorder:
+                self.recorder.push_events(events)
 
     def collect(self):
         # type: (...) -> typing.Iterable[typing.Iterable[event.Event]]
