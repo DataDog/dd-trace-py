@@ -122,41 +122,6 @@ def is_integer(obj):
     return isinstance(obj, int) and not isinstance(obj, bool)
 
 
-try:
-    from time import time_ns
-except ImportError:
-    from time import time as _time
-
-    def time_ns():
-        # type: () -> int
-        return int(_time() * 10e5) * 1000
-
-
-try:
-    from time import monotonic
-except ImportError:
-    from ddtrace.vendor.monotonic import monotonic
-
-
-try:
-    from time import monotonic_ns
-except ImportError:
-
-    def monotonic_ns():
-        # type: () -> int
-        return int(monotonic() * 1e9)
-
-
-try:
-    from time import process_time_ns
-except ImportError:
-    from time import clock as _process_time  # type: ignore[attr-defined]
-
-    def process_time_ns():
-        # type: () -> int
-        return int(_process_time() * 1e9)
-
-
 main_thread = threading.main_thread()
 
 

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import threading
+import time
 from types import FunctionType
 from types import ModuleType
 from types import TracebackType
@@ -55,7 +56,6 @@ from ddtrace.debugging._signal.tracing import SpanDecoration
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import atexit
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import ModuleHookType
@@ -229,11 +229,11 @@ class DebuggerWrappingContext(WrappingContext):
             contexts.append(self._collector.attach(signal))
 
         # Save state on the wrapping context
-        self.set("start_time", compat.monotonic_ns())
+        self.set("start_time", time.monotonic_ns())
         self.set("contexts", contexts)
 
     def _close_contexts(self, retval=None, exc_info=(None, None, None)) -> None:
-        end_time = compat.monotonic_ns()
+        end_time = time.monotonic_ns()
         contexts = self.get("contexts")
         while contexts:
             # Open probe signal contexts are ordered, with those that have

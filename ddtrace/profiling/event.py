@@ -1,8 +1,8 @@
 from collections import namedtuple
+import time
 import typing
 
 from ddtrace._trace import span as ddspan  # noqa:F401
-from ddtrace.internal import compat
 
 
 _T = typing.TypeVar("_T")
@@ -16,7 +16,7 @@ class Event(object):
 
     __slots__ = ("timestamp",)
 
-    def __init__(self, timestamp=compat.time_ns()):
+    def __init__(self, timestamp=time.time_ns()):
         # type: (typing.Optional[int]) -> None
         self.timestamp = timestamp
 

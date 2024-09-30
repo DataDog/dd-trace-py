@@ -11,7 +11,6 @@ import time
 import pytest
 
 import ddtrace
-from ddtrace.internal import compat
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.profiling import exporter
@@ -200,7 +199,7 @@ def test_export(endpoint_test_server):
     exp = http.PprofHTTPExporter(
         endpoint=_ENDPOINT, api_key=_API_KEY, endpoint_call_counter_span_processor=_get_span_processor()
     )
-    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
+    exp.export(test_pprof.TEST_EVENTS, 0, time.time_ns())
 
 
 def test_export_server_down():
@@ -265,7 +264,7 @@ def test_export_tracer_base_path(endpoint_test_server):
         endpoint_path="v1/input",
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
+    exp.export(test_pprof.TEST_EVENTS, 0, time.time_ns())
 
 
 def test_export_tracer_base_path_agent_less(endpoint_test_server):
@@ -277,7 +276,7 @@ def test_export_tracer_base_path_agent_less(endpoint_test_server):
         endpoint_path="/profiling/v1/input",
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
+    exp.export(test_pprof.TEST_EVENTS, 0, time.time_ns())
 
 
 def test_get_tags():
