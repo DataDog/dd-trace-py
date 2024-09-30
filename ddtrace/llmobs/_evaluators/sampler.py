@@ -18,6 +18,10 @@ logger = get_logger(__name__)
 
 
 class EvaluatorRunnerSamplingRule(SamplingRule):
+    SAMPLE_RATE_KEY = "sample_rate"
+    EVALUATOR_LABEL_KEY = "evaluator_label"
+    SPAN_NAME_KEY = "span_name"
+
     def __init__(self, sample_rate: float, evaluator_label: Optional[str] = None, span_name: Optional[str] = None):
         super(EvaluatorRunnerSamplingRule, self).__init__(sample_rate)
         self.evaluator_label = evaluator_label
@@ -38,25 +42,17 @@ class EvaluatorRunnerSamplingRule(SamplingRule):
 
 
 class EvaluatorRunnerSampler:
-    DEFAULT_SAMPLING_RATE = 1.0
     SAMPLING_RULES_ENV_VAR = "_DD_LLMOBS_EVALUATOR_SAMPLING_RULES"
-
-    # default sampling rate will stay hidden from the user
-    DEFAULT_SAMPLING_RULE_ENV_VAR = "_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE"
 
     def __init__(self):
         self.rules = self.parse_rules()
-        self.default_sampling_rule = SamplingRule(
-            float(os.getenv(EvaluatorRunnerSampler.DEFAULT_SAMPLING_RULE_ENV_VAR, self.DEFAULT_SAMPLING_RATE))
-        )
 
     def sample(self, evaluator_label, span):
         for rule in self.rules:
             if rule.matches(evaluator_label=evaluator_label, span_name=span.name):
                 print("matched")
                 return rule.sample(span)
-        result = self.default_sampling_rule.sample(span)
-        return result
+        return True
 
     def parse_rules(self) -> List[EvaluatorRunnerSamplingRule]:
         rules = []
@@ -86,8 +82,8 @@ class EvaluatorRunnerSampler:
                 reason = "No sample_rate provided for sampling rule: {}".format(json.dumps(rule))
                 parsing_failed_because(reason, KeyError)
                 continue
-            sample_rate = float(rule["sample_rate"])
-            span_name = rule.get("name", SamplingRule.NO_RULE)
-            evaluator_label = rule.get("evaluator_label", SamplingRule.NO_RULE)
+            sample_rate = float(rule[EvaluatorRunnerSamplingRule.SAMPLE_RATE_KEY])
+            span_name = rule.get(EvaluatorRunnerSamplingRule.SPAN_NAME_KEY, SamplingRule.NO_RULE)
+            evaluator_label = rule.get(EvaluatorRunnerSamplingRule.EVALUATOR_LABEL_KEY, SamplingRule.NO_RULE)
             rules.append(EvaluatorRunnerSamplingRule(sample_rate, evaluator_label, span_name))
         return rules
