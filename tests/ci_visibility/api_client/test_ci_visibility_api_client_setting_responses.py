@@ -51,15 +51,26 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
             [
                 _get_setting_api_response(tests_skipping=True, itr_enabled=True, efd_detection_enabled=True),
                 TestVisibilityAPISettings(
-                    skipping_enabled=True, itr_enabled=True, early_flake_detection=EarlyFlakeDetectionSettings(True)
+                    skipping_enabled=True,
+                    itr_enabled=True,
+                    early_flake_detection=EarlyFlakeDetectionSettings(enabled=True),
                 ),
             ],
             # EFD matrix-y-testing
+            # EFD should have default values regardless of whether it's present in the response
+            [
+                _get_setting_api_response(tests_skipping=True, itr_enabled=True, efd_present=False),
+                TestVisibilityAPISettings(skipping_enabled=True, itr_enabled=True),
+            ],
+            [
+                _get_setting_api_response(tests_skipping=True, itr_enabled=True, efd_present=True),
+                TestVisibilityAPISettings(skipping_enabled=True, itr_enabled=True),
+            ],
             [
                 _get_setting_api_response(
                     code_coverage=True,
                     flaky_test_retries_enabled=True,
-                    efd_detection_enabled=False,
+                    efd_detection_enabled=True,
                     efd_5s=10,
                     efd_10s=25,
                     efd_30s=15,
@@ -70,7 +81,7 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                     coverage_enabled=True,
                     flaky_test_retries_enabled=True,
                     early_flake_detection=EarlyFlakeDetectionSettings(
-                        enabled=False,
+                        enabled=True,
                         slow_test_retries_5s=10,
                         slow_test_retries_10s=25,
                         slow_test_retries_30s=15,
@@ -79,6 +90,8 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                     ),
                 ),
             ],
+            # If EFD is not enabled, the defaults should be returned even if the response has values (because we
+            # ignore whatever other values are in the response on the assumption they will not be used)
             [
                 _get_setting_api_response(
                     efd_detection_enabled=False,
@@ -91,11 +104,6 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                 TestVisibilityAPISettings(
                     early_flake_detection=EarlyFlakeDetectionSettings(
                         enabled=False,
-                        slow_test_retries_5s=1,
-                        slow_test_retries_10s=2,
-                        slow_test_retries_30s=3,
-                        slow_test_retries_5m=4,
-                        faulty_session_threshold=5,
                     ),
                 ),
             ],

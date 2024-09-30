@@ -1,11 +1,15 @@
 #include "uploader.hpp"
+
+#include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
 
-#include <errno.h>  // errno
-#include <fstream>  // ofstream
+#include <errno.h> // errno
+#include <fstream> // ofstream
+#include <optional>
 #include <sstream>  // ostringstream
 #include <string.h> // strerror
 #include <unistd.h> // getpid
+#include <vector>
 
 using namespace Datadog;
 
@@ -68,20 +72,32 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         return ret;
     }
 
-    // Build the request object
-    const ddog_prof_Exporter_File file = {
-        .name = to_slice("auto.pprof"),
-        .file = ddog_Vec_U8_as_slice(&encoded->buffer),
-    };
-    auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
-                                                      encoded->start,
-                                                      encoded->end,
-                                                      ddog_prof_Exporter_Slice_File_empty(),
-                                                      { .ptr = &file, .len = 1 },
-                                                      nullptr,
-                                                      encoded->endpoints_stats,
-                                                      nullptr,
-                                                      nullptr);
+    std::vector<ddog_prof_Exporter_File> files_to_send = { {
+      .name = to_slice("auto.pprof"),
+      .file = ddog_Vec_U8_as_slice(&encoded->buffer),
+    } };
+
+    // DEV: This function is called with the profile_lock held, and the following
+    // function call acquires lock on CodeProvenance.
+    std::optional<std::string> json_str_opt = CodeProvenance::get_instance().try_serialize_to_json_str();
+    if (json_str_opt.has_value() and !json_str_opt.value().empty()) {
+        files_to_send.push_back({
+          .name = to_slice("code-provenance.json"),
+          .file = to_byte_slice(json_str_opt.value()),
+        });
+    }
+
+    auto build_res =
+      ddog_prof_Exporter_Request_build(ddog_exporter.get(),
+                                       encoded->start,
+                                       encoded->end,
+                                       ddog_prof_Exporter_Slice_File_empty(),
+                                       { .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(files_to_send.data()),
+                                         .len = static_cast<uintptr_t>(files_to_send.size()) },
+                                       nullptr,
+                                       encoded->endpoints_stats,
+                                       nullptr,
+                                       nullptr);
     ddog_prof_EncodedProfile_drop(encoded);
 
     if (build_res.tag ==
