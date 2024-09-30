@@ -444,17 +444,17 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
     @mock.patch("kombu.messaging.Producer.publish", mock.Mock(side_effect=ValueError))
     def test_fn_task_apply_async_soft_exception(self):
-        # If the underlying library runs into an exception that doesn't crash the app,
-        # we should still close the span even if the closing signals didn't get
-        # called
+        # If the underlying library runs into an exception that doesn't crash the app
+        # while calling apply_async, we should still close the span even
+        # if the closing signals didn't get called and mark the span as an error
 
         @self.app.task
         def fn_task_parameters(user, force_logout=False):
             return (user, force_logout)
 
+        t = None
         try:
             t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
-            t.get(timeout=self.ASYNC_GET_TIMEOUT)
         except ValueError:
             traces = self.pop_traces()
             assert 1 == len(traces)
@@ -463,6 +463,12 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert traces[0][0].get_tag("celery.action") == "apply_async"
             assert traces[0][0].get_tag("component") == "celery"
             assert traces[0][0].get_tag("span.kind") == "producer"
+            # Internal library errors get recorded on the span
+            assert traces[0][0].error == 1
+            assert traces[0][0].get_tag("error.type") == "builtins.ValueError"
+            assert "ValueError" in traces[0][0].get_tag("error.stack")
+            # apply_async runs into an internal error (ValueError) so nothing is returned to t
+            assert t is None
 
     def test_shared_task(self):
         # Ensure Django Shared Task are supported

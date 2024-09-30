@@ -1,3 +1,5 @@
+import sys
+
 import celery
 from celery import signals
 
@@ -124,6 +126,18 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
         with core.context_with_data("task_context"):
             try:
                 return func(*args, **kwargs)
+            except Exception:
+                # If an internal exception occurs, record the exception in the span,
+                # then raise the Celery error as usual
+                task_span = core.get_item("task_span")
+                if task_span:
+                    task_span.set_exc_info(*sys.exc_info())
+
+                prerun_span = core.get_item("prerun_span")
+                if prerun_span:
+                    prerun_span.set_exc_info(*sys.exc_info())
+
+                raise
             finally:
                 task_span = core.get_item("task_span")
                 if task_span:
