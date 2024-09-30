@@ -125,7 +125,7 @@ class PropertyStuff(object):
     foo = property(operator.attrgetter("_foo"))
 
 
-from ddtrace.internal.compat import monotonic_ns  # noqa:E402
+from time import monotonic_ns  # noqa:E402
 
 
 def durationstuff(ns):

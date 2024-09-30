@@ -2,6 +2,7 @@ import atexit
 from collections import Counter
 from contextlib import contextmanager
 import json
+from time import monotonic
 from time import sleep
 from typing import Any
 from typing import Generator
@@ -16,7 +17,6 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
-from ddtrace.internal.compat import monotonic
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
 
