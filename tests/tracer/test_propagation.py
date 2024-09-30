@@ -2842,8 +2842,15 @@ INJECT_FIXTURES = [
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
             _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            _PROPAGATION_STYLE_BAGGAGE,
         ],
-        VALID_DATADOG_CONTEXT,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 8185124618007618416,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+            "baggage": {"foo": "bar"},
+        },
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
@@ -2855,6 +2862,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
             _HTTP_HEADER_TRACESTATE: "dd=s:1;o:synthetics",
+            "baggage": "foo=bar",
         },
     ),
     (
@@ -2979,7 +2987,7 @@ INJECT_FIXTURES = [
 
 
 @pytest.mark.parametrize("name,styles,context,expected_headers", INJECT_FIXTURES)
-def test_propagation_inject(name, styles, context, expected_headers, run_python_code_in_subprocess):
+def test_propagation_inject_special_name(name, styles, context, expected_headers, run_python_code_in_subprocess):
     # Execute the test code in isolation to ensure env variables work as expected
     code = """
 import json
@@ -3161,6 +3169,8 @@ def test_baggageheader_maxbytes_inject():
         ({"baggage": "user!d%28me%29=false"}, {"user!d(me)": "false"}),
         ({"baggage": "userId=Am%C3%A9lie"}, {"userId": "Amélie"}),
         ({"baggage": "serverNode=DF%2028"}, {"serverNode": "DF 28"}),
+        ({"baggage": "%22%2C%3B%5C%28%29%2F%3A%3C%3D%3E%3F%40%5B%5D%7B%7D=%22%2C%3B%5C"}, {'",;\\()/:<=>?@[]{}': '",;\\'}),
+
     ],
     ids=[
         "single_key_value",
@@ -3168,9 +3178,33 @@ def test_baggageheader_maxbytes_inject():
         "special_characters_in_key",
         "special_characters_in_value",
         "space_in_value",
+        "special_characters_in_key_and_value",
     ],
 )
 def test_baggageheader_extract(headers, expected_baggage):
+    from ddtrace.propagation.http import _BaggageHeader
+
+    context = _BaggageHeader._extract(headers)
+    assert context._baggage == expected_baggage
+
+
+
+@pytest.mark.parametrize(
+    "headers,expected_baggage",
+    [
+        ({"baggage": "no-equal-sign,foo=gets-dropped-because-previous-pair-is-malformed"}, {}),
+        ({"baggage": "foo=gets-dropped-because-subsequent-pair-is-malformed,="}, {}),
+        ({"baggage": "=no-key"}, {}),
+        ({"baggage": "no-value="}, {}),
+    ],
+    ids=[
+        "no-equal-sign-prev",
+        "no-equal-sign-subsequent",
+        "no-key",
+        "no-value",
+    ],
+)
+def test_baggage_malformedheader_extract(headers, expected_baggage):
     from ddtrace.propagation.http import _BaggageHeader
 
     context = _BaggageHeader._extract(headers)
