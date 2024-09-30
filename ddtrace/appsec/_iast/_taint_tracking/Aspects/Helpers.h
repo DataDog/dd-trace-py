@@ -1,11 +1,11 @@
 #pragma once
 
+#include "Initializer/Initializer.h"
+#include "TaintTracking/TaintRange.h"
+#include <iostream>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <regex>
-
-#include "Initializer/Initializer.h"
-#include "TaintTracking/TaintRange.h"
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -88,6 +88,9 @@ has_pyerr();
 
 std::string
 has_pyerr_as_string();
+
+py::str
+has_pyerr_as_pystr();
 
 struct EVIDENCE_MARKS
 {
@@ -329,7 +332,7 @@ Example calling:
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
     } catch (const std::exception& e) {                                                                                \
-        const std::string error_message = "IAST propagation error in " NAME ". " + std::string(e.what());              \
+        const std::string error_message = NAME ". " + std::string(e.what());                                           \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
