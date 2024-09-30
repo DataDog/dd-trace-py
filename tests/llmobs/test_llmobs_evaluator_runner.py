@@ -75,7 +75,7 @@ from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 
 with mock.patch(
-    "ddtrace.internal.writer.HTTPWriter._send_payload",
+    "ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic",
     return_value=Response(
         status=200,
         body="{}",
