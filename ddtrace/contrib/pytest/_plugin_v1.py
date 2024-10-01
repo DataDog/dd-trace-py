@@ -310,7 +310,6 @@ def _start_test_module_span(item):
     test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
     test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
     test_module_span.set_tag_str(test.COMMAND, test_command)
-    _CIVisibility.set_test_command(test_command)
 
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
     if test_session_span:
@@ -483,6 +482,9 @@ def pytest_sessionstart(session):
         test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
         test_session_span.set_tag_str(test.COMMAND, test_command)
         test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+
+        _CIVisibility.set_test_session_name(test_command=test_command)
+
         if _CIVisibility.test_skipping_enabled():
             test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
             test_session_span.set_tag(

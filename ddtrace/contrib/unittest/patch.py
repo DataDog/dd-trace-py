@@ -651,7 +651,7 @@ def _start_test_session_span(instance) -> ddtrace.Span:
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
 
-    _CIVisibility.set_test_command(test_command)
+    _CIVisibility.set_test_session_name(test_command=test_command)
 
     if _CIVisibility.test_skipping_enabled():
         _set_test_skipping_tags_to_span(test_session_span)

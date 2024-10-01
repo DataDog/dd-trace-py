@@ -65,6 +65,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.compat import parse
@@ -77,7 +78,6 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer.writer import Response
-from ddtrace.internal import core
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -722,15 +722,26 @@ class CIVisibility(Service):
         return instance._tags.get(ci.PROVIDER_NAME) is None
 
     @classmethod
-    def set_test_command(cls, command):
-        log.debug("Handling set test command: %s", command)
-        writer = cls._instance.tracer._writer
-        if ddconfig.test_session_name:
-            log.debug("Test session name already set from config, not changing")
+    def set_test_session_name(cls, test_command: str) -> None:
+        instance = cls.get_instance()
+        writer = instance.tracer._writer
+        if not isinstance(writer, CIVisibilityWriter):
+            log.debug("Not setting test session name because writer is not CIVisibilityWriter: %s", writer)
             return
-        if writer is not None:
-            log.debug(f"Setting test session name from test command: {command}")
-            writer._encoder.set_test_session_name(command)
+
+        client = writer._clients[0]
+        if not isinstance(client, CIVisibilityEventClient):
+            log.debug("Not setting test session name because client is not CIVisibilityEventClient: %s", client)
+            return
+
+        if ddconfig.test_session_name:
+            test_session_name = ddconfig.test_session_name
+        else:
+            job_name = instance._tags.get(ci.JOB_NAME)
+            test_session_name = f"{job_name}-{test_command}" if job_name else test_command
+
+        log.debug("Setting test session name: %s", test_session_name)
+        client.set_test_session_name(test_session_name)
 
 
 def _requires_civisibility_enabled(func):
@@ -790,7 +801,7 @@ def _on_discover_session(
     )
 
     CIVisibility.add_session(session)
-    CIVisibility.set_test_command(discover_args.test_command)
+    CIVisibility.set_test_session_name(test_command=discover_args.test_command)
 
 
 @_requires_civisibility_enabled

@@ -37,13 +37,14 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class CIVisibilityEncoderV01(BufferedEncoder):
     content_type = "application/msgpack"
-    ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
     PAYLOAD_FORMAT_VERSION = 1
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
     ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
 
     def __init__(self, *args):
+        # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
+        #      which is called implicitly by Cython.
         super(CIVisibilityEncoderV01, self).__init__()
         self._lock = threading.RLock()
         self._metadata = {}
@@ -54,11 +55,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         with self._lock:
             return len(self.buffer)
 
-    def set_metadata(self, metadata):
-        self._metadata.update(metadata)
-
-    def set_test_session_name(self, test_session_name: str) -> None:
-        self._test_session_name = test_session_name
+    def set_metadata(self, event_type, metadata):
+        # type: (str, Dict[str, str]) -> None
+        self._metadata.setdefault(event_type, {}).update(metadata)
 
     def _init_buffer(self):
         with self._lock:
@@ -85,16 +84,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         if not normalized_spans:
             return None
         record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
-        global_metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
-        metadata = {"*": global_metadata}
-
-        if self._test_session_name is not None:
-            for key in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
-                metadata[key] = {"test_session.name": self._test_session_name}
 
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return CIVisibilityEncoderV01._pack_payload(
-            {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": metadata, "events": normalized_spans}
+            {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": self._metadata, "events": normalized_spans}
         )
 
     @staticmethod
