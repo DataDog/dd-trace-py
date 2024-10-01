@@ -23,7 +23,6 @@ jobs:
           repository: 'DataDog/system-tests'
 
       - name: Build agent
-        id: build
         run: ./build.sh -i agent
 
       - name: Save
@@ -79,7 +78,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Build
-        id: build
         run: ./build.sh -i weblog
 
       - name: Save
