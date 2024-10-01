@@ -63,19 +63,20 @@ class EvaluatorRunnerSampler:
         try:
             json_rules = json.loads(sampling_rules_str)
         except JSONDecodeError:
-            reason = "Failed to parse evaluator sampling rules of: `{}`".format(sampling_rules_str)
-            parsing_failed_because(reason, ValueError)
+            parsing_failed_because(
+                "Failed to parse evaluator sampling rules of: `{}`".format(sampling_rules_str), ValueError
+            )
             return []
 
         if not isinstance(json_rules, list):
-            reason = "Evaluator sampling rules must be a list of dictionaries"
-            parsing_failed_because(reason, ValueError)
+            parsing_failed_because("Evaluator sampling rules must be a list of dictionaries", ValueError)
             return []
 
         for rule in json_rules:
             if "sample_rate" not in rule:
-                reason = "No sample_rate provided for sampling rule: {}".format(json.dumps(rule))
-                parsing_failed_because(reason, KeyError)
+                parsing_failed_because(
+                    "No sample_rate provided for sampling rule: {}".format(json.dumps(rule)), KeyError
+                )
                 continue
             sample_rate = float(rule[EvaluatorRunnerSamplingRule.SAMPLE_RATE_KEY])
             span_name = rule.get(EvaluatorRunnerSamplingRule.SPAN_NAME_KEY, SamplingRule.NO_RULE)
