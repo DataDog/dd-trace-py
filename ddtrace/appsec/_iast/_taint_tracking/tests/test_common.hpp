@@ -1,7 +1,7 @@
 #pragma once
 #include <Initializer/Initializer.h>
-#include <Utils/GenericUtils.h>
 #include <gtest/gtest.h>
+#include <iostream> // JJJ
 #include <pybind11/embed.h>
 
 namespace py = pybind11;
@@ -26,7 +26,7 @@ class PyEnvWithContext : public ::testing::Test
 
     void TearDown() override
     {
-        initializer->reset_context();
+        initializer->reset_contexts();
         initializer.reset();
         py::finalize_interpreter();
     }

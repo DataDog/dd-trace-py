@@ -53,18 +53,18 @@ tx_map_to_string(const TaintRangeMapTypePtr& tx_map)
 void
 Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
 {
-    const auto log = get_python_logger();
+    // const auto log = get_python_logger();
     if (tx_map == nullptr) {
         // Reset the current context
-        if (is_iast_debug_enabled()) {
-            log.attr("debug")("[IAST] clear_tainting_map. tx_map is null");
-        }
+        // if (is_iast_debug_enabled()) {
+        //     log.attr("debug")("[IAST] clear_tainting_map. tx_map is null");
+        // }
         return;
     }
     if (const auto it = active_map_addreses.find(tx_map.get()); it == active_map_addreses.end()) {
-        if (is_iast_debug_enabled()) {
-            log.attr("debug")("[IAST] active_map_addreses Not exists: " + tx_map_to_string(tx_map));
-        }
+        // if (is_iast_debug_enabled()) {
+        //     log.attr("debug")("[IAST] active_map_addreses Not exists: " + tx_map_to_string(tx_map));
+        // }
         return;
     }
 
@@ -80,6 +80,9 @@ Initializer::clear_tainting_maps()
 {
     // Need to copy because free_tainting_map changes the set inside the iteration
     for (auto& [fst, snd] : initializer->active_map_addreses) {
+        if (active_map_addreses.empty()) {
+            break;
+        }
         clear_tainting_map(snd);
         snd = nullptr;
     }
@@ -224,18 +227,18 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
 void
 Initializer::create_context()
 {
-    const auto log = get_python_logger();
+    // const auto log = get_python_logger();
     auto tx_map = get_tainting_map();
     if (tx_map != nullptr) {
         // Reset the current context
-        if (is_iast_debug_enabled()) {
-            log.attr("debug")("[IAST] create_context. tx_map is not null, call reset");
-        }
+        // if (is_iast_debug_enabled()) {
+        //     log.attr("debug")("[IAST] create_context. tx_map is not null, call reset");
+        // }
         reset_context(tx_map);
     }
-    if (is_iast_debug_enabled()) {
-        log.attr("debug")("[IAST] create_context. create_tainting_map");
-    }
+    // if (is_iast_debug_enabled()) {
+    //     log.attr("debug")("[IAST] create_context. create_tainting_map");
+    // }
     // Create a new taint_map
     auto map_ptr = create_tainting_map();
     ThreadContextCache.tx_map = map_ptr;
@@ -244,16 +247,16 @@ Initializer::create_context()
 void
 Initializer::reset_context(const TaintRangeMapTypePtr& tx_map)
 {
-    const auto log = get_python_logger();
+    // const auto log = get_python_logger();
     if (tx_map == nullptr) {
-        if (is_iast_debug_enabled()) {
-            log.attr("debug")("[IAST] reset_context. tx_map is null");
-        }
+        // if (is_iast_debug_enabled()) {
+        //     log.attr("debug")("[IAST] reset_context. tx_map is null");
+        // }
         return;
     }
-    if (is_iast_debug_enabled()) {
-        log.attr("debug")("[IAST] reset_context(args)");
-    }
+    // if (is_iast_debug_enabled()) {
+    //     log.attr("debug")("[IAST] reset_context(args)");
+    // }
     clear_tainting_map(tx_map);
 }
 
@@ -267,16 +270,16 @@ Initializer::reset_context()
 void
 Initializer::reset_contexts()
 {
-    const auto log = get_python_logger();
+    // const auto log = get_python_logger();
     if (active_map_addreses_size() <= 0) {
-        if (is_iast_debug_enabled()) {
-            log.attr("debug")("[IAST] reset_contexts. No active_map_addreses");
-        }
+        // if (is_iast_debug_enabled()) {
+        //     log.attr("debug")("[IAST] reset_contexts. No active_map_addreses");
+        // }
         return;
     }
-    if (is_iast_debug_enabled()) {
-        log.attr("debug")("[IAST] reset_contexts");
-    }
+    // if (is_iast_debug_enabled()) {
+    //     log.attr("debug")("[IAST] reset_contexts");
+    // }
 
     clear_tainting_maps();
 
