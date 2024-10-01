@@ -244,7 +244,7 @@ The following environment variables for the tracer are supported:
         is only applied when client based sampling is configured, otherwise agent based rate limits are used.
      version_added:
         v0.33.0:
-        v2.14.0: Only applied when DD_TRACE_SAMPLE_RATE, DD_TRACE_SAMPLING_RULES, or DD_SPAN_SAMPLING_RULE are set.
+        v2.15.0: Only applied when DD_TRACE_SAMPLE_RATE, DD_TRACE_SAMPLING_RULES, or DD_SPAN_SAMPLING_RULE are set.
 
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
