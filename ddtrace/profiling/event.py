@@ -1,5 +1,4 @@
 from collections import namedtuple
-import time
 import typing
 
 from ddtrace._trace import span as ddspan  # noqa:F401
