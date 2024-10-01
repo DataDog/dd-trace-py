@@ -133,7 +133,7 @@ do
 
   echo "Creating pull request"
   IFS='' read -r -d '' new_body <<EOF || true
-Backport of #${PR_NUMBER} to ${base_branch}
+Backport ${merge_commit_sha} from #${PR_NUMBER} to ${base_branch}.
 
 ${original_body}
 EOF

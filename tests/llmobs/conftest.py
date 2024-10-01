@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
@@ -89,6 +90,12 @@ def mock_writer_logs():
 
 
 @pytest.fixture
+def mock_evaluator_logs():
+    with mock.patch("ddtrace.llmobs._evaluators.runner.logger") as m:
+        yield m
+
+
+@pytest.fixture
 def mock_http_writer_logs():
     with mock.patch("ddtrace.internal.writer.writer.log") as m:
         yield m
@@ -125,3 +132,10 @@ def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_w
         llmobs_service.enable(_tracer=dummy_tracer)
         yield llmobs_service
         llmobs_service.disable()
+
+
+@pytest.fixture
+def mock_ragas_evaluator(mock_llmobs_eval_metric_writer):
+    with mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate") as m:
+        m.return_value = 1.0
+        yield RagasFaithfulnessEvaluator
