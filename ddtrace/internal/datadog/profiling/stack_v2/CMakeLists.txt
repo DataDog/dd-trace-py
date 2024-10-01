@@ -42,6 +42,7 @@ add_library(${EXTENSION_NAME} SHARED
     src/sampler.cpp
     src/stack_renderer.cpp
     src/stack_v2.cpp
+    src/thread_span_links.cpp
 )
 
 # Add common config
