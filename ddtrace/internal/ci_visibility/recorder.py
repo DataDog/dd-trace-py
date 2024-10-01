@@ -721,7 +721,7 @@ class CIVisibility(Service):
 
         return instance._tags.get(ci.PROVIDER_NAME) is None
 
-    def get_ci_visibility_event_client(self) -> Optional[CIVisibilityEventClient]:
+    def _get_ci_visibility_event_client(self) -> Optional[CIVisibilityEventClient]:
         writer = self.tracer._writer
         if isinstance(writer, CIVisibilityWriter):
             for client in writer._clients:
@@ -733,7 +733,7 @@ class CIVisibility(Service):
     @classmethod
     def set_test_session_name(cls, test_command: str) -> None:
         instance = cls.get_instance()
-        client = instance.get_ci_visibility_event_client()
+        client = instance._get_ci_visibility_event_client()
         if not client:
             log.debug("Not setting test session name because no CIVisibilityEventClient is active")
             return
