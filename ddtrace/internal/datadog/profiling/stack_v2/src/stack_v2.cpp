@@ -97,7 +97,6 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     PyThreadState* state = PyThreadState_Get();
 
     if (!state) {
-        std::cout << "stack_v2: Failed to get thread state" << std::endl;
         return NULL;
     }
 
@@ -107,12 +106,8 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     static char** kwlist = const_cast<char**>(const_kwlist);
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "LLs", kwlist, &span_id, &local_root_span_id, &span_type)) {
-        std::cout << "stack_v2: Failed to parse arguments" << std::endl;
         return NULL;
     }
-
-    std::cout << "stack_v2: Linking span to thread: thread_id=" << thread_id << ", span_id=" << span_id
-              << ", local_root_span_id=" << local_root_span_id << ", span_type=" << span_type << std::endl;
 
     ThreadSpanLinks::get_instance().link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
 
@@ -127,7 +122,7 @@ static PyMethodDef _stack_v2_methods[] = {
     { "register_thread", stack_v2_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_v2_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_v2_set_interval, METH_VARARGS, "Set the sampling interval" },
-    { "_link_span",
+    { "link_span",
       reinterpret_cast<PyCFunction>(stack_v2_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },

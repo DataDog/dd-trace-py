@@ -19,8 +19,8 @@ try:
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
             local_root_span_type = span._local_root.span_type
-            print("stack_v2.link_span", span_id, local_root_span_id, local_root_span_type)
-            _link_span(span_id, local_root_span_id, local_root_span_type)  # type: ignore # noqa: F405
+            # print("stack_v2.link_span", span_id, local_root_span_id, local_root_span_type)
+            _stack_v2.link_span(span_id, local_root_span_id, local_root_span_type)  # type: ignore # noqa: F405
 
 except Exception as e:
     failure_msg = str(e)

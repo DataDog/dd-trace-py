@@ -60,9 +60,6 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
         ddup_push_span_id(sample, active_span->span_id);
         ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
         ddup_push_trace_type(sample, std::string_view(active_span->span_type));
-
-        std::cout << "ddup_push_span(" << active_span->span_id << ", " << active_span->local_root_span_id << ", "
-                  << active_span->span_type << ")" << std::endl;
     }
 }
 

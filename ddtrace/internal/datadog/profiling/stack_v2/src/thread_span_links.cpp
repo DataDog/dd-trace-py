@@ -14,8 +14,6 @@ ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_
     if (thread_id_to_span.find(thread_id) == thread_id_to_span.end()) {
         thread_id_to_span[thread_id] = std::make_unique<Span>(span_id, local_root_span_id, span_type);
     }
-    std::cout << "ThreadSpanLinks::link_span: thread_id=" << thread_id << ", span_id=" << span_id
-              << ", local_root_span_id=" << local_root_span_id << ", span_type=" << span_type << std::endl;
     thread_id_to_span[thread_id]->span_id = span_id;
     thread_id_to_span[thread_id]->local_root_span_id = local_root_span_id;
     thread_id_to_span[thread_id]->span_type = span_type;
@@ -27,15 +25,6 @@ ThreadSpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
     std::lock_guard<std::mutex> lock(mtx);
 
     if (thread_id_to_span.find(thread_id) == thread_id_to_span.end()) {
-        // std::cout << "ThreadSpanLinks::get_active_span_from_thread_id: thread_id=" << thread_id << " has no active
-        // span"
-        //           << std::endl;
-
-        // for (const auto& [key, value] : thread_id_to_span) {
-        //     std::cout << "ThreadSpanLinks::get_active_span_from_thread_id: thread_id=" << key
-        //               << ", span_id=" << value->span_id << ", local_root_span_id=" << value->local_root_span_id
-        //               << ", span_type=" << value->span_type << std::endl;
-        // }
         return nullptr;
     }
     return thread_id_to_span[thread_id].get();
