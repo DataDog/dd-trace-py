@@ -84,8 +84,6 @@ PYBIND11_MODULE(_native, m)
         initializer.reset();
     }));
 
-    initializer->create_context();
-
     m.doc() = "Native Python module";
 
     py::module m_initializer = pyexport_m_initializer(m);

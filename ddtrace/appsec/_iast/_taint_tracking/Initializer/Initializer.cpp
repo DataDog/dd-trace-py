@@ -31,31 +31,11 @@ Initializer::create_tainting_map()
     return map_ptr;
 }
 
-string
-tx_map_to_string(const TaintRangeMapTypePtr& tx_map)
-{
-    std::stringstream ss;
-
-    // Iterate over the map and add each entry to the stringstream
-    for (const auto& entry : *tx_map) {
-        uintptr_t key = entry.first;
-        Py_hash_t hash_value = entry.second.first;
-        TaintedObjectPtr tainted_object = entry.second.second;
-
-        ss << "Key: " << key << ", Hash: " << hash_value << ", TaintedObjectPtr: " << tainted_object << "\n";
-    }
-
-    // Convert the stringstream content to a string
-    std::string tx_map_str = ss.str();
-    return tx_map_str;
-}
-
 void
 Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
 {
     const auto log = get_python_logger();
     if (tx_map == nullptr) {
-        // Reset the current context
         if (is_iast_debug_enabled()) {
             log.attr("debug")("[IAST] clear_tainting_map. tx_map is null");
         }
@@ -63,7 +43,7 @@ Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
     }
     if (const auto it = active_map_addreses.find(tx_map.get()); it == active_map_addreses.end()) {
         if (is_iast_debug_enabled()) {
-            log.attr("debug")("[IAST] active_map_addreses Not exists: " + tx_map_to_string(tx_map));
+            log.attr("debug")("[IAST] active_map_addreses Not exists: " + debug_taint_map());
         }
         return;
     }
@@ -71,8 +51,8 @@ Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
     for (const auto& [fst, snd] : *tx_map) {
         snd.second->decref();
     }
-    active_map_addreses.erase(tx_map.get());
     tx_map->clear();
+    active_map_addreses.erase(tx_map.get());
 }
 
 void
@@ -80,8 +60,10 @@ Initializer::clear_tainting_maps()
 {
     // Need to copy because free_tainting_map changes the set inside the iteration
     for (auto& [fst, snd] : initializer->active_map_addreses) {
-        clear_tainting_map(snd);
-        snd = nullptr;
+        if (snd != nullptr) {
+            clear_tainting_map(snd);
+            snd = nullptr;
+        }
     }
     active_map_addreses.clear();
 }
@@ -267,17 +249,9 @@ Initializer::reset_context()
 void
 Initializer::reset_contexts()
 {
-    const auto log = get_python_logger();
     if (active_map_addreses_size() <= 0) {
-        if (is_iast_debug_enabled()) {
-            log.attr("debug")("[IAST] reset_contexts. No active_map_addreses");
-        }
         return;
     }
-    if (is_iast_debug_enabled()) {
-        log.attr("debug")("[IAST] reset_contexts");
-    }
-
     clear_tainting_maps();
 
     if (ThreadContextCache.tx_map != nullptr) {
