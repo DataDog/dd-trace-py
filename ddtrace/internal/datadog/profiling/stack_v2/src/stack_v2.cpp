@@ -97,7 +97,7 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     PyThreadState* state = PyThreadState_Get();
 
     if (!state) {
-        std::cout << "Failed to get thread state" << std::endl;
+        std::cout << "stack_v2: Failed to get thread state" << std::endl;
         return NULL;
     }
 
@@ -107,7 +107,7 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     static char** kwlist = const_cast<char**>(const_kwlist);
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "LLs", kwlist, &span_id, &local_root_span_id, &span_type)) {
-        std::cout << "Failed to parse arguments" << std::endl;
+        std::cout << "stack_v2: Failed to parse arguments" << std::endl;
         return NULL;
     }
 
