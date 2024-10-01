@@ -1,0 +1,153 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66fc060e00000000",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.inputs.0.text": "dummy_text",
+      "langchain.request.model": "text-embedding-3-small",
+      "langchain.request.provider": "openai",
+      "langchain.request.type": "embedding",
+      "language": "python",
+      "runtime-id": "ca1da1b8273d40d881fd818716235b81"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.request.input_count": 1,
+      "langchain.response.outputs.0.embedding_length": 1536,
+      "langchain.response.outputs.1.embedding_length": 1536,
+      "process_id": 62464
+    },
+    "duration": 98000,
+    "start": 1727792654208921000
+  }],
+[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "QdrantVectorStore.similarity_search",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66fc060e00000000",
+      "langchain.request.api_key": "",
+      "langchain.request.k": "1",
+      "langchain.request.provider": "qdrantvectorstore",
+      "langchain.request.query": "LangChain",
+      "langchain.request.type": "similarity_search",
+      "langchain.response.document.0.metadata._collection_name": "test_collection_1536",
+      "langchain.response.document.0.metadata._id": "a3eca7b9-d863-4625-88e5-a813aadd1fe6",
+      "langchain.response.document.0.metadata.source": "website",
+      "langchain.response.document.0.page_content": "The top 10 soccer players in the world right now.",
+      "language": "python",
+      "runtime-id": "ca1da1b8273d40d881fd818716235b81"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.response.document_count": 1,
+      "process_id": 62464
+    },
+    "duration": 1828000,
+    "start": 1727792654209240000
+  },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "QdrantVectorStore.similarity_search_with_score",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.api_key": "",
+         "langchain.request.consistency": "None",
+         "langchain.request.filter": "None",
+         "langchain.request.hybrid_fusion": "None",
+         "langchain.request.k": "1",
+         "langchain.request.offset": "0",
+         "langchain.request.provider": "qdrantvectorstore",
+         "langchain.request.query": "LangChain",
+         "langchain.request.score_threshold": "None",
+         "langchain.request.search_params": "None",
+         "langchain.request.type": "similarity_search",
+         "langchain.response.document.0.metadata._collection_name": "test_collection_1536",
+         "langchain.response.document.0.metadata._id": "a3eca7b9-d863-4625-88e5-a813aadd1fe6",
+         "langchain.response.document.0.metadata.source": "website",
+         "langchain.response.document.0.page_content": "The top 10 soccer players in the world right now.",
+         "langchain.response.document.0.score": "0.0"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.response.document_count": 1
+       },
+       "duration": 1663000,
+       "start": 1727792654209332000
+     },
+        {
+          "name": "langchain.request",
+          "service": "",
+          "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
+          "trace_id": 1,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "langchain.request.api_key": "...key>",
+            "langchain.request.inputs.0.text": "LangChain",
+            "langchain.request.model": "text-embedding-3-small",
+            "langchain.request.provider": "openai",
+            "langchain.request.type": "embedding"
+          },
+          "metrics": {
+            "_dd.measured": 1,
+            "langchain.request.input_count": 1,
+            "langchain.response.outputs.embedding_length": 1536
+          },
+          "duration": 181000,
+          "start": 1727792654209437000
+        },
+           {
+             "name": "langchain.request",
+             "service": "",
+             "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
+             "trace_id": 1,
+             "span_id": 4,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "langchain.request.api_key": "...key>",
+               "langchain.request.inputs.0.text": "LangChain",
+               "langchain.request.model": "text-embedding-3-small",
+               "langchain.request.provider": "openai",
+               "langchain.request.type": "embedding"
+             },
+             "metrics": {
+               "_dd.measured": 1,
+               "langchain.request.input_count": 1,
+               "langchain.response.outputs.0.embedding_length": 1536,
+               "langchain.response.outputs.1.embedding_length": 1536
+             },
+             "duration": 45000,
+             "start": 1727792654209525000
+           }]]

@@ -869,7 +869,7 @@ def test_qdrant_vectorstore_similarity_search(langchain_openai, request_vcr):
         )
         with request_vcr.use_cassette("langchain_qdrant_similarity_search.yaml"):
             client = qdrant_client.QdrantClient(
-                url=os.getenv("QDRANT_URL", "<not-a-real-key>"), api_key=os.getenv("QDRANT_API_KEY", "<not-a-real-key>")
+                url=os.getenv("QDRANT_URL", "<not-a-real-url"), api_key=os.getenv("QDRANT_API_KEY", "<not-a-real-key>")
             )
             vectorstore = langchain_qdrant.QdrantVectorStore(
                 collection_name="test_collection_1536", client=client, embedding=embeddings, distance="Dot"
