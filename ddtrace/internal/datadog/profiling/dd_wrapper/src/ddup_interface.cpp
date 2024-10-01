@@ -272,6 +272,12 @@ ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_flush_sample_v2(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
+{
+    sample->flush_sample(/*reverse_locations*/ true);
+}
+
+void
 ddup_drop_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::drop_sample(sample);
