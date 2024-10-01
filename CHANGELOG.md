@@ -4,6 +4,48 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.13.0
+
+
+### New Features
+- Datastreams Monitoring (DSM): Adds support for schema tracking.
+- Exception Replay will capture any exceptions that are manually attached to a span with a call to `set_exc_info`.
+- LLM Observability: The LangChain integration now submits vectorstore `similarity_search` spans to LLM Observability as retrieval spans.
+- langchain: Adds support for tracing tool invocations.
+- LLM Observability: Adds support for capturing tool calls returned from LangChain chat completions.
+- LLM Observability: Introduces the ability to set `ml_app` and `timestamp_ms` fields in `LLMObs.submit_evaluation`
+- openai: Introduces `model` tag for openai integration metrics for consistency with the OpenAI SaaS Integration. It has the same value as `openai.request.model`.
+
+### Deprecation Notes
+- tracing: All public patch modules are deprecated. The non-deprecated methods are included in the `__all__` attribute.
+- yaaredis: The yaaredis integration is deprecated and will be removed in a future version. As an alternative to the yaaredis integration, the redis integration should be used.
+- tracing: Deprecates the `priority_sampling` argument in `ddtrace.tracer.Tracer.configure(...)`.
+
+### Bug Fixes
+- library injection: Resolves an issue where the version of `attrs` installed by default on some Ubuntu installations was treated as incompatible with library injection
+- anthropic: Resolves an issue where attempting to tag non-JSON serializable request arguments caused a `TypeError`. The Anthropic integration now safely tags non-JSON serializable arguments with a default placeholder text.
+- postgres: Fixes circular imports raised when psycopg automatic instrumentation is enabled.
+- ASM: Resolves an issue where exploit prevention was not properly blocking requests with custom redirection actions.
+- CI Visibility: Resolves an issue where exceptions other than timeouts and connection errors raised while fetching the list of skippable tests for ITR were not being handled correctly and caused the tracer to crash.
+- CI Visibility: Fixes a bug where `.git` was incorrectly being stripped from repository URLs when extracting service names, resulting in `g`, `i`, or `t` being removed (eg: `test-environment.git` incorrectly becoming `test-environmen`)
+- botocore: Resolves a regression where trace context was not being injected into the input of Stepfunction `start_execution` commands. This re-enables distributed tracing when a Python service invokes a properly instrumented Step Function.
+- LLM Observability: Resolves an issue where custom trace filters were being overwritten in forked processes.
+- LLM Observability: Resolves an issue where LLM Observability spans were not being submitted in forked processes, such as when using `celery` or `gunicorn` workers. The LLM Observability writer thread now automatically restarts when a forked process is detected.
+- tracing: Fixes a side-effect issue with module import callbacks that could cause a runtime exception.
+- tracing: Fixes an issue with some module imports with native specs that don't support attribute assignments, resulting in a `TypeError` exception at runtime.
+- tracing: Improves the accuracy of `X-Datadog-Trace-Count` payload header.
+- tracing: Resolves an issue where `ddtrace` package files were published with incorrect file attributes.
+- tracing: Resolves an issue where django db instrumentation could fail.
+- LLM Observability: Resolves an issue where `session_id` was being defaulted to `trace_id`, which was causing unexpected UI behavior.
+- openai: Fixes a bug where `asyncio.TimeoutError`s were not being propagated correctly from canceled OpenAI API requests.
+- profiling: Propagates tags in `DD_PROFILING_TAGS` and `DD_TAGS` to the libdatadog exporter, a new exporter codepath which is enabled when either one of the following is set, `DD_PROFILING_STACK_V2_ENABLED`, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED` or dd-trace-py is running in an injected environment.
+- ASM: Fixes a memory leak on the native slice aspect.
+
+### Other Changes
+- tracing: Removes the `DD_PRIORITY_SAMPLING` configuration option. This option is not used in any `ddtrace>=2.0` releases.
+
+---
+
 ## 2.11.6
 
 ### Bug Fixes

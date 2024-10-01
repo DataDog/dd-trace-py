@@ -1,11 +1,13 @@
 # distutils: language = c++
 # cython: language_level=3
 
+import sysconfig
 from typing import Dict
 from typing import Optional
 from typing import Union
 
 from libcpp.map cimport map
+from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
 import ddtrace
@@ -14,6 +16,7 @@ from .._types import StringType
 from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 
@@ -75,6 +78,12 @@ cdef extern from "ddup_interface.hpp":
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
 
+cdef extern from "code_provenance_interface.hpp":
+    void code_provenance_enable(bint enable)
+    void code_provenance_set_runtime_version(string_view runtime_version)
+    void code_provenance_set_stdlib_path(string_view stdlib_path)
+    void code_provenance_add_packages(unordered_map[string_view, string_view] packages)
+
 # Create wrappers for cython
 cdef call_ddup_config_service(bytes service):
     ddup_config_service(string_view(<const char*>service, len(service)))
@@ -134,7 +143,8 @@ def config(
         url: StringType = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
-        sample_pool_capacity: Optional[int] = None) -> None:
+        sample_pool_capacity: Optional[int] = None,
+        enable_code_provenance: bool = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -167,6 +177,33 @@ def config(
     if sample_pool_capacity:
         ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
+    # cdef not allowed in if block, so we have to do this here
+    cdef unordered_map[string_view, string_view] names_and_versions = unordered_map[string_view, string_view]()
+    # Keep these here to prevent GC from collecting them
+    dist_names = []
+    dist_versions = []
+    if enable_code_provenance:
+        code_provenance_enable(enable_code_provenance)
+        version_bytes = ensure_binary_or_empty(platform.python_version())
+        code_provenance_set_runtime_version(
+            string_view(<const char*>version_bytes, len(version_bytes))
+        )
+        # DEV: Do we also have to pass platsdlib_path, purelib_path, platlib_path?
+        stdlib_path_bytes = ensure_binary_or_empty(sysconfig.get_path("stdlib"))
+        code_provenance_set_stdlib_path(
+            string_view(<const char*>stdlib_path_bytes, len(stdlib_path_bytes))
+        )
+        distributions = get_distributions()
+        for dist in distributions:
+            dist_name = ensure_binary_or_empty(dist.name)
+            dist_version = ensure_binary_or_empty(dist.version)
+            dist_names.append(dist_name)
+            dist_versions.append(dist_version)
+            names_and_versions.insert(
+                pair[string_view, string_view](string_view(<const char*>dist_name, len(dist_name)),
+                                               string_view(<const char*>dist_version, len(dist_version))))
+        code_provenance_add_packages(names_and_versions)
+
 
 def start() -> None:
     ddup_start()
@@ -179,9 +216,16 @@ def upload() -> None:
     processor = ddtrace.tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
 
+    # We want to make sure that the endpoint_bytes strings outlive the for loops
+    # below and prevent them to be GC'ed. We do this by storing them in a list.
+    # This is necessary because we pass string_views to the C++ code, which is
+    # a view into the original string. If the original string is GC'ed, the view
+    # will point to garbage.
+    endpoint_bytes_list = []
     cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
     for endpoint, span_ids in endpoint_to_span_ids.items():
         endpoint_bytes = ensure_binary_or_empty(endpoint)
+        endpoint_bytes_list.append(endpoint_bytes)
         for span_id in span_ids:
             span_ids_to_endpoints.insert(
                 pair[int64_t, string_view](
@@ -194,6 +238,7 @@ def upload() -> None:
     cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
     for endpoint, cnt in endpoint_counts.items():
         endpoint_bytes = ensure_binary_or_empty(endpoint)
+        endpoint_bytes_list.append(endpoint_bytes)
         trace_endpoints_to_counts.insert(pair[string_view, int64_t](
             string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
             clamp_to_int64_unsigned(cnt)

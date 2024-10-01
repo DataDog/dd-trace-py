@@ -102,7 +102,16 @@ target_include_directories(crashtracker_exe PRIVATE
     ..
     ${Datadog_INCLUDE_DIRS}
 )
-set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+
+# The CRASHTRACKER_EXE_TARGET_NAME should have been set by dd_wrapper
+if (NOT CRASHTRACKER_EXE_TARGET_NAME)
+    message(FATAL_ERROR "CRASHTRACKER_EXE_TARGET_NAME not set")
+endif()
+
+set_target_properties(crashtracker_exe PROPERTIES
+    INSTALL_RPATH "$ORIGIN/.."
+    OUTPUT_NAME ${CRASHTRACKER_EXE_TARGET_NAME}
+)
 target_link_libraries(crashtracker_exe PRIVATE
     dd_wrapper
 )
