@@ -35,6 +35,7 @@ from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_host_info
+from .data import get_python_config_vars
 from .data import update_imported_dependencies
 from .metrics import CountMetric
 from .metrics import DistributionMetric
@@ -338,6 +339,9 @@ class TelemetryWriter(PeriodicService):
             product: {"version": _pep440_to_semver(), "enabled": status}
             for product, status in self._product_enablement.items()
         }
+
+        # SOABI should help us identify which wheels people are getting from PyPI
+        self.add_configurations(get_python_config_vars())
 
         payload = {
             "configuration": self._flush_configuration_queue(),

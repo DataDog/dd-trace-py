@@ -19,3 +19,7 @@ If you'd like more granular control over instrumentation setup, you can call the
 directly.
 """
 import ddtrace.bootstrap.sitecustomize  # noqa:F401
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+telemetry_writer.add_configuration("ddtrace_auto_used", "True", "unknown")

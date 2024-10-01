@@ -1,3 +1,10 @@
+import os
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Union  # noqa:F401
+
 from envier.env import EnvVariable
 from envier.env import _normalized
 
@@ -17,3 +24,27 @@ def report_telemetry(env):
             else:
                 source = "unknown"
             telemetry_writer.add_configuration(env_name, str(env_val), source)
+
+
+def get_config(
+    envs: Union[str, List[str]],
+    default: Any = None,
+    modifier: Optional[Callable[[Any], Any]] = None,
+    report_telemetry=True,
+):
+    if isinstance(envs, str):
+        envs = [envs]
+    val = default
+    source = "default"
+    effective_env = envs[0]
+    for env in envs:
+        if env in os.environ:
+            val = os.environ[env]
+            if modifier:
+                val = modifier(val)
+            source = "env_var"
+            effective_env = env
+            break
+    if report_telemetry:
+        telemetry_writer.add_configuration(effective_env, str(val), source)
+    return val

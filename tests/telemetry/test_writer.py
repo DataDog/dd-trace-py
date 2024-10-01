@@ -205,9 +205,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         assert payload == result["payload"]
 
 
-def test_app_started_event_configuration_override(
-    test_agent_session, run_python_code_in_subprocess, tmpdir
-):
+def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
@@ -280,6 +278,7 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
     env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
+    env["DD_SITE"] = "datadoghq.com"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -289,13 +288,17 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         "app-client-configuration-change"
     )
     for event in events_with_configs:
-        configurations.extend(event["payload"]["configuration"])
+        for c in event["payload"]["configuration"]:
+            # DD_TRACE_AGENT_URL in gitlab is different from CI, to keep things simple
+            # we skip asserting this value
+            if c["name"] != "DD_TRACE_AGENT_URL":
+                configurations.append(c)
     assert configurations
 
     expected = [
-        {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
-        {"name": "DD_AGENT_PORT", "origin": "default", "value": None},
-        {"name": "DD_API_KEY", "origin": "default", "value": None},
+        {"name": "DD_AGENT_HOST", "origin": "default", "value": "None"},
+        {"name": "DD_AGENT_PORT", "origin": "default", "value": "None"},
+        {"name": "DD_API_KEY", "origin": "default", "value": "None"},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "default", "value": "True"},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": "True"},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": "30.0"},
@@ -308,8 +311,9 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {
             "name": "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP",
             "origin": "default",
-            "value": "(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer[_-]?(?:id"
-            "|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\\.net[_-]sessionid|sid|jwt",
+            "value": "(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer"
+            "[_-]?(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\\"
+            ".net[_-]sessionid|sid|jwt",
         },
         {
             "name": "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP",
@@ -326,9 +330,9 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_APPSEC_SCA_ENABLED", "origin": "default", "value": "None"},
         {"name": "DD_APPSEC_STACK_TRACE_ENABLED", "origin": "default", "value": "True"},
         {"name": "DD_APPSEC_WAF_TIMEOUT", "origin": "default", "value": "5.0"},
-        {"name": "DD_CIVISIBILITY_AGENTLESS_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_CIVISIBILITY_AGENTLESS_ENABLED", "origin": "env_var", "value": "False"},
         {"name": "DD_CIVISIBILITY_AGENTLESS_URL", "origin": "default", "value": ""},
-        {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": "False"},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
         {"name": "DD_CRASHTRACKING_ALT_STACK", "origin": "default", "value": "False"},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": "None"},
@@ -338,9 +342,9 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_CRASHTRACKING_STDOUT_FILENAME", "origin": "default", "value": "None"},
         {"name": "DD_CRASHTRACKING_TAGS", "origin": "default", "value": "{}"},
         {"name": "DD_CRASHTRACKING_WAIT_FOR_RECEIVER", "origin": "default", "value": "True"},
-        {"name": "DD_DATA_STREAMS_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": None},
-        {"name": "DD_DOGSTATSD_URL", "origin": "default", "value": None},
+        {"name": "DD_DATA_STREAMS_ENABLED", "origin": "env_var", "value": "True"},
+        {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": "None"},
+        {"name": "DD_DOGSTATSD_URL", "origin": "default", "value": "None"},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL", "origin": "default", "value": "3600"},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "default", "value": "False"},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE", "origin": "default", "value": "1048576"},
@@ -349,41 +353,40 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES", "origin": "default", "value": "set()"},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL", "origin": "default", "value": "1.0"},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": "30"},
-        {"name": "DD_ENV", "origin": "default", "value": None},
+        {"name": "DD_ENV", "origin": "default", "value": "None"},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": "True"},
         {"name": "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED", "origin": "default", "value": "False"},
-        {"name": "DD_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": None},
+        {"name": "DD_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "None"},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": "False"},
         {"name": "DD_IAST_REDACTION_ENABLED", "origin": "default", "value": "True"},
         {
             "name": "DD_IAST_REDACTION_NAME_PATTERN",
             "origin": "default",
-            "value": "(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?"
-            "|access_?|secret_?)"
-            "key(?:_?id)?|password|token|username|user_id|last.name|consumer_?(?:id"
-            "|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)",
+            "value": "(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?"
+            "|secret_?)key(?:_?id)?|password|token|username|user_id|last.name|consumer_?(?:id|key|secret)|sign("
+            "?:ed|ature)?|auth(?:entication|orization)?)",
         },
         {
             "name": "DD_IAST_REDACTION_VALUE_NUMERAL",
             "origin": "default",
-            "value": "^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\\d+\\.?\\d*(?:[Ee][+-]?\\d+)?|\\.\\d+(?:"
-            "[Ee][+-]?\\d+)?)|(X\\'[0-9A-Fa-f]+\\')|(B\\'[01]+\\'))$",
+            "value": "^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\\d+\\.?\\d*(?:[Ee][+-]?\\d+)?|\\.\\d+(?:[Ee][+-]?"
+            "\\d+)?)|(X\\'[0-9A-Fa-f]+\\')|(B\\'[01]+\\'))$",
         },
         {
             "name": "DD_IAST_REDACTION_VALUE_PATTERN",
             "origin": "default",
-            "value": "(?i)bearer\\s+[a-z0-9\\._\\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}"
-            "|ey[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(\\.[\\w.+\\/=-]+)?|[\\-]{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}"
+            "value": "(?i)bearer\\s+[a-z0-9\\._\\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|ey"
+            "[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(\\.[\\w.+\\/=-]+)?|[\\-]{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}"
             "[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
-        {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
-        {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
-        {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": None},
-        {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
-        {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
+        {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": "True"},
+        {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": "None"},
+        {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": "None"},
+        {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "env_var", "value": "True"},
+        {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": "False"},
+        {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": "False"},
+        {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": "None"},
+        {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": "1.0"},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": "True"},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": "False"},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": "10.0"},
@@ -402,12 +405,13 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": "False"},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": "10.0"},
         {"name": "DD_PROFILING__FORCE_LEGACY_EXPORTER", "origin": "env_var", "value": "True"},
-        {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
-        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": "True"},
+        {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": "1.0"},
+        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": "True"},
+        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": "False"},
         {"name": "DD_SERVICE", "origin": "default", "value": "unnamed-python-service"},
         {"name": "DD_SERVICE_MAPPING", "origin": "env_var", "value": "default_dd_service:remapped_dd_service"},
-        {"name": "DD_SITE", "origin": "default", "value": "datadoghq.com"},
+        {"name": "DD_SITE", "origin": "env_var", "value": "datadoghq.com"},
         {"name": "DD_SPAN_SAMPLING_RULES", "origin": "env_var", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
         {
             "name": "DD_SPAN_SAMPLING_RULES_FILE",
@@ -417,54 +421,66 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": "set()"},
         {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": "False"},
         {"name": "DD_TAGS", "origin": "env_var", "value": "{'team': 'apm', 'component': 'web'}"},
-        {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": 60},
-        {"name": "DD_TESTING_RAISE", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
-        {"name": "DD_TRACE_AGENT_URL", "origin": "env_var", "value": "http://localhost:9126"},
-        {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": "True"},
+        {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": "60"},
+        {"name": "DD_TESTING_RAISE", "origin": "env_var", "value": "True"},
+        {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": "True"},
+        {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": "False"},
+        {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": "2.0"},
+        {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "env_var", "value": "True"},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
-        {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": None},
-        {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": "True"},
+        {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": "None"},
+        {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": "True"},
+        {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": "True"},
         {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": "False"},
         {"name": "DD_TRACE_HEADER_TAGS", "origin": "default", "value": "{}"},
-        {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": "True"},
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
-        {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
+        {"name": "DD_TRACE_METHODS", "origin": "default", "value": "None"},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
-        {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": 3},
-        {"name": "DD_TRACE_PROPAGATION_EXTRACT_FIRST", "origin": "default", "value": False},
-        {"name": "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
-        {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
+        {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": "True"},
+        {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": "False"},
+        {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": "3"},
+        {"name": "DD_TRACE_PROPAGATION_EXTRACT_FIRST", "origin": "default", "value": "False"},
+        {"name": "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "origin": "default", "value": "False"},
+        {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": "50"},
+        {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": "False"},
         {"name": "DD_TRACE_SAMPLE_RATE", "origin": "env_var", "value": "0.5"},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
             "origin": "env_var",
             "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
         },
-        {"name": "DD_TRACE_SPAN_AGGREGATOR_RLOCK", "origin": "default", "value": True},
-        {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": 30},
-        {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "env_var", "value": 1000},
-        {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "env_var", "value": 30.0},
-        {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "env_var", "value": 9999},
-        {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", "origin": "default", "value": 512},
+        {"name": "DD_TRACE_SPAN_AGGREGATOR_RLOCK", "origin": "default", "value": "True"},
+        {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": "30"},
+        {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": "True"},
+        {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "env_var", "value": "1000"},
+        {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "env_var", "value": "30.0"},
+        {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "env_var", "value": "9999"},
+        {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "env_var", "value": "True"},
+        {"name": "DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", "origin": "default", "value": "512"},
         {"name": "DD_USER_MODEL_EMAIL_FIELD", "origin": "default", "value": ""},
         {"name": "DD_USER_MODEL_LOGIN_FIELD", "origin": "default", "value": ""},
         {"name": "DD_USER_MODEL_NAME_FIELD", "origin": "default", "value": ""},
-        {"name": "DD_VERSION", "origin": "default", "value": None},
+        {"name": "DD_VERSION", "origin": "default", "value": "None"},
+        {"name": "ddtrace_auto_used", "origin": "unknown", "value": "True"},
+        {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": "True"},
+        {
+            "name": "python_build_gnu_type",
+            "origin": "unknown",
+            "value": sysconfig.get_config_var("BUILD_GNU_TYPE"),
+        },
+        {
+            "name": "python_host_gnu_type",
+            "origin": "unknown",
+            "value": sysconfig.get_config_var("HOST_GNU_TYPE"),
+        },
+        {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": "True"},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": "False"},
-        {"name": "_DD_INJECT_WAS_ATTEMPTED", "origin": "default", "value": False},
-        {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
+        {"name": "_DD_INJECT_WAS_ATTEMPTED", "origin": "default", "value": "False"},
+        {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": "False"},
     ]
     assert sorted(configurations, key=lambda x: x["name"]) == sorted(expected, key=lambda x: x["name"])
 

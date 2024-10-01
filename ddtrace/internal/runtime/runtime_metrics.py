@@ -105,7 +105,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = False
 
         # Report status to telemetry
-        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="unknown")
+        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, "False", origin="unknown")
 
     @classmethod
     def _restart(cls):
@@ -132,7 +132,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = True
 
         # Report status to telemetry
-        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
+        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, "True", origin="unknown")
 
     def flush(self):
         # type: () -> None
