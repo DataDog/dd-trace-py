@@ -4,6 +4,22 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.14.1
+
+
+### New Features
+
+  - Code Security (IAST): Always report a telemetry log error when an IAST propagation error raises, regardless of whether the `_DD_IAST_DEBUG` environment variable is enabled or not.
+
+### Bug Fixes
+
+  - tracing: Removes a reference cycle that caused unnecessary garbage collection for top-level spans.
+  - Code Security: fix potential memory leak on IAST exception handling.
+  - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+
+
+---
+
 ## 2.14.0
 
 ### Deprecation Notes
