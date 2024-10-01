@@ -533,7 +533,7 @@ class TestOperatorsReplacement(BaseReplacement):
             mod.do_ljust(string_input, "aaaaa")
 
         list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 1
+        assert len(list_metrics_logs) == 0
 
     def test_zfill(self):
         # Not tainted

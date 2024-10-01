@@ -1,3 +1,5 @@
+import json
+
 import mock
 import pytest
 
@@ -5,6 +7,7 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import METADATA
@@ -324,6 +327,31 @@ def test_output_value_is_set():
             llm_span.set_tag(OUTPUT_VALUE, "value")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)["meta"]["output"]["value"] == "value"
+
+
+def test_prompt_is_set():
+    """Test that prompt is set on the span event if they are present on the span."""
+    dummy_tracer = DummyTracer()
+    mock_llmobs_span_writer = mock.MagicMock()
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(INPUT_PROMPT, json.dumps({"variables": {"var1": "var2"}}))
+        tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
+        assert tp._llmobs_span_event(llm_span)["meta"]["input"]["prompt"] == {"variables": {"var1": "var2"}}
+
+
+def test_prompt_is_not_set_for_non_llm_spans():
+    """Test that prompt is NOT set on the span event if the span is not an LLM span."""
+    dummy_tracer = DummyTracer()
+    mock_llmobs_span_writer = mock.MagicMock()
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("task_span", span_type=SpanTypes.LLM) as task_span:
+            task_span.set_tag(SPAN_KIND, "task")
+            task_span.set_tag(INPUT_VALUE, "ival")
+            task_span.set_tag(INPUT_PROMPT, json.dumps({"variables": {"var1": "var2"}}))
+        tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
+        assert tp._llmobs_span_event(task_span)["meta"]["input"].get("prompt") is None
 
 
 def test_metadata_is_set():

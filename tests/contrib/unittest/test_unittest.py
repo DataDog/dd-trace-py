@@ -20,10 +20,10 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.constants import COMPONENT
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -50,7 +50,7 @@ class UnittestTestCase(TracerTestCase):
         """
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             yield
 
