@@ -35,6 +35,15 @@ Global Configuration
    Enabling instrumentation for resolvers will produce a ``graphql.resolve`` span for every graphql field.
    For complex graphql queries this could produce large traces.
 
+.. py:data:: ddtrace.config.graphql["simplify_resources"]
+
+   To enable this option, set ``DD_TRACE_GRAPHQL_SIMPLIFY_RESOURCES`` to True.
+
+   Default: ``False``
+
+   When True, resource names on GraphQL spans will be reduced to just the query or mutation name, if provided. Otherwise
+   the entire query will be used.
+
 
 To configure the graphql integration using the
 ``Pin`` API::
@@ -44,6 +53,7 @@ To configure the graphql integration using the
 
     Pin.override(graphql, service="mygraphql")
 """
+
 from ddtrace.internal.utils.importlib import require_modules
 
 

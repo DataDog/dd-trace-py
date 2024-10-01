@@ -61,6 +61,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("graphql"),
         resolvers_enabled=asbool(os.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
+        simplify_resource=asbool(os.getenv("DD_TRACE_GRAPHQL_SIMPLIFY_RESOURCES", default=False)),
     ),
 )
 
@@ -168,10 +169,22 @@ def _traced_execute(func, args, kwargs):
     else:
         document = get_argument_value(args, kwargs, 1, "document")
     source_str = _get_source_str(document)
+    resource = source_str
+    if config.graphql.simplify_resource:
+        # queries can look like:
+        # query Name(args) {...
+        # query Name {...
+        # query {...
+        # simplified names only make sense for the first two. the last one should just default to the full query
+        # split on either the query body brace or the arg parens
+        resource = re.split("[({]", resource, maxsplit=1)[0]
+        resource = resource.strip()
+        if resource in ("query", "mutation"):
+            resource = source_str
 
     with pin.tracer.trace(
         name="graphql.execute",
-        resource=source_str,
+        resource=resource,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
