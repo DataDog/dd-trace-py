@@ -72,7 +72,7 @@ def test_push_span():
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    test_name = "test_collect_span_id"
+    test_name = "test_push_span"
     pprof_prefix = "/tmp/" + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
 
@@ -127,7 +127,7 @@ def test_push_span_v2():
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    test_name = "test_collect_span_id"
+    test_name = "test_push_span_v2"
     pprof_prefix = "/tmp/" + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
 
@@ -181,7 +181,7 @@ def test_push_non_web_span():
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    test_name = "test_collect_span_id"
+    test_name = "test_push_non_web_span"
     pprof_prefix = "/tmp/" + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
 
