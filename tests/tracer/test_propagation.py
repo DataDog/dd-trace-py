@@ -3210,3 +3210,14 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
 
     context = _BaggageHeader._extract(headers)
     assert context._baggage == expected_baggage
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"baggage": "key1=val1,key2=val2,foo=bar,x=y"},
+    ],
+)
+def test_http_propagator_baggage_extract(headers):
+    context = HTTPPropagator.extract(headers)
+    assert context._baggage == {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}

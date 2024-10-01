@@ -1118,7 +1118,7 @@ class HTTPPropagator(object):
             return Context()
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-
+            context = None
             # tracer configured to extract first only
             if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
@@ -1138,10 +1138,12 @@ class HTTPPropagator(object):
                         _attach_baggage_to_context(normalized_headers, context)
 
             # baggage
-            if config._propagation_style_extract and _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
+            if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
                 baggage_context = _BaggageHeader._extract(normalized_headers)
-                if baggage_context:
+                if context and baggage_context:
                     context._baggage = baggage_context._baggage
+                else:
+                    context = baggage_context
 
             return context
 
