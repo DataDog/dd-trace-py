@@ -27,6 +27,8 @@ ThreadSpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
     std::lock_guard<std::mutex> lock(mtx);
 
     if (thread_id_to_span.find(thread_id) == thread_id_to_span.end()) {
+        std::cout << "ThreadSpanLinks::get_active_span_from_thread_id: thread_id=" << thread_id
+                  << " not found in thread_id_to_span" << std::endl;
         return nullptr;
     }
     return thread_id_to_span[thread_id].get();
