@@ -3,7 +3,6 @@
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
 
-#include <iostream>
 #include <mutex>
 #include <unordered_map>
 
