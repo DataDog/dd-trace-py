@@ -58,12 +58,8 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     const Span* active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
     if (active_span != nullptr) {
         ddup_push_span_id(sample, active_span->span_id);
-        if (active_span->local_root_span_id.has_value()) {
-            ddup_push_local_root_span_id(sample, active_span->local_root_span_id.value());
-        }
-        if (active_span->span_type.has_value()) {
-            ddup_push_trace_type(sample, std::string_view(active_span->span_type.value()));
-        }
+        ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
+        ddup_push_trace_type(sample, std::string_view(active_span->span_type));
     }
 }
 

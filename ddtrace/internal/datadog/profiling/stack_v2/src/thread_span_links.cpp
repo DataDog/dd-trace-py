@@ -1,22 +1,21 @@
 #include "thread_span_links.hpp"
 
+#include <iostream>
 #include <mutex>
-#include <optional>
 #include <stdint.h>
 #include <string>
 
 namespace Datadog {
 void
-ThreadSpanLinks::link_span(uint64_t thread_id,
-                           uint64_t span_id,
-                           std::optional<uint64_t> local_root_span_id,
-                           std::optional<std::string> span_type)
+ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
     if (thread_id_to_span.find(thread_id) == thread_id_to_span.end()) {
         thread_id_to_span[thread_id] = std::make_unique<Span>(span_id, local_root_span_id, span_type);
     }
+    std::cout << "ThreadSpanLinks::link_span: thread_id=" << thread_id << ", span_id=" << span_id
+              << ", local_root_span_id=" << local_root_span_id << ", span_type=" << span_type << std::endl;
     thread_id_to_span[thread_id]->span_id = span_id;
     thread_id_to_span[thread_id]->local_root_span_id = local_root_span_id;
     thread_id_to_span[thread_id]->span_type = span_type;

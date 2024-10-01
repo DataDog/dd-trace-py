@@ -90,30 +90,25 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     (void)self;
     uint64_t thread_id;
     uint64_t span_id;
-    PyObject* local_root_span_id_obj = Py_None;
-
     uint64_t local_root_span_id;
     const char* span_type;
 
-    static const char* const_kwlist[] = { "thread_id", "span_id", "local_root_span_id", "span_type", NULL };
-    static char** kwlist = const_cast<char**>(const_kwlist);
+    PyThreadState* state = PyThreadState_Get();
 
-    if (!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "LL|Oz", kwlist, &thread_id, &span_id, &local_root_span_id_obj, &span_type)) {
+    if (!state) {
         return NULL;
     }
 
-    if (local_root_span_id_obj != Py_None) {
-        if (!PyLong_Check(local_root_span_id_obj)) {
-            PyErr_SetString(PyExc_TypeError, "local_root_span_id must be an integer");
-            return NULL;
-        }
+    thread_id = state->thread_id;
 
-        local_root_span_id = PyLong_AsUnsignedLong(local_root_span_id_obj);
+    static const char* const_kwlist[] = { "span_id", "local_root_span_id", "span_type", NULL };
+    static char** kwlist = const_cast<char**>(const_kwlist);
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "LLs", kwlist, &span_id, &local_root_span_id, &span_type)) {
+        return NULL;
     }
 
-    ThreadSpanLinks::get_instance().link_span(
-      thread_id, span_id, std::optional<uint64_t>(local_root_span_id), std::optional<std::string>(span_type));
+    ThreadSpanLinks::get_instance().link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
 
     Py_RETURN_NONE;
 }
@@ -126,7 +121,7 @@ static PyMethodDef _stack_v2_methods[] = {
     { "register_thread", stack_v2_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_v2_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_v2_set_interval, METH_VARARGS, "Set the sampling interval" },
-    { "link_span",
+    { "_link_span",
       reinterpret_cast<PyCFunction>(stack_v2_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },
