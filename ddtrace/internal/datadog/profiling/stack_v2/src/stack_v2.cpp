@@ -111,6 +111,9 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
         return NULL;
     }
 
+    std::cout << "stack_v2: Linking span to thread: thread_id=" << thread_id << ", span_id=" << span_id
+              << ", local_root_span_id=" << local_root_span_id << ", span_type=" << span_type << std::endl;
+
     ThreadSpanLinks::get_instance().link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
 
     Py_RETURN_NONE;
