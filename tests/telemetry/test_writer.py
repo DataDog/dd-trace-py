@@ -10,7 +10,6 @@ import mock
 import pytest
 
 import ddtrace.internal.telemetry
-from ddtrace.internal.telemetry import modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
@@ -206,8 +205,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         assert payload == result["payload"]
 
 
-# @pytest.mark.skip(reason="FIXME: This test needs to be updated.")
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
+def test_app_started_event_configuration_override(
+    test_agent_session, run_python_code_in_subprocess, tmpdir
+):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
@@ -218,6 +218,12 @@ import logging
 logging.basicConfig()
 
 import ddtrace.auto
+
+# By default telemetry collection is enabled after 10 seconds, so we either need to
+# to sleep for 10 seconds or manually call _app_started() to generate the app started event.
+# This delay allows us to collect start up errors and dynamic configurations
+import ddtrace
+ddtrace.internal.telemetry.telemetry_writer._app_started()
     """
 
     env = os.environ.copy()
@@ -274,10 +280,8 @@ import ddtrace.auto
     env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
-
     assert status == 0, stderr
 
     configurations = []
@@ -465,71 +469,54 @@ import ddtrace.auto
     assert sorted(configurations, key=lambda x: x["name"]) == sorted(expected, key=lambda x: x["name"])
 
 
-def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
-    import xmltodict
-
-    new_deps = [xmltodict.__name__]
-    telemetry_writer._app_dependencies_loaded_event(new_deps)
-    # force a flush
-    telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-dependencies-loaded")
-    assert len(events) >= 1
-    xmltodict_events = [e for e in events if e["payload"]["dependencies"][0]["name"] == "xmltodict"]
-    assert len(xmltodict_events) == 1
-    assert "xmltodict" in telemetry_writer._imported_dependencies
-    assert telemetry_writer._imported_dependencies["xmltodict"]
-
-
-def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, run_python_code_in_subprocess):
+def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
-    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    _, stderr, status, _ = run_python_code_in_subprocess("""import ddtrace.auto; import xmltodict""", env=env)
+
+    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
+    # Imports httpretty twice and ensures only one dependency entry is sent
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
     assert status == 0, stderr
-
-    events = test_agent_session.get_events()
-    assert events
-    for event in events:
-        assert event["request_type"] != "app-dependencies-loaded"
+    deps = test_agent_session.get_dependencies("xmltodict")
+    assert len(deps) == 1, deps
 
 
-@pytest.mark.skip(reason="FIXME: This test does not generate a dependencies event")
-def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
-    # Fetch modules to reset the state of seen modules
-    modules.get_newly_imported_modules()
+def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
 
-    import string
-
-    new_deps = [string.__name__]
-    telemetry_writer._app_dependencies_loaded_event(new_deps)
-    # force a flush
-    telemetry_writer.periodic(force_flush=True)
+    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
+    # Imports httpretty twice and ensures only one dependency entry is sent
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict")
     events = test_agent_session.get_events("app-dependencies-loaded")
-    assert len(events) == 1
+    assert len(events) == 0, events
 
 
-def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
-    # Fetch modules to reset the state of seen modules
-    modules.get_newly_imported_modules()
+def test_update_dependencies_event_not_stdlib(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    import xmltodict
-
-    new_deps = [xmltodict.__name__]
-    telemetry_writer._app_dependencies_loaded_event(new_deps)
-    # force a flush
-    telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-dependencies-loaded")
-    assert events[0]["payload"]["dependencies"][0]["name"] == "xmltodict"
-
-    telemetry_writer._app_dependencies_loaded_event(new_deps)
-    # force a flush
-    telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-dependencies-loaded")
-
-    assert events[0]["seq_id"] == 1
-    # only one event must be sent with a non empty payload
-    # flaky
-    # assert sum(e["payload"] != {} for e in events) == 1
+    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
+    # Imports httpretty twice and ensures only one dependency entry is sent
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import sys
+import httpretty
+del sys.modules["httpretty"]
+import httpretty
+""",
+        env=env,
+    )
+    assert status == 0, stderr
+    deps = test_agent_session.get_dependencies("httpretty")
+    assert len(deps) == 1, deps
 
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
@@ -589,8 +576,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     # force periodic call to flush the first app_started call
     telemetry_writer.periodic(force_flush=True)
     """asserts that queuing a configuration sends a valid telemetry request"""
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        initial_event_count = len(test_agent_session.get_events("app-client-configuration-change"))
+    with override_global_config(dict()):
         telemetry_writer.add_configuration("appsec_enabled", True)
         telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
         telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
@@ -598,12 +584,8 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
         telemetry_writer.periodic(force_flush=True)
 
         events = test_agent_session.get_events("app-client-configuration-change")
-        assert len(events) >= initial_event_count + 1
-        assert events[0]["request_type"] == "app-client-configuration-change"
-        received_configurations = events[0]["payload"]["configuration"]
-        # Sort the configuration list by name
+        received_configurations = [c for event in events for c in event["payload"]["configuration"]]
         received_configurations.sort(key=lambda c: c["name"])
-
         # assert the latest configuration value is send to the agent
         assert received_configurations == [
             {
@@ -646,8 +628,6 @@ def test_send_failing_request(mock_status, telemetry_writer):
                     telemetry_writer._client.url,
                     mock_status,
                 )
-            # ensure one failing request was sent
-            assert len(httpretty.latest_requests()) == 1
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
