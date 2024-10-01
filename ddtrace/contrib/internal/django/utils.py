@@ -14,7 +14,7 @@ import xmltodict
 
 from ddtrace import config
 from ddtrace._trace.span import Span
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -259,7 +259,7 @@ def _before_request_tags(pin, span, request):
 
     analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
     if analytics_sr is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
     span.set_tag_str("django.request.class", func_name(request))
 
@@ -289,7 +289,7 @@ def _extract_body(request):
 def _remake_body(request):
     # some libs that utilize django (Spyne) require the body stream to be unread or else will throw errors
     # see: https://github.com/arskom/spyne/blob/f105ec2f41495485fef1211fe73394231b3f76e5/spyne/server/wsgi.py#L538
-    if request.method in _BODY_METHODS:
+    if request.method in _BODY_METHODS and getattr(request, "_body", None):
         try:
             unread_body = io.BytesIO(request._body)
             if unread_body.seekable():

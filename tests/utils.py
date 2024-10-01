@@ -28,7 +28,7 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
+from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -73,7 +73,7 @@ def assert_span_http_status_code(span, code):
 
 
 @contextlib.contextmanager
-def override_env(env):
+def override_env(env, replace_os_env=False):
     """
     Temporarily override ``os.environ`` with provided values::
 
@@ -82,6 +82,10 @@ def override_env(env):
     """
     # Copy the full original environment
     original = dict(os.environ)
+
+    # We allow callers to clear out the environment to prevent leaking variables into the test
+    if replace_os_env:
+        os.environ.clear()
 
     for k in os.environ.keys():
         if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
@@ -109,7 +113,6 @@ def override_global_config(values):
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
         "_tracing_enabled",
-        "analytics_enabled",
         "client_ip_header",
         "retrieve_client_ip",
         "report_hostname",
@@ -153,6 +156,7 @@ def override_global_config(values):
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
+        "_data_streams_enabled",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -1102,7 +1106,7 @@ def snapshot_context(
         result = to_unicode(r.read())
         if r.status != 200:
             lowered = result.lower()
-            if "received unmatched traces" not in lowered and "did not receive expected traces" not in lowered:
+            if "received unmatched traces" not in lowered:
                 pytest.fail(result, pytrace=False)
             # we don't know why the test agent occasionally receives a different number of traces than it expects
             # during snapshot tests, but that does sometimes in an unpredictable manner

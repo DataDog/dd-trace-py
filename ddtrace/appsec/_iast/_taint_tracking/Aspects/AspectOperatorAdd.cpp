@@ -85,13 +85,21 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     // PyNumber_Add actually works for any type!
     result_o = PyNumber_Add(candidate_text, text_to_add);
 
-    TRY_CATCH_ASPECT("add_aspect", , {
+    TRY_CATCH_ASPECT("add_aspect", return result_o, , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return result_o;
         }
 
         if (not args_are_text_and_same_type(candidate_text, text_to_add)) {
+            return result_o;
+        }
+
+        // Early return if there are no ranges
+        auto [ranges_candidate_text, ranges_error_canditate_text] = get_ranges(candidate_text, tx_map);
+        auto [ranges_text_to_add, ranges_error_text_to_add] = get_ranges(text_to_add, tx_map);
+        if (ranges_error_canditate_text or ranges_error_text_to_add or
+            (ranges_candidate_text.empty() and ranges_text_to_add.empty())) {
             return result_o;
         }
 
@@ -119,13 +127,23 @@ api_add_inplace_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 
     result_o = PyNumber_InPlaceAdd(candidate_text, text_to_add);
 
-    TRY_CATCH_ASPECT("add_inplace_aspect", , {
+    TRY_CATCH_ASPECT("add_inplace_aspect", return result_o, , {
         const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return result_o;
         }
 
         if (not args_are_text_and_same_type(candidate_text, text_to_add)) {
+            return result_o;
+        }
+
+        // Early return if there are no ranges
+        auto [ranges_candidate_text, ranges_error_canditate_text] = get_ranges(candidate_text, tx_map);
+        if (ranges_error_canditate_text) {
+            return result_o;
+        }
+        auto [ranges_text_to_add, ranges_error_text_to_add] = get_ranges(text_to_add, tx_map);
+        if (ranges_error_text_to_add or (ranges_candidate_text.empty() and ranges_text_to_add.empty())) {
             return result_o;
         }
 

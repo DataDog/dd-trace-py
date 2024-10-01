@@ -6,7 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -107,7 +107,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.molten.get_analytics_sample_rate(use_global_config=True))
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.molten.get_analytics_sample_rate(use_global_config=True))
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):

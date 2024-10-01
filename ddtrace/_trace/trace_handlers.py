@@ -9,11 +9,15 @@ from typing import Optional
 
 import wrapt
 
+from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
-from ddtrace._trace.utils import set_botocore_response_metadata_tags
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
+from ddtrace._trace.utils_botocore.span_tags import (
+    set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags,
+)
+from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -96,7 +100,7 @@ class _TracedIterable(wrapt.ObjectProxy):
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, str]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
-        parameter_value = ctx.get_item(parameter_name, traverse=False)
+        parameter_value = ctx.get_local_item(parameter_name)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
     return span_kwargs
@@ -111,7 +115,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         trace_utils.activate_distributed_headers(
             tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
         )
-    distributed_context = ctx.get_item("distributed_context", traverse=True)
+    distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
     span_kwargs.update(kwargs)
@@ -335,9 +339,11 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     # start flask.response span. This span will be finished after iter(result) is closed.
     # start_span(child_of=...) is used to ensure correct parenting.
     resp_span = middleware.tracer.start_span(
-        middleware._response_call_name
-        if hasattr(middleware, "_response_call_name")
-        else middleware._response_span_name,
+        (
+            middleware._response_call_name
+            if hasattr(middleware, "_response_call_name")
+            else middleware._response_span_name
+        ),
         child_of=req_span,
         activate=True,
     )
@@ -476,7 +482,7 @@ def _on_request_span_modifier(
     # set analytics sample rate with global config enabled
     sample_rate = flask_config.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     span.set_tag_str(flask_version, flask_version_str)
 
@@ -620,7 +626,17 @@ def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_er
 
 
 def _on_botocore_patched_api_call_success(ctx, response):
-    set_botocore_response_metadata_tags(ctx.get_item(ctx.get_item("call_key")), response)
+    span = ctx.get_item(ctx.get_item("call_key"))
+
+    set_botocore_response_metadata_tags(span, response)
+
+    for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
+        endpoint_name=ctx.get_item("endpoint_name"),
+        operation_name=ctx.get_item("operation"),
+        request_parameters=ctx.get_item("params"),
+        response=response,
+    ):
+        _set_span_pointer(span, span_pointer_description)
 
 
 def _on_botocore_trace_context_injection_prepared(
@@ -675,11 +691,10 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx[ctx["call_key"]]
     span.set_exc_info(*exc_info)
-    prompt = ctx["prompt"]
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
-    if integration.is_pc_sampled_llmobs(span) and "embed" not in model_name:
-        integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
+    if "embed" not in model_name:
+        integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]})
     span.finish()
 
 
@@ -689,6 +704,36 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span.set_tag_str("bedrock.response.duration", latency)
     span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
     span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
+
+
+def _propagate_context(ctx, headers):
+    distributed_tracing_enabled = ctx["integration_config"].distributed_tracing_enabled
+    call_key = ctx.get_item("call_key")
+    if call_key is None:
+        log.warning("call_key not found in ctx")
+    if distributed_tracing_enabled and call_key:
+        span = ctx[ctx["call_key"]]
+        HTTPPropagator.inject(span.context, headers)
+
+
+def _after_job_execution(ctx, job_failed, span_tags):
+    """sets job.status and job.origin span tags after job is performed"""
+    # get_status() returns None when ttl=0
+    call_key = ctx.get_item("call_key")
+    if call_key:
+        span = ctx[ctx["call_key"]]
+    if span:
+        if job_failed:
+            span.error = 1
+        for k in span_tags.keys():
+            span.set_tag_str(k, span_tags[k])
+
+
+def _on_end_of_traced_method_in_fork(ctx):
+    """Force flush to agent since the process `os.exit()`s
+    immediately after this method returns
+    """
+    ctx["pin"].tracer.flush()
 
 
 def _on_botocore_bedrock_process_response(
@@ -721,8 +766,7 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    if integration.is_pc_sampled_llmobs(span):
-        integration.llmobs_set_tags(span, formatted_response=formatted_response, prompt=ctx["prompt"])
+    integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]}, response=formatted_response)
     span.finish()
 
 
@@ -754,6 +798,33 @@ def _on_botocore_kinesis_getrecords_post(
 def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
         ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
+
+
+def _on_test_visibility_enable(config) -> None:
+    from ddtrace.internal.ci_visibility import CIVisibility
+
+    CIVisibility.enable(config=config)
+
+
+def _on_test_visibility_disable() -> None:
+    from ddtrace.internal.ci_visibility import CIVisibility
+
+    CIVisibility.disable()
+
+
+def _on_test_visibility_is_enabled() -> bool:
+    from ddtrace.internal.ci_visibility import CIVisibility
+
+    return CIVisibility.enabled
+
+
+def _set_span_pointer(span: Span, span_pointer_description: _SpanPointerDescription) -> None:
+    span._add_span_pointer(
+        pointer_kind=span_pointer_description.pointer_kind,
+        pointer_direction=span_pointer_description.pointer_direction,
+        pointer_hash=span_pointer_description.pointer_hash,
+        extra_attributes=span_pointer_description.extra_attributes,
+    )
 
 
 def listen():
@@ -809,6 +880,13 @@ def listen():
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
 
+    core.on("test_visibility.enable", _on_test_visibility_enable)
+    core.on("test_visibility.disable", _on_test_visibility_disable)
+    core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
+    core.on("rq.worker.perform_job", _after_job_execution)
+    core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
+    core.on("rq.queue.enqueue_job", _propagate_context)
+
     for context_name in (
         "flask.call",
         "flask.jsonify",
@@ -826,6 +904,11 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "rq.queue.enqueue_job",
+        "rq.traced_queue_fetch_job",
+        "rq.worker.perform_job",
+        "rq.job.perform",
+        "rq.job.fetch_many",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

@@ -93,20 +93,6 @@ async def test_unicode(snapshot_context, traced_yaaredis):
 
 
 @pytest.mark.asyncio
-async def test_analytics_without_rate(snapshot_context, traced_yaaredis):
-    with override_config("yaaredis", dict(analytics_enabled=True)):
-        with snapshot_context():
-            await traced_yaaredis.get("cheese")
-
-
-@pytest.mark.asyncio
-async def test_analytics_with_rate(snapshot_context, traced_yaaredis):
-    with override_config("yaaredis", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        with snapshot_context():
-            await traced_yaaredis.get("cheese")
-
-
-@pytest.mark.asyncio
 async def test_pipeline_traced(snapshot_context, traced_yaaredis):
     with snapshot_context():
         p = await traced_yaaredis.pipeline(transaction=False)

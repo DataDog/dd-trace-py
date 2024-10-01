@@ -388,6 +388,14 @@ class Config(object):
             )
         )
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        if self._trace_api == "v0.3":
+            deprecate(
+                "DD_TRACE_API_VERSION=v0.3 is deprecated",
+                message="Traces will be submitted to the v0.4/traces agent endpoint instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._trace_api = "v0.4"
         self._trace_writer_buffer_size = int(
             os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
         )
@@ -416,9 +424,18 @@ class Config(object):
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
+        self.analytics_enabled = asbool(
+            os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=os.getenv("DD_ANALYTICS_ENABLED", default=False))
+        )
+        if self.analytics_enabled:
+            deprecate(
+                "Datadog App Analytics is deprecated and will be removed in a future version. "
+                "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
+                "environment variables and ddtrace.config.analytics_enabled configuration. "
+                "These configurations will also be removed.",
+                category=DDTraceDeprecationWarning,
+            )
 
-        self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
@@ -516,6 +533,18 @@ class Config(object):
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
 
+        legacy_client_tag_enabled = os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", None)
+        if legacy_client_tag_enabled is None:
+            self._http_client_tag_query_string = os.getenv("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", default="true")
+        else:
+            deprecate(
+                "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
+                message="Please use DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._http_client_tag_query_string = legacy_client_tag_enabled.lower()
+
         dd_trace_obfuscation_query_string_regexp = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
@@ -546,6 +575,14 @@ class Config(object):
         self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
+        if self._span_aggregator_rlock is False:
+            deprecate(
+                "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
+                message="Soon the ddtrace library will only support using threading.Rlock to "
+                "aggregate and encode span data. If you need to disable the re-entrant lock and "
+                "revert to using threading.Lock, please contact Datadog support.",
+                removal_version="3.0.0",
+            )
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 

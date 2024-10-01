@@ -185,6 +185,9 @@ dependencies = [
     "django{matrix:django}"
 ]
 
+[envs.appsec_threats_django.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
 [envs.appsec_threats_django.scripts]
 test = [
     "uname -a",
@@ -213,7 +216,7 @@ django = ["~=4.2"]
 
 [[envs.appsec_threats_django.matrix]]
 python = ["3.10", "3.12"]
-django = ["~=5.0"]
+django = ["~=5.1"]
 
 
 ## ASM Flask
@@ -229,6 +232,9 @@ dependencies = [
     "Werkzeug{matrix:werkzeug:}",
     "flask{matrix:flask}"
 ]
+
+[envs.appsec_threats_flask.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.appsec_threats_flask.scripts]
 test = [
@@ -258,6 +264,26 @@ flask = ["~=2.3"]
 python = ["3.8", "3.10", "3.12"]
 flask = ["~=3.0"]
 
+## ASM Native IAST module
+
+[envs.appsec_iast_native]
+template = "appsec_iast_native"
+dependencies = [
+    "cmake",
+    "pybind11",
+    "clang"
+]
+
+[envs.appsec_iast_native.scripts]
+test = [
+    "cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking",
+    "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests",
+    "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests"
+]
+
+[[envs.appsec_iast_native.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
 ## ASM FastAPI
 
 [envs.appsec_threats_fastapi]
@@ -271,6 +297,9 @@ dependencies = [
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
+
+[envs.appsec_threats_fastapi.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.appsec_threats_fastapi.scripts]
 test = [
@@ -293,7 +322,34 @@ fastapi = ["==0.94.1"]
 
 [[envs.appsec_threats_fastapi.matrix]]
 python = ["3.8", "3.10", "3.12"]
-fastapi = ["~=0.109"]
+fastapi = ["~=0.114.2"]
+
+
+## ASM Appsec Aggregated Leak Testing
+
+[envs.appsec_aggregated_leak_testing]
+template = "appsec_aggregated_leak_testing"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+]
+
+[envs.appsec_aggregated_leak_testing.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
+[envs.appsec_aggregated_leak_testing.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+]
+
+[[envs.appsec_aggregated_leak_testing.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12"]
+
+
 
 ## Unit Tests
 

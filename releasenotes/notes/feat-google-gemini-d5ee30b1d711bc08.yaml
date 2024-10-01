@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    google_generativeai: Introduces tracing support for Google Gemini API ``generate_content`` calls.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#google_generativeai>`_
+      for more information.

@@ -7,13 +7,13 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from ._encoding import ListStringTable
-from ._encoding import MsgpackEncoderV03
+from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
 from .compat import ensure_text
 from .logger import get_logger
 
 
-__all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
+__all__ = ["MsgpackEncoderV04", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -151,7 +151,6 @@ class JSONEncoderV2(JSONEncoder):
 
 
 MSGPACK_ENCODERS = {
-    "v0.3": MsgpackEncoderV03,
-    "v0.4": MsgpackEncoderV03,
+    "v0.4": MsgpackEncoderV04,
     "v0.5": MsgpackEncoderV05,
 }

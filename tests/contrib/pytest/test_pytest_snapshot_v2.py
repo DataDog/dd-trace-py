@@ -4,15 +4,16 @@ from unittest import mock
 import pytest
 
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
-from tests.utils import override_env
 from tests.utils import snapshot
 
 
 pytestmark = pytest.mark.skipif(not _USE_PLUGIN_V2, reason="Tests in this module are for v2 of the pytest plugin")
 
 SNAPSHOT_IGNORES = [
+    "meta.ci.workspace_path",
     "meta.error.stack",
     "meta.library_version",
     "meta.os.architecture",
@@ -71,17 +72,23 @@ class PytestSnapshotTestCase(TracerTestCase):
                 """
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
-        with override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_PATCH_MODULES="sqlite3:false",
-            )
+        with mock.patch(
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
-            with mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-                return_value=_CIVisibilitySettings(False, False, False, False),
-            ):
-                subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"])
+            subprocess.run(
+                ["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"],
+                env=_get_default_ci_env_vars(
+                    dict(
+                        DD_API_KEY="foobar.baz",
+                        DD_CIVISIBILITY_ITR_ENABLED="false",
+                        DD_PATCH_MODULES="sqlite3:false",
+                        CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                        DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        _DD_CIVISIBILITY_USE_PYTEST_V2="true",
+                    )
+                ),
+            )
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_pytest_wont_include_lines_pct_if_report_empty(self):
@@ -111,17 +118,23 @@ class PytestSnapshotTestCase(TracerTestCase):
                 """
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
-        with override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_PATCH_MODULES="sqlite3:false",
-            )
+        with mock.patch(
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
-            with mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-                return_value=_CIVisibilitySettings(False, False, False, False),
-            ):
-                subprocess.run(["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"])
+            subprocess.run(
+                ["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"],
+                env=_get_default_ci_env_vars(
+                    dict(
+                        DD_API_KEY="foobar.baz",
+                        DD_CIVISIBILITY_ITR_ENABLED="false",
+                        DD_PATCH_MODULES="sqlite3:false",
+                        CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                        DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        _DD_CIVISIBILITY_USE_PYTEST_V2="true",
+                    )
+                ),
+            )
 
     @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL)
     def test_pytest_with_ddtrace_patch_all(self):
@@ -141,9 +154,20 @@ class PytestSnapshotTestCase(TracerTestCase):
                 """
         self.testdir.makepyfile(test_call_httpx=test_call_httpx)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="false")):
-            with mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-                return_value=_CIVisibilitySettings(False, False, False, False),
-            ):
-                subprocess.run(["pytest", "--ddtrace", "--ddtrace-patch-all"])
+        with mock.patch(
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
+        ):
+            subprocess.run(
+                ["pytest", "--ddtrace", "--ddtrace-patch-all"],
+                env=_get_default_ci_env_vars(
+                    dict(
+                        DD_API_KEY="foobar.baz",
+                        DD_CIVISIBILITY_ITR_ENABLED="false",
+                        CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                        DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        DD_PATCH_MODULES="httpx:true",
+                        _DD_CIVISIBILITY_USE_PYTEST_V2="true",
+                    )
+                ),
+            )
