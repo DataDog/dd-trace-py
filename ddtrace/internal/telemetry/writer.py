@@ -29,6 +29,7 @@ from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from . import modules
 from .constants import TELEMETRY_APM_PRODUCT
+from .constants import TELEMETRY_LOG_LEVEL  # noqa:F401
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
