@@ -1,4 +1,5 @@
 import json
+from json.decoder import JSONDecodeError
 import os
 from typing import List
 from typing import Optional
@@ -7,12 +8,6 @@ from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampling_rule import SamplingRule
 
-
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
 
 logger = get_logger(__name__)
 
