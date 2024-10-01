@@ -68,14 +68,14 @@ class ProductManager:
         # Data structures for topological sorting
         q: t.Deque[str] = deque()  # Queue of products with no dependencies
         g = defaultdict(list)  # Graph of dependencies
-        f = {}  # Remaining dependencies for each product
+        f: t.Dict[str, set] = {}  # Remaining dependencies for each product
 
         for name, product in self.__products__.items():
             product_requires = getattr(product, "requires", [])
             if not product_requires:
                 q.append(name)
             else:
-                f[name] = list(product_requires)
+                f[name] = set(product_requires)
                 for r in product_requires:
                     g[r].append(name)
 
