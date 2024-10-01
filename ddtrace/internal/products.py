@@ -104,15 +104,39 @@ class ProductManager:
         return self._products
 
     def start_products(self) -> None:
+        failed: t.Set[str] = set()
+
         for name, product in self.products:
+            # Check that no required products have failed
+            failed_requirements = failed & set(getattr(product, "requires", []))
+            if failed_requirements:
+                log.error(
+                    "Product '%s' won't start because these dependencies failed to start: %s", name, failed_requirements
+                )
+                failed.add(name)
+                continue
+
             try:
                 product.start()
                 log.debug("Started product '%s'", name)
             except Exception:
                 log.exception("Failed to start product '%s'", name)
+                failed.add(name)
 
     def restart_products(self, join: bool = False) -> None:
+        failed: t.Set[str] = set()
+
         for name, product in self.products:
+            failed_requirements = failed & set(getattr(product, "requires", []))
+            if failed_requirements:
+                log.error(
+                    "Product '%s' won't restart because these dependencies failed to restart: %s",
+                    name,
+                    failed_requirements,
+                )
+                failed.add(name)
+                continue
+
             try:
                 product.restart(join=join)
                 log.debug("Restarted product '%s'", name)

@@ -57,6 +57,30 @@ def test_product_manager_cycles():
     assert c.started and d.started
 
 
+def test_product_manager_start_fail():
+    class B(BaseProduct):
+        requires = ["a"]
+
+        def start(self) -> None:
+            raise RuntimeError()
+
+    class C(BaseProduct):
+        requires = ["b"]
+
+    a = BaseProduct()
+    b = B()
+    c = C()
+
+    manager = ProductManagerTest({"a": a, "b": b, "c": c})
+    manager.run_protocol()
+
+    # a will start
+    assert a.started
+
+    # b fails to start, so c won't start because it depends on b
+    assert not b.started and not c.started
+
+
 def test_product_manager_start():
     a = BaseProduct()
     manager = ProductManagerTest({"a": a})
