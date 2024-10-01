@@ -8,7 +8,8 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from tests.contrib.grpc.common import GrpcBaseTestCase
 from tests.contrib.grpc.hello_pb2 import HelloRequest
 from tests.contrib.grpc.hello_pb2_grpc import HelloStub
-from tests.utils import TracerTestCase, flaky
+from tests.utils import TracerTestCase
+from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
