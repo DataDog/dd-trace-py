@@ -105,7 +105,7 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     static const char* const_kwlist[] = { "span_id", "local_root_span_id", "span_type", NULL };
     static char** kwlist = const_cast<char**>(const_kwlist);
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "LLs", kwlist, &span_id, &local_root_span_id, &span_type)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "KKs", kwlist, &span_id, &local_root_span_id, &span_type)) {
         return NULL;
     }
 
