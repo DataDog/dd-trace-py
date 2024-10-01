@@ -254,7 +254,7 @@ void
 Initializer::reset_context()
 {
     const auto log = get_python_logger();
-    if(ThreadContextCache.tx_map == nullptr){
+    if (ThreadContextCache.tx_map == nullptr) {
         log.attr("debug")("[IAST] reset_context. Context is null");
         return;
     }
