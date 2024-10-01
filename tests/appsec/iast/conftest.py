@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import logging
+import re
 
 import pytest
 
@@ -171,6 +172,10 @@ def iast_context():
     reset_context()
 
 
+# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
+IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
+
+
 @pytest.fixture(autouse=True)
 def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
@@ -181,7 +186,9 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
             yield
 
         log_messages = [record.message for record in caplog.get_records("call")]
-        assert not any("[IAST] " in message for message in log_messages), log_messages
+        for message in log_messages:
+            if IAST_VALID_LOG.search(message):
+                pytest.fail(message)
         # TODO(avara1986): iast tests throw a timeout in gitlab
         #   list_metrics_logs = list(telemetry_writer._logs)
         #   assert len(list_metrics_logs) == 0
