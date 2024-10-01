@@ -2018,3 +2018,23 @@ def test_asm_standalone_configuration():
     assert tracer._compute_stats is False
     # reset tracer values
     tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+def test_gc_not_used_on_root_spans():
+    tracer = ddtrace.Tracer()
+    gc.freeze()
+
+    with tracer.trace("test-event"):
+        pass
+
+    # There should be no more span objects lingering around.
+    assert not any(str(obj).startswith("<Span") for obj in gc.get_objects())
+
+    # To check the exact nature of the objects and their references, use the following:
+
+    # for i, obj in enumerate(objects):
+    #     print("--------------------")
+    #     print(f"object {i}:", obj)
+    #     print("referrers:", [f"object {objects.index(r)}" for r in gc.get_referrers(obj)[:-2]])
+    #     print("referents:", [f"object {objects.index(r)}" if r in objects else r for r in gc.get_referents(obj)])
+    #     print("--------------------")
