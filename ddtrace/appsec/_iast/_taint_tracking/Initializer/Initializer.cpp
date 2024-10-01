@@ -53,9 +53,16 @@ tx_map_to_string(const TaintRangeMapTypePtr& tx_map)
 void
 Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
 {
+    const auto log = get_python_logger();
+    if (tx_map == nullptr) {
+        // Reset the current context
+        if (is_iast_debug_enabled()) {
+            log.attr("debug")("[IAST] clear_tainting_map. tx_map is null");
+        }
+        return;
+    }
     if (const auto it = active_map_addreses.find(tx_map.get()); it == active_map_addreses.end()) {
         if (is_iast_debug_enabled()) {
-            const auto log = get_python_logger();
             log.attr("debug")("[IAST] active_map_addreses Not exists: " + tx_map_to_string(tx_map));
         }
         return;
