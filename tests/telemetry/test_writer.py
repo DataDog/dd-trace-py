@@ -10,7 +10,6 @@ import mock
 import pytest
 
 import ddtrace.internal.telemetry
-from ddtrace.internal.telemetry import modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
@@ -352,35 +351,32 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
     assert result == expected
 
 
-def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
-    import xmltodict
+def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    new_deps = [xmltodict.__name__]
-    telemetry_writer._app_dependencies_loaded_event(new_deps)
-    # force a flush
-    telemetry_writer.periodic(force_flush=True)
+    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
+    # Imports httpretty twice and ensures only one dependency entry is sent
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
+    assert status == 0, stderr
+    deps = test_agent_session.get_dependencies("xmltodict")
+    assert len(deps) == 1, deps
+
+
+def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
+
+    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
+    # Imports httpretty twice and ensures only one dependency entry is sent
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict")
     events = test_agent_session.get_events("app-dependencies-loaded")
-    assert len(events) >= 1
-    xmltodict_events = [e for e in events if e["payload"]["dependencies"][0]["name"] == "xmltodict"]
-    assert len(xmltodict_events) == 1
-    assert "xmltodict" in telemetry_writer._imported_dependencies
-    assert telemetry_writer._imported_dependencies["xmltodict"]
-
-
-def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # Fetch modules to reset the state of seen modules
-        modules.get_newly_imported_modules()
-
-        import xmltodict
-
-        new_deps = [xmltodict.__name__]
-        telemetry_writer._app_dependencies_loaded_event(new_deps)
-        # force a flush
-        telemetry_writer.periodic(force_flush=True)
-        events = test_agent_session.get_events()
-        for event in events:
-            assert event["request_type"] != "app-dependencies-loaded"
+    assert len(events) == 0, events
 
 
 def test_update_dependencies_event_not_stdlib(test_agent_session, ddtrace_run_python_code_in_subprocess):
@@ -390,36 +386,19 @@ def test_update_dependencies_event_not_stdlib(test_agent_session, ddtrace_run_py
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import ddtrace; import httpretty", env=env)
+    # Imports httpretty twice and ensures only one dependency entry is sent
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import sys
+import httpretty
+del sys.modules["httpretty"]
+import httpretty
+""",
+        env=env,
+    )
     assert status == 0, stderr
-    events = test_agent_session.get_events("app-dependencies-loaded")
-    assert len(events) >= 1
-    deps = [dep["name"] for event in events for dep in event["payload"]["dependencies"]]
-    assert "httpretty" in deps
-
-
-def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
-    # Fetch modules to reset the state of seen modules
-    modules.get_newly_imported_modules()
-
-    import xmltodict
-
-    new_deps = [xmltodict.__name__]
-    telemetry_writer._app_dependencies_loaded_event(new_deps)
-    # force a flush
-    telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-dependencies-loaded")
-    assert events[0]["payload"]["dependencies"][0]["name"] == "xmltodict"
-
-    telemetry_writer._app_dependencies_loaded_event(new_deps)
-    # force a flush
-    telemetry_writer.periodic(force_flush=True)
-    events = test_agent_session.get_events("app-dependencies-loaded")
-
-    assert events[0]["seq_id"] == 1
-    # only one event must be sent with a non empty payload
-    # flaky
-    # assert sum(e["payload"] != {} for e in events) == 1
+    deps = test_agent_session.get_dependencies("httpretty")
+    assert len(deps) == 1, deps
 
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
