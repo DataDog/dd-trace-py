@@ -238,7 +238,10 @@ class _ConfigItem:
         for env_var, parser in envs:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
+                telemetry_writer.add_configuration(env_var, str(self._env_value), "env_var")
                 break
+        else:
+            telemetry_writer.add_configuration(envs[0][0], str(self._default_value), "default")
 
     def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":

@@ -53,6 +53,41 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests(payload_type)) == 1
 
 
+@pytest.mark.parametrize(
+    "env_var,value,expected_value",
+    [
+        ("DD_APPSEC_SCA_ENABLED", "true", "True"),
+        ("DD_APPSEC_SCA_ENABLED", "True", "True"),
+        ("DD_APPSEC_SCA_ENABLED", "1", "True"),
+        ("DD_APPSEC_SCA_ENABLED", "false", "False"),
+        ("DD_APPSEC_SCA_ENABLED", "False", "False"),
+        ("DD_APPSEC_SCA_ENABLED", "0", "False"),
+    ],
+)
+def test_app_started_event_configuration_override_asm(
+    test_agent_session, run_python_code_in_subprocess, env_var, value, expected_value
+):
+    """asserts that asm configuration value is changed and queues a valid telemetry request"""
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["DD_APPSEC_ENABLED"] = "true"
+    env[env_var] = value
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    assert status == 0, stderr
+
+    configuration = {}
+    events_with_configs = test_agent_session.get_events("app-started") + test_agent_session.get_events(
+        "app-client-configuration-change"
+    )
+    for event in events_with_configs:
+        for c in event["payload"]["configuration"]:
+            if c["name"] == env_var:
+                configuration = c
+                break
+
+    assert configuration == {"name": env_var, "origin": "env_var", "value": expected_value}
+
+
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
@@ -284,6 +319,7 @@ import ddtrace.auto
         },
         {"name": "DD_APPSEC_RASP_ENABLED", "origin": "default", "value": "True"},
         {"name": "DD_APPSEC_RULES", "origin": "default", "value": "None"},
+        {"name": "DD_APPSEC_SCA_ENABLED", "origin": "default", "value": "None"},
         {"name": "DD_APPSEC_STACK_TRACE_ENABLED", "origin": "default", "value": "True"},
         {"name": "DD_APPSEC_WAF_TIMEOUT", "origin": "default", "value": "5.0"},
         {"name": "DD_CIVISIBILITY_AGENTLESS_ENABLED", "origin": "env_var", "value": False},
@@ -344,6 +380,7 @@ import ddtrace.auto
         {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
+        {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": "True"},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": "False"},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": "10.0"},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": "5.0"},
@@ -375,6 +412,7 @@ import ddtrace.auto
         },
         {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": "set()"},
         {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": "False"},
+        {"name": "DD_TAGS", "origin": "env_var", "value": "{'team': 'apm', 'component': 'web'}"},
         {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": 60},
         {"name": "DD_TESTING_RAISE", "origin": "env_var", "value": True},
@@ -388,6 +426,8 @@ import ddtrace.auto
         {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": None},
         {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": "False"},
+        {"name": "DD_TRACE_HEADER_TAGS", "origin": "default", "value": "{}"},
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
         {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
@@ -399,6 +439,12 @@ import ddtrace.auto
         {"name": "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
+        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "env_var", "value": "0.5"},
+        {
+            "name": "DD_TRACE_SAMPLING_RULES",
+            "origin": "env_var",
+            "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
+        },
         {"name": "DD_TRACE_SPAN_AGGREGATOR_RLOCK", "origin": "default", "value": True},
         {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": 30},
         {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": True},
