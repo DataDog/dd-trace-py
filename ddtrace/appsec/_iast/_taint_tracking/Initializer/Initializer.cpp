@@ -64,14 +64,13 @@ Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
     for (const auto& [fst, snd] : *tx_map) {
         snd.second->decref();
     }
-    tx_map->clear();
     active_map_addreses.erase(tx_map.get());
+    tx_map->clear();
 }
 
 void
 Initializer::clear_tainting_maps()
 {
-    const auto log = get_python_logger();
     // Need to copy because free_tainting_map changes the set inside the iteration
     for (auto& [fst, snd] : initializer->active_map_addreses) {
         clear_tainting_map(snd);
@@ -245,7 +244,7 @@ Initializer::reset_context(const TaintRangeMapTypePtr& tx_map)
         return;
     }
     if (is_iast_debug_enabled()) {
-        log.attr("debug")("[IAST] reset_context(args). tx_map" + tx_map_to_string(tx_map));
+        log.attr("debug")("[IAST] reset_context(args)");
     }
     clear_tainting_map(tx_map);
 }
@@ -253,15 +252,7 @@ Initializer::reset_context(const TaintRangeMapTypePtr& tx_map)
 void
 Initializer::reset_context()
 {
-    const auto log = get_python_logger();
-    if (ThreadContextCache.tx_map == nullptr) {
-        log.attr("debug")("[IAST] reset_context. Context is null");
-        return;
-    }
-    if (is_iast_debug_enabled()) {
-        log.attr("debug")("[IAST] reset_context");
-    }
-    clear_tainting_map(ThreadContextCache.tx_map);
+    reset_context(ThreadContextCache.tx_map);
     ThreadContextCache.tx_map = nullptr;
 }
 
