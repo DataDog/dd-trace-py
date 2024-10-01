@@ -88,7 +88,16 @@ class Initializer
     /**
      * Resets the current taint tracking context.
      */
+    void reset_context(const TaintRangeMapTypePtr& tx_map);
+    /**
+     * Resets the current taint tracking context.
+     */
     void reset_context();
+
+    /**
+     * Resets all current taint tracking contexts.
+     */
+    void reset_contexts();
 
     /**
      * Allocates a new tainted object.

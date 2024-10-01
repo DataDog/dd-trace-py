@@ -15,7 +15,6 @@ from . import oce
 from ._metrics import _set_metric_iast_request_tainted
 from ._metrics import _set_span_tag_iast_executed_sink
 from ._metrics import _set_span_tag_iast_request_tainted
-from ._utils import _is_iast_enabled
 from .reporter import IastSpanReporter
 
 
@@ -39,9 +38,6 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        if not _is_iast_enabled():
-            return
-
         from ._taint_tracking import create_context
 
         create_context()
@@ -63,11 +59,12 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
+        from ._taint_tracking import reset_context  # noqa: F401
+
         if not core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
             span.set_metric(IAST.ENABLED, 0.0)
+            reset_context()
             return
-
-        from ._taint_tracking import reset_context  # noqa: F401
 
         span.set_metric(IAST.ENABLED, 1.0)
 

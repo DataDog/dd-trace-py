@@ -31,22 +31,53 @@ Initializer::create_tainting_map()
     return map_ptr;
 }
 
+string
+tx_map_to_string(const TaintRangeMapTypePtr& tx_map)
+{
+    std::stringstream ss;
+
+    // Iterate over the map and add each entry to the stringstream
+    for (const auto& entry : *tx_map) {
+        uintptr_t key = entry.first;
+        Py_hash_t hash_value = entry.second.first;
+        TaintedObjectPtr tainted_object = entry.second.second;
+
+        ss << "Key: " << key << ", Hash: " << hash_value << ", TaintedObjectPtr: " << tainted_object << "\n";
+    }
+
+    // Convert the stringstream content to a string
+    std::string tx_map_str = ss.str();
+    return tx_map_str;
+}
+
 void
 Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
 {
-    if (not tx_map or tx_map->empty())
-        return;
-
     if (const auto it = active_map_addreses.find(tx_map.get()); it == active_map_addreses.end()) {
-        // Map wasn't in the active addresses, do nothing
+        if (is_iast_debug_enabled()) {
+            const auto log = get_python_logger();
+            log.attr("debug")("[IAST] active_map_addreses Not exists: " + tx_map_to_string(tx_map));
+        }
         return;
     }
 
     for (const auto& [fst, snd] : *tx_map) {
         snd.second->decref();
     }
-
     tx_map->clear();
+    active_map_addreses.erase(tx_map.get());
+}
+
+void
+Initializer::clear_tainting_maps()
+{
+    const auto log = get_python_logger();
+    // Need to copy because free_tainting_map changes the set inside the iteration
+    for (auto& [fst, snd] : initializer->active_map_addreses) {
+        clear_tainting_map(snd);
+        snd = nullptr;
+    }
+    active_map_addreses.clear();
 }
 
 // User must check for nullptr return
@@ -54,17 +85,6 @@ TaintRangeMapTypePtr
 Initializer::get_tainting_map()
 {
     return ThreadContextCache.tx_map;
-}
-
-void
-Initializer::clear_tainting_maps()
-{
-    // Need to copy because free_tainting_map changes the set inside the iteration
-    for (auto& [fst, snd] : initializer->active_map_addreses) {
-        clear_tainting_map(snd);
-        snd = nullptr;
-    }
-    active_map_addreses.clear();
 }
 
 int
@@ -198,19 +218,56 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
 void
 Initializer::create_context()
 {
+    const auto log = get_python_logger();
     if (ThreadContextCache.tx_map != nullptr) {
         // Reset the current context
-        reset_context();
+        if (is_iast_debug_enabled()) {
+            log.attr("debug")("[IAST] create_context. tx_map is not null, call reset");
+        }
+        reset_context(ThreadContextCache.tx_map);
     }
-
+    if (is_iast_debug_enabled()) {
+        log.attr("debug")("[IAST] create_context. create_tainting_map");
+    }
     // Create a new taint_map
     auto map_ptr = create_tainting_map();
     ThreadContextCache.tx_map = map_ptr;
 }
 
 void
+Initializer::reset_context(const TaintRangeMapTypePtr& tx_map)
+{
+    const auto log = get_python_logger();
+    if (tx_map == nullptr) {
+        if (is_iast_debug_enabled()) {
+            log.attr("debug")("[IAST] reset_context. tx_map is null");
+        }
+        return;
+    }
+    if (is_iast_debug_enabled()) {
+        log.attr("debug")("[IAST] reset_context(args). tx_map" + tx_map_to_string(tx_map));
+    }
+    clear_tainting_map(tx_map);
+}
+
+void
 Initializer::reset_context()
 {
+    if (is_iast_debug_enabled()) {
+        const auto log = get_python_logger();
+        log.attr("debug")("[IAST] reset_context");
+    }
+    clear_tainting_map(ThreadContextCache.tx_map);
+    ThreadContextCache.tx_map = nullptr;
+}
+
+void
+Initializer::reset_contexts()
+{
+    if (is_iast_debug_enabled()) {
+        const auto log = get_python_logger();
+        log.attr("debug")("[IAST] reset_context");
+    }
     clear_tainting_maps();
     ThreadContextCache.tx_map = nullptr;
 }
@@ -230,4 +287,5 @@ pyexport_initializer(py::module& m)
 
     m.def("create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
     m.def("reset_context", [] { initializer->reset_context(); });
+    m.def("reset_contexts", [] { initializer->reset_contexts(); });
 }
