@@ -31,25 +31,6 @@ Initializer::create_tainting_map()
     return map_ptr;
 }
 
-string
-tx_map_to_string(const TaintRangeMapTypePtr& tx_map)
-{
-    std::stringstream ss;
-
-    // Iterate over the map and add each entry to the stringstream
-    for (const auto& entry : *tx_map) {
-        uintptr_t key = entry.first;
-        Py_hash_t hash_value = entry.second.first;
-        TaintedObjectPtr tainted_object = entry.second.second;
-
-        ss << "Key: " << key << ", Hash: " << hash_value << ", TaintedObjectPtr: " << tainted_object << "\n";
-    }
-
-    // Convert the stringstream content to a string
-    std::string tx_map_str = ss.str();
-    return tx_map_str;
-}
-
 void
 Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
 {
@@ -71,8 +52,8 @@ Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
     for (const auto& [fst, snd] : *tx_map) {
         snd.second->decref();
     }
-    active_map_addreses.erase(tx_map.get());
     tx_map->clear();
+    active_map_addreses.erase(tx_map.get());
 }
 
 void
@@ -83,7 +64,9 @@ Initializer::clear_tainting_maps()
         if (active_map_addreses.empty()) {
             break;
         }
-        clear_tainting_map(snd);
+        if (snd != nullptr) {
+            clear_tainting_map(snd);
+        }
         snd = nullptr;
     }
     active_map_addreses.clear();
