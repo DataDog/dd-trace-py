@@ -11,6 +11,7 @@ from ddtrace.debugging._config import er_config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
 from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
@@ -42,6 +43,15 @@ def register_post_preload(func: t.Callable) -> None:
 
 
 log = get_logger(__name__)
+
+# Run the product manager protocol
+manager.run_protocol()
+
+# Post preload operations
+register_post_preload(manager.post_preload_products)
+
+
+# TODO: Migrate the following product logic to the new product plugin interface
 
 # DEV: We want to start the crashtracker as early as possible
 if crashtracker_config.enabled:

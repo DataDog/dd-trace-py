@@ -1,5 +1,7 @@
 #include "Helpers.h"
 #include "Initializer/Initializer.h"
+#include "Utils/PythonErrorGuard.h"
+
 #include <algorithm>
 #include <iostream>
 
@@ -193,7 +195,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
     optional<TaintRangeRefs> optional_ranges_orig = ranges_orig;
 
     vector<tuple<string, int>> context_stack;
-    int length, end = 0;
+    int length = 0;
+    int end = 0;
     TaintRangeRefs ranges;
 
     int latest_end = -1;
@@ -357,27 +360,30 @@ api_set_ranges_on_splitted(const StrType& source_str,
 bool
 has_pyerr()
 {
-    return !has_pyerr_as_string().empty();
+    PythonErrorGuard error_guard;
+    return error_guard.has_error();
 }
 
 std::string
 has_pyerr_as_string()
 {
-
-    if (PyErr_Occurred()) {
-        PyObject *extype, *value, *traceback;
-        PyErr_Fetch(&extype, &value, &traceback);
-        PyErr_NormalizeException(&extype, &value, &traceback);
-        const auto exception_msg_as_pystr = py::str(PyObject_Str(value));
-        const auto exception_msg_as_string = std::string(PyUnicode_AsUTF8(exception_msg_as_pystr.ptr()));
-        py::set_error(extype, exception_msg_as_pystr);
-        Py_DecRef(extype);
-        Py_DecRef(value);
-        Py_DecRef(traceback);
-        return exception_msg_as_string;
+    PythonErrorGuard error_guard;
+    if (not error_guard.has_error()) {
+        return {};
     }
 
-    return {};
+    return error_guard.error_as_stdstring();
+}
+
+py::str
+has_pyerr_as_pystr()
+{
+    PythonErrorGuard error_guard;
+    if (not error_guard.has_error()) {
+        return {};
+    }
+
+    return error_guard.error_as_pystr();
 }
 
 void

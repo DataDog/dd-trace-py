@@ -31,7 +31,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
-from ddtrace.internal._encoding import MsgpackEncoderV03
+from ddtrace.internal._encoding import MsgpackEncoderV04
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -1931,11 +1931,8 @@ def test_tracer_api_version():
     t = Tracer()
     assert isinstance(t._writer._encoder, MsgpackEncoderV05)
 
-    t.configure(api_version="v0.3")
-    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
-
     t.configure(api_version="v0.4")
-    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
+    assert isinstance(t._writer._encoder, MsgpackEncoderV04)
 
 
 @pytest.mark.parametrize("enabled", [True, False])
@@ -2060,3 +2057,23 @@ def test_asm_standalone_configuration():
     assert tracer._compute_stats is False
     # reset tracer values
     tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+def test_gc_not_used_on_root_spans():
+    tracer = ddtrace.Tracer()
+    gc.freeze()
+
+    with tracer.trace("test-event"):
+        pass
+
+    # There should be no more span objects lingering around.
+    assert not any(str(obj).startswith("<Span") for obj in gc.get_objects())
+
+    # To check the exact nature of the objects and their references, use the following:
+
+    # for i, obj in enumerate(objects):
+    #     print("--------------------")
+    #     print(f"object {i}:", obj)
+    #     print("referrers:", [f"object {objects.index(r)}" for r in gc.get_referrers(obj)[:-2]])
+    #     print("referents:", [f"object {objects.index(r)}" if r in objects else r for r in gc.get_referents(obj)])
+    #     print("--------------------")

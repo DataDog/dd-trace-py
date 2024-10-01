@@ -24,7 +24,7 @@ meter = metrics.get_meter("signal.collector")
 NO_RETURN_VALUE = object()
 
 
-class SignalContext(object):
+class SignalContext:
     """Debugger signal context manager.
 
     This is used to capture data for function invocations. The SignalContext
