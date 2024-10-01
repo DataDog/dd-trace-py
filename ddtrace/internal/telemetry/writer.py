@@ -323,52 +323,6 @@ class TelemetryWriter(PeriodicService):
             msg = "%s:%s: %s" % (filename, line_number, msg)
         self._error = (code, msg)
 
-    def add_configs_changed(self, config_obj, cfg_names):
-        cs = [
-            {"name": n, "value": v, "origin": o}
-            for n, v, o in [self._telemetry_entry(config_obj, n) for n in cfg_names]
-        ]
-        self._app_client_configuration_changed_event(cs)
-
-    def _telemetry_entry(self, config: Any, cfg_name: str) -> Tuple[str, str, Any]:
-        item = config._config[cfg_name]
-        if cfg_name == "_profiling_enabled":
-            name = "profiling_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_asm_enabled":
-            name = "appsec_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_dsm_enabled":
-            name = "data_streams_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_trace_sample_rate":
-            name = "trace_sample_rate"
-            value = str(item.value())
-        elif cfg_name == "_trace_sampling_rules":
-            name = "trace_sampling_rules"
-            value = str(item.value())
-        elif cfg_name == "logs_injection":
-            name = "logs_injection_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "trace_http_header_tags":
-            name = "trace_header_tags"
-            value = ",".join(":".join(x) for x in item.value().items())
-        elif cfg_name == "tags":
-            name = "trace_tags"
-            value = ",".join(":".join(x) for x in item.value().items())
-        elif cfg_name == "_tracing_enabled":
-            name = "trace_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_sca_enabled":
-            name = "DD_APPSEC_SCA_ENABLED"
-            if item.value() is None:
-                value = ""
-            else:
-                value = "true" if item.value() else "false"
-        else:
-            raise ValueError("Unknown configuration item: %s" % cfg_name)
-        return name, value, item.source()
-
     def _app_started(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""

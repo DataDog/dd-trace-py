@@ -754,9 +754,10 @@ class Config(object):
         item_names = []
         for key, value, origin in items:
             item_names.append(key)
-            self._config[key].set_value_source(value, origin)
-        if self._telemetry_enabled:
-            telemetry_writer.add_configs_changed(self, item_names)
+            item = self._config[key]
+            item.set_value_source(value, origin)
+            if self._telemetry_enabled:
+                telemetry_writer.add_configuration(item._envs[0][0], str(value), origin)
         self._notify_subscribers(item_names)
 
     def _reset(self):
