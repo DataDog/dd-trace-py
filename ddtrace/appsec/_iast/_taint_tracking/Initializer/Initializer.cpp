@@ -253,8 +253,12 @@ Initializer::reset_context(const TaintRangeMapTypePtr& tx_map)
 void
 Initializer::reset_context()
 {
+    const auto log = get_python_logger();
+    if(ThreadContextCache.tx_map == nullptr){
+        log.attr("debug")("[IAST] reset_context. Context is null");
+        return;
+    }
     if (is_iast_debug_enabled()) {
-        const auto log = get_python_logger();
         log.attr("debug")("[IAST] reset_context");
     }
     clear_tainting_map(ThreadContextCache.tx_map);
@@ -266,7 +270,7 @@ Initializer::reset_contexts()
 {
     if (is_iast_debug_enabled()) {
         const auto log = get_python_logger();
-        log.attr("debug")("[IAST] reset_context");
+        log.attr("debug")("[IAST] reset_contexts");
     }
     clear_tainting_maps();
     ThreadContextCache.tx_map = nullptr;

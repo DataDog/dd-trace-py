@@ -166,7 +166,7 @@ def iast_span_only_sha1(tracer):
 
 @pytest.fixture(autouse=True)
 def iast_context():
-    _ = create_context()
+    create_context()
     yield
     reset_context()
 
