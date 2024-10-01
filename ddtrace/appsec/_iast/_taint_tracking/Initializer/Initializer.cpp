@@ -267,12 +267,22 @@ Initializer::reset_context()
 void
 Initializer::reset_contexts()
 {
+    const auto log = get_python_logger();
+    if (active_map_addreses_size() <= 0) {
+        if (is_iast_debug_enabled()) {
+            log.attr("debug")("[IAST] reset_contexts. No active_map_addreses");
+        }
+        return;
+    }
     if (is_iast_debug_enabled()) {
-        const auto log = get_python_logger();
         log.attr("debug")("[IAST] reset_contexts");
     }
+
     clear_tainting_maps();
-    ThreadContextCache.tx_map = nullptr;
+
+    if (ThreadContextCache.tx_map != nullptr) {
+        ThreadContextCache.tx_map = nullptr;
+    }
 }
 
 // Created in the PYBIND11_MODULE in _native.cpp
