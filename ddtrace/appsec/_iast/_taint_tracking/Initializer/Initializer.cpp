@@ -225,12 +225,13 @@ void
 Initializer::create_context()
 {
     const auto log = get_python_logger();
-    if (ThreadContextCache.tx_map != nullptr) {
+    auto tx_map = get_tainting_map();
+    if (tx_map != nullptr) {
         // Reset the current context
         if (is_iast_debug_enabled()) {
             log.attr("debug")("[IAST] create_context. tx_map is not null, call reset");
         }
-        reset_context(ThreadContextCache.tx_map);
+        reset_context(tx_map);
     }
     if (is_iast_debug_enabled()) {
         log.attr("debug")("[IAST] create_context. create_tainting_map");
