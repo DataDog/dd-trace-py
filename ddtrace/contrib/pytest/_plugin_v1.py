@@ -304,13 +304,11 @@ def _start_test_module_span(item):
         activate=True,
         child_of=test_session_span,
     )
-    test_command = _get_pytest_command(item.config)
     test_module_span.set_tag_str(COMPONENT, "pytest")
     test_module_span.set_tag_str(SPAN_KIND, KIND)
     test_module_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
     test_module_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
-    test_module_span.set_tag_str(test.COMMAND, test_command)
-
+    test_module_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
     test_module_span.set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
     if test_session_span:
         test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))

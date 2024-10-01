@@ -49,7 +49,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         self._lock = threading.RLock()
         self._metadata = {}
         self._init_buffer()
-        self._test_session_name = None
 
     def __len__(self):
         with self._lock:
