@@ -15,7 +15,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
   - tracing: Removes a reference cycle that caused unnecessary garbage collection for top-level spans.
   - Code Security: fix potential memory leak on IAST exception handling.
-  - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - profiling: Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
 
 
 ---
