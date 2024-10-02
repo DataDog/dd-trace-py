@@ -1,34 +1,48 @@
-from typing import Callable
-
 from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import agent
-from ddtrace.internal.datadog.profiling import crashtracker
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.settings.crashtracker import config as crashtracker_config
 
 
-is_available: bool = crashtracker.is_available
-failure_msg: str = crashtracker.failure_msg
-is_started: Callable[[], bool] = crashtracker.is_started
+is_enabled_and_available = False
+if crashtracker_config.enabled:
+    try:
+        from ddtrace.internal.datadog.profiling import crashtracker
+
+        is_enabled_and_available = crashtracker.is_available
+    except ImportError:
+        is_enabled_and_available = False
+
+
+# DEV crashtracker was once loaded and enabled by default everywhere, but due to consequences of running long-running
+#     child processes, it has been disabled by default. Hoping to reenable it soon.  Pushing the module imports down
+#     into individual functions is not a design requirement, but rather a way to avoid loading the module until needed.
 
 
 @on_runtime_id_change
 def _update_runtime_id(runtime_id: str) -> None:
-    crashtracker.set_runtime_id(runtime_id)
+    if is_enabled_and_available:
+        from ddtrace.internal.datadog.profiling import crashtracker
+
+        crashtracker.set_runtime_id(runtime_id)
 
 
 def add_tag(key: str, value: str) -> None:
-    if is_available:
+    if is_enabled_and_available:
+        from ddtrace.internal.datadog.profiling import crashtracker
+
         crashtracker.set_tag(key, value)
 
 
 def start() -> bool:
-    if not is_available:
+    if not is_enabled_and_available:
         return False
 
     import platform
+
+    from ddtrace.internal.datadog.profiling import crashtracker
 
     crashtracker.set_url(crashtracker_config.debug_url or agent.get_trace_url())
     crashtracker.set_service(config.service)
@@ -57,7 +71,4 @@ def start() -> bool:
     for key, value in crashtracker_config.tags.items():
         add_tag(key, value)
 
-    # Only start if it is enabled
-    if crashtracker_config.enabled:
-        return crashtracker.start()
-    return False
+    return crashtracker.start()
