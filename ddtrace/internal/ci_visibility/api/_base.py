@@ -25,6 +25,7 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
@@ -58,7 +59,7 @@ class TestVisibilitySessionSettings:
     reject_duplicates: bool = True
     itr_enabled: bool = False
     itr_test_skipping_enabled: bool = False
-    itr_test_skipping_level: str = ""
+    itr_test_skipping_level: Optional[ITR_SKIPPING_LEVEL] = None
     itr_correlation_id: str = ""
     coverage_enabled: bool = False
 

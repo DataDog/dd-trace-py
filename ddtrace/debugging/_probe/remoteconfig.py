@@ -48,15 +48,15 @@ def xlate_keys(d: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, Any]:
     return {mapping.get(k, k): v for k, v in d.items()}
 
 
-def _compile_segment(segment: dict) -> Optional[TemplateSegment]:
+def _compile_segment(segment: dict) -> TemplateSegment:
     if "str" in segment:
         return LiteralTemplateSegment(str_value=segment["str"])
 
     if "json" in segment:
         return ExpressionTemplateSegment(expr=DDRedactedExpression.compile(segment))
 
-    # what type of error we should show here?
-    return None
+    msg = f"Invalid template segment: {segment}"
+    raise ValueError(msg)
 
 
 def _match_env_and_version(probe: Probe) -> bool:
@@ -292,7 +292,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 
                 self._update_probes_for_config(metadata["id"], config)
 
-        # Flush any probe status messages that migh have been generated
+        # Flush any probe status messages that might have been generated
         self._status_logger.flush()
 
     def _send_status_update(self):
