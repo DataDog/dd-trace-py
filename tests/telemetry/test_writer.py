@@ -612,7 +612,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
             {
                 "name": "appsec_enabled",
                 "origin": "env_var",
-                "value": False,
+                "value": "False",
             },
         ]
 

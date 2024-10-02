@@ -23,7 +23,7 @@ def report_telemetry(env):
                 source = "default"
             else:
                 source = "unknown"
-            telemetry_writer.add_configuration(env_name, str(env_val), source)
+            telemetry_writer.add_configuration(env_name, env_val, source)
 
 
 def get_config(
@@ -46,5 +46,5 @@ def get_config(
             effective_env = env
             break
     if report_telemetry:
-        telemetry_writer.add_configuration(effective_env, str(val), source)
+        telemetry_writer.add_configuration(effective_env, val, source)
     return val

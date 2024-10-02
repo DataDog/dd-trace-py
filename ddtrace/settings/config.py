@@ -215,10 +215,10 @@ class _ConfigItem:
         for env_var, parser in envs:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
-                telemetry_writer.add_configuration(env_var, str(self._env_value), "env_var")
+                telemetry_writer.add_configuration(env_var, self._env_value, "env_var")
                 break
         else:
-            telemetry_writer.add_configuration(envs[0][0], str(self._default_value), "default")
+            telemetry_writer.add_configuration(envs[0][0], self._default_value, "default")
 
     def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
@@ -733,7 +733,7 @@ class Config(object):
             item = self._config[key]
             item.set_value_source(value, origin)
             if self._telemetry_enabled:
-                telemetry_writer.add_configuration(item._envs[0][0], str(value), origin)
+                telemetry_writer.add_configuration(item._envs[0][0], value, origin)
         self._notify_subscribers(item_names)
 
     def _reset(self):
