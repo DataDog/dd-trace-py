@@ -96,8 +96,8 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
 )
 
 
-def _parse_propagation_styles(name, default):
-    # type: (str, Optional[str]) -> Optional[List[str]]
+def _parse_propagation_styles(styles_str):
+    # type: (str) -> Optional[List[str]]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -133,10 +133,7 @@ def _parse_propagation_styles(name, default):
         DD_TRACE_PROPAGATION_STYLE_INJECT="b3"
     """
     styles = []
-    envvar = os.getenv(name, default=default)
-    if envvar is None:
-        return None
-    for style in envvar.split(","):
+    for style in styles_str.split(","):
         style = style.strip().lower()
         if style == "b3 single header":
             deprecate(
@@ -149,7 +146,7 @@ def _parse_propagation_styles(name, default):
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
-            log.warning("Unknown style {!r} provided for %r, allowed values are %r", style, name, PROPAGATION_STYLE_ALL)
+            log.warning("Unknown DD_TRACE_PROPAGATION_STYLE: {!r}, allowed values are %r", style, PROPAGATION_STYLE_ALL)
             continue
         styles.append(style)
     return styles
@@ -444,9 +441,9 @@ class Config(object):
         self.service = _get_config("DD_SERVICE", self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
 
         if self.service is None and in_gcp_function():
-            self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
+            self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_azure_function():
-            self.service = os.environ.get("WEBSITE_SITE_NAME")
+            self.service = _get_config("WEBSITE_SITE_NAME", DEFAULT_SPAN_SERVICE_NAME)
 
         self._extra_services = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
@@ -490,18 +487,16 @@ class Config(object):
         self._sampling_rules_file = _get_config("DD_SPAN_SAMPLING_RULES_FILE")
 
         # Propagation styles
-        self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE", default=_PROPAGATION_STYLE_DEFAULT
-        )
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
         #  take precedence over DD_TRACE_PROPAGATION_STYLE
-        propagation_style_extract = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=None)
-        if propagation_style_extract is not None:
-            self._propagation_style_extract = propagation_style_extract
-
-        propagation_style_inject = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_INJECT", default=None)
-        if propagation_style_inject is not None:
-            self._propagation_style_inject = propagation_style_inject
+        self._propagation_style_extract = _parse_propagation_styles(
+            _get_config(
+                ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT
+            )
+        )
+        self._propagation_style_inject = _parse_propagation_styles(
+            _get_config(["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT)
+        )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
 
