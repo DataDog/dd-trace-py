@@ -1145,6 +1145,9 @@ class HTTPPropagator(object):
                 else:
                     context = baggage_context
 
+            if context is None:
+                context = Context()
+
             return context
 
         except Exception:
