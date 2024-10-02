@@ -59,6 +59,7 @@ class TestCISourceFileInfo:
 
 class TestCIDiscoverTestSessionName:
     def test_discover_set_test_session_name(self):
+        """Check that the test command is used to set the test session name."""
         api.enable_test_visibility()
 
         with mock.patch(

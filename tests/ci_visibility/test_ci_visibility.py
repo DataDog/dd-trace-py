@@ -10,6 +10,7 @@ from typing import Set
 from unittest.mock import Mock
 
 import mock
+import msgpack
 import pytest
 
 import ddtrace
@@ -36,6 +37,7 @@ from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
+from tests.ci_visibility.util import set_up_mock_civisibility
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -1091,10 +1093,10 @@ def test_civisibility_enable_respects_passed_in_tracer():
 
 
 class TestIsITRSkippable:
-    """Tests whether the CIVisibilty.is_item_itr_skippable work properly (the _suite_ and _test_ level methods are
+    """Tests whether the CIVisibility.is_item_itr_skippable work properly (the _suite_ and _test_ level methods are
     assumed to be working since they are called by is_item_itr_skippable in a wrapper-like way).
 
-    These tests mock CIVisibility._instance._test_suites_to_skip and _tests_to_skip , implying that
+    These tests mock CIVisibility._instance._test_suites_to_skip and _tests_to_skip, implying that
     CIVisibility._fetch_tests_to_skip() ran successfully.
 
     In test-level skipping mode, only the following tests should be skippable:
@@ -1284,3 +1286,56 @@ class TestIsITRSkippable:
             # Check all tests are not skippable
             for test_id in self._get_all_test_ids():
                 assert CIVisibility.is_item_itr_skippable(test_id) is False
+
+
+class TestCIVisibilitySetTestSessionName(TracerTestCase):
+    def tearDown(self):
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:
+            pass
+
+    def assert_test_session_name(self, name):
+        """Check that the payload metadata contains the test session name attributes."""
+        payload = msgpack.loads(
+            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+        )
+        assert payload["metadata"]["test_session_end"] == {"test_session.name": name}
+        assert payload["metadata"]["test_suite_end"] == {"test_session.name": name}
+        assert payload["metadata"]["test_module_end"] == {"test_session.name": name}
+        assert payload["metadata"]["test"] == {"test_session.name": name}
+
+    def test_set_test_session_name_from_command(self):
+        """When neither DD_TEST_SESSION_NAME nor a job id is provided, the test session name should be the test
+        command.
+        """
+        with set_up_mock_civisibility(), _patch_dummy_writer():
+            CIVisibility.enable()
+            CIVisibility.set_test_session_name(test_command="some_command")
+        self.assert_test_session_name("some_command")
+
+    def test_set_test_session_name_from_dd_test_session_name_env_var(self):
+        """When DD_TEST_SESSION_NAME is provided, the test session name should be its value."""
+        with _ci_override_env(
+            dict(
+                DD_TEST_SESSION_NAME="the_name",
+            )
+        ), set_up_mock_civisibility(), _patch_dummy_writer():
+            CIVisibility.enable()
+            CIVisibility.set_test_session_name(test_command="some_command")
+        self.assert_test_session_name("the_name")
+
+    def test_set_test_session_name_from_job_name_and_command(self):
+        """When DD_TEST_SESSION_NAME is not provided, but a job id is, the test session name should be constructed from
+        the job id and test command.
+        """
+        with _ci_override_env(
+            dict(
+                GITLAB_CI="1",
+                CI_JOB_NAME="the_job",
+            )
+        ), set_up_mock_civisibility(), _patch_dummy_writer():
+            CIVisibility.enable()
+            CIVisibility.set_test_session_name(test_command="some_command")
+        self.assert_test_session_name("the_job-some_command")

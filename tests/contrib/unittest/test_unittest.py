@@ -55,6 +55,7 @@ class UnittestTestCase(TracerTestCase):
             yield
 
     def test_unittest_set_test_session_name(self):
+        """Check that the unittest command is used to set the test session name."""
         _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
