@@ -1147,7 +1147,7 @@ def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, 
         assert str(exc_info.value) == "Mocked Error"
     traces = mock_tracer.pop_traces()
     vectorstore_span = traces[0][0]
-    assert mock_logs.enqueue.call_count == 2  # This operation includes 1 vectorstore call and 1 embeddings call
+    assert mock_logs.enqueue.call_count == 3  # This operation includes 2 vectorstore call and 1 embeddings call
     mock_logs.enqueue.assert_called_with(
         {
             "timestamp": mock.ANY,

@@ -34,6 +34,11 @@ def request_vcr():
     yield get_request_vcr(subdirectory_name="langchain_community")
 
 
+@pytest.fixture(scope="session")
+def request_vcr_with_localhost():
+    yield get_request_vcr(subdirectory_name="langchain_community", ignore_localhost=False)
+
+
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_global_tags(ddtrace_config_langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, mock_tracer):
     """
@@ -929,7 +934,7 @@ def test_qdrant_vectorstore_similarity_search_by_vector(langchain_openai, langch
 
 
 @pytest.mark.snapshot
-def test_milvus_vectorstore_similarity_search_by_vector(langchain_openai, langchain_milvus, request_vcr):
+def test_milvus_vectorstore_similarity_search_by_vector(langchain_openai, langchain_milvus, request_vcr_with_localhost):
     """
     Test that calling a similarity search on a Qdrant vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
@@ -943,7 +948,7 @@ def test_milvus_vectorstore_similarity_search_by_vector(langchain_openai, langch
             api_key=os.environ.get("OPENAI_API_KEY"), model="text-embedding-3-small"
         )
         vector = embeddings.embed_documents("LangChain")[0]
-        with request_vcr.use_cassette("langchain_milvus_similarity_search_by_vector.yaml"):
+        with request_vcr_with_localhost.use_cassette("langchain_milvus_similarity_search_by_vector.yaml"):
             vectorstore = langchain_milvus.Milvus(
                 embedding_function=embeddings,
                 connection_args={"uri": "http://localhost:19530"},
@@ -952,7 +957,7 @@ def test_milvus_vectorstore_similarity_search_by_vector(langchain_openai, langch
 
 
 @pytest.mark.snapshot
-def test_milvus_vectorstore_similarity_search(langchain_openai, langchain_milvus, request_vcr):
+def test_milvus_vectorstore_similarity_search(langchain_openai, langchain_milvus, request_vcr_with_localhost):
     """
     Test that calling a similarity search on a Qdrant vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
@@ -960,7 +965,7 @@ def test_milvus_vectorstore_similarity_search(langchain_openai, langchain_milvus
     if langchain_milvus is None:
         pytest.skip("langchain-milvus not installed which is required for this test.")
 
-    with request_vcr.use_cassette("langchain_milvus_similarity_search.yaml"):
+    with request_vcr_with_localhost.use_cassette("langchain_milvus_similarity_search.yaml"):
         with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
             # We mock a list of one embedding due to vectorstore calling embed_documents to get the vector dimensions
             embeddings = langchain_openai.OpenAIEmbeddings(
