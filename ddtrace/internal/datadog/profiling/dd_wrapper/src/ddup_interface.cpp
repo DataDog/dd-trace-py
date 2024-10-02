@@ -1,4 +1,6 @@
 #include "ddup_interface.hpp"
+
+#include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "sample.hpp"
@@ -21,6 +23,7 @@ ddup_postfork_child()
 {
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
+    Datadog::CodeProvenance::postfork_child();
 }
 
 void
