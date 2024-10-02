@@ -511,8 +511,6 @@ def test_set_http_meta_custom_errors_via_env():
     from ddtrace import tracer
     from ddtrace.contrib.trace_utils import set_http_meta
 
-    config.http_server.error_statuses = "404-412"
-
     config._add("myint", dict())
     with tracer.trace("error") as span1:
         set_http_meta(span1, config.myint, status_code=405)
