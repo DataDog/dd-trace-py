@@ -14,9 +14,12 @@ import pytest
 import ddtrace
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+
 # from ddtrace.contrib.pytest.plugin import ddspan
 from tests.opentelemetry.flask_app import otel  # noqa: F401
-from tests.utils import flaky
+
+
+# from tests.utils import flaky
 
 
 @pytest.mark.snapshot
