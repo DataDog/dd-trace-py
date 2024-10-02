@@ -74,17 +74,9 @@ def test_app_started_event_configuration_override_asm(
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 0, stderr
 
-    configuration = {}
-    events_with_configs = test_agent_session.get_events("app-started") + test_agent_session.get_events(
-        "app-client-configuration-change"
-    )
-    for event in events_with_configs:
-        for c in event["payload"]["configuration"]:
-            if c["name"] == env_var:
-                configuration = c
-                break
-
-    assert configuration == {"name": env_var, "origin": "env_var", "value": expected_value}
+    configuration = test_agent_session.get_configurations(name=env_var)
+    assert len(configuration) == 1, configuration
+    assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
 
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
@@ -283,16 +275,9 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
-    configurations = []
-    events_with_configs = test_agent_session.get_events("app-started") + test_agent_session.get_events(
-        "app-client-configuration-change"
-    )
-    for event in events_with_configs:
-        for c in event["payload"]["configuration"]:
-            # DD_TRACE_AGENT_URL in gitlab is different from CI, to keep things simple
-            # we skip asserting this value
-            if c["name"] != "DD_TRACE_AGENT_URL":
-                configurations.append(c)
+    # DD_TRACE_AGENT_URL in gitlab is different from CI, to keep things simple we will
+    # skip validating this config
+    configurations = test_agent_session.get_configurations(ignores=["DD_TRACE_AGENT_URL"])
     assert configurations
 
     expected = [
