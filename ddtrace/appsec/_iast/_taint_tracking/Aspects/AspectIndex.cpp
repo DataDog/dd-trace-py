@@ -8,17 +8,18 @@
  * @param result_o
  * @param candidate_text
  * @param idx
+ * @param ranges
  * @param tx_taint_map
  * @return PyObject*
  */
 PyObject*
-index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const TaintRangeMapTypePtr& tx_taint_map)
+index_aspect(PyObject* result_o,
+             const PyObject* candidate_text,
+             PyObject* idx,
+             const TaintRangeRefs& ranges,
+             const TaintRangeMapTypePtr& tx_map)
 {
     TaintRangeRefs ranges_to_set;
-    auto [ranges, ranges_error] = get_ranges(candidate_text, tx_taint_map);
-    if (ranges_error) {
-        return result_o;
-    }
 
     if (is_text(candidate_text)) {
         for (const auto& current_range : ranges) {
@@ -52,7 +53,7 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
     if (ranges_to_set.empty()) {
         return res_new_id;
     }
-    set_ranges(res_new_id, ranges_to_set, tx_taint_map);
+    set_ranges(res_new_id, ranges_to_set, tx_map);
 
     return res_new_id;
 }
@@ -72,7 +73,18 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     if (result_o == nullptr) {
         return nullptr;
     }
+
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
+        const auto tx_map = Initializer::get_tainting_map();
+        if (tx_map == nullptr or tx_map->empty()) {
+            return result_o;
+        }
+
+        auto [ranges, ranges_error] = get_ranges(candidate_text, tx_map);
+        if (ranges_error or ranges.empty()) {
+            return result_o;
+        }
+
         if (const auto error = has_pyerr_as_string(); !error.empty()) {
             iast_taint_log_error(error);
             return nullptr;
@@ -82,11 +94,6 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
             return result_o;
         }
 
-        const auto ctx_map = Initializer::get_tainting_map();
-        if (not ctx_map or ctx_map->empty()) {
-            return result_o;
-        }
-
-        return index_aspect(result_o, candidate_text, idx, ctx_map);
+        return index_aspect(result_o, candidate_text, idx, ranges, tx_map);
     });
 }
