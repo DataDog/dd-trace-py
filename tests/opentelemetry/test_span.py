@@ -15,7 +15,6 @@ import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.internal.opentelemetry.span import Span
-from tests.utils import flaky
 
 
 @pytest.mark.snapshot(wait_for_num_traces=3)
@@ -82,7 +81,6 @@ def test_otel_span_attributes_overrides(oteltracer, override):
         span.set_attribute(otel, value)
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_otel_span_kind(oteltracer):
     with oteltracer.start_span("otel-client", kind=OtelSpanKind.CLIENT):
@@ -236,11 +234,11 @@ def test_otel_get_span_context_with_multiple_tracesates(oteltracer):
 
 
 def test_otel_get_span_context_with_default_trace_state(oteltracer):
-    otelspan = oteltracer.start_span("otel-server")
-    otelspan.set_attribute(MANUAL_DROP_KEY, "")
+    with oteltracer.start_span("otel-server") as otelspan:
+        otelspan.set_attribute(MANUAL_DROP_KEY, "")
 
-    span_context = otelspan.get_span_context()
-    assert span_context.trace_flags == TraceFlags.DEFAULT
+        span_context = otelspan.get_span_context()
+        assert span_context.trace_flags == TraceFlags.DEFAULT
 
 
 @pytest.mark.parametrize("trace_flags", [TraceFlags.SAMPLED, TraceFlags.DEFAULT])
@@ -261,7 +259,7 @@ def test_otel_span_with_remote_parent(oteltracer, trace_flags, trace_state):
 def test_otel_span_interoperability(oteltracer):
     """Ensures that opentelemetry spans can be converted to ddtrace spans"""
     # Start an otel span
-    otel_span_og = oteltracer.start_span(
+    with oteltracer.start_span(
         "test-span-interop",
         links=[Link(SpanContext(1, 2, False, None, None))],
         kind=OtelSpanKind.CLIENT,
@@ -269,9 +267,9 @@ def test_otel_span_interoperability(oteltracer):
         start_time=1713118129,
         record_exception=False,
         set_status_on_exception=False,
-    )
-    # Creates a new otel span from the underlying datadog span
-    otel_span_clone = Span(otel_span_og._ddspan)
-    # Ensure all properties are consistent
-    assert otel_span_clone.__dict__ == otel_span_og.__dict__
-    assert otel_span_clone._ddspan._pprint() == otel_span_og._ddspan._pprint()
+    ) as otel_span_og:
+        # Creates a new otel span from the underlying datadog span
+        otel_span_clone = Span(otel_span_og._ddspan)
+        # Ensure all properties are consistent
+        assert otel_span_clone.__dict__ == otel_span_og.__dict__
+        assert otel_span_clone._ddspan._pprint() == otel_span_og._ddspan._pprint()

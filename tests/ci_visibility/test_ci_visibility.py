@@ -1019,6 +1019,8 @@ def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_ur
         "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
     ) as mock_build_packfiles, mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility._api_client.uuid4", return_value="checkoutmyuuid4"
     ):
         mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
         CIVisibility.enable(service="test-service")
@@ -1026,6 +1028,7 @@ def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_ur
         expected_data_arg = json.dumps(
             {
                 "data": {
+                    "id": "checkoutmyuuid4",
                     "type": "test_params",
                     "attributes": {
                         "service": "test-service",
@@ -1052,7 +1055,7 @@ def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_ur
             "POST",
             "/api/v2/ci/tests/skippable",
             expected_data_arg,
-            20,
+            timeout=20.0,
         )
         CIVisibility.disable()
 

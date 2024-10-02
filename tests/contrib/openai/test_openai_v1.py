@@ -7,11 +7,11 @@ import pytest
 import ddtrace
 from ddtrace import patch
 from ddtrace.contrib.internal.openai.utils import _est_tokens
+from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
-from tests.contrib.openai.utils import iswrapped
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
