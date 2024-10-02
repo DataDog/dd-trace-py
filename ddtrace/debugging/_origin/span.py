@@ -28,7 +28,6 @@ from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
 from ddtrace.span import Span
@@ -114,8 +113,7 @@ class ExitSpanProbe(LogLineProbe):
 @dataclass
 class EntrySpanLocation:
     name: str
-    start_line: int
-    end_line: int
+    line: int
     file: str
     module: str
     probe: EntrySpanProbe
@@ -125,15 +123,12 @@ class EntrySpanWrappingContext(WrappingContext):
     def __init__(self, f):
         super().__init__(f)
 
-        lines = linenos(f)
-        start_line = min(lines)
         filename = str(Path(f.__code__.co_filename).resolve())
         name = f.__qualname__
         module = f.__module__
         self.location = EntrySpanLocation(
             name=name,
-            start_line=start_line,
-            end_line=max(lines),
+            line=f.__code__.co_firstlineno,
             file=filename,
             module=module,
             probe=t.cast(EntrySpanProbe, EntrySpanProbe.build(name=name, module=module, function=name)),
@@ -153,7 +148,7 @@ class EntrySpanWrappingContext(WrappingContext):
             s.set_tag_str("_dd.code_origin.type", "entry")
 
             s.set_tag_str("_dd.code_origin.frames.0.file", location.file)
-            s.set_tag_str("_dd.code_origin.frames.0.line", str(location.start_line))
+            s.set_tag_str("_dd.code_origin.frames.0.line", str(location.line))
             s.set_tag_str("_dd.code_origin.frames.0.type", location.module)
             s.set_tag_str("_dd.code_origin.frames.0.method", location.name)
 

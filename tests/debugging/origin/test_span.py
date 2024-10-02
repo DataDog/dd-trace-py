@@ -4,7 +4,6 @@ import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.utils.inspection import linenos
 from tests.utils import TracerTestCase
 
 
@@ -38,12 +37,10 @@ class SpanProbeTestCase(TracerTestCase):
         self.assert_span_count(3)
         entry, middle, _exit = self.get_spans()
 
-        lines = linenos(entry_call)
-
         # Check for the expected tags on the entry span
         assert entry.get_tag("_dd.code_origin.type") == "entry"
         assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
-        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(min(lines))
+        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(entry_call.__code__.co_firstlineno)
         assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
         assert (
             entry.get_tag("_dd.code_origin.frames.0.method") == "SpanProbeTestCase.test_span_origin.<locals>.entry_call"
