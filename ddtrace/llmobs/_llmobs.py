@@ -40,6 +40,7 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
@@ -64,6 +65,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "bedrock": "botocore",
     "openai": "openai",
     "langchain": "langchain",
+    "google_generativeai": "google_generativeai",
 }
 
 
@@ -88,20 +90,35 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
-        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
+
+        self._evaluator_runner = EvaluatorRunner(
+            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
+            llmobs_service=self,
+        )
+
+        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluator_runner)
         forksafe.register(self._child_after_fork)
 
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
+        self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
+        self._evaluator_runner = self._evaluator_runner.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
+        self._trace_processor._evaluator_runner = self._evaluator_runner
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
             tracer_filters += [self._trace_processor]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
+            self._llmobs_eval_metric_writer.start()
         except ServiceStatusError:
-            log.debug("Error starting LLMObs span writer after fork")
+            log.debug("Error starting LLMObs writers after fork")
+
+        try:
+            self._evaluator_runner.start()
+        except ServiceStatusError:
+            log.debug("Error starting evaluator runner after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
@@ -114,12 +131,22 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
+        try:
+            self._evaluator_runner.start()
+        except ServiceStatusError:
+            log.debug("Error starting evaluator runner")
+
     def _stop_service(self) -> None:
         try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
+
+        try:
+            self._evaluator_runner.stop()
+        except ServiceStatusError:
+            log.debug("Error stopping evaluator runner")
 
         try:
             forksafe.unregister(self._child_after_fork)
@@ -230,16 +257,25 @@ class LLMObs(Service):
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
-    def annotation_context(cls, tags: Optional[Dict[str, Any]] = None) -> AnnotationContext:
+    def annotation_context(
+        cls, tags: Optional[Dict[str, Any]] = None, prompt: Optional[dict] = None, name: Optional[str] = None
+    ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
-        Do not use nested annotation contexts to override the same tags since the order in which annotations
+        Do not use nested annotation contexts to override the same attributes since the order in which annotations
         are applied is non-deterministic.
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
+        :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
+                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
+                        This argument is only applicable to LLM spans.
+        :param name: Set to override the span name for any spans annotated within the returned context.
         """
-        return AnnotationContext(cls._instance.tracer, lambda span: cls.annotate(span, tags=tags))
+        return AnnotationContext(
+            cls._instance.tracer, lambda span: cls.annotate(span, tags=tags, prompt=prompt, _name=name)
+        )
 
     @classmethod
     def flush(cls) -> None:
@@ -483,6 +519,7 @@ class LLMObs(Service):
         metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
         tags: Optional[Dict[str, Any]] = None,
+        _name: Optional[str] = None,
     ) -> None:
         """
         Sets parameters, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
@@ -491,7 +528,9 @@ class LLMObs(Service):
         :param Span span: Span to annotate. If no span is provided, the current active span will be used.
                           Must be an LLMObs-type span, i.e. generated by the LLMObs SDK.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
-                    {"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "value_1", ...}}.
+                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
+                        This argument is only applicable to LLM spans.
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
@@ -534,15 +573,13 @@ class LLMObs(Service):
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
+        if _name is not None:
+            span.name = _name
+        if prompt is not None:
+            cls._tag_prompt(span, prompt)
         if not span_kind:
             log.debug("Span kind not specified, skipping annotation for input/output data")
             return
-        if prompt is not None:
-            if span_kind == "llm":
-                cls._tag_prompt(span, prompt)
-            else:
-                log.warning("Annotating prompts are only supported for LLM span kinds.")
-
         if input_data or output_data:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)

@@ -74,6 +74,7 @@ exclude = '''
   .venv*
   | \.riot
   | ddtrace/profiling/
+  | test_ci_visibility_api_client_skippable_real_world_responses\.py
 )
 '''
 

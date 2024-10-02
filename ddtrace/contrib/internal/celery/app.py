@@ -1,3 +1,5 @@
+import sys
+
 import celery
 from celery import signals
 
@@ -15,7 +17,12 @@ from ddtrace.contrib.internal.celery.signals import trace_prerun
 from ddtrace.contrib.internal.celery.signals import trace_retry
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.pin import _DD_PIN_NAME
+
+
+log = get_logger(__name__)
 
 
 def patch_app(app, pin=None):
@@ -41,6 +48,9 @@ def patch_app(app, pin=None):
     trace_utils.wrap("celery.beat", "Scheduler.tick", _traced_beat_function(config.celery, "tick"))
     pin.onto(celery.beat.Scheduler)
 
+    # Patch apply_async
+    trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
+
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)
     signals.task_postrun.connect(trace_postrun, weak=False)
@@ -65,6 +75,7 @@ def unpatch_app(app):
 
     trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
     trace_utils.unwrap(celery.beat.Scheduler, "tick")
+    trace_utils.unwrap(celery.app.task.Task, "apply_async")
 
     signals.task_prerun.disconnect(trace_prerun)
     signals.task_postrun.disconnect(trace_postrun)
@@ -96,3 +107,51 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
             return func(*args, **kwargs)
 
     return _traced_beat_inner
+
+
+def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
+    """
+    When apply_async is called, it calls various Celery signals in order, which gets used
+    to start and close the span.
+    Example: before_task_publish starts the span while after_task_publish closes the span.
+    If an exception occurs anywhere inside Celery or its dependencies, this can interrupt the
+    closing signals.
+    The purpose of _traced_apply_async_function is to close the spans even if one of the closing
+    signals don't get called over the course of the apply_task lifecycle.
+    This is done by fetching the stored span and closing it if it hasn't already been closed by a
+    closing signal.
+    """
+
+    def _traced_apply_async_inner(func, instance, args, kwargs):
+        with core.context_with_data("task_context"):
+            try:
+                return func(*args, **kwargs)
+            except Exception:
+                # If an internal exception occurs, record the exception in the span,
+                # then raise the Celery error as usual
+                task_span = core.get_item("task_span")
+                if task_span:
+                    task_span.set_exc_info(*sys.exc_info())
+
+                prerun_span = core.get_item("prerun_span")
+                if prerun_span:
+                    prerun_span.set_exc_info(*sys.exc_info())
+
+                raise
+            finally:
+                task_span = core.get_item("task_span")
+                if task_span:
+                    log.debug(
+                        "The after_task_publish signal was not called, so manually closing span: %s",
+                        task_span._pprint(),
+                    )
+                    task_span.finish()
+
+                prerun_span = core.get_item("prerun_span")
+                if prerun_span:
+                    log.debug(
+                        "The task_postrun signal was not called, so manually closing span: %s", prerun_span._pprint()
+                    )
+                    prerun_span.finish()
+
+    return _traced_apply_async_inner

@@ -227,23 +227,15 @@ The following environment variables for the tracer are supported:
      default: False
      description: Enable or disable start up diagnostic logging.
 
-   DD_TRACE_SAMPLE_RATE:
-     type: Float
-     description: |
-        A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled. By default, this configuration is unset
-        and sampling is controlled by other configuration options and/or the Datadog Agent. See
-        `this page <https://docs.datadoghq.com/tracing/trace_pipeline/ingestion_mechanisms/?tab=python#in-the-agent>`_
-        for more details about Agent-based sampling.
-
-
    DD_TRACE_RATE_LIMIT:
      type: int
      default: 100
      description: |
-        Maximum number of traces per second to sample. Set a rate limit to avoid the ingestion volume overages in the case of traffic spikes.
-
+        Maximum number of traces per second to sample. Set a rate limit to avoid the ingestion volume overages in the case of traffic spikes. This configuration
+        is only applied when client based sampling is configured, otherwise agent based rate limits are used.
      version_added:
         v0.33.0:
+        v2.15.0: Only applied when DD_TRACE_SAMPLE_RATE, DD_TRACE_SAMPLING_RULES, or DD_SPAN_SAMPLING_RULE are set.
 
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
@@ -304,7 +296,7 @@ The following environment variables for the tracer are supported:
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
-         Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
+         Currently, the supported versions are: ``v0.4`` and ``v0.5``.
      version_added:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.

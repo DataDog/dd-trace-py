@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -27,16 +28,10 @@ log = get_logger(__name__)
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
-    def llmobs_set_tags(
-        self,
-        span: Span,
-        formatted_response: Optional[Dict[str, Any]] = None,
-        prompt: Optional[str] = None,
-        err: bool = False,
+    def _llmobs_set_tags(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None, operation: str = ""
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
-        if not self.llmobs_enabled:
-            return
         if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
             parent_id = _get_llmobs_parent_id(span) or "undefined"
             span.set_tag(PARENT_ID_KEY, parent_id)
@@ -45,25 +40,28 @@ class BedrockIntegration(BaseLLMIntegration):
             parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
         if span.get_tag("bedrock.request.max_tokens"):
             parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens") or 0)
+
+        prompt = kwargs.get("prompt", "")
         input_messages = self._extract_input_message(prompt)
 
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("bedrock.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("bedrock.request.model_provider") or "")
+
         span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
         span.set_tag_str(METADATA, safe_json(parameters))
-        if err or formatted_response is None:
+        if span.error or response is None:
             span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
         else:
-            output_messages = self._extract_output_message(formatted_response)
+            output_messages = self._extract_output_message(response)
             span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
-        metrics = self._llmobs_metrics(span, formatted_response)
+        metrics = self._llmobs_metrics(span, response)
         span.set_tag_str(METRICS, safe_json(metrics))
 
     @staticmethod
-    def _llmobs_metrics(span: Span, formatted_response: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _llmobs_metrics(span: Span, response: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         metrics = {}
-        if formatted_response and formatted_response.get("text"):
+        if response and response.get("text"):
             prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
             completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
             metrics[INPUT_TOKENS_METRIC_KEY] = prompt_tokens
@@ -96,14 +94,14 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message(formatted_response):
+    def _extract_output_message(response):
         """Extract output messages from the stored response.
         Anthropic allows for chat messages, which requires some special casing.
         """
-        if isinstance(formatted_response["text"], str):
-            return [{"content": formatted_response["text"]}]
-        if isinstance(formatted_response["text"], list):
-            if isinstance(formatted_response["text"][0], str):
-                return [{"content": str(resp)} for resp in formatted_response["text"]]
-            if isinstance(formatted_response["text"][0], dict):
-                return [{"content": formatted_response["text"][0].get("text", "")}]
+        if isinstance(response["text"], str):
+            return [{"content": response["text"]}]
+        if isinstance(response["text"], list):
+            if isinstance(response["text"][0], str):
+                return [{"content": str(content)} for content in response["text"]]
+            if isinstance(response["text"][0], dict):
+                return [{"content": response["text"][0].get("text", "")}]
