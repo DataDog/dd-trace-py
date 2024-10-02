@@ -366,7 +366,6 @@ def int_service(pin, int_config, default=None):
     # Config is next since it is also configured via code
     # Note that both service and service_name are used by
     # integrations.
-
     if "service" in int_config and int_config.service is not None:
         return cast(str, int_config.service)
     if "service_name" in int_config and int_config.service_name is not None:
