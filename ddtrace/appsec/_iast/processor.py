@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
+from ddtrace.appsec import load_appsec
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.constants import ORIGIN_KEY
@@ -42,6 +43,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if not _is_iast_enabled():
             return
 
+        load_appsec()
         from ._taint_tracking import create_context
 
         create_context()

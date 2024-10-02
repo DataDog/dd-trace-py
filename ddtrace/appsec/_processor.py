@@ -17,13 +17,13 @@ import weakref
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import load_appsec
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
@@ -143,6 +143,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def __post_init__(self) -> None:
         from ddtrace.appsec._ddwaf import DDWaf
 
+        load_appsec()
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
         self._rules = None
@@ -236,12 +237,13 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
 
-        if _asm_request_context.free_context_available():
-            _asm_request_context.register(span)
-        else:
-            new_asm_context = _asm_request_context.asm_request_context_manager()
-            new_asm_context.__enter__()
-            _asm_request_context.register(span, new_asm_context)
+        _asm_request_context.start_context(span)
+        # if _asm_request_context.free_context_available():
+        #     _asm_request_context.register(span)
+        # else:
+        #     new_asm_context = _asm_request_context.asm_request_context_manager()
+        #     new_asm_context.__enter__()
+        #     _asm_request_context.register(span, new_asm_context)
 
         ctx = self._ddwaf._at_request_start()
         self._span_to_waf_ctx[span] = ctx
@@ -258,16 +260,16 @@ class AppSecSpanProcessor(SpanProcessor):
         _asm_request_context.set_waf_callback(waf_callable)
         _asm_request_context.add_context_callback(_set_waf_request_metrics)
         if headers is not None:
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
+            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
             _asm_request_context.set_waf_address(
-                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive, span
+                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive
             )
             if not peer_ip:
                 return
 
             ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span)
+            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
                 # _asm_request_context.call_callback()
@@ -295,7 +297,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.GRPC):
             return None
 
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+        if _asm_request_context.get_blocked():
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
                 return None
@@ -367,8 +369,7 @@ class AppSecSpanProcessor(SpanProcessor):
             waf_results.total_runtime,
         )
         if blocked:
-            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked, span=span)
-            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked)
+            _asm_request_context.set_blocked(blocked)
 
         try:
             info = self._ddwaf.info
@@ -443,7 +444,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 self._ddwaf._at_request_end()
         finally:
             # release asm context if it was created by the span
-            _asm_request_context.unregister(span)
+            # _asm_request_context.unregister(span)
 
             if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
                 return

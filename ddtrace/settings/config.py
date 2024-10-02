@@ -523,7 +523,7 @@ class Config(object):
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+        self._raise = asbool(os.getenv("DD_TESTING_RAISE", True))
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function()
         self._trace_compute_stats = asbool(

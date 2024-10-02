@@ -115,16 +115,16 @@ class Contrib_TestClass_For_Threats:
             assert get_tag("http.status_code") == "200"
             assert self.headers(response)["content-type"] == "text/html; charset=utf-8"
 
-    def test_simple_attack(self, interface: Interface, root_span):
+    def test_simple_attack(self, interface: Interface, root_span, get_tag):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/.git?q=1")
             assert response.status_code == 404
             triggers = get_triggers(root_span())
             assert triggers is not None, "no appsec struct in root span"
-            assert core.get_item("http.request.uri", span=root_span()) == "http://localhost:8000/.git?q=1"
-            assert core.get_item("http.request.headers", span=root_span()) is not None
-            query = dict(core.get_item("http.request.query", span=root_span()))
+            assert root_span()._get_ctx_item("http.request.uri") == "http://localhost:8000/.git?q=1"
+            assert root_span()._get_ctx_item("http.request.uri") is not None
+            query = dict(root_span()._get_ctx_item("http.request.query"))
             assert query == {"q": "1"} or query == {"q": ["1"]}
 
     def test_querystrings(self, interface: Interface, root_span):

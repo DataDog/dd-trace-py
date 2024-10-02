@@ -212,6 +212,11 @@ class ASMConfig(Env):
         # Only for deprecation phase
         if self._auto_user_instrumentation_local_mode == "":
             self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode or LOGIN_EVENTS_MODE.IDENT
+        if not self._asm_libddwaf_available:
+            self._asm_enabled = False
+            self._asm_can_be_enabled = False
+            self._iast_enabled = False
+            self._api_security_enabled = False
 
     def reset(self):
         """For testing puposes, reset the configuration to its default values given current environment variables."""
@@ -231,9 +236,3 @@ class ASMConfig(Env):
 
 
 config = ASMConfig()
-
-if not config._asm_libddwaf_available:
-    config._asm_enabled = False
-    config._asm_can_be_enabled = False
-    config._iast_enabled = False
-    config._api_security_enabled = False
