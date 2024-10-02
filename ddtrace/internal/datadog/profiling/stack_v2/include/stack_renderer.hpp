@@ -48,6 +48,9 @@ class StackRenderer : public RendererInterface
     virtual void render_cpu_time(microsecond_t cpu_time_us) override;
     virtual void render_stack_end() override;
     virtual bool is_valid() override;
+
+  private:
+    void maybe_collect_exception_sample(PyThreadState* tstate);
 };
 
 } // namespace Datadog
