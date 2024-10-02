@@ -7,7 +7,7 @@ from ddtrace import config
 from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_SSRF
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -36,7 +36,7 @@ config._add(
     {
         "_default_service": schematize_service_name("urllib3"),
         "distributed_tracing": asbool(os.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
-        "default_http_tag_query_string": os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
+        "default_http_tag_query_string": config._http_client_tag_query_string,
         "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
     },
 )
@@ -137,7 +137,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
             HTTPPropagator.inject(span.context, request_headers)
 
         if config.urllib3.analytics_enabled:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())
+            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())
 
         retries = request_retries.total if isinstance(request_retries, urllib3.util.retry.Retry) else None
 

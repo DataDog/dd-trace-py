@@ -1,9 +1,14 @@
+import atexit
 from collections import defaultdict
 from collections import deque
 import sys
 import typing as t
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.uwsgi import check_uwsgi
+from ddtrace.internal.uwsgi import uWSGIConfigError
+from ddtrace.internal.uwsgi import uWSGIMasterProcess
 
 
 log = get_logger(__name__)
@@ -42,10 +47,7 @@ class ProductManager:
     __products__: t.Dict[str, Product] = {}  # All discovered products
 
     def __init__(self) -> None:
-        # Data structures for topological sorting
-        q: t.Deque[str] = deque()  # Queue of products with no dependencies
-        g = defaultdict(list)  # Graph of dependencies
-        f = {}  # Remaining dependencies for each product
+        self._products: t.Optional[t.List[t.Tuple[str, Product]]] = None  # Topologically sorted products
 
         for product_plugin in entry_points(group="ddtrace.products"):
             name = product_plugin.name
@@ -58,17 +60,24 @@ class ProductManager:
                 log.exception("Failed to load product plugin '%s'", name)
                 continue
 
+            log.debug("Product plugin '%s' loaded successfully", name)
+
+            self.__products__[name] = product
+
+    def _sort_products(self) -> t.List[t.Tuple[str, Product]]:
+        # Data structures for topological sorting
+        q: t.Deque[str] = deque()  # Queue of products with no dependencies
+        g = defaultdict(list)  # Graph of dependencies
+        f: t.Dict[str, set] = {}  # Remaining dependencies for each product
+
+        for name, product in self.__products__.items():
             product_requires = getattr(product, "requires", [])
             if not product_requires:
                 q.append(name)
             else:
-                f[name] = list(product_requires)
+                f[name] = set(product_requires)
                 for r in product_requires:
                     g[r].append(name)
-
-            log.debug("Product plugin '%s' loaded successfully", name)
-
-            self.__products__[name] = product
 
         # Determine the product (topological) ordering
         ordering = []
@@ -86,18 +95,48 @@ class ProductManager:
                 "Circular dependencies among products detected. These products won't be enabled: %s.", list(f.keys())
             )
 
-        self.products = [(name, self.__products__[name]) for name in ordering if name not in f]
+        return [(name, self.__products__[name]) for name in ordering if name not in f]
+
+    @property
+    def products(self) -> t.List[t.Tuple[str, Product]]:
+        if self._products is None:
+            self._products = self._sort_products()
+        return self._products
 
     def start_products(self) -> None:
+        failed: t.Set[str] = set()
+
         for name, product in self.products:
+            # Check that no required products have failed
+            failed_requirements = failed & set(getattr(product, "requires", []))
+            if failed_requirements:
+                log.error(
+                    "Product '%s' won't start because these dependencies failed to start: %s", name, failed_requirements
+                )
+                failed.add(name)
+                continue
+
             try:
                 product.start()
                 log.debug("Started product '%s'", name)
             except Exception:
                 log.exception("Failed to start product '%s'", name)
+                failed.add(name)
 
     def restart_products(self, join: bool = False) -> None:
+        failed: t.Set[str] = set()
+
         for name, product in self.products:
+            failed_requirements = failed & set(getattr(product, "requires", []))
+            if failed_requirements:
+                log.error(
+                    "Product '%s' won't restart because these dependencies failed to restart: %s",
+                    name,
+                    failed_requirements,
+                )
+                failed.add(name)
+                continue
+
             try:
                 product.restart(join=join)
                 log.debug("Restarted product '%s'", name)
@@ -127,6 +166,37 @@ class ProductManager:
                 log.debug("Post-preload product '%s' done", name)
             except Exception:
                 log.exception("Failed to post_preload product '%s'", name)
+
+    def _do_products(self) -> None:
+        # Start all products
+        self.start_products()
+
+        # Restart products on fork
+        forksafe.register(self.restart_products)
+
+        # Stop all products on exit
+        atexit.register(self.exit_products)
+
+    def run_protocol(self) -> None:
+        # uWSGI support
+        try:
+            check_uwsgi(worker_callback=forksafe.ddtrace_after_in_child)
+        except uWSGIMasterProcess:
+            # We are in the uWSGI master process, we should handle products in the
+            # post-fork callback
+            @forksafe.register
+            def _() -> None:
+                self._do_products()
+                forksafe.unregister(_)
+
+        except uWSGIConfigError:
+            log.error("uWSGI configuration error", exc_info=True)
+        except Exception:
+            log.exception("Failed to check uWSGI configuration")
+
+        # Ordinary process
+        else:
+            self._do_products()
 
 
 manager = ProductManager()

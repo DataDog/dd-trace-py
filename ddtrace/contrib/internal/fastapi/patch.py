@@ -7,7 +7,8 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib.asgi.middleware import TraceMiddleware
+from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.internal.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
@@ -74,13 +75,17 @@ def patch():
 
     if not isinstance(fastapi.BackgroundTasks.add_task, ObjectProxy):
         _w("fastapi", "BackgroundTasks.add_task", _trace_background_tasks(fastapi))
-
     # We need to check that Starlette instrumentation hasn't already patched these
     if not isinstance(fastapi.routing.APIRoute.handle, ObjectProxy):
         _w("fastapi.routing", "APIRoute.handle", traced_handler)
 
     if not isinstance(fastapi.routing.Mount.handle, ObjectProxy):
         _w("starlette.routing", "Mount.handle", traced_handler)
+
+    if _is_iast_enabled():
+        from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
+
+        _on_iast_fastapi_patch()
 
 
 def unpatch():

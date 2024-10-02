@@ -8,11 +8,50 @@ import ddtrace
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.coverage.util import collapse_ranges
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
+from tests.ci_visibility.util import _ci_override_env
+from tests.ci_visibility.util import _mock_ddconfig_test_visibility
 from tests.ci_visibility.util import _patch_dummy_writer
+from tests.contrib.pytest.test_pytest import _fetch_test_to_skip_side_effect
 from tests.utils import TracerTestCase
-from tests.utils import override_env
+
+
+# TODO: investigate why pytest 3.7 does not mark the decorated function line when skipped as covered
+_DONT_COVER_SKIPPED_FUNC_LINE = PYTHON_VERSION_INFO <= (3, 8, 0)
+
+
+def _get_tuples_from_bytearray(bitmap):
+    coverage_lines = CoverageLines()
+    coverage_lines._lines = bitmap
+    return collapse_ranges(coverage_lines.to_sorted_list())
+
+
+def _get_tuples_from_segments(segments):
+    return list((segment[0], segment[2]) for segment in segments)
+
+
+def _get_span_coverage_data(span, use_plugin_v2=False):
+    """Returns an abstracted view of the coverage data from the span that is independent of the coverage format."""
+    if use_plugin_v2:
+        tag_data = span.get_struct_tag(COVERAGE_TAG_NAME)
+        assert tag_data is not None, f"Coverage data not found in span {span}"
+        return {
+            file_data["filename"]: _get_tuples_from_bytearray(file_data["bitmap"]) for file_data in tag_data["files"]
+        }
+
+    else:
+        # This will raise an exception and the test will fail if the tag is not found
+        tag_data = json.loads(span.get_tag(COVERAGE_TAG_NAME))
+        return {
+            file_data["filename"]: _get_tuples_from_segments(file_data["segments"]) for file_data in tag_data["files"]
+        }
 
 
 class PytestTestCase(TracerTestCase):
@@ -109,10 +148,10 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
-        with override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
+        with _ci_override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, False, False, True),
-        ):
+            return_value=TestVisibilityAPISettings(True, False, False, True),
+        ), _mock_ddconfig_test_visibility(itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE):
             self.inline_run(
                 "-p",
                 "no:randomly",
@@ -125,65 +164,56 @@ class PytestTestCase(TracerTestCase):
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         first_suite_span = test_suite_spans[0]
         assert first_suite_span.get_tag("type") == "test_suite_end"
-        assert COVERAGE_TAG_NAME in first_suite_span.get_tags()
-        tag_data = json.loads(first_suite_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(tag_data["files"], key=lambda x: x["filename"])
-
-        assert len(files) == 3
-
-        assert files[2]["filename"] == "test_cov.py"
-
+        first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
+        assert len(first_suite_coverage) == 3
         if _USE_PLUGIN_V2:
-            # This array is too long to store here, and this is temporary pending the rewrite of coverage format to
-            # byte arrays
-            pass
-        else:
-            assert len(files[2]["segments"]) == (55 if _USE_PLUGIN_V2 else 5)
-            assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
-            assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
-            assert files[2]["segments"][2] == [12, 0, 13, 0, -1]
-            assert files[2]["segments"][3] == [21, 0, 22, 0, -1]
-            assert files[2]["segments"][4] == [35, 0, 36, 0, -1]
+            if _DONT_COVER_SKIPPED_FUNC_LINE:
+                assert first_suite_coverage["/test_cov.py"] == [
+                    (1, 2),
+                    (4, 5),
+                    (7, 9),
+                    (11, 13),
+                    (16, 16),
+                    (20, 22),
+                    (24, 24),
+                    (28, 31),
+                    (33, 33),
+                    (35, 36),
+                    (39, 42),
+                    (44, 44),
+                ]
+            else:
+                assert first_suite_coverage["/test_cov.py"] == [
+                    (1, 2),
+                    (4, 5),
+                    (7, 9),
+                    (11, 13),
+                    (16, 17),
+                    (20, 22),
+                    (24, 25),
+                    (28, 31),
+                    (33, 36),
+                    (39, 42),
+                    (44, 45),
+                ]
+            assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
+            assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
 
-        assert files[0]["filename"] == "lib_fn.py"
-        assert len(files[0]["segments"]) == (5 if _USE_PLUGIN_V2 else 1)
-        if _USE_PLUGIN_V2:
-            assert files[0]["segments"] == [
-                [1, 0, 2, 0, -1],
-                [1, 0, 1, 0, -1],
-                [1, 0, 1, 0, -1],
-                [1, 0, 1, 0, -1],
-                [1, 0, 1, 0, -1],
-            ]
         else:
-            assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
-
-        assert files[1]["filename"] == "ret_false.py"
-        assert len(files[1]["segments"]) == (4 if _USE_PLUGIN_V2 else 1)
-
-        if _USE_PLUGIN_V2:
-            assert files[1]["segments"] == [[1, 0, 2, 0, -1], [1, 0, 1, 0, -1], [1, 0, 1, 0, -1], [1, 0, 1, 0, -1]]
-        else:
-            assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+            assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9), (12, 13), (21, 22), (35, 36)]
+            assert first_suite_coverage["lib_fn.py"] == [(2, 2)]
+            assert first_suite_coverage["ret_false.py"] == [(1, 2)]
 
         second_suite_span = test_suite_spans[-1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
-        assert COVERAGE_TAG_NAME in second_suite_span.get_tags()
-        tag_data = json.loads(second_suite_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[1]["filename"] == "test_cov_second.py"
-        assert files[0]["filename"] == "ret_false.py"
-        assert len(files[1]["segments"]) == (2 if _USE_PLUGIN_V2 else 1)
+        second_suite_coverage = _get_span_coverage_data(second_suite_span, _USE_PLUGIN_V2)
+        assert len(second_suite_coverage) == 2
         if _USE_PLUGIN_V2:
-            assert files[1]["segments"] == [[1, 0, 1, 0, -1], [3, 0, 5, 0, -1]]
+            assert second_suite_coverage["/test_cov_second.py"] == [(1, 1), (3, 5)]
+            assert second_suite_coverage["/ret_false.py"] == [(1, 2)]
         else:
-            assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
-        assert len(files[0]["segments"]) == 1
-        if _USE_PLUGIN_V2:
-            assert files[0]["segments"] == [[1, 0, 2, 0, -1]]
-        else:
-            assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
+            assert second_suite_coverage["test_cov_second.py"] == [(4, 5)]
+            assert second_suite_coverage["ret_false.py"] == [(2, 2)]
 
     def test_pytest_will_report_coverage_by_suite_with_itr_skipped(self):
         self.testdir.makepyfile(
@@ -221,24 +251,29 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
-        with override_env(
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_suite_ids(
+                [
+                    ("", "test_cov_second.py"),
+                ]
+            )
+        )
+
+        with _ci_override_env(
             {
                 "DD_API_KEY": "foobar.baz",
                 "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",
                 "DD_APPLICATION_KEY": "not_an_app_key_at_all",
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True",
-            }
+            },
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, True, False, True),
+            return_value=TestVisibilityAPISettings(True, True, False, True),
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_test_suites_to_skip",
-            [
-                "test_cov_second.py",
-            ],
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), _mock_ddconfig_test_visibility(
+            itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE
         ):
             self.inline_run(
                 "-p",
@@ -252,38 +287,20 @@ class PytestTestCase(TracerTestCase):
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         first_suite_span = test_suite_spans[0]
         assert first_suite_span.get_tag("type") == "test_suite_end"
-        assert COVERAGE_TAG_NAME in first_suite_span.get_tags()
-        tag_data = json.loads(first_suite_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(tag_data["files"], key=lambda x: x["filename"])
-
-        assert len(files) == 3
-
-        assert files[2]["filename"] == "test_cov.py"
-        assert len(files[2]["segments"]) == (6 if _USE_PLUGIN_V2 else 2)
-        if _USE_PLUGIN_V2:
-            assert files[2]["segments"] == [
-                [1, 0, 2, 0, -1],
-                [4, 0, 5, 0, -1],
-                [7, 0, 7, 0, -1],
-                [1, 0, 2, 0, -1],
-                [4, 0, 4, 0, -1],
-                [7, 0, 9, 0, -1],
-            ]
-        else:
-            assert files[2]["segments"][0] == [5, 0, 5, 0, -1]
-            assert files[2]["segments"][1] == [8, 0, 9, 0, -1]
-
-        assert files[0]["filename"] == "lib_fn.py"
-        assert len(files[0]["segments"]) == (2 if _USE_PLUGIN_V2 else 1)
-        if _USE_PLUGIN_V2:
-            assert files[0]["segments"] == [[1, 0, 2, 0, -1], [1, 0, 1, 0, -1]]
-        else:
-            assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
-
-        assert files[1]["filename"] == "ret_false.py"
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
-
         second_suite_span = test_suite_spans[1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
-        assert COVERAGE_TAG_NAME not in second_suite_span.get_tags()
+
+        first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
+
+        if _USE_PLUGIN_V2:
+            assert len(first_suite_coverage) == 3
+            assert first_suite_coverage["/test_cov.py"] == [(1, 2), (4, 5), (7, 9)]
+            assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
+            assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
+            assert second_suite_span.get_struct_tag(COVERAGE_TAG_NAME) is None
+        else:
+            assert len(first_suite_coverage) == 3
+            assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9)]
+            assert first_suite_coverage["lib_fn.py"] == [(2, 2)]
+            assert first_suite_coverage["ret_false.py"] == [(1, 2)]
+            assert COVERAGE_TAG_NAME not in second_suite_span.get_tags()

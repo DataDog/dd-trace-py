@@ -12,6 +12,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._signal.model import LogSignal
@@ -19,6 +20,7 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import forksafe
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
 
 
 log = get_logger(__name__)
@@ -34,7 +36,7 @@ class JsonBuffer(object):
             self._reset()
 
         size = len(item)
-        if self.size + size > self.max_size:
+        if self.max_size is not None and self.size + size > self.max_size:
             raise BufferFull(self.size, size)
 
         if self.size > 2:
@@ -71,7 +73,7 @@ class BufferedEncoder(abc.ABC):
         """Enqueue the given item and returns its encoded size."""
 
     @abc.abstractmethod
-    def flush(self) -> Optional[bytes]:
+    def flush(self) -> Optional[Union[bytes, bytearray]]:
         """Flush the buffer and return the encoded data."""
 
 
@@ -104,13 +106,20 @@ def _build_log_track_payload(
         "debugger": {"snapshot": signal.snapshot},
         "host": host,
         "logger": _logs_track_logger_details(signal.thread, signal.frame),
-        "dd.trace_id": str(context.trace_id) if context else None,
-        "dd.span_id": str(context.span_id) if context else None,
         "ddsource": "dd_debugger",
         "message": signal.message,
         "timestamp": int(signal.timestamp * 1e3),  # milliseconds,
     }
+
+    # Add the correlation IDs if available
+    if context is not None and context.trace_id is not None:
+        payload["dd"] = {
+            "trace_id": format_trace_id(context.trace_id),
+            "span_id": str(context.span_id),
+        }
+
     add_tags(payload)
+
     return payload
 
 
@@ -160,7 +169,7 @@ class JSONTree:
 
         self._parse()
 
-    def _depth_string(self):
+    def _depth_string(self, i, c):
         self._stack[-1].not_captured_depth = True
         return self._object
 
@@ -168,22 +177,24 @@ class JSONTree:
         if c == '"':
             self._string_iter = iter("depth")
             self._on_string_match = self._depth_string
-            self._state = self._string
+            return self._string
 
         elif c not in " :\n\t\r":
-            self._state = self._object
+            return self._object
 
-    def _not_captured_string(self):
+        return self._state
+
+    def _not_captured_string(self, i, c):
         self._stack[-1].not_captured = True
         return self._not_captured
 
     def _escape(self, i, c):
-        self._state = self._string
+        return self._string
 
     def _string(self, i, c):
         if c == '"':
-            self._state = (
-                self._on_string_match()
+            return (
+                self._on_string_match(i, c)
                 if self._string_iter is not None and next(self._string_iter, None) is None
                 else self._object
             )
@@ -192,7 +203,7 @@ class JSONTree:
             # If we are escaping a character, we are not parsing the
             # "notCapturedReason" string.
             self._string_iter = None
-            self._state = self._escape
+            return self._escape
 
         if self._string_iter is not None and c != next(self._string_iter, None):
             self._string_iter = None
@@ -208,7 +219,7 @@ class JSONTree:
         elif c == '"':
             self._string_iter = iter("notCapturedReason")
             self._on_string_match = self._not_captured_string
-            self._state = self._string
+            return self._string
 
         elif c == "{":
             o = self.Node(i, 0, self.level, None, [])
@@ -220,13 +231,13 @@ class JSONTree:
 
     def _parse(self):
         for i, c in self._iter:
-            self._state(i, c)
+            self._state = self._state(i, c) or self._state
             if self.root is not None:
                 return
 
     @property
     def leaves(self):
-        return list(self.root.leaves)
+        return list(self.root.leaves) if self.root is not None else []
 
 
 class LogSignalJsonEncoder(Encoder):
@@ -237,8 +248,8 @@ class LogSignalJsonEncoder(Encoder):
         self._service = service
         self._host = host
 
-    def encode(self, log_signal: LogSignal) -> bytes:
-        return self.pruned(json.dumps(_build_log_track_payload(self._service, log_signal, self._host))).encode("utf-8")
+    def encode(self, item: LogSignal) -> bytes:
+        return self.pruned(json.dumps(_build_log_track_payload(self._service, item, self._host))).encode("utf-8")
 
     def pruned(self, log_signal_json: str) -> str:
         if len(log_signal_json) <= self.MAX_SIGNAL_SIZE:
@@ -248,6 +259,8 @@ class LogSignalJsonEncoder(Encoder):
         PRUNED_LEN = len(PRUNED_PROPERTY)
 
         tree = JSONTree(log_signal_json)
+        if tree.root is None:
+            return log_signal_json
 
         delta = len(tree.root) - self.MAX_SIGNAL_SIZE
         nodes, s = {}, 0
@@ -262,6 +275,9 @@ class LogSignalJsonEncoder(Encoder):
                 break
 
             parent = leaf.parent
+            if parent is None:
+                continue
+
             parent.pruned += 1
             if parent.pruned >= len(parent.children):
                 # We have pruned all the children of this parent node so we can
@@ -312,7 +328,7 @@ class SignalQueue(BufferedEncoder):
                 self._on_full(item, encoded)
             raise
 
-    def flush(self) -> Optional[bytes]:
+    def flush(self) -> Optional[Union[bytes, bytearray]]:
         with self._lock:
             if self.count == 0:
                 # Reclaim memory

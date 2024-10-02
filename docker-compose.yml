@@ -147,7 +147,7 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
-        image: ghcr.io/datadog/dd-trace-py/testrunner@sha256:9b2364afa4d1cd8382f251aca5963113cfc47e6c6b9aaed2c28e8a2a48ac1f75
+        image: ghcr.io/datadog/dd-trace-py/testrunner@sha256:4c8afd048321e702f3605b4ae4d206fcd00e74bac708089cfe7f9c24383dc53b
         command: bash
         environment:
             - TOX_SKIP_DIST=True
@@ -175,7 +175,7 @@ services:
           - "${TMPDIR:-/var/lib/localstack}:/var/lib/localstack"
           - "/var/run/docker.sock:/var/run/docker.sock"
 
-    httpbin_local:
+    httpbin-local:
       image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
       platform: linux/amd64
       ports:

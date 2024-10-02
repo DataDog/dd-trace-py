@@ -558,6 +558,24 @@ class TelemetryTestSession(object):
         requests = self.get_requests(event_type, filter_heartbeats)
         return [req["body"] for req in requests]
 
+    def get_metrics(self, name=None):
+        metrics = []
+        for event in self.get_events("generate-metrics"):
+            for series in event["payload"]["series"]:
+                if name is None or series["metric"] == name:
+                    metrics.append(series)
+        metrics.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+        return metrics
+
+    def get_dependencies(self, name=None):
+        deps = []
+        for event in self.get_events("app-dependencies-loaded"):
+            for dep in event["payload"]["dependencies"]:
+                if name is None or dep["name"] == name:
+                    deps.append(dep)
+        deps.sort(key=lambda x: x["name"], reverse=False)
+        return deps
+
 
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):

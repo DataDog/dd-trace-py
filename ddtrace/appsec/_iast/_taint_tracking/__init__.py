@@ -1,14 +1,15 @@
-import os
+from io import BytesIO
+from io import StringIO
 from typing import Any
 from typing import Tuple
 
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 
 from ..._constants import IAST
 from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
+from .._utils import _is_iast_debug_enabled
 from .._utils import _is_python_version_supported
 
 
@@ -62,54 +63,54 @@ if _is_python_version_supported():
 
 
 __all__ = [
-    "_convert_escaped_text_to_tainted_text",
-    "new_pyobject_id",
-    "setup",
-    "Source",
     "OriginType",
+    "Source",
     "TagMappingMode",
     "TaintRange",
-    "get_ranges",
-    "set_ranges",
-    "copy_ranges_from_strings",
-    "copy_and_shift_ranges_from_strings",
-    "are_all_text_all_ranges",
-    "shift_taint_range",
-    "shift_taint_ranges",
-    "get_range_by_hash",
-    "is_notinterned_notfasttainted_unicode",
-    "set_fast_tainted_if_notinterned_unicode",
-    "aspect_helpers",
-    "reset_context",
-    "initializer_size",
-    "active_map_addreses_size",
-    "create_context",
-    "str_to_origin",
-    "origin_to_str",
-    "common_replace",
-    "_aspect_ospathjoin",
-    "_aspect_split",
-    "_aspect_rsplit",
-    "_aspect_splitlines",
+    "_aspect_modulo",
     "_aspect_ospathbasename",
     "_aspect_ospathdirname",
+    "_aspect_ospathjoin",
     "_aspect_ospathnormcase",
     "_aspect_ospathsplit",
-    "_aspect_ospathsplitext",
     "_aspect_ospathsplitdrive",
+    "_aspect_ospathsplitext",
     "_aspect_ospathsplitroot",
+    "_aspect_rsplit",
+    "_aspect_split",
+    "_aspect_splitlines",
+    "_convert_escaped_text_to_tainted_text",
     "_format_aspect",
+    "active_map_addreses_size",
+    "are_all_text_all_ranges",
     "as_formatted_evidence",
-    "parse_params",
-    "set_ranges_on_splitted",
-    "num_objects_tainted",
+    "aspect_helpers",
+    "common_replace",
+    "copy_and_shift_ranges_from_strings",
+    "copy_ranges_from_strings",
+    "create_context",
     "debug_taint_map",
+    "get_range_by_hash",
+    "get_ranges",
     "iast_taint_log_error",
+    "initializer_size",
+    "is_notinterned_notfasttainted_unicode",
+    "is_pyobject_tainted",
+    "modulo_aspect",
+    "new_pyobject_id",
+    "num_objects_tainted",
+    "origin_to_str",
+    "parse_params",
+    "reset_context",
+    "set_fast_tainted_if_notinterned_unicode",
+    "set_ranges",
+    "set_ranges_on_splitted",
+    "setup",
+    "shift_taint_range",
+    "shift_taint_ranges",
+    "str_to_origin",
+    "taint_pyobject",
 ]
-
-
-def _is_iast_debug_enabled():
-    return asbool(os.environ.get(IAST.ENV_DEBUG, "false"))
 
 
 def iast_taint_log_error(msg):
@@ -118,8 +119,8 @@ def iast_taint_log_error(msg):
 
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
-        log.debug("%s:\n%s", msg, frame_info)
-        _set_iast_error_metric("IAST propagation error. %s" % msg)
+        log.debug("[IAST] Propagation error. %s:\n%s", msg, frame_info)
+    _set_iast_error_metric("[IAST] Propagation error. %s" % msg)
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
@@ -160,7 +161,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
         _set_metric_iast_executed_source(source_origin)
         return pyobject_newid
     except ValueError as e:
-        iast_taint_log_error("Tainting object error (pyobject type %s): %s" % (type(pyobject), e))
+        log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e)
     return pyobject
 
 
@@ -202,23 +203,25 @@ if _is_iast_debug_enabled():
             return
         if event == "call":
             f_locals = frame.f_locals
-            if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
-                TAINTED_FRAMES.append(frame)
-                log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
-                log.debug("Tainted arguments:")
-                for arg in f_locals:
-                    if is_pyobject_tainted(f_locals[arg]):
-                        log.debug("\t%s: %s", arg, f_locals[arg])
-                log.debug("-----")
-
-            return trace_calls_and_returns
+            try:
+                if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
+                    TAINTED_FRAMES.append(frame)
+                    log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
+                    log.debug("Tainted arguments:")
+                    for arg in f_locals:
+                        if is_pyobject_tainted(f_locals[arg]):
+                            log.debug("\t%s: %s", arg, f_locals[arg])
+                    log.debug("-----")
+                return trace_calls_and_returns
+            except AttributeError:
+                pass
         elif event == "return":
             if frame in TAINTED_FRAMES:
                 TAINTED_FRAMES.remove(frame)
                 log.debug("Return from %s on line %d of %s, return value: %s", func_name, line_no, filename, arg)
-                if isinstance(arg, (str, bytes, bytearray, list, tuple, dict)):
+                if isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO, list, tuple, dict)):
                     if (
-                        (isinstance(arg, (str, bytes, bytearray)) and is_pyobject_tainted(arg))
+                        (isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO)) and is_pyobject_tainted(arg))
                         or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
                         or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
                     ):

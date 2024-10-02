@@ -8,6 +8,7 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -198,7 +199,7 @@ class MetricFunctionProbe(Probe, FunctionLocationMixin, MetricProbeMixin, ProbeC
 @dataclass
 class TemplateSegment(abc.ABC):
     @abc.abstractmethod
-    def eval(self, _locals: Dict[str, Any]) -> str:
+    def eval(self, scope: Mapping[str, Any]) -> str:
         pass
 
 
@@ -206,7 +207,7 @@ class TemplateSegment(abc.ABC):
 class LiteralTemplateSegment(TemplateSegment):
     str_value: str
 
-    def eval(self, _locals: Dict[str, Any]) -> Any:
+    def eval(self, scope: Mapping[str, Any]) -> Any:
         return self.str_value
 
 
@@ -214,8 +215,8 @@ class LiteralTemplateSegment(TemplateSegment):
 class ExpressionTemplateSegment(TemplateSegment):
     expr: DDExpression
 
-    def eval(self, _locals: Dict[str, Any]) -> Any:
-        return self.expr.eval(_locals)
+    def eval(self, scope: Mapping[str, Any]) -> Any:
+        return self.expr.eval(scope)
 
 
 @dataclass
@@ -223,11 +224,11 @@ class StringTemplate:
     template: str
     segments: List[TemplateSegment]
 
-    def render(self, _locals: Dict[str, Any], serializer: Callable[[Any], str]) -> str:
+    def render(self, scope: Mapping[str, Any], serializer: Callable[[Any], str]) -> str:
         def _to_str(value):
             return value if _isinstance(value, str) else serializer(value)
 
-        return "".join([_to_str(s.eval(_locals)) for s in self.segments])
+        return "".join([_to_str(s.eval(scope)) for s in self.segments])
 
 
 @dataclass

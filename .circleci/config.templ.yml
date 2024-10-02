@@ -4,7 +4,7 @@ default_resource_class: &default_resource_class medium
 ubuntu_base_image: &ubuntu_base_img ubuntu-2004:2023.04.2
 cimg_base_image: &cimg_base_image cimg/base:2022.08
 python310_image: &python310_image cimg/python:3.10.12
-ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner@sha256:9b2364afa4d1cd8382f251aca5963113cfc47e6c6b9aaed2c28e8a2a48ac1f75
+ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner@sha256:4c8afd048321e702f3605b4ae4d206fcd00e74bac708089cfe7f9c24383dc53b
 redis_image: &redis_image redis:4.0-alpine@sha256:3e99741f293147ff406657dda7644c2b88564b80a498cd00da8f905743449c9f
 memcached_image: &memcached_image memcached:1.5-alpine@sha256:48cb7207e3d34871893fa1628f3a4984375153e9942facf82e25935b0a633c8a
 cassandra_image: &cassandra_image cassandra:3.11.7@sha256:495e5752526f7e75d3ad85b6a6bbf3b79714321b17a44255a216c341e3baae11
@@ -119,7 +119,12 @@ commands:
   setup_hatch:
     description: "Install hatch"
     steps:
-      - run: pip3 install hatch~=1.8.0 hatch-containers==0.7.0
+      - run:
+          name: "Install hatch"
+          command: |
+            curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
+            sudo install -t /usr/local/bin hatch
+            hatch -q
 
   start_docker_services:
     description: "Start Docker services"
@@ -181,6 +186,7 @@ commands:
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                  DD_CIVISIBILITY_AGENTLESS_ENABLED: true
                 no_output_timeout: 5m
                 command: |
                   ulimit -c unlimited
@@ -217,6 +223,7 @@ commands:
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
+                  DD_CIVISIBILITY_AGENTLESS_ENABLED: true
                 no_output_timeout: 5m
                 command: |
                   ulimit -c unlimited
@@ -499,35 +506,6 @@ jobs:
           paths:
             - "."
 
-  appsec:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'appsec$'
-          snapshot: true
-
-  appsec_iast:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: 'appsec_iast$'
-          snapshot: true
-          docker_services: "postgres"
-
-  appsec_iast_tdd_propagation:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'appsec_iast_tdd_propagation'
-
-  appsec_iast_memcheck:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'appsec_iast_memcheck'
-          snapshot: true
-
   appsec_iast_packages:
     <<: *machine_executor
     parallelism: 5
@@ -558,83 +536,11 @@ jobs:
           pattern: 'aws_lambda'
           snapshot: true
 
-  internal:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "internal"
-
   datastreams:
     <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "datastreams"
-
-  ci_visibility:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "ci_visibility"
-          snapshot: true
-
-  dd_coverage:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_hatch_env_test:
-          env: 'dd_coverage'
-          snapshot: true
-
-
-  llmobs:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: "llmobs"
-
-  subprocess:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "subprocess"
-
-  sourcecode:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "sourcecode"
-
-  telemetry:
-    parallelism: 6
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "telemetry"
-          snapshot: true
-
-  debugger:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: "debugger"
-
-  openai:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          pattern: 'openai'
-          snapshot: true
-
-  opentracer:
-    <<: *contrib_job_large
-    steps:
-      - run_test:
-          pattern: 'opentracer'
 
   opentelemetry:
     parallelism: 4
@@ -643,59 +549,6 @@ jobs:
       - run_test:
           pattern: 'opentelemetry'
           snapshot: true
-
-  profile:
-    <<: *contrib_job
-    resource_class: large
-    # There are 32 jobs, so 2 per-node
-    parallelism: 16
-    steps:
-      - run_test:
-          # We don't want to run the profile-diff venvs
-          pattern: 'profile$'
-          trace_agent_url: ""
-
-  integration_agent:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - setup_riot
-      - start_docker_services:
-          services: ddagent
-      - run:
-          environment:
-            RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
-          command: |
-            ulimit -c unlimited
-            ./scripts/run-test-suite 'integration-latest*' <<pipeline.parameters.coverage>> 1
-      - run:
-          command: |
-            mkdir -p /tmp/core_dumps
-            cp core.* /tmp/core_dumps || true
-            ./scripts/bt
-          when: on_fail
-      - store_artifacts:
-          name: "Store core dumps"
-          path: /tmp/core_dumps
-
-  integration_testagent:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          snapshot: true
-          pattern: 'integration-snapshot*'
-          trace_agent_url: ""
-
-  vendor:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_test:
-          pattern: 'vendor'
 
   botocore:
     <<: *machine_executor
@@ -706,35 +559,6 @@ jobs:
           snapshot: true
           docker_services: "localstack"
 
-  ddtracerun:
-    <<: *contrib_job
-    parallelism: 8
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-    steps:
-      - run_test:
-          pattern: 'ddtracerun'
-          trace_agent_url: ""
-
-  test_logging:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'test_logging'
-
-  stdlib:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
-
   asyncpg:
     <<: *machine_executor
     steps:
@@ -742,42 +566,6 @@ jobs:
           pattern: 'asyncpg'
           snapshot: true
           docker_services: 'postgres'
-
-  aiohttp:
-    <<: *machine_executor
-    parallelism: 3
-    steps:
-      - run_test:
-          pattern: 'aiohttp'  # includes aiohttp_jinja2
-          snapshot: true
-          docker_services: 'httpbin_local'
-
-  asgi:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'asgi$'
-
-  tornado:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'tornado'
-
-  bottle:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'bottle'
 
   cassandra:
     <<: *contrib_job
@@ -795,33 +583,6 @@ jobs:
           wait: cassandra
           pattern: 'cassandra'
 
-  celery:
-    <<: *contrib_job_large
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *rabbitmq_image
-      - image: *testagent_image
-        environment:
-        - LOG_LEVEL=DEBUG
-        - SNAPSHOT_DIR=/snapshots
-        - PORT=9126
-        - SNAPSHOT_CI=1
-        - DD_POOL_TRACE_CHECK_FAILURES=true
-        - DD_DISABLE_ERROR_RESPONSES=true
-        - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
-    steps:
-      - run_test:
-          pattern: 'celery'
-
-  cherrypy:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'cherrypy'
-          snapshot: true
-
   consul:
     <<: *contrib_job_small
     docker:
@@ -832,33 +593,6 @@ jobs:
       - run_test:
           pattern: 'consul'
 
-  dogpile_cache:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'dogpile_cache'
-
-  elasticsearch:
-    <<: *machine_executor
-    parallelism: 17
-    steps:
-      - run_test:
-          pattern: 'elasticsearch'
-          snapshot: true
-          docker_services: 'elasticsearch opensearch'
-
-  falcon:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'falcon'
-
   django:
     <<: *machine_executor
     parallelism: 4
@@ -868,108 +602,6 @@ jobs:
           snapshot: true
           docker_services: "memcached redis postgres"
 
-  django_hosts:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'django_hosts$'
-          snapshot: true
-
-  djangorestframework:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'djangorestframework'
-          snapshot: true
-          docker_services: "memcached redis"
-
-  dramatiq:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "dramatiq"
-          snapshot: true
-          docker_services: "redis"
-
-  fastapi:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "fastapi"
-          snapshot: true
-
-  flask:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          # Run both flask and flask_cache test suites
-          # TODO: Re-enable coverage for Flask tests
-          snapshot: true
-          pattern: "flask"
-          docker_services: "memcached redis"
-
-  gevent:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'gevent'
-
-  graphene:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "graphene"
-          snapshot: true
-
-  graphql:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: "graphql"
-          snapshot: true
-
-  grpc:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "grpc"
-          snapshot: true
-
-  gunicorn:
-    <<: *machine_executor
-    parallelism: 8
-    steps:
-      - run_test:
-          pattern: "gunicorn"
-          snapshot: true
-          docker_services: 'ddagent'
-
-  httplib:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "httplib"
-          snapshot: true
-          docker_services: 'httpbin_local'
-
-  httpx:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: 'httpx'
-          snapshot: true
-          docker_services: 'httpbin_local'
-
   mariadb:
     <<: *machine_executor
     parallelism: 4
@@ -978,15 +610,6 @@ jobs:
           pattern: 'mariadb$'
           snapshot: true
           docker_services: "mariadb"
-
-  molten:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'molten'
 
   mysqlconnector:
     <<: *contrib_job
@@ -1021,55 +644,6 @@ jobs:
           wait: mysql
           pattern: 'pymysql$'
 
-  pylibmc:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'pylibmc'
-
-  pytest:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          pattern: 'pytest'
-          snapshot: true
-
-  pytest_v2:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-     - run_hatch_env_test:
-          env: 'pytest_plugin_v2'
-          snapshot: true
-
-  unittest:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'unittest'
-          snapshot: true
-
-  asynctest:
-    executor: ddtrace_dev
-    steps:
-      - run_test:
-          pattern: 'asynctest$'
-
-  pymemcache:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *memcached_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pymemcache"
-
   mongoengine:
     <<: *machine_executor
     steps:
@@ -1077,82 +651,6 @@ jobs:
           pattern: 'mongoengine'
           snapshot: true
           docker_services: 'mongo'
-
-  pymongo:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *mongo_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pymongo"
-
-  pynamodb:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: "pynamodb"
-
-  pyodbc:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'pyodbc'
-
-  pyramid:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'pyramid'
-          snapshot: true
-
-  requests:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-      - *httpbin_local
-    steps:
-      - run_test:
-          pattern: "requests"
-
-  sanic:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "sanic"
-          snapshot: true
-
-  snowflake:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: "snowflake"
-          snapshot: true
-
-  starlette:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "starlette"
-          snapshot: true
-
-  structlog:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'structlog'
-          snapshot: true
 
   sqlalchemy:
     <<: *contrib_job_small
@@ -1207,145 +705,10 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
-  aredis:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'redis'
-          pattern: 'aredis$'
-          snapshot: true
-
-  yaaredis:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'redis'
-          pattern: 'yaaredis$'
-          snapshot: true
-
-  redis:
-    <<: *machine_executor
-    parallelism: 5
-    steps:
-      - run_test:
-          docker_services: 'redis rediscluster'
-          pattern: 'redis$'
-          snapshot: true
-
-  rediscluster:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'rediscluster'
-          docker_services: 'rediscluster'
-          snapshot: true
-
-  rq:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "rq"
-          snapshot: true
-          docker_services: "redis"
-
-  urllib3:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'urllib3'
-          snapshot: true
-          docker_services: "httpbin_local"
-
-  wsgi:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "wsgi"
-          snapshot: true
-
-  kafka:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: 'kafka'
-          snapshot: true
-          docker_services: 'kafka'
-
-  kombu:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *rabbitmq_image
-      - *testagent
-    steps:
-      - run_test:
-          wait: rabbitmq
-          pattern: 'kombu'
-
-  jinja2:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'jinja2'
-
-  mako:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'mako'
-
-  algoliasearch:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'algoliasearch'
-
-  langchain:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: "langchain"
-          snapshot: true
-
-  anthropic:
-    <<: *machine_executor
-    parallelism: 3
-    steps:
-      - run_test:
-          pattern: "anthropic"
-          snapshot: true
-
-  logbook:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'logbook'
-          snapshot: true
-
-  loguru:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'loguru'
-          snapshot: true
-
   build_docs:
     # build documentation and store as an artifact
     executor: ddtrace_dev
     steps:
-      - setup_hatch
       - checkout
       - run:
           command: |
@@ -1354,22 +717,6 @@ jobs:
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
           path: /tmp/docs
-
-  slotscheck:
-    executor: python310
-    steps:
-      - checkout
-      - setup_rust
-      - setup_hatch
-      - run: hatch run slotscheck:_
-
-  conftests:
-    executor: python310
-    steps:
-      - checkout
-      - setup_rust
-      - setup_hatch
-      - run: hatch run meta-testing:meta-testing
 
 requires_pre_check: &requires_pre_check
   requires:

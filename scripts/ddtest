@@ -9,16 +9,23 @@ then
     CMD=bash
 fi
 
+# Check if 'docker compose' is available (Docker version 20.10+)
+if docker compose version &>/dev/null; then
+    compose_cmd="docker compose"
+else
+    compose_cmd="docker-compose"
+fi
 # retry docker pull if fails
-for i in {1..3}; do docker-compose pull -q testrunner && break || sleep 3; done
+for i in {1..3}; do $compose_cmd pull -q testrunner && break || sleep 3; done
 
-FULL_CMD="pip install -q --disable-pip-version-check riot==0.19.1 hatch && $CMD"
+# TODO(DEV): Install riot in the docker image
+FULL_CMD="pip install -q --disable-pip-version-check riot==0.19.1 && $CMD"
 
 
 # install and upgrade riot in case testrunner image has not been updated
 # DEV: Use `--no-TTY` and `--quiet-pull` when running in CircleCI
 if [[ "${CIRCLECI}" = "true" ]]; then
-    docker-compose run \
+    $compose_cmd run \
                    -e CIRCLE_NODE_TOTAL \
                    -e CIRCLE_NODE_INDEX \
                    -e CIRCLE_WORKFLOW_ID \
@@ -42,7 +49,7 @@ if [[ "${CIRCLECI}" = "true" ]]; then
                    testrunner \
                    bash -c "ulimit -c unlimited || true && $FULL_CMD || (./scripts/bt && false)"
 else
-    docker-compose run \
+    $compose_cmd run \
                    -e DD_TRACE_AGENT_URL \
                    --rm \
                    -i \

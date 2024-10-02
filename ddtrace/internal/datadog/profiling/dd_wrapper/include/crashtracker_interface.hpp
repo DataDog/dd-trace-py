@@ -8,6 +8,7 @@
 extern "C"
 {
 #endif
+    const char* crashtracker_get_exe_name();
     void crashtracker_set_url(std::string_view url);
     void crashtracker_set_service(std::string_view service);
     void crashtracker_set_env(std::string_view env);
@@ -19,6 +20,7 @@ extern "C"
     void crashtracker_set_stdout_filename(std::string_view filename);
     void crashtracker_set_stderr_filename(std::string_view filename);
     void crashtracker_set_alt_stack(bool alt_stack);
+    void crashtracker_set_wait_for_receiver(bool wait);
     void crashtracker_set_resolve_frames_disable();
     void crashtracker_set_resolve_frames_fast();
     void crashtracker_set_resolve_frames_full();

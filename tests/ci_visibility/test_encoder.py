@@ -9,13 +9,13 @@ import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.encoding import JSONEncoder
 from tests.ci_visibility.test_ci_visibility import _dummy_noop_git_client
 from tests.ci_visibility.util import _patch_dummy_writer
@@ -50,7 +50,8 @@ def test_encode_traces_civisibility_v0():
     )
     for trace in traces:
         encoder.put(trace)
-    payload = encoder.encode()
+    payload, num_traces = encoder.encode()
+    assert num_traces == 3
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 1
@@ -95,7 +96,7 @@ def test_encode_traces_civisibility_v0_no_traces():
             "language": "python",
         }
     )
-    payload = encoder.encode()
+    payload, _ = encoder.encode()
     assert payload is None
 
 
@@ -110,7 +111,8 @@ def test_encode_traces_civisibility_v0_empty_traces():
     )
     for trace in traces:
         encoder.put(trace)
-    payload = encoder.encode()
+    payload, size = encoder.encode()
+    assert size == 2
     assert payload is None
 
 
@@ -152,7 +154,7 @@ def test_encode_traces_civisibility_v2_coverage_per_test():
     }
     assert expected_cov == received_covs[0]
 
-    complete_payload = encoder.encode()
+    complete_payload, _ = encoder.encode()
     assert isinstance(complete_payload, bytes)
     payload_per_line = complete_payload.split(b"\r\n")
     assert len(payload_per_line) == 11
@@ -192,7 +194,7 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
         encoder.put(trace)
 
     payload = encoder._build_data(traces)
-    complete_payload = encoder.encode()
+    complete_payload, _ = encoder.encode()
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
@@ -247,7 +249,7 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
     payload = encoder._build_data(traces)
     assert payload is None
 
-    complete_payload = encoder.encode()
+    complete_payload, _ = encoder.encode()
     assert complete_payload is None
 
 
@@ -269,10 +271,9 @@ class PytestEncodingTestCase(TracerTestCase):
                         CIVisibility.disable()
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        with override_env(dict(DD_API_KEY="foobar.baz")), _dummy_noop_git_client(), mock.patch.object(
-            CIVisibility,
-            "_check_settings_api",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+        with override_env(dict(DD_API_KEY="foobar.baz")), _dummy_noop_git_client(), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
@@ -304,7 +305,7 @@ class PytestEncodingTestCase(TracerTestCase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_span = spans[0]
         given_test_event = decoded_event_payload[b"events"][0]
@@ -365,7 +366,7 @@ class PytestEncodingTestCase(TracerTestCase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_suite_span = spans[3]
         assert given_test_suite_span.get_tag("type") == "test_suite_end"
@@ -421,7 +422,7 @@ class PytestEncodingTestCase(TracerTestCase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_module_span = spans[2]
         given_test_module_event = decoded_event_payload[b"events"][2]
@@ -472,7 +473,7 @@ class PytestEncodingTestCase(TracerTestCase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_session_span = spans[1]
         given_test_session_event = decoded_event_payload[b"events"][1]

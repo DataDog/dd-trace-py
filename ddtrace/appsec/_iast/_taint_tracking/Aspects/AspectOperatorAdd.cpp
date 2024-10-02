@@ -1,5 +1,7 @@
 #include "AspectOperatorAdd.h"
 
+#include "Helpers.h"
+
 /**
  * This function updates result_o object with taint information of candidate_text and/or text_to_add
  *
@@ -73,23 +75,31 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     PyObject* result_o = nullptr;
 
-    try {
-        if (nargs != 2) {
-            py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
-            return nullptr;
-        }
-        PyObject* candidate_text = args[0];
-        PyObject* text_to_add = args[1];
+    if (nargs != 2) {
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+        return nullptr;
+    }
+    PyObject* candidate_text = args[0];
+    PyObject* text_to_add = args[1];
 
-        // PyNumber_Add actually works for any type!
-        result_o = PyNumber_Add(candidate_text, text_to_add);
+    // PyNumber_Add actually works for any type!
+    result_o = PyNumber_Add(candidate_text, text_to_add);
 
-        const auto tx_map = initializer->get_tainting_map();
+    TRY_CATCH_ASPECT("add_aspect", return result_o, , {
+        const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return result_o;
         }
 
         if (not args_are_text_and_same_type(candidate_text, text_to_add)) {
+            return result_o;
+        }
+
+        // Early return if there are no ranges
+        auto [ranges_candidate_text, ranges_error_canditate_text] = get_ranges(candidate_text, tx_map);
+        auto [ranges_text_to_add, ranges_error_text_to_add] = get_ranges(text_to_add, tx_map);
+        if (ranges_error_canditate_text or ranges_error_text_to_add or
+            (ranges_candidate_text.empty() and ranges_text_to_add.empty())) {
             return result_o;
         }
 
@@ -100,19 +110,7 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         }
 
         return add_aspect(result_o, candidate_text, text_to_add, tx_map);
-    } catch (const py::error_already_set& e) {
-        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
-        iast_taint_log_error(error_message);
-        return result_o;
-    } catch (const std::exception& e) {
-        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
-        iast_taint_log_error(error_message);
-        return result_o;
-    } catch (...) {
-        const std::string error_message = "Unkown IAST propagation error in add_aspect. ";
-        iast_taint_log_error(error_message);
-        return result_o;
-    }
+    });
 }
 
 PyObject*
@@ -120,22 +118,32 @@ api_add_inplace_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     PyObject* result_o = nullptr;
 
-    try {
-        if (nargs != 2) {
-            py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
-            return nullptr;
-        }
-        PyObject* candidate_text = args[0];
-        PyObject* text_to_add = args[1];
+    if (nargs != 2) {
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+        return nullptr;
+    }
+    PyObject* candidate_text = args[0];
+    PyObject* text_to_add = args[1];
 
-        result_o = PyNumber_InPlaceAdd(candidate_text, text_to_add);
+    result_o = PyNumber_InPlaceAdd(candidate_text, text_to_add);
 
-        const auto tx_map = initializer->get_tainting_map();
+    TRY_CATCH_ASPECT("add_inplace_aspect", return result_o, , {
+        const auto tx_map = Initializer::get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return result_o;
         }
 
         if (not args_are_text_and_same_type(candidate_text, text_to_add)) {
+            return result_o;
+        }
+
+        // Early return if there are no ranges
+        auto [ranges_candidate_text, ranges_error_canditate_text] = get_ranges(candidate_text, tx_map);
+        if (ranges_error_canditate_text) {
+            return result_o;
+        }
+        auto [ranges_text_to_add, ranges_error_text_to_add] = get_ranges(text_to_add, tx_map);
+        if (ranges_error_text_to_add or (ranges_candidate_text.empty() and ranges_text_to_add.empty())) {
             return result_o;
         }
 
@@ -146,17 +154,5 @@ api_add_inplace_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         }
         candidate_text = add_aspect(result_o, candidate_text, text_to_add, tx_map);
         return candidate_text;
-    } catch (const py::error_already_set& e) {
-        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
-        iast_taint_log_error(error_message);
-        return result_o;
-    } catch (const std::exception& e) {
-        const std::string error_message = "IAST propagation error in add_aspect. " + std::string(e.what());
-        iast_taint_log_error(error_message);
-        return result_o;
-    } catch (...) {
-        const std::string error_message = "Unkown IAST propagation error in add_aspect. ";
-        iast_taint_log_error(error_message);
-        return result_o;
-    }
+    });
 }

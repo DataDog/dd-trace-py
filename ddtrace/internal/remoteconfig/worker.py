@@ -94,7 +94,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
         log.debug("[%d][P: %d] Remote Config Poller fork. Refreshing state", os.getpid(), os.getppid())
         self._client.renew_id()
         self.start_subscribers_by_product(self._products_to_restart_on_fork)
-        log.debug("[%d][P: %d] Remote Config Poller restarted services: %s", str(self._products_to_restart_on_fork))
+        log.debug(
+            "[%d][P: %d] Remote Config Poller restarted services: %s",
+            os.getpid(),
+            os.getppid(),
+            str(self._products_to_restart_on_fork),
+        )
 
     def start_subscribers_by_product(self, products_list):
         # type: (List[str]) -> None

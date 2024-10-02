@@ -4,11 +4,10 @@ Add all monkey-patching that needs to run by default here
 """
 
 import os  # noqa:I001
-import atexit  # noqa:I001
 
 from ddtrace import config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
-from ddtrace.internal import forksafe  # noqa:F401
+
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.products import manager  # noqa:F401
@@ -16,9 +15,6 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
 from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
-from ddtrace.internal.uwsgi import check_uwsgi  # noqa:F401
-from ddtrace.internal.uwsgi import uWSGIConfigError  # noqa:F401
-from ddtrace.internal.uwsgi import uWSGIMasterProcess  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace import tracer
 
@@ -44,6 +40,15 @@ def register_post_preload(func: t.Callable) -> None:
 
 
 log = get_logger(__name__)
+
+# Run the product manager protocol
+manager.run_protocol()
+
+# Post preload operations
+register_post_preload(manager.post_preload_products)
+
+
+# TODO: Migrate the following product logic to the new product plugin interface
 
 # DEV: We want to start the crashtracker as early as possible
 if crashtracker_config.enabled:
@@ -116,36 +121,3 @@ if "DD_TRACE_GLOBAL_TAGS" in os.environ:
 @register_post_preload
 def _():
     tracer._generate_diagnostic_logs()
-
-
-def do_products():
-    # Start all products
-    manager.start_products()
-
-    # Restart products on fork
-    forksafe.register(manager.restart_products)
-
-    # Stop all products on exit
-    atexit.register(manager.exit_products)
-
-
-try:
-    check_uwsgi(worker_callback=forksafe.ddtrace_after_in_child)
-except uWSGIMasterProcess:
-    # We are in the uWSGI master process, we should handle products in the
-    # post-fork callback
-    @forksafe.register
-    def _():
-        do_products()
-        forksafe.unregister(_)
-
-except uWSGIConfigError:
-    log.error("uWSGI configuration error", exc_info=True)
-except Exception:
-    log.exception("Failed to check uWSGI configuration")
-
-else:
-    do_products()
-
-# Post preload operations
-register_post_preload(manager.post_preload_products)

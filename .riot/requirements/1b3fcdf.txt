@@ -5,18 +5,18 @@
 #    pip-compile --allow-unsafe --config=pyproject.toml --no-annotate --resolver=backtracking .riot/requirements/1b3fcdf.in
 #
 annotated-types==0.5.0
-attrs==23.2.0
+attrs==24.2.0
 aws-sam-translator==1.82.0
 aws-xray-sdk==2.14.0
 boto==2.49.0
 boto3==1.33.13
 botocore==1.33.13
-certifi==2024.7.4
+certifi==2024.8.30
 cffi==1.15.1
 cfn-lint==0.53.1
 charset-normalizer==3.3.2
 coverage[toml]==7.2.7
-cryptography==43.0.0
+cryptography==43.0.1
 docker==6.1.3
 ecdsa==0.14.1
 exceptiongroup==1.2.2
@@ -63,7 +63,7 @@ sshpubkeys==3.3.1
 tomli==2.0.1
 types-pyyaml==6.0.12.12
 typing-extensions==4.7.1
-urllib3==1.26.19
+urllib3==1.26.20
 websocket-client==1.6.1
 werkzeug==2.1.2
 wrapt==1.16.0

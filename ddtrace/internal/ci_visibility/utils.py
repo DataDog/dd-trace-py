@@ -6,7 +6,7 @@ import typing
 
 import ddtrace
 from ddtrace import config as ddconfig
-from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
+from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
 from ddtrace.internal.logger import get_logger
@@ -139,3 +139,11 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
     root_logger.setLevel(min(root_logger.level, ci_visibility_handler.level))
 
     log.debug("logger setup complete")
+
+
+def combine_url_path(*args: str):
+    """Combine URL path segments.
+
+    NOTE: this is custom-built for its current usage in the Test Visibility codebase. Use with care.
+    """
+    return "/".join(str(segment).strip("/") for segment in args)

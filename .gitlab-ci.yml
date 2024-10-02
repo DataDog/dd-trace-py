@@ -10,21 +10,27 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  TESTRUNNER_IMAGE: ghcr.io/datadog/dd-trace-py/testrunner:81fa854aa9fb16ffc4a089d2d0bd82936c7ea3e9
+  TESTRUNNER_IMAGE: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:ecc5741ff3e7c8a30363fcd9cca79a371dcea5b4
+  # CI_DEBUG_SERVICES: "true"
 
 .testrunner:
   image: $TESTRUNNER_IMAGE
-  tags: [ "arch:arm64" ]
+  # DEV: we have a larger pool of amd64 runners, prefer that over arm64
+  tags: [ "arch:amd64" ]
+  timeout: 20m
   before_script:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
+    - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
   - local: ".gitlab/tests.yml"
   - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/dogfood.yml"
+  - local: ".gitlab/release.yml"
 
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
@@ -38,7 +44,14 @@ onboarding_tests_installer:
 onboarding_tests_k8s_injection:
   parallel:
     matrix:
-      - WEBLOG_VARIANT: [dd-lib-python-init-test-django, dd-lib-python-init-test-django-gunicorn, dd-lib-python-init-test-django-uvicorn, dd-lib-python-init-test-protobuf-old]
+      - WEBLOG_VARIANT:
+          - dd-lib-python-init-test-django
+          - dd-lib-python-init-test-django-gunicorn
+          - dd-lib-python-init-test-django-gunicorn-alpine
+          - dd-lib-python-init-test-django-preinstalled
+          - dd-lib-python-init-test-django-unsupported-package-force
+          - dd-lib-python-init-test-django-uvicorn
+          - dd-lib-python-init-test-protobuf-old
 
 deploy_to_di_backend:manual:
   stage: shared-pipeline
@@ -56,16 +69,3 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
-
-
-# Final step which only runs when a pipeline has finished successfully.
-# This gives us something block on/wait for in GitHub
-finished:
-  image: registry.ddbuild.io/images/mirror/library/alpine:3.19.3
-  tags: [ "arch:amd64" ]
-  stage: .post
-  rules:
-    - when: on_success
-  script:
-    # TODO: Can we get this to reflect the status from the whole pipeline?
-    - exit 0

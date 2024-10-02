@@ -141,6 +141,14 @@ class BaseLLMObsWriter(PeriodicService):
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
 
+    def recreate(self) -> "BaseLLMObsWriter":
+        return self.__class__(
+            site=self._site,
+            api_key=self._api_key,
+            interval=self._interval,
+            timeout=self._timeout,
+        )
+
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     """Writer to the Datadog LLMObs Custom Eval Metrics Endpoint."""
@@ -193,7 +201,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
     def encode(self):
         with self._lock:
             if not self._buffer:
-                return
+                return None, 0
             events = self._buffer
             self._init_buffer()
         data = {"_dd.stage": "raw", "event_type": "span", "spans": events}
@@ -202,8 +210,8 @@ class LLMObsSpanEncoder(BufferedEncoder):
             logger.debug("encode %d LLMObs span events to be sent", len(events))
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
-            return
-        return enc_llm_events
+            return None, 0
+        return enc_llm_events, len(events)
 
 
 class LLMObsEventClient(WriterClientBase):

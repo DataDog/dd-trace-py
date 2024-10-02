@@ -7,11 +7,11 @@ import pytest
 import ddtrace
 from ddtrace import patch
 from ddtrace.contrib.internal.openai.utils import _est_tokens
+from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
-from tests.contrib.openai.utils import iswrapped
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
@@ -1139,6 +1139,53 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
+)
+def test_chat_completion_stream_tokens(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
+        expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+        client = openai.OpenAI()
+        resp = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Who won the world series in 2020?"}],
+            stream=True,
+            user="ddtrace-test",
+            n=None,
+            stream_options={"include_usage": True},
+        )
+        span = snapshot_tracer.current_span()
+        chunks = [c for c in resp]
+        completion = "".join(
+            [c.choices[0].delta.content for c in chunks if c.choices and c.choices[0].delta.content is not None]
+        )
+        assert completion == expected_completion
+
+    assert span.get_tag("openai.response.choices.0.message.content") == expected_completion
+    assert span.get_tag("openai.response.choices.0.message.role") == "assistant"
+    assert span.get_tag("openai.response.choices.0.finish_reason") == "stop"
+
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "openai.request.model:gpt-3.5-turbo",
+        "model:gpt-3.5-turbo",
+        "openai.request.endpoint:/v1/chat/completions",
+        "openai.request.method:POST",
+        "openai.organization.id:",
+        "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
+        "error:0",
+    ]
+    assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.requests", 3000, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.requests", 2999, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.prompt", 17, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", 19, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", 36, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.skipif(

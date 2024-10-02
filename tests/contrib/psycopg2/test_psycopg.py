@@ -8,7 +8,6 @@ from psycopg2 import extensions
 from psycopg2 import extras
 
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -335,35 +334,6 @@ class PsycopgCore(TracerTestCase):
             assert len(rows) == 2, rows
             assert rows[0][0] == "one"
             assert rows[1][0] == "two"
-
-    def test_analytics_default(self):
-        conn = self._get_conn()
-        conn.cursor().execute("""select 'blah'""")
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        span = spans[0]
-        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("psycopg", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            conn = self._get_conn()
-            conn.cursor().execute("""select 'blah'""")
-
-            spans = self.get_spans()
-            self.assertEqual(len(spans), 1)
-            span = spans[0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("psycopg", dict(analytics_enabled=True)):
-            conn = self._get_conn()
-            conn.cursor().execute("""select 'blah'""")
-
-            spans = self.get_spans()
-            self.assertEqual(len(spans), 1)
-            span = spans[0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_app_service_v0(self):

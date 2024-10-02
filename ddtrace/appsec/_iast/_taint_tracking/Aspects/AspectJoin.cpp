@@ -185,18 +185,19 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         }
         return nullptr;
     }
-
-    const auto ctx_map = initializer->get_tainting_map();
-    if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
-        // Empty result cannot have taint ranges
+    TRY_CATCH_ASPECT("join_aspect", return result, , {
+        const auto ctx_map = Initializer::get_tainting_map();
+        if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
+            // Empty result cannot have taint ranges
+            if (decref_arg0) {
+                Py_DecRef(arg0);
+            }
+            return result;
+        }
+        auto res = aspect_join(sep, result, arg0, ctx_map);
         if (decref_arg0) {
             Py_DecRef(arg0);
         }
-        return result;
-    }
-    auto res = aspect_join(sep, result, arg0, ctx_map);
-    if (decref_arg0) {
-        Py_DecRef(arg0);
-    }
-    return res;
+        return res;
+    });
 }

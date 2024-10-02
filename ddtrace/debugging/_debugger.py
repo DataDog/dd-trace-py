@@ -23,7 +23,6 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._exception.replay import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
@@ -45,7 +44,6 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.debugging._safety import get_args
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.debugging._signal.metric_sample import MetricSample
@@ -68,6 +66,8 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.wrapping.context import WrappingContext
 
 
@@ -114,29 +114,29 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
         return super().unregister_origin_hook(origin, hook)
 
     @classmethod
-    def register_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
-        if module_name in cls._locations:
+    def register_module_hook(cls, module: str, hook: ModuleHookType) -> None:
+        if module in cls._locations:
             # We already have a hook for this origin, don't register a new one
             # but invoke it directly instead, if the module was already loaded.
-            module = sys.modules.get(module_name)
-            if module is not None:
-                hook(module)
+            mod = sys.modules.get(module)
+            if mod is not None:
+                hook(mod)
 
             return
 
-        cls._locations.add(module_name)
+        cls._locations.add(module)
 
-        super().register_module_hook(module_name, hook)
+        super().register_module_hook(module, hook)
 
     @classmethod
-    def unregister_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
+    def unregister_module_hook(cls, module: str, hook: ModuleHookType) -> None:
         try:
-            cls._locations.remove(module_name)
+            cls._locations.remove(module)
         except KeyError:
             # Nothing to unregister.
             return
 
-        return super().unregister_module_hook(module_name, hook)
+        return super().unregister_module_hook(module, hook)
 
     @classmethod
     def on_run_module(cls, module: ModuleType) -> None:
@@ -174,7 +174,6 @@ class DebuggerWrappingContext(WrappingContext):
         frame = self.__frame__
         assert frame is not None  # nosec
 
-        args = list(get_args(frame))
         thread = threading.current_thread()
 
         signal: Optional[Signal] = None
@@ -199,7 +198,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                     trace_context=trace_context,
                     meter=self._probe_meter,
                 )
@@ -208,7 +206,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                     trace_context=trace_context,
                 )
             elif isinstance(probe, SpanFunctionProbe):
@@ -216,7 +213,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                     trace_context=trace_context,
                 )
             elif isinstance(probe, SpanDecorationFunctionProbe):
@@ -224,7 +220,6 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
-                    args=args,
                 )
             else:
                 log.error("Unsupported probe type: %s", type(probe))
@@ -279,7 +274,6 @@ class DebuggerWrappingContext(WrappingContext):
 class Debugger(Service):
     _instance: Optional["Debugger"] = None
     _probe_meter = _probe_metrics.get_meter("probe")
-    _span_processor: Optional[SpanExceptionProcessor] = None
 
     __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
@@ -311,6 +305,7 @@ class Debugger(Service):
         debugger.start()
 
         register_post_run_module_hook(cls._on_run_module)
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
 
         log.debug("%s enabled", cls.__name__)
 
@@ -331,9 +326,6 @@ class Debugger(Service):
 
         unregister_post_run_module_hook(cls._on_run_module)
 
-        if cls._instance._span_processor:
-            cls._instance._span_processor.unregister()
-
         cls._instance.stop(join=join)
         cls._instance = None
 
@@ -342,6 +334,7 @@ class Debugger(Service):
             metrics.disable()
 
         di_config.enabled = False
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
 
         log.debug("%s disabled", cls.__name__)
 
@@ -377,11 +370,6 @@ class Debugger(Service):
             remoteconfig_poller.register("LIVE_DEBUGGING", di_callback, restart_on_fork=True)
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
-
-    def _on_encoder_buffer_full(self, item, encoded):
-        # type (Any, bytes) -> None
-        # Send upload request
-        self._uploader.upload()
 
     def _dd_debugger_hook(self, probe: Probe) -> None:
         """Debugger probe hook.
@@ -566,7 +554,7 @@ class Debugger(Service):
                     self.__watchdog__.unregister_origin_hook(resolved_source, self._probe_injection_hook)
                     log.debug("Unregistered injection hook on source '%s'", resolved_source)
                 except ValueError:
-                    log.error("Cannot unregister injection hook for %r", probe, exc_info=True)
+                    log.error("Cannot unregister injection hook on %r", resolved_source, exc_info=True)
 
     def _probe_wrapping_hook(self, module: ModuleType) -> None:
         probes = self._probe_registry.get_pending(module.__name__)

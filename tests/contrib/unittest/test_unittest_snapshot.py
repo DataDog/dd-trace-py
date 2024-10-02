@@ -3,6 +3,7 @@ import textwrap
 
 import pytest
 
+from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import snapshot
@@ -30,6 +31,28 @@ SNAPSHOT_IGNORES = [
 
 SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
 
+SNAPSHOT_IGNORES_GITLAB = [
+    "meta._dd.ci.env_vars",
+    "meta.ci.job.name",
+    "meta.ci.job.url",
+    "meta.ci.node.labels",
+    "meta.ci.node.name",
+    "meta.ci.pipeline.id",
+    "meta.ci.pipeline.name",
+    "meta.ci.pipeline.number",
+    "meta.ci.pipeline.url",
+    "meta.ci.provider.name",
+    "meta.ci.stage.name",
+    "meta.ci.workspace_path",
+    "meta.git.branch",
+    "meta.git.commit.author.date",
+    "meta.git.commit.author.email",
+    "meta.git.commit.author.name",
+    "meta.git.commit.message",
+    "meta.git.commit.sha",
+    "meta.git.repository_url",
+]
+
 
 class UnittestSnapshotTestCase(TracerTestCase):
     @pytest.fixture(autouse=True)
@@ -38,7 +61,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
 
-    @snapshot(ignores=SNAPSHOT_IGNORES)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_generates_source_file_data(self):
         ret_false = """
         def ret_false():
@@ -66,12 +89,15 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_source_file=test_source_file)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz")):
-            subprocess.run(
-                ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=_get_default_ci_env_vars(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="false")),
+        )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_generates_coverage_correctly(self):
         ret_false = """
         def ret_false():
@@ -87,11 +113,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
         import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+        from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
         from unittest import mock
         from unittest.mock import Mock
         ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=_CIVisibilitySettings(True, False, False, True)
+            return_value=TestVisibilityAPISettings(True, False, False, True)
         )
         class CoverageTestCase(unittest.TestCase):
             def test_cov(self):
@@ -103,12 +129,19 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
-            subprocess.run(
-                ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            ),
+        )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_generates_coverage_correctly_with_skipped(self):
         ret_false = """
         def ret_false():
@@ -124,11 +157,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
         import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+        from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
         from unittest import mock
         from unittest.mock import Mock
         ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=_CIVisibilitySettings(True, False, False, True)
+            return_value=TestVisibilityAPISettings(True, False, False, True)
         )
         class CoverageTestCase(unittest.TestCase):
             def test_cov(self):
@@ -141,10 +174,17 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
+        with override_env(
+            _get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            ),
+            replace_os_env=True,
+        ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_report_coverage_by_test_with_itr_skipped(self):
         ret_false = """
         def ret_false():
@@ -161,19 +201,21 @@ class UnittestSnapshotTestCase(TracerTestCase):
             import unittest
             import ddtrace
             from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-            from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+            from ddtrace.internal.ci_visibility._api_client import ITRData
+            from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
             from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
+            from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 
             from unittest.mock import Mock
             ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-                return_value=_CIVisibilitySettings(True, True, False, True)
+                return_value=TestVisibilityAPISettings(True, True, False, True)
             )
 
-            def mock_fetch_tests_to_skip_side_effect(_):
+            def mock_fetch_tests_to_skip_side_effect():
                 _CIVisibility._instance._itr_meta.update({ITR_CORRELATION_ID_TAG_NAME: "unittestcorrelationid"})
-                _CIVisibility._instance._tests_to_skip = {
-                    "test_my_coverage/CoverageTestCase": "test_cov"
-                }
+                _CIVisibility._instance._itr_data = ITRData(
+                    skippable_items=_make_fqdn_test_ids([("test_my_coverage","CoverageTestCase", "test_cov")]),
+                )
 
             ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock(
                 side_effect=mock_fetch_tests_to_skip_side_effect
@@ -190,10 +232,16 @@ class UnittestSnapshotTestCase(TracerTestCase):
         )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            ),
+        )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_report_coverage_by_test_with_itr_skipped_multiple(self):
         ret_false = """
         def ret_false():
@@ -208,21 +256,29 @@ class UnittestSnapshotTestCase(TracerTestCase):
         test_my_coverage = textwrap.dedent(
             """
             import unittest
+            from unittest.mock import Mock
+
             import ddtrace
             from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-            from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+            from ddtrace.internal.ci_visibility._api_client import ITRData
+            from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
             from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
+            from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 
-            from unittest.mock import Mock
             ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-                return_value=_CIVisibilitySettings(True, True, False, True)
+                return_value=TestVisibilityAPISettings(True, True, False, True)
             )
 
-            def mock_fetch_tests_to_skip_side_effect(_):
+            def mock_fetch_tests_to_skip_side_effect():
                 _CIVisibility._instance._itr_meta.update({ITR_CORRELATION_ID_TAG_NAME: "unittestcorrelationid"})
-                _CIVisibility._instance._tests_to_skip = {
-                "test_my_coverage/CoverageTestCase": ["test_cov", "test_second"],
-            }
+                _CIVisibility._instance._itr_data = ITRData(
+                    skippable_items=_make_fqdn_test_ids(
+                        [
+                            ("test_my_coverage","CoverageTestCase", "test_cov"),
+                            ("test_my_coverage","CoverageTestCase", "test_second")
+                        ]
+                    ),
+                )
 
             ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock(
                 side_effect=mock_fetch_tests_to_skip_side_effect
@@ -239,10 +295,16 @@ class UnittestSnapshotTestCase(TracerTestCase):
         )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            ),
+        )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_force_run_unskippable_tests(self):
         ret_false = """
         def ret_false():
@@ -254,35 +316,59 @@ class UnittestSnapshotTestCase(TracerTestCase):
             return True
         """
         self.testdir.makepyfile(lib_fn=lib_fn)
-        test_my_coverage = """
-        import unittest
-        import ddtrace
-        from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
-        from unittest import mock
-        from unittest.mock import Mock
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=_CIVisibilitySettings(True, True, False, True)
-        )
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
-            "test_my_coverage/CoverageTestCase": ["test_cov"],
-        }
-        class CoverageTestCase(unittest.TestCase):
-            @unittest.skipIf(False, reason="datadog_itr_unskippable")
-            def test_cov(self):
-                from lib_fn import lib_fn
-                assert lib_fn()
-            def test_second(self):
-                from ret_false import ret_false
-                assert not ret_false()
+        test_my_coverage = textwrap.dedent(
+            """
+            import unittest
+            import ddtrace
+            from unittest import mock
+            from unittest.mock import Mock
+
+            from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+            from ddtrace.internal.ci_visibility._api_client import ITRData
+            from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+            from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
+            from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
+
+            ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
+                return_value=TestVisibilityAPISettings(True, True, False, True)
+            )
+
+            def mock_fetch_tests_to_skip_side_effect():
+                _CIVisibility._instance._itr_meta.update({ITR_CORRELATION_ID_TAG_NAME: "unittestcorrelationid"})
+                _CIVisibility._instance._itr_data = ITRData(
+                    skippable_items=_make_fqdn_test_ids(
+                        [
+                            ("test_my_coverage","CoverageTestCase", "test_cov")
+                        ]
+                    ),
+                )
+
+            ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock(
+                side_effect=mock_fetch_tests_to_skip_side_effect
+            )
+
+            class CoverageTestCase(unittest.TestCase):
+                @unittest.skipIf(False, reason="datadog_itr_unskippable")
+                def test_cov(self):
+                    from lib_fn import lib_fn
+                    assert lib_fn()
+                def test_second(self):
+                    from ret_false import ret_false
+                    assert not ret_false()
         """
+        )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            ),
+        )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_force_run_multiple_unskippable_tests(self):
         ret_false = """
         def ret_false():
@@ -294,39 +380,63 @@ class UnittestSnapshotTestCase(TracerTestCase):
             return True
         """
         self.testdir.makepyfile(lib_fn=lib_fn)
-        test_my_coverage = """
-        import unittest
-        import ddtrace
-        from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
-        from unittest import mock
-        from unittest.mock import Mock
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=_CIVisibilitySettings(True, True, False, True)
-        )
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
-            "test_my_coverage/CoverageTestCase": ["test_cov", "test_second"],
-        }
-        class CoverageTestCase(unittest.TestCase):
-            @unittest.skipIf(False, reason="datadog_itr_unskippable")
-            def test_cov(self):
-                from lib_fn import lib_fn
-                assert lib_fn()
-            @unittest.skipIf(False, reason="datadog_itr_unskippable")
-            def test_second(self):
-                from ret_false import ret_false
-                assert not ret_false()
-            def test_third(self):
-                from ret_false import ret_false
-                assert not ret_false()
+        test_my_coverage = textwrap.dedent(
+            """
+            import unittest
+            from unittest import mock
+            from unittest.mock import Mock
+
+            import ddtrace
+            from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+            from ddtrace.internal.ci_visibility._api_client import ITRData
+            from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+            from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
+            from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
+
+            ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
+                return_value=TestVisibilityAPISettings(True, True, False, True)
+            )
+
+            def mock_fetch_tests_to_skip_side_effect():
+                _CIVisibility._instance._itr_data = ITRData(
+                    skippable_items=_make_fqdn_test_ids(
+                        [
+                            ("test_my_coverage","CoverageTestCase", "test_cov"),
+                            ("test_my_coverage","CoverageTestCase", "test_second")
+                        ]
+                    ),
+                )
+
+            ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock(
+                side_effect=mock_fetch_tests_to_skip_side_effect
+            )
+
+            class CoverageTestCase(unittest.TestCase):
+                @unittest.skipIf(False, reason="datadog_itr_unskippable")
+                def test_cov(self):
+                    from lib_fn import lib_fn
+                    assert lib_fn()
+                @unittest.skipIf(False, reason="datadog_itr_unskippable")
+                def test_second(self):
+                    from ret_false import ret_false
+                    assert not ret_false()
+                def test_third(self):
+                    from ret_false import ret_false
+                    assert not ret_false()
         """
+        )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            ),
+        )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_skip_invalid_unskippable_tests(self):
         ret_false = """
         def ret_false():
@@ -338,44 +448,68 @@ class UnittestSnapshotTestCase(TracerTestCase):
             return True
         """
         self.testdir.makepyfile(lib_fn=lib_fn)
-        test_my_coverage = """
-        import unittest
-        import ddtrace
-        from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
-        from unittest import mock
-        from unittest.mock import Mock
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=_CIVisibilitySettings(True, True, False, True)
-        )
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
-            "test_my_coverage/CoverageTestCase": ["test_cov", "test_third"],
-        }
-        class CoverageTestCase(unittest.TestCase):
-            @unittest.skipIf(True, reason="datadog_itr_unskippable")
-            def test_cov(self):
-                from lib_fn import lib_fn
-                assert lib_fn()
-            @unittest.skipIf(True, reason="datadog_itr_unskippable")
-            def test_second(self):
-                from ret_false import ret_false
-                assert not ret_false()
-            @unittest.skip(reason="datadog_itr_unskippable")
-            def test_third(self):
-                from ret_false import ret_false
-                assert not ret_false()
-            @unittest.skip(reason="datadog_itr_unskippable")
-            def test_fourth(self):
-                from ret_false import ret_false
-                assert not ret_false()
+        test_my_coverage = textwrap.dedent(
+            """
+            import unittest
+            from unittest import mock
+            from unittest.mock import Mock
+
+            import ddtrace
+            from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+            from ddtrace.internal.ci_visibility._api_client import ITRData
+            from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+            from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
+            from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
+
+            ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
+                return_value=TestVisibilityAPISettings(True, True, False, True)
+            )
+
+            def mock_fetch_tests_to_skip_side_effect():
+                _CIVisibility._instance._itr_data = ITRData(
+                    skippable_items=_make_fqdn_test_ids(
+                        [
+                            ("test_my_coverage","CoverageTestCase", "test_cov"),
+                            ("test_my_coverage","CoverageTestCase", "test_third")
+                        ]
+                    ),
+                )
+
+            ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock(
+                side_effect=mock_fetch_tests_to_skip_side_effect
+            )
+
+            class CoverageTestCase(unittest.TestCase):
+                @unittest.skipIf(True, reason="datadog_itr_unskippable")
+                def test_cov(self):
+                    from lib_fn import lib_fn
+                    assert lib_fn()
+                @unittest.skipIf(True, reason="datadog_itr_unskippable")
+                def test_second(self):
+                    from ret_false import ret_false
+                    assert not ret_false()
+                @unittest.skip(reason="datadog_itr_unskippable")
+                def test_third(self):
+                    from ret_false import ret_false
+                    assert not ret_false()
+                @unittest.skip(reason="datadog_itr_unskippable")
+                def test_fourth(self):
+                    from ret_false import ret_false
+                    assert not ret_false()
         """
+        )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            ),
+        )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_skip_unskippable_test_if_skip_decorator(self):
         ret_false = """
             def ret_false():
@@ -387,20 +521,37 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 return True
             """
         self.testdir.makepyfile(lib_fn=lib_fn)
-        test_my_coverage = """
+        test_my_coverage = textwrap.dedent(
+            """
             import unittest
-            import ddtrace
-            from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-            from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
             from unittest import mock
             from unittest.mock import Mock
+
+            import ddtrace
+            from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+            from ddtrace.internal.ci_visibility._api_client import ITRData
+            from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+            from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
+            from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
+
             ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-                return_value=_CIVisibilitySettings(True, True, False, True)
+                return_value=TestVisibilityAPISettings(True, True, False, True)
             )
-            ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
-            ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
-                "test_my_coverage/CoverageTestCase": ["test_cov", "test_third"],
-            }
+
+            def mock_fetch_tests_to_skip_side_effect():
+                _CIVisibility._instance._itr_data = ITRData(
+                    skippable_items=_make_fqdn_test_ids(
+                        [
+                            ("test_my_coverage","CoverageTestCase", "test_cov"),
+                            ("test_my_coverage","CoverageTestCase", "test_third")
+                        ]
+                    ),
+                )
+
+            ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock(
+                side_effect=mock_fetch_tests_to_skip_side_effect
+            )
+
             class CoverageTestCase(unittest.TestCase):
                 @unittest.skip(reason="something else")
                 @unittest.skipIf(False, reason="datadog_itr_unskippable")
@@ -423,12 +574,19 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     from ret_false import ret_false
                     assert not ret_false()
             """
+        )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                )
+            ),
+        )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_include_custom_tests(self):
         ret_false = """
         def ret_false():
@@ -440,41 +598,61 @@ class UnittestSnapshotTestCase(TracerTestCase):
             return True
         """
         self.testdir.makepyfile(lib_fn=lib_fn)
-        test_my_coverage = """
-        import unittest
-        import ddtrace
-        from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
-        from unittest import mock
-        from unittest.mock import Mock
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=_CIVisibilitySettings(True, True, False, True)
-        )
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
-            "test_my_coverage/CoverageTestCase": ["test_cov"],
-        }
-        class CoverageTestCase(unittest.TestCase):
-            @unittest.skipIf(False, reason="datadog_itr_unskippable")
-            def test_cov(self):
-                from lib_fn import lib_fn
-                assert lib_fn()
-            def test_second(self):
-                from ret_false import ret_false
-                assert not ret_false()
+        test_my_coverage = textwrap.dedent(
+            """
+            import unittest
+            from unittest import mock
+            from unittest.mock import Mock
+
+            import ddtrace
+            from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+            from ddtrace.internal.ci_visibility._api_client import ITRData
+            from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+            from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
+            from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
+
+            ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
+                return_value=TestVisibilityAPISettings(True, True, False, True)
+            )
+
+            def mock_fetch_tests_to_skip_side_effect():
+                _CIVisibility._instance._itr_data = ITRData(
+                    skippable_items=_make_fqdn_test_ids(
+                        [
+                            ("test_my_coverage","CoverageTestCase", "test_cov"),
+                        ]
+                    ),
+                )
+
+            ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock(
+                side_effect=mock_fetch_tests_to_skip_side_effect
+            )
+
+            class CoverageTestCase(unittest.TestCase):
+                @unittest.skipIf(False, reason="datadog_itr_unskippable")
+                def test_cov(self):
+                    from lib_fn import lib_fn
+                    assert lib_fn()
+                def test_second(self):
+                    from ret_false import ret_false
+                    assert not ret_false()
         """
+        )
         self.testdir.makepyfile(test_my_coverage=test_my_coverage)
         self.testdir.chdir()
-        with override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_CIVISIBILITY_ITR_ENABLED="1",
-                DD_TAGS="test.configuration.custom_key:some_value",
-            )
-        ):
-            subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "python", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    DD_TAGS="test.configuration.custom_key:some_value",
+                )
+            ),
+        )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
     def test_unittest_will_include_lines_pct(self):
         tools = """
         def add_two_number_list(list_1, list_2):
@@ -504,10 +682,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
         """
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
-        with override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_PATCH_MODULES="sqlite3:false",
-            )
-        ):
-            subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
+        subprocess.run(
+            ["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"],
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    DD_PATCH_MODULES="sqlite3:false",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                )
+            ),
+        )

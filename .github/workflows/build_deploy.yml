@@ -9,6 +9,7 @@ on:
       # special branches used to test this workflow
       # before merging/releasing
       - build_deploy*
+      - 'upgrade-latest-*'
   pull_request:
   release:
     types:
@@ -76,25 +77,3 @@ jobs:
         run: python $GITHUB_WORKSPACE/tests/smoke_test.py
         # Move out of the workspace to avoid importing ddtrace from the source
         working-directory: /
-
-  upload_pypi:
-    needs:
-      - build_wheels
-      - test_alpine_sdist
-    runs-on: ubuntu-latest
-    if: (github.event_name == 'release' && github.event.action == 'published')
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_TOKEN }}
-          # To test: repository_url: https://test.pypi.org/legacy/
-          # Setting skip_existing will prevent the deploy from erring out early
-          # due to a duplicate wheel being present which will ensure that the rest
-          # of the wheels will be uploaded if some are uploaded manually.
-          skip_existing: true
