@@ -38,29 +38,36 @@ get_exc_type_name(PyObject* exc_type)
     return result;
 }
 
-// void
-// push_exception_frames(Sample* sample, PyTracebackObject* tb)
-// {
-//     while (tb != nullptr) {
-//         PyFrameObject* frame = tb->tb_frame;
-//         if (frame != nullptr) {
-//             PyCodeObject* code = PyFrame_GetCode(frame);
-//             ;
-//             if (code != nullptr) {
-//                 PyObject* filename = code->co_filename;
-//                 PyObject* name = code->co_name;
-//                 if (filename != nullptr && name != nullptr) {
-//                     const char* filename_str = PyUnicode_AsUTF8(filename);
-//                     const char* name_str = PyUnicode_AsUTF8(name);
-//                     if (filename_str != nullptr && name_str != nullptr) {
-//                         ddup_push_frame(sample, name_str, filename_str, 0, code->co_firstlineno);
-//                     }
-//                 }
-//             }
-//         }
-//         tb = tb->tb_next;
-//     }
-// }
+void
+push_exception_frames(Sample* sample, PyTracebackObject* tb)
+{
+    while (tb != nullptr) {
+        PyFrameObject* frame = tb->tb_frame;
+        if (frame != nullptr) {
+#if PY_VERSION_HEX >= 0x030b0000
+            // Since 3.11, members of PyFrameObject are removed from the public C API.
+            PyCodeObject* code = PyFrame_GetCode(frame);
+#else
+            PyCoeObject* code = frame->f_code;
+#endif
+            if (code != nullptr) {
+                PyObject* filename = code->co_filename;
+                PyObject* name = code->co_name;
+                if (filename != nullptr && name != nullptr) {
+                    const char* filename_str = PyUnicode_AsUTF8(filename);
+                    const char* name_str = PyUnicode_AsUTF8(name);
+                    if (filename_str != nullptr && name_str != nullptr) {
+                        ddup_push_frame(sample, name_str, filename_str, 0, code->co_firstlineno);
+                    }
+                }
+#if PY_VERSION_HEX >= 0x030b0000
+                Py_DECREF(code);
+#endif
+            }
+        }
+        tb = tb->tb_next;
+    }
+}
 
 void
 StackRenderer::maybe_collect_exception_sample(PyThreadState* tstate)
@@ -135,7 +142,7 @@ StackRenderer::maybe_collect_exception_sample(PyThreadState* tstate)
                          static_cast<int64_t>(thread_state.native_id),
                          thread_state.name);
     ddup_push_exceptioninfo(exc_sample, exc_type_name, 1);
-    // push_exception_frames(exc_sample, (PyTracebackObject*)exc_traceback);
+    push_exception_frames(exc_sample, reinterpret_cast<PyTracebackObject*>(exc_traceback));
     ddup_flush_sample(exc_sample);
     ddup_drop_sample(exc_sample);
 
