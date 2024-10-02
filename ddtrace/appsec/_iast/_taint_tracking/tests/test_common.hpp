@@ -1,7 +1,6 @@
 #pragma once
 #include <Initializer/Initializer.h>
 #include <gtest/gtest.h>
-#include <iostream> // JJJ
 #include <pybind11/embed.h>
 
 namespace py = pybind11;

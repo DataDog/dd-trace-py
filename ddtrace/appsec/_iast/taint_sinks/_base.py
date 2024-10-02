@@ -6,7 +6,6 @@ from typing import Text
 
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
@@ -92,9 +91,6 @@ class VulnerabilityBase(Operation):
     @classmethod
     def report(cls, evidence_value: Text = "", dialect: Optional[Text] = None) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
-        if not _is_iast_enabled():
-            return None
-
         # TODO: type of evidence_value will be Text. We wait to finish the redaction refactor.
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):

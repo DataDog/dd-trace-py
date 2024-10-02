@@ -200,7 +200,6 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
 void
 Initializer::create_context()
 {
-    // const auto log = get_python_logger();
     auto tx_map = get_tainting_map();
     if (tx_map != nullptr) {
         reset_context(tx_map);
