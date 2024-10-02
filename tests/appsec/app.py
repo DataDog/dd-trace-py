@@ -206,7 +206,7 @@ def iast_weak_hash_vulnerability():
     from ddtrace.internal import telemetry
 
     list_metrics_logs = list(telemetry.telemetry_writer._logs)
-    return list_metrics_logs
+    return str(list_metrics_logs)
 
 
 @app.route("/iast-ast-patching-import-error", methods=["GET"])
