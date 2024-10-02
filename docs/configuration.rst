@@ -462,7 +462,7 @@ The following environment variables for the tracer are supported:
      default: True
      description: Send query strings in http.url tag in http server integrations.
 
-   DD_TRACE_HTTP_SERVER_ERROR_STATUSES
+   DD_TRACE_HTTP_SERVER_ERROR_STATUSES:
      type: String
      default: "500-599"
      description: |
