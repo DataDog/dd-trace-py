@@ -27,6 +27,7 @@ def parse_arguments():
 
 
 def _pre_checks(module, aspect_to_check="add_aspect"):
+    """Ensure the module code is replaced by IAST patching. To do that, this function inspects the bytecode"""
     dis_output = io.StringIO()
     dis.dis(module, file=dis_output)
     str_output = dis_output.getvalue()
@@ -92,7 +93,8 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
 
     except KeyboardInterrupt:
         print("Test interrupted.")
-    disable_iast_propagation()
+    finally:
+        disable_iast_propagation()
 
 
 if __name__ == "__main__":
