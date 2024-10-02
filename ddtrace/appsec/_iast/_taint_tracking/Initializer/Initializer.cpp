@@ -40,7 +40,7 @@ Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
     if (const auto it = active_map_addreses.find(tx_map.get()); it == active_map_addreses.end()) {
         return;
     }
-
+    std::lock_guard<std::mutex> lock(active_map_addreses_mutex);
     for (const auto& [fst, snd] : *tx_map) {
         snd.second->decref();
     }
@@ -52,7 +52,6 @@ void
 Initializer::clear_tainting_maps()
 {
     // Need to copy because free_tainting_map changes the set inside the iteration
-    std::lock_guard<std::mutex> lock(tx_map_mutex);
     auto copy_active_map_addreses(initializer->active_map_addreses);
     for (auto& [fst, snd] : copy_active_map_addreses) {
         if (copy_active_map_addreses.empty()) {
@@ -61,6 +60,7 @@ Initializer::clear_tainting_maps()
         clear_tainting_map(snd);
         snd = nullptr;
     }
+    std::lock_guard<std::mutex> lock(active_map_addreses_mutex);
     active_map_addreses.clear();
 }
 
@@ -236,7 +236,6 @@ Initializer::reset_contexts()
 
     clear_tainting_maps();
 
-    std::lock_guard<std::mutex> lock(tx_map_mutex);
     if (ThreadContextCache.tx_map != nullptr) {
         ThreadContextCache.tx_map = nullptr;
     }

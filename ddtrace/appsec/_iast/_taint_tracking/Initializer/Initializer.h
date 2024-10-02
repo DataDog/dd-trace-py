@@ -26,7 +26,7 @@ class Initializer
     // keys and values are the same pointer.
     unordered_map<TaintRangeMapType*, TaintRangeMapTypePtr> active_map_addreses;
 
-    std::mutex tx_map_mutex;
+    std::mutex active_map_addreses_mutex;
 
   public:
     /**
