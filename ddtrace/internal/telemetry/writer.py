@@ -341,7 +341,7 @@ class TelemetryWriter(PeriodicService):
         }
 
         # SOABI should help us identify which wheels people are getting from PyPI
-        self.add_configurations(get_python_config_vars())
+        self.add_configurations(get_python_config_vars())  # type: ignore
 
         payload = {
             "configuration": self._flush_configuration_queue(),
