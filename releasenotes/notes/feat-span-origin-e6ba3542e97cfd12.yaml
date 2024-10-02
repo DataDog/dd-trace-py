@@ -2,6 +2,6 @@
 features:
   - |
     This introduces Code Origin for Span, a new feature that allows collecting
-    information about where in the user code entry and exit spans have been
-    created. This feature is disabled by default and can be enabled by setting
+    information about where entry and exit spans have been created in the
+    user code . This feature is disabled by default and can be enabled by setting
     the ``DD_CODE_ORIGIN_FOR_SPANS_ENABLED`` environment variable to ``true``.
