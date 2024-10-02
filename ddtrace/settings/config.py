@@ -558,7 +558,7 @@ class Config(object):
 
         self._ci_visibility_agentless_enabled = _get_config("DD_CIVISIBILITY_AGENTLESS_ENABLED", False, asbool)
         self._ci_visibility_agentless_url = _get_config("DD_CIVISIBILITY_AGENTLESS_URL", "")
-        self._ci_visibility_intelligent_testrunner_enabled = _get_config("DD_CIVISIBILITY_ITR_ENABLED", False, asbool)
+        self._ci_visibility_intelligent_testrunner_enabled = _get_config("DD_CIVISIBILITY_ITR_ENABLED", True, asbool)
         self.ci_visibility_log_level = _get_config("DD_CIVISIBILITY_LOG_LEVEL", "info")
         self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool)
         if self._otel_enabled:
