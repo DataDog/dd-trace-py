@@ -227,15 +227,6 @@ The following environment variables for the tracer are supported:
      default: False
      description: Enable or disable start up diagnostic logging.
 
-   DD_TRACE_SAMPLE_RATE:
-     type: Float
-     description: |
-        A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled. By default, this configuration is unset
-        and sampling is controlled by other configuration options and/or the Datadog Agent. See
-        `this page <https://docs.datadoghq.com/tracing/trace_pipeline/ingestion_mechanisms/?tab=python#in-the-agent>`_
-        for more details about Agent-based sampling.
-
-
    DD_TRACE_RATE_LIMIT:
      type: int
      default: 100
