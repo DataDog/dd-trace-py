@@ -97,7 +97,7 @@ class BaseTestLLMObsLangchain:
                     llm(prompt)
                 else:
                     llm.invoke(prompt)
-        else: # streams do not use casettes
+        else:  # streams do not use casettes
             for _ in llm.stream(prompt):
                 pass
         LLMObs.disable()
@@ -116,7 +116,7 @@ class BaseTestLLMObsLangchain:
                     chat_model(messages)
                 else:
                     chat_model.invoke(messages)
-        else: # streams do not use casettes
+        else:  # streams do not use casettes
             for _ in chat_model.stream(prompt):
                 pass
         LLMObs.disable()
@@ -134,7 +134,7 @@ class BaseTestLLMObsLangchain:
                 else:
                     chain.invoke(prompt)
 
-        else: # streams do not use casettes
+        else:  # streams do not use casettes
             for _ in chain.stream(prompt):
                 pass
         LLMObs.disable()
