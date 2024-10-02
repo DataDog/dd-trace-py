@@ -16,6 +16,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 
+from ....internal.schema import schematize_service_name
+
 # keep TracedMongoClient import to maintain backwards compatibility
 from .client import TracedMongoClient  # noqa: F401
 from .client import _trace_mongo_client_init
@@ -46,10 +48,7 @@ else:
 _CHECKOUT_FN_NAME = "get_socket" if pymongo.version_tuple < (4, 5) else "checkout"
 
 
-config._add(
-    "pymongo",
-    dict(_default_service="pymongo"),
-)
+config._add("pymongo", dict(service=schematize_service_name("pymongo")))
 
 
 def get_version():

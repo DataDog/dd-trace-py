@@ -544,6 +544,27 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 2
         assert spans[1].service != "mysvc"
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_user_specified_service_default_override(self):
+        """
+        Override service name using config
+        """
+        from ddtrace import config
+        from ddtrace import patch
+
+        cfg = config.pymongo
+        cfg["service"] = "new-mongo"
+        patch(pymongo=True)
+        assert cfg.service == "new-mongo", f"service name is {cfg.service}"
+        tracer = DummyTracer()
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+
+        client["testdb"].drop_collection("whatever")
+        spans = tracer.pop()
+        assert spans
+        assert spans[0].service == "new-mongo", f"service name is {spans[0].service}"
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
@@ -766,6 +787,14 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     def test_service_name_override(self):
         with TracerTestCase.override_config("pymongo", dict(service_name="testdb")):
+            self.client["some_db"].drop_collection("some_collection")
+            spans = self.pop_spans()
+
+            assert len(spans) == 2
+            assert all(span.service == "testdb" for span in spans)
+
+    def test_config_service_name_override(self):
+        with TracerTestCase.override_config("pymongo", dict(service="testdb")):
             self.client["some_db"].drop_collection("some_collection")
             spans = self.pop_spans()
 

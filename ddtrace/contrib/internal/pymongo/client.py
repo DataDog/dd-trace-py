@@ -67,7 +67,7 @@ def _trace_mongo_client_init(func, args, kwargs):
     client.__getddpin__ = functools.partial(__getddpin__, client)
 
     # Set a pin on the traced mongo client
-    ddtrace.Pin(service=_DEFAULT_SERVICE).onto(client)
+    ddtrace.Pin().onto(client)
 
 
 # The function is exposed in the public API, but it is not used in the codebase.

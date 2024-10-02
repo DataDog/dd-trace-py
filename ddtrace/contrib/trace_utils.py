@@ -360,14 +360,18 @@ def int_service(pin, int_config, default=None):
     lastly the default provided by the integration.
     """
     # Pin has top priority since it is user defined in code
+
     if pin is not None and pin.service:
         return pin.service
-
     # Config is next since it is also configured via code
     # Note that both service and service_name are used by
     # integrations.
+    # assert "service" in int_config
+    # assert int_config.service is not None, f"int_config.service is {int_config.service}"
+
     if "service" in int_config and int_config.service is not None:
         return cast(str, int_config.service)
+
     if "service_name" in int_config and int_config.service_name is not None:
         return cast(str, int_config.service_name)
 
@@ -377,6 +381,8 @@ def int_service(pin, int_config, default=None):
 
     if "_default_service" in int_config and int_config._default_service is not None:
         return cast(str, int_config._default_service)
+
+    assert 0, f"default is {default}"
 
     return default
 

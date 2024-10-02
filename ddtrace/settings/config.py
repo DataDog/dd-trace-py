@@ -651,6 +651,7 @@ class Config(object):
             Note: when merging existing settings take precedence.
         """
         # DEV: Use `getattr()` to call our `__getattr__` helper
+
         existing = getattr(self, integration)
         settings = deepcopy(settings)
 
