@@ -229,7 +229,6 @@ Initializer::reset_context()
 void
 Initializer::reset_contexts()
 {
-    // const auto log = get_python_logger();
     if (active_map_addreses_size() <= 0) {
         return;
     }

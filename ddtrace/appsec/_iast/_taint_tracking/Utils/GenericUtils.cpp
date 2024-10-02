@@ -80,7 +80,7 @@ iast_taint_log_error(const std::string& msg)
     }
 }
 
-py::object
+inline py::object
 get_python_logger()
 {
     return safe_import("ddtrace.internal.logger", "get_logger")("native");

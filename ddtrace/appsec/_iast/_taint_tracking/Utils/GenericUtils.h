@@ -25,7 +25,7 @@ is_iast_debug_enabled()
     return asbool(debug_value);
 }
 
-py::object
+inline py::object
 get_python_logger();
 
 inline bool
