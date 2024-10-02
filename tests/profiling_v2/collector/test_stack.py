@@ -166,3 +166,33 @@ def test_push_non_web_span():
                 # trace_endpoint is not set for non-web spans
             ),
         )
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_STACK_V2_ENABLED="true"))
+def test_exception_collection():
+    import os
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    test_name = "test_exception_collection"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector(None, ignore_profiler=True):
+        try:
+            raise ValueError("hello")
+        except Exception:
+            time.sleep(1)
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
+    assert len(samples) > 0

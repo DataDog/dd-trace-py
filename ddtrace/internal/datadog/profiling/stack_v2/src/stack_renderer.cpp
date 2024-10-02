@@ -78,62 +78,80 @@ StackRenderer::maybe_collect_exception_sample(PyThreadState* tstate)
         return;
     }
 
-    PyObject* exc_type;
+    if (exc_info->exc_value == nullptr || exc_info->exc_value == Py_None) {
+        return;
+    }
+
+    PyObject* exc_value = exc_info->exc_value;
+
+    std::cout << "Retrieved exc_info from tstate" << std::endl;
+
+    PyTypeObject* exc_type;
     PyObject* exc_traceback;
 
-    // Python 3.12 changed the exception handling API to use a single PyObject* instead of a tuple.
-#if PY_VERSION_HEX >= 0x030c0000
+    //     // Python 3.12 changed the exception handling API to use a single PyObject* instead of a tuple.
+    // #if PY_VERSION_HEX >= 0x030c0000
     // The following lines of code are equivalent to the following Python code:
     // exc_type = type(exc_info)
 
-    exc_type = PyObject_Type(reinterpret_cast<PyObject*>(exc_info));
-#else
-    // The following lines of code are equivalent to the following Python code:
-    // exc_type, _, _ = exc_info
-    exc_type = exc_info->exc_type;
+    exc_type = Py_TYPE(exc_value);
+    // #else
+    //     // The following lines of code are equivalent to the following Python code:
+    //     // exc_type, _, _ = exc_info
+    //     exc_type = exc_info->exc_type;
 
-#endif
+    // #endif
 
     if (exc_type == nullptr) {
         return;
     }
 
-#if PY_VERSION_HEX >= 0x030c0000
+    std::cout << "Retrieved exc_type from exc_info" << std::endl;
+
+    // #if PY_VERSION_HEX >= 0x030c0000
     // exc_traceback = get_attr(exc_info, "__traceback__", None)
-    exc_traceback = PyObject_GetAttrString(reinterpret_cast<PyObject*>(exc_info), "__traceback__");
-#else
-    // _, _, exctraceback = exc_info
-    exc_traceback = exc_info->exc_traceback;
-#endif
+    const char* traceback_attr_name = "__traceback__";
+    exc_traceback = PyObject_GetAttrString(exc_value, traceback_attr_name);
+
+    std::cout << "returned from PyOBject_GetAttrString" << std::endl;
+    // #else
+    //     // _, _, exctraceback = exc_info
+    //     exc_traceback = exc_info->exc_traceback;
+    // #endif
 
     if (exc_traceback == nullptr) {
-#if PY_VERSION_HEX >= 0x030c0000
+        std::cout << "exc_traceback is nullptr" << std::endl;
+        // #if PY_VERSION_HEX >= 0x030c0000
         // Not sure we really need to call Py_DECREF in this function at all,
         // because AFAIK tstate is already copied to this thread via
         // process_vm_readv() or equivalent system calls and we don't need to
         // worry about reference counting.
         Py_DECREF(exc_type); // PyObject_Type returns a new reference
         PyErr_Clear();       // Clear any error set by PyObject_GetAttrString
-#endif
+                             // #endif
         return;
     }
 
+    std::cout << "Retrieved exc_traceback from exc_info" << std::endl;
+
     // Format exc_type as exc_type.__module__ + '.' + exc_type.__name__
-    std::string exc_type_name = get_exc_type_name(exc_type);
+    std::string exc_type_name = get_exc_type_name(reinterpret_cast<PyObject*>(exc_type));
     if (exc_type_name.empty()) {
-#if PY_VERSION_HEX >= 0x030c0000
+        // #if PY_VERSION_HEX >= 0x030c0000
         Py_DECREF(exc_type);
-#endif
+        // #endif
         return;
     }
+
+    std::cout << "Exception type name: " << exc_type_name << std::endl;
 
     // Now we have the exception type name, we can start building the exception sample
     Sample* exc_sample = ddup_start_sample();
     if (exc_sample == nullptr) {
         std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
-#if PY_VERSION_HEX >= 0x030c0000
+        // #if PY_VERSION_HEX >= 0x030c0000
         Py_DECREF(exc_type);
-#endif
+        // #endif
         return;
     }
     ddup_push_monotonic_ns(exc_sample, thread_state.now_time_ns);
