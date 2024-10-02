@@ -404,7 +404,6 @@ def ext_service(pin, int_config, default=None):
 
 def _set_url_tag(integration_config, span, url, query):
     # type: (IntegrationConfig, Span, str, str) -> None
-
     if integration_config.http_tag_query_string:  # Tagging query string in http.url
         if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
             span.set_tag_str(http.URL, url)
