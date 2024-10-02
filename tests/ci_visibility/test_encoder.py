@@ -291,7 +291,7 @@ class PytestEncodingTestCase(TracerTestCase):
         for span in spans:
             if span.get_tag("type") == "test":
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
-        ci_agentless_encoder = CIVisibilityEncoderV01()
+        ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
         event_payload, _ = ci_agentless_encoder.encode()
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
