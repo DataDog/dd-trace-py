@@ -761,6 +761,7 @@ class TestLLMObsOpenaiV1:
             error_message=span.get_tag("error.message"),
             error_stack=span.get_tag("error.stack"),
             tags={"ml_app": "<ml-app-name>"},
+            integration="openai",
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_span)
         actual_span = mock_llmobs_writer.enqueue.call_args[0][0]
