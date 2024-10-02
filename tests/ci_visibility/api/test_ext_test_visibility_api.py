@@ -1,8 +1,10 @@
 from os import getcwd as os_getcwd
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
+from ddtrace.ext.test_visibility import api
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 
 
@@ -53,3 +55,17 @@ class TestCISourceFileInfo:
         with pytest.raises(ValueError):
             # start_line cannot be None if end_line is provided
             _ = TestSourceFileInfo(Path("/absolute/path/my_file_name"), end_line=1)
+
+
+class TestCIDiscoverTestSessionName:
+    def test_discover_set_test_session_name(self):
+        api.enable_test_visibility()
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.set_test_session_name"
+        ) as set_test_session_name_mock:
+            api.TestSession.discover("some_test_command", "dd_manual_test_fw", "1.0.0")
+
+        api.disable_test_visibility()
+
+        set_test_session_name_mock.assert_called_once_with(test_command="some_test_command")

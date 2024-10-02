@@ -54,6 +54,21 @@ class UnittestTestCase(TracerTestCase):
         ):
             yield
 
+    def test_unittest_set_test_session_name(self):
+        _set_tracer(self.tracer)
+
+        class UnittestExampleTestCase(unittest.TestCase):
+            def test_will_pass_first(self):
+                self.assertTrue(2 == 2)
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.set_test_session_name"
+        ) as set_test_session_name_mock:
+            suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
+            unittest.TextTestRunner(verbosity=0).run(suite)
+
+        set_test_session_name_mock.assert_called_once_with(test_command="python -m unittest")
+
     def test_unittest_pass_single(self):
         """Test with a `unittest` test which should pass."""
         _set_tracer(self.tracer)
