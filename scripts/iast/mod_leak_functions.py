@@ -1,19 +1,161 @@
+from datetime import datetime
 import os
 import random
 import re
 import subprocess
+from typing import Optional
+from typing import Tuple
 
+import anyio
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic_core import SchemaValidator
 import requests
 
-from tests.utils import override_env
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
 
-with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+v = SchemaValidator(
+    {
+        "type": "typed-dict",
+        "fields": {
+            "name": {
+                "type": "typed-dict-field",
+                "schema": {
+                    "type": "str",
+                },
+            },
+            "age": {
+                "type": "typed-dict-field",
+                "schema": {
+                    "type": "int",
+                    "ge": 18,
+                },
+            },
+            "is_developer": {
+                "type": "typed-dict-field",
+                "schema": {
+                    "type": "default",
+                    "schema": {"type": "bool"},
+                    "default": True,
+                },
+            },
+        },
+    }
+)
 
 
-def test_doit():
+class AspectModel(BaseModel):
+    foo: str = "bar"
+    apple: int = 1
+
+
+class Aspectvalidation(BaseModel):
+    timestamp: datetime
+    tuple_strings: Tuple[str, str]
+    dictionary_strs: dict[str, str]
+    tag: Optional[str] = None
+    author: Optional[str] = None
+    favorited: Optional[str] = None
+    limit: int = Field(20, ge=1)
+    offset: int = Field(0, ge=0)
+
+
+def modulo_exceptions(string8_4):
+    # Validate we're not leaking in modulo exceptions
+    try:
+        string8_5 = "notainted_%s_" % (string8_4, string8_4)  # noqa: F841, F507
+    except TypeError:
+        pass
+
+    try:
+        string8_5 = "notainted_%d" % string8_4  # noqa: F841
+    except TypeError:
+        pass
+
+    try:
+        string8_5 = "notainted_%s %s" % "abc", string8_4  # noqa: F841
+    except TypeError:
+        pass
+
+    try:
+        string8_5 = "notainted_%s %s" % "abc", string8_4  # noqa: F841
+    except TypeError:
+        pass
+
+    try:
+        string8_5 = "notainted_%s" % (string8_4)  # noqa: F841
+    except TypeError:
+        pass
+
+    try:
+        string8_5 = "notainted_%s %(name)s" % string8_4, {"name": string8_4}  # noqa: F841, F506
+    except TypeError:
+        pass
+
+    try:
+        string8_5 = "notainted_%(age)d" % {"age": string8_4}  # noqa: F841
+    except TypeError:
+        pass
+
+
+def pydantic_object(tag, string_tainted):
+    m = Aspectvalidation(
+        timestamp="2020-01-02T03:04:05Z",
+        tuple_strings=[string_tainted, string_tainted],
+        dictionary_strs={
+            "wine": string_tainted,
+            b"cheese": string_tainted,
+            "cabbage": string_tainted,
+        },
+        tag=string_tainted,
+        author=string_tainted,
+        favorited=string_tainted,
+        limit=20,
+        offset=0,
+    )
+
+    r1 = v.validate_python({"name": m.tuple_strings[0], "age": 35})
+
+    assert is_pyobject_tainted(m.tuple_strings[0])
+    assert is_pyobject_tainted(m.tuple_strings[1])
+    assert is_pyobject_tainted(m.dictionary_strs["cabbage"])
+
+    r2 = v.validate_json('{"name": "' + m.tuple_strings[0] + '", "age": 35}')
+
+    assert r1 == {"name": m.tuple_strings[0], "age": 35, "is_developer": True}
+    assert r1 == r2
+    return m
+
+
+def sink_points(string_tainted):
+    try:
+        # Path traversal vulnerability
+        m = open("/" + string_tainted + ".txt")
+        _ = m.read()
+    except Exception:
+        pass
+
+    try:
+        # Command Injection vulnerability
+        _ = subprocess.Popen("ls " + string_tainted)
+    except Exception:
+        pass
+
+    try:
+        # SSRF vulnerability
+        requests.get("http://" + string_tainted)
+        # urllib3.request("GET", "http://" + "foobar")
+    except Exception:
+        pass
+
+    # Weak Randomness vulnerability
+    _ = random.randint(1, 10)
+
+
+async def test_doit():
     origin_string1 = "hiroot"
     tainted_string_2 = taint_pyobject(
         pyobject="1234", source_name="abcdefghijk", source_value="1234", source_origin=OriginType.PARAMETER
@@ -27,46 +169,35 @@ def test_doit():
     string5 = string4[0:20]  # 1 propagation range: hiroot1234-hiroot123
     string6 = string5.title()  # 1 propagation range: Hiroot1234-Hiroot123
     string7 = string6.upper()  # 1 propagation range: HIROOT1234-HIROOT123
-    string8 = "%s_notainted" % string7  # 1 propagation range: HIROOT1234-HIROOT123_notainted
-    string9 = "notainted_{}".format(string8)  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
-    string10 = "nottainted\n" + string9  # 2 propagation ranges: notainted\nnotainted_HIROOT1234-HIROOT123_notainted
-    string11 = string10.splitlines()[1]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
-    string12 = string11 + "_notainted"  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted_notainted
-    string13 = string12.rsplit("_", 1)[0]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
+    string8 = "%s_notainted" % string7
+    string8_2 = "%s_%s_notainted" % (string8, string8)
+    string8_3 = "notainted_%s_" + string8_2
+    string8_4 = string8_3 % "notainted"
+    await anyio.to_thread.run_sync(modulo_exceptions, string8_4)
 
+    string9 = "notainted#{}".format(string8_4)
+    string9_2 = f"{string9}_notainted"
+    string9_3 = f"{string9_2:=^30}_notainted"
+    string10 = "nottainted\n" + string9_3
+    string11 = string10.splitlines()[1]
+    string12 = string11 + "_notainted"
+    string13 = string12.rsplit("_", 1)[0]
+    string13_2 = string13 + " " + string13
     try:
-        # Path traversal vulnerability
-        m = open("/" + string13 + ".txt")
-        _ = m.read()
-    except Exception:
+        string13_3, string13_5, string13_5 = string13_2.split(" ")
+    except ValueError:
         pass
 
-    try:
-        # Command Injection vulnerability
-        _ = subprocess.Popen("ls " + string9)
-    except Exception:
-        pass
-
-    try:
-        # SSRF vulnerability
-        requests.get("http://" + "foobar")
-        # urllib3.request("GET", "http://" + "foobar")
-    except Exception:
-        pass
-
-    # Weak Randomness vulnerability
-    _ = random.randint(1, 10)
+    sink_points(string13_2)
 
     # os path propagation
-    string14 = os.path.join(string13, "a")  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted/a
-    string15 = os.path.split(string14)[0]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
-    string16 = os.path.dirname(
-        string15 + "/" + "foobar"
-    )  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
-    string17 = os.path.basename("/foobar/" + string16)  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
-    string18 = os.path.splitext(string17 + ".jpg")[0]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
-    string19 = os.path.normcase(string18)  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
-    string20 = os.path.splitdrive(string19)[1]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
+    string14 = os.path.join(string13_2, "a")
+    string15 = os.path.split(string14)[0]
+    string16 = os.path.dirname(string15 + "/" + "foobar")
+    string17 = os.path.basename("/foobar/" + string16)
+    string18 = os.path.splitext(string17 + ".jpg")[0]
+    string19 = os.path.normcase(string18)
+    string20 = os.path.splitdrive(string19)[1]
 
     re_slash = re.compile(r"[_.][a-zA-Z]*")
     string21 = re_slash.findall(string20)[0]  # 1 propagation: '_HIROOT
@@ -95,4 +226,8 @@ def test_doit():
     tmp_str2 = "_extend"
     string27 += tmp_str2
 
+    # TODO(avara1986): Pydantic is in the deny list, remove from it and uncomment this lines
+    # result = await anyio.to_thread.run_sync(functools.partial(pydantic_object, string_tainted=string27), string27)
+    # result = pydantic_object(tag="test2", string_tainted=string27)
+    # return result.tuple_strings[0]
     return string27

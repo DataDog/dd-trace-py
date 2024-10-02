@@ -339,10 +339,14 @@ dependencies = [
     "pytest-cov",
     "hypothesis",
     "requests",
+    "anyio",
+    "pydantic",
+    "pydantic-settings",
 ]
 
 [envs.appsec_aggregated_leak_testing.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+DD_IAST_ENABLED = "true"
 
 [envs.appsec_aggregated_leak_testing.scripts]
 test = [
