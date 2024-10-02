@@ -1339,3 +1339,16 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             CIVisibility.enable()
             CIVisibility.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_job-some_command")
+
+    def test_set_test_session_name_from_dd_test_session_name_env_var_priority(self):
+        """When both DD_TEST_SESSION_NAME and job id are provided, DD_TEST_SESSION_NAME wins."""
+        with _ci_override_env(
+            dict(
+                GITLAB_CI="1",
+                CI_JOB_NAME="the_job",
+                DD_TEST_SESSION_NAME="the_name",
+            )
+        ), set_up_mock_civisibility(), _patch_dummy_writer():
+            CIVisibility.enable()
+            CIVisibility.set_test_session_name(test_command="some_command")
+        self.assert_test_session_name("the_name")
