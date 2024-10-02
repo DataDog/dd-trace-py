@@ -1,12 +1,9 @@
 #include "Initializer.h"
 
-#include <mutex>
 #include <thread>
 
 using namespace std;
 using namespace pybind11::literals;
-
-std::mutex tx_map_mutex;
 
 thread_local struct ThreadContextCache_
 {
