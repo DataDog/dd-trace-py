@@ -50,7 +50,7 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
         enable_iast_propagation()
         from scripts.iast.mod_leak_functions import test_doit
 
-        # TODO: pydantic is in the DENY_LIST
+        # TODO(avara1986): pydantic is in the DENY_LIST
         #  from pydantic import main
         #  _pre_checks(main, "index_aspect")
 

@@ -146,7 +146,7 @@ def sink_points(string_tainted):
 
     try:
         # SSRF vulnerability
-        requests.get("http://" + string_tainted)
+        requests.get("http://" + string_tainted, timeout=1)
         # urllib3.request("GET", "http://" + "foobar")
     except Exception:
         pass
