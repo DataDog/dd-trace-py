@@ -793,14 +793,6 @@ class TestPymongoSocketTracing(TracerTestCase):
             assert len(spans) == 2
             assert all(span.service == "testdb" for span in spans)
 
-    def test_config_service_name_override(self):
-        with TracerTestCase.override_config("pymongo", dict(service="testdb")):
-            self.client["some_db"].drop_collection("some_collection")
-            spans = self.pop_spans()
-
-            assert len(spans) == 2
-            assert all(span.service == "testdb" for span in spans)
-
     def test_multiple_ops(self):
         db = self.client["medias"]
         input_movies = [{"name": "Kool movie", "filmmaker": "John Mc Johnson"}]
