@@ -6,9 +6,9 @@ from urllib.request import build_opener
 from urllib.request import urlopen
 
 import pytest
+import wrapt
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.httplib import patch
 from ddtrace.contrib.httplib import unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
@@ -18,7 +18,6 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
@@ -560,44 +559,6 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         assert dd_span.get_tag("http.method") == "GET"
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.get_tag("http.url") == URL_200
-
-    def test_analytics_default(self):
-        conn = self.get_http_connection(SOCKET)
-        with contextlib.closing(conn):
-            conn.request("GET", "/status/200")
-            resp = conn.getresponse()
-            self.assertEqual(self.to_str(resp.read()), "")
-            self.assertEqual(resp.status, 200)
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("httplib", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            conn = self.get_http_connection(SOCKET)
-            with contextlib.closing(conn):
-                conn.request("GET", "/status/200")
-                resp = conn.getresponse()
-                self.assertEqual(self.to_str(resp.read()), "")
-                self.assertEqual(resp.status, 200)
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("httplib", dict(analytics_enabled=True)):
-            conn = self.get_http_connection(SOCKET)
-            with contextlib.closing(conn):
-                conn.request("GET", "/status/200")
-                resp = conn.getresponse()
-                self.assertEqual(self.to_str(resp.read()), "")
-                self.assertEqual(resp.status, 200)
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_httplib_bad_url(self):
         conn = self.get_http_connection("DNE", "80")

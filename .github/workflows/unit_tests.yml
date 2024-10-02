@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
   workflow_dispatch: {}
+  merge_group:
+    # Trigger jobs when PR is added to merge queue
+    types: [checks_requested]
 
 jobs:
   unit-tests:
@@ -38,7 +41,9 @@ jobs:
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
 
       - name: Install hatch
-        run: pip install hatch
+        uses: pypa/hatch@install
+        with:
+          version: "1.12.0"
 
       - name: Run tests
         run: hatch run ddtrace_unit_tests:test

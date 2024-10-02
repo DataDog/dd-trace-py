@@ -23,10 +23,20 @@ SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
     link_attributes = {"link.name": "s1_to_s2", "link.kind": "scheduled_by", "key1": "val1"}
     s1.link_span(s2.context, link_attributes)
 """
+
 import dataclasses
+from enum import Enum
 from typing import Optional
 
 from ddtrace.internal.utils.formats import flatten_key_value
+
+
+class SpanLinkKind(Enum):
+    """
+    A collection of standard SpanLink kinds. It's possible to use others, but these should be used when possible.
+    """
+
+    SPAN_POINTER = "span-pointer"  # Should not be used on normal SpanLinks.
 
 
 def _id_not_zero(self, attribute_name, value):
@@ -69,16 +79,16 @@ class SpanLink:
         self.attributes["link.name"] = value
 
     @property
-    def kind(self):
-        return self.attributes["link.kind"]
+    def kind(self) -> Optional[str]:
+        return self.attributes.get("link.kind")
 
     @kind.setter
-    def kind(self, value):
+    def kind(self, value: str) -> None:
         self.attributes["link.kind"] = value
 
     def _drop_attribute(self, key):
         if key not in self.attributes:
-            raise ValueError(f"Invalid key: {key}")
+            raise KeyError(f"Invalid key: {key}")
         del self.attributes[key]
         self._dropped_attributes += 1
 

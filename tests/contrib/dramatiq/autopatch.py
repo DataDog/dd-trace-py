@@ -1,4 +1,4 @@
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 if __name__ == "__main__":

@@ -30,15 +30,22 @@
 Pymemcache ``HashClient`` will also be indirectly patched as it uses ``Client``
 under the hood.
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["pymemcache"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch
+        # Required to allow users to import from `ddtrace.contrib.pymemcache.patch` directly
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
+        # Expose public methods
+        from ddtrace.contrib.internal.pymemcache.patch import get_version
+        from ddtrace.contrib.internal.pymemcache.patch import patch
+        from ddtrace.contrib.internal.pymemcache.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

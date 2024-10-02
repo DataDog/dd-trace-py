@@ -11,11 +11,12 @@ from grpc.aio._typing import RequestIterableType
 from grpc.aio._typing import RequestType
 from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
+import wrapt
 
 from ddtrace import Pin  # noqa:F401
 from ddtrace import Span  # noqa:F401
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
@@ -29,7 +30,6 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.vendor import wrapt
 
 
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
@@ -198,7 +198,7 @@ def _create_span(pin, handler_call_details, method_kind):
 
     sample_rate = config.grpc_aio_server.get_analytics_sample_rate()
     if sample_rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     if pin.tags:
         span.set_tags(pin.tags)

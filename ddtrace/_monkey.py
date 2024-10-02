@@ -3,7 +3,7 @@ import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
 from .internal import telemetry
 from .internal.logger import get_logger
@@ -27,6 +27,7 @@ PATCH_MODULES = {
     "aiomysql": True,
     "aredis": True,
     "asyncio": True,
+    "avro": True,
     "boto": True,
     "botocore": True,
     "bottle": True,
@@ -38,6 +39,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
+    "google_generativeai": True,
     "gevent": True,
     "graphql": True,
     "grpc": True,
@@ -138,6 +140,7 @@ _MODULES_FOR_CONTRIB = {
     "aws_lambda": ("datadog_lambda",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
+    "google_generativeai": ("google.generativeai",),
 }
 
 

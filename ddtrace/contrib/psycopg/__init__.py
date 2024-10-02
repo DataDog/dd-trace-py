@@ -60,9 +60,18 @@ To configure the psycopg integration on an per-connection basis use the
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
 """
-from .patch import get_version
-from .patch import get_versions
-from .patch import patch
+# Required to allow users to import from `ddtrace.contrib.psycopg.patch` directly
+import warnings as _w
+
+
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
+
+# Expose public methods
+from ddtrace.contrib.internal.psycopg.patch import get_version
+from ddtrace.contrib.internal.psycopg.patch import get_versions
+from ddtrace.contrib.internal.psycopg.patch import patch
 
 
 __all__ = ["patch", "get_version", "get_versions"]

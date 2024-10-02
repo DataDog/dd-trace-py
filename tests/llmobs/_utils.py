@@ -1,20 +1,30 @@
 import os
 
-import vcr
+import mock
+
+
+try:
+    import vcr
+except ImportError:
+    vcr = None
 
 import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._utils import _get_span_name
 
 
-logs_vcr = vcr.VCR(
-    cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
-    record_mode="once",
-    match_on=["path"],
-    filter_headers=[("DD-API-KEY", "XXXXXX")],
-    # Ignore requests to the agent
-    ignore_localhost=True,
-)
+if vcr:
+    logs_vcr = vcr.VCR(
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
+        record_mode="once",
+        match_on=["path"],
+        filter_headers=[("DD-API-KEY", "XXXXXX")],
+        # Ignore requests to the agent
+        ignore_localhost=True,
+    )
+else:
+    logs_vcr = None
 
 
 def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
@@ -26,14 +36,16 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         "service:{}".format(tags.get("service", "")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
-        "session_id:{}".format(session_id or "{:x}".format(span.trace_id)),
         "ddtrace.version:{}".format(ddtrace.__version__),
+        "language:python",
     ]
     if error:
         expected_tags.append("error:1")
         expected_tags.append("error_type:{}".format(error))
     else:
         expected_tags.append("error:0")
+    if session_id:
+        expected_tags.append("session_id:{}".format(session_id))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -58,11 +70,10 @@ def _expected_llmobs_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
-    integration=None,
 ):
     """
     Helper function to create an expected LLM span event.
-    span_kind: either "llm" or "agent"
+    span_kind: either "llm" or "agent" or "embedding"
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
     parameters: dict of input parameters
@@ -76,9 +87,7 @@ def _expected_llmobs_llm_span_event(
     error_message: error message
     error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(
-        span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
-    )
+    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
         if input_messages is not None:
@@ -113,6 +122,7 @@ def _expected_llmobs_non_llm_span_event(
     span_kind,
     input_value=None,
     output_value=None,
+    output_documents=None,
     parameters=None,
     metadata=None,
     token_metrics=None,
@@ -121,11 +131,10 @@ def _expected_llmobs_non_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
-    integration=None,
 ):
     """
-    Helper function to create an expected span event of type (workflow, task, tool).
-    span_kind: one of "workflow", "task", "tool"
+    Helper function to create an expected span event of type (workflow, task, tool, retrieval).
+    span_kind: one of "workflow", "task", "tool", "retrieval"
     input_value: input value string
     output_value: output value string
     parameters: dict of input parameters
@@ -137,10 +146,15 @@ def _expected_llmobs_non_llm_span_event(
     error_message: error message
     error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(
-        span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
-    )
+    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
     meta_dict = {"input": {}, "output": {}}
+    if span_kind == "retrieval":
+        if input_value is not None:
+            meta_dict["input"].update({"value": input_value})
+        if output_documents is not None:
+            meta_dict["output"].update({"documents": output_documents})
+        if output_value is not None:
+            meta_dict["output"].update({"value": output_value})
     if input_value is not None:
         meta_dict["input"].update({"value": input_value})
     if parameters is not None:
@@ -167,26 +181,21 @@ def _llmobs_base_span_event(
     error=None,
     error_message=None,
     error_stack=None,
-    integration=None,
 ):
-    span_name = span.name
-    if integration == "langchain":
-        span_name = span.resource
-    elif integration == "openai":
-        span_name = "openai.{}".format(span.resource)
     span_event = {
         "trace_id": "{:x}".format(span.trace_id),
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
-        "session_id": session_id or "{:x}".format(span.trace_id),
-        "name": span_name,
-        "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
+        "name": _get_span_name(span),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",
         "meta": {"span.kind": span_kind},
         "metrics": {},
+        "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
     }
+    if session_id:
+        span_event["session_id"] = session_id
     if error:
         span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message
@@ -205,14 +214,26 @@ def _get_llmobs_parent_id(span: Span):
 
 
 def _expected_llmobs_eval_metric_event(
-    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None, tags=None
+    span_id,
+    trace_id,
+    metric_type,
+    label,
+    ml_app,
+    timestamp_ms=None,
+    categorical_value=None,
+    score_value=None,
+    numerical_value=None,
+    tags=None,
 ):
     eval_metric_event = {
         "span_id": span_id,
         "trace_id": trace_id,
         "metric_type": metric_type,
         "label": label,
-        "tags": ["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:{}".format("unnamed-ml-app")],
+        "tags": [
+            "ddtrace.version:{}".format(ddtrace.__version__),
+            "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
+        ],
     }
     if categorical_value is not None:
         eval_metric_event["categorical_value"] = categorical_value
@@ -222,6 +243,13 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["numerical_value"] = numerical_value
     if tags is not None:
         eval_metric_event["tags"] = tags
+    if timestamp_ms is not None:
+        eval_metric_event["timestamp_ms"] = timestamp_ms
+    else:
+        eval_metric_event["timestamp_ms"] = mock.ANY
+
+    if ml_app is not None:
+        eval_metric_event["ml_app"] = ml_app
 
     return eval_metric_event
 
@@ -324,11 +352,89 @@ def _large_event():
             "output": {
                 "messages": [
                     {
-                        "content": "A" * 3_000_000,
+                        "content": "A" * 900_000,
                         "role": "assistant",
                     },
                 ]
             },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _oversized_llm_event():
+    return {
+        "span_id": "12345678904",
+        "trace_id": "98765432104",
+        "parent_id": "",
+        "session_id": "98765432104",
+        "name": "oversized_llm_event",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "A" * 700_000},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "A" * 700_000,
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _oversized_workflow_event():
+    return {
+        "span_id": "12345678905",
+        "trace_id": "98765432105",
+        "parent_id": "",
+        "session_id": "98765432105",
+        "name": "oversized_workflow_event",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "workflow",
+            "input": {"value": "A" * 700_000},
+            "output": {"value": "A" * 700_000},
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _oversized_retrieval_event():
+    return {
+        "span_id": "12345678906",
+        "trace_id": "98765432106",
+        "parent_id": "",
+        "session_id": "98765432106",
+        "name": "oversized_retrieval_event",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "retrieval",
+            "input": {"documents": {"content": "A" * 700_000}},
+            "output": {"value": "A" * 700_000},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }

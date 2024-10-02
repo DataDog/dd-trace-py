@@ -1,7 +1,8 @@
 import grpc
+import wrapt
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
@@ -16,7 +17,6 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.vendor import wrapt
 
 
 def create_server_interceptor(pin):
@@ -107,7 +107,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
         sample_rate = config.grpc_server.get_analytics_sample_rate()
         if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         # access server context by taking second argument as server context
         # if not found, skip using context to tag span with server state information

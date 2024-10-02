@@ -1,10 +1,14 @@
+import json
+from typing import Dict
 from typing import Optional
+from typing import Union
 
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
@@ -14,6 +18,60 @@ from ddtrace.llmobs._constants import SESSION_ID
 
 
 log = get_logger(__name__)
+
+
+def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict]]:
+    validated_prompt = {}  # type: Dict[str, Union[str, dict]]
+    if not isinstance(prompt, dict):
+        raise TypeError("Prompt must be a dictionary")
+    variables = prompt.get("variables")
+    template = prompt.get("template")
+    version = prompt.get("version")
+    prompt_id = prompt.get("id")
+    if variables is not None:
+        if not isinstance(variables, dict):
+            raise TypeError("Prompt variables must be a dictionary.")
+        if not any(isinstance(k, str) or isinstance(v, str) for k, v in variables.items()):
+            raise TypeError("Prompt variable keys and values must be strings.")
+        validated_prompt["variables"] = variables
+    if template is not None:
+        if not isinstance(template, str):
+            raise TypeError("Prompt template must be a string")
+        validated_prompt["template"] = template
+    if version is not None:
+        if not isinstance(version, str):
+            raise TypeError("Prompt version must be a string.")
+        validated_prompt["version"] = version
+    if prompt_id is not None:
+        if not isinstance(prompt_id, str):
+            raise TypeError("Prompt id must be a string.")
+        validated_prompt["id"] = prompt_id
+    return validated_prompt
+
+
+class AnnotationContext:
+    def __init__(self, _tracer, _annotation_callback):
+        self._tracer = _tracer
+        self._annotate_prompt = _annotation_callback
+
+    def __enter__(self):
+        self._tracer.on_start_span(self._annotate_prompt)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._tracer.deregister_on_start_span(self._annotate_prompt)
+
+    async def __aenter__(self):
+        self._tracer.on_start_span(self._annotate_prompt)
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self._tracer.deregister_on_start_span(self._annotate_prompt)
+
+
+def _get_attr(o: object, attr: str, default: object):
+    # Convenience method to get an attribute from an object or dict
+    if isinstance(o, dict):
+        return o.get(attr, default)
+    return getattr(o, attr, default)
 
 
 def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
@@ -39,10 +97,11 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
 
 
 def _get_span_name(span: Span) -> str:
-    if span.name == LANGCHAIN_APM_SPAN_NAME and span.resource != "":
+    if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME) and span.resource != "":
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
-        return "openai.{}".format(span.resource)
+        client_name = span.get_tag("openai.request.client") or "OpenAI"
+        return "{}.{}".format(client_name, span.resource)
     return span.name
 
 
@@ -60,7 +119,7 @@ def _get_ml_app(span: Span) -> str:
     return ml_app or config._llmobs_ml_app or "unknown-ml-app"
 
 
-def _get_session_id(span: Span) -> str:
+def _get_session_id(span: Span) -> Optional[str]:
     """
     Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the span's trace ID.
@@ -71,7 +130,7 @@ def _get_session_id(span: Span) -> str:
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         session_id = nearest_llmobs_ancestor.get_tag(SESSION_ID)
-    return session_id or "{:x}".format(span.trace_id)
+    return session_id
 
 
 def _inject_llmobs_parent_id(span_context):
@@ -95,3 +154,12 @@ def _unserializable_default_repr(obj):
     default_repr = "[Unserializable object: {}]".format(repr(obj))
     log.warning("I/O object is not JSON serializable. Defaulting to placeholder value instead.")
     return default_repr
+
+
+def safe_json(obj):
+    if isinstance(obj, str):
+        return obj
+    try:
+        return json.dumps(obj, skipkeys=True, default=_unserializable_default_repr)
+    except Exception:
+        log.error("Failed to serialize object to JSON.", exc_info=True)

@@ -24,6 +24,9 @@ from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
+from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
+from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
+from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
@@ -47,6 +50,7 @@ class LLMObsSpanEvent(TypedDict):
     status_message: str
     meta: Dict[str, Any]
     metrics: Dict[str, Any]
+    collection_errors: List[str]
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
@@ -57,6 +61,8 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     categorical_value: str
     numerical_value: float
     score_value: float
+    ml_app: str
+    timestamp_ms: int
     tags: List[str]
 
 
@@ -135,6 +141,14 @@ class BaseLLMObsWriter(PeriodicService):
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
 
+    def recreate(self) -> "BaseLLMObsWriter":
+        return self.__class__(
+            site=self._site,
+            api_key=self._api_key,
+            interval=self._interval,
+            timeout=self._timeout,
+        )
+
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     """Writer to the Datadog LLMObs Custom Eval Metrics Endpoint."""
@@ -143,7 +157,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
         self._event_type = "evaluation_metric"
         self._buffer = []
-        self._endpoint = "/api/unstable/llm-obs/v1/eval-metric"
+        self._endpoint = "/api/intake/llm-obs/v1/eval-metric"
         self._intake = "api.%s" % self._site  # type: str
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
@@ -187,7 +201,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
     def encode(self):
         with self._lock:
             if not self._buffer:
-                return
+                return None, 0
             events = self._buffer
             self._init_buffer()
         data = {"_dd.stage": "raw", "event_type": "span", "spans": events}
@@ -196,8 +210,8 @@ class LLMObsSpanEncoder(BufferedEncoder):
             logger.debug("encode %d LLMObs span events to be sent", len(events))
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
-            return
-        return enc_llm_events
+            return None, 0
+        return enc_llm_events, len(events)
 
 
 class LLMObsEventClient(WriterClientBase):
@@ -263,6 +277,14 @@ class LLMObsSpanWriter(HTTPWriter):
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         event_size = len(json.dumps(event))
+
+        if event_size >= EVP_EVENT_SIZE_LIMIT:
+            logger.warning(
+                "dropping event input/output because its size (%d) exceeds the event size limit (1MB)",
+                event_size,
+            )
+            event = _truncate_span_event(event)
+
         for client in self._clients:
             if isinstance(client, LLMObsEventClient) and isinstance(client.encoder, LLMObsSpanEncoder):
                 with client.encoder._lock:
@@ -280,4 +302,13 @@ class LLMObsSpanWriter(HTTPWriter):
         return self.__class__(
             interval=self._interval,
             timeout=self._timeout,
+            is_agentless=config._llmobs_agentless_enabled,
         )
+
+
+def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
+    event["meta"]["input"] = {"value": DROPPED_VALUE_TEXT}
+    event["meta"]["output"] = {"value": DROPPED_VALUE_TEXT}
+
+    event["collection_errors"] = [DROPPED_IO_COLLECTION_ERROR]
+    return event

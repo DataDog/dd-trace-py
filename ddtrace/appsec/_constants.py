@@ -1,5 +1,9 @@
 import os
+from re import Match
 import sys
+
+from _io import BytesIO
+from _io import StringIO
 
 
 if sys.version_info >= (3, 8):
@@ -121,6 +125,7 @@ class IAST(metaclass=Constant_Class):
     SEP_MODULES: Literal[","] = ","
     REQUEST_IAST_ENABLED: Literal["_dd.iast.request_enabled"] = "_dd.iast.request_enabled"
     TEXT_TYPES = (str, bytes, bytearray)
+    TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):

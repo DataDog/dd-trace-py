@@ -1,4 +1,5 @@
 import abc
+from collections import ChainMap
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
@@ -8,20 +9,21 @@ from types import FrameType
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Optional
-from typing import Tuple
 from typing import Union
 from typing import cast
 from uuid import uuid4
 
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
-from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
+from ddtrace.debugging._safety import get_args
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
@@ -52,13 +54,12 @@ class Signal(abc.ABC):
     frame: FrameType
     thread: Thread
     trace_context: Optional[Union[Span, Context]] = None
-    args: Optional[List[Tuple[str, Any]]] = None
     state: str = SignalState.NONE
     errors: List[EvaluationError] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
 
-    def _eval_condition(self, _locals: Optional[Dict[str, Any]] = None) -> bool:
+    def _eval_condition(self, scope: Optional[Mapping[str, Any]] = None) -> bool:
         """Evaluate the probe condition against the collected frame."""
         probe = cast(ProbeConditionMixin, self.probe)
         condition = probe.condition
@@ -66,7 +67,7 @@ class Signal(abc.ABC):
             return True
 
         try:
-            if bool(condition.eval(_locals or self.frame.f_locals)):
+            if bool(condition.eval(scope)):
                 return True
         except DDExpressionEvaluationError as e:
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
@@ -80,14 +81,22 @@ class Signal(abc.ABC):
 
         return False
 
-    def _enrich_args(self, retval, exc_info, duration):
-        _locals = list(self.args or _safety.get_args(self.frame))
-        _locals.append(("@duration", duration / 1e6))  # milliseconds
+    def get_full_scope(self, retval: Any, exc_info: ExcInfoType, duration: float) -> Mapping[str, Any]:
+        frame = self.frame
+        extra: Dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
 
         exc = exc_info[1]
-        _locals.append(("@return", retval) if exc is None else ("@exception", exc))
+        if exc is not None:
+            extra["@exception"] = exc
+        else:
+            extra["@return"] = retval
 
-        return dict(_locals)
+        # Include the frame locals and globals.
+        return ChainMap(extra, frame.f_locals, frame.f_globals)
+
+    @property
+    def args(self):
+        return dict(get_args(self.frame))
 
     @abc.abstractmethod
     def enter(self):
@@ -132,7 +141,7 @@ class LogSignal(Signal):
         if isinstance(probe, LineLocationMixin):
             location = {
                 "file": str(probe.resolved_source_file),
-                "lines": [probe.line],
+                "lines": [str(probe.line)],
             }
         elif isinstance(probe, FunctionLocationMixin):
             location = {

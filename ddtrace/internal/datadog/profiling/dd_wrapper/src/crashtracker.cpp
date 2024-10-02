@@ -13,6 +13,12 @@ Datadog::Crashtracker::set_create_alt_stack(bool _create_alt_stack)
 }
 
 void
+Datadog::Crashtracker::set_wait_for_receiver(bool _wait)
+{
+    wait_for_receiver = _wait;
+}
+
+void
 Datadog::Crashtracker::set_env(std::string_view _env)
 {
     env = std::string(_env);
@@ -122,7 +128,7 @@ Datadog::Crashtracker::get_config()
     config.endpoint = ddog_endpoint_from_url(to_slice(url));
     config.resolve_frames = resolve_frames;
     config.timeout_secs = timeout_secs;
-
+    config.wait_for_receiver = wait_for_receiver;
     return config;
 }
 
@@ -156,6 +162,8 @@ Datadog::Crashtracker::get_tags()
         { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::library_version, library_version },
+        { ExportTagKey::is_crash, g_crashtracker_is_crash },
+        { ExportTagKey::severity, g_crashtracker_severity },
     };
 
     // Add system tags

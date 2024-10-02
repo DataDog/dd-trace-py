@@ -1,5 +1,6 @@
 import httpx
 import pytest
+from wrapt import ObjectProxy
 
 from ddtrace import config
 from ddtrace.contrib.httpx.patch import HTTPX_VERSION
@@ -7,7 +8,6 @@ from ddtrace.contrib.httpx.patch import patch
 from ddtrace.contrib.httpx.patch import unpatch
 from ddtrace.pin import Pin
 from ddtrace.settings.http import HttpConfig
-from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_http_config

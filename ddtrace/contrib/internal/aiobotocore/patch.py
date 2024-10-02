@@ -1,9 +1,10 @@
 import os
 
 import aiobotocore.client
+import wrapt
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import unwrap
@@ -20,7 +21,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
@@ -128,7 +128,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         try:
             operation = get_argument_value(args, kwargs, 0, "operation_name")
-            params = get_argument_value(args, kwargs, 1, "params")
+            params = get_argument_value(args, kwargs, 1, "api_params")
 
             span.resource = "{}.{}".format(endpoint_name, operation.lower())
 
@@ -174,6 +174,6 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             span.set_tag_str("aws.requestid2", request_id2)
 
         # set analytics sample rate
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())
 
         return result

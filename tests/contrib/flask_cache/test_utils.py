@@ -31,6 +31,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
             "out.host": "localhost",
             "network.destination.port": REDIS_CONFIG["port"],
             "out.redis_db": 0,
+            "server.address": "localhost",
         }
         assert meta == expected_meta
 

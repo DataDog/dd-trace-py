@@ -5,11 +5,11 @@ from typing import Dict
 from typing import Tuple
 
 import anthropic
+import wrapt
 
-from ddtrace.contrib.anthropic.utils import tag_tool_use_output_on_span
+from ddtrace.contrib.internal.anthropic.utils import tag_tool_use_output_on_span
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations.anthropic import _get_attr
-from ddtrace.vendor import wrapt
+from ddtrace.llmobs._utils import _get_attr
 
 
 log = get_logger(__name__)
@@ -154,16 +154,9 @@ def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
     # builds the response message given streamed chunks and sets according span tags
     try:
         resp_message = _construct_message(streamed_chunks)
-
         if integration.is_pc_sampled_span(span):
             _tag_streamed_chat_completion_response(integration, span, resp_message)
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                span=span,
-                resp=resp_message,
-                args=args,
-                kwargs=kwargs,
-            )
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp_message)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
 

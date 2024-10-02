@@ -9,6 +9,8 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import ArgumentError
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -17,12 +19,13 @@ from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-
-from ..utils import Document
-from .base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.utils import Document
 
 
 log = get_logger(__name__)
@@ -44,19 +47,19 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
 
 
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    def llmobs_set_tags(
+    def _llmobs_set_tags(
         self,
-        operation: str,  # oneof "llm","chat","chain","embedding"
         span: Span,
-        inputs: Any,
-        response: Any = None,
-        error: bool = False,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -82,14 +85,19 @@ class LangChainIntegration(BaseLLMIntegration):
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
 
         if operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error, is_workflow=is_workflow)
+            self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chat":
-            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error, is_workflow=is_workflow)
+            self._llmobs_set_meta_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chain":
-            self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
+            self._llmobs_set_meta_tags_from_chain(span, inputs=kwargs, outputs=response)
         elif operation == "embedding":
-            self._llmobs_set_meta_tags_from_embedding(span, inputs, response, error, is_workflow=is_workflow)
-        span.set_tag_str(METRICS, json.dumps({}))
+            self._llmobs_set_meta_tags_from_embedding(span, args, kwargs, response, is_workflow=is_workflow)
+        elif operation == "retrieval":
+            self._llmobs_set_meta_tags_from_similarity_search(span, args, kwargs, response, is_workflow=is_workflow)
+        elif operation == "tool":
+            self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
+
+        span.set_tag_str(METRICS, safe_json({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
@@ -110,10 +118,10 @@ class LangChainIntegration(BaseLLMIntegration):
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
         if metadata:
-            span.set_tag_str(METADATA, json.dumps(metadata))
+            span.set_tag_str(METADATA, safe_json(metadata))
 
     def _llmobs_set_meta_tags_from_llm(
-        self, span: Span, prompts: List[Any], completions: Any, err: bool = False, is_workflow: bool = False
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
@@ -122,22 +130,23 @@ class LangChainIntegration(BaseLLMIntegration):
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
 
-        if isinstance(prompts, str):
+        prompts = get_argument_value(args, kwargs, 0, "prompts")
+        if isinstance(prompts, str) or not isinstance(prompts, list):
             prompts = [prompts]
 
-        span.set_tag_str(input_tag_key, json.dumps([{"content": str(prompt)} for prompt in prompts]))
-
-        message_content = [{"content": ""}]
-        if not err:
-            message_content = [{"content": completion[0].text} for completion in completions.generations]
-        span.set_tag_str(output_tag_key, json.dumps(message_content))
+        span.set_tag_str(input_tag_key, safe_json([{"content": str(prompt)} for prompt in prompts]))
+        if span.error:
+            span.set_tag_str(output_tag_key, safe_json([{"content": ""}]))
+            return
+        message_content = [{"content": completion[0].text} for completion in completions.generations]
+        span.set_tag_str(output_tag_key, safe_json(message_content))
 
     def _llmobs_set_meta_tags_from_chat_model(
         self,
         span: Span,
-        chat_messages: List[List[Any]],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         chat_completions: Any,
-        err: bool = False,
         is_workflow: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
@@ -148,68 +157,63 @@ class LangChainIntegration(BaseLLMIntegration):
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
 
         input_messages = []
+        chat_messages = get_argument_value(args, kwargs, 0, "messages", optional=True) or []
         for message_set in chat_messages:
             for message in message_set:
                 content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
-                input_messages.append(
-                    {
-                        "content": str(content),
-                        "role": getattr(message, "role", ROLE_MAPPING.get(message.type, "")),
-                    }
-                )
-        span.set_tag_str(input_tag_key, json.dumps(input_messages))
+                role = getattr(message, "role", ROLE_MAPPING.get(message.type, ""))
+                input_messages.append({"content": str(content), "role": str(role)})
+        span.set_tag_str(input_tag_key, safe_json(input_messages))
 
-        output_messages = [{"content": ""}]
-        if not err:
-            output_messages = []
-            for message_set in chat_completions.generations:
-                for chat_completion in message_set:
-                    chat_completion_msg = chat_completion.message
-                    role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
-                    output_messages.append(
-                        {
-                            "content": str(chat_completion.text),
-                            "role": role,
-                        }
-                    )
-        span.set_tag_str(output_tag_key, json.dumps(output_messages))
+        if span.error:
+            span.set_tag_str(output_tag_key, json.dumps([{"content": ""}]))
+            return
+        output_messages = []
+        for message_set in chat_completions.generations:
+            for chat_completion in message_set:
+                chat_completion_msg = chat_completion.message
+                role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
+                output_message = {"content": str(chat_completion.text), "role": role}
+                tool_calls_info = self._extract_tool_calls(chat_completion_msg)
+                if tool_calls_info:
+                    output_message["tool_calls"] = tool_calls_info
+                output_messages.append(output_message)
+        span.set_tag_str(output_tag_key, safe_json(output_messages))
 
-    def _llmobs_set_meta_tags_from_chain(
-        self,
-        span: Span,
-        inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
-        outputs: Any,
-        error: bool = False,
-    ) -> None:
+    def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
+        """Extracts tool calls from a langchain chat completion."""
+        tool_calls = getattr(chat_completion_msg, "tool_calls", None)
+        tool_calls_info = []
+        if tool_calls:
+            if not isinstance(tool_calls, list):
+                tool_calls = [tool_calls]
+            for tool_call in tool_calls:
+                tool_call_info = {
+                    "name": tool_call.get("name", ""),
+                    "arguments": tool_call.get("args", {}),  # this is already a dict
+                    "tool_id": tool_call.get("id", ""),
+                }
+                tool_calls_info.append(tool_call_info)
+        return tool_calls_info
+
+    def _llmobs_set_meta_tags_from_chain(self, span: Span, outputs: Any, inputs: Optional[Any] = None) -> None:
         span.set_tag_str(SPAN_KIND, "workflow")
 
         if inputs is not None:
-            try:
-                formatted_inputs = self.format_io(inputs)
-                if isinstance(formatted_inputs, str):
-                    span.set_tag_str(INPUT_VALUE, formatted_inputs)
-                else:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(self.format_io(inputs)))
-            except TypeError:
-                log.warning("Failed to serialize chain input data to JSON")
-        if error:
+            formatted_inputs = self.format_io(inputs)
+            span.set_tag_str(INPUT_VALUE, safe_json(formatted_inputs))
+        if span.error or outputs is None:
             span.set_tag_str(OUTPUT_VALUE, "")
-        elif outputs is not None:
-            try:
-                formatted_outputs = self.format_io(outputs)
-                if isinstance(formatted_outputs, str):
-                    span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
-                else:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(self.format_io(outputs)))
-            except TypeError:
-                log.warning("Failed to serialize chain output data to JSON")
+            return
+        formatted_outputs = self.format_io(outputs)
+        span.set_tag_str(OUTPUT_VALUE, safe_json(formatted_outputs))
 
     def _llmobs_set_meta_tags_from_embedding(
         self,
         span: Span,
-        input_texts: Union[str, List[str]],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         output_embedding: Union[List[float], List[List[float]], None],
-        error: bool = False,
         is_workflow: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "embedding")
@@ -222,43 +226,98 @@ class LangChainIntegration(BaseLLMIntegration):
         output_values: Any
 
         try:
+            input_texts = get_argument_value(args, kwargs, 0, "texts")
+        except ArgumentError:
+            input_texts = get_argument_value(args, kwargs, 0, "text")
+        try:
             if isinstance(input_texts, str) or (
                 isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)
             ):
                 if is_workflow:
                     formatted_inputs = self.format_io(input_texts)
-                    formatted_str = (
-                        formatted_inputs
-                        if isinstance(formatted_inputs, str)
-                        else json.dumps(self.format_io(input_texts))
-                    )
-                    span.set_tag_str(input_tag_key, formatted_str)
+                    span.set_tag_str(input_tag_key, safe_json(formatted_inputs))
                 else:
                     if isinstance(input_texts, str):
                         input_texts = [input_texts]
                     input_documents = [Document(text=str(doc)) for doc in input_texts]
-                    span.set_tag_str(input_tag_key, json.dumps(input_documents))
+                    span.set_tag_str(input_tag_key, safe_json(input_documents))
         except TypeError:
             log.warning("Failed to serialize embedding input data to JSON")
-        if error:
+        if span.error or output_embedding is None:
             span.set_tag_str(output_tag_key, "")
-        elif output_embedding is not None:
-            try:
-                if isinstance(output_embedding[0], float):
-                    # single embedding through embed_query
-                    output_values = [output_embedding]
-                    embeddings_count = 1
-                else:
-                    # multiple embeddings through embed_documents
-                    output_values = output_embedding
-                    embeddings_count = len(output_embedding)
-                embedding_dim = len(output_values[0])
-                span.set_tag_str(
-                    output_tag_key,
-                    "[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
-                )
-            except (TypeError, IndexError):
-                log.warning("Failed to write output vectors", output_embedding)
+            return
+        try:
+            if isinstance(output_embedding[0], float):
+                # single embedding through embed_query
+                output_values = [output_embedding]
+                embeddings_count = 1
+            else:
+                # multiple embeddings through embed_documents
+                output_values = output_embedding
+                embeddings_count = len(output_embedding)
+            embedding_dim = len(output_values[0])
+            span.set_tag_str(
+                output_tag_key,
+                "[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
+            )
+        except (TypeError, IndexError):
+            log.warning("Failed to write output vectors", output_embedding)
+
+    def _llmobs_set_meta_tags_from_similarity_search(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        output_documents: Union[List[Any], None],
+        is_workflow: bool = False,
+    ) -> None:
+        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "retrieval")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
+        input_query = get_argument_value(args, kwargs, 0, "query")
+        if input_query is not None:
+            formatted_inputs = self.format_io(input_query)
+            span.set_tag_str(INPUT_VALUE, safe_json(formatted_inputs))
+        if span.error or not output_documents or not isinstance(output_documents, list):
+            span.set_tag_str(OUTPUT_VALUE, "")
+            return
+        if is_workflow:
+            span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
+            return
+        documents = []
+        for d in output_documents:
+            doc = Document(text=d.page_content)
+            doc["id"] = getattr(d, "id", "")
+            metadata = getattr(d, "metadata", {})
+            doc["name"] = metadata.get("name", doc["id"])
+            documents.append(doc)
+        span.set_tag_str(OUTPUT_DOCUMENTS, safe_json(self.format_io(documents)))
+        # we set the value as well to ensure that the UI would display it in case the span was the root
+        span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
+
+    def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: Dict[str, Any], tool_output: object) -> None:
+        if span.get_tag(METADATA):
+            metadata = json.loads(str(span.get_tag(METADATA)))
+        else:
+            metadata = {}
+
+        span.set_tag_str(SPAN_KIND, "tool")
+        if tool_inputs is not None:
+            tool_input = tool_inputs.get("input")
+            if tool_inputs.get("config"):
+                metadata["tool_config"] = tool_inputs.get("config")
+            if tool_inputs.get("info"):
+                metadata["tool_info"] = tool_inputs.get("info")
+            if metadata:
+                span.set_tag_str(METADATA, safe_json(metadata))
+            formatted_input = self.format_io(tool_input)
+            span.set_tag_str(INPUT_VALUE, safe_json(formatted_input))
+        if span.error or tool_output is None:
+            span.set_tag_str(OUTPUT_VALUE, "")
+            return
+        formatted_outputs = self.format_io(tool_output)
+        span.set_tag_str(OUTPUT_VALUE, safe_json(formatted_outputs))
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

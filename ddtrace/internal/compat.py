@@ -26,8 +26,8 @@ from typing import Type  # noqa:F401
 from typing import Union  # noqa:F401
 import warnings
 
-from ddtrace.vendor.wrapt.wrappers import BoundFunctionWrapper
-from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
+from wrapt.wrappers import BoundFunctionWrapper
+from wrapt.wrappers import FunctionWrapper
 
 
 __all__ = [
@@ -239,9 +239,9 @@ def maybe_stringify(obj):
 NoneType = type(None)
 
 BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, complex])
-BUILTIN_MAPPNG_TYPES = frozenset([dict, defaultdict, Counter, OrderedDict])
+BUILTIN_MAPPING_TYPES = frozenset([dict, defaultdict, Counter, OrderedDict])
 BUILTIN_SEQUENCE_TYPES = frozenset([list, tuple, set, frozenset, deque])
-BUILTIN_CONTAINER_TYPES = BUILTIN_MAPPNG_TYPES | BUILTIN_SEQUENCE_TYPES
+BUILTIN_CONTAINER_TYPES = BUILTIN_MAPPING_TYPES | BUILTIN_SEQUENCE_TYPES
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 
 

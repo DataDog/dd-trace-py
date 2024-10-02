@@ -282,6 +282,7 @@ def test_cohere_invoke_stream_multi_output(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@pytest.mark.xfail
 def test_meta_invoke_stream(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke_stream.yaml"):

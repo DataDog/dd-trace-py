@@ -1053,6 +1053,7 @@ class HTTPPropagator(object):
             span_context = non_active_span.context
 
         if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
+            root_span: Optional[Span] = None
             if non_active_span is not None:
                 root_span = non_active_span._local_root
             else:

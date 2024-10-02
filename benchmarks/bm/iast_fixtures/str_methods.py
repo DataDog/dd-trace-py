@@ -11,20 +11,17 @@ import os
 import random
 import re
 import threading
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
+from typing import Callable
+from typing import Generator
+from typing import Iterable
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import Text
+from typing import Tuple
+import urllib.parse
 
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa:F401
-    from typing import Dict  # noqa:F401
-    from typing import Generator  # noqa:F401
-    from typing import Iterable  # noqa:F401
-    from typing import List  # noqa:F401
-    from typing import Sequence  # noqa:F401
-    from typing import Tuple  # noqa:F401
+import _io
 
 
 def methodcaller(*args, **kwargs):
@@ -53,6 +50,24 @@ def do_operator_add_params(a, b):
     return a + b
 
 
+def do_operator_add_inplace_params(a, b):
+    a += b
+    return a
+
+
+def do_operator_add_inplace_3_params(a, b, c):
+    a += b
+    a += c
+    return a
+
+
+def do_operator_add_inplace_3_times(a, b):
+    a += b
+    a += b
+    a += b
+    return a
+
+
 def do_string_assignment(a):
     b = a
     return b
@@ -68,8 +83,8 @@ def do_tuple_string_assignment(a):
     return b, c, d, z
 
 
-def uppercase_decorator(function):  # type: (Callable) -> Callable
-    def wrapper(a, b):  # type: (str, str) -> str
+def uppercase_decorator(function: Callable) -> Callable:
+    def wrapper(a: str, b: str) -> Text:
         func = function(a, b)
         return func.upper()
 
@@ -77,7 +92,7 @@ def uppercase_decorator(function):  # type: (Callable) -> Callable
 
 
 @uppercase_decorator
-def do_add_and_uppercase(a, b):  # type: (str, str) -> str
+def do_add_and_uppercase(a: Text, b: Text) -> Text:
     return a + b
 
 
@@ -168,8 +183,7 @@ def do_decode(s, encoding="utf-8", errors="strict"):  # type: (bytes, str, str) 
     return s.decode(encoding, errors)
 
 
-def do_translate(s, translate_dict):
-    # type: (str, dict) -> str
+def do_translate(s: str, translate_dict: dict) -> str:
     return s.translate(translate_dict)
 
 
@@ -177,31 +191,29 @@ def do_decode_simple(s: bytes) -> str:
     return s.decode()
 
 
-def do_encode(s, encoding="utf-8", errors="strict"):
-    # type: (str, str, str) -> bytes
+def do_encode(s: str, encoding: str = "utf-8", errors: str = "strict") -> bytes:
     return s.encode(encoding, errors)
 
 
-def do_encode_from_dict(s, encoding="utf-8", errors="strict"):
-    # type: (str, str, str) -> bytes
+def do_encode_from_dict(s: str, encoding: str = "utf-8", errors: str = "strict") -> bytes:
     my_dictionary = {}
     my_dictionary["test"] = s
     return my_dictionary.get("test", "").encode(encoding, errors)
 
 
-def do_str_to_bytes(s):  # type: (str) -> bytes
+def do_str_to_bytes(s: str) -> bytes:
     return bytes(s, encoding="utf-8")
 
 
-def do_str_to_bytearray(s):  # type: (str) -> bytearray
+def do_str_to_bytearray(s: str) -> bytearray:
     return bytearray(s, encoding="utf-8")
 
 
-def do_str_to_bytes_to_bytearray(s):  # type: (str) -> bytearray
+def do_str_to_bytes_to_bytearray(s: str) -> bytearray:
     return bytearray(bytes(s, encoding="utf-8"))
 
 
-def do_str_to_bytes_to_bytearray_to_str(s):  # type: (str) -> str
+def do_str_to_bytes_to_bytearray_to_str(s: str) -> str:
     return str(bytearray(bytes(s, encoding="utf-8")), encoding="utf-8")
 
 
@@ -219,15 +231,15 @@ def do_bytearray_extend(ba: bytearray, b: bytearray) -> bytearray:
     return ba
 
 
-def do_repr(b: Any) -> str:
+def do_repr(b) -> Text:
     return repr(b)
 
 
-def do_str(b: Any) -> str:
+def do_str(b) -> Text:
     return str(b)
 
 
-def do_bytes(b: Any) -> bytes:
+def do_bytes(b) -> bytes:
     return bytes(b)
 
 
@@ -685,15 +697,15 @@ class SampleClass(object):
     TIME_ZONE = "UTC/UTM"
 
     @staticmethod
-    def commonprefix(first, *args):  # type: (Text, List[Any]) -> Sequence
+    def commonprefix(first: Text, *args: List) -> Sequence:
         return os.path.commonprefix(list([first]) + list(args))
 
 
-def do_join_tuple_unpack_with_call_no_replace():  # type: () -> Sequence
+def do_join_tuple_unpack_with_call_no_replace() -> Sequence:
     return SampleClass.commonprefix("/usr/bin", *("/usr/local/lib", "/usr/lib"))
 
 
-def do_join_tuple_unpack_with_call_with_methods(zoneinfo_root):  # type: (str) -> bool
+def do_join_tuple_unpack_with_call_with_methods(zoneinfo_root: str) -> bool:
     simple = SampleClass()
     return os.path.exists(os.path.join(zoneinfo_root, *(simple.TIME_ZONE.split("/"))))
 
@@ -774,18 +786,18 @@ class MyIter:
         return output
 
 
-def func_iter_sum(a):  # type: (str) -> List
-    out = []  # type: List[str]
+def func_iter_sum(a: str) -> List[str]:
+    out: List[str] = []  # type
     out += a, a
     return out
 
 
-def get_random_string_module_encode(allowed_chars):  # type: (str) -> List[str]
+def get_random_string_module_encode(allowed_chars: str) -> List[str]:
     result = ("%s%s%s" % ("a", "b", "c")).encode("utf-8")
     return [allowed_chars for i in result]
 
 
-def get_random_string_join(mystring):  # type: (str) -> str
+def get_random_string_join(mystring: str) -> Text:
     return "".join(mystring for i in ["1", "2"])
 
 
@@ -803,19 +815,19 @@ def get_random_string_seed(
     return "".join(random.choice(allowed_chars) for i in range(length))
 
 
-def mark_safe(a):  # type: (str) -> str
+def mark_safe(a: str) -> Text:
     return a
 
 
-def conditional_escape(a):  # type: (str) -> str
+def conditional_escape(a: str) -> Text:
     return a
 
 
-def format_html(a, args):  # type: (str, *Tuple) -> str
+def format_html(a: str, args: Tuple) -> str:
     return a.join(args)
 
 
-def format_html_join(attrs, args_generator=None):  # type: (str, List[str]) -> str
+def format_html_join(attrs: str, args_generator: List[str] = None) -> str:
     if args_generator is None:
         args_generator = ["a", "b", "c"]
 
@@ -823,7 +835,7 @@ def format_html_join(attrs, args_generator=None):  # type: (str, List[str]) -> s
     return result
 
 
-def get_wrapped_repeat_text_with_join(wrapper):  # type: (Callable) -> Callable
+def get_wrapped_repeat_text_with_join(wrapper: Callable) -> Callable:
     @wrapper
     def repeat_text_with_join(text, times=2):  # type: (str, int) -> str
         # Use the join to confirm that we use a string-propagation method
@@ -832,100 +844,95 @@ def get_wrapped_repeat_text_with_join(wrapper):  # type: (Callable) -> Callable
     return repeat_text_with_join
 
 
-def do_format_with_positional_parameter(
-    template,  # type: Text
-    parameter,  # type: Any
-):  # type: (...) -> Text
+def do_format_with_positional_parameter(template: str, parameter: str) -> str:
     return template.format(parameter)
 
 
 def do_format_with_named_parameter(
-    template,  # type: Text
-    value,  # type: Any
-):  # type: (...) -> Text
+    template,
+    value,
+):
     return template.format(key=value)
 
 
-def mapper(taint_range):  # type: (Any) -> Text
+def mapper(taint_range) -> Text:
     return taint_range.origin.parameter_name
 
 
-def do_args_kwargs_1(format_string, *args_safe, **kwargs_safe):  # type: (str, Any, Any) -> str
+def do_args_kwargs_1(format_string, *args_safe, **kwargs_safe) -> Text:
     return format_string.format(*args_safe, **kwargs_safe)
 
 
-def do_args_kwargs_2(format_string, *args_safe, **kwargs_safe):  # type: (str, Any, Any) -> str
+def do_args_kwargs_2(format_string, *args_safe, **kwargs_safe) -> Text:
     return format_string.format("1", *args_safe, **kwargs_safe)
 
 
-def do_args_kwargs_3(format_string, *args_safe, **kwargs_safe):  # type: (str, Any, Any) -> str
+def do_args_kwargs_3(format_string, *args_safe, **kwargs_safe) -> Text:
     return format_string.format("1", "2", *args_safe, **kwargs_safe)
 
 
-def do_args_kwargs_4(format_string, *args_safe, **kwargs_safe):  # type: (str, Any, Any) -> str
+def do_args_kwargs_4(format_string, *args_safe, **kwargs_safe) -> Text:
     return format_string.format("1", "2", test_kwarg=3, *args_safe, **kwargs_safe)
 
 
-def do_format_key_error(param1):  # type: (str, Dict[str, Any]) -> str
+def do_format_key_error(param1: str) -> Text:
     return "Test {param1}, {param2}".format(param1=param1)  # noqa:F524
 
 
-def do_join(s, iterable):
-    # type: (str, Iterable) -> str
+def do_join(s, iterable: Iterable) -> Text:
     return s.join(iterable)
 
 
-def do_join_args_kwargs(s, *args, **kwargs):
-    # type: (str, Iterable) -> str
+def do_join_args_kwargs(s, *args, **kwargs) -> Text:
     return s.join(*args, **kwargs)
 
 
-def do_join_tuple(mystring):  # type: (str) -> str
+def do_join_tuple(mystring: str) -> Text:
     mystring = mystring
     gen = tuple(mystring + _ for _ in ["1", "2", "3"])
     return "".join(gen)
 
 
-def do_join_set(mystring):  # type: (str) -> str
+def do_join_set(mystring: str) -> Text:
     mystring = mystring
     gen = {mystring + _ for _ in ["1", "2", "3"]}
     return "".join(gen)
 
 
-def do_join_generator(mystring):  # type: (str) -> str
+def do_join_generator(mystring: str) -> Text:
     mystring = mystring
     gen = (mystring for _ in ["1", "2", "3"])
     return "".join(gen)
 
 
-def do_join_generator_2(mystring):  # type: (str) -> str
-    def parts():  # type: () -> Generator
+def do_join_generator_2(mystring: str) -> Text:
+    def parts() -> Generator:
         for i in ["x", "y", "z"]:
             yield i
 
     return mystring.join(parts())
 
 
-def do_join_generator_and_title(mystring):  # type: (str) -> str
+def do_join_generator_and_title(mystring: str) -> Text:
     mystring = mystring.title()
     gen = (mystring for _ in ["1", "2", "3"])
     return "".join(gen)
 
 
-def do_modulo(template, parameter):  # type: (Text, Any) -> Text
+def do_modulo(template: Text, parameter) -> Text:
     return template % parameter
 
 
-def do_replace(text, old, new, count=-1):  # type: (Text, Text, Text, int) -> Text
+def do_replace(text: Text, old: Text, new: Text, count=-1) -> Text:
     return text.replace(old, new, count)
 
 
 def do_slice(
-    text,  # type: str
-    first,  # type: Optional[int]
-    second,  # type: Optional[int]
-    third,  # type: Optional[int]
-):  # type: (...) -> str
+    text: str,
+    first: Optional[int],
+    second: Optional[int],
+    third: Optional[int],
+) -> Text:
     # CAVEAT: the following code is duplicate on purpose (also present in production code),
     # because it needs to expose the slicing in order to be patched correctly.
 
@@ -947,9 +954,7 @@ def do_slice(
     return key_lambda_map[cases_key](text)
 
 
-def do_slice_complex(
-    s,  # type: str
-):
+def do_slice_complex(s: str):
     import struct
 
     unpack = struct.unpack
@@ -965,19 +970,8 @@ def do_slice_complex(
     return acc
 
 
-def do_slice_negative(
-    s,  # type: str
-):
+def do_slice_negative(s: str):
     return s[-16:]
-
-
-def mult_two(a, b):  # type: (Any, Any) -> Any
-    return a * b
-
-
-def inplace_mult(a, b):
-    a *= b
-    return a
 
 
 class MyObject(object):
@@ -988,7 +982,7 @@ class MyObject(object):
         return self.str_param + " a"
 
 
-def do_format_fill(a):  # type: (Any) -> str
+def do_format_fill(a) -> Text:
     return "{:10}".format(a)
 
 
@@ -1006,78 +1000,82 @@ def do_slice_condition(s: str, first, second):
     return s[first : second or 0]
 
 
-def do_namedtuple(s: Text) -> Any:
+def do_namedtuple(s: Text):
     PathInfo = namedtuple("PathInfo", "name surname")
     my_string = PathInfo(name=s, surname=None)
     return my_string
 
 
-def do_split_no_args(s):  # type: (str) -> List[str]
+def do_split_no_args(s: str) -> List[str]:
     return s.split()
 
 
-def do_rsplit_no_args(s):  # type: (str) -> List[str]
+def do_rsplit_no_args(s: str) -> List[str]:
     return s.rsplit()
 
 
-def do_split_maxsplit(s, maxsplit=-1):  # type: (str, int) -> List[str]
+def do_split_maxsplit(s: str, maxsplit: int = -1) -> List[str]:
     return s.split(maxsplit=maxsplit)
 
 
-def do_rsplit_maxsplit(s, maxsplit=-1):  # type: (str, int) -> List[str]
+def do_rsplit_maxsplit(s: str, maxsplit: int = -1) -> List[str]:
     return s.rsplit(maxsplit=maxsplit)
 
 
-def do_split_separator(s, separator):  # type: (str, str) -> List[str]
+def do_split_separator(s: str, separator: str) -> List[str]:
     return s.split(separator)
 
 
-def do_rsplit_separator(s, separator):  # type: (str, str) -> List[str]
+def do_rsplit_separator(s: str, separator: str) -> List[str]:
     return s.rsplit(separator)
 
 
-def do_split_separator_and_maxsplit(s, separator, maxsplit):  # type: (str, str, int) -> List[str]
+def do_split_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> List[str]:
     return s.split(separator, maxsplit)
 
 
-def do_rsplit_separator_and_maxsplit(s, separator, maxsplit):  # type: (str, str, int) -> List[str]
+def do_rsplit_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> List[str]:
     return s.rsplit(separator, maxsplit)
 
 
-def do_splitlines_no_arg(s):  # type: (str) -> List[str]
+def do_splitlines_no_arg(s: str) -> List[str]:
     return s.splitlines()
 
 
-def do_splitlines_keepends(s, keepends):  # type: (str, bool) -> List[str]
+def do_splitlines_keepends(s, keepends):
     return s.splitlines(keepends=keepends)
 
 
-def do_partition(s, sep):  # type: (str, str) -> Tuple[str, str, str]
+def do_partition(s, sep):
     return s.partition(sep)
 
 
-def do_zfill(s, width):  # type: (str, int) -> str
+def do_zfill(s: str, width: int) -> str:
     return s.zfill(width)
 
 
-def do_rsplit(s, sep, maxsplit=-1):  # type: (str, str, int) -> List[str]
+def do_rsplit(s, sep, maxsplit=-1):
     return s.rsplit(sep, maxsplit)
 
 
-def do_rstrip_2(s):  # type: (str) -> str
+def do_rstrip_2(s) -> Text:
     return s.rstrip()
 
 
-def do_index(c: str, i: int) -> str:
+def do_index(c: str, i: int) -> Text:
     return c[i]
 
 
-def do_methodcaller(s, func, *args):  # type: (str, str, Any) -> str
+def do_index_on_dict(d: dict, k):
+    return d[k]
+
+
+def do_methodcaller(s, func, *args):
     func_method = operator.methodcaller(func, *args)
     return func_method(s)
 
 
-def get_http_headers(header_key):  # type: (str) -> bytes
+def get_http_headers(header_key: str) -> bytes:
     RANDOM_PORT = 0
     server = StoppableHTTPServer(("127.0.0.1", RANDOM_PORT), WebServerHandler)
     thread = threading.Thread(None, server.run)
@@ -1219,3 +1217,43 @@ def do_customspec_formatspec():
 
 def do_fstring(a, b):
     return f"{a} + {b} = {a + b}"
+
+
+def _preprocess_lexer_input(text):
+    """Apply preprocessing such as decoding the input, removing BOM and normalizing newlines."""
+    # text now *is* a unicode string
+    text = text.replace("\r\n", "\n")
+    text = text.replace("\r", "\n")
+    text = text.strip()
+    text = text.strip("\n")
+
+    text = text.expandtabs(0)
+    text += "\n"
+
+    return text
+
+
+def index_lower_add(url):
+    i = 4
+    scheme, url = url[:i].lower(), url[i + 1 :]
+    return scheme, url
+
+
+def urlib_urlsplit(text):
+    results = urllib.parse.urlsplit(text)
+    return results
+
+
+def do_re_match_index(text, regexp, index):
+    match = re.search(regexp, text)
+    return match[index]
+
+
+def do_io_stringio_read(string_input):
+    xxx = _io.StringIO(string_input)
+    return xxx.read()
+
+
+def do_io_bytesio_read(string_input):
+    xxx = _io.BytesIO(string_input.encode("utf-8"))
+    return xxx.read()

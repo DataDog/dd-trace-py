@@ -5,18 +5,11 @@
 // Needed for conversions from Vector to Tuple in get_ranges, dont remove even
 // if CLion tells it's not used!
 #include "StringUtils.h"
+#include "Initializer/Initializer.h"
 
 using namespace pybind11::literals;
 
 using namespace std;
-
-#define GET_HASH_KEY(hash) (hash & 0xFFFFFF)
-
-typedef struct _PyASCIIObject_State_Hidden
-{
-    unsigned int : 8;
-    unsigned int hidden : 24;
-} PyASCIIObject_State_Hidden;
 
 // Used to quickly exit on cases where the object is a non interned unicode
 // string and does not have the fast-taint mark on its internal data structure.
@@ -46,7 +39,7 @@ is_notinterned_notfasttainted_unicode(const PyObject* objptr)
     return hash == -1 || e->hidden != GET_HASH_KEY(hash);
 }
 
-// For non interned unicode strings, set a hidden mark on it's internsal data
+// For non interned unicode strings, set a hidden mark on it's internal data
 // structure that will allow us to quickly check if the string is not tainted
 // and thus skip further processing without having to search on the tainting map
 __attribute__((flatten)) void
@@ -65,14 +58,9 @@ set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
 }
 
 string
-PyObjectToString(PyObject* obj)
+AnyTextObjectToString(PyObject* py_string_like)
 {
-    const char* str = PyUnicode_AsUTF8(obj);
-
-    if (str == nullptr) {
-        return "";
-    }
-    return str;
+    return AnyTextObjectToString(py::handle(py_string_like));
 }
 
 PyObject*
@@ -80,6 +68,14 @@ new_pyobject_id(PyObject* tainted_object)
 {
     if (!tainted_object)
         return nullptr;
+
+    // Check that it's aligned correctly
+    if (reinterpret_cast<uintptr_t>(tainted_object) % alignof(PyObject) != 0) return tainted_object;
+
+    // Try to safely access ob_type
+    if (const PyObject* temp = tainted_object;!temp->ob_type) return tainted_object;
+
+    py::gil_scoped_acquire acquire;
 
     if (PyUnicode_Check(tainted_object)) {
         PyObject* empty_unicode = PyUnicode_New(0, 127);
@@ -98,6 +94,7 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(val);
         return result;
     }
+
     if (PyBytes_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
         if (!empty_bytes)
@@ -114,7 +111,9 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(val);
         Py_XDECREF(empty_bytes);
         return res;
-    } else if (PyByteArray_Check(tainted_object)) {
+    }
+
+    if (PyByteArray_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
         if (!empty_bytes)
             return tainted_object;
@@ -154,4 +153,32 @@ get_pyobject_size(PyObject* obj)
         len_candidate_text = PyByteArray_Size(obj);
     }
     return len_candidate_text;
+}
+
+bool
+PyIOBase_Check(const PyObject* obj)
+{
+    if (!obj)
+        return false;
+
+    try {
+        return py::isinstance((PyObject*)obj, safe_import("_io", "_IOBase"));
+    } catch (py::error_already_set& err) {
+        PyErr_Clear();
+        return false;
+    }
+}
+
+bool
+PyReMatch_Check(const PyObject* obj)
+{
+    if (!obj)
+        return false;
+
+    try {
+        return py::isinstance((PyObject*)obj, safe_import("re", "Match"));
+    } catch (py::error_already_set& err) {
+        PyErr_Clear();
+        return false;
+    }
 }

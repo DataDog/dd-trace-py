@@ -148,11 +148,8 @@ def _parse_propagation_styles(name, default):
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
-            raise ValueError(
-                "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
-                    style, name, PROPAGATION_STYLE_ALL
-                )
-            )
+            log.warning("Unknown style {!r} provided for %r, allowed values are %r", style, name, PROPAGATION_STYLE_ALL)
+            continue
         styles.append(style)
     return styles
 
@@ -219,25 +216,21 @@ class _ConfigItem:
                 self._env_value = parser(os.environ[env_var])
                 break
 
-    def set_value_source(self, value, source):
-        # type: (Any, _ConfigSource) -> None
+    def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
         else:
-            raise ValueError("Invalid source: {}".format(source))
+            log.warning("Invalid source: %s", source)
 
-    def set_code(self, value):
-        # type: (_JSONType) -> None
+    def set_code(self, value: _JSONType) -> None:
         self._code_value = value
 
-    def unset_rc(self):
-        # type: () -> None
+    def unset_rc(self) -> None:
         self._rc_value = None
 
-    def value(self):
-        # type: () -> _JSONType
+    def value(self) -> _JSONType:
         if self._rc_value is not None:
             return self._rc_value
         if self._code_value is not None:
@@ -246,8 +239,7 @@ class _ConfigItem:
             return self._env_value
         return self._default_value
 
-    def source(self):
-        # type: () -> _ConfigSource
+    def source(self) -> _ConfigSource:
         if self._rc_value is not None:
             return "remote_config"
         if self._code_value is not None:
@@ -272,8 +264,7 @@ def _parse_global_tags(s):
     return gitmetadata.clean_tags(parse_tags_str(s))
 
 
-def _default_config():
-    # type: () -> Dict[str, _ConfigItem]
+def _default_config() -> Dict[str, _ConfigItem]:
     return {
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
@@ -336,7 +327,7 @@ class Config(object):
     """
 
     class _HTTPServerConfig(object):
-        _error_statuses = "500-599"  # type: str
+        _error_statuses = os.getenv("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 
         @property
@@ -380,16 +371,34 @@ class Config(object):
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
 
+        sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        if sample_rate is not None:
+            deprecate(
+                "DD_TRACE_SAMPLE_RATE is deprecated",
+                message="Please use DD_TRACE_SAMPLING_RULES instead.",
+                removal_version="3.0.0",
+            )
+
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
 
-        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+        rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
+        if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
+            # This warning will be logged when DD_TRACE_SAMPLE_RATE is set. This is intentional.
+            # Even though DD_TRACE_SAMPLE_RATE is treated as a global trace sampling rule, this configuration
+            # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
+            log.warning(
+                "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
+                "Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+                "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
+                rate_limit,
+            )
+        self._trace_rate_limit = int(rate_limit or DEFAULT_SAMPLING_RATE_LIMIT)
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
-        self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
@@ -399,6 +408,14 @@ class Config(object):
             )
         )
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        if self._trace_api == "v0.3":
+            deprecate(
+                "DD_TRACE_API_VERSION=v0.3 is deprecated",
+                message="Traces will be submitted to the v0.4/traces agent endpoint instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._trace_api = "v0.4"
         self._trace_writer_buffer_size = int(
             os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
         )
@@ -427,9 +444,18 @@ class Config(object):
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
+        self.analytics_enabled = asbool(
+            os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=os.getenv("DD_ANALYTICS_ENABLED", default=False))
+        )
+        if self.analytics_enabled:
+            deprecate(
+                "Datadog App Analytics is deprecated and will be removed in a future version. "
+                "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
+                "environment variables and ddtrace.config.analytics_enabled configuration. "
+                "These configurations will also be removed.",
+                category=DDTraceDeprecationWarning,
+            )
 
-        self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
@@ -505,12 +531,14 @@ class Config(object):
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
         if x_datadog_tags_max_length < 0:
-            raise ValueError(
+            log.warning(
                 (
-                    "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
+                    "Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
                     "only non-negative values allowed"
-                ).format(x_datadog_tags_max_length)
+                ),
+                x_datadog_tags_max_length,
             )
+            x_datadog_tags_max_length = 0
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
@@ -524,6 +552,18 @@ class Config(object):
             )
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
+
+        legacy_client_tag_enabled = os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", None)
+        if legacy_client_tag_enabled is None:
+            self._http_client_tag_query_string = os.getenv("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", default="true")
+        else:
+            deprecate(
+                "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
+                message="Please use DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._http_client_tag_query_string = legacy_client_tag_enabled.lower()
 
         dd_trace_obfuscation_query_string_regexp = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
@@ -555,6 +595,14 @@ class Config(object):
         self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
+        if self._span_aggregator_rlock is False:
+            deprecate(
+                "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
+                message="Soon the ddtrace library will only support using threading.Rlock to "
+                "aggregate and encode span data. If you need to disable the re-entrant lock and "
+                "revert to using threading.Lock, please contact Datadog support.",
+                removal_version="3.0.0",
+            )
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 

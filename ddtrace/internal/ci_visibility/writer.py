@@ -1,9 +1,12 @@
+from http.client import RemoteDisconnected
 import os
+import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.utils.time import StopWatch
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
 from .. import agent
@@ -22,11 +25,18 @@ from .constants import EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .encoder import CIVisibilityCoverageEncoderV02
 from .encoder import CIVisibilityEncoderV01
+from .telemetry.payload import REQUEST_ERROR_TYPE
+from .telemetry.payload import record_endpoint_payload_bytes
+from .telemetry.payload import record_endpoint_payload_request
+from .telemetry.payload import record_endpoint_payload_request_error
+from .telemetry.payload import record_endpoint_payload_request_time
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
+
+    from ddtrace.internal.utils.http import Response  # noqa:F401
 
 
 class CIVisibilityEventClient(WriterClientBase):
@@ -96,11 +106,11 @@ class CIVisibilityWriter(HTTPWriter):
             timeout = config._agent_timeout_seconds
         intake_cov_url = None
         if use_evp:
-            intake_url = agent.get_trace_url()
-            intake_cov_url = agent.get_trace_url()
+            intake_url = intake_url if intake_url else agent.get_trace_url()
+            intake_cov_url = intake_url
         elif config._ci_visibility_agentless_url:
-            intake_url = config._ci_visibility_agentless_url
-            intake_cov_url = config._ci_visibility_agentless_url
+            intake_url = intake_url if intake_url else config._ci_visibility_agentless_url
+            intake_cov_url = intake_url
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
@@ -146,3 +156,29 @@ class CIVisibilityWriter(HTTPWriter):
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
         )
+
+    def _put(self, data, headers, client, no_trace):
+        # type: (bytes, Dict[str, str], WriterClientBase, bool) -> Response
+        request_error = None  # type: Optional[REQUEST_ERROR_TYPE]
+
+        with StopWatch() as sw:
+            try:
+                response = super()._put(data, headers, client, no_trace)
+                if response.status >= 400:
+                    request_error = REQUEST_ERROR_TYPE.STATUS_CODE
+            except (TimeoutError, socket.timeout):
+                request_error = REQUEST_ERROR_TYPE.TIMEOUT
+                raise
+            except RemoteDisconnected:
+                request_error = REQUEST_ERROR_TYPE.NETWORK
+                raise
+            finally:
+                if isinstance(client.encoder, CIVisibilityEncoderV01):
+                    endpoint = client.encoder.ENDPOINT_TYPE
+                    record_endpoint_payload_bytes(endpoint, nbytes=len(data))
+                    record_endpoint_payload_request(endpoint)
+                    record_endpoint_payload_request_time(endpoint, seconds=sw.elapsed())
+                    if request_error:
+                        record_endpoint_payload_request_error(endpoint, request_error)
+
+        return response

@@ -42,9 +42,8 @@ def int_config():
 
 @pytest.fixture
 def span(tracer):
-    span = tracer.trace(name="myint")
-    yield span
-    span.finish()
+    with tracer.trace(name="myint") as span:
+        yield span
 
 
 class TestHeaders(object):
@@ -504,6 +503,26 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_called_once_with(*log_call)
     else:
         mock_log.exception.assert_not_called()
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
+def test_set_http_meta_custom_errors_via_env():
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.trace_utils import set_http_meta
+
+    config._add("myint", dict())
+    with tracer.trace("error") as span1:
+        set_http_meta(span1, config.myint, status_code=405)
+        assert span1.error == 1
+
+    with tracer.trace("noterror") as span2:
+        set_http_meta(span2, config.myint, status_code=403)
+        assert span2.error == 0
+
+    with tracer.trace("noterror2") as span3:
+        set_http_meta(span3, config.myint, status_code=413)
+        assert span3.error == 0
 
 
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")

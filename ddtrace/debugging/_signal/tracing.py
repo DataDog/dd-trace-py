@@ -44,7 +44,7 @@ class DynamicSpan(Signal):
             log.debug("Dynamic span entered with non-span probe: %s", self.probe)
             return
 
-        if not self._eval_condition(dict(self.args) if self.args else {}):
+        if not self._eval_condition(self.args):
             return
 
         self._span_cm = ddtrace.tracer.trace(
@@ -78,7 +78,7 @@ class DynamicSpan(Signal):
 class SpanDecoration(LogSignal):
     """Decorate a span."""
 
-    def _decorate_span(self, _locals: t.Dict[str, t.Any]) -> None:
+    def _decorate_span(self, scope: t.Mapping[str, t.Any]) -> None:
         probe = t.cast(SpanDecorationMixin, self.probe)
 
         if probe.target_span == SpanDecorationTargetSpan.ACTIVE:
@@ -93,7 +93,7 @@ class SpanDecoration(LogSignal):
             log.debug("Decorating span %r according to span decoration probe %r", span, probe)
             for d in probe.decorations:
                 try:
-                    if not (d.when is None or d.when(_locals)):
+                    if not (d.when is None or d.when(scope)):
                         continue
                 except DDExpressionEvaluationError as e:
                     self.errors.append(
@@ -102,7 +102,7 @@ class SpanDecoration(LogSignal):
                     continue
                 for tag in d.tags:
                     try:
-                        tag_value = tag.value.render(_locals, serialize)
+                        tag_value = tag.value.render(scope, serialize)
                     except DDExpressionEvaluationError as e:
                         span.set_tag_str(
                             "_dd.di.%s.evaluation_error" % tag.name, ", ".join([serialize(v) for v in e.args])
@@ -117,8 +117,8 @@ class SpanDecoration(LogSignal):
             log.debug("Span decoration entered with non-span decoration probe: %s", self.probe)
             return
 
-        if probe.evaluate_at == ProbeEvaluateTimingForMethod.ENTER:
-            self._decorate_span(dict(self.args) if self.args else {})
+        if probe.evaluate_at is ProbeEvaluateTimingForMethod.ENTER:
+            self._decorate_span(self.args)
             self.state = SignalState.DONE
 
     def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float) -> None:
@@ -128,8 +128,8 @@ class SpanDecoration(LogSignal):
             log.debug("Span decoration exited with non-span decoration probe: %s", self.probe)
             return
 
-        if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
-            self._decorate_span(self._enrich_args(retval, exc_info, duration))
+        if probe.evaluate_at is ProbeEvaluateTimingForMethod.EXIT:
+            self._decorate_span(self.get_full_scope(retval, exc_info, duration))
             self.state = SignalState.DONE
 
     def line(self):

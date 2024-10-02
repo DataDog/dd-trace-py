@@ -100,6 +100,7 @@ like this::
 
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
+
 from contextlib import contextmanager
 import logging
 import sys
@@ -116,7 +117,6 @@ from ddtrace.vendor.debtcollector import deprecate
 from ..utils.deprecations import DDTraceDeprecationWarning
 from . import event_hub  # noqa:F401
 from ._core import DDSketch  # noqa:F401
-from ._core import RateLimiter  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
 from .event_hub import dispatch_with_results  # noqa:F401
@@ -128,7 +128,6 @@ from .event_hub import reset as reset_listeners  # noqa:F401
 if TYPE_CHECKING:
     from ddtrace._trace.span import Span  # noqa:F401
 
-
 try:
     import contextvars
 except ImportError:
@@ -138,7 +137,6 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 
-_CURRENT_CONTEXT = None
 ROOT_CONTEXT_ID = "__root"
 SPAN_DEPRECATION_MESSAGE = (
     "The 'span' keyword argument on ExecutionContext methods is deprecated and will be removed in a future version."
@@ -151,8 +149,8 @@ DEPRECATION_MEMO = set()
 
 def _deprecate_span_kwarg(span):
     if (
-        id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO
-        and span is not None
+        span is not None
+        and id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO
         # https://github.com/tiangolo/fastapi/pull/10876
         and "fastapi" not in sys.modules
         and "fastapi.applications" not in sys.modules
@@ -177,7 +175,8 @@ class ExecutionContext:
         if parent is not None:
             self.addParent(parent)
         self._data.update(kwargs)
-        if self._span is None and _CURRENT_CONTEXT is not None:
+
+        if self._span is None and "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
         dispatch("context.started.start_span.%s" % self.identifier, (self,))
@@ -226,16 +225,16 @@ class ExecutionContext:
         finally:
             new_context.end()
 
-    def get_item(self, data_key: str, default: Optional[Any] = None, traverse: Optional[bool] = True) -> Any:
+    def get_item(current, data_key: str, default: Optional[Any] = None) -> Any:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
-        current = self
         while current is not None:
             if data_key in current._data:
                 return current._data.get(data_key)
-            if not traverse:
-                break
             current = current.parent
         return default
+
+    def get_local_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+        return self._data.get(data_key, default)
 
     def __getitem__(self, key: str):
         value = self.get_item(key)
@@ -243,24 +242,31 @@ class ExecutionContext:
             raise KeyError
         return value
 
-    def get_items(self, data_keys):
-        # type: (List[str]) -> Optional[Any]
+    def get_items(self, data_keys: List[str]) -> List[Optional[Any]]:
         return [self.get_item(key) for key in data_keys]
 
-    def set_item(self, data_key, data_value):
-        # type: (str, Optional[Any]) -> None
+    def set_item(self, data_key: str, data_value: Optional[Any]) -> None:
         self._data[data_key] = data_value
 
-    def set_safe(self, data_key, data_value):
-        # type: (str, Optional[Any]) -> None
+    def set_safe(self, data_key: str, data_value: Optional[Any]) -> None:
         if data_key in self._data:
             raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
         return self.set_item(data_key, data_value)
 
-    def set_items(self, keys_values):
-        # type: (Dict[str, Optional[Any]]) -> None
+    def set_items(self, keys_values: Dict[str, Optional[Any]]) -> None:
         for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
+
+    def discard_item(current, data_key: str) -> None:
+        # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
+        while current is not None:
+            if data_key in current._data:
+                del current._data[data_key]
+                return
+            current = current.parent
+
+    def discard_local_item(self, data_key: str) -> None:
+        self._data.pop(data_key, None)
 
     def root(self):
         if self.identifier == ROOT_CONTEXT_ID:
@@ -277,56 +283,64 @@ def __getattr__(name):
     raise AttributeError
 
 
+_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+_CONTEXT_CLASS = ExecutionContext
+
+
 def _reset_context():
+    """private function to reset the context. Only used in testing"""
     global _CURRENT_CONTEXT
     _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
-
-
-_reset_context()
-_CONTEXT_CLASS = ExecutionContext
 
 
 def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
-def get_item(data_key, span=None):
-    # type: (str, Optional[Span]) -> Optional[Any]
+def get_item(data_key: str, span: Optional["Span"] = None) -> Any:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
     else:
-        return _CURRENT_CONTEXT.get().get_item(data_key)  # type: ignore
+        return _CURRENT_CONTEXT.get().get_item(data_key)
 
 
-def get_items(data_keys, span=None):
-    # type: (List[str], Optional[Span]) -> Optional[Any]
+def get_local_item(data_key: str, span: Optional["Span"] = None) -> Any:
+    return _CURRENT_CONTEXT.get().get_local_item(data_key)
+
+
+def get_items(data_keys: List[str], span: Optional["Span"] = None) -> List[Optional[Any]]:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return [span._local_root._get_ctx_item(key) for key in data_keys]
     else:
-        return _CURRENT_CONTEXT.get().get_items(data_keys)  # type: ignore
+        return _CURRENT_CONTEXT.get().get_items(data_keys)
 
 
-def set_safe(data_key, data_value):
-    # type: (str, Optional[Any]) -> None
-    _CURRENT_CONTEXT.get().set_safe(data_key, data_value)  # type: ignore
+def set_safe(data_key: str, data_value: Optional[Any]) -> None:
+    _CURRENT_CONTEXT.get().set_safe(data_key, data_value)
 
 
 # NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
-def set_item(data_key, data_value, span=None):
-    # type: (str, Optional[Any], Optional[Span]) -> None
+def set_item(data_key: str, data_value: Optional[Any], span: Optional["Span"] = None) -> None:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_item(data_key, data_value)
     else:
-        _CURRENT_CONTEXT.get().set_item(data_key, data_value)  # type: ignore
+        _CURRENT_CONTEXT.get().set_item(data_key, data_value)
 
 
-def set_items(keys_values, span=None):
-    # type: (Dict[str, Optional[Any]], Optional[Span]) -> None
+def set_items(keys_values: Dict[str, Optional[Any]], span: Optional["Span"] = None) -> None:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_items(keys_values)
     else:
-        _CURRENT_CONTEXT.get().set_items(keys_values)  # type: ignore
+        _CURRENT_CONTEXT.get().set_items(keys_values)
+
+
+def discard_item(data_key: str) -> None:
+    _CURRENT_CONTEXT.get().discard_item(data_key)
+
+
+def discard_local_item(data_key: str) -> None:
+    _CURRENT_CONTEXT.get().discard_local_item(data_key)

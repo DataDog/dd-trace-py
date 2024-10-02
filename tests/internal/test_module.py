@@ -97,14 +97,6 @@ def test_after_module_imported_decorator(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-def test_register_hook_without_install():
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.register_origin_hook(__file__, mock.Mock())
-
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.register_module_hook(__name__, mock.Mock())
-
-
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
 def test_import_origin_hook_for_module_not_yet_imported():
     import os
@@ -238,8 +230,7 @@ def test_module_unregister_origin_hook(module_watchdog):
 
     assert module_watchdog._instance._hook_map[str(path)] == []
 
-    with pytest.raises(ValueError):
-        module_watchdog.unregister_origin_hook(path, hook)
+    module_watchdog.unregister_origin_hook(path, hook)
 
 
 def test_module_unregister_module_hook(module_watchdog):
@@ -257,21 +248,18 @@ def test_module_unregister_module_hook(module_watchdog):
     module_watchdog.unregister_module_hook(module, hook)
     assert module_watchdog._instance._hook_map[module] == []
 
-    with pytest.raises(ValueError):
-        module_watchdog.unregister_module_hook(module, hook)
+    module_watchdog.unregister_module_hook(module, hook)
 
 
 def test_module_watchdog_multiple_install():
     ModuleWatchdog.install()
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.install()
-
+    assert ModuleWatchdog.is_installed()
+    ModuleWatchdog.install()
     assert ModuleWatchdog.is_installed()
 
     ModuleWatchdog.uninstall()
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.uninstall()
-
+    assert not ModuleWatchdog.is_installed()
+    ModuleWatchdog.uninstall()
     assert not ModuleWatchdog.is_installed()
 
 
@@ -538,3 +526,72 @@ def test_module_watchdog_reloads_dont_cause_errors():
     sys.setrecursionlimit(1000)
     for _ in range(sys.getrecursionlimit() * 2):
         reload(ns_module)
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_module_import_side_effect():
+    # Test that we can import a module that raises an exception during specific
+    # attribute lookups.
+    import tests.internal.side_effect_module  # noqa:F401
+
+
+def test_deprecated_modules_in_ddtrace_contrib():
+    # Test that all files in the ddtrace/contrib directory except a few exceptions (ex: ddtrace/contrib/redis_utils.py)
+    # have the deprecation template below.
+    deprecation_template = """from ddtrace.contrib.internal.{} import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
+"""
+
+    contrib_dir = Path(ROOT_PROJECT_DIR) / "ddtrace" / "contrib"
+
+    missing_deprecations = set()
+    for directory, _, file_names in os.walk(contrib_dir):
+        if directory.startswith(str(contrib_dir / "internal")):
+            # Files in ddtrace/contrib/internal/... are not part of the public API, they should not be deprecated
+            continue
+        # Open files in ddtrace/contrib/ and check if the content matches the template
+        for file_name in file_names:
+            # Skip internal and __init__ modules, as they are not supposed to have the deprecation template
+            if file_name.endswith(".py") and not (file_name.startswith("_") or file_name == "__init__.py"):
+                # Get the relative path of the file from ddtrace/contrib to the deprecated file (ex: pymongo/patch)
+                relative_path = Path(directory).relative_to(contrib_dir) / file_name[:-3]  # Remove the .py extension
+                # Convert the relative path to python module format (ex: [pymongo, patch] -> pymongo.patch)
+                sub_modules = ".".join(relative_path.parts)
+                with open(os.path.join(directory, file_name), "r") as f:
+                    content = f.read()
+                    if deprecation_template.format(sub_modules) != content:
+                        missing_deprecations.add(f"ddtrace.contrib.{sub_modules}")
+
+    assert missing_deprecations == set(
+        [
+            # Note: The following ddtrace.contrib modules are expected to be part of the public API
+            # TODO: Revist whether integration utils should be part of the public API
+            "ddtrace.contrib.redis_utils",
+            "ddtrace.contrib.trace_utils",
+            "ddtrace.contrib.trace_utils_async",
+            "ddtrace.contrib.trace_utils_redis",
+            # TODO: The following contrib modules are part of the public API (unlike most integrations).
+            # We should consider privatizing the internals of these integrations.
+            "ddtrace.contrib.unittest.patch",
+            "ddtrace.contrib.unittest.constants",
+            "ddtrace.contrib.pytest.constants",
+            "ddtrace.contrib.pytest.newhooks",
+            "ddtrace.contrib.pytest.plugin",
+            "ddtrace.contrib.pytest_benchmark.constants",
+            "ddtrace.contrib.pytest_benchmark.plugin",
+            "ddtrace.contrib.pytest_bdd.constants",
+            "ddtrace.contrib.pytest_bdd.plugin",
+        ]
+    )

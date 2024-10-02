@@ -10,6 +10,7 @@ from typing import Type
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
+from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
@@ -47,15 +48,15 @@ def xlate_keys(d: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, Any]:
     return {mapping.get(k, k): v for k, v in d.items()}
 
 
-def _compile_segment(segment: dict) -> Optional[TemplateSegment]:
+def _compile_segment(segment: dict) -> TemplateSegment:
     if "str" in segment:
         return LiteralTemplateSegment(str_value=segment["str"])
 
     if "json" in segment:
         return ExpressionTemplateSegment(expr=DDRedactedExpression.compile(segment))
 
-    # what type of error we should show here?
-    return None
+    msg = f"Invalid template segment: {segment}"
+    raise ValueError(msg)
 
 
 def _match_env_and_version(probe: Probe) -> bool:
@@ -134,7 +135,7 @@ class LogProbeFactory(ProbeFactory):
                 )
             )
             if "capture" in attribs
-            else None,
+            else DEFAULT_CAPTURE_LIMITS,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             take_snapshot=take_snapshot,
             template=attribs.get("template"),
@@ -291,7 +292,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 
                 self._update_probes_for_config(metadata["id"], config)
 
-        # Flush any probe status messages that migh have been generated
+        # Flush any probe status messages that might have been generated
         self._status_logger.flush()
 
     def _send_status_update(self):

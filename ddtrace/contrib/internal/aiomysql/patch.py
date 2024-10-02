@@ -1,8 +1,9 @@
 import aiomysql
+import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
@@ -17,7 +18,6 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.vendor import wrapt
 
 
 config._add(
@@ -86,7 +86,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tags(extra_tags)
 
             # set analytics sample rate
-            s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiomysql.get_analytics_sample_rate())
+            s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.aiomysql.get_analytics_sample_rate())
 
             # dispatch DBM
             result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs)).result

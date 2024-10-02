@@ -8,6 +8,15 @@ echo "JQ: $(which jq)"
 # Skip the label check if we do not have a GitHub event path
 if [[ -f "${GITHUB_EVENT_PATH}" ]] && jq -e '.pull_request?.labels[]?.name | select(. == "changelog/no-changelog")' "${GITHUB_EVENT_PATH}";
 then
+    PR_TITLE=$(jq -er '.pull_request?.title' "${GITHUB_EVENT_PATH}")
+
+    if [[ "${PR_TITLE}" == "fix"* ]];
+    then
+        echo "Fix PRs must have a changelog entry, remove the 'changelog/no-changelog' label"
+        echo "Use 'reno new <slug>' to add a new note to 'releasenotes/notes'"
+        exit 1
+    fi
+
     echo "PR has label 'changelog/no-changelog', skipping validation"
     exit 0
 fi

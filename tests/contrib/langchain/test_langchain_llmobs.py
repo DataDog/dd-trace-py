@@ -5,6 +5,7 @@ import sys
 
 import langchain as langchain_
 import mock
+import pinecone as pinecone_
 import pytest
 
 from ddtrace import patch
@@ -20,6 +21,7 @@ from tests.utils import flaky
 
 
 LANGCHAIN_VERSION = parse_version(langchain_.__version__)
+PINECONE_VERSION = parse_version(pinecone_.__version__)
 PY39 = sys.version_info < (3, 10)
 
 if LANGCHAIN_VERSION < (0, 1):
@@ -67,7 +69,6 @@ def _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role=N
             metadata=metadata,
             token_metrics={},
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
     )
 
@@ -79,7 +80,6 @@ def _assert_expected_llmobs_chain_span(span, mock_llmobs_span_writer, input_valu
         input_value=input_value if input_value is not None else mock.ANY,
         output_value=output_value if output_value is not None else mock.ANY,
         tags={"ml_app": "langchain_test"},
-        integration="langchain",
     )
     mock_llmobs_span_writer.enqueue.assert_any_call(expected_chain_span_event)
 
@@ -146,6 +146,37 @@ class BaseTestLLMObsLangchain:
             embedding_model.embed_documents(documents)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
+
+    @classmethod
+    def _similarity_search(cls, pinecone, pinecone_vector_store, embedding_model, query, k, mock_tracer, cassette_name):
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
+        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+            if PINECONE_VERSION <= (2, 2, 4):
+                pinecone.init(
+                    api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                    environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+                )
+                index = pinecone.Index(index_name="langchain-retrieval")
+            else:
+                # Pinecone 2.2.5+ moved init and other methods to a Pinecone class instance
+                pc = pinecone.Pinecone(
+                    api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                )
+                index = pc.Index(name="langchain-retrieval")
+
+            vector_db = pinecone_vector_store(index, embedding_model, "text")
+            vector_db.similarity_search(query, k)
+
+        LLMObs.disable()
+        return mock_tracer.pop_traces()[0]
+
+    @classmethod
+    def _invoke_tool(cls, tool, tool_input, config, mock_tracer):
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
+        if LANGCHAIN_VERSION > (0, 1):
+            tool.invoke(tool_input, config=config)
+        LLMObs.disable()
+        return mock_tracer.pop_traces()[0][0]
 
 
 @pytest.mark.skipif(LANGCHAIN_VERSION >= (0, 1), reason="These tests are for langchain < 0.1.0")
@@ -355,7 +386,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -381,9 +411,36 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
+
+    def test_llmobs_similarity_search(self, langchain, mock_llmobs_span_writer, mock_tracer):
+        import pinecone
+
+        embedding_model = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
+        cassette_name = (
+            "openai_pinecone_similarity_search_39.yaml" if PY39 else "openai_pinecone_similarity_search.yaml"
+        )
+        with mock.patch("langchain.embeddings.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
+            trace = self._similarity_search(
+                pinecone=pinecone,
+                pinecone_vector_store=langchain.vectorstores.Pinecone,
+                embedding_model=embedding_model.embed_query,
+                query="Who was Alan Turing?",
+                k=1,
+                mock_tracer=mock_tracer,
+                cassette_name=cassette_name,
+            )
+        expected_span = _expected_llmobs_non_llm_span_event(
+            trace[0],
+            "retrieval",
+            input_value="Who was Alan Turing?",
+            output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
+            output_value="[1 document(s) retrieved]",
+            tags={"ml_app": "langchain_test"},
+        )
+        mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
+        assert mock_llmobs_span_writer.enqueue.call_count == 2
 
 
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
@@ -591,7 +648,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -618,7 +674,126 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
+            )
+        )
+
+    def test_llmobs_similarity_search(self, langchain_openai, langchain_pinecone, mock_llmobs_span_writer, mock_tracer):
+        import pinecone
+
+        if langchain_pinecone is None:
+            pytest.skip("langchain_pinecone not installed which is required for this test.")
+        embedding_model = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
+        cassette_name = "openai_pinecone_similarity_search_community.yaml"
+        with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
+            trace = self._similarity_search(
+                pinecone=pinecone,
+                pinecone_vector_store=langchain_pinecone.PineconeVectorStore,
+                embedding_model=embedding_model,
+                query="Evolution",
+                k=1,
+                mock_tracer=mock_tracer,
+                cassette_name=cassette_name,
+            )
+        assert mock_llmobs_span_writer.enqueue.call_count == 2
+        expected_span = _expected_llmobs_non_llm_span_event(
+            trace[0],
+            "retrieval",
+            input_value="Evolution",
+            output_documents=[
+                {"text": mock.ANY, "id": mock.ANY, "name": "The Evolution of Communication Technologies"}
+            ],
+            output_value="[1 document(s) retrieved]",
+            tags={"ml_app": "langchain_test"},
+        )
+        mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
+
+    def test_llmobs_chat_model_tool_calls(self, langchain_openai, mock_llmobs_span_writer, mock_tracer):
+        import langchain_core.tools
+
+        @langchain_core.tools.tool
+        def add(a: int, b: int) -> int:
+            """Adds a and b.
+
+            Args:
+                a: first int
+                b: second int
+            """
+            return a + b
+
+        llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125")
+        llm_with_tools = llm.bind_tools([add])
+        span = self._invoke_chat(
+            chat_model=llm_with_tools,
+            prompt="What is the sum of 1 and 2?",
+            mock_tracer=mock_tracer,
+            cassette_name="lcel_with_tools_openai.yaml",
+        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.enqueue.assert_any_call(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=span.get_tag("langchain.request.model"),
+                model_provider=span.get_tag("langchain.request.provider"),
+                input_messages=[{"role": "user", "content": "What is the sum of 1 and 2?"}],
+                output_messages=[
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "name": "add",
+                                "arguments": {"a": 1, "b": 2},
+                                "tool_id": mock.ANY,
+                            }
+                        ],
+                    }
+                ],
+                metadata={"temperature": 0.7},
+                token_metrics={},
+                tags={"ml_app": "langchain_test"},
+            )
+        )
+
+    def test_llmobs_base_tool_invoke(self, langchain_core, mock_llmobs_span_writer, mock_tracer):
+        if langchain_core is None:
+            pytest.skip("langchain-core not installed which is required for this test.")
+
+        from math import pi
+
+        from langchain_core.tools import StructuredTool
+
+        def circumference_tool(radius: float) -> float:
+            return float(radius) * 2.0 * pi
+
+        calculator = StructuredTool.from_function(
+            func=circumference_tool,
+            name="Circumference calculator",
+            description="Use this tool when you need to calculate a circumference using the radius of a circle",
+            return_direct=True,
+            response_format="content",
+        )
+
+        span = self._invoke_tool(
+            tool=calculator,
+            tool_input="2",
+            config={"test": "this is to test config"},
+            mock_tracer=mock_tracer,
+        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                span_kind="tool",
+                input_value="2",
+                output_value="12.566370614359172",
+                metadata={
+                    "tool_config": {"test": "this is to test config"},
+                    "tool_info": {
+                        "name": "Circumference calculator",
+                        "description": mock.ANY,
+                    },
+                },
+                tags={"ml_app": "langchain_test"},
             )
         )
 

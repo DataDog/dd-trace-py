@@ -1,6 +1,7 @@
 import os
 
 import aredis
+import wrapt
 
 from ddtrace import config
 from ddtrace._trace.utils_redis import _instrument_redis_cmd
@@ -12,7 +13,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 config._add(

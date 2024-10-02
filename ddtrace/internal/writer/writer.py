@@ -5,12 +5,12 @@ import logging
 import os
 import sys
 import threading
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import TextIO  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import TextIO
 
 import ddtrace
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -19,7 +19,6 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -37,13 +36,12 @@ from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
-from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
-from .writer_client import WriterClientBase  # noqa:F401
+from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa:F401
+    from typing import Any  # noqa:F401
     from typing import Tuple  # noqa:F401
 
     from ddtrace import Span  # noqa:F401
@@ -85,8 +83,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def stop(self, timeout=None):
-        # type: (Optional[float]) -> None
+    def stop(self, timeout: Optional[float] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -95,17 +92,15 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def flush_queue(self):
-        # type: () -> None
+    def flush_queue(self) -> None:
         pass
 
 
 class LogWriter(TraceWriter):
     def __init__(
         self,
-        out=sys.stdout,  # type: TextIO
-    ):
-        # type: (...) -> None
+        out: TextIO = sys.stdout,
+    ) -> None:
         self.encoder = JSONEncoderV2()
         self.out = out
 
@@ -119,8 +114,7 @@ class LogWriter(TraceWriter):
         writer = self.__class__(out=self.out)
         return writer
 
-    def stop(self, timeout=None):
-        # type: (Optional[float]) -> None
+    def stop(self, timeout: Optional[float] = None) -> None:
         return
 
     def write(self, spans=None):
@@ -131,8 +125,7 @@ class LogWriter(TraceWriter):
         self.out.write(encoded + "\n")
         self.out.flush()
 
-    def flush_queue(self):
-        # type: () -> None
+    def flush_queue(self) -> None:
         pass
 
 
@@ -145,22 +138,20 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def __init__(
         self,
-        intake_url,  # type: str
-        clients,  # type: List[WriterClientBase]
-        processing_interval=None,  # type: Optional[float]
+        intake_url: str,
+        clients: List[WriterClientBase],
+        processing_interval: Optional[float] = None,
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=None,  # type: Optional[int]
-        max_payload_size=None,  # type: Optional[int]
-        timeout=None,  # type: Optional[float]
-        dogstatsd=None,  # type: Optional[DogStatsd]
-        sync_mode=False,  # type: bool
-        reuse_connections=None,  # type: Optional[bool]
-        headers=None,  # type: Optional[Dict[str, str]]
-        report_metrics=True,  # type: bool
-    ):
-        # type: (...) -> None
-
+        buffer_size: Optional[int] = None,
+        max_payload_size: Optional[int] = None,
+        timeout: Optional[float] = None,
+        dogstatsd: Optional[DogStatsd] = None,
+        sync_mode: bool = False,
+        reuse_connections: Optional[bool] = None,
+        headers: Optional[Dict[str, str]] = None,
+        report_metrics: bool = True,
+    ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
@@ -174,15 +165,15 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._clients = clients
         self.dogstatsd = dogstatsd
-        self._metrics = defaultdict(int)  # type: Dict[str, int]
+        self._metrics: Dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
-        self._conn = None  # type: Optional[ConnectionType]
+        self._conn: Optional[ConnectionType] = None
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
-        self._conn_lck = threading.RLock()  # type: threading.RLock
+        self._conn_lck: threading.RLock = threading.RLock()
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
@@ -210,15 +201,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             return client._intake_url
         return self.intake_url
 
-    def _metrics_dist(self, name, count=1, tags=None):
-        # type: (str, int, Optional[List]) -> None
+    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
         if not self._report_metrics:
             return
         if config.health_metrics_enabled and self.dogstatsd:
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
-    def _set_drop_rate(self):
-        # type: () -> None
+    def _set_drop_rate(self) -> None:
         accepted = self._metrics["accepted_traces"]
         sent = self._metrics["sent_traces"]
         encoded = sum([len(client.encoder) for client in self._clients])
@@ -233,15 +222,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if trace:
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
-    def _reset_connection(self):
-        # type: () -> None
+    def _reset_connection(self) -> None:
         with self._conn_lck:
             if self._conn:
                 self._conn.close()
                 self._conn = None
 
-    def _put(self, data, headers, client, no_trace):
-        # type: (bytes, Dict[str, str], WriterClientBase, bool) -> Response
+    def _put(self, data: bytes, headers: Dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
@@ -276,16 +263,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count, client):
-        # type: (int, WriterClientBase) -> dict
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict:
         headers = self._headers.copy()
         headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         if hasattr(client, "_headers"):
             headers.update(client._headers)
         return headers
 
-    def _send_payload(self, payload, count, client):
-        # type: (...) -> Response
+    def _send_payload(self, payload: bytes, count: int, client: WriterClientBase) -> Response:
         headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")
@@ -312,7 +297,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if isinstance(payload, bytes):
                     log_args += (binascii.hexlify(payload).decode(),)  # type: ignore
                 else:
-                    log_args += (payload,)  # type: ignore
+                    log_args += (payload,)
 
             log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
@@ -320,8 +305,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
-        # Queues an app-started event before the first ci-visibility/llmobs/trace payload is sent
-        telemetry_writer.app_started()
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
@@ -374,21 +357,21 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
 
-    def flush_queue(self, raise_exc=False):
+    def flush_queue(self, raise_exc: bool = False):
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
 
-    def _flush_queue_with_client(self, client, raise_exc=False):
-        # type: (WriterClientBase, bool) -> None
+    def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
         try:
-            encoded = client.encoder.encode()
+            encoded, n_traces = client.encoder.encode()
             if encoded is None:
                 return
         except Exception:
+            # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
@@ -417,9 +400,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _stop_service(
         self,
-        timeout=None,  # type: Optional[float]
-    ):
-        # type: (...) -> None
+        timeout: Optional[float] = None,
+    ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(HTTPWriter, self)._stop_service()
         self.join(timeout=timeout)
@@ -432,8 +414,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
 
 class AgentResponse(object):
-    def __init__(self, rate_by_service):
-        # type: (Dict[str, float]) -> None
+    def __init__(self, rate_by_service: Dict[str, float]) -> None:
         self.rate_by_service = rate_by_service
 
 
@@ -451,23 +432,21 @@ class AgentWriter(HTTPWriter):
 
     def __init__(
         self,
-        agent_url,  # type: str
-        priority_sampling=False,  # type: bool
-        processing_interval=None,  # type: Optional[float]
+        agent_url: str,
+        processing_interval: Optional[float] = None,
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=None,  # type: Optional[int]
-        max_payload_size=None,  # type: Optional[int]
-        timeout=None,  # type: Optional[float]
+        buffer_size: Optional[int] = None,
+        max_payload_size: Optional[int] = None,
+        timeout: Optional[float] = None,
         dogstatsd: Optional[DogStatsd] = None,
-        report_metrics=True,  # type: bool
-        sync_mode=False,  # type: bool
-        api_version=None,  # type: Optional[str]
-        reuse_connections=None,  # type: Optional[bool]
-        headers=None,  # type: Optional[Dict[str, str]]
-        response_callback=None,  # type: Optional[Callable[[AgentResponse], None]]
-    ):
-        # type: (...) -> None
+        report_metrics: bool = True,
+        sync_mode: bool = False,
+        api_version: Optional[str] = None,
+        reuse_connections: Optional[bool] = None,
+        headers: Optional[Dict[str, str]] = None,
+        response_callback: Optional[Callable[[AgentResponse], None]] = None,
+    ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
@@ -496,13 +475,14 @@ class AgentWriter(HTTPWriter):
 
         buffer_size = buffer_size or config._trace_writer_buffer_size
         max_payload_size = max_payload_size or config._trace_writer_payload_size
-        try:
-            client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
-        except KeyError:
-            raise ValueError(
-                "Unsupported api version: '%s'. The supported versions are: %r"
-                % (self._api_version, ", ".join(sorted(WRITER_CLIENTS.keys())))
+        if self._api_version not in WRITER_CLIENTS:
+            log.warning(
+                "Unsupported api version: '%s'. The supported versions are: %r",
+                self._api_version,
+                ", ".join(sorted(WRITER_CLIENTS.keys())),
             )
+            self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
+        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
         _headers = {
             "Datadog-Meta-Lang": "python",
@@ -559,42 +539,32 @@ class AgentWriter(HTTPWriter):
     def _agent_endpoint(self):
         return self._intake_endpoint(client=None)
 
-    def _downgrade(self, payload, response, client):
+    def _downgrade(self, response, client):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
             # sending it, but we chuck it away instead.
             log.warning(
+                "Calling endpoint '%s' but received %s; downgrading API. "
                 "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
                 "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
-                "endpoint available, or explicitly set the trace API version to, e.g., v0.4."
+                "endpoint available, or explicitly set the trace API version to, e.g., v0.4.",
+                client.ENDPOINT,
+                response.status,
             )
-            return None
-        if client.ENDPOINT == "v0.4/traces":
-            self._clients = [AgentWriterClientV3(self._buffer_size, self._max_payload_size)]
-            # These endpoints share the same encoding, so we can try sending the
-            # same payload over the downgraded endpoint.
-            return payload
-        raise ValueError()
+        else:
+            log.error(
+                "unsupported endpoint '%s': received response %s from intake (%s)",
+                client.ENDPOINT,
+                response.status,
+                self.intake_url,
+            )
 
-    def _send_payload(self, payload, count, client):
-        # type: (...) -> Response
+    def _send_payload(self, payload, count, client) -> Response:
         response = super(AgentWriter, self)._send_payload(payload, count, client)
         if response.status in [404, 415]:
-            log.debug("calling endpoint '%s' but received %s; downgrading API", client.ENDPOINT, response.status)
-            try:
-                payload = self._downgrade(payload, response, client)
-            except ValueError:
-                log.error(
-                    "unsupported endpoint '%s': received response %s from intake (%s)",
-                    client.ENDPOINT,
-                    response.status,
-                    self.intake_url,
-                )
-            else:
-                if payload is not None:
-                    self._send_payload(payload, count, client)
+            self._downgrade(response, client)
         elif response.status < 400:
             if self._response_cb:
                 raw_resp = response.get_json()
@@ -620,8 +590,7 @@ class AgentWriter(HTTPWriter):
         except service.ServiceStatusError:
             pass
 
-    def _get_finalized_headers(self, count, client):
-        # type: (int, WriterClientBase) -> dict
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict:
         headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers

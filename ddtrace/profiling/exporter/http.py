@@ -4,7 +4,6 @@ import datetime
 import gzip
 from http import client as http_client
 import io
-import itertools
 import json
 import os
 import platform
@@ -13,16 +12,10 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 
 import ddtrace
-from ddtrace.ext.git import COMMIT_SHA
-from ddtrace.ext.git import MAIN_PACKAGE
-from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import agent
-from ddtrace.internal import compat
-from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import container
-from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder  # noqa:F401
@@ -92,21 +85,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
             return self_dict == other_dict
         return False
 
-    def _update_git_metadata_tags(self, tags):
-        """
-        Update profiler tags with git metadata
-        """
-        # clean tags, because values will be combined and inserted back in the same way as for tracer
-        gitmetadata.clean_tags(tags)
-        repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
-        if repository_url:
-            tags[REPOSITORY_URL] = repository_url
-        if commit_sha:
-            tags[COMMIT_SHA] = commit_sha
-        if main_package:
-            tags[MAIN_PACKAGE] = main_package
-        return tags
-
     def __post_init__(self):
         if self.max_retry_delay is None:
             self.max_retry_delay = self.timeout * 3
@@ -116,15 +94,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
             attempts=self.RETRY_ATTEMPTS,
         )(self._upload)
 
-        tags = {
-            k: compat.ensure_text(v, "utf-8")
-            for k, v in itertools.chain(
-                self._update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
-                config.tags.items(),
-            )
-        }
-        tags.update(self.tags)
-        tags.update(
+        # DEV: Lines updating the tags could be moved into settings/profiling.py
+        # and ddup.config() and ddup_interface can be simplified.
+        self.tags.update(
             {
                 "host": HOSTNAME,
                 "language": "python",
@@ -134,12 +106,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
             }
         )
         if self.version:
-            tags["version"] = self.version
+            self.tags["version"] = self.version
 
         if self.env:
-            tags["env"] = self.env
-
-        self.tags = tags
+            self.tags["env"] = self.env
 
     @staticmethod
     def _encode_multipart_formdata(
@@ -251,7 +221,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         }  # type: Dict[str, Any]
 
         if self.endpoint_call_counter_span_processor is not None:
-            event["endpoint_counts"] = self.endpoint_call_counter_span_processor.reset()
+            event["endpoint_counts"] = self.endpoint_call_counter_span_processor.reset()[0]
 
         content_type, body = self._encode_multipart_formdata(
             event=json.dumps(event).encode("utf-8"),

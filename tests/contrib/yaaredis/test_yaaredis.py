@@ -3,12 +3,12 @@ import os
 import uuid
 
 import pytest
+from wrapt import ObjectProxy
 import yaaredis
 
 from ddtrace import Pin
 from ddtrace.contrib.yaaredis.patch import patch
 from ddtrace.contrib.yaaredis.patch import unpatch
-from ddtrace.vendor.wrapt import ObjectProxy
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
@@ -90,20 +90,6 @@ async def test_basics(snapshot_context, traced_yaaredis):
 async def test_unicode(snapshot_context, traced_yaaredis):
     with snapshot_context():
         await traced_yaaredis.get("😐")
-
-
-@pytest.mark.asyncio
-async def test_analytics_without_rate(snapshot_context, traced_yaaredis):
-    with override_config("yaaredis", dict(analytics_enabled=True)):
-        with snapshot_context():
-            await traced_yaaredis.get("cheese")
-
-
-@pytest.mark.asyncio
-async def test_analytics_with_rate(snapshot_context, traced_yaaredis):
-    with override_config("yaaredis", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        with snapshot_context():
-            await traced_yaaredis.get("cheese")
 
 
 @pytest.mark.asyncio

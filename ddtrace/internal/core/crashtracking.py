@@ -28,13 +28,17 @@ def start() -> bool:
     if not is_available:
         return False
 
+    import platform
+
     crashtracker.set_url(crashtracker_config.debug_url or agent.get_trace_url())
     crashtracker.set_service(config.service)
     crashtracker.set_version(config.version)
     crashtracker.set_env(config.env)
     crashtracker.set_runtime_id(get_runtime_id())
+    crashtracker.set_runtime_version(platform.python_version())
     crashtracker.set_library_version(version.get_version())
     crashtracker.set_alt_stack(bool(crashtracker_config.alt_stack))
+    crashtracker.set_wait_for_receiver(bool(crashtracker_config.wait_for_receiver))
     if crashtracker_config.stacktrace_resolver == "fast":
         crashtracker.set_resolve_frames_fast()
     elif crashtracker_config.stacktrace_resolver == "full":

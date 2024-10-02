@@ -2,8 +2,9 @@ from collections import defaultdict
 from collections import deque
 from pathlib import Path
 
+from wrapt import FunctionWrapper
+
 from ddtrace.internal.utils.inspection import undecorated
-from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
 
 try:
@@ -142,6 +143,7 @@ def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
         for k, o in c:
             code = getattr(o, "__code__", None) if _isinstance(o, (FunctionType, FunctionWrapper)) else None
             if code is not None:
+                f = cast(FunctionType, o)
                 local_name = _local_name(k, o) if isinstance(k, str) else o.__name__
 
                 if o not in seen_functions:
@@ -156,11 +158,11 @@ def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
                         # try to retrieve any potentially decorated function so
                         # that we don't end up returning the decorator function
                         # instead of the original function.
-                        functions[fullname] = undecorated(o, name, path) if name == k else o
+                        functions[fullname] = undecorated(f, name, path) if name == k else o
 
                 try:
-                    if o.__closure__:
-                        containers.append(ContainerIterator(o.__closure__, origin=(o, "<locals>")))
+                    if f.__closure__:
+                        containers.append(ContainerIterator(f.__closure__, origin=(o, "<locals>")))
                 except AttributeError:
                     pass
 

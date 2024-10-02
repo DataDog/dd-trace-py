@@ -1,20 +1,14 @@
-import mongoengine
-
-from .trace import WrappedConnect
-
-
-# Original connect function
-_connect = mongoengine.connect
+from ddtrace.contrib.internal.mongoengine.patch import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-def get_version():
-    # type: () -> str
-    return getattr(mongoengine, "__version__", "")
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-
-def patch():
-    mongoengine.connect = WrappedConnect(_connect)
-
-
-def unpatch():
-    mongoengine.connect = _connect
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

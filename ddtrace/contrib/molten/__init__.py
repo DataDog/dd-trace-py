@@ -34,17 +34,23 @@ Configuration
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["molten"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from . import patch as _patch
+        # Required to allow users to import from `ddtrace.contrib.molten.patch` directly
+        import warnings as _w
 
-        patch = _patch.patch
-        unpatch = _patch.unpatch
-        get_version = _patch.get_version
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ddtrace.contrib.internal.molten.patch import get_version
+        from ddtrace.contrib.internal.molten.patch import patch
+        from ddtrace.contrib.internal.molten.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

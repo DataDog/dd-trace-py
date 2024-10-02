@@ -7,6 +7,7 @@ from pymemcache.exceptions import MemcacheServerError
 from pymemcache.exceptions import MemcacheUnknownCommandError
 from pymemcache.exceptions import MemcacheUnknownError
 import pytest
+import wrapt
 
 # project
 from ddtrace import Pin
@@ -14,7 +15,6 @@ from ddtrace.contrib.pymemcache.client import WrappedClient
 from ddtrace.contrib.pymemcache.patch import patch
 from ddtrace.contrib.pymemcache.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.vendor import wrapt
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_config

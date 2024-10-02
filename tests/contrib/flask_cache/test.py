@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from flask import Flask
 
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask_cache import get_traced_cache
 from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 from ddtrace.ext import net
@@ -355,28 +354,6 @@ class FlaskCacheTest(TracerTestCase):
         }
 
         assert_dict_issuperset(dd_span.get_tags(), expected_meta)
-
-    def test_analytics_default(self):
-        self.cache.get("á_complex_operation")
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("flask_cache", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            self.cache.get("á_complex_operation")
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("flask_cache", dict(analytics_enabled=True)):
-            self.cache.get("á_complex_operation")
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
 class TestFlaskCacheSchematization(TracerTestCase):

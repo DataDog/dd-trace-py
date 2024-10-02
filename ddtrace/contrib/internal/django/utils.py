@@ -9,13 +9,13 @@ from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
+from wrapt import FunctionWrapper
 import xmltodict
 
 from ddtrace import config
 from ddtrace._trace.span import Span
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib import func_name
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
 from ddtrace.contrib.internal.django.compat import user_is_authenticated
@@ -27,8 +27,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
+from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._utils import from_wsgi_header
-from ddtrace.vendor.wrapt import FunctionWrapper
 
 
 try:
@@ -259,7 +259,7 @@ def _before_request_tags(pin, span, request):
 
     analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
     if analytics_sr is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
     span.set_tag_str("django.request.class", func_name(request))
 
@@ -289,7 +289,7 @@ def _extract_body(request):
 def _remake_body(request):
     # some libs that utilize django (Spyne) require the body stream to be unread or else will throw errors
     # see: https://github.com/arskom/spyne/blob/f105ec2f41495485fef1211fe73394231b3f76e5/spyne/server/wsgi.py#L538
-    if request.method in _BODY_METHODS:
+    if request.method in _BODY_METHODS and getattr(request, "_body", None):
         try:
             unread_body = io.BytesIO(request._body)
             if unread_body.seekable():
@@ -442,7 +442,7 @@ class DjangoViewProxy(FunctionWrapper):
     @property
     def __module__(self):
         """
-        DjangoViewProxy.__module__ defaults to ddtrace.contrib.django when a wrapped function does not have
+        DjangoViewProxy.__module__ defaults to ddtrace.contrib.internal.django when a wrapped function does not have
         a __module__ attribute. This method ensures that DjangoViewProxy.__module__ always returns the module
         attribute of the wrapped function or an empty string if this attribute is not available.
         The function Django.urls.path() does not have a __module__ attribute and would require this override

@@ -3,9 +3,10 @@ import os
 
 from boto import __version__
 import boto.connection
+import wrapt
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
@@ -19,7 +20,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 
 
 # Original boto client class
@@ -126,7 +126,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         span.set_tag_str(http.METHOD, result._method)
 
         # set analytics sample rate
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
         return result
 
@@ -138,8 +138,8 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
     # Go up the stack until we get the first non-ddtrace module
     # DEV: For `lambda.list_functions()` this should be:
-    #        - ddtrace.contrib.boto.patch
-    #        - ddtrace.vendor.wrapt.wrappers
+    #        - ddtrace.contrib.internal.boto.patch
+    #        - wrapt.wrappers
     #        - boto.awslambda.layer1 (make_request)
     #        - boto.awslambda.layer1 (list_functions)
     # But can vary depending on Python versions; that's why we use an heuristic
@@ -190,7 +190,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         span.set_tag_str(http.METHOD, result._method)
 
         # set analytics sample rate
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
         span.set_tag_str(COMPONENT, config.boto.integration_name)
 

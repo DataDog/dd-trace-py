@@ -2,9 +2,10 @@ import os
 
 # 3p
 import kombu
+import wrapt
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 
@@ -23,7 +24,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
@@ -126,7 +126,7 @@ def traced_receive(func, instance, args, kwargs):
         s.set_tags(extract_conn_tags(message.channel.connection))
         s.set_tag_str(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
         # set analytics sample rate
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
+        s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
         result = func(*args, **kwargs)
         core.dispatch("kombu.amqp.receive.post", [instance, message, s])
         return result
@@ -157,7 +157,7 @@ def traced_publish(func, instance, args, kwargs):
         s.set_tags(extract_conn_tags(instance.channel.connection))
         s.set_metric(kombux.BODY_LEN, get_body_length_from_args(args))
         # set analytics sample rate
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
+        s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
         # run the command
         if config.kombu.distributed_tracing_enabled:
             propagator.inject(s.context, args[HEADER_POS])

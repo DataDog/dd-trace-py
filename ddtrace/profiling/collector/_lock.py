@@ -7,6 +7,8 @@ import sys
 import types
 import typing
 
+import wrapt
+
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
@@ -18,7 +20,6 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
-from ddtrace.vendor import wrapt
 
 
 LOG = get_logger(__name__)
@@ -72,7 +73,7 @@ if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
     WRAPT_C_EXT = False
 else:
     try:
-        import ddtrace.vendor.wrapt._wrappers as _w  # noqa: F401
+        import wrapt._wrappers as _w  # noqa: F401
     except ImportError:
         WRAPT_C_EXT = False
     else:
@@ -106,11 +107,11 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_init_loc = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
         self._self_name: typing.Optional[str] = None
 
-    def __aenter__(self):
-        return self.__wrapped__.__aenter__()
+    def __aenter__(self, *args, **kwargs):
+        return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def __aexit__(self, *args, **kwargs):
-        return self.__wrapped__.__aexit__(*args, **kwargs)
+        return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
     def _acquire(self, inner_func, *args, **kwargs):
         if not self._self_capture_sampler.capture():
@@ -148,7 +149,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     handle.push_task_name(task_name)
 
                     if self._self_tracer is not None:
-                        handle.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                        handle.push_span(self._self_tracer.current_span())
                     for frame in frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                     handle.flush_sample()
@@ -213,9 +214,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             handle.push_task_name(task_name)
 
                             if self._self_tracer is not None:
-                                handle.push_span(
-                                    self._self_tracer.current_span(), self._self_endpoint_collection_enabled
-                                )
+                                handle.push_span(self._self_tracer.current_span())
                             for frame in frames:
                                 handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                             handle.flush_sample()
@@ -283,7 +282,14 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 if frame.f_code.co_name not in {"_acquire", "_release"}:
                     raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
                 frame = sys._getframe(2)
-                if frame.f_code.co_name not in {"acquire", "release", "__enter__", "__exit__"}:
+                if frame.f_code.co_name not in {
+                    "acquire",
+                    "release",
+                    "__enter__",
+                    "__exit__",
+                    "__aenter__",
+                    "__aexit__",
+                }:
                     raise AssertionError("Unexpected frame %s" % frame.f_code.co_name)
             frame = sys._getframe(3)
 

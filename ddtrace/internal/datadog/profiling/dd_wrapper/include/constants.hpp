@@ -26,3 +26,7 @@ constexpr std::string_view g_language_name = "python";
 
 // Name of the library
 constexpr std::string_view g_library_name = "dd-trace-py";
+
+// These are default settings for crashtracker tags.  These will be moved internally to crashtracker in the near future.
+constexpr std::string_view g_crashtracker_is_crash = "true";
+constexpr std::string_view g_crashtracker_severity = "crash";

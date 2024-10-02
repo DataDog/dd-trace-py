@@ -3,7 +3,6 @@ import kombu
 import mock
 
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.kombu import utils
 from ddtrace.contrib.kombu.patch import patch
 from ddtrace.contrib.kombu.patch import unpatch
@@ -98,29 +97,6 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(consumer_span.get_tag("kombu.routing_key"), "tasks")
         self.assertEqual(consumer_span.get_tag("component"), "kombu")
         self.assertEqual(consumer_span.get_tag("span.kind"), "consumer")
-
-    def test_analytics_default(self):
-        self._publish_consume()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 2)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("kombu", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            self._publish_consume()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("kombu", dict(analytics_enabled=True)):
-            self._publish_consume()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def _gen_distributed_spans(self):
         self._publish_consume()

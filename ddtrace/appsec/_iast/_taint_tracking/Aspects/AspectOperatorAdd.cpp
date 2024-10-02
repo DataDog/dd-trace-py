@@ -1,5 +1,7 @@
 #include "AspectOperatorAdd.h"
 
+#include "Helpers.h"
+
 /**
  * This function updates result_o object with taint information of candidate_text and/or text_to_add
  *
@@ -49,11 +51,9 @@ add_aspect(PyObject* result_o,
 
     auto tainted = initializer->allocate_tainted_object_copy(to_candidate_text);
     tainted->add_ranges_shifted(to_text_to_add, static_cast<RANGE_START>(len_candidate_text));
-    const auto res_new_id = new_pyobject_id(result_o);
-    Py_DecRef(result_o);
-    set_tainted_object(res_new_id, tainted, tx_taint_map);
+    set_tainted_object(result_o, tainted, tx_taint_map);
 
-    return res_new_id;
+    return result_o;
 }
 
 /**
@@ -73,6 +73,8 @@ add_aspect(PyObject* result_o,
 PyObject*
 api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
+    PyObject* result_o = nullptr;
+
     if (nargs != 2) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
@@ -80,28 +82,77 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     PyObject* candidate_text = args[0];
     PyObject* text_to_add = args[1];
 
+    // PyNumber_Add actually works for any type!
+    result_o = PyNumber_Add(candidate_text, text_to_add);
+
+    TRY_CATCH_ASPECT("add_aspect", return result_o, , {
+        const auto tx_map = Initializer::get_tainting_map();
+        if (not tx_map or tx_map->empty()) {
+            return result_o;
+        }
+
+        if (not args_are_text_and_same_type(candidate_text, text_to_add)) {
+            return result_o;
+        }
+
+        // Early return if there are no ranges
+        auto [ranges_candidate_text, ranges_error_canditate_text] = get_ranges(candidate_text, tx_map);
+        auto [ranges_text_to_add, ranges_error_text_to_add] = get_ranges(text_to_add, tx_map);
+        if (ranges_error_canditate_text or ranges_error_text_to_add or
+            (ranges_candidate_text.empty() and ranges_text_to_add.empty())) {
+            return result_o;
+        }
+
+        // Quickly skip if both are noninterned-unicodes and not tainted
+        if (is_notinterned_notfasttainted_unicode(candidate_text) &&
+            is_notinterned_notfasttainted_unicode(text_to_add)) {
+            return result_o;
+        }
+
+        return add_aspect(result_o, candidate_text, text_to_add, tx_map);
+    });
+}
+
+PyObject*
+api_add_inplace_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+{
     PyObject* result_o = nullptr;
-    if (PyUnicode_Check(candidate_text)) {
-        result_o = PyUnicode_Concat(candidate_text, text_to_add);
-    } else if (PyBytes_Check(candidate_text)) {
-        PyObject* tmp_bytes = candidate_text;
-        PyBytes_Concat(&candidate_text, text_to_add);
-        result_o = candidate_text;
-        candidate_text = tmp_bytes;
-        Py_INCREF(candidate_text);
-    } else if (PyByteArray_Check(candidate_text)) {
-        result_o = PyByteArray_Concat(candidate_text, text_to_add);
-    }
 
-    // Quickly skip if both are noninterned-unicodes and not tainted
-    if (is_notinterned_notfasttainted_unicode(candidate_text) && is_notinterned_notfasttainted_unicode(text_to_add)) {
-        return result_o;
+    if (nargs != 2) {
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+        return nullptr;
     }
+    PyObject* candidate_text = args[0];
+    PyObject* text_to_add = args[1];
 
-    const auto tx_map = initializer->get_tainting_map();
-    if (not tx_map or tx_map->empty()) {
-        return result_o;
-    }
-    auto res = add_aspect(result_o, candidate_text, text_to_add, tx_map);
-    return res;
+    result_o = PyNumber_InPlaceAdd(candidate_text, text_to_add);
+
+    TRY_CATCH_ASPECT("add_inplace_aspect", return result_o, , {
+        const auto tx_map = Initializer::get_tainting_map();
+        if (not tx_map or tx_map->empty()) {
+            return result_o;
+        }
+
+        if (not args_are_text_and_same_type(candidate_text, text_to_add)) {
+            return result_o;
+        }
+
+        // Early return if there are no ranges
+        auto [ranges_candidate_text, ranges_error_canditate_text] = get_ranges(candidate_text, tx_map);
+        if (ranges_error_canditate_text) {
+            return result_o;
+        }
+        auto [ranges_text_to_add, ranges_error_text_to_add] = get_ranges(text_to_add, tx_map);
+        if (ranges_error_text_to_add or (ranges_candidate_text.empty() and ranges_text_to_add.empty())) {
+            return result_o;
+        }
+
+        // Quickly skip if both are noninterned-unicodes and not tainted
+        if (is_notinterned_notfasttainted_unicode(candidate_text) &&
+            is_notinterned_notfasttainted_unicode(text_to_add)) {
+            return result_o;
+        }
+        candidate_text = add_aspect(result_o, candidate_text, text_to_add, tx_map);
+        return candidate_text;
+    });
 }
