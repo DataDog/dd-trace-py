@@ -182,20 +182,26 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         root_span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
         if telemetry_results["total_duration"]:
             update_span_metrics(root_span, APPSEC.WAF_DURATION, telemetry_results["duration"])
+            telemetry_results["duration"] = 0.0
             update_span_metrics(root_span, APPSEC.WAF_DURATION_EXT, telemetry_results["total_duration"])
+            telemetry_results["total_duration"] = 0.0
         if telemetry_results["rasp"]["sum_eval"]:
             update_span_metrics(root_span, APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
+            telemetry_results["rasp"]["duration"] = 0.0
             update_span_metrics(root_span, APPSEC.RASP_DURATION_EXT, telemetry_results["rasp"]["total_duration"])
+            telemetry_results["rasp"]["total_duration"] = 0.0
             update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
+            telemetry_results["rasp"]["sum_eval"] = 0
 
 
-GLOBAL_CALLBACKS[_CONTEXT_CALL].append(flush_waf_triggers)
+# GLOBAL_CALLBACKS[_CONTEXT_CALL].append(flush_waf_triggers)
 
 
 def finalize_asm_env(env: ASM_Environment) -> None:
     callbacks = GLOBAL_CALLBACKS[_CONTEXT_CALL] + env.callbacks[_CONTEXT_CALL]
     for function in callbacks:
         function(env)
+    flush_waf_triggers(env)
     core.discard_local_item(_ASM_CONTEXT)
 
 
@@ -423,19 +429,16 @@ def start_context(span: Span):
         core.set_item(_ASM_CONTEXT, ASM_Environment())
 
 
-def _on_context_ended(ctx):
-    env = ctx.get_local_item(_ASM_CONTEXT)
-    if env is not None:
-        flush_waf_triggers(env)
+def end_context(span: Span):
+    env = _get_asm_context()
+    if env is not None and env.span is span:
         finalize_asm_env(env)
 
 
-# core.on("context.started.wsgi.__call__", _on_context_started)
-core.on("context.ended.wsgi.__call__", _on_context_ended)
-core.on("context.ended.asgi.__call__", _on_context_ended)
-# core.on("context.started.start_span.django.traced_get_response", _on_context_started)
-core.on("context.ended.django.traced_get_response", _on_context_ended)
-core.on("django.traced_get_response.pre", set_block_request_callable)
+def _on_context_ended(ctx):
+    env = ctx.get_local_item(_ASM_CONTEXT)
+    if env is not None:
+        finalize_asm_env(env)
 
 
 def _on_wrapped_view(kwargs):
@@ -569,3 +572,9 @@ def listen():
 
     core.on("asm.set_blocked", set_blocked)
     core.on("asm.get_blocked", get_blocked, "block_config")
+
+    core.on("context.ended.wsgi.__call__", _on_context_ended)
+    core.on("context.ended.asgi.__call__", _on_context_ended)
+
+    core.on("context.ended.django.traced_get_response", _on_context_ended)
+    core.on("django.traced_get_response.pre", set_block_request_callable)

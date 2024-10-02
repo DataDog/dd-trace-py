@@ -743,6 +743,7 @@ def listen():
         "flask.call",
         "flask.jsonify",
         "flask.render_template",
+        "asgi.__call__",
         "wsgi.__call__",
         "django.traced_get_response",
         "django.cache",

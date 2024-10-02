@@ -124,6 +124,7 @@ class Contrib_TestClass_For_Threats:
             assert triggers is not None, "no appsec struct in root span"
             assert root_span()._get_ctx_item("http.request.uri") == "http://localhost:8000/.git?q=1"
             assert root_span()._get_ctx_item("http.request.headers") is not None
+            assert root_span()._get_ctx_item("http.request.method") == "GET"
             query = dict(root_span()._get_ctx_item("http.request.query"))
             assert query == {"q": "1"} or query == {"q": ["1"]}
 
@@ -1249,7 +1250,7 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             assert self.body(response) == "awesome_test"
             # only two global callbacks are expected for API Security and Nested Events
-            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 2
+            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 1
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])

@@ -238,12 +238,6 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         _asm_request_context.start_context(span)
-        # if _asm_request_context.free_context_available():
-        #     _asm_request_context.register(span)
-        # else:
-        #     new_asm_context = _asm_request_context.asm_request_context_manager()
-        #     new_asm_context.__enter__()
-        #     _asm_request_context.register(span, new_asm_context)
 
         ctx = self._ddwaf._at_request_start()
         self._span_to_waf_ctx[span] = ctx
@@ -272,7 +266,6 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
-                # _asm_request_context.call_callback()
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
     def _waf_action(
@@ -442,9 +435,10 @@ class AppSecSpanProcessor(SpanProcessor):
                     _asm_request_context.call_waf_callback()
 
                 self._ddwaf._at_request_end()
+                _asm_request_context.end_context(span)
         finally:
-            # release asm context if it was created by the span
-            # _asm_request_context.unregister(span)
+            # release asm context associated with that span if it was not already done
+            _asm_request_context.end_context(span)
 
             if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
                 return
