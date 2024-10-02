@@ -461,7 +461,6 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http server integrations.
-  
 
    DD_TRACE_HTTP_CLIENT_ERROR_STATUSES
      type: String
