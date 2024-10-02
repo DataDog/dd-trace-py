@@ -14,14 +14,21 @@ from tests.utils import override_env
 class TestTracedCursor(TracerTestCase):
     def setUp(self):
         super(TestTracedCursor, self).setUp()
+        from ddtrace.appsec._iast._taint_tracking import create_context
+
+        create_context()
         self.cursor = mock.Mock()
         self.cursor.execute.__name__ = "execute"
 
+    def tearDown(self):
+        from ddtrace.appsec._iast._taint_tracking import reset_context
+
+        reset_context()
+
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query(self):
-        with override_env({"DD_IAST_ENABLED": "True"}):
-            from ddtrace.appsec._iast._taint_tracking import OriginType
-            from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
             "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"

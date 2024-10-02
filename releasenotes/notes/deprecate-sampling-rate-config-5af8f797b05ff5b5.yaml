@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates the ``DD_TRACE_SAMPLE_RATE`` environment variable. It will be removed in 3.0.0. Use ``DD_TRACE_SAMPLING_RULES`` to configure sampling rates instead.

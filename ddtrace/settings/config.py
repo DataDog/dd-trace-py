@@ -372,12 +372,31 @@ class Config(object):
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
 
+        sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        if sample_rate is not None:
+            deprecate(
+                "DD_TRACE_SAMPLE_RATE is deprecated",
+                message="Please use DD_TRACE_SAMPLING_RULES instead.",
+                removal_version="3.0.0",
+            )
+
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool)
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
+        rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
+        if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
+            # This warning will be logged when DD_TRACE_SAMPLE_RATE is set. This is intentional.
+            # Even though DD_TRACE_SAMPLE_RATE is treated as a global trace sampling rule, this configuration
+            # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
+            log.warning(
+                "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
+                "Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+                "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
+                rate_limit,
+            )
         self._trace_rate_limit = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
         self._partial_flush_enabled = _get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
         self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
