@@ -68,7 +68,7 @@ def test_inject(tracer):  # noqa: F811
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
-        ctx._set_baggage_item("key1", "val1")
+        ctx.set_baggage_item("key1", "val1")
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
             headers = {}
@@ -309,10 +309,10 @@ def test_extract(tracer):  # noqa: F811
                 "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
-        assert context._get_baggage_item("foo") == "bar"
-        assert context._get_baggage_item("racoon") == "cute"
-        assert context._get_baggage_item("serverNode") == "DF 28"
-        assert len(context._get_all_baggage_items()) == 3
+        assert context.get_baggage_item("foo") == "bar"
+        assert context.get_baggage_item("racoon") == "cute"
+        assert context.get_baggage_item("serverNode") == "DF 28"
+        assert len(context.get_all_baggage_items()) == 3
 
 
 def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(tracer):  # noqa: F811
@@ -654,9 +654,9 @@ def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
         tracer.context_provider.activate(context)
 
         with tracer.trace("local_root_span") as span:
-            assert span.context._get_baggage_item("key1") == "value1"
+            assert span.context.get_baggage_item("key1") == "value1"
             with tracer.trace("child_span") as child_span:
-                assert child_span.context._get_baggage_item("key1") == "value1"
+                assert child_span.context.get_baggage_item("key1") == "value1"
 
 
 @pytest.mark.subprocess(

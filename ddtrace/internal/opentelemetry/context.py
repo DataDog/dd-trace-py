@@ -120,7 +120,7 @@ class DDRuntimeContext:
 #     # active ddspan and add baggage
 #     ddcontext = ddtracer.current_trace_context()
 #     if ddcontext:
-#         ddcontext._set_baggage_item(name, value)
+#         ddcontext.set_baggage_item(name, value)
 #     return context
 
 # def wrap_remove_baggage(func, args, kwargs):
@@ -131,7 +131,7 @@ class DDRuntimeContext:
 #     name: str = get_argument_value(args, kwargs, 0, "name") # type: ignore
 #     ddcontext = ddtracer.current_trace_context()
 #     if ddcontext:
-#         ddcontext._remove_baggage_item(name)
+#         ddcontext.remove_baggage_item(name)
 #     return context
 
 # def wrap_remove_all_baggage(func, args, kwargs):
@@ -141,5 +141,5 @@ class DDRuntimeContext:
 #     context = func(*args, **kwargs)
 #     ddcontext = ddtracer.current_trace_context()
 #     if ddcontext:
-#         ddcontext._remove_all_baggage_items()
+#         ddcontext.remove_all_baggage_items()
 #     return context

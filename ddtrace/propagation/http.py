@@ -131,7 +131,7 @@ def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
     if context is not None:
         for key, value in headers.items():
             if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
-                context._set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
+                context.set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
 
 
 def _hex_id_to_dd_id(hex_id):

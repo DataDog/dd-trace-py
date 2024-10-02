@@ -158,14 +158,14 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
 #         context = set_baggage("key1", "value1")
 #         ddcontext = tracer.current_trace_context()
 #         assert ddcontext._baggage == {"key1": "value1"}
-#         assert ddcontext._get_baggage_item("key1") == "value1"
+#         assert ddcontext.get_baggage_item("key1") == "value1"
 
 # def test_otel_baggage_get(oteltracer):
 #     from ddtrace import tracer
 #     with oteltracer.start_as_current_span("otel-baggage-get") as span:
 #         with ddtrace.tracer.trace("otel-baggage-get-ddtrace") as ddspan:
 #             ddcontext = tracer.current_trace_context()
-#             ddcontext._set_baggage_item("key1", "value1")
+#             ddcontext.set_baggage_item("key1", "value1")
 #             assert get_baggage("key1") == "value1"
 
 # def test_otel_baggage_remove(oteltracer):
@@ -175,4 +175,4 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
 #         context = set_baggage("key2", "value2", context)
 #         context = remove_baggage("key1", context)
 #         ddcontext = tracer.current_trace_context()
-#         assert ddcontext._get_baggage_item("key1") == None
+#         assert ddcontext.get_baggage_item("key1") == None
