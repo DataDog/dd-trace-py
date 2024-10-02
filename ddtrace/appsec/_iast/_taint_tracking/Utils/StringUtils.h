@@ -52,14 +52,16 @@ is_text(const PyObject* pyptr)
     };
 
     // Check that it's aligned correctly
-    if (reinterpret_cast<uintptr_t>(pyptr) % alignof(PyObject) != 0) return false;;
+    if (reinterpret_cast<uintptr_t>(pyptr) % alignof(PyObject) != 0)
+        return false;
+    ;
 
     // Try to safely access ob_type
-    if (const PyObject* temp = pyptr;!temp->ob_type) return false;
+    if (const PyObject* temp = pyptr; !temp->ob_type)
+        return false;
 
     return PyUnicode_Check(pyptr) or PyBytes_Check(pyptr) or PyByteArray_Check(pyptr);
 }
-
 
 inline bool
 is_tainteable(const PyObject* pyptr)
