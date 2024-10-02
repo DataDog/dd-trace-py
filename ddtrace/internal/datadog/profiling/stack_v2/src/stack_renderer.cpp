@@ -1,7 +1,148 @@
 #include "stack_renderer.hpp"
+
 #include "utf8_validate.hpp"
 
+#include <Python.h>
+
 using namespace Datadog;
+
+std::string
+get_exc_type_name(PyObject* exc_type)
+{
+    if (exc_type == nullptr) {
+        return {};
+    }
+    PyObject* module_attr = PyObject_GetAttrString(exc_type, "__module__");
+    if (module_attr == nullptr) {
+        return {};
+    }
+    PyObject* name_attr = PyObject_GetAttrString(exc_type, "__name__");
+    if (name_attr == nullptr) {
+        Py_DECREF(module_attr);
+        return {};
+    }
+
+    const char* module_str = PyUnicode_AsUTF8(module_attr);
+    const char* name_str = PyUnicode_AsUTF8(name_attr);
+    if (module_str == nullptr || name_str == nullptr) {
+        Py_DECREF(module_attr);
+        Py_DECREF(name_attr);
+        return nullptr;
+    }
+
+    std::string result = std::string(module_str) + "." + std::string(name_str);
+
+    Py_DECREF(module_attr);
+    Py_DECREF(name_attr);
+
+    return result;
+}
+
+// void
+// push_exception_frames(Sample* sample, PyTracebackObject* tb)
+// {
+//     while (tb != nullptr) {
+//         PyFrameObject* frame = tb->tb_frame;
+//         if (frame != nullptr) {
+//             PyCodeObject* code = PyFrame_GetCode(frame);
+//             ;
+//             if (code != nullptr) {
+//                 PyObject* filename = code->co_filename;
+//                 PyObject* name = code->co_name;
+//                 if (filename != nullptr && name != nullptr) {
+//                     const char* filename_str = PyUnicode_AsUTF8(filename);
+//                     const char* name_str = PyUnicode_AsUTF8(name);
+//                     if (filename_str != nullptr && name_str != nullptr) {
+//                         ddup_push_frame(sample, name_str, filename_str, 0, code->co_firstlineno);
+//                     }
+//                 }
+//             }
+//         }
+//         tb = tb->tb_next;
+//     }
+// }
+
+void
+StackRenderer::maybe_collect_exception_sample(PyThreadState* tstate)
+{
+    _PyErr_StackItem* exc_info = _PyErr_GetTopmostException(tstate);
+
+    if (exc_info == nullptr) {
+        return;
+    }
+
+    PyObject* exc_type;
+    PyObject* exc_traceback;
+
+    // Python 3.12 changed the exception handling API to use a single PyObject* instead of a tuple.
+#if PY_VERSION_HEX >= 0x030c0000
+    // The following lines of code are equivalent to the following Python code:
+    // exc_type = type(exc_info)
+
+    exc_type = PyObject_Type(reinterpret_cast<PyObject*>(exc_info));
+#else
+    // The following lines of code are equivalent to the following Python code:
+    // exc_type, _, _ = exc_info
+    exc_type = exc_info->exc_type;
+
+#endif
+
+    if (exc_type == nullptr) {
+        return;
+    }
+
+#if PY_VERSION_HEX >= 0x030c0000
+    // exc_traceback = get_attr(exc_info, "__traceback__", None)
+    exc_traceback = PyObject_GetAttrString(reinterpret_cast<PyObject*>(exc_info), "__traceback__");
+#else
+    // _, _, exctraceback = exc_info
+    exc_traceback = exc_info->exc_traceback;
+#endif
+
+    if (exc_traceback == nullptr) {
+#if PY_VERSION_HEX >= 0x030c0000
+        // Not sure we really need to call Py_DECREF in this function at all,
+        // because AFAIK tstate is already copied to this thread via
+        // process_vm_readv() or equivalent system calls and we don't need to
+        // worry about reference counting.
+        Py_DECREF(exc_type); // PyObject_Type returns a new reference
+        PyErr_Clear();       // Clear any error set by PyObject_GetAttrString
+#endif
+        return;
+    }
+
+    // Format exc_type as exc_type.__module__ + '.' + exc_type.__name__
+    std::string exc_type_name = get_exc_type_name(exc_type);
+    if (exc_type_name.empty()) {
+#if PY_VERSION_HEX >= 0x030c0000
+        Py_DECREF(exc_type);
+#endif
+        return;
+    }
+
+    // Now we have the exception type name, we can start building the exception sample
+    Sample* exc_sample = ddup_start_sample();
+    if (exc_sample == nullptr) {
+        std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
+#if PY_VERSION_HEX >= 0x030c0000
+        Py_DECREF(exc_type);
+#endif
+        return;
+    }
+    ddup_push_monotonic_ns(exc_sample, thread_state.now_time_ns);
+    ddup_push_threadinfo(exc_sample,
+                         static_cast<int64_t>(thread_state.id),
+                         static_cast<int64_t>(thread_state.native_id),
+                         thread_state.name);
+    ddup_push_exceptioninfo(exc_sample, exc_type_name, 1);
+    // push_exception_frames(exc_sample, (PyTracebackObject*)exc_traceback);
+    ddup_flush_sample(exc_sample);
+    ddup_drop_sample(exc_sample);
+
+#if PY_VERSION_HEX >= 0x030c0000
+    Py_DECREF(exc_type);
+#endif
+}
 
 void
 StackRenderer::render_message(std::string_view msg)
@@ -52,6 +193,8 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     // Finalize the thread information we have
     ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     ddup_push_walltime(sample, thread_state.wall_time_ns, 1);
+
+    maybe_collect_exception_sample(tstate);
 }
 
 void
