@@ -35,7 +35,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         return False
 
     def on_span_start(self, span: Span):
-        if span.span_type != SpanTypes.WEB:
+        if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
 
         from ._taint_tracking import create_context
@@ -56,10 +56,10 @@ class AppSecIastSpanProcessor(SpanProcessor):
             - `_dd.iast.enabled`: Set to 1 when IAST is enabled in a request. If a request is disabled
               (e.g. by sampling), then it is not set.
         """
-        if span.span_type != SpanTypes.WEB:
+        if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
 
-        from ._taint_tracking import reset_context  # noqa: F401
+        from ._taint_tracking import reset_context
 
         if not core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
             span.set_metric(IAST.ENABLED, 0.0)

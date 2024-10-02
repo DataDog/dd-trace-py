@@ -50,7 +50,6 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                 assert hasattr(res, "message")
                 _check_test_range(res.message)
 
-    @flaky(1735812000, reason="IAST context refactor breaks grpc")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_twice(self):
         with override_env({"DD_IAST_ENABLED": "True"}):
@@ -81,7 +80,6 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
 
                 callback_called.wait(timeout=1)
 
-    @flaky(1735812000, reason="IAST context refactor breaks grpc")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_repeatedly(self):
         with override_env({"DD_IAST_ENABLED": "True"}):

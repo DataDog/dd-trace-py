@@ -1,9 +1,12 @@
 #include "Initializer.h"
 
+#include <mutex>
 #include <thread>
 
 using namespace std;
 using namespace pybind11::literals;
+
+std::mutex tx_map_mutex;
 
 thread_local struct ThreadContextCache_
 {
@@ -52,8 +55,10 @@ void
 Initializer::clear_tainting_maps()
 {
     // Need to copy because free_tainting_map changes the set inside the iteration
-    for (auto& [fst, snd] : initializer->active_map_addreses) {
-        if (active_map_addreses.empty()) {
+    std::lock_guard<std::mutex> lock(tx_map_mutex);
+    auto copy_active_map_addreses(initializer->active_map_addreses);
+    for (auto& [fst, snd] : copy_active_map_addreses) {
+        if (copy_active_map_addreses.empty()) {
             break;
         }
         clear_tainting_map(snd);
@@ -234,6 +239,7 @@ Initializer::reset_contexts()
 
     clear_tainting_maps();
 
+    std::lock_guard<std::mutex> lock(tx_map_mutex);
     if (ThreadContextCache.tx_map != nullptr) {
         ThreadContextCache.tx_map = nullptr;
     }
