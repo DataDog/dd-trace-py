@@ -4,6 +4,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.14.2
+
+
+### Bug Fixes
+
+- Tracing
+  - celery: Fixes an issue where `celery.apply` spans didn't close if the `after_task_publish` or `task_postrun` signals didn't get sent when using `apply_async`, which can happen if there is an internal exception during the handling of the task. This update also marks the span as an error if an exception occurs.
+  - celery: Fixes an issue where `celery.apply` spans using task_protocol 1 didn't close by improving the check for the task id in the body.
+
+- Profiling
+  - All files with platform-dependent code have had their filenames updated to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
+  - Enables code provenance when using libdatadog exporter, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_STACK_V2_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Fixes an issue where flamegraph was upside down for stack v2, `DD_PROFILING_STACK_V2_ENABLED`.
+
 ## 2.14.1
 
 
@@ -16,9 +30,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
   - tracing: Removes a reference cycle that caused unnecessary garbage collection for top-level spans.
   - Code Security: fix potential memory leak on IAST exception handling.
   - profiling: Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
-
-
----
 
 ## 2.14.0
 
@@ -69,7 +80,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Other
   - SSI: This fix ensures injection denylist is included in published OCI package.
   - postgres: Fixes circular imports raised when psycopg automatic instrumentation is enabled.
-  - pymongo: Ensures instances of the `pymongo.MongoClient` can be patch after pymongo is imported.
+  - pymongo: Ensures instances of the `pymongo.MongoClient` can be patch after pymongo is imported
 
 
 ## 2.13.0
