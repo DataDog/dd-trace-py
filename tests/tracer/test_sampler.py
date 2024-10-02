@@ -641,6 +641,21 @@ def test_sampling_rule_sample():
         )
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLE_RATE": "0.2"})
+def test_sampling_rate_config_deprecated():
+    import warnings
+
+    with warnings.catch_warnings(record=True) as ws:
+        warnings.simplefilter("always")
+
+        from ddtrace import config
+
+        assert config._trace_sample_rate == 0.2
+
+        assert len(ws) >= 1
+        assert any(w for w in ws if "DD_TRACE_SAMPLE_RATE is deprecated" in str(w.message)), [w.message for w in ws]
+
+
 def test_sampling_rule_sample_rate_1():
     rule = SamplingRule(sample_rate=1)
 
