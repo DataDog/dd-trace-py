@@ -9,9 +9,9 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-- tracing(celery): Fixes an issue where `celery.apply` spans didn't close if the `after_task_publish` or `task_postrun` signals didn't get sent when using `apply_async`, which can happen if there is an internal exception during the handling of the task. This update also marks the span as an error if an exception occurs.
-
-- tracing(celery): Fixes an issue where `celery.apply` spans using task_protocol 1 didn't close by improving the check for the task id in the body.
+- Tracing
+  - celery: Fixes an issue where `celery.apply` spans didn't close if the `after_task_publish` or `task_postrun` signals didn't get sent when using `apply_async`, which can happen if there is an internal exception during the handling of the task. This update also marks the span as an error if an exception occurs.
+  - celery: Fixes an issue where `celery.apply` spans using task_protocol 1 didn't close by improving the check for the task id in the body.
 
 - Profiling: all files with platform-dependent code have had their filenames updated to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
 
