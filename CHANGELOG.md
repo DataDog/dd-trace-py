@@ -4,6 +4,25 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.14.2
+
+
+### Bug Fixes
+
+- tracing(celery): Fixes an issue where `celery.apply` spans didn't close if the `after_task_publish` or `task_postrun` signals didn't get sent when using `apply_async`, which can happen if there is an internal exception during the handling of the task. This update also marks the span as an error if an exception occurs.
+
+- tracing(celery): Fixes an issue where `celery.apply` spans using task_protocol 1 didn't close by improving the check for the task id in the body.
+
+- Profiling: all files with platform-dependent code have had their filenames updated to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
+
+- profiling: enables code provenance when using libdatadog exporter, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_STACK_V2_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED`.
+
+- profiling: fixes an issue where flamegraph was upside down for stack v2,  
+  `DD_PROFILING_STACK_V2_ENABLED`.
+
+
+---
+
 ## 2.13.0
 
 
