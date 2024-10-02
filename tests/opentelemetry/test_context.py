@@ -3,9 +3,12 @@ import threading
 import time
 
 import opentelemetry
-from opentelemetry.baggage import get_baggage
-from opentelemetry.baggage import set_baggage
-from opentelemetry.baggage.propagation import W3CBaggagePropagator
+
+# from opentelemetry.baggage import clear
+# from opentelemetry.baggage import get_baggage
+# from opentelemetry.baggage import remove_baggage
+# from opentelemetry.baggage import set_baggage
+# from opentelemetry.baggage.propagation import W3CBaggagePropagator
 import pytest
 
 import ddtrace
@@ -139,39 +142,37 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(4)
 
 
-def test_otel_baggage_inject(oteltracer):
-    with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
-        from ddtrace import tracer
-
-        # testing that if baggage is set on a datadog span it is injected into the headers and exists in otel context
-        tracer.current_span().context._set_baggage_item("ddkey1", "ddvalue1")
-        headers = {}
-        context = set_baggage("key1", "value1")
-        context = set_baggage("key2", "value2", context)
-        W3CBaggagePropagator().inject(headers, context)
-        assert "key1=value1" in headers["baggage"]
-        assert "key2=value2" in headers["baggage"]
-        assert "ddkey1=ddvalue1" in headers["baggage"]
-        assert get_baggage("key1", context) == "value1"
-        assert get_baggage("key2", context) == "value2"
-        assert get_baggage("ddkey1", context) == "ddvalue1"
-
-
-def test_otel_baggage_extract(oteltracer):
-    with oteltracer.start_as_current_span("otel-baggage-extract") as span:  # noqa: F841
-        headers = {"baggage": "key1=value1,key2=value2,ddkey1=ddvalue1"}
-        context = W3CBaggagePropagator().extract(headers)
-        assert get_baggage("key1", context) == "value1"
-        assert get_baggage("key2", context) == "value2"
-        assert get_baggage("ddkey1", context) == "ddvalue1"
-
-
-# def test_otel_baggage_datadog(oteltracer):
+# otel baggage tests to be implemented later
+# def test_otel_baggage(oteltracer):
+#     """testing otel baggage set and get"""
 #     with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
+#         headers = {}
 #         context = set_baggage("key1", "value1")
-#         from ddtrace import tracer
-#         import pdb; pdb.set_trace()
-#         assert tracer.current_span().context._get_baggage_item("key1") == "value1"
+#         context = set_baggage("key2", "value2", context)
+#         assert get_baggage("key1", context) == "value1"
+#         assert get_baggage("key2", context) == "value2"
 
+# def test_otel_baggage_set(oteltracer):
+#     from ddtrace import tracer
+#     with oteltracer.start_as_current_span("otel-baggage-set") as span:
+#         context = set_baggage("key1", "value1")
+#         ddcontext = tracer.current_trace_context()
+#         assert ddcontext._baggage == {"key1": "value1"}
+#         assert ddcontext._get_baggage_item("key1") == "value1"
 
-# testing that if baggage is set on a otel span it is injected into the datadog span context
+# def test_otel_baggage_get(oteltracer):
+#     from ddtrace import tracer
+#     with oteltracer.start_as_current_span("otel-baggage-get") as span:
+#         with ddtrace.tracer.trace("otel-baggage-get-ddtrace") as ddspan:
+#             ddcontext = tracer.current_trace_context()
+#             ddcontext._set_baggage_item("key1", "value1")
+#             assert get_baggage("key1") == "value1"
+
+# def test_otel_baggage_remove(oteltracer):
+#     from ddtrace import tracer
+#     with oteltracer.start_as_current_span("otel-baggage-remove") as span:
+#         context = set_baggage("key1", "value1")
+#         context = set_baggage("key2", "value2", context)
+#         context = remove_baggage("key1", context)
+#         ddcontext = tracer.current_trace_context()
+#         assert ddcontext._get_baggage_item("key1") == None
