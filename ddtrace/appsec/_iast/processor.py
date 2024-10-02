@@ -43,7 +43,6 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if not _is_iast_enabled():
             return
 
-        load_appsec()
         from ._taint_tracking import create_context
 
         create_context()
@@ -89,3 +88,6 @@ class AppSecIastSpanProcessor(SpanProcessor):
             span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
         oce.release_request()
+
+
+load_appsec()
