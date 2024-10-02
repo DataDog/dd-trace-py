@@ -462,11 +462,11 @@ The following environment variables for the tracer are supported:
      default: True
      description: Send query strings in http.url tag in http server integrations.
 
-   DD_TRACE_HTTP_CLIENT_ERROR_STATUSES
+   DD_TRACE_HTTP_SERVER_ERROR_STATUSES
      type: String
      default: "500-599"
      description: |
-        Comma-separated list of HTTP status codes that should be considered errors when returned by an HTTP client request.
+        Comma-separated list of HTTP status codes that should be considered errors when returned by an HTTP request.
         The status codes are used to set the ``error`` field on the span.
 
    DD_TRACE_METHODS:

@@ -505,7 +505,7 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_not_called()
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "404-412"})
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
 def test_set_http_meta_custom_errors_via_env():
     from ddtrace import config
     from ddtrace import tracer
