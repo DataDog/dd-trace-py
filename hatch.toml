@@ -20,11 +20,15 @@ dependencies = [
     "riot==0.19.1",
     "ruff==0.1.3",
     "clang-format==18.1.5",
+    "cmake-format==0.6.13",
 ]
 
 [envs.lint.scripts]
 black_check = [
     "black --check {args:.}",
+]
+cmakeformat_check = [
+    "bash scripts/cmake-format.sh"
 ]
 cformat_check = [
     "bash scripts/cformat.sh"
@@ -34,6 +38,7 @@ style = [
     "ruff check {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
+    "cmakeformat_check",
 ]
 fmt = [
     "black {args:.}",

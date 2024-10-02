@@ -370,6 +370,14 @@ class Config(object):
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
 
+        sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        if sample_rate is not None:
+            deprecate(
+                "DD_TRACE_SAMPLE_RATE is deprecated",
+                message="Please use DD_TRACE_SAMPLING_RULES instead.",
+                removal_version="3.0.0",
+            )
+
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
