@@ -14,6 +14,7 @@ from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.ext import http
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from tests.utils import flaky
@@ -681,3 +682,36 @@ def test_asm_context_registration(tracer_appsec):
         span.span_type = SpanTypes.HTTP
         assert core.get_item("asm_env") is not None
     assert core.get_item("asm_env") is None
+
+
+@pytest.mark.parametrize(
+    "received_ip",
+    [
+        None,
+        "",
+    ],
+)
+@pytest.mark.parametrize(
+    "request_headers",
+    [
+        None,
+        "",
+        {},
+        {"x-forwarded-for": ""},
+        {"x-forwarded-for": None},
+        {"x-forwarded-for": "127.0.0.1"},
+        {"x-client-ip": ""},
+        {"x-client-ip": None},
+        {"x-client-ip": "127.0.0.1"},
+    ],
+)
+def test_set_http_meta_client_ip(tracer_appsec, received_ip, request_headers):
+    tracer = tracer_appsec
+    integration_config = Config()
+    integration_config.is_header_tracing_configured = True
+    integration_config._header_tag_name = lambda header_name: "http.client_ip"
+
+    with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        set_http_meta(span, integration_config, peer_ip=received_ip, request_headers=request_headers)
+
+    assert span.get_metric(http.CLIENT_IP) is None
