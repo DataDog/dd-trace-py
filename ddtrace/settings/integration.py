@@ -58,6 +58,7 @@ class IntegrationConfig(AttrDict):
         # integrations use service_name instead of service. These should be
         # unified.
         self.setdefault("service_name", service)
+
         object.__setattr__(
             self,
             "http_tag_query_string",
