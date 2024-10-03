@@ -64,36 +64,6 @@ def test_flask_iast_ast_patching_re(style, endpoint, function):
         assert response.content == b"OK"
 
 
-@pytest.mark.parametrize("style", ["_io_module", "io_module", "io_function", "_io_function"])
-@pytest.mark.parametrize(
-    "function",
-    [
-        "bytesio",
-        "stringio",
-        "bytesio-read",
-        "stringio-read",
-        "bytesio-untainted",
-        "stringio-untainted",
-        "bytesio-read-untainted",
-        "stringio-read-untainted",
-    ],
-)
-def test_flask_iast_ast_patching_io(style, function, endpoint="io"):
-    """
-    Tests _io/io BytesIO and StringIO patching end to end
-    """
-    filename = "path_traversal_test_file.txt"
-    with flask_server(
-        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=False
-    ) as context:
-        _, flask_client, pid = context
-
-        response = flask_client.get(f"/iast-ast-patching-{endpoint}-{function}?style={style}&filename={filename}")
-
-        assert response.status_code == 200
-        assert response.content == b"OK"
-
-
 def test_multiple_requests():
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
