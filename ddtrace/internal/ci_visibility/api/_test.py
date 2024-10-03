@@ -16,6 +16,9 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
+from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
@@ -62,16 +65,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._parameters is not None:
             self.set_tag(test.PARAMETERS, parameters)
 
-        self._is_new_test = is_new
-        if is_new:
-            self.set_tag(test.TEST_IS_NEW, True)
+        self._is_new = is_new
 
         self._is_efd_retry = is_efd_retry
         self._efd_retries: List[TestVisibilityTest] = []
         self._efd_abort_reason: Optional[str] = None
         self._efd_initial_finish_time_ns: Optional[int] = None
 
-        # Currently unsupported
+        # Currently unsupported]
         self._is_benchmark = None
 
     def __repr__(self) -> str:
@@ -88,9 +89,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
     def _set_efd_tags(self) -> None:
         if self._is_efd_retry:
-            self.set_tag(test.TEST_IS_RETRY, True)
+            self.set_tag(TEST_IS_RETRY, self._is_efd_retry)
         if self._efd_abort_reason is not None:
-            self.set_tag(test.TEST_EFD_ABORT_REASON, self._efd_abort_reason)
+            self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
+
+        # NOTE: The is_new tag is currently only being set in the context of EFD (since that is the only context in
+        # which unique tests are fetched).
+        if self._is_new:
+            self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
@@ -114,7 +120,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             event_type=self._event_type_metric_name,
             test_framework=self._session_settings.test_framework_metric_name,
             is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
-            is_new=self._is_new_test if self._is_new_test is not None else None,
+            is_new=self._is_new if self._is_new is not None else None,
             early_flake_detection_abort_reason=self._efd_abort_reason,
         )
 
@@ -157,6 +163,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             source_file_info=self._source_file_info,
             initial_tags=self._tags,
             is_efd_retry=True,
+            is_new=self._is_new,
         )
         retry_test.parent = self.parent
 
@@ -172,7 +179,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def is_new(self):
         # NOTE: this is a hack because tests with parameters cannot currently be counted as new (due to EFD design
         # decisions)
-        return self._is_new_test and (self._parameters is None)
+        return self._is_new and (self._parameters is None)
 
     # EFD (Early Flake Detection) functionality
     def efd_should_retry(self):
@@ -195,20 +202,19 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         initial_duration = (self._efd_initial_finish_time_ns - self._span.start_ns) / 1e9
 
-        if initial_duration <= 5:
-            max_retries = efd_settings.slow_test_retries_5s
-        elif initial_duration <= 10:
-            max_retries = efd_settings.slow_test_retries_10s
-        elif initial_duration <= 30:
-            max_retries = efd_settings.slow_test_retries_30s
-        elif initial_duration <= 300:
-            max_retries = efd_settings.slow_test_retries_5m
-        else:
-            # If the duration exceeds our duration, we consider it a slow test and do not retry,
-            self._efd_abort_reason = "slow"
-            return False
+        num_retries = len(self._efd_retries)
 
-        return len(self._efd_retries) < max_retries
+        if initial_duration <= 5:
+            return num_retries < efd_settings.slow_test_retries_5s
+        if initial_duration <= 10:
+            return num_retries < efd_settings.slow_test_retries_10s
+        if initial_duration <= 30:
+            return num_retries < efd_settings.slow_test_retries_30s
+        if initial_duration <= 300:
+            return num_retries < efd_settings.slow_test_retries_5m
+
+        self._efd_abort_reason = "slow"
+        return False
 
     def _efd_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
         return self._efd_retries[retry_number - 1]

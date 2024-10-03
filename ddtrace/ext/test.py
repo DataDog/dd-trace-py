@@ -84,12 +84,6 @@ ITR_TEST_CODE_COVERAGE_ENABLED = "test.code_coverage.enabled"
 ITR_UNSKIPPABLE = "test.itr.unskippable"
 ITR_FORCED_RUN = "test.itr.forced_run"
 
-# EFD and auto retries
-TEST_IS_NEW = "test.is_new"
-TEST_IS_RETRY = "test.is_retry"
-TEST_EFD_ABORT_REASON = "test.early_flake.abort_reason"
-TEST_EFD_ENABLED = "test.early_flake.enabled"
-
 
 class Status(Enum):
     PASS = "pass"

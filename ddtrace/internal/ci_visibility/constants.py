@@ -76,5 +76,10 @@ CIVISIBILITY_LOG_FILTER_RE = re.compile(
     )
 )
 
-
 CIVISIBILITY_SPAN_TYPE = "ci_visibility"
+
+# EFD and auto retries
+TEST_IS_NEW = "test.is_new"
+TEST_IS_RETRY = "test.is_retry"
+TEST_EFD_ABORT_REASON = "test.early_flake.abort_reason"
+TEST_EFD_ENABLED = "test.early_flake.enabled"

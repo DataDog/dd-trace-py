@@ -2,11 +2,11 @@
 
 from multiprocessing import freeze_support
 from pathlib import Path
+from unittest import mock
 
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.internal.test_visibility import api
 import ddtrace.internal.test_visibility._internal_item_ids
-from tests.ci_visibility.util import set_up_mock_civisibility
 
 
 def main():
@@ -94,5 +94,5 @@ def main():
 
 if __name__ == "__main__":
     freeze_support()
-    with set_up_mock_civisibility():
+    with mock.patch("ddtrace.internal.ci_visibility.CIVisibility.is_itr_enabled", return_value=True):
         main()

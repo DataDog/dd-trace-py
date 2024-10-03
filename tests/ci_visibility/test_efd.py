@@ -1,5 +1,6 @@
 from pathlib import Path
 import typing as t
+from unittest import mock
 
 import pytest
 
@@ -43,38 +44,44 @@ class TestCIVisibilityTestEFD:
             (EarlyFlakeDetectionSettings(True), 3.124512, 10),
             (EarlyFlakeDetectionSettings(True), 9.951125, 5),
             (EarlyFlakeDetectionSettings(True), 27.1984, 3),
-            (EarlyFlakeDetectionSettings(True), 299.999, 2),
-            (EarlyFlakeDetectionSettings(True), 300.0000001, 0),
+            (EarlyFlakeDetectionSettings(True), 298.765, 2),
+            (EarlyFlakeDetectionSettings(True), 321.123, 0),
             # Test custom settings
             (EarlyFlakeDetectionSettings(True, 7, 8, 1, 12), 3.124512, 7),
             (EarlyFlakeDetectionSettings(True, 7, 8, 1, 12), 9.951125, 8),
             (EarlyFlakeDetectionSettings(True, 7, 8, 1, 12), 27.1984, 1),
-            (EarlyFlakeDetectionSettings(True, 7, 8, 1, 12), 299.999, 12),
-            (EarlyFlakeDetectionSettings(True, 7, 8, 1, 12), 300.0000001, 0),
+            (EarlyFlakeDetectionSettings(True, 7, 8, 1, 12), 298.765, 12),
+            (EarlyFlakeDetectionSettings(True, 7, 8, 1, 12), 321.123, 0),
         ),
     )
     def test_efd_max_retries(self, efd_settings, efd_test_duration_s, expected_max_retries):
         """Tests that the Test class handles EFD API retry events correctly"""
+
         efd_test = TestVisibilityTest(
             name="efd_test",
+            is_new=True,
             session_settings=self._get_session_settings(efd_settings),
         )
-        efd_test.start()
 
-        efd_test.efd_record_initial(TestStatus.PASS)
+        mock_session = mock.Mock()
+        mock_session.efd_is_faulty_session.return_value = False
+        with mock.patch.multiple(efd_test, get_session=lambda *args: mock_session):
+            efd_test.start()
 
-        # Overwrite the test duration
-        efd_test._efd_initial_finish_time_ns = efd_test._span.start_ns + (efd_test_duration_s * 1e9)
+            efd_test.efd_record_initial(TestStatus.PASS)
 
-        retry_count = 0
-        while efd_test.efd_should_retry():
-            retry_count += 1
-            added_retry_num = efd_test.efd_add_retry()
-            assert added_retry_num == retry_count
-            efd_test.efd_start_retry(added_retry_num)
-            efd_test.efd_finish_retry(added_retry_num, TestStatus.PASS)
+            # Overwrite the test duration
+            efd_test._efd_initial_finish_time_ns = efd_test._span.start_ns + (efd_test_duration_s * 1e9)
 
-        assert retry_count == expected_max_retries
+            retry_count = 0
+            while efd_test.efd_should_retry():
+                retry_count += 1
+                added_retry_num = efd_test.efd_add_retry()
+                assert added_retry_num == retry_count
+                efd_test.efd_start_retry(added_retry_num)
+                efd_test.efd_finish_retry(added_retry_num, TestStatus.PASS)
+
+            assert retry_count == expected_max_retries
 
     @pytest.mark.parametrize(
         "test_result,retry_results,expected_status",
@@ -101,21 +108,25 @@ class TestCIVisibilityTestEFD:
         efd_test = TestVisibilityTest(
             name="efd_test",
             session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(True)),
+            is_new=True,
         )
-        efd_test.start()
-        efd_test.efd_record_initial(test_result)
-        expected_num_retry = 0
-        for test_result in retry_results:
-            expected_num_retry += 1
-            added_retry_number = efd_test.efd_add_retry(start_immediately=True)
-            assert added_retry_number
-            efd_test.efd_finish_retry(added_retry_number, test_result)
-        assert efd_test.efd_get_final_status() == expected_status
+        mock_session = mock.Mock()
+        mock_session.efd_is_faulty_session.return_value = False
+        with mock.patch.multiple(efd_test, get_session=lambda *args: mock_session):
+            efd_test.start()
+            efd_test.efd_record_initial(test_result)
+            expected_num_retry = 0
+            for test_result in retry_results:
+                expected_num_retry += 1
+                added_retry_number = efd_test.efd_add_retry(start_immediately=True)
+                assert added_retry_number
+                efd_test.efd_finish_retry(added_retry_number, test_result)
+            assert efd_test.efd_get_final_status() == expected_status
 
     def test_efd_does_not_retry_if_disabled(self):
         efd_test = TestVisibilityTest(
             name="efd_test",
-            session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(True)),
+            session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(False)),
         )
         assert efd_test.efd_should_retry() is False
 

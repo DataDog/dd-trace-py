@@ -772,15 +772,9 @@ class CIVisibility(Service):
 
     @classmethod
     def is_unique_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
-        # Unique tests are currently only considered for EFD
-        if not cls.is_efd_enabled():
-            return False
-
         instance = cls.get_instance()
         if instance is None:
             return False
-
-        # breakpoint()
 
         return test_id in instance._unique_test_ids
 
@@ -1005,7 +999,11 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
-    is_new = not CIVisibility.is_unique_test(discover_args.test_id)
+    # New tests are currently only considered for EFD
+    if CIVisibility.is_efd_enabled():
+        is_new = not CIVisibility.is_unique_test(discover_args.test_id)
+    else:
+        is_new = False
 
     suite.add_child(
         discover_args.test_id,
