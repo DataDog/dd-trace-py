@@ -4,10 +4,15 @@ build:
   tools:
     python: "3.10"
     rust: "1.78"
+  jobs:
+    pre_create_environment:
+      - mkdir -p $HOME/.local/bin
+      - export PATH="$HOME/.local/bin:$PATH"
+      - echo $PATH
   commands:
     - git fetch --unshallow || true
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
-    - install -t $HOME/.asdf/bin hatch
+    - install -t $HOME/.local/bin hatch
     - hatch -q
     - hatch -v run docs:sphinx-build -W -b html docs docs/_build/html
     - mv docs/_build $READTHEDOCS_OUTPUT
