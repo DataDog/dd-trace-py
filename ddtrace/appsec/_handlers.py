@@ -538,7 +538,7 @@ def _asgi_make_block_content(ctx, url):
             (b"location", block_config.get("location", "").encode()),
         ]
     else:
-        ctype = block_config.get("content_type", "application/json")
+        ctype = block_config.get("content-type", "application/json")
         content = http_utils._get_blocked_template(ctype).encode("UTF-8")
         # ctype = f"{ctype}; charset=utf-8" can be considered at some point
         resp_headers = [(b"content-type", ctype.encode())]

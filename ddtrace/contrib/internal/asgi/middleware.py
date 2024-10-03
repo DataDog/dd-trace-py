@@ -23,6 +23,7 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils import get_blocked
 
 
 log = get_logger(__name__)
@@ -286,6 +287,8 @@ class TraceMiddleware:
 
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
+                if get_blocked():
+                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 return await self.app(scope, receive, wrapped_send)
             except BlockingException as e:
                 core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
