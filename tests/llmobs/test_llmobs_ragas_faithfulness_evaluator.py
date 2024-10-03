@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from ddtrace.llmobs_service._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.span import Span
 
 from ._utils import _expected_llmobs_llm_span_event
@@ -17,8 +17,8 @@ def test_ragas_evaluator_init(ragas, LLMObs):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
     assert rf_evaluator.enabled
     assert rf_evaluator.llmobs_service == LLMObs
-    assert rf_evaluator.faithfulness == ragas.metrics.faithfulness
-    assert rf_evaluator.faithfulness.llm == ragas.llms.llm_factory()
+    assert rf_evaluator.ragas_faithfulness_instance == ragas.metrics.faithfulness
+    assert rf_evaluator.ragas_faithfulness_instance.llm == ragas.llms.llm_factory()
 
 
 def test_ragas_faithfulness_disabled_if_dependencies_not_present(LLMObs, ragas, mock_ragas_dependencies_not_present):
@@ -36,14 +36,18 @@ def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_
 @pytest.mark.vcr_logs
 def test_ragas_faithfulness_enqueues_score_evaluation_metric(ragas, LLMObs, mock_llmobs_submit_evaluation):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    rf_evaluator.evaluate(_llm_span_with_expected_ragas_inputs())
+    llm_span = _llm_span_with_expected_ragas_inputs()
+    rf_evaluator.run_and_submit_evaluation(llm_span)
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
-                span_context={"trace_id": mock.ANY, "span_id": mock.ANY},
-                value=mock.ANY,
-                metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
+                span_context={
+                    "span_id": llm_span.get("span_id"),
+                    "trace_id": llm_span.get("trace_id"),
+                },
                 label=RagasFaithfulnessEvaluator.LABEL,
+                metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
+                value=1.0,
             )
         ]
     )

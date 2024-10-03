@@ -447,10 +447,10 @@ def expected_ragas_trace_tags():
     return [
         "version:",
         "env:",
-        "service:ragas",
+        "service:",
         "source:integration",
-        "ml_app:unnamed-ml-app",
-        "ddtrace.version:2.14.0.dev78+g929ae6186",
+        "ml_app:ragas-unnamed-ml-app",
+        "ddtrace.version:{}".format(ddtrace.__version__),
         "language:python",
         "error:0",
         "runner.integration:ragas",
@@ -477,6 +477,19 @@ def _llm_span_with_expected_ragas_inputs(ragas_inputs=None):
     )
 
 
+class DummyEvaluator:
+    def __init__(self, llmobs_service):
+        self.llmobs_service = llmobs_service
+
+    def run_and_submit_evaluation(self, span):
+        self.llmobs_service.submit_evaluation(
+            span_context=span,
+            label="ragas_faithfulness",
+            value=1.0,
+            metric_type="score",
+        )
+
+
 def _expected_ragas_spans(ragas_inputs=None):
     if not ragas_inputs:
         ragas_inputs = default_ragas_inputs
@@ -499,7 +512,6 @@ def _expected_ragas_spans(ragas_inputs=None):
                 },
             },
             "metrics": {},
-            "ml_app": "unnamed-ml-app",
             "tags": expected_ragas_trace_tags(),
         },
         {
@@ -516,7 +528,6 @@ def _expected_ragas_spans(ragas_inputs=None):
                 "output": {"value": mock.ANY},
             },
             "metrics": {},
-            "ml_app": "unnamed-ml-app",
             "tags": expected_ragas_trace_tags(),
         },
         {
@@ -529,7 +540,6 @@ def _expected_ragas_spans(ragas_inputs=None):
             "status": "ok",
             "meta": {"span.kind": "task"},
             "metrics": {},
-            "ml_app": "unnamed-ml-app",
             "tags": expected_ragas_trace_tags(),
         },
         {
@@ -542,7 +552,6 @@ def _expected_ragas_spans(ragas_inputs=None):
             "status": "ok",
             "meta": {"span.kind": "task"},
             "metrics": {},
-            "ml_app": "unnamed-ml-app",
             "tags": expected_ragas_trace_tags(),
         },
         {
@@ -559,7 +568,6 @@ def _expected_ragas_spans(ragas_inputs=None):
                 "metadata": {"faithful_statements": 1, "num_statements": 1},
             },
             "metrics": {},
-            "ml_app": "unnamed-ml-app",
             "tags": expected_ragas_trace_tags(),
         },
     ]

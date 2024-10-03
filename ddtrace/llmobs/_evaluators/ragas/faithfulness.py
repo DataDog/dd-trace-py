@@ -1,6 +1,5 @@
 import json
 import math
-import time
 from typing import List
 from typing import Optional
 
@@ -80,11 +79,13 @@ class RagasFaithfulnessEvaluator:
         score_result = self.evaluate(span_event)
         if score_result:
             self.llmobs_service.submit_evaluation(
-                span_context=span_event,
+                span_context={
+                    "span_id": span_event.get("span_id"),
+                    "trace_id": span_event.get("trace_id"),
+                },
                 label=RagasFaithfulnessEvaluator.LABEL,
                 metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
                 value=score_result,
-                timestamp_ms=math.floor(time.time() * 1000),
             )
 
     def evaluate(self, span_event: dict) -> Optional[float]:
@@ -93,10 +94,10 @@ class RagasFaithfulnessEvaluator:
 
         """Initialize defaults for variables we want to annotate on the LLM Observability trace of the
         ragas faithfulness evaluations."""
-        score, question, answer, context, statements, faithfulness_list = math.nan, None, None, None, None, None
+        score, question, answer, context, statements, raw_faithfulness_list = math.nan, None, None, None, None, None
 
         with self.llmobs_service.annotation_context(
-            tags={RUNNER_IS_INTEGRATION_SPAN_TAG: RAGAS}, ml_app=_get_ml_app_for_ragas_trace(span_event)
+            tags={RUNNER_IS_INTEGRATION_SPAN_TAG: RAGAS, "ml_app": _get_ml_app_for_ragas_trace(span_event)}
         ):
             with self.llmobs_service.workflow("ragas_faithfulness"):
                 try:
@@ -133,10 +134,11 @@ class RagasFaithfulnessEvaluator:
                         return None
 
                     raw_nli_results_texts = [
-                        raw_nli_results[0][i].text for i in range(self.ragas_faithfulness_instance._reproducibility)
+                        raw_nli_results.generations[0][i].text
+                        for i in range(self.ragas_faithfulness_instance._reproducibility)
                     ]
 
-                    multiple_faithfulness_lists = [
+                    raw_faithfulness_list = [
                         faith.dicts()
                         for faith in [
                             self.llm_output_parser_for_faithfulness_score.parse(text) for text in raw_nli_results_texts
@@ -144,11 +146,11 @@ class RagasFaithfulnessEvaluator:
                         if faith is not None
                     ]
 
-                    if len(multiple_faithfulness_lists) == 0:
+                    if len(raw_faithfulness_list) == 0:
                         return None
 
                     faithfulness_list = ensembler.from_discrete(
-                        multiple_faithfulness_lists,
+                        raw_faithfulness_list,
                         "verdict",
                     )
                     try:
@@ -169,7 +171,7 @@ class RagasFaithfulnessEvaluator:
                         output_data=score,
                         metadata={
                             "statements": statements,
-                            "faithfulness_list": faithfulness_list,
+                            "faithfulness_list": raw_faithfulness_list,
                         },
                     )
 
