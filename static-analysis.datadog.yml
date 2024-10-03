@@ -4,3 +4,6 @@ rulesets:
       nested-blocks:
         ignore:
           - "**"
+      max-function-lines:
+        ignore: 
+          - "tests/ci_visibility/api/fake_runner_*.py"
