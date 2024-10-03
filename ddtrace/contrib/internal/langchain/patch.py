@@ -954,8 +954,6 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), integration.trunc(str(v)))
 
     def _on_span_finished(span: Span, streamed_chunks):
-        if span.error or not integration.is_pc_sampled_span(span):
-            return
         if (
             streamed_chunks
             and langchain_core
@@ -970,6 +968,9 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
         else:
             # best effort to join chunks together
             content = "".join([str(chunk) for chunk in streamed_chunks])
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="chain")
+        if span.error or not integration.is_pc_sampled_span(span):
+            return
         span.set_tag_str("langchain.response.outputs", integration.trunc(content))
 
     return shared_stream(
@@ -989,6 +990,7 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
 def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
     llm_provider = instance._llm_type
+    model = _extract_model_name(instance)
 
     def _on_span_started(span: Span):
         if not integration.is_pc_sampled_span(span):
@@ -1004,12 +1006,19 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
 
     def _on_span_finished(span: Span, streamed_chunks):
-        if span.error or not integration.is_pc_sampled_span(span):
+        joined_chunks = streamed_chunks[0]
+        for chunk in streamed_chunks[1:]:
+            joined_chunks += chunk  # base message types support __add__ for concatenation
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
+        if (
+            span.error
+            or not integration.is_pc_sampled_span(span)
+            or streamed_chunks is None
+            or len(streamed_chunks) == 0
+        ):
             return
-        content = "".join([str(getattr(chunk, "content", chunk)) for chunk in streamed_chunks])
-        role = (
-            streamed_chunks[0].__class__.__name__.replace("Chunk", "") if streamed_chunks else None
-        )  # AIMessageChunk --> AIeMessage
+        content = str(getattr(joined_chunks, "content", joined_chunks))
+        role = joined_chunks.__class__.__name__.replace("Chunk", "")  # AIMessageChunk --> AIMessage
         span.set_tag_str("langchain.response.content", integration.trunc(content))
         if role:
             span.set_tag_str("langchain.response.message_type", role)
@@ -1032,6 +1041,7 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         on_span_finished=_on_span_finished,
         api_key=_extract_api_key(instance),
         provider=llm_provider,
+        model=model,
     )
 
 
@@ -1039,6 +1049,7 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
 def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
     llm_provider = instance._llm_type
+    model = _extract_model_name(instance)
 
     def _on_span_start(span: Span):
         if not integration.is_pc_sampled_span(span):
@@ -1053,9 +1064,10 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
 
     def _on_span_finished(span: Span, streamed_chunks):
+        content = "".join([str(chunk) for chunk in streamed_chunks])
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
         if span.error or not integration.is_pc_sampled_span(span):
             return
-        content = "".join([str(chunk) for chunk in streamed_chunks])
         span.set_tag_str("langchain.response.content", integration.trunc(content))
 
     return shared_stream(
@@ -1070,6 +1082,7 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
         on_span_finished=_on_span_finished,
         api_key=_extract_api_key(instance),
         provider=llm_provider,
+        model=model,
     )
 
 
