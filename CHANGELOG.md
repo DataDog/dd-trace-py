@@ -104,7 +104,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
   - Removes a reference cycle that caused unnecessary garbage collection for top-level spans.
 
 - Code Security
-  - fix potential memory leak on IAST exception handling.
+  - Fixes potential memory leak on IAST exception handling.
 
 - Profiling
   - Updates filenames for all files with platform-dependent code to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
