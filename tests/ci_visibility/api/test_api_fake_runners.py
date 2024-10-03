@@ -4,8 +4,8 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from tests import utils
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
@@ -271,3 +271,87 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             subprocess.run(["python", "fake_runner_mix_fail_itr_suite_level.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_efd_all_pass(self):
+        import fake_runner_efd_all_pass
+
+        fake_runner_src = inspect.getsource(fake_runner_efd_all_pass)
+        self.testdir.makepyfile(fake_runner_efd_all_pass=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            _get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                ),
+                mock_ci_env=True,
+            ),
+            replace_os_env=True,
+        ):
+            subprocess.run(["python", "fake_runner_efd_all_pass.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_efd_mix_pass(self):
+        import fake_runner_efd_mix_pass
+
+        fake_runner_src = inspect.getsource(fake_runner_efd_mix_pass)
+        self.testdir.makepyfile(fake_runner_efd_mix_pass=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            _get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                ),
+                mock_ci_env=True,
+            ),
+            replace_os_env=True,
+        ):
+            subprocess.run(["python", "fake_runner_efd_mix_pass.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_efd_mix_fail(self):
+        import fake_runner_efd_mix_fail
+
+        fake_runner_src = inspect.getsource(fake_runner_efd_mix_fail)
+        self.testdir.makepyfile(fake_runner_efd_mix_fail=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            _get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                ),
+                mock_ci_env=True,
+            ),
+            replace_os_env=True,
+        ):
+            subprocess.run(["python", "fake_runner_efd_mix_fail.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_efd_faulty_session(self):
+        import fake_runner_efd_faulty_session
+
+        fake_runner_src = inspect.getsource(fake_runner_efd_faulty_session)
+        self.testdir.makepyfile(fake_runner_efd_faulty_session=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            _get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                ),
+                mock_ci_env=True,
+            ),
+            replace_os_env=True,
+        ):
+            subprocess.run(["python", "fake_runner_efd_faulty_session.py"])
