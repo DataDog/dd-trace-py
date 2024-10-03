@@ -27,10 +27,4 @@ echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
 cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 
-cp ../lib-injection/sitecustomize.py sources/
-cp ../min_compatible_versions.csv sources/
-cp ../lib-injection/telemetry-forwarder.sh sources/
-
-clean-apt install python3
-echo "Deduplicating package files"
-python3 ../lib-injection/dedupe.py sources/ddtrace_pkgs/
+cp ../lib-injection/sources/* sources/
