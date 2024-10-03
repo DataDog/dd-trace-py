@@ -562,6 +562,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             if CIVisibility.enabled:
                 CIVisibility.disable()
         except Exception:
+            # no-dd-sa:python-best-practices/no-silent-exception
             pass
 
     def test_civisibilitywriter_agentless_url(self):

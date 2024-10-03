@@ -7,6 +7,7 @@ from typing import Optional  # noqa:F401
 import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.ext.test import TEST_SESSION_NAME
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
@@ -60,7 +61,7 @@ class CIVisibilityEventClient(WriterClientBase):
     def set_test_session_name(self, test_session_name: str) -> None:
         if isinstance(self.encoder, CIVisibilityEncoderV01):
             for event_type in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
-                self.encoder.set_metadata(event_type, {"test_session.name": test_session_name})
+                self.encoder.set_metadata(event_type, {TEST_SESSION_NAME: test_session_name})
 
 
 class CIVisibilityCoverageClient(WriterClientBase):
