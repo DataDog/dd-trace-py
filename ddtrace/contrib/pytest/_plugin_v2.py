@@ -388,11 +388,6 @@ def _pytest_runtest_makereport(item, call, outcome):
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_logreport(item):
-    pass
-
-
-@pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call) -> None:
     """Store outcome for tracing."""
     outcome: pytest.TestReport

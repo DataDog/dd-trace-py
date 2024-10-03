@@ -133,10 +133,6 @@ def _get_pytest_version_tuple() -> t.Tuple[int, ...]:
     return tuple(map(int, pytest.__version__.split(".")))
 
 
-def _is_parametrized_test(item: pytest.Item) -> bool:
-    return getattr(item, "callspec", None) is not None
-
-
 def _is_pytest_8_or_later() -> bool:
     return _get_pytest_version_tuple() >= (8, 0, 0)
 
