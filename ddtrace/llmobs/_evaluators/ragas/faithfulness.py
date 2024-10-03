@@ -4,8 +4,8 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
-from ddtrace.llmobs._evaluators.ragas.utils import _get_ml_app_for_ragas_trace
 
 
 logger = get_logger(__name__)
@@ -20,12 +20,24 @@ try:
     from ragas.metrics.base import ensembler
     from ragas.metrics.base import get_segmenter
 
-    from ddtrace.llmobs._evaluators.ragas.utils import StatementFaithfulnessAnswers
-    from ddtrace.llmobs._evaluators.ragas.utils import StatementsAnswers
+    from ddtrace.llmobs._evaluators.ragas.models import StatementFaithfulnessAnswers
+    from ddtrace.llmobs._evaluators.ragas.models import StatementsAnswers
 
     RAGAS_DEPENDENCIES_PRESENT = True
 except ImportError as e:
     logger.warning("RagasFaithfulnessEvaluator is disabled because Ragas requirements are not installed", exc_info=e)
+
+
+def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
+    """
+    The `ml_app` spans generated from traces of ragas will be named as `ragas-<ml_app>`
+    or `ragas` if `ml_app` is not present in the span tags.
+    """
+    ml_app_of_span_event = ""
+    span_tags = span_event.get("tags")
+    if span_tags is not None:
+        ml_app_of_span_event = "-{}".format(parse_tags_str(",".join(span_tags)).get("ml_app"))
+    return "ragas{}".format(ml_app_of_span_event)
 
 
 class RagasFaithfulnessEvaluator:
