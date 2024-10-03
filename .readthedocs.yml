@@ -6,11 +6,8 @@ build:
   commands:
     - git fetch --unshallow || true
     - git rev-parse --abbrev-ref HEAD
-    - export CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    - echo $CURRENT_BRANCH
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
-    - echo $PATH
-    - install -t /home/docs/checkouts/readthedocs.org/user_builds/ddtrace/envs/$CURRENT_BRANCH/bin hatch
+    - install -t /home/docs/.asdf/bin hatch
     - hatch -q
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
     - echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
