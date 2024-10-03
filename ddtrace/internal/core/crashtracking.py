@@ -17,7 +17,7 @@ if crashtracker_config.enabled:
 
 
 # DEV crashtracker was once loaded and enabled by default everywhere, but due to consequences of running long-running
-#     child processes, it has been disabled by default. Hoping to reenable it soon.  Pushing the module imports down
+#     child processes, it has been disabled by default. Hoping to re-enable it soon.  Pushing the module imports down
 #     into individual functions is not a design requirement, but rather a way to avoid loading the module until needed.
 
 
