@@ -17,7 +17,6 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
@@ -498,7 +497,7 @@ def _on_pre_tracedrequest(ctx):
     current_span = ctx["current_span"]
     if asm_config._asm_enabled:
         set_block_request_callable(functools.partial(block_request_callable, current_span))
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+        if get_blocked():
             block_request()
 
 
