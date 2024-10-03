@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import sys
 import typing
 
@@ -44,6 +45,10 @@ def get_response_body(response):
     return response.text
 
 
+# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
+IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
+
+
 @pytest.fixture(autouse=True)
 def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_writer):
     if "skip_iast_check_logs" in request.keywords:
@@ -55,7 +60,7 @@ def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_
 
         log_messages = [record.msg for record in caplog.get_records("call")]
         for message in log_messages:
-            if "[IAST] " in message:
+            if IAST_VALID_LOG.search(message):
                 pytest.fail(message)
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 0
