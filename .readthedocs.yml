@@ -7,7 +7,9 @@ build:
   commands:
     - git fetch --unshallow || true
     - mkdir -p $HOME/.local/bin
-    - ls -a $HOME
+    - echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+    - . ~/.bashrc
+    - echo $PATH
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
     - install -t $HOME/.asdf/bin hatch
     - hatch -q
