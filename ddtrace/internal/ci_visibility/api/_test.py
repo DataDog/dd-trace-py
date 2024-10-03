@@ -72,7 +72,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._efd_abort_reason: Optional[str] = None
         self._efd_initial_finish_time_ns: Optional[int] = None
 
-        # Currently unsupported]
+        # Currently unsupported
         self._is_benchmark = None
 
     def __repr__(self) -> str:
