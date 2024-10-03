@@ -17,6 +17,7 @@ from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
 from ddtrace.ext.test_visibility.api import Test
@@ -34,6 +35,7 @@ from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -49,7 +51,6 @@ from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
@@ -57,7 +58,6 @@ from ddtrace.internal.ci_visibility.constants import TRACER_PARTIAL_FLUSH_MIN_SP
 from ddtrace.internal.ci_visibility.context import CIContextProvider
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
-from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
 from ddtrace.internal.ci_visibility.errors import CIVisibilityError
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
@@ -70,9 +70,9 @@ from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.internal.test_visibility.api import InternalTest
-from ddtrace.internal.test_visibility.api import InternalTestId
-from ddtrace.internal.test_visibility.api import ITRMixin
+from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
+from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
+from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
@@ -195,7 +195,7 @@ class CIVisibility(Service):
         self._should_upload_git_metadata = True
         self._itr_meta = {}  # type: Dict[str, Any]
         self._itr_data: Optional[ITRData] = None
-        self._unique_tests: Set[InternalTestId] = set()
+        self._unique_test_ids: Set[InternalTestId] = set()
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -398,6 +398,15 @@ class CIVisibility(Service):
         return cls._instance and cls._instance._api_settings.skipping_enabled
 
     @classmethod
+    def is_efd_enabled(cls):
+        if cls._instance is None:
+            return False
+        return (
+            cls._instance._api_settings.early_flake_detection.enabled
+            and ddconfig._test_visibility_early_flake_detection_enabled
+        )
+
+    @classmethod
     def should_collect_coverage(cls):
         return cls._instance._api_settings.coverage_enabled or asbool(
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
@@ -428,6 +437,15 @@ class CIVisibility(Service):
                 self._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = self._itr_data.correlation_id
         except Exception:  # noqa: E722
             log.debug("Error fetching skippable items", exc_info=True)
+
+    def _fetch_unique_tests(self) -> Optional[Set[InternalTestId]]:
+        try:
+            if self._api_client is not None:
+                return self._api_client.fetch_unique_tests()
+            log.warning("API client not initialized, cannot fetch unique tests")
+        except Exception:
+            log.debug("Error fetching unique tests", exc_info=True)
+        return None
 
     def _should_skip_path(self, path, name, test_skipping_mode=None):
         """This method supports legacy usage of the CIVisibility service and should be removed
@@ -471,8 +489,6 @@ class CIVisibility(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
-        _register_session_handlers()
-
         try:
             cls._instance = cls(tracer=tracer, config=config, service=service)
         except CIVisibilityAuthenticationException:
@@ -487,9 +503,10 @@ class CIVisibility(Service):
 
         log.debug("%s enabled", cls.__name__)
         log.info(
-            "Final settings: coverage collection: %s, test skipping: %s",
+            "Final settings: coverage collection: %s, test skipping: %s, early flake detection: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
+            CIVisibility.is_efd_enabled(),
         )
 
     @classmethod
@@ -524,6 +541,23 @@ class CIVisibility(Service):
             log.info("Intelligent Test Runner skipping level: %s", "suite" if self._suite_skipping_mode else "test")
             log.info("Skippable items fetched: %s", len(self._itr_data.skippable_items))
             log.info("ITR correlation ID: %s", self._itr_data.correlation_id)
+
+        if CIVisibility.is_efd_enabled():
+            unique_test_ids = self._fetch_unique_tests()
+            if unique_test_ids is None:
+                log.warning("Failed to fetch unique tests for Early Flake Detection")
+            else:
+                self._unique_test_ids = unique_test_ids
+                log.info("Unique tests fetched for Early Flake Detection: %s", len(self._unique_test_ids))
+        else:
+            if (
+                self._api_settings.early_flake_detection.enabled
+                and not ddconfig._test_visibility_early_flake_detection_enabled
+            ):
+                log.warning(
+                    "Early Flake Detection is enabled by API but disabled by "
+                    "DD_TEST_VISIBILITY_EARLY_FLAKE_DETECTION_ENABLED environment variable"
+                )
 
     def _stop_service(self):
         # type: () -> None
@@ -682,6 +716,17 @@ class CIVisibility(Service):
         return instance._codeowners
 
     @classmethod
+    def get_efd_api_settings(cls) -> Optional[EarlyFlakeDetectionSettings]:
+        if not cls.enabled:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        instance = cls.get_instance()
+        if instance is None or instance._api_settings is None:
+            return None
+        return instance._api_settings.early_flake_detection
+
+    @classmethod
     def get_workspace_path(cls) -> Optional[str]:
         if not cls.enabled:
             error_msg = "CI Visibility is not enabled"
@@ -720,6 +765,14 @@ class CIVisibility(Service):
 
         return instance._tags.get(ci.PROVIDER_NAME) is None
 
+    @classmethod
+    def is_unique_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
+        instance = cls.get_instance()
+        if instance is None:
+            return False
+
+        return test_id in instance._unique_test_ids
+
 
 def _requires_civisibility_enabled(func):
     def wrapper(*args, **kwargs):
@@ -752,6 +805,8 @@ def _on_discover_session(
 
     test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
 
+    efd_api_settings = CIVisibility.get_efd_api_settings()
+
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
         test_service=test_service,
@@ -771,6 +826,7 @@ def _on_discover_session(
         itr_test_skipping_level=instance._itr_skipping_level,
         itr_correlation_id=instance._itr_meta.get(ITR_CORRELATION_ID_TAG_NAME, ""),
         coverage_enabled=CIVisibility.should_collect_coverage(),
+        efd_settings=efd_api_settings,
     )
 
     session = TestVisibilitySession(
@@ -820,6 +876,12 @@ def _on_session_get_codeowners() -> Optional[Codeowners]:
 
 
 @_requires_civisibility_enabled
+def _on_session_is_efd_enabled() -> bool:
+    log.debug("Getting Early Flake Detection enabled")
+    return CIVisibility.is_efd_enabled()
+
+
+@_requires_civisibility_enabled
 def _on_session_set_covered_lines_pct(coverage_pct) -> None:
     log.debug("Setting coverage percentage for session to %s", coverage_pct)
     CIVisibility.get_session().set_covered_lines_pct(coverage_pct)
@@ -842,6 +904,7 @@ def _register_session_handlers():
     core.on("test_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
     core.on("test_visibility.session.get_path_codeowners", _on_session_get_path_codeowners, "path_codeowners")
     core.on("test_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
+    core.on("test_visibility.session.is_efd_enabled", _on_session_is_efd_enabled, "is_efd_enabled")
     core.on(
         "test_visibility.session.should_collect_coverage",
         _on_session_should_collect_coverage,
@@ -864,8 +927,8 @@ def _on_discover_module(discover_args: TestModule.DiscoverArgs):
         discover_args.module_id,
         TestVisibilityModule(
             discover_args.module_id.name,
-            discover_args.module_path,
             CIVisibility.get_session_settings(),
+            discover_args.module_path,
         ),
     )
 
@@ -931,6 +994,12 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
+    # New tests are currently only considered for EFD
+    if CIVisibility.is_efd_enabled():
+        is_new = not CIVisibility.is_unique_test(discover_args.test_id)
+    else:
+        is_new = False
+
     suite.add_child(
         discover_args.test_id,
         TestVisibilityTest(
@@ -940,20 +1009,15 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
             codeowners=discover_args.codeowners,
             source_file_info=discover_args.source_file_info,
             resource=discover_args.resource,
+            is_new=is_new,
         ),
     )
 
 
 @_requires_civisibility_enabled
-def _on_discover_test_early_flake_retry(args: InternalTest.DiscoverEarlyFlakeRetryArgs):
-    log.debug("Handling early flake discovery for test %s", args.test_id)
-    try:
-        original_test = CIVisibility.get_test_by_id(args.test_id)
-    except CIVisibilityDataError:
-        log.warning("Cannot find original test %s to register retry number %s", args.test_id, args.retry_number)
-        raise
-
-    original_test.make_early_flake_retry_from_test(args.test_id, args.retry_number)
+def _on_is_new_test(test_id: Union[TestId, InternalTestId]) -> bool:
+    log.debug("Handling is new test for test %s", test_id)
+    return CIVisibility.get_test_by_id(test_id).is_new()
 
 
 @_requires_civisibility_enabled
@@ -971,7 +1035,7 @@ def _on_finish_test(finish_args: Test.FinishArgs):
 
 
 @_requires_civisibility_enabled
-def _on_set_test_paramaters(item_id: TestId, parameters: str):
+def _on_set_test_parameters(item_id: TestId, parameters: str):
     log.debug("Handling set parameters for test id %s, parameters %s", item_id, parameters)
     CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
 
@@ -979,10 +1043,10 @@ def _on_set_test_paramaters(item_id: TestId, parameters: str):
 def _register_test_handlers():
     log.debug("Registering test handlers")
     core.on("test_visibility.test.discover", _on_discover_test)
-    core.on("test_visibility.test.discover_early_flake_retry", _on_discover_test_early_flake_retry)
+    core.on("test_visibility.test.is_new", _on_is_new_test, "is_new")
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
-    core.on("test_visibility.test.set_parameters", _on_set_test_paramaters)
+    core.on("test_visibility.test.set_parameters", _on_set_test_parameters)
 
 
 @_requires_civisibility_enabled
@@ -1150,6 +1214,67 @@ def _register_itr_handlers():
     core.on("test_visibility.itr.was_forced_run", _on_itr_was_forced_run, "was_forced_run")
 
 
+#
+# EFD handlers
+#
+
+
+@_requires_civisibility_enabled
+def _on_efd_session_is_faulty() -> bool:
+    return CIVisibility.get_session().efd_is_faulty_session()
+
+
+@_requires_civisibility_enabled
+def _on_efd_should_retry_test(test_id: InternalTestId):
+    return CIVisibility.get_test_by_id(test_id).efd_should_retry()
+
+
+@_requires_civisibility_enabled
+def _on_efd_add_retry(test_id: InternalTestId, retry_number: int) -> Optional[int]:
+    return CIVisibility.get_test_by_id(test_id).efd_add_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_efd_start_retry(test_id: InternalTestId, retry_number: int):
+    CIVisibility.get_test_by_id(test_id).efd_start_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_efd_finish_retry(efd_finish_args: EFDTestMixin.EFDRetryFinishArgs):
+    CIVisibility.get_test_by_id(efd_finish_args.test_id).efd_finish_retry(
+        efd_finish_args.retry_number, efd_finish_args.status, efd_finish_args.exc_info
+    )
+
+
+@_requires_civisibility_enabled
+def _on_efd_record_initial(efd_record_initial_args: EFDTestMixin.EFDRecordInitialArgs):
+    CIVisibility.get_test_by_id(efd_record_initial_args.test_id).efd_record_initial(
+        efd_record_initial_args.status, efd_record_initial_args.skip_reason, efd_record_initial_args.exc_info
+    )
+
+
+@_requires_civisibility_enabled
+def _on_efd_get_final_status(test_id: InternalTestId):
+    return CIVisibility.get_test_by_id(test_id).efd_get_final_status()
+
+
+@_requires_civisibility_enabled
+def _on_efd_finish_test(test_id: InternalTestId):
+    CIVisibility.get_test_by_id(test_id).efd_finish_test()
+
+
+def _register_efd_handlers():
+    log.debug("Registering EFD handlers")
+    core.on("test_visibility.efd.session_is_faulty", _on_efd_session_is_faulty, "is_faulty_session")
+    core.on("test_visibility.efd.should_retry_test", _on_efd_should_retry_test, "should_retry_test")
+    core.on("test_visibility.efd.add_retry", _on_efd_add_retry, "retry_number")
+    core.on("test_visibility.efd.start_retry", _on_efd_start_retry)
+    core.on("test_visibility.efd.finish_retry", _on_efd_finish_retry)
+    core.on("test_visibility.efd.finish_test", _on_efd_finish_test)
+    core.on("test_visibility.efd.record_initial", _on_efd_record_initial)
+    core.on("test_visibility.efd.get_final_status", _on_efd_get_final_status, "efd_final_status")
+
+
 _register_session_handlers()
 _register_module_handlers()
 _register_suite_handlers()
@@ -1158,3 +1283,4 @@ _register_item_handlers()
 _register_tag_handlers()
 _register_coverage_handlers()
 _register_itr_handlers()
+_register_efd_handlers()

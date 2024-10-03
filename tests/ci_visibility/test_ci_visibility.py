@@ -29,7 +29,7 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
-import ddtrace.internal.test_visibility.api as api
+import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
@@ -270,9 +270,9 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
                                 "10s": 5,
                                 "30s": 3,
                                 "5m": 2,
-                                "5s": 10
-                            },
-                            "faulty_session_threshold": 30
+                                "5s": 10,
+                                "faulty_session_threshold": 30
+                            }
                         },
                         "flaky_test_retries_enabled": false,
                         "itr_enabled": true,
@@ -1127,7 +1127,9 @@ class TestIsITRSkippable:
     No tests should be skippable in suite-level skipping mode, and vice versa.
     """
 
-    test_level_tests_to_skip: Set[api.InternalTestId] = _make_fqdn_test_ids(
+    test_level_tests_to_skip: Set[
+        ddtrace.internal.test_visibility._internal_item_ids.InternalTestId
+    ] = _make_fqdn_test_ids(
         [
             ("module_1", "module_1_suite_1.py", "test_1"),
             ("module_1", "module_1_suite_1.py", "test_2"),
@@ -1157,66 +1159,90 @@ class TestIsITRSkippable:
     m1 = ext_api.TestModuleId("module_1")
     # Module 1 Suite 1
     m1_s1 = ext_api.TestSuiteId(m1, "module_1_suite_1.py")
-    m1_s1_t1 = api.InternalTestId(m1_s1, "test_1")
-    m1_s1_t2 = api.InternalTestId(m1_s1, "test_2")
-    m1_s1_t3 = api.InternalTestId(m1_s1, "test_3")
-    m1_s1_t4 = api.InternalTestId(m1_s1, "test_4[param1]")
-    m1_s1_t5 = api.InternalTestId(m1_s1, "test_5[param2]", parameters='{"arg1": "param_arg_1"}')
-    m1_s1_t6 = api.InternalTestId(m1_s1, "test_6[param3]", parameters='{"arg2": "param_arg_2"}')
-    m1_s1_t7 = api.InternalTestId(m1_s1, "test_6[param3]")
+    m1_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_1")
+    m1_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_2")
+    m1_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_3")
+    m1_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_4[param1]")
+    m1_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m1_s1, "test_5[param2]", parameters='{"arg1": "param_arg_1"}'
+    )
+    m1_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m1_s1, "test_6[param3]", parameters='{"arg2": "param_arg_2"}'
+    )
+    m1_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_6[param3]")
 
     # Module 1 Suite 2
     m1_s2 = ext_api.TestSuiteId(m1, "module_1_suite_2.py")
-    m1_s2_t1 = api.InternalTestId(m1_s2, "test_1")
-    m1_s2_t2 = api.InternalTestId(m1_s2, "test_2")
-    m1_s2_t3 = api.InternalTestId(m1_s2, "test_3")
-    m1_s2_t4 = api.InternalTestId(m1_s2, "test_4[param1]")
-    m1_s2_t5 = api.InternalTestId(m1_s2, "test_5[param2]", parameters='{"arg3": "param_arg_3"}')
-    m1_s2_t6 = api.InternalTestId(m1_s2, "test_6[param3]", parameters='{"arg4": "param_arg_4"}')
-    m1_s2_t7 = api.InternalTestId(m1_s2, "test_6[param3]")
+    m1_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_1")
+    m1_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_2")
+    m1_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_3")
+    m1_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_4[param1]")
+    m1_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m1_s2, "test_5[param2]", parameters='{"arg3": "param_arg_3"}'
+    )
+    m1_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m1_s2, "test_6[param3]", parameters='{"arg4": "param_arg_4"}'
+    )
+    m1_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_6[param3]")
 
     # Module 2
     m2 = ext_api.TestModuleId("module_2")
 
     # Module 2 Suite 1
     m2_s1 = ext_api.TestSuiteId(m2, "module_2_suite_1.py")
-    m2_s1_t1 = api.InternalTestId(m2_s1, "test_1")
-    m2_s1_t2 = api.InternalTestId(m2_s1, "test_2")
-    m2_s1_t3 = api.InternalTestId(m2_s1, "test_3")
-    m2_s1_t4 = api.InternalTestId(m2_s1, "test_4[param1]")
-    m2_s1_t5 = api.InternalTestId(m2_s1, "test_5[param2]", parameters='{"arg5": "param_arg_5"}')
-    m2_s1_t6 = api.InternalTestId(m2_s1, "test_6[param3]", parameters='{"arg6": "param_arg_6"}')
-    m2_s1_t7 = api.InternalTestId(m2_s1, "test_6[param3]")
+    m2_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_1")
+    m2_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_2")
+    m2_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_3")
+    m2_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_4[param1]")
+    m2_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m2_s1, "test_5[param2]", parameters='{"arg5": "param_arg_5"}'
+    )
+    m2_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m2_s1, "test_6[param3]", parameters='{"arg6": "param_arg_6"}'
+    )
+    m2_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_6[param3]")
 
     # Module 2 Suite 2
     m2_s2 = ext_api.TestSuiteId(m2, "module_2_suite_2.py")
-    m2_s2_t1 = api.InternalTestId(m2_s2, "test_1")
-    m2_s2_t2 = api.InternalTestId(m2_s2, "test_2")
-    m2_s2_t3 = api.InternalTestId(m2_s2, "test_3")
-    m2_s2_t4 = api.InternalTestId(m2_s2, "test_4[param1]")
-    m2_s2_t5 = api.InternalTestId(m2_s2, "test_5[param2]", parameters='{"arg7": "param_arg_7"}')
-    m2_s2_t6 = api.InternalTestId(m2_s2, "test_6[param3]", parameters='{"arg8": "param_arg_8"}')
-    m2_s2_t7 = api.InternalTestId(m2_s2, "test_6[param3]")
+    m2_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_1")
+    m2_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_2")
+    m2_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_3")
+    m2_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_4[param1]")
+    m2_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m2_s2, "test_5[param2]", parameters='{"arg7": "param_arg_7"}'
+    )
+    m2_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m2_s2, "test_6[param3]", parameters='{"arg8": "param_arg_8"}'
+    )
+    m2_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_6[param3]")
 
     # Module 3
     m3 = ext_api.TestModuleId("")
     m3_s1 = ext_api.TestSuiteId(m3, "no_module_suite_1.py")
-    m3_s1_t1 = api.InternalTestId(m3_s1, "test_1")
-    m3_s1_t2 = api.InternalTestId(m3_s1, "test_2")
-    m3_s1_t3 = api.InternalTestId(m3_s1, "test_3")
-    m3_s1_t4 = api.InternalTestId(m3_s1, "test_4[param1]")
-    m3_s1_t5 = api.InternalTestId(m3_s1, "test_5[param2]", parameters='{"arg9": "param_arg_9"}')
-    m3_s1_t6 = api.InternalTestId(m3_s1, "test_6[param3]", parameters='{"arg10": "param_arg_10"}')
-    m3_s1_t7 = api.InternalTestId(m3_s1, "test_6[param3]")
+    m3_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_1")
+    m3_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_2")
+    m3_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_3")
+    m3_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_4[param1]")
+    m3_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m3_s1, "test_5[param2]", parameters='{"arg9": "param_arg_9"}'
+    )
+    m3_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m3_s1, "test_6[param3]", parameters='{"arg10": "param_arg_10"}'
+    )
+    m3_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_6[param3]")
 
     m3_s2 = ext_api.TestSuiteId(m3, "no_module_suite_2.py")
-    m3_s2_t1 = api.InternalTestId(m3_s2, "test_1")
-    m3_s2_t2 = api.InternalTestId(m3_s2, "test_2")
-    m3_s2_t3 = api.InternalTestId(m3_s2, "test_3")
-    m3_s2_t4 = api.InternalTestId(m3_s2, "test_4[param1]")
-    m3_s2_t5 = api.InternalTestId(m3_s2, "test_5[param2]", parameters='{"arg11": "param_arg_11"}')
-    m3_s2_t6 = api.InternalTestId(m3_s2, "test_6[param3]", parameters='{"arg12": "param_arg_12"}')
-    m3_s2_t7 = api.InternalTestId(m3_s2, "test_6[param3]")
+    m3_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_1")
+    m3_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_2")
+    m3_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_3")
+    m3_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_4[param1]")
+    m3_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m3_s2, "test_5[param2]", parameters='{"arg11": "param_arg_11"}'
+    )
+    m3_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m3_s2, "test_6[param3]", parameters='{"arg12": "param_arg_12"}'
+    )
+    m3_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_6[param3]")
 
     def _get_all_suite_ids(self):
         return {getattr(self, suite_id) for suite_id in vars(self.__class__) if re.match(r"^m\d_s\d$", suite_id)}
