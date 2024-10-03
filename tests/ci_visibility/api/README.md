@@ -31,4 +31,4 @@ tests.
 1. Make sure the `testagent` is running (refer to contributor docs again)
 1. Run the test(s) (note: you may want to pass `-s` `riot run` to speed up tests)
    1. All tests: `riot -v run 1b90fc9 -- -k FakeApiRunnersSnapshotTestCase`
-   1. Individual test: `riot -v run 1b90fc9 -- -k ` 
+   1. Individual test: `riot -v run 1b90fc9 -- -k test_manual_api_fake_runner_mix_fail_itr_test_level` 
