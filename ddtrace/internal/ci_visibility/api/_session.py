@@ -63,7 +63,7 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         if self._efd_abort_reason is not None:
             # Allow any set abort reason to override faulty session abort reason
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
-        elif self._efd_is_faulty_session:
+        elif self.efd_is_faulty_session():
             self.set_tag(TEST_EFD_ABORT_REASON, "faulty")
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
@@ -114,11 +114,11 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
 
         NOTE: this behavior is cached on the assumption that this method will only be called once
         """
-        if self._session_settings.efd_settings.enabled is False:
-            return False
-
         if self._efd_is_faulty_session is not None:
             return self._efd_is_faulty_session
+
+        if self._session_settings.efd_settings.enabled is False:
+            return False
 
         total_tests = 0
         new_tests = 0

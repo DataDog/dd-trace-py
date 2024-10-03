@@ -153,7 +153,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self.mark_itr_skipped()
         self.finish_test(TestStatus.SKIP)
 
-    def make_early_flake_retry_from_test(self, retry_number: int) -> "TestVisibilityTest":
+    def make_early_flake_retry_from_test(self) -> "TestVisibilityTest":
         if self._parameters is not None:
             raise ValueError("Cannot create an early flake retry from a test with parameters")
         retry_test = self.__class__(
@@ -200,17 +200,17 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             log.debug("Early Flake Detection: efd_should_retry called but test has initial result")
             return False
 
-        initial_duration = (self._efd_initial_finish_time_ns - self._span.start_ns) / 1e9
+        initial_duration_s = (self._efd_initial_finish_time_ns - self._span.start_ns) / 1e9
 
         num_retries = len(self._efd_retries)
 
-        if initial_duration <= 5:
+        if initial_duration_s <= 5:
             return num_retries < efd_settings.slow_test_retries_5s
-        if initial_duration <= 10:
+        if initial_duration_s <= 10:
             return num_retries < efd_settings.slow_test_retries_10s
-        if initial_duration <= 30:
+        if initial_duration_s <= 30:
             return num_retries < efd_settings.slow_test_retries_30s
-        if initial_duration <= 300:
+        if initial_duration_s <= 300:
             return num_retries < efd_settings.slow_test_retries_5m
 
         self._efd_abort_reason = "slow"
@@ -226,7 +226,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         retry_number = len(self._efd_retries) + 1
 
-        retry_test = self.make_early_flake_retry_from_test(retry_number)
+        retry_test = self.make_early_flake_retry_from_test()
         self._efd_retries.append(retry_test)
         if start_immediately:
             retry_test.start()
