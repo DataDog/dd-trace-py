@@ -67,6 +67,10 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
 
+    if (args == nullptr) {
+        return nullptr;
+    }
+
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
     const auto result_o = PyObject_GetItem(candidate_text, idx);
