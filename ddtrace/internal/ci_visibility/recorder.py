@@ -442,8 +442,7 @@ class CIVisibility(Service):
         try:
             if self._api_client is not None:
                 return self._api_client.fetch_unique_tests()
-            else:
-                log.warning("API client not initialized, cannot fetch unique tests")
+            log.warning("API client not initialized, cannot fetch unique tests")
         except Exception:
             log.debug("Error fetching unique tests", exc_info=True)
         return None
