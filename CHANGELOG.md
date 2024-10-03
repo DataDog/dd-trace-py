@@ -14,7 +14,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
   - Code Security: Fixes potential memory leak on IAST exception handling.
 
 - Profiling:
-  - All files with platform-dependent code have had their filenames updated to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
+  - Updates filenames for all files with platform-dependent code to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
   - Enables endpoint profiling for stack v2, `DD_PROFILING_STACK_V2_ENABLED` is set.
   - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
   - Enables code provenance when using libdatadog exporter, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_STACK_V2_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED`.
