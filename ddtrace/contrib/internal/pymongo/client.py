@@ -10,6 +10,7 @@ from wrapt import ObjectProxy
 
 # project
 import ddtrace
+from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
@@ -67,7 +68,7 @@ def _trace_mongo_client_init(func, args, kwargs):
     client.__getddpin__ = functools.partial(__getddpin__, client)
 
     # Set a pin on the traced mongo client
-    ddtrace.Pin().onto(client)
+    Pin(service=None).onto(client)
 
 
 # The function is exposed in the public API, but it is not used in the codebase.

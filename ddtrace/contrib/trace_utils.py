@@ -371,12 +371,12 @@ def int_service(pin, int_config, default=None):
     if "service_name" in int_config and int_config.service_name is not None:
         return cast(str, int_config.service_name)
 
+    if "_default_service" in int_config and int_config._default_service is not None:
+        return cast(str, int_config._default_service)
+
     global_service = int_config.global_config._get_service()
     if global_service:
         return cast(str, global_service)
-
-    if "_default_service" in int_config and int_config._default_service is not None:
-        return cast(str, int_config._default_service)
 
     return default
 

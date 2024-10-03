@@ -48,7 +48,7 @@ else:
 _CHECKOUT_FN_NAME = "get_socket" if pymongo.version_tuple < (4, 5) else "checkout"
 
 
-config._add("pymongo", dict(service=schematize_service_name("pymongo")))
+config._add("pymongo", dict(_default_service=schematize_service_name("pymongo")))
 
 
 def get_version():
@@ -121,9 +121,9 @@ def traced_get_socket(func, args, kwargs):
         service=trace_utils.int_service(pin, config.pymongo),
         span_type=SpanTypes.MONGODB,
     ) as span:
+        # assert 0, f'{config.pymongo["service"]}'
         span.set_tag_str(COMPONENT, config.pymongo.integration_name)
         span.set_tag_str(db.SYSTEM, mongo.SERVICE)
-
         # set span.kind tag equal to type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
