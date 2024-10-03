@@ -326,7 +326,7 @@ class Config(object):
     """
 
     class _HTTPServerConfig(object):
-        _error_statuses = "500-599"  # type: str
+        _error_statuses = os.getenv("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 
         @property
@@ -567,7 +567,7 @@ class Config(object):
         dd_trace_obfuscation_query_string_regexp = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
-        self.global_query_string_obfuscation_disabled = True
+        self.global_query_string_obfuscation_disabled = dd_trace_obfuscation_query_string_regexp == ""
         self._obfuscation_query_string_pattern = None
         self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
         try:
