@@ -11,6 +11,7 @@ import functools
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
+from inspect import unwrap
 import os
 
 import wrapt
@@ -653,12 +654,20 @@ def _instrument_view(django, view):
 def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
-        if "view" in kwargs:
-            kwargs["view"] = instrument_view(django, kwargs["view"])
-        elif len(args) >= 2:
+        from_args = False
+        view = kwargs.pop("view", None)
+        if view is None:
+            view = args[1]
+            from_args = True
+
+        core.dispatch("service_entrypoint.patch", (unwrap(view),))
+
+        if from_args:
             args = list(args)
-            args[1] = instrument_view(django, args[1])
+            args[1] = instrument_view(django, view)
             args = tuple(args)
+        else:
+            kwargs["view"] = instrument_view(django, view)
     except Exception:
         log.debug("Failed to instrument Django url path %r %r", args, kwargs, exc_info=True)
     return wrapped(*args, **kwargs)

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Ensures ``DD_TRACE_RATE_LIMIT`` environment variable is only applied to spans for which tracer sampling is configured. For spans not matching sampling rules default rate limits should be applied by the Datadog Agent.

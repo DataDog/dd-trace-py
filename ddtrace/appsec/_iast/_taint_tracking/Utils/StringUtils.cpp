@@ -69,6 +69,14 @@ new_pyobject_id(PyObject* tainted_object)
     if (!tainted_object)
         return nullptr;
 
+    // Check that it's aligned correctly
+    if (reinterpret_cast<uintptr_t>(tainted_object) % alignof(PyObject) != 0) return tainted_object;
+
+    // Try to safely access ob_type
+    if (const PyObject* temp = tainted_object;!temp->ob_type) return tainted_object;
+
+    py::gil_scoped_acquire acquire;
+
     if (PyUnicode_Check(tainted_object)) {
         PyObject* empty_unicode = PyUnicode_New(0, 127);
         if (!empty_unicode)
@@ -86,6 +94,7 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(val);
         return result;
     }
+
     if (PyBytes_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
         if (!empty_bytes)
@@ -102,7 +111,9 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(val);
         Py_XDECREF(empty_bytes);
         return res;
-    } else if (PyByteArray_Check(tainted_object)) {
+    }
+
+    if (PyByteArray_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
         if (!empty_bytes)
             return tainted_object;
