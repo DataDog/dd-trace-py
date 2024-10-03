@@ -103,7 +103,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
   - celery: Fixes an issue where `celery.apply` spans using task_protocol 1 didn't close by improving the check for the task id in the body.
   - Removes a reference cycle that caused unnecessary garbage collection for top-level spans.
 
-- Code Security (ASM)
+- Code Security
   - fix potential memory leak on IAST exception handling.
 
 - Profiling
