@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: enables endpoint profiling for stack v2, ``DD_PROFILING_STACK_V2_ENABLED``
+    is set.
+
