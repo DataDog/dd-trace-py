@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - 'main'
+      - 'mq-working-branch**'
     paths:
       - 'docker/**'
   merge_group:

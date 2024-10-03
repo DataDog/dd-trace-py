@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
+      - 'mq-working-branch**'
   pull_request:
   workflow_dispatch: {}
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
 
 jobs:
   unit-tests:
