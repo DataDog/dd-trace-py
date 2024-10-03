@@ -236,7 +236,7 @@ def set_waf_address(address: str, value: Any) -> None:
     else:
         set_value(_WAF_ADDRESSES, address, value)
     env = _get_asm_context()
-    if env:
+    if env and env.span:
         root = env.span._local_root or env.span
         root._set_ctx_item(address, value)
 

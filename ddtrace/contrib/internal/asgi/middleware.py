@@ -148,7 +148,6 @@ class TraceMiddleware:
             middleware=self,
             span_name=operation_name,
             resource=resource,
-            service=trace_utils.int_service(pin, self.integration_config),
             span_type=SpanTypes.WEB,
             pin=pin,
         ) as ctx, ctx.get_item("call") as span:
@@ -242,9 +241,9 @@ class TraceMiddleware:
                     )
                     core.dispatch("asgi.start_response", ("asgi",))
                 core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
-
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    raise trace_utils.InterruptException("wrapped_send")
+                blocked = get_blocked()
+                if blocked:
+                    raise BlockingException(blocked)
                 try:
                     return await send(message)
                 finally:
@@ -287,13 +286,10 @@ class TraceMiddleware:
 
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
-                if get_blocked():
-                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                # Do not block right here. Wait for route to be resolved in starlette/patch.py
                 return await self.app(scope, receive, wrapped_send)
             except BlockingException as e:
                 core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
-                return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
-            except trace_utils.InterruptException:
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
             except Exception as exc:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
