@@ -5,11 +5,14 @@ build:
     python: "3.10"
   commands:
     - git fetch --unshallow || true
-    - git rev-parse --abbrev-ref HEAD
+    - mkdir -p $HOME/.local/bin
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
-    - install -t /home/docs/.asdf/bin hatch
+    - echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$BASH_ENV"
+    - source ~/.bashrc
+    - install -t $HOME/.local/bin/ hatch
     - hatch -q
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
     - echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+    - source ~/.bashrc
     - hatch -v run docs:sphinx-build -W -b html docs docs/_build/html
     - mv docs/_build $READTHEDOCS_OUTPUT
