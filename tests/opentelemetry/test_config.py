@@ -297,7 +297,7 @@ def test_otel_sdk_disabled_configuration():
     assert config._otel_enabled is True
 
 
-@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true"})
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": ""})
 def test_otel_sdk_disabled_configuration_true():
     from ddtrace import config
 

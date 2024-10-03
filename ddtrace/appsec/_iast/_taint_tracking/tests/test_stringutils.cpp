@@ -502,6 +502,29 @@ TEST_F(NewPyObjectIdCheck, NullObjectReturnsNull)
     EXPECT_EQ(new_id_obj, nullptr);
 }
 
+TEST_F(NewPyObjectIdCheck, NonTextObjectReturnsSameObject)
+{
+    PyObject* non_text_obj = PyLong_FromLong(42);
+    PyObject* new_id_obj = new_pyobject_id(non_text_obj);
+    EXPECT_EQ(new_id_obj, non_text_obj);
+    Py_DECREF(non_text_obj);
+}
+
+TEST_F(NewPyObjectIdCheck, WrongPointer)
+{
+    PyObject* wrong_object = reinterpret_cast<PyObject*>(0x12345);
+    PyObject* new_id_obj = new_pyobject_id(wrong_object);
+    EXPECT_EQ(new_id_obj, wrong_object);
+}
+
+TEST_F(NewPyObjectIdCheck, PyObjectNoType)
+{
+    PyObject* wrong_object = PyBytes_FromString("test");
+    wrong_object->ob_type = nullptr;
+    PyObject* new_id_obj = new_pyobject_id(wrong_object);
+    EXPECT_EQ(new_id_obj, wrong_object);
+}
+
 using GetPyObjectSizeCheck = PyEnvCheck;
 
 TEST_F(GetPyObjectSizeCheck, UnicodeReturnsCorrectSize)
