@@ -6,9 +6,6 @@ on:
       - main
       - 'mq-working-branch**'
   pull_request:
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
