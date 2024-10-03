@@ -6,7 +6,7 @@ import os
 import typing as t
 
 from ddtrace import config
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
+from ddtrace.ext.test_visibility._constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.utils.formats import asbool
 
 
