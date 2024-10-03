@@ -534,10 +534,6 @@ class CIVisibility(Service):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(settings={"FILTERS": tracer_filters})
 
-        if self._api_client is None:
-            log.warning("Test Visibility API client was not initialized, default settings will be used")
-            return
-
         if self.test_skipping_enabled():
             self._fetch_tests_to_skip()
             if self._itr_data is None:
