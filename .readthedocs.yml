@@ -6,6 +6,7 @@ build:
   commands:
     - git fetch --unshallow || true
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
+    - echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$BASH_ENV"
     - install -t $HOME/.local/bin/ hatch
     - hatch -q
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
