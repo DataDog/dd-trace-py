@@ -1,7 +1,7 @@
-#include <gtest/gtest.h>
 #include <Python.h>
+#include <gtest/gtest.h>
+#include <iostream> // jjj
 #include <tests/test_common.hpp>
-#include <iostream>  // jjj
 
 using PyByteArray_Check = PyEnvCheck;
 
@@ -66,12 +66,7 @@ TEST_F(PyByteArray_Check, WithOtherTypes)
     if (PY_VERSION_HEX >= 0x03080000) {
         // PyByteArray_Check is bugged for user-defined classes in Python 3.7
         // Test with a user-defined class
-        PyRun_String(
-            "class TestClass:\n    pass\n\ntest_instance = TestClass()",
-            Py_file_input,
-            globals,
-            locals
-        );
+        PyRun_String("class TestClass:\n    pass\n\ntest_instance = TestClass()", Py_file_input, globals, locals);
         PyObject* user_obj = PyDict_GetItemString(locals, "test_instance");
         EXPECT_FALSE(PyByteArray_Check(user_obj)) << "Failed for user-defined class";
     }
@@ -87,12 +82,7 @@ TEST_F(PyByteArray_Check, WithOtherTypes)
     Py_DECREF(complex_obj);
 
     // Test with Function
-    PyRun_String(
-        "def test_function():\n    pass",
-        Py_file_input,
-        globals,
-        locals
-    );
+    PyRun_String("def test_function():\n    pass", Py_file_input, globals, locals);
     PyObject* func_obj = PyDict_GetItemString(locals, "test_function");
     EXPECT_FALSE(PyByteArray_Check(func_obj)) << "Failed for Function type";
     Py_DECREF(globals);
