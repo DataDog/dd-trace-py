@@ -328,7 +328,7 @@ class Config(object):
     """
 
     class _HTTPServerConfig(object):
-        _error_statuses = os.getenv("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
+        _error_statuses = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 
         @property

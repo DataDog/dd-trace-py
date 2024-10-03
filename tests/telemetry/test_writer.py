@@ -422,6 +422,7 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_TRACE_HEADER_TAGS", "origin": "default", "value": "{}"},
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": "True"},
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
+        {"name": "DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "origin": "default", "value": "500-599"},
         {"name": "DD_TRACE_METHODS", "origin": "default", "value": "None"},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": "True"},
