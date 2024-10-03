@@ -21,7 +21,7 @@ build_base_venvs:
     paths:
       - .riot/venv_*
       - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe
+      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
 
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
