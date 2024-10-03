@@ -109,7 +109,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Profiling
   - all files with platform-dependent code have had their filenames updated to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
   - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
-  - enables code provenance when using libdatadog exporter, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_STACK_V2_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Enables code provenance when using libdatadog exporter, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_STACK_V2_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED`.
   - Fixes an issue where the flame graph was upside down for stack v2 with `DD_PROFILING_STACK_V2_ENABLED`.
 
 ---
