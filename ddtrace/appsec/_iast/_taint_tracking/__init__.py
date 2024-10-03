@@ -38,6 +38,7 @@ if _is_python_version_supported():
     from ._native.initializer import initializer_size
     from ._native.initializer import num_objects_tainted
     from ._native.initializer import reset_context
+    from ._native.initializer import reset_contexts
     from ._native.taint_tracking import OriginType
     from ._native.taint_tracking import Source
     from ._native.taint_tracking import TagMappingMode
@@ -100,6 +101,7 @@ __all__ = [
     "origin_to_str",
     "parse_params",
     "reset_context",
+    "reset_contexts",
     "set_fast_tainted_if_notinterned_unicode",
     "set_ranges",
     "set_ranges_on_splitted",
