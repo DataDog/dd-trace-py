@@ -8,7 +8,9 @@ build:
     - mkdir -p $HOME/.local/bin
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
     - export PATH="$HOME/.local/bin:$PATH"
+    - echo $PATH
     - install -t $HOME/.local/bin/ hatch
+    - hatch --version
     - hatch -q
     - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
     - echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
