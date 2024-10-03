@@ -30,15 +30,6 @@ def main():
     suite_1_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_1_id, "test_1")
     suite_1_test_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_1_id, "test_2")
     suite_1_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_1_id, "test_3")
-    suite_1_test_3_retry_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        suite_1_id, "test_3", retry_number=1
-    )
-    suite_1_test_3_retry_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        suite_1_id, "test_3", retry_number=2
-    )
-    suite_1_test_3_retry_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        suite_1_id, "test_3", retry_number=3
-    )
 
     api.InternalTest.discover(
         suite_1_test_1_id, source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 1, 2)
@@ -48,27 +39,12 @@ def main():
         suite_1_test_3_id,
         codeowners=["@romain", "@romain2"],
         source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
-        is_early_flake_detection=True,
     )
-    api.InternalTest.discover_early_flake_retry(suite_1_test_3_retry_1_id)
-    api.InternalTest.discover_early_flake_retry(suite_1_test_3_retry_2_id)
-    api.InternalTest.discover_early_flake_retry(suite_1_test_3_retry_3_id)
-
     module_2_id = ext_api.TestModuleId("module_2")
     suite_2_id = ext_api.TestSuiteId(module_2_id, "suite_2")
     suite_2_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_2_id, "test_1")
     suite_2_test_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_2_id, "test_2")
     suite_2_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_2_id, "test_3")
-
-    suite_2_test_3_retry_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        suite_2_id, "test_3", retry_number=1
-    )
-    suite_2_test_3_retry_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        suite_2_id, "test_3", retry_number=2
-    )
-    suite_2_test_3_retry_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        suite_2_id, "test_3", retry_number=3
-    )
 
     api.InternalTestModule.discover(module_2_id)
     api.InternalTestSuite.discover(suite_2_id)
@@ -80,11 +56,7 @@ def main():
         suite_2_test_3_id,
         codeowners=["@romain"],
         source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
-        is_early_flake_detection=True,
     )
-    api.InternalTest.discover_early_flake_retry(suite_2_test_3_retry_1_id)
-    api.InternalTest.discover_early_flake_retry(suite_2_test_3_retry_2_id)
-    api.InternalTest.discover_early_flake_retry(suite_2_test_3_retry_3_id)
 
     # END DISCOVERY
 
@@ -100,12 +72,6 @@ def main():
     api.InternalTest.mark_itr_skipped(suite_1_test_2_id)
     api.InternalTest.start(suite_1_test_3_id)
     api.InternalTest.mark_itr_skipped(suite_1_test_3_id)
-    api.InternalTest.start(suite_1_test_3_retry_1_id)
-    api.InternalTest.mark_itr_skipped(suite_1_test_3_retry_1_id)
-    api.InternalTest.start(suite_1_test_3_retry_2_id)
-    api.InternalTest.mark_itr_skipped(suite_1_test_3_retry_2_id)
-    api.InternalTest.start(suite_1_test_3_retry_3_id)
-    api.InternalTest.mark_itr_skipped(suite_1_test_3_retry_3_id)
 
     api.InternalTestSuite.mark_itr_skipped(suite_1_id)
 
@@ -121,12 +87,6 @@ def main():
     api.InternalTest.mark_itr_skipped(suite_2_test_2_id)
     api.InternalTest.start(suite_2_test_3_id)
     api.InternalTest.mark_itr_skipped(suite_2_test_3_id)
-    api.InternalTest.start(suite_2_test_3_retry_1_id)
-    api.InternalTest.mark_itr_skipped(suite_2_test_3_retry_1_id)
-    api.InternalTest.start(suite_2_test_3_retry_2_id)
-    api.InternalTest.mark_itr_skipped(suite_2_test_3_retry_2_id)
-    api.InternalTest.start(suite_2_test_3_retry_3_id)
-    api.InternalTest.mark_itr_skipped(suite_2_test_3_retry_3_id)
 
     api.InternalTestSuite.mark_itr_skipped(suite_2_id)
 

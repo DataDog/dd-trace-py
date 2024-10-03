@@ -270,8 +270,9 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
                                 "10s": 5,
                                 "30s": 3,
                                 "5m": 2,
-                                "5s": 10
-                            },
+                                "5s": 10,
+                                "faulty_session_threshold": 30
+                            }
                         },
                         "flaky_test_retries_enabled": false,
                         "itr_enabled": true,

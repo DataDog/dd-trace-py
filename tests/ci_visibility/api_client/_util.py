@@ -51,6 +51,7 @@ def _get_setting_api_response(
     efd_10s=5,
     efd_30s=3,
     efd_5m=2,
+    faulty_session_threshold=30,
 ):
     body = {
         "data": {
@@ -74,6 +75,7 @@ def _get_setting_api_response(
             {
                 "enabled": efd_detection_enabled,
                 "slow_test_retries": {"10s": efd_10s, "30s": efd_30s, "5m": efd_5m, "5s": efd_5s},
+                "faulty_session_threshold": faulty_session_threshold,
             }
         )
 

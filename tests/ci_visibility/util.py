@@ -6,11 +6,13 @@ from unittest import mock
 import ddtrace
 import ddtrace.ext.test_visibility  # noqa: F401
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
+from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import override_env
 
@@ -38,6 +40,13 @@ def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = 
     return new_ddconfig
 
 
+def _fetch_unique_tests_side_effect(unique_test_ids: t.Set[InternalTestId]):
+    def _side_effect():
+        CIVisibility._instance._unique_test_ids = unique_test_ids
+
+    return _side_effect
+
+
 @contextmanager
 def _mock_ddconfig_test_visibility(itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST):
     mock_test_visibility_config = mock.Mock()
@@ -57,6 +66,8 @@ def set_up_mock_civisibility(
     require_git: bool = False,
     suite_skipping_mode: bool = False,
     skippable_items=None,
+    unique_test_ids: t.Optional[t.Set[InternalTestId]] = None,
+    efd_settings: t.Optional[EarlyFlakeDetectionSettings] = None,
 ):
     """This is a one-stop-shop that patches all parts of CI Visibility for testing.
 
@@ -89,6 +100,8 @@ def set_up_mock_civisibility(
         env_overrides.update({"DD_API_KEY": "civisfakeapikey", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"})
     if suite_skipping_mode:
         env_overrides.update({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "true"})
+    if efd_settings is None:
+        efd_settings = EarlyFlakeDetectionSettings()
 
     with override_env(env_overrides), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig",
@@ -102,10 +115,14 @@ def set_up_mock_civisibility(
             skipping_enabled=skipping_enabled,
             require_git=require_git,
             itr_enabled=itr_enabled,
+            early_flake_detection=efd_settings,
         ),
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
         side_effect=_fake_fetch_tests_to_skip,
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
+        side_effect=_fetch_unique_tests_side_effect(unique_test_ids),
     ), mock.patch.multiple(
         CIVisibilityGitClient,
         _get_repository_url=classmethod(lambda *args, **kwargs: "git@github.com:TestDog/dd-test-py.git"),

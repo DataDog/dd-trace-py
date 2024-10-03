@@ -32,8 +32,8 @@ class TestVisibilityModule(
     def __init__(
         self,
         name: str,
-        module_path: Optional[Path],
         session_settings: TestVisibilitySessionSettings,
+        module_path: Optional[Path] = None,
         initial_tags: Optional[Dict[str, str]] = None,
     ):
         super().__init__(name, session_settings, session_settings.module_operation_name, initial_tags)

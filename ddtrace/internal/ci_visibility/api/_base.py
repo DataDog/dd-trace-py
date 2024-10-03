@@ -4,6 +4,7 @@ from enum import Enum
 import functools
 import json
 from pathlib import Path
+import typing
 from typing import Any
 from typing import Dict
 from typing import Generic
@@ -37,6 +38,10 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+
+
+if typing.TYPE_CHECKING:
+    from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 
 
 log = get_logger(__name__)
@@ -138,9 +143,6 @@ class TestVisibilityItemBase(abc.ABC):
         self._is_itr_unskippable: bool = False
         self._is_itr_forced_run: bool = False
 
-        # Internal state keeping
-        self._status_set: bool = False
-
         # General purpose attributes not used by all item types
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[TestSourceFileInfo] = None
@@ -190,6 +192,10 @@ class TestVisibilityItemBase(abc.ABC):
 
         # ITR-related tags should only be set if ITR is enabled in the first place
         self._set_itr_tags(self._session_settings.itr_enabled)
+
+        # Add efd-related tags if EFD is enabled
+        if self._session_settings.efd_settings is not None and self._session_settings.efd_settings.enabled:
+            self._set_efd_tags()
 
         # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
         self._set_span_tags()
@@ -244,6 +250,10 @@ class TestVisibilityItemBase(abc.ABC):
 
         self.set_tag(test.ITR_UNSKIPPABLE, self._is_itr_unskippable)
         self.set_tag(test.ITR_FORCED_RUN, self._is_itr_forced_run)
+
+    def _set_efd_tags(self) -> None:
+        """EFD tags are only set at the test or session level"""
+        pass
 
     def _set_span_tags(self):
         """This is effectively a callback method for exceptional cases where the item span
@@ -353,6 +363,11 @@ class TestVisibilityItemBase(abc.ABC):
     def is_finished(self) -> bool:
         return self._span is not None and self._span.finished
 
+    def get_session(self) -> Optional["TestVisibilitySession"]:
+        if self.parent is None:
+            return None
+        return self.parent.get_session()
+
     def get_span_id(self) -> Optional[int]:
         if self._span is None:
             return None
@@ -368,10 +383,9 @@ class TestVisibilityItemBase(abc.ABC):
 
     def set_status(self, status: TestStatus) -> None:
         if self.is_finished():
-            error_msg = f"Status already set for item {self}"
+            error_msg = f"Status {self._status} already set for item {self}, not setting to {status}"
             log.warning(error_msg)
             return
-        self._status_set = True
         self._status = status
 
     def count_itr_skipped(self) -> None:

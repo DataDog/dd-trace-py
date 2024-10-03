@@ -1,40 +1,23 @@
 from pathlib import Path
 import typing as t
-from unittest import mock
 
 import pytest
 
+from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility.api import TestStatus
-from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
+from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from tests.utils import DummyTracer
 
 
-class TestEFD:
-    """Tests that the EFD API correctly handles retry events"""
-
-    def _mock_civisibility(self, efd_settings: EarlyFlakeDetectionSettings):
-        with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
-            CIVisibility, "_instance", mock.Mock()
-        ):
-            pass
-
-    def test_max_retries(self):
-        """Tests that the EFD API correctly handles retry events"""
-        pass
-
-    def test_final_status(self):
-        """Tests that the EFD API correctly reports the final status of a test"""
-        pass
-
-    def test_session_discovery(self):
-        """Tests that EFD settings properly carry to the test session when a session is discovered"""
-
-
-class TestCIVisibilityAPIEFD:
+class TestCIVisibilityTestEFD:
     """Tests that the classes in the CIVisibility API correctly handle EFD"""
 
     def _get_session_settings(self, efd_settings: EarlyFlakeDetectionSettings):
@@ -76,17 +59,22 @@ class TestCIVisibilityAPIEFD:
             name="efd_test",
             session_settings=self._get_session_settings(efd_settings),
         )
+        efd_test.start()
 
-        efd_test.efd_record_duration(efd_test_duration_s)
+        efd_test.efd_record_initial(TestStatus.PASS)
 
-        num_retry = 0
+        # Overwrite the test duration
+        efd_test._efd_initial_finish_time_ns = efd_test._span.start_ns + (efd_test_duration_s * 1e9)
+
+        retry_count = 0
         while efd_test.efd_should_retry():
-            num_retry += 1
-            efd_test.efd_add_retry(num_retry)
-            efd_test.efd_start_retry(num_retry)
-            efd_test.efd_finish_retry(num_retry, TestStatus.PASS)
+            retry_count += 1
+            added_retry_num = efd_test.efd_add_retry()
+            assert added_retry_num == retry_count
+            efd_test.efd_start_retry(added_retry_num)
+            efd_test.efd_finish_retry(added_retry_num, TestStatus.PASS)
 
-        assert num_retry == expected_max_retries
+        assert retry_count == expected_max_retries
 
     @pytest.mark.parametrize(
         "test_result,retry_results,expected_status",
@@ -114,13 +102,14 @@ class TestCIVisibilityAPIEFD:
             name="efd_test",
             session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(True)),
         )
-        efd_test.set_status(test_result)
-        efd_test.efd_record_duration(1.0)
-        num_retry = 0
+        efd_test.start()
+        efd_test.efd_record_initial(test_result)
+        expected_num_retry = 0
         for test_result in retry_results:
-            num_retry += 1
-            efd_test.efd_add_retry(num_retry, start_immediately=True)
-            efd_test.efd_finish_retry(num_retry, test_result)
+            expected_num_retry += 1
+            added_retry_number = efd_test.efd_add_retry(start_immediately=True)
+            assert added_retry_number
+            efd_test.efd_finish_retry(added_retry_number, test_result)
         assert efd_test.efd_get_final_status() == expected_status
 
     def test_efd_does_not_retry_if_disabled(self):
@@ -129,3 +118,63 @@ class TestCIVisibilityAPIEFD:
             session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(True)),
         )
         assert efd_test.efd_should_retry() is False
+
+    @pytest.mark.parametrize("faulty_session_threshold,expected_faulty", ((None, False), (10, True), (40, False)))
+    def test_efd_session_faulty(self, faulty_session_threshold, expected_faulty):
+        """Tests that the number of new tests in a session is correctly used to determine if a session is faulty
+
+        For the purpose of this test, the test structure is hardcoded. Whether or not tests are properly marked as new,
+        etc., should be tested elsewhere.
+        """
+        if faulty_session_threshold is not None:
+            efd_settings = EarlyFlakeDetectionSettings(True, faulty_session_threshold=faulty_session_threshold)
+        else:
+            efd_settings = EarlyFlakeDetectionSettings(True)
+
+        ssettings = self._get_session_settings(efd_settings=efd_settings)
+        test_session = TestVisibilitySession(session_settings=ssettings)
+
+        # Module
+        m1_id = TestModuleId("module_1")
+        m1 = TestVisibilityModule(m1_id.name, session_settings=ssettings)
+        test_session.add_child(m1_id, m1)
+        m1_s1_id = TestSuiteId(m1_id, "m1_s1")
+        m1_s1 = TestVisibilitySuite(m1_s1_id.name, session_settings=ssettings)
+        m1.add_child(m1_s1_id, m1_s1)
+        m1_s1_t1_id = InternalTestId(m1_s1_id, name="m1_s1_t1")
+        m1_s1.add_child(m1_s1_t1_id, TestVisibilityTest(m1_s1_t1_id.name, session_settings=ssettings, is_new=True))
+        m1_s1_t2_id = InternalTestId(m1_s1_id, name="m1_s1_t2")
+        m1_s1.add_child(m1_s1_t2_id, TestVisibilityTest(m1_s1_t2_id.name, session_settings=ssettings, is_new=False))
+        m1_s1_t3_id = InternalTestId(m1_s1_id, name="m1_s1_t3")
+        m1_s1.add_child(m1_s1_t3_id, TestVisibilityTest(m1_s1_t3_id.name, session_settings=ssettings, is_new=False))
+
+        m1_s2_id = TestSuiteId(m1_id, "suite_2")
+        m1_s2 = TestVisibilitySuite(m1_s2_id.name, session_settings=ssettings)
+        m1.add_child(m1_s2_id, m1_s2)
+        m1_s2_t1_id = InternalTestId(m1_s2_id, name="m1_s2_t1")
+        m1_s2.add_child(m1_s2_t1_id, TestVisibilityTest(m1_s2_t1_id.name, session_settings=ssettings, is_new=True))
+
+        m2_id = TestModuleId("module_2")
+        m2 = TestVisibilityModule(m2_id.name, session_settings=ssettings)
+        test_session.add_child(m2_id, m2)
+        m2_s1_id = TestSuiteId(m2_id, "suite_1")
+        m2_s1 = TestVisibilitySuite(m2_s1_id.name, session_settings=ssettings)
+        m2.add_child(m2_s1_id, m2_s1)
+
+        m2_s1_t1_id = InternalTestId(m2_s1_id, name="m2_s1_t1")
+        m2_s1.add_child(m2_s1_t1_id, TestVisibilityTest(m2_s1_t1_id.name, session_settings=ssettings, is_new=False))
+        m2_s1_t2_id = InternalTestId(m2_s1_id, name="m2_s1_t2")
+        m2_s1.add_child(m2_s1_t2_id, TestVisibilityTest(m2_s1_t2_id.name, session_settings=ssettings, is_new=False))
+        m2_s1_t3_id = InternalTestId(m2_s1_id, name="m2_s1_t3")
+        m2_s1.add_child(m2_s1_t3_id, TestVisibilityTest(m2_s1_t3_id.name, session_settings=ssettings, is_new=False))
+
+        # A test with parameters is never considered new:
+        m2_s1_t4_id = InternalTestId(m2_s1_id, name="m2_s1_t4", parameters='{"hello": "world"}')
+        m2_s1.add_child(
+            m2_s1_t4_id,
+            TestVisibilityTest(
+                m2_s1_t4_id.name, session_settings=ssettings, is_new=True, parameters=m2_s1_t4_id.parameters
+            ),
+        )
+
+        assert test_session.efd_is_faulty_session() == expected_faulty

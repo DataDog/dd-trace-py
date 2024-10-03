@@ -84,6 +84,7 @@ class EarlyFlakeDetectionSettings:
     slow_test_retries_10s: int = 5
     slow_test_retries_30s: int = 3
     slow_test_retries_5m: int = 2
+    faulty_session_threshold: int = 30
 
 
 @dataclasses.dataclass(frozen=True)
@@ -367,6 +368,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                     slow_test_retries_10s=attributes["early_flake_detection"]["slow_test_retries"]["10s"],
                     slow_test_retries_30s=attributes["early_flake_detection"]["slow_test_retries"]["30s"],
                     slow_test_retries_5m=attributes["early_flake_detection"]["slow_test_retries"]["5m"],
+                    faulty_session_threshold=attributes["early_flake_detection"]["faulty_session_threshold"],
                 )
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()

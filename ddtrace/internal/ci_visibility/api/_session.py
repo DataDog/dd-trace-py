@@ -42,6 +42,9 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         )
         self._test_command = self._session_settings.test_command
 
+        self._efd_abort_reason: Optional[str] = None
+        self._efd_is_faulty_session: Optional[bool] = None
+
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
 
     def _get_hierarchy_tags(self) -> Dict[str, Any]:
@@ -51,6 +54,15 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
 
     def get_session_settings(self) -> TestVisibilitySessionSettings:
         return self._session_settings
+
+    def _set_efd_tags(self):
+        if self._session_settings.efd_settings.enabled:
+            self.set_tag(test.TEST_EFD_ENABLED, True)
+        if self._efd_abort_reason is not None:
+            # Allow any set abort reason to override faulty session abort reason
+            self.set_tag(test.TEST_EFD_ABORT_REASON, self._efd_abort_reason)
+        elif self._efd_is_faulty_session:
+            self.set_tag(test.TEST_EFD_ABORT_REASON, "faulty")
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Set session-level tags based in ITR enablement status"""
@@ -78,6 +90,7 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
             test_framework=self._session_settings.test_framework_metric_name,
             has_codeowners=self._codeowners is not None,
             is_unsupported_ci=self._session_settings.is_unsupported_ci,
+            early_flake_detection_abort_reason="faulty" if self.efd_is_faulty_session() else None,
         )
 
     def add_coverage_data(self, *args, **kwargs):
@@ -85,3 +98,37 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
 
     def set_covered_lines_pct(self, coverage_pct: float):
         self.set_tag(test.TEST_LINES_PCT, coverage_pct)
+
+    def get_session(self):
+        return self
+
+    # EFD (Early Flake Detection) functionality
+    def set_efd_abort_reason(self, abort_reason: str):
+        self._efd_abort_reason = abort_reason
+
+    def efd_is_faulty_session(self):
+        """A session is considered "EFD faulty" if percentage of tests considered new is greater than the given
+        threshold
+
+        NOTE: this behavior is cached on the assumption that this method will only be called once
+        """
+        if self._session_settings.efd_settings.enabled is False:
+            return False
+
+        if self._efd_is_faulty_session is not None:
+            return self._efd_is_faulty_session
+
+        total_tests = 0
+        new_tests = 0
+        for _module in self._children.values():
+            for _suite in _module._children.values():
+                for _test in _suite._children.values():
+                    total_tests += 1
+                    if _test.is_new():
+                        new_tests += 1
+
+        new_tests_pct = 100 * (new_tests / total_tests)
+
+        self._efd_is_faulty_session = new_tests_pct > self._session_settings.efd_settings.faulty_session_threshold
+
+        return self._efd_is_faulty_session
