@@ -1312,7 +1312,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
         """When neither DD_TEST_SESSION_NAME nor a job id is provided, the test session name should be the test
         command.
         """
-        with set_up_mock_civisibility(), _patch_dummy_writer():
+        with _ci_override_env(dict()), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
             CIVisibility.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("some_command")
