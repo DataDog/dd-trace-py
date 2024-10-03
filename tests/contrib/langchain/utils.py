@@ -26,12 +26,46 @@ true whenever it is put forward by me or conceived in my mind.
 # NOTE: that different cassettes have to be used between sync and async
 #       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
 #       between cassettes generated for requests and aiohttp.
-def get_request_vcr(subdirectory_name="", ignore_localhost=True):
+def get_request_vcr(subdirectory_name=""):
     return vcr.VCR(
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/%s" % subdirectory_name),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "OpenAI-Organization", "api-key", "x-api-key"],
         # Ignore requests to the agent
-        ignore_localhost=ignore_localhost,
+        ignore_localhost=True,
     )
+
+
+def create_milvus_vectorstore(langchain_openai, langchain_core, langchain_milvus, pymilvus):
+    embeddings = langchain_openai.OpenAIEmbeddings(
+        api_key=os.environ.get("OPENAI_API_KEY"), model="text-embedding-3-large", dimensions=1536
+    )
+
+    client = pymilvus.MilvusClient("milvus_demo.db")
+
+    if client.has_collection(collection_name="demo_collection"):
+        client.drop_collection(collection_name="demo_collection")
+    client.create_collection(
+        collection_name="demo_collection",
+        dimension=1536,
+    )
+
+    document_1 = langchain_core.documents.Document(
+        page_content="I had chocalate chip pancakes and scrambled eggs for breakfast this morning.",
+        metadata={"source": "tweet"},
+    )
+
+    documents = [
+        document_1,
+    ]
+
+    vectorstore = langchain_milvus.Milvus.from_documents(
+        documents=documents,
+        embedding=embeddings,
+        connection_args={
+            "uri": "./milvus_demo.db",
+        },
+    )
+
+    return vectorstore
