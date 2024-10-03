@@ -1,0 +1,6 @@
+rulesets:
+  - python-best-practices:
+    rules:
+      nested-blocks:
+        ignore:
+          - "**"
