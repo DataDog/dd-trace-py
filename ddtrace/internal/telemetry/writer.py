@@ -506,7 +506,7 @@ class TelemetryWriter(PeriodicService):
                 # Crashtracker
                 (TELEMETRY_CRASHTRACKING_ENABLED, crashtracker_config.enabled, "unknown"),
                 (TELEMETRY_CRASHTRACKING_STARTED, crashtracking.is_started(), "unknown"),
-                (TELEMETRY_CRASHTRACKING_AVAILABLE, crashtracking.is_available, "unknown"),
+                (TELEMETRY_CRASHTRACKING_AVAILABLE, crashtracking.is_available(), "unknown"),
                 (TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER, str(crashtracker_config.stacktrace_resolver), "unknown"),
                 (TELEMETRY_CRASHTRACKING_STDOUT_FILENAME, str(crashtracker_config.stdout_filename), "unknown"),
                 (TELEMETRY_CRASHTRACKING_STDERR_FILENAME, str(crashtracker_config.stderr_filename), "unknown"),

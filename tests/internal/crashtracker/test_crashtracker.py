@@ -583,3 +583,23 @@ def test_crashtracker_user_tags_core():
     for k, v in tags.items():
         assert k.encode() in data
         assert v.encode() in data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "false"})
+def test_crashtracker_disabled_noload():
+    """
+    When crashtracking is disabled, it should not be loaded under normal operation.  There are lots of ways of
+    checking module load, but here we specifically want to fail if and only if the crashtracking extension is loaded.
+    """
+    from ddtrace.internal.datadog.profiling import crashtracker as crashtracking
+
+    # Emulate the telemetry writer by checking a few interfaces
+    assert not crashtracking.is_available()
+    assert not crashtracking.is_started()
+
+    # If the module was loaded, then the extension will be in /proc/self/maps
+    with open("/proc/self/maps") as f:
+        for line in f:
+            if "crashtrack" in line:
+                assert False, "crashtracking extension loaded"

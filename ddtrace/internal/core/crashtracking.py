@@ -16,6 +16,20 @@ if crashtracker_config.enabled:
         is_enabled_and_available = False
 
 
+def is_started():
+    if crashtracker_config.enabled:
+        try:
+            from ddtrace.internal.datadog.profiling import crashtracker
+
+            return crashtracker.is_started()
+        except ImportError:
+            return False
+
+
+def is_available():
+    return is_enabled_and_available
+
+
 # DEV crashtracker was once loaded and enabled by default everywhere, but due to consequences of running long-running
 #     child processes, it has been disabled by default. Hoping to re-enable it soon.  Pushing the module imports down
 #     into individual functions is not a design requirement, but rather a way to avoid loading the module until needed.
