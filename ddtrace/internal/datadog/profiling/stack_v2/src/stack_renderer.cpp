@@ -1,4 +1,6 @@
 #include "stack_renderer.hpp"
+
+#include "thread_span_links.hpp"
 #include "utf8_validate.hpp"
 
 using namespace Datadog;
@@ -52,6 +54,13 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     // Finalize the thread information we have
     ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     ddup_push_walltime(sample, thread_state.wall_time_ns, 1);
+
+    const Span* active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+    if (active_span != nullptr) {
+        ddup_push_span_id(sample, active_span->span_id);
+        ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
+        ddup_push_trace_type(sample, std::string_view(active_span->span_type));
+    }
 }
 
 void
