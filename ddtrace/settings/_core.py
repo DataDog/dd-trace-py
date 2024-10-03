@@ -11,7 +11,7 @@ from envier.env import _normalized
 from ddtrace.internal.telemetry import telemetry_writer
 
 
-def report_telemetry(env):
+def report_telemetry(env: Any) -> None:
     for name, e in list(env.__class__.__dict__.items()):
         if isinstance(e, EnvVariable) and not e.private:
             env_name = env._full_prefix + _normalized(e.name)
