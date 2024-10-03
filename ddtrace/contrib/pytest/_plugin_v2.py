@@ -27,6 +27,7 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
@@ -119,7 +120,7 @@ def _handle_coverage_dependencies(suite_id) -> None:
 def _disable_ci_visibility():
     try:
         disable_test_visibility()
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during disable_ci_visibility", exc_info=True)
 
 
@@ -134,7 +135,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
-        dd_config.test_visibility.itr_skipping_level = "suite"
+        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()
@@ -142,7 +143,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
                 workspace_path = Path.cwd().absolute()
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -159,7 +160,7 @@ def pytest_configure(config: pytest.Config) -> None:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
             _disable_ci_visibility()
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -185,7 +186,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.start()
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -231,7 +232,7 @@ def pytest_collection_finish(session) -> None:
 
     try:
         return _pytest_collection_finish(session)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during collection finish, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -297,7 +298,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
     try:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
 
     # Yield control back to pytest to run the test
@@ -305,7 +306,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
     try:
         return _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during post-test", exc_info=True)
         return
 
@@ -430,7 +431,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     try:
         _pytest_sessionfinish(session, exitstatus)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during session finish", exc_info=True)
         # Try, again, to disable CI Visibility just in case
         _disable_ci_visibility()

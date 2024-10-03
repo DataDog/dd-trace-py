@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
+import re
 
 import pytest
 
@@ -24,17 +25,21 @@ TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
 
 @pytest.fixture(autouse=True)
 def reset_context():
-    with override_env({"DD_IAST_ENABLED": "True"}):
+    with override_env({IAST.ENV: "True"}):
         from ddtrace.appsec._iast._taint_tracking import create_context
         from ddtrace.appsec._iast._taint_tracking import reset_context
 
+        _ = create_context()
         yield
         reset_context()
-        _ = create_context()
+
+
+# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
+IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
 
 
 @pytest.fixture(autouse=True)
-def check_native_code_exception_in_each_python_aspect_test(request, caplog):
+def check_native_code_exception_in_each_django_test(request, caplog, telemetry_writer):
     if "skip_iast_check_logs" in request.keywords:
         yield
     else:
@@ -43,7 +48,11 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
             yield
 
         log_messages = [record.message for record in caplog.get_records("call")]
-        assert not any("[IAST] " in message for message in log_messages), log_messages
+        for message in log_messages:
+            if IAST_VALID_LOG.search(message):
+                pytest.fail(message)
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
 
 def _aux_appsec_get_root_span(
@@ -77,6 +86,31 @@ def _aux_appsec_get_root_span(
     return test_spans.spans[0], response
 
 
+def _aux_appsec_get_root_span_with_exception(
+    client,
+    test_spans,
+    tracer,
+    payload=None,
+    url="/",
+    content_type="text/plain",
+    headers=None,
+    cookies=None,
+):
+    try:
+        return _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            payload=payload,
+            url=url,
+            content_type=content_type,
+            headers=headers,
+            cookies=cookies,
+        )
+    except Exception:
+        return False
+
+
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_weak_hash(client, test_spans, tracer):
     with override_global_config(dict(_asm_enabled=True, _iast_enabled=True, _deduplication_enabled=False)):
@@ -105,6 +139,46 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
+
+
+@pytest.mark.parametrize(
+    ("payload", "content_type"),
+    [
+        ("master", "application/json"),
+        ("master", "text/plain"),
+        ("", "plain"),
+        ('{"json": "body"}', "plain"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("deduplication"),
+    [
+        True,
+        False,
+    ],
+)
+@pytest.mark.parametrize(
+    "sampling",
+    [
+        "0",
+        "100",
+        "50",
+    ],
+)
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_view_with_exception(client, test_spans, tracer, payload, content_type, deduplication, sampling):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(
+        {"DD_IAST_REQUEST_SAMPLING": sampling}
+    ):
+        response = _aux_appsec_get_root_span_with_exception(
+            client,
+            test_spans,
+            tracer,
+            content_type=content_type,
+            url="/appsec/view_with_exception/?q=" + payload,
+        )
+
+        assert response is False
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -500,6 +574,49 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
 
         assert response.status_code == 200
         assert response.content == b"master"
+
+
+@pytest.mark.parametrize(
+    ("payload", "content_type"),
+    [
+        ("", "application/json"),
+        ("", "text/plain"),
+        ("", "application/x-www-form-urlencoded"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("deduplication"),
+    [
+        True,
+        False,
+    ],
+)
+@pytest.mark.parametrize(
+    "sampling",
+    [
+        "0",
+        "100",
+        "50",
+    ],
+)
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, content_type, deduplication, sampling):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(
+        {"DD_IAST_REQUEST_SAMPLING": sampling}
+    ):
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/source/body/",
+            payload=payload,
+            content_type=content_type,
+        )
+        assert root_span.get_tag(IAST.JSON) is None
+
+        assert response.status_code == 200
+        assert response.content == b""
 
 
 @pytest.mark.django_db()
