@@ -29,6 +29,7 @@ def server(scenario):
         "PERF_PROFILER_ENABLED": str(scenario.profiler_enabled),
         "PERF_APPSEC_ENABLED": str(scenario.appsec_enabled),
         "PERF_IAST_ENABLED": str(scenario.iast_enabled),
+        "PERF_SPAN_CODE_ORIGIN_ENABLED": str(scenario.span_code_origin_enabled),
     }
     # copy over current environ
     env.update(os.environ)

@@ -1,5 +1,7 @@
 #include "sampler.hpp"
 
+#include "thread_span_links.hpp"
+
 #include "echion/interp.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
@@ -64,6 +66,7 @@ _stack_v2_atfork_child()
     // The only thing we need to do at fork is to propagate the PID to echion
     // so we don't even reveal this function to the user
     _set_pid(getpid());
+    ThreadSpanLinks::postfork_child();
 }
 
 __attribute__((constructor)) void
