@@ -44,7 +44,7 @@
          "http.method": "GET",
          "http.route": "/otel",
          "http.status_code": "200",
-         "http.url": "http://0.0.0.0:8000/otel",
+         "http.url": "http://0.0.0.0:8010/otel",
          "http.useragent": "python-requests/2.28.1",
          "language": "python",
          "runtime-id": "a29fc1c052394690a557d5d7a5207798",
