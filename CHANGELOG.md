@@ -18,7 +18,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
   - Enables endpoint profiling for stack v2, `DD_PROFILING_STACK_V2_ENABLED` is set.
   - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
   - Enables code provenance when using libdatadog exporter, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_STACK_V2_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED`.
-  - Fixes an issue where flamegraph was upside down for stack v2,  `DD_PROFILING_STACK_V2_ENABLED`.
+  - Fixes an issue where the flamegraph was upside down for stack v2 when enabling  `DD_PROFILING_STACK_V2_ENABLED`.
  
 - Tracing
   - Fixes an issue where `celery.apply` spans didn't close if the `after_task_publish` or `task_postrun` signals didn't get sent when using `apply_async`, which can happen if there is an internal exception during the handling of the task. This update also marks the span as an error if an exception occurs.
