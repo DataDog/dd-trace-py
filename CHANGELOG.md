@@ -10,7 +10,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ### Bug Fixes
 
 - Code Security (IAST)
-  - Always report a telemetry log error when an IAST propagation error raises, regardless of whether the \_DD_IAST_DEBUG environment variable is enabled or not.
+  - Always report a telemetry log error when an IAST propagation error raises, regardless of whether the `_DD_IAST_DEBUG` environment variable is enabled or not.
   - Code Security: fix potential memory leak on IAST exception handling.
 
 - Profiling:
