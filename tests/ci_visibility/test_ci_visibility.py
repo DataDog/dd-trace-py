@@ -1295,6 +1295,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             if CIVisibility.enabled:
                 CIVisibility.disable()
         except Exception:
+            # no-dd-sa:python-best-practices/no-silent-exception
             pass
 
     def assert_test_session_name(self, name):
