@@ -317,6 +317,11 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_APPSEC_WAF_TIMEOUT", "origin": "default", "value": "5.0"},
         {"name": "DD_CIVISIBILITY_AGENTLESS_ENABLED", "origin": "env_var", "value": "False"},
         {"name": "DD_CIVISIBILITY_AGENTLESS_URL", "origin": "default", "value": ""},
+        {
+            'name': "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED",
+            'origin': "default",
+            'value': "True",
+        },
         {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": "True"},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
         {"name": "DD_CRASHTRACKING_ALT_STACK", "origin": "default", "value": "False"},
