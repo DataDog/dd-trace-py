@@ -156,9 +156,13 @@ def sink_points(string_tainted):
 
 
 async def test_doit():
-    origin_string1 = "hiroot"
+    sample_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+    origin_string1 = "".join(random.choices(sample_str, k=5))
+
+    string_2 = "".join(random.choices(sample_str, k=20))
     tainted_string_2 = taint_pyobject(
-        pyobject="1234", source_name="abcdefghijk", source_value="1234", source_origin=OriginType.PARAMETER
+        pyobject=string_2, source_name="abcdefghijk", source_value=string_2, source_origin=OriginType.PARAMETER
     )
 
     string1 = str(origin_string1)  # String with 1 propagation range
@@ -173,9 +177,11 @@ async def test_doit():
     string8_2 = "%s_%s_notainted" % (string8, string8)
     string8_3 = "notainted_%s_" + string8_2
     string8_4 = string8_3 % "notainted"
-    await anyio.to_thread.run_sync(modulo_exceptions, string8_4)
+    quote_char = ('"', '"', '"', '"', '"')
+    string8_5 = "{quote}{value}{quote}".format(value=string8_4, quote=",".join(quote_char))
+    await anyio.to_thread.run_sync(modulo_exceptions, string8_5)
 
-    string9 = "notainted#{}".format(string8_4)
+    string9 = "notainted#{}".format(string8_5)
     string9_2 = f"{string9}_notainted"
     string9_3 = f"{string9_2:=^30}_notainted"
     string10 = "nottainted\n" + string9_3
