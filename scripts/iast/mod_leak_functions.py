@@ -63,14 +63,52 @@ class Aspectvalidation(BaseModel):
     offset: int = Field(0, ge=0)
 
 
+class ImSubClassOfAString(str):
+    def __add__(self, other):
+        return "ImNotAString.__add__!!" + other
+    def __iadd__(self, other):
+        return "ImNotAString.__iadd__!!" + other
+
+
+class ImNotAString:
+    def __add__(self, other):
+        return "ImNotAString.__add__!!" + other
+    def __iadd__(self, other):
+        return "ImNotAString.__iadd__!!" + other
+
+
 def add_variants(string_tainted, string_no_tainted) -> str:
     new_string_tainted = string_tainted + string_no_tainted
-    new_string_no_tainted = string_no_tainted + string_no_tainted
+    im_not_a_string = ImNotAString()
+    # TODO(avara1986): it raises seg fault instead of TypeError: can only concatenate str (not "ImNotAString") to str
+    # try:
+    #     new_string_no_tainted = string_no_tainted + im_not_a_string
+    #     assert False
+    # except TypeError:
+    #     pass
+    new_string_no_tainted = im_not_a_string + string_no_tainted
+    new_string_no_tainted = ImSubClassOfAString() + new_string_no_tainted + string_no_tainted
+    new_string_no_tainted += string_no_tainted
+    # TODO(avara1986): it raises seg fault instead of TypeError: can only concatenate str (not "ImNotAString") to str
+    # try:
+    #     new_string_no_tainted += ImNotAString()
+    #     assert False
+    # except TypeError:
+    #     pass
+
+    im_not_a_string += new_string_no_tainted
+    new_string_no_tainted += ImSubClassOfAString()
     new_string_tainted += new_string_no_tainted
+    new_string_tainted += new_string_no_tainted
+    new_string_tainted += new_string_tainted
+
     new_bytes_no_tainted = bytes(string_no_tainted, encoding="utf-8") + bytes(string_no_tainted, encoding="utf-8")
+    new_bytes_no_tainted += bytes(string_no_tainted, encoding="utf-8")
+    new_bytes_no_tainted += bytes(string_no_tainted, encoding="utf-8")
     new_bytes_tainted = bytes(string_tainted, encoding="utf-8") + bytes(string_tainted, encoding="utf-8")
-    new_bytes_tainted += bytes(string_tainted, encoding="utf-8")
     new_bytes_tainted += bytes(string_no_tainted, encoding="utf-8")
+    new_bytes_tainted += bytes(string_tainted, encoding="utf-8")
+    new_bytes_tainted += bytes(string_tainted, encoding="utf-8")
     new_bytearray_tainted = bytearray(bytes(string_tainted, encoding="utf-8")) + bytearray(
         bytes(string_tainted, encoding="utf-8")
     )
@@ -210,7 +248,11 @@ async def test_doit():
     string3 = add_variants(string2, string1)
 
     string4 = "-".join([string3, string3, string3])
-    string5 = string4[0:20]
+    string4_2 = string1
+    string4_2 += " " + " ".join(string_ for string_ in [string4, string4, string4])
+    string4_2 += " " + " ".join(string_ for string_ in [string1, string1, string1])
+
+    string5 = string4_2[0:100]
     string6 = string5.title()
     string7 = string6.upper()
     string8 = "%s_notainted" % string7
