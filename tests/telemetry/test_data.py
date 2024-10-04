@@ -13,7 +13,6 @@ from ddtrace.internal.telemetry.data import _get_os_version
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
-from ddtrace.internal.telemetry.data import update_imported_dependencies
 
 
 def test_get_application():
@@ -173,7 +172,10 @@ def test_get_container_id_when_container_does_not_exists():
         assert _get_container_id() == ""
 
 
+@pytest.mark.subprocess
 def test_update_imported_dependencies_both_empty():
+    from ddtrace.internal.telemetry.data import update_imported_dependencies
+
     already_imported = {}
     new_modules = []
     res = update_imported_dependencies(already_imported, new_modules)
@@ -182,8 +184,11 @@ def test_update_imported_dependencies_both_empty():
     assert new_modules == []
 
 
+@pytest.mark.subprocess
 def test_update_imported_dependencies():
     import xmltodict
+
+    from ddtrace.internal.telemetry.data import update_imported_dependencies
 
     already_imported = {}
     res = update_imported_dependencies(already_imported, [xmltodict.__name__])

@@ -236,11 +236,11 @@ def test_add_aspect_tainting_add_left_twice(obj1, obj2):
 @pytest.mark.parametrize(
     "log_level, iast_debug, expected_log_msg",
     [
-        (logging.DEBUG, "", ""),
+        (logging.DEBUG, "", "Tainting object error"),
         (logging.WARNING, "", ""),
-        (logging.DEBUG, "false", ""),
+        (logging.DEBUG, "false", "Tainting object error"),
         (logging.WARNING, "false", ""),
-        (logging.DEBUG, "true", "_iast/_taint_tracking/__init__.py"),
+        (logging.DEBUG, "true", "Tainting object error"),
         (logging.WARNING, "true", ""),
     ],
 )
@@ -271,7 +271,7 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_
     assert len(ranges_result) == 0
 
     if expected_log_msg:
-        assert any(expected_log_msg in record.message for record in caplog.records), [
+        assert any(record.message.startswith(expected_log_msg) for record in caplog.records), [
             record.message for record in caplog.records
         ]
     else:

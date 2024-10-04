@@ -4,6 +4,7 @@ from enum import Enum
 import functools
 import json
 from pathlib import Path
+import typing
 from typing import Any
 from typing import Dict
 from typing import Generic
@@ -17,11 +18,13 @@ from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestId
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
@@ -35,6 +38,10 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+
+
+if typing.TYPE_CHECKING:
+    from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 
 
 log = get_logger(__name__)
@@ -58,9 +65,10 @@ class TestVisibilitySessionSettings:
     reject_duplicates: bool = True
     itr_enabled: bool = False
     itr_test_skipping_enabled: bool = False
-    itr_test_skipping_level: str = ""
+    itr_test_skipping_level: Optional[ITR_SKIPPING_LEVEL] = None
     itr_correlation_id: str = ""
     coverage_enabled: bool = False
+    efd_settings: Optional[EarlyFlakeDetectionSettings] = None
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
@@ -135,9 +143,6 @@ class TestVisibilityItemBase(abc.ABC):
         self._is_itr_unskippable: bool = False
         self._is_itr_forced_run: bool = False
 
-        # Internal state keeping
-        self._status_set: bool = False
-
         # General purpose attributes not used by all item types
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[TestSourceFileInfo] = None
@@ -177,7 +182,7 @@ class TestVisibilityItemBase(abc.ABC):
         log.debug("Started span %s for item %s", self._span, self)
 
     @_require_span
-    def _finish_span(self) -> None:
+    def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
         if self._span is None:
             return
 
@@ -188,11 +193,15 @@ class TestVisibilityItemBase(abc.ABC):
         # ITR-related tags should only be set if ITR is enabled in the first place
         self._set_itr_tags(self._session_settings.itr_enabled)
 
+        # Add efd-related tags if EFD is enabled
+        if self._session_settings.efd_settings is not None and self._session_settings.efd_settings.enabled:
+            self._set_efd_tags()
+
         # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
         self._set_span_tags()
 
         self._add_all_tags_to_span()
-        self._span.finish()
+        self._span.finish(finish_time=override_finish_time)
 
     def _set_default_tags(self) -> None:
         """Applies the tags that should be on every span regardless of the item type
@@ -241,6 +250,10 @@ class TestVisibilityItemBase(abc.ABC):
 
         self.set_tag(test.ITR_UNSKIPPABLE, self._is_itr_unskippable)
         self.set_tag(test.ITR_FORCED_RUN, self._is_itr_forced_run)
+
+    def _set_efd_tags(self) -> None:
+        """EFD tags are only set at the test or session level"""
+        pass
 
     def _set_span_tags(self):
         """This is effectively a callback method for exceptional cases where the item span
@@ -329,18 +342,31 @@ class TestVisibilityItemBase(abc.ABC):
     def is_started(self) -> bool:
         return self._span is not None
 
-    def finish(self, force: bool = False) -> None:
+    def finish(
+        self,
+        force: bool = False,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
+    ) -> None:
         """Finish the span and set the _is_finished flag to True.
 
         Nothing should be called after this method is called.
         """
         log.debug("Test Visibility: finishing %s", self)
 
+        if override_status:
+            self.set_status(override_status)
+
         self._telemetry_record_event_finished()
-        self._finish_span()
+        self._finish_span(override_finish_time=override_finish_time)
 
     def is_finished(self) -> bool:
         return self._span is not None and self._span.finished
+
+    def get_session(self) -> Optional["TestVisibilitySession"]:
+        if self.parent is None:
+            return None
+        return self.parent.get_session()
 
     def get_span_id(self) -> Optional[int]:
         if self._span is None:
@@ -357,10 +383,9 @@ class TestVisibilityItemBase(abc.ABC):
 
     def set_status(self, status: TestStatus) -> None:
         if self.is_finished():
-            error_msg = f"Status already set for item {self}"
+            error_msg = f"Status {self._status} already set for item {self}, not setting to {status}"
             log.warning(error_msg)
             return
-        self._status_set = True
         self._status = status
 
     def count_itr_skipped(self) -> None:
@@ -510,7 +535,12 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         # If we somehow got here, something odd happened and we set the status as FAIL out of caution
         return TestStatus.FAIL
 
-    def finish(self, force: bool = False, override_status: Optional[TestStatus] = None) -> None:
+    def finish(
+        self,
+        force: bool = False,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
+    ) -> None:
         """Recursively finish all children and then finish self
 
         An unfinished status is not considered an error condition (eg: some order-randomization plugins may cause
@@ -540,7 +570,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         elif not isinstance(item_status, SPECIAL_STATUS):
             self.set_status(item_status)
 
-        super().finish(force=force)
+        super().finish(force=force, override_status=override_status, override_finish_time=override_finish_time)
 
     def add_child(self, child_item_id: CIDT, child: CITEMT) -> None:
         child.parent = self

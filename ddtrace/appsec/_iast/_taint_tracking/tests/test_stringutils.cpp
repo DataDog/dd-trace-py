@@ -40,6 +40,30 @@ TEST_F(PyReMatchCheck, TEstPyReMatchNullObject)
     ASSERT_FALSE(PyReMatch_Check(null_obj));
 }
 
+using PyIOBaseCheck = PyEnvWithContext;
+
+TEST_F(PyIOBaseCheck, TestPyIOBaseValidObject)
+{
+    py::object io_module = py::module_::import("io");
+    py::object stringio_obj = io_module.attr("StringIO")("a");
+
+    ASSERT_TRUE(PyIOBase_Check(stringio_obj.ptr()));
+}
+
+TEST_F(PyIOBaseCheck, TestPyIOBaseInvalidObject)
+{
+    py::object non_io_obj = py::int_(42); // Not a `_io._IOBase` object
+
+    ASSERT_FALSE(PyIOBase_Check(non_io_obj.ptr()));
+}
+
+TEST_F(PyIOBaseCheck, TestPyIOBaseNullObject)
+{
+    PyObject* null_obj = Py_None;
+
+    ASSERT_FALSE(PyIOBase_Check(null_obj));
+}
+
 using IsFastTaintedCheck = PyEnvCheck;
 
 TEST_F(IsFastTaintedCheck, FastTaintedNullptrReturnsTrue)
@@ -476,6 +500,29 @@ TEST_F(NewPyObjectIdCheck, NullObjectReturnsNull)
 {
     PyObject* new_id_obj = new_pyobject_id(nullptr);
     EXPECT_EQ(new_id_obj, nullptr);
+}
+
+TEST_F(NewPyObjectIdCheck, NonTextObjectReturnsSameObject)
+{
+    PyObject* non_text_obj = PyLong_FromLong(42);
+    PyObject* new_id_obj = new_pyobject_id(non_text_obj);
+    EXPECT_EQ(new_id_obj, non_text_obj);
+    Py_DECREF(non_text_obj);
+}
+
+TEST_F(NewPyObjectIdCheck, WrongPointer)
+{
+    PyObject* wrong_object = reinterpret_cast<PyObject*>(0x12345);
+    PyObject* new_id_obj = new_pyobject_id(wrong_object);
+    EXPECT_EQ(new_id_obj, wrong_object);
+}
+
+TEST_F(NewPyObjectIdCheck, PyObjectNoType)
+{
+    PyObject* wrong_object = PyBytes_FromString("test");
+    wrong_object->ob_type = nullptr;
+    PyObject* new_id_obj = new_pyobject_id(wrong_object);
+    EXPECT_EQ(new_id_obj, wrong_object);
 }
 
 using GetPyObjectSizeCheck = PyEnvCheck;

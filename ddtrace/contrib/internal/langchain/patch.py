@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from typing import Any
@@ -50,6 +51,8 @@ from ddtrace.contrib.internal.langchain.constants import agent_output_parser_cla
 from ddtrace.contrib.internal.langchain.constants import langchain_third_party_vectorstore_classes
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
+from ddtrace.contrib.internal.langchain.utils import shared_stream
+from ddtrace.contrib.internal.langchain.utils import tag_general_message_input
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -625,7 +628,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         # langchain currently does not support token tracking for OpenAI embeddings:
         #  https://github.com/hwchase17/langchain/issues/945
         embeddings = func(*args, **kwargs)
-        if embeddings and isinstance(embeddings, list) and isinstance(embeddings[0], list):
+        if isinstance(embeddings, list) and embeddings and isinstance(embeddings[0], list):
             for idx, embedding in enumerate(embeddings):
                 span.set_metric("langchain.response.outputs.%d.embedding_length" % idx, len(embedding))
         else:
@@ -1013,6 +1016,156 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
 
 
 @with_traced_module
+def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+
+    def _on_span_started(span: Span):
+        inputs = get_argument_value(args, kwargs, 0, "input")
+        if not integration.is_pc_sampled_span(span):
+            return
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+        for idx, inp in enumerate(inputs):
+            if not isinstance(inp, dict):
+                span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
+                continue
+            for k, v in inp.items():
+                span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), integration.trunc(str(v)))
+
+    def _on_span_finished(span: Span, streamed_chunks):
+        if (
+            streamed_chunks
+            and langchain_core
+            and isinstance(instance.steps[-1], langchain_core.output_parsers.JsonOutputParser)
+        ):
+            # it's possible that the chain has a json output parser
+            # this will have already concatenated the chunks into a json object
+
+            # it's also possible the json output parser isn't the last step,
+            # but one of the last steps, in which case we won't act on it here
+            content = json.dumps(streamed_chunks[-1])
+        else:
+            # best effort to join chunks together
+            content = "".join([str(chunk) for chunk in streamed_chunks])
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="chain")
+        if span.error or not integration.is_pc_sampled_span(span):
+            return
+        span.set_tag_str("langchain.response.outputs", integration.trunc(content))
+
+    return shared_stream(
+        integration=integration,
+        pin=pin,
+        func=func,
+        instance=instance,
+        args=args,
+        kwargs=kwargs,
+        interface_type="chain",
+        on_span_started=_on_span_started,
+        on_span_finished=_on_span_finished,
+    )
+
+
+@with_traced_module
+def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    llm_provider = instance._llm_type
+    model = _extract_model_name(instance)
+
+    def _on_span_started(span: Span):
+        if not integration.is_pc_sampled_span(span):
+            return
+        chat_messages = get_argument_value(args, kwargs, 0, "input")
+        tag_general_message_input(span, chat_messages, integration, langchain_core)
+
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if not isinstance(val, dict):
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+                continue
+            for k, v in val.items():
+                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+
+    def _on_span_finished(span: Span, streamed_chunks):
+        joined_chunks = streamed_chunks[0]
+        for chunk in streamed_chunks[1:]:
+            joined_chunks += chunk  # base message types support __add__ for concatenation
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
+        if (
+            span.error
+            or not integration.is_pc_sampled_span(span)
+            or streamed_chunks is None
+            or len(streamed_chunks) == 0
+        ):
+            return
+        content = str(getattr(joined_chunks, "content", joined_chunks))
+        role = joined_chunks.__class__.__name__.replace("Chunk", "")  # AIMessageChunk --> AIMessage
+        span.set_tag_str("langchain.response.content", integration.trunc(content))
+        if role:
+            span.set_tag_str("langchain.response.message_type", role)
+
+        usage = streamed_chunks and getattr(streamed_chunks[-1], "usage_metadata", None)
+        if not usage or not isinstance(usage, dict):
+            return
+        for k, v in usage.items():
+            span.set_tag_str("langchain.response.usage_metadata.%s" % k, str(v))
+
+    return shared_stream(
+        integration=integration,
+        pin=pin,
+        func=func,
+        instance=instance,
+        args=args,
+        kwargs=kwargs,
+        interface_type="chat_model",
+        on_span_started=_on_span_started,
+        on_span_finished=_on_span_finished,
+        api_key=_extract_api_key(instance),
+        provider=llm_provider,
+        model=model,
+    )
+
+
+@with_traced_module
+def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    llm_provider = instance._llm_type
+    model = _extract_model_name(instance)
+
+    def _on_span_start(span: Span):
+        if not integration.is_pc_sampled_span(span):
+            return
+        inp = get_argument_value(args, kwargs, 0, "input")
+        tag_general_message_input(span, inp, integration, langchain_core)
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if not isinstance(val, dict):
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+                continue
+            for k, v in val.items():
+                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+
+    def _on_span_finished(span: Span, streamed_chunks):
+        content = "".join([str(chunk) for chunk in streamed_chunks])
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
+        if span.error or not integration.is_pc_sampled_span(span):
+            return
+        span.set_tag_str("langchain.response.content", integration.trunc(content))
+
+    return shared_stream(
+        integration=integration,
+        pin=pin,
+        func=func,
+        instance=instance,
+        args=args,
+        kwargs=kwargs,
+        interface_type="llm",
+        on_span_started=_on_span_start,
+        on_span_finished=_on_span_finished,
+        api_key=_extract_api_key(instance),
+        provider=llm_provider,
+        model=model,
+    )
+
+
+@with_traced_module
 def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
@@ -1218,10 +1371,26 @@ def patch():
         )
         wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
         wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
+        wrap("langchain_core", "runnables.base.RunnableSequence.stream", traced_chain_stream(langchain))
+        wrap("langchain_core", "runnables.base.RunnableSequence.astream", traced_chain_stream(langchain))
+        wrap(
+            "langchain_core",
+            "language_models.chat_models.BaseChatModel.stream",
+            traced_chat_stream(langchain),
+        )
+        wrap(
+            "langchain_core",
+            "language_models.chat_models.BaseChatModel.astream",
+            traced_chat_stream(langchain),
+        )
+        wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain))
+        wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain))
+
         wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain))
         wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
         if langchain_openai:
             safe_wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding, langchain)
+            # should we wrap also embed query even when it always calls embed documents ?
             safe_wrap("langchain_openai", "OpenAIEmbeddings.embed_query", traced_embedding, langchain)
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
@@ -1267,10 +1436,17 @@ def unpatch():
         unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
         unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
         unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
+        unwrap(langchain_core.runnables.base.RunnableSequence, "stream")
+        unwrap(langchain_core.runnables.base.RunnableSequence, "astream")
+        unwrap(langchain_core.language_models.chat_models.BaseChatModel, "stream")
+        unwrap(langchain_core.language_models.chat_models.BaseChatModel, "astream")
+        unwrap(langchain_core.language_models.llms.BaseLLM, "stream")
+        unwrap(langchain_core.language_models.llms.BaseLLM, "astream")
         unwrap(langchain_core.tools.BaseTool, "invoke")
         unwrap(langchain_core.tools.BaseTool, "ainvoke")
         if langchain_openai:
             safe_unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
+            # should we wrap also embed query even when it always calls embed documents ?
             safe_unwrap(langchain_openai.OpenAIEmbeddings, "embed_query")
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
@@ -1355,6 +1531,14 @@ def safe_wrap(module_object, func_name, traced_func, fixture, path_to_func=None)
         traced_func (Callable): The traced function to wrap around the target function.
         fixture (Any): The fixture to be passed to the traced function.
         path_to_func (Optional[str]): The path to the function within the module, if nested.
+            example : <module_name>.<path_to_func>.<func_name>
+                for module langchain we want to wrap langchain.embeddings.base.embed_query
+                module_name : langchain
+                func_name : embed_query
+                path_to_func : embeddings.base
+            or just provide the following, and it will recursively search for the function name
+                module_name : langchain
+                func_name : embed_query
     """
     if isinstance(module_object, str):
         module_object = get_module_from_name(module_object)
