@@ -31,8 +31,6 @@ add_aspect(PyObject* result_o,
     }
 
     const auto& to_candidate_text = get_tainted_object(candidate_text, tx_taint_map);
-    if (to_candidate_text == nullptr) {
-    }
     if (to_candidate_text and to_candidate_text->get_ranges().size() >= TaintedObject::TAINT_RANGE_LIMIT) {
         const auto& res_new_id = new_pyobject_id(result_o);
         if (res_new_id == nullptr) {
