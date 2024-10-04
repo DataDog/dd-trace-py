@@ -15,13 +15,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-         - os: ubuntu-22.04
+         - os: ubuntu-latest
            archs: x86_64 i686
          #- os: arm-4core-linux
          #  archs: aarch64
-         - os: windows-2019
+         - os: windows-latest
            archs: AMD64 x86
-         - os: macos-14
+         - os: macos-latest
            archs: arm64
     steps:
       - uses: actions/checkout@v4
@@ -30,21 +30,9 @@ jobs:
           fetch-depth: 0
 
       - uses: actions/setup-python@v5
-        name: Install Python Mac
-        if: matrix.os == 'macos-14'
+        name: Install Python
         with:
-          python-version: |
-            '3.10'
-            '3.12'
-
-      - uses: actions/setup-python@v5
-        name: Install Python non-Mac
-        if: matrix.os != 'macos-14'
-        with:
-          python-version: |
-            '3.7'
-            '3.10'
-            '3.12'
+          python-version: '3.12'
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Install latest stable toolchain and rustfmt
