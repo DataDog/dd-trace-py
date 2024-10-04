@@ -71,11 +71,19 @@ def add_variants(string_tainted, string_no_tainted) -> str:
     new_bytes_tainted = bytes(string_tainted, encoding="utf-8") + bytes(string_tainted, encoding="utf-8")
     new_bytes_tainted += bytes(string_tainted, encoding="utf-8")
     new_bytes_tainted += bytes(string_no_tainted, encoding="utf-8")
-    new_bytearray_tainted = bytearray(bytes(string_tainted, encoding="utf-8")) + bytearray(bytes(string_tainted, encoding="utf-8"))
+    new_bytearray_tainted = bytearray(bytes(string_tainted, encoding="utf-8")) + bytearray(
+        bytes(string_tainted, encoding="utf-8")
+    )
     new_bytearray_tainted += bytearray(bytes(string_tainted, encoding="utf-8"))
     new_bytearray_tainted += bytearray(bytes(string_no_tainted, encoding="utf-8"))
 
-    new_string_tainted = new_string_tainted + new_string_no_tainted + str(new_bytes_no_tainted, encoding="utf-8") + str(new_bytes_tainted, encoding="utf-8")+ str(new_bytearray_tainted, encoding="utf-8")
+    new_string_tainted = (
+        new_string_tainted
+        + new_string_no_tainted
+        + str(new_bytes_no_tainted, encoding="utf-8")
+        + str(new_bytes_tainted, encoding="utf-8")
+        + str(new_bytearray_tainted, encoding="utf-8")
+    )
     # print(new_string_tainted)
     return new_string_tainted
 
