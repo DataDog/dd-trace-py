@@ -187,6 +187,15 @@ def test_cohere_invoke_single_output(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+def test_cross_region_inference_model(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
+    model = 'us.' + model
+    with request_vcr.use_cassette("cross_region_inference_anthropic_invoke.yaml"):
+        response = bedrock_client.invoke_model(body=body, modelId=model)
+        json.loads(response.get("body").read())
+
+
+@pytest.mark.snapshot
 def test_cohere_invoke_multi_output(bedrock_client, request_vcr):
     with request_vcr.use_cassette("cohere_invoke_multi_output.yaml"):
         body = json.dumps(
