@@ -21,13 +21,10 @@ add_aspect(PyObject* result_o,
     const size_t len_candidate_text{ get_pyobject_size(candidate_text) };
     const size_t len_text_to_add{ get_pyobject_size(text_to_add) };
 
-    if (len_text_to_add == 0 and len_candidate_text > 0) {
-        Py_DECREF(result_o);
-        return candidate_text;
-    }
-    if (len_text_to_add > 0 and len_candidate_text == 0 and text_to_add == result_o) {
-        Py_DECREF(result_o);
-        return text_to_add;
+    // Appended from or with nothing, ranges didn't change
+    if ((len_text_to_add == 0 and len_candidate_text > 0) ||
+        (len_text_to_add > 0 and len_candidate_text == 0 and text_to_add == result_o)) {
+        return result_o;
     }
 
     const auto& to_candidate_text = get_tainted_object(candidate_text, tx_taint_map);
@@ -44,11 +41,9 @@ add_aspect(PyObject* result_o,
     if (!to_candidate_text and !to_text_to_add) {
         return result_o;
     }
-
-    const auto& res_new_id = new_pyobject_id(result_o);
-    Py_DECREF(result_o);
-
     if (!to_text_to_add) {
+        const auto& res_new_id = new_pyobject_id(result_o);
+        Py_DECREF(result_o);
         set_tainted_object(res_new_id, to_candidate_text, tx_taint_map);
         return res_new_id;
     }
@@ -56,16 +51,16 @@ add_aspect(PyObject* result_o,
     if (!to_candidate_text) {
         const auto tainted = initializer->allocate_tainted_object();
         tainted->add_ranges_shifted(to_text_to_add, static_cast<RANGE_START>(len_candidate_text));
-        set_tainted_object(res_new_id, tainted, tx_taint_map);
-        return res_new_id;
+        set_tainted_object(result_o, tainted, tx_taint_map);
     }
 
     // At this point we have both to_candidate_text and to_text_to_add to we add the
     // ranges from both to result_o
     const auto tainted = initializer->allocate_tainted_object_copy(to_candidate_text);
     tainted->add_ranges_shifted(to_text_to_add, static_cast<RANGE_START>(len_candidate_text));
-    set_tainted_object(res_new_id, tainted, tx_taint_map);
-    return res_new_id;
+    set_tainted_object(result_o, tainted, tx_taint_map);
+
+    return result_o;
 }
 
 /**
