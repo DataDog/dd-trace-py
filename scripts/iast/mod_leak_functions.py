@@ -93,6 +93,7 @@ def format_variants(string_tainted, string_no_tainted) -> str:
     string_tainted_11 = "{} {:+d}, {:+d}".format(string_tainted_10, 42, -42)
     return string_tainted_11
 
+
 def modulo_exceptions(string8_4):
     # Validate we're not leaking in modulo exceptions
     try:
