@@ -130,7 +130,7 @@ def _datadog_trace_operation(operation, wrapped):
     span = pin.tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
-        service=trace_utils.int_service(pin, config.pymongo),
+        service=trace_utils.ext_service(pin, config.pymongo),
     )
 
     span.set_tag_str(COMPONENT, config.pymongo.integration_name)
@@ -255,7 +255,7 @@ def _trace_cmd(cmd, socket_instance, address):
     s = pin.tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
-        service=pin.service,
+        service=trace_utils.ext_service(pin, config.pymongo),
     )
 
     s.set_tag_str(COMPONENT, config.pymongo.integration_name)

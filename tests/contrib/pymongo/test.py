@@ -523,7 +523,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
-        assert spans[1].service == "mysvc"
+        assert spans[1].service != "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
@@ -542,7 +542,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
-        assert spans[1].service == "mysvc"
+        assert spans[1].service != "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_user_specified_service_default_override(self):
