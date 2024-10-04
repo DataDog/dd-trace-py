@@ -81,11 +81,15 @@ template<typename... Args>
 bool
 args_are_text_and_same_type(PyObject* first, PyObject* second, Args... args)
 {
+    if (first == nullptr || second == nullptr) {
+        return false;
+    }
+
     const auto type_first = PyObject_Type(first);
     const auto type_second = PyObject_Type(second);
 
     // Check if both first and second are valid text types and of the same type
-    if (first == nullptr || second == nullptr || !is_text(first) || !is_text(second) || type_first != type_second) {
+    if (!is_text(first) || !is_text(second) || type_first != type_second) {
         Py_XDECREF(type_first);
         Py_XDECREF(type_second);
         return false;
