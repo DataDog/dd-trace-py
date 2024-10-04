@@ -105,12 +105,6 @@ if asbool(os.getenv("DD_IAST_ENABLED", False)):
 
     enable_iast_propagation()
 
-if config._remote_config_enabled:
-    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-    remoteconfig_poller.enable()
-    config.enable_remote_configuration()
-
 if asm_config._asm_enabled or config._remote_config_enabled:
     from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
