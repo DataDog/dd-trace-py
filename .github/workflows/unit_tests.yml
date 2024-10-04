@@ -30,21 +30,9 @@ jobs:
           fetch-depth: 0
 
       - uses: actions/setup-python@v5
-        name: Install Python macos
-        if: matrix.os == 'macos-latest'
+        name: Install Python
         with:
-          python-version: |
-            '3.10'
-            '3.12'
-
-      - uses: actions/setup-python@v5
-        name: Install Python non mac
-        if: matrix.os != 'macos-latest'
-        with:
-          python-version: |
-            '3.7'
-            '3.10'
-            '3.12'
+          python-version: '3.12'
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Install latest stable toolchain and rustfmt
