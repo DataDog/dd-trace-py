@@ -9,7 +9,8 @@ import mock
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
-from tests.contrib.langchain.utils import get_request_vcr, create_milvus_vectorstore
+from tests.contrib.langchain.utils import create_milvus_vectorstore
+from tests.contrib.langchain.utils import get_request_vcr
 from tests.utils import flaky
 from tests.utils import override_global_config
 
