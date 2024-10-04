@@ -923,11 +923,11 @@ class _BaggageHeader:
         headers["baggage"] = header_value
 
     @staticmethod
-    def _extract(headers: Dict[str, str]) -> Optional[Context]:
+    def _extract(headers: Dict[str, str]) -> Context:
         header_value = headers.get("baggage")
 
         if not header_value:
-            return None
+            return Context(baggage={})
 
         baggage = {}
         baggages = header_value.split(",")
@@ -1126,7 +1126,7 @@ class HTTPPropagator(object):
                 # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
-                    context = propagator._extract(normalized_headers)  # type: ignore
+                    context = propagator._extract(normalized_headers)
                     if config.propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
 
@@ -1140,15 +1140,14 @@ class HTTPPropagator(object):
                         _attach_baggage_to_context(normalized_headers, context)
 
             # baggage
-            if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:  # type: ignore
+            if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
                 baggage_context = _BaggageHeader._extract(normalized_headers)
-                if context and baggage_context:  # type: ignore
+                if context:
                     context._baggage = baggage_context._baggage
                 else:
                     context = baggage_context
-                return context  # type: ignore
 
-            return context  # type: ignore
+            return context
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
