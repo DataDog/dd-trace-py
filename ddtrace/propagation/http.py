@@ -988,9 +988,11 @@ class HTTPPropagator(object):
                         context.trace_id,
                         context.span_id,
                         flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
-                        tracestate=context._meta.get(W3C_TRACESTATE_KEY, "")
-                        if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
-                        else None,
+                        tracestate=(
+                            context._meta.get(W3C_TRACESTATE_KEY, "")
+                            if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
+                            else None
+                        ),
                         attributes={
                             "reason": "terminated_context",
                             "context_headers": style_w_ctx,
@@ -1119,7 +1121,6 @@ class HTTPPropagator(object):
             return Context()
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-            context = None
             # tracer configured to extract first only
             if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
@@ -1139,17 +1140,15 @@ class HTTPPropagator(object):
                         _attach_baggage_to_context(normalized_headers, context)
 
             # baggage
-            if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
+            if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:  # type: ignore
                 baggage_context = _BaggageHeader._extract(normalized_headers)
-                if context and baggage_context:
+                if context and baggage_context:  # type: ignore
                     context._baggage = baggage_context._baggage
                 else:
                     context = baggage_context
+                return context  # type: ignore
 
-            if context is None:
-                context = Context()
-
-            return context
+            return context  # type: ignore
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
