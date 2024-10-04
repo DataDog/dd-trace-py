@@ -44,9 +44,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.settings import IntegrationConfig  # noqa:F401
 
 
-_EMPTY_STRING_PATTERN = re.compile(r"")
-
-
 log = get_logger(__name__)
 
 wrap = wrapt.wrap_function_wrapper
