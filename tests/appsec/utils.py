@@ -1,4 +1,12 @@
+import contextlib
 import sys
+import typing
+
+from ddtrace import tracer as default_tracer
+from ddtrace.ext import SpanTypes
+import ddtrace.internal.core as core
+from ddtrace.settings.asm import config as asm_config
+from tests.utils import override_global_config
 
 
 class Either:
@@ -10,3 +18,29 @@ class Either:
             print(f"Either: Expected {other} to be in {self.possibilities}", file=sys.stderr, flush=True)
             return False
         return True
+
+
+@contextlib.contextmanager
+def asm_context(
+    tracer=None,
+    span_name: str = "",
+    ip_addr: typing.Optional[str] = None,
+    headers: typing.Optional[typing.Dict[str, str]] = None,
+    service: typing.Optional[str] = None,
+    config=None,
+):
+    with override_global_config(config) if config else contextlib.nullcontext():
+        if tracer is None:
+            tracer = default_tracer
+        if asm_config._asm_enabled:
+            tracer._asm_enabled = True
+        if config:
+            tracer.configure(api_version="v0.4")
+
+        with core.context_with_data(
+            "test.asm",
+            remote_addr=ip_addr,
+            headers=headers,
+            service=service,
+        ), tracer.trace(span_name or "test", span_type=SpanTypes.WEB, service=service) as span:
+            yield span

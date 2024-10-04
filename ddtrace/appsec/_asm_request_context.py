@@ -17,6 +17,7 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
@@ -155,6 +156,8 @@ def set_blocked(blocked: Dict[str, Any]) -> None:
         return
     _ctype_from_headers(blocked, get_headers())
     env.blocked = blocked
+    # DEV: legacy code, to be removed
+    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=env.span)
 
 
 def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None:
