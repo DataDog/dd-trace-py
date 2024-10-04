@@ -34,7 +34,7 @@ if(NOT Python3_EXECUTABLE)
     message(FATAL_ERROR "Python executable not found")
 endif()
 
-# This sets some parameters for the target build, which can only be defined by setup.py
+# This sets some parameters for the target build
 set(ENV{PY_MAJOR_VERSION} ${Python3_VERSION_MAJOR})
 set(ENV{PY_MINOR_VERSION} ${Python3_VERSION_MINOR})
 set(ENV{PY_MICRO_VERSION} ${Python3_VERSION_PATCH})
