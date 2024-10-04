@@ -4,6 +4,18 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.14.3
+
+
+### Bug Fixes
+
+- Code Security (IAST): This fix ensures that only the IAST propagation context is cleared instead of all contexts, which could otherwise cause propagation loss in multithreaded applications. Additionally, it improves validations in both the Processor and Vulnerability Reporter, depending on whether IAST is active or not.
+- tracing: Ensures `DD_TRACE_RATE_LIMIT` environment variable is only applied to spans for which tracer sampling is configured. For spans not matching sampling rules default rate limits should be applied by the Datadog Agent.
+- profiling: enables endpoint profiling for stack v2, `DD_PROFILING_STACK_V2_ENABLED` is set.
+
+
+---
+
 ## 2.13.1
 
 
