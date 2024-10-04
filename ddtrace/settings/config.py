@@ -574,6 +574,9 @@ class Config(object):
         self._ci_visibility_agentless_url = _get_config("DD_CIVISIBILITY_AGENTLESS_URL", "")
         self._ci_visibility_intelligent_testrunner_enabled = _get_config("DD_CIVISIBILITY_ITR_ENABLED", True, asbool)
         self.ci_visibility_log_level = _get_config("DD_CIVISIBILITY_LOG_LEVEL", "info")
+        self._test_visibility_early_flake_detection_enabled = _get_config(
+          "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
+        )
         self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool)
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext

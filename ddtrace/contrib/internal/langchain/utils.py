@@ -34,6 +34,7 @@ class TracedLangchainStreamResponse(BaseTracedLangChainStreamResponse):
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
+            self._dd_span.finish()
             raise
 
 
@@ -60,6 +61,7 @@ class TracedLangchainAsyncStreamResponse(BaseTracedLangChainStreamResponse):
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
+            self._dd_span.finish()
             raise
 
 
@@ -79,6 +81,7 @@ def shared_stream(
         "pin": pin,
         "operation_id": f"{instance.__module__}.{instance.__class__.__name__}",
         "interface_type": interface_type,
+        "submit_to_llmobs": True,
     }
 
     options.update(extra_options)
