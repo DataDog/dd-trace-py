@@ -510,7 +510,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     def test_user_specified_service_default(self):
         """
         v0 (default): When a user specifies a service for the app
-            The pymongo integration should not use it.
+            The pymongo integration should use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
@@ -523,13 +523,13 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
-        assert spans[1].service != "mysvc"
+        assert spans[1].service == "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
-            The pymongo integration should not use it.
+            The pymongo integration should use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
@@ -542,7 +542,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
-        assert spans[1].service != "mysvc"
+        assert spans[1].service == "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_user_specified_service_default_override(self):
@@ -583,6 +583,20 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         spans = tracer.pop()
         assert len(spans) == 2
         assert spans[1].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_unspecified_service_v0(self):
+        """
+        v0: When a user does not specify a service for the app
+            The pymongo integration should use pymongo.
+        """
+        tracer = DummyTracer()
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        client["testdb"].drop_collection("whatever")
+        spans = tracer.pop()
+        assert len(spans) == 2
+        assert spans[1].service == "pymongo"
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
