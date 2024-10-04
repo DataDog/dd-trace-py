@@ -29,12 +29,10 @@ class PyEnvWithContext : public ::testing::Test
         initializer.reset();
         py::finalize_interpreter();
     }
-public:
-    PyObject* StringToPyObjectStr(const string& ob)
-    {
-        return PyUnicode_FromString(ob.c_str());
-    }
-    string PyObjectStrToString(PyObject*  ob)
+
+  public:
+    PyObject* StringToPyObjectStr(const string& ob) { return PyUnicode_FromString(ob.c_str()); }
+    string PyObjectStrToString(PyObject* ob)
     {
         PyObject* utf8_str = PyUnicode_AsEncodedString(ob, "utf-8", "strict");
         const char* res_data = PyBytes_AsString(utf8_str);
@@ -42,11 +40,8 @@ public:
         Py_DecRef(utf8_str);
         return res_string;
     }
-    PyObject* StringToPyObjectBytes(const string& ob)
-    {
-        return PyBytes_FromString(ob.c_str());
-    }
-    string PyObjectBytesToString(PyObject*  ob)
+    PyObject* StringToPyObjectBytes(const string& ob) { return PyBytes_FromString(ob.c_str()); }
+    string PyObjectBytesToString(PyObject* ob)
     {
         const char* res_data = PyBytes_AsString(ob);
         std::string res_string(res_data);
