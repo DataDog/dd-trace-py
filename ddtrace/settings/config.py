@@ -326,7 +326,7 @@ class Config(object):
     """
 
     class _HTTPServerConfig(object):
-        _error_statuses = "500-599"  # type: str
+        _error_statuses = os.getenv("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 
         @property
@@ -384,7 +384,18 @@ class Config(object):
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
 
-        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+        rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
+        if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
+            # This warning will be logged when DD_TRACE_SAMPLE_RATE is set. This is intentional.
+            # Even though DD_TRACE_SAMPLE_RATE is treated as a global trace sampling rule, this configuration
+            # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
+            log.warning(
+                "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
+                "Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+                "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
+                rate_limit,
+            )
+        self._trace_rate_limit = int(rate_limit or DEFAULT_SAMPLING_RATE_LIMIT)
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
 
@@ -569,12 +580,17 @@ class Config(object):
                 log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
+        # Test Visibility config items
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
         )
         self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
+        self._test_visibility_early_flake_detection_enabled = asbool(
+            os.getenv("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", default=True)
+        )
+
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
