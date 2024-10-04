@@ -311,6 +311,18 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         return
 
 
+def _retry_test(item, call):
+    pass
+
+
+def _process_outcome(item, call, outcome) -> t.Optional[t.Tuple[str, str, str]]:
+    pass
+
+
+def _handle_efd_retries() -> bool:
+    pass
+
+
 def _pytest_runtest_makereport(item, call, outcome):
     result = outcome.get_result()
 
