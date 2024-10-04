@@ -195,6 +195,20 @@ def iast_cmdi_vulnerability():
     return resp
 
 
+@app.route("/iast-weak-hash-vulnerability", methods=["GET"])
+def iast_weak_hash_vulnerability():
+    import _md5
+
+    m = _md5.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+    from ddtrace.internal import telemetry
+
+    list_metrics_logs = list(telemetry.telemetry_writer._logs)
+    return str(list_metrics_logs)
+
+
 @app.route("/iast-ast-patching-import-error", methods=["GET"])
 def iast_ast_patching_import_error():
     return Response(str(module_with_import_errors.verbal_kint_is_keyser_soze))
