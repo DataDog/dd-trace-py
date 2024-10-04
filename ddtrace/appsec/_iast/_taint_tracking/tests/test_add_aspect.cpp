@@ -6,11 +6,10 @@
 
 using AspectAddCheck = PyEnvWithContext;
 
-
 TEST_F(AspectAddCheck, check_api_add_aspect_strings_candidate_text_empty)
 {
     PyObject* candidate_text = this->StringToPyObjectStr("");
-    PyObject* text_to_add =  this->StringToPyObjectStr("def");
+    PyObject* text_to_add = this->StringToPyObjectStr("def");
     PyObject* args_array[2];
     args_array[0] = candidate_text;
     args_array[1] = text_to_add;
@@ -27,27 +26,26 @@ TEST_F(AspectAddCheck, check_api_add_aspect_strings_candidate_text_empty)
 
 TEST_F(AspectAddCheck, check_api_add_aspect_strings_text_to_add_empty)
 {
-PyObject* candidate_text = this->StringToPyObjectStr("abc");
-PyObject* text_to_add =  this->StringToPyObjectStr("");
-PyObject* args_array[2];
-args_array[0] = candidate_text;
-args_array[1] = text_to_add;
-auto result = api_add_aspect(nullptr, args_array, 2);
-EXPECT_FALSE(has_pyerr());
+    PyObject* candidate_text = this->StringToPyObjectStr("abc");
+    PyObject* text_to_add = this->StringToPyObjectStr("");
+    PyObject* args_array[2];
+    args_array[0] = candidate_text;
+    args_array[1] = text_to_add;
+    auto result = api_add_aspect(nullptr, args_array, 2);
+    EXPECT_FALSE(has_pyerr());
 
-std::string result_string = this->PyObjectStrToString(result);
+    std::string result_string = this->PyObjectStrToString(result);
 
-EXPECT_EQ(result_string, "abc");
-Py_DecRef(candidate_text);
-Py_DecRef(text_to_add);
-Py_DecRef(result);
+    EXPECT_EQ(result_string, "abc");
+    Py_DecRef(candidate_text);
+    Py_DecRef(text_to_add);
+    Py_DecRef(result);
 }
-
 
 TEST_F(AspectAddCheck, check_api_add_aspect_strings)
 {
     PyObject* candidate_text = this->StringToPyObjectStr("abc");
-    PyObject* text_to_add =  this->StringToPyObjectStr("def");
+    PyObject* text_to_add = this->StringToPyObjectStr("def");
     PyObject* args_array[2];
     args_array[0] = candidate_text;
     args_array[1] = text_to_add;
@@ -65,7 +63,7 @@ TEST_F(AspectAddCheck, check_api_add_aspect_strings)
 TEST_F(AspectAddCheck, check_api_add_aspect_bytes)
 {
     PyObject* candidate_text = this->StringToPyObjectBytes("abc");
-    PyObject* text_to_add =  this->StringToPyObjectBytes("def");
+    PyObject* text_to_add = this->StringToPyObjectBytes("def");
     PyObject* args_array[2];
     args_array[0] = candidate_text;
     args_array[1] = text_to_add;
