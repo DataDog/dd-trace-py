@@ -89,7 +89,7 @@ class LangChainIntegration(BaseLLMIntegration):
         elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chain":
-            self._llmobs_set_meta_tags_from_chain(span, inputs=kwargs, outputs=response)
+            self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "retrieval":
@@ -129,16 +129,25 @@ class LangChainIntegration(BaseLLMIntegration):
 
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
+        stream = span.get_tag("langchain.request.stream")
 
-        prompts = get_argument_value(args, kwargs, 0, "prompts")
+        prompts = get_argument_value(args, kwargs, 0, "input" if stream else "prompts")
         if isinstance(prompts, str) or not isinstance(prompts, list):
             prompts = [prompts]
 
-        span.set_tag_str(input_tag_key, safe_json([{"content": str(prompt)} for prompt in prompts]))
+        if stream:
+            # chat and llm take the same input types for streamed calls
+            span.set_tag_str(input_tag_key, safe_json(self._handle_stream_input_messages(prompts)))
+        else:
+            span.set_tag_str(input_tag_key, safe_json([{"content": str(prompt)} for prompt in prompts]))
+
         if span.error:
             span.set_tag_str(output_tag_key, safe_json([{"content": ""}]))
             return
-        message_content = [{"content": completion[0].text} for completion in completions.generations]
+        if stream:
+            message_content = [{"content": completions}]  # single completion for streams
+        else:
+            message_content = [{"content": completion[0].text} for completion in completions.generations]
         span.set_tag_str(output_tag_key, safe_json(message_content))
 
     def _llmobs_set_meta_tags_from_chat_model(
@@ -155,20 +164,36 @@ class LangChainIntegration(BaseLLMIntegration):
 
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
+        stream = span.get_tag("langchain.request.stream")
 
         input_messages = []
-        chat_messages = get_argument_value(args, kwargs, 0, "messages", optional=True) or []
-        for message_set in chat_messages:
-            for message in message_set:
-                content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
-                role = getattr(message, "role", ROLE_MAPPING.get(message.type, ""))
-                input_messages.append({"content": str(content), "role": str(role)})
+        if stream:
+            chat_messages = get_argument_value(args, kwargs, 0, "input")
+            input_messages = self._handle_stream_input_messages(chat_messages)
+        else:
+            chat_messages = get_argument_value(args, kwargs, 0, "messages", optional=True) or []
+            if not isinstance(chat_messages, list):
+                chat_messages = [chat_messages]
+            for message_set in chat_messages:
+                for message in message_set:
+                    content = (
+                        message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
+                    )
+                    role = getattr(message, "role", ROLE_MAPPING.get(message.type, ""))
+                    input_messages.append({"content": str(content), "role": str(role)})
         span.set_tag_str(input_tag_key, safe_json(input_messages))
 
         if span.error:
             span.set_tag_str(output_tag_key, json.dumps([{"content": ""}]))
             return
+
         output_messages = []
+        if stream:
+            content = chat_completions.content
+            role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
+            span.set_tag_str(output_tag_key, safe_json([{"content": content, "role": ROLE_MAPPING.get(role, "")}]))
+            return
+
         for message_set in chat_completions.generations:
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
@@ -196,9 +221,38 @@ class LangChainIntegration(BaseLLMIntegration):
                 tool_calls_info.append(tool_call_info)
         return tool_calls_info
 
-    def _llmobs_set_meta_tags_from_chain(self, span: Span, outputs: Any, inputs: Optional[Any] = None) -> None:
-        span.set_tag_str(SPAN_KIND, "workflow")
+    def _handle_stream_input_messages(self, inputs):
+        input_messages = []
+        if hasattr(inputs, "to_messages"):  # isinstance(inputs, langchain_core.prompt_values.PromptValue)
+            inputs = inputs.to_messages()
+        elif not isinstance(inputs, list):
+            inputs = [inputs]
+        for inp in inputs:
+            inp_message = {}
+            content, role = None, None
+            if isinstance(inp, dict):
+                content = str(inp.get("content", ""))
+                role = inp.get("role")
+            elif hasattr(inp, "content"):  # isinstance(inp, langchain_core.messages.BaseMessage)
+                content = str(inp.content)
+                role = inp.__class__.__name__
+            else:
+                content = str(inp)
 
+            inp_message["content"] = content
+            if role is not None:
+                inp_message["role"] = role
+            input_messages.append(inp_message)
+
+        return input_messages
+
+    def _llmobs_set_meta_tags_from_chain(self, span: Span, args, kwargs, outputs: Any) -> None:
+        span.set_tag_str(SPAN_KIND, "workflow")
+        stream = span.get_tag("langchain.request.stream")
+        if stream:
+            inputs = get_argument_value(args, kwargs, 0, "input")
+        else:
+            inputs = kwargs
         if inputs is not None:
             formatted_inputs = self.format_io(inputs)
             span.set_tag_str(INPUT_VALUE, safe_json(formatted_inputs))

@@ -11,11 +11,13 @@ from ddtrace.debugging._config import er_config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
 from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.settings.code_origin import config as co_config  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
@@ -42,6 +44,15 @@ def register_post_preload(func: t.Callable) -> None:
 
 
 log = get_logger(__name__)
+
+# Run the product manager protocol
+manager.run_protocol()
+
+# Post preload operations
+register_post_preload(manager.post_preload_products)
+
+
+# TODO: Migrate the following product logic to the new product plugin interface
 
 # DEV: We want to start the crashtracker as early as possible
 if crashtracker_config.enabled:
@@ -71,6 +82,11 @@ if di_config.enabled:  # Dynamic Instrumentation
 
     DynamicInstrumentation.enable()
 
+if co_config.span.enabled:
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
+
+    SpanCodeOriginProcessor.enable()
+
 if er_config.enabled:  # Exception Replay
     from ddtrace.debugging._exception.replay import SpanExceptionHandler
 
@@ -88,12 +104,6 @@ if asbool(os.getenv("DD_IAST_ENABLED", False)):
     from ddtrace.appsec._iast import enable_iast_propagation
 
     enable_iast_propagation()
-
-if config._remote_config_enabled:
-    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-    remoteconfig_poller.enable()
-    config.enable_remote_configuration()
 
 if asm_config._asm_enabled or config._remote_config_enabled:
     from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
