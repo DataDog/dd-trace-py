@@ -411,8 +411,7 @@ def _set_url_tag(integration_config, span, url, query):
         # setting config._obfuscation_query_string_pattern to an empty string should be enough to disable obfuscation
         span.set_tag_str(http.URL, url)
     elif getattr(config._obfuscation_query_string_pattern, "pattern", None) == b"":
-        # if obfuscation is enabled but the pattern is empty, this means config.global_query_string_obfuscation_disabled
-        # was manually set to False, so we should strip the whole query string
+        # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP="" 
         span.set_tag_str(http.URL, strip_query_string(url))
     else:
         span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
