@@ -24,6 +24,7 @@ from ddtrace.debugging._redaction import DDRedactedExpressionError
 from ddtrace.debugging._safety import get_args
 from ddtrace.debugging._safety import get_globals
 from ddtrace.debugging._safety import get_locals
+from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import LogSignal

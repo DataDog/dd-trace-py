@@ -36,14 +36,17 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanFunctionProbe
+from ddtrace.debugging._probe.model import TriggerFunctionProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
+from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.metric_sample import MetricSample
 from ddtrace.debugging._signal.model import Signal
@@ -220,6 +223,10 @@ class DebuggerWrappingContext(WrappingContext):
                     frame=frame,
                     thread=thread,
                 )
+            elif isinstance(probe, TriggerFunctionProbe) and probe.evaluate_at is ProbeEvaluateTimingForMethod.ENTER:
+                Session(probe.session_id, probe.level).link_to_trace(trace_context)
+                # This probe does not emit any signals
+                continue
             else:
                 log.error("Unsupported probe type: %s", type(probe))
                 continue
@@ -400,7 +407,9 @@ class Debugger(Service):
                     meter=self._probe_meter,
                 )
             elif isinstance(probe, LogLineProbe):
-                if probe.take_snapshot:
+                session_id = probe.tags.get("sessionId")
+                session = Session.lookup(session_id) if session_id is not None else None
+                if session is None and probe.take_snapshot:
                     # TODO: Global limit evaluated before probe conditions
                     if self._global_rate_limiter.limit() is RateLimitExceeded:
                         return

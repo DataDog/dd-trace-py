@@ -34,6 +34,8 @@ from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
 from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._probe.model import TimingMixin
+from ddtrace.debugging._probe.model import TriggerFunctionProbe
+from ddtrace.debugging._probe.model import TriggerLineProbe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.logger import get_logger
@@ -202,8 +204,29 @@ class SpanDecorationProbeFactory(ProbeFactory):
         )
 
 
+class TriggerProbeFactory(ProbeFactory):
+    __line_class__ = TriggerLineProbe
+    __function_class__ = TriggerFunctionProbe
+
+    @classmethod
+    def update_args(cls, args, attribs):
+        args.update(
+            session_id=attribs["sessionId"],
+            level=attribs["level"],
+        )
+
+
 class InvalidProbeConfiguration(ValueError):
     pass
+
+
+PROBE_FACTORY = {
+    ProbeType.LOG_PROBE: LogProbeFactory,
+    ProbeType.METRIC_PROBE: MetricProbeFactory,
+    ProbeType.SPAN_PROBE: SpanProbeFactory,
+    ProbeType.SPAN_DECORATION_PROBE: SpanDecorationProbeFactory,
+    ProbeType.TRIGGER_PROBE: TriggerProbeFactory,
+}
 
 
 def build_probe(attribs: Dict[str, Any]) -> Probe:
@@ -222,14 +245,9 @@ def build_probe(attribs: Dict[str, Any]) -> Probe:
         tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
     )
 
-    if _type == ProbeType.LOG_PROBE:
-        return LogProbeFactory.build(args, attribs)
-    if _type == ProbeType.METRIC_PROBE:
-        return MetricProbeFactory.build(args, attribs)
-    if _type == ProbeType.SPAN_PROBE:
-        return SpanProbeFactory.build(args, attribs)
-    if _type == ProbeType.SPAN_DECORATION_PROBE:
-        return SpanDecorationProbeFactory.build(args, attribs)
+    factory = PROBE_FACTORY.get(_type)
+    if factory is not None:
+        return factory.build(args, attribs)
 
     raise InvalidProbeConfiguration("Unsupported probe type: %s" % _type)
 

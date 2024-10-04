@@ -681,3 +681,9 @@ Exception Replay
 ----------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.exception_replay:ExceptionReplayConfig
+
+
+Live Debugging
+--------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.live_debugging:LiveDebuggerConfig
