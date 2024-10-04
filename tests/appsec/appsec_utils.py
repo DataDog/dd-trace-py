@@ -31,6 +31,7 @@ def _build_env(env=None):
 @contextmanager
 def gunicorn_server(
     appsec_enabled="true",
+    iast_enabled="false",
     remote_configuration_enabled="true",
     tracer_enabled="true",
     appsec_standalone_enabled=None,
@@ -41,6 +42,7 @@ def gunicorn_server(
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
+        iast_enabled=iast_enabled,
         appsec_standalone_enabled=appsec_standalone_enabled,
         remote_configuration_enabled=remote_configuration_enabled,
         tracer_enabled=tracer_enabled,
