@@ -16,12 +16,12 @@ from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import git
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
@@ -1463,8 +1463,14 @@ class PytestTestCase(TracerTestCase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                import pytest
+
+                @pytest.mark.parametrize("paramslash", ["c/d", "/d/c", "f/"])
+                def test_ok_1(paramslash):
+                    assert True"""
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -1472,14 +1478,22 @@ class PytestTestCase(TracerTestCase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                import pytest
+
+                @pytest.mark.parametrize("slashparam", ["a/b", "/b/a", "a/"])
+                def test_ok_2(slashparam):
+                    assert True
+
+                """
+                )
             )
         self.testdir.chdir()
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
 
-        assert len(spans) == 7
+        assert len(spans) == 11
         test_module_spans = sorted(
             [span for span in spans if span.get_tag("type") == "test_module_end"],
             key=lambda s: s.get_tag("test.module"),
@@ -1493,6 +1507,15 @@ class PytestTestCase(TracerTestCase):
         )
         assert test_suite_spans[0].get_tag("test.suite") == "test_inner_abc.py"
         assert test_suite_spans[1].get_tag("test.suite") == "test_outer_abc.py"
+
+        test_spans = _get_spans_from_list(spans, "test")
+        for test_span in test_spans:
+            if test_span.get_tag("test.name").startswith("test_ok_1"):
+                assert test_span.get_tag("test.module_path") == "test_outer_package"
+            elif test_span.get_tag("test.name").startswith("test_ok_2"):
+                assert test_span.get_tag("test.module_path") == "test_outer_package/test_inner_package"
+            else:
+                raise ValueError("Unexpected span name")
 
     def test_pytest_module_path_empty(self):
         """

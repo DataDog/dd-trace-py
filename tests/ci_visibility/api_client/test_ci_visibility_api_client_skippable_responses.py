@@ -5,8 +5,8 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import ITRData
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
