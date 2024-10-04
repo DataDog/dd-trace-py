@@ -15,6 +15,7 @@ from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -129,7 +130,7 @@ def _datadog_trace_operation(operation, wrapped):
     span = pin.tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
-        service=pin.service,
+        service=trace_utils.int_service(pin, config.pymongo),
     )
 
     span.set_tag_str(COMPONENT, config.pymongo.integration_name)
@@ -150,6 +151,7 @@ def _datadog_trace_operation(operation, wrapped):
     sample_rate = config.pymongo.get_analytics_sample_rate()
     if sample_rate is not None:
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+
     return span
 
 
@@ -175,6 +177,7 @@ def _trace_server_send_message_with_response(func, args, kwargs):
     operation = get_argument_value(args, kwargs, 1, "operation")
 
     span = _datadog_trace_operation(operation, server_instance)
+
     if span is None:
         return func(*args, **kwargs)
     with span:
