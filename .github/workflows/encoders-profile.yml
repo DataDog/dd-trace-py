@@ -3,14 +3,13 @@ on:
   push:
     branches:
       - main
+      - 'mq-working-branch**'
   pull_request:
     paths:
       - 'ddtrace/internal/_encoding.pyx'
       - 'scripts/profiles/encoders/**'
       - '.github/workflows/encoders-profile.yml'
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
+
 jobs:
   encoders-profile:
     runs-on: ubuntu-latest
