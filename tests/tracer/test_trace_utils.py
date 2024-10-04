@@ -1023,7 +1023,7 @@ def test_url_in_http_with_empty_obfuscation_regex():
         assert span.get_tag(http.URL) == SENSITIVE_URL
 
 
-# TODO(munir): Remove this test when global_query_string_obfuscation_disabled is deprecated/removed
+# TODO(munir): Remove this test when global_query_string_obfuscation_disabled is removed
 @pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
 def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     # Test that query strings are not added to urls when the obfuscation regex is an empty string

@@ -404,10 +404,10 @@ def ext_service(pin, int_config, default=None):
 
 def _set_url_tag(integration_config, span, url, query):
     # type: (IntegrationConfig, Span, str, str) -> None
-    if not integration_config.http_tag_query_string:  # Tagging query string in http.url
+    if not integration_config.http_tag_query_string:
         span.set_tag_str(http.URL, strip_query_string(url))
     elif config.global_query_string_obfuscation_disabled:
-        # TODO(munir): deprecate and remove ddtrace.config.global_query_string_obfuscation_disabled,
+        # TODO(munir): Remove this case when config.global_query_string_obfuscation_disabled is removed (v3.0),
         # setting config._obfuscation_query_string_pattern to an empty string should be enough to disable obfuscation
         span.set_tag_str(http.URL, url)
     elif getattr(config._obfuscation_query_string_pattern, "pattern", None) == b"":
