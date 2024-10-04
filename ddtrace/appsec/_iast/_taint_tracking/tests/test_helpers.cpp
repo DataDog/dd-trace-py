@@ -316,7 +316,9 @@ TEST_F(AsFormattedEvidenceCheck, DefaultTagMappingModeIsMapper)
     Source source("source1", "sample_value", OriginType::BODY);
     TaintRangeRefs taint_ranges = { std::make_shared<TaintRange>(5, 2, source) };
 
-    const std::string expected_result = "This :+-<3485454368>is<3485454368>-+: a test string.";
+    auto taint_range_1_hash = taint_ranges[0]->get_hash();
+    const std::string expected_result = "This :+-<" + std::to_string(taint_range_1_hash) + ">is<" +
+                                        std::to_string(taint_range_1_hash) + ">-+: a test string.";
     const std::string result = as_formatted_evidence(text, taint_ranges);
     EXPECT_STREQ(result.c_str(), expected_result.c_str());
 }
@@ -331,8 +333,11 @@ TEST_F(AsFormattedEvidenceCheck, MultipleRangesWithMapper)
         std::make_shared<TaintRange>(10, 4, source2),
     };
 
+    auto taint_range_1_hash = taint_ranges[0]->get_hash();
+    auto taint_range_2_hash = taint_ranges[1]->get_hash();
     const std::string expected_result =
-      "This :+-<3485454368>is<3485454368>-+: a :+-<891889858>test<891889858>-+: string.";
+      "This :+-<" + std::to_string(taint_range_1_hash) + ">is<" + std::to_string(taint_range_1_hash) + ">-+: a :+-<" +
+      std::to_string(taint_range_2_hash) + ">test<" + std::to_string(taint_range_2_hash) + ">-+: string.";
     const std::string result = as_formatted_evidence(text, taint_ranges);
     EXPECT_STREQ(result.c_str(), expected_result.c_str());
 }
@@ -400,7 +405,9 @@ TEST_F(AllAsFormattedEvidenceCheck, SingleTaintRangeWithMapper)
     TaintRangeRefs taint_ranges = { std::make_shared<TaintRange>(5, 2, source) };
     api_set_ranges(text, taint_ranges);
 
-    const py::str expected_result("This :+-<3485454368>is<3485454368>-+: a test string.");
+    auto taint_range_1_hash = taint_ranges[0]->get_hash();
+    const py::str expected_result("This :+-<" + std::to_string(taint_range_1_hash) + ">is<" +
+                                  std::to_string(taint_range_1_hash) + ">-+: a test string.");
     const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
 
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(expected_result).c_str());
