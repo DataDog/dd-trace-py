@@ -63,6 +63,36 @@ class Aspectvalidation(BaseModel):
     offset: int = Field(0, ge=0)
 
 
+def add_variants(string_tainted, string_no_tainted) -> str:
+    new_string_tainted = string_tainted + string_no_tainted
+    new_string_no_tainted = string_no_tainted + string_no_tainted
+    new_string_tainted += new_string_no_tainted
+    new_bytes_no_tainted = bytes(string_no_tainted, encoding="utf-8") + bytes(string_no_tainted, encoding="utf-8")
+    new_bytes_tainted = bytes(string_tainted, encoding="utf-8") + bytes(string_tainted, encoding="utf-8")
+    new_bytes_tainted += bytes(string_tainted, encoding="utf-8")
+    new_bytes_tainted += bytes(string_no_tainted, encoding="utf-8")
+    new_bytearray_tainted = bytearray(bytes(string_tainted, encoding="utf-8")) + bytearray(bytes(string_tainted, encoding="utf-8"))
+    new_bytearray_tainted += bytearray(bytes(string_tainted, encoding="utf-8"))
+    new_bytearray_tainted += bytearray(bytes(string_no_tainted, encoding="utf-8"))
+
+    new_string_tainted = new_string_tainted + new_string_no_tainted + str(new_bytes_no_tainted, encoding="utf-8") + str(new_bytes_tainted, encoding="utf-8")+ str(new_bytearray_tainted, encoding="utf-8")
+    # print(new_string_tainted)
+    return new_string_tainted
+
+
+def format_variants(string_tainted, string_no_tainted) -> str:
+    string_tainted_2 = "My name is {} and I am {} years old.".format(string_tainted, 30)
+    string_tainted_3 = "My name is {name} and I am {age} years old.".format(name=string_tainted_2, age=25)
+    string_tainted_4 = "{0} is {1} years old. {0} lives in {2}.".format(string_tainted_3, 35, string_no_tainted)
+    string_tainted_5 = "|{:<10}|{:^10}|{:>10}|".format(string_tainted_4, string_no_tainted, string_tainted_4)
+    string_tainted_6 = "|{:-<10}|{:*^10}|{:.>10}|".format(string_no_tainted, string_tainted_5, string_no_tainted)
+    string_tainted_7 = "{} is approximately {:.3f}".format(string_tainted_6, 3.1415926535)
+    string_tainted_8 = "The {} is {:,}".format(string_tainted_7, 1000000)
+    string_tainted_9 = "{1} Hex: {0:x}, Bin: {0:b}, Oct: {0:o}".format(255, string_tainted_8)
+    string_tainted_10 = "{} Success rate: {:.2%}".format(string_tainted_9, 0.8765)
+    string_tainted_11 = "{} {:+d}, {:+d}".format(string_tainted_10, 42, -42)
+    return string_tainted_11
+
 def modulo_exceptions(string8_4):
     # Validate we're not leaking in modulo exceptions
     try:
@@ -168,17 +198,18 @@ async def test_doit():
     string1 = str(origin_string1)  # String with 1 propagation range
     string2 = str(tainted_string_2)  # String with 1 propagation range
 
-    string3 = string1 + string2  # 2 propagation ranges: hiroot1234
-    string4 = "-".join([string3, string3, string3])  # 6 propagation ranges: hiroot1234-hiroot1234-hiroot1234
-    string5 = string4[0:20]  # 1 propagation range: hiroot1234-hiroot123
-    string6 = string5.title()  # 1 propagation range: Hiroot1234-Hiroot123
-    string7 = string6.upper()  # 1 propagation range: HIROOT1234-HIROOT123
+    string3 = add_variants(string2, string1)
+
+    string4 = "-".join([string3, string3, string3])
+    string5 = string4[0:20]
+    string6 = string5.title()
+    string7 = string6.upper()
     string8 = "%s_notainted" % string7
     string8_2 = "%s_%s_notainted" % (string8, string8)
     string8_3 = "notainted_%s_" + string8_2
     string8_4 = string8_3 % "notainted"
-    quote_char = ('"', '"', '"', '"', '"')
-    string8_5 = "{quote}{value}{quote}".format(value=string8_4, quote=",".join(quote_char))
+
+    string8_5 = format_variants(string8_4, string1)
     await anyio.to_thread.run_sync(modulo_exceptions, string8_5)
 
     string9 = "notainted#{}".format(string8_5)
