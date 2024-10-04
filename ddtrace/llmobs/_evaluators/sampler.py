@@ -17,7 +17,9 @@ class EvaluatorRunnerSamplingRule(SamplingRule):
     EVALUATOR_LABEL_KEY = "evaluator_label"
     SPAN_NAME_KEY = "span_name"
 
-    def __init__(self, sample_rate: float, evaluator_label: Optional[str] = None, span_name: Optional[str] = None):
+    def __init__(
+        self, sample_rate: float, evaluator_label: Optional[object] = None, span_name: Optional[object] = None
+    ):
         super(EvaluatorRunnerSamplingRule, self).__init__(sample_rate)
         self.evaluator_label = evaluator_label
         self.span_name = span_name
@@ -45,7 +47,6 @@ class EvaluatorRunnerSampler:
     def sample(self, evaluator_label, span):
         for rule in self.rules:
             if rule.matches(evaluator_label=evaluator_label, span_name=span.name):
-                print("matched")
                 return rule.sample(span)
         return True
 
