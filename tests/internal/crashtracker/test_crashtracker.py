@@ -595,7 +595,7 @@ def test_crashtracker_disabled_noload():
     from ddtrace.internal.datadog.profiling import crashtracker as crashtracking
 
     # Emulate the telemetry writer by checking a few interfaces
-    assert not crashtracking.is_available()
+    assert not crashtracking.is_available
     assert not crashtracking.is_started()
 
     # If the module was loaded, then the extension will be in /proc/self/maps
