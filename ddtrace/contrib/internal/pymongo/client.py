@@ -151,7 +151,6 @@ def _datadog_trace_operation(operation, wrapped):
     sample_rate = config.pymongo.get_analytics_sample_rate()
     if sample_rate is not None:
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
-
     return span
 
 
@@ -177,7 +176,6 @@ def _trace_server_send_message_with_response(func, args, kwargs):
     operation = get_argument_value(args, kwargs, 1, "operation")
 
     span = _datadog_trace_operation(operation, server_instance)
-
     if span is None:
         return func(*args, **kwargs)
     with span:

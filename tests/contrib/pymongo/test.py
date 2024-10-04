@@ -510,7 +510,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     def test_user_specified_service_default(self):
         """
         v0 (default): When a user specifies a service for the app
-            The pymongo integration should use it.
+            The pymongo integration should not use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
@@ -529,7 +529,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
-            The pymongo integration should use it.
+            The pymongo integration should not use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
