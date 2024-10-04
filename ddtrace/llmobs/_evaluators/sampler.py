@@ -3,6 +3,7 @@ from json.decoder import JSONDecodeError
 import os
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
@@ -18,7 +19,10 @@ class EvaluatorRunnerSamplingRule(SamplingRule):
     SPAN_NAME_KEY = "span_name"
 
     def __init__(
-        self, sample_rate: float, evaluator_label: Optional[object] = None, span_name: Optional[object] = None
+        self,
+        sample_rate: float,
+        evaluator_label: Optional[Union[str, object]] = None,
+        span_name: Optional[object] = None,
     ):
         super(EvaluatorRunnerSamplingRule, self).__init__(sample_rate)
         self.evaluator_label = evaluator_label
