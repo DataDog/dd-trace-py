@@ -17,6 +17,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.settings.code_origin import config as co_config  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
@@ -81,6 +82,11 @@ if di_config.enabled:  # Dynamic Instrumentation
 
     DynamicInstrumentation.enable()
 
+if co_config.span.enabled:
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
+
+    SpanCodeOriginProcessor.enable()
+
 if er_config.enabled:  # Exception Replay
     from ddtrace.debugging._exception.replay import SpanExceptionHandler
 
@@ -98,12 +104,6 @@ if asbool(os.getenv("DD_IAST_ENABLED", False)):
     from ddtrace.appsec._iast import enable_iast_propagation
 
     enable_iast_propagation()
-
-if config._remote_config_enabled:
-    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-    remoteconfig_poller.enable()
-    config.enable_remote_configuration()
 
 if asm_config._asm_enabled or config._remote_config_enabled:
     from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
