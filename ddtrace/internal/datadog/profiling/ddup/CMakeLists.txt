@@ -22,31 +22,28 @@ include(FindLibdatadog)
 # things may yet be factored differently.
 add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
 
+find_package(Python3 COMPONENTS Interpreter Development)
+
 # Make sure we have necessary Python variables
 if(NOT Python3_INCLUDE_DIRS)
     message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
 endif()
 
-# This sets some parameters for the target build, which can only be defined by setup.py
-set(ENV{PY_MAJOR_VERSION} ${PY_MAJOR_VERSION})
-set(ENV{PY_MINOR_VERSION} ${PY_MINOR_VERSION})
-set(ENV{PY_MICRO_VERSION} ${PY_MICRO_VERSION})
-
-# if PYTHON_EXECUTABLE is unset or empty, but Python3_EXECUTABLE is set, use that
-if(NOT PYTHON_EXECUTABLE AND Python3_EXECUTABLE)
-    set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
-endif()
-
 # If we still don't have a Python executable, we can't continue
-if(NOT PYTHON_EXECUTABLE)
+if(NOT Python3_EXECUTABLE)
     message(FATAL_ERROR "Python executable not found")
 endif()
+
+# This sets some parameters for the target build, which can only be defined by setup.py
+set(ENV{PY_MAJOR_VERSION} ${Python3_VERSION_MAJOR})
+set(ENV{PY_MINOR_VERSION} ${Python3_VERSION_MINOR})
+set(ENV{PY_MICRO_VERSION} ${Python3_VERSION_PATCH})
 
 # Cythonize the .pyx file
 set(DDUP_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_ddup.cpp)
 add_custom_command(
     OUTPUT ${DDUP_CPP_SRC}
-    COMMAND ${PYTHON_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx -o ${DDUP_CPP_SRC}
+    COMMAND ${Python3_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx -o ${DDUP_CPP_SRC}
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx)
 
 # Specify the target C-extension that we want to build

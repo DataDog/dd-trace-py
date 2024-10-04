@@ -21,6 +21,8 @@ include(FindCppcheck)
 # design is unknown.  Hack it for now.
 add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
 
+find_package(Python3 COMPONENTS Interpreter Development)
+
 # Make sure we have necessary Python variables
 if(NOT Python3_INCLUDE_DIRS)
     message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
@@ -89,7 +91,12 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
 # typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
-target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+if(Python3_LIBRARIES)
+    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
+else()
+    # for manylinux builds
+    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+endif()
 
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
