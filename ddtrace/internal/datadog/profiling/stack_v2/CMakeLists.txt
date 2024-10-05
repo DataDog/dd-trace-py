@@ -22,7 +22,6 @@ include(FindCppcheck)
 add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
 
 find_package(Python3 COMPONENTS Interpreter Development)
-
 # Make sure we have necessary Python variables
 if(NOT Python3_INCLUDE_DIRS)
     message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")

@@ -18,7 +18,6 @@ include(FindLibdatadog)
 add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
 
 find_package(Python3 COMPONENTS Interpreter Development)
-
 # Make sure we have necessary Python variables
 if(NOT Python3_INCLUDE_DIRS)
     message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
@@ -90,7 +89,6 @@ endif()
 
 set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/.." OUTPUT_NAME
                                                                              ${CRASHTRACKER_EXE_TARGET_NAME})
-
 target_link_libraries(crashtracker_exe PRIVATE dd_wrapper)
 
 # See the dd_wrapper CMakeLists.txt for a more detailed explanation of why we do what we do.
