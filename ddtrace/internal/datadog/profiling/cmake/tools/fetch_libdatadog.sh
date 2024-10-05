@@ -50,8 +50,6 @@ else
     exit 1
 fi
 
-# if os is linux, check for musl libc
-
 # https://github.com/DataDog/libdatadog/releases/download/v0.7.0-rc.1/libdatadog-aarch64-alpine-linux-musl.tar.gz
 TAR_LIBDATADOG=libdatadog-${MARCH}-${DISTRIBUTION}.tar.gz
 GITHUB_URL_LIBDATADOG=https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${TAR_LIBDATADOG}

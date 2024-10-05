@@ -33,7 +33,7 @@ jobs:
         with:
           version: "1.12.0"
 
-      - name: Install core utils for mac
+      - name: Install coreutils for MacOS to get sha256sum
         if: matrix.os == 'macos-latest'
         run: brew install coreutils
 
