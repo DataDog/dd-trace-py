@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eo pipefail
 
 if [ -n "$CI_COMMIT_TAG" ] && [ -z "$PYTHON_PACKAGE_VERSION" ]; then
   PYTHON_PACKAGE_VERSION=${CI_COMMIT_TAG##v}
@@ -23,6 +24,16 @@ mkdir -p sources/ddtrace_pkgs
 
 BUILD_DIR=sources
 
+echo "Cleaning up binaries for ${ARCH}"
+if [ "${ARCH}" == "arm64" ]; then
+  echo "Removing x86_64 binaries"
+  find ../pywheels-dep/ -type f -name '*x86_64-*.so*' -exec rm -f {} \;
+elif [ "${ARCH}" == "amd64" ]; then
+  echo "Removing aarch64 binaries"
+  find ../pywheels-dep/ -type f -name '*aarch64-*.so*' -exec rm -f {} \;
+else
+  echo "No ARCH set, not removing any binaries"
+fi
 echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
 echo "Cleaning up binaries for ${ARCH}"
@@ -36,5 +47,19 @@ else
   echo "No ARCH set, not removing any binaries"
 fi
 cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
-
 cp ../lib-injection/sources/* sources/
+
+if ! type rdfind &> /dev/null; then
+  clean-apt install rdfind
+fi
+echo "Deduplicating package files"
+cd ./sources
+rdfind -makesymlinks true -makeresultsfile true -checksum sha256 -deterministic true -outputname deduped.txt .
+echo "Converting symlinks to relative hard links"
+find . -type l | while read -r l; do
+  target="$(realpath "$l")"
+  rel_target="$(realpath --relative-to="$(dirname "$(realpath -s "$l")")" "$target")"
+  dest_base="$(basename "$l")"
+  dest_dir="$(dirname "$l")"
+  (cd "${dest_dir}" && ln -f "${rel_target}" "${dest_base}")
+done
