@@ -90,8 +90,6 @@ endif()
 
 set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/.." OUTPUT_NAME
                                                                              ${CRASHTRACKER_EXE_TARGET_NAME})
-# To let crashtracker find Python library at runtime
-set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 target_link_libraries(crashtracker_exe PRIVATE dd_wrapper)
 
