@@ -91,12 +91,7 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
 # typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
-if(Python3_LIBRARIES)
-    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
-else()
-    # for manylinux builds
-    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
-endif()
+target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)

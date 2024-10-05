@@ -98,12 +98,8 @@ set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/.." OUT
 # To let crashtracker find Python library at runtime
 set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-if(Python3_LIBRARIES)
-    target_link_libraries(crashtracker_exe PRIVATE dd_wrapper ${Python3_LIBRARIES})
-else()
-    # for manylinux builds
-    target_link_libraries(crashtracker_exe PRIVATE dd_wrapper)
-endif()
+
+target_link_libraries(crashtracker_exe PRIVATE dd_wrapper)
 
 # See the dd_wrapper CMakeLists.txt for a more detailed explanation of why we do what we do.
 if(INPLACE_LIB_INSTALL_DIR)
