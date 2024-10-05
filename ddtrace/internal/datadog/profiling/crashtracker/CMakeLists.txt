@@ -65,12 +65,7 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
                                                      ${Python3_INCLUDE_DIRS})
 
-if(Python3_LIBRARIES)
-    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
-else()
-    # for manylinux builds
-    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
-endif()
+target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -97,7 +92,6 @@ set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/.." OUT
                                                                              ${CRASHTRACKER_EXE_TARGET_NAME})
 # To let crashtracker find Python library at runtime
 set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
-
 
 target_link_libraries(crashtracker_exe PRIVATE dd_wrapper)
 
