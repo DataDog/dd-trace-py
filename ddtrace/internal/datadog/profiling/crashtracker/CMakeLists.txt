@@ -48,14 +48,14 @@ add_library(${EXTENSION_NAME} SHARED ${CRASHTRACKER_CPP_SRC})
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     # macOS-specific options
     target_compile_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Debug>:-Og;-g>" "$<$<CONFIG:Release>:-Os>"
-        -ffunction-sections)
+                                                     -ffunction-sections)
     target_link_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Release>:-Wl,-dead_strip>")
 else()
     # Linux/ELF-based options
     target_compile_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Debug>:-Og;-ggdb3>" "$<$<CONFIG:Release>:-Os>"
-        -ffunction-sections -fno-semantic-interposition)
+                                                     -ffunction-sections -fno-semantic-interposition)
     target_link_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Release>:-s>" -Wl,--as-needed -Wl,-Bsymbolic-functions
-        -Wl,--gc-sections)
+                        -Wl,--gc-sections)
 endif()
 
 set_property(TARGET ${EXTENSION_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
@@ -71,7 +71,7 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
-    ${Python3_INCLUDE_DIRS})
+                                                     ${Python3_INCLUDE_DIRS})
 
 if(Python3_LIBRARIES)
     target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
@@ -102,7 +102,7 @@ if(NOT CRASHTRACKER_EXE_TARGET_NAME)
 endif()
 
 set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/.." OUTPUT_NAME
-    ${CRASHTRACKER_EXE_TARGET_NAME})
+                                                                             ${CRASHTRACKER_EXE_TARGET_NAME})
 
 # To let crashtracker find Python library at runtime
 set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)

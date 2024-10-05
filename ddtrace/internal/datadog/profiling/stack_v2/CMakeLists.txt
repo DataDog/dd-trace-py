@@ -70,9 +70,9 @@ target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 # warning(push, 0 then pop for the same effect.
 target_include_directories(
     ${EXTENSION_NAME} PRIVATE .. # include dd_wrapper from the root in order to make its paths transparent in the code
-    include)
+                              include)
 target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE ${echion_SOURCE_DIR} ${Python3_INCLUDE_DIRS}
-    include/vendored include/util)
+                                                            include/vendored include/util)
 
 # Echion sources need to be given the current platform
 if(WIN32)
@@ -92,7 +92,7 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
-if (Python3_LIBRARIES)
+if(Python3_LIBRARIES)
     target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
 else()
     # for manylinux builds
