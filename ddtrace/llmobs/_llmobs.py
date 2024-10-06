@@ -155,13 +155,11 @@ class LLMObs(Service):
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
             return
+
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
 
-        if cls.enabled:
-            log.debug("%s already enabled", cls.__name__)
-            return
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
