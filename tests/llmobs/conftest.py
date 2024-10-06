@@ -116,6 +116,20 @@ def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_glob
 
 
 @pytest.fixture
+def LLMObsDisabled(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config, monkeypatch):
+    monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
+    global_config = default_global_config()
+    global_config.update(ddtrace_global_config)
+    yield llmobs_service
+
+
+@pytest.fixture
+def mock_on_span_finish():
+    with mock.patch("ddtrace._trace.tracer.Tracer._on_span_finish") as m:
+        yield m
+
+
+@pytest.fixture
 def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)

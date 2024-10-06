@@ -152,9 +152,11 @@ class LLMObs(Service):
         :param str env: Your environment name.
         :param str service: Your service name.
         """
+        if cls.enabled:
+            log.debug("%s already enabled", cls.__name__)
+            return
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
-            cls.enabled = False
             return
 
         if cls.enabled:
