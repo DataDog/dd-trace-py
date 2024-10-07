@@ -164,8 +164,6 @@ def _deprecate_span_kwarg(span):
 
 
 class ExecutionContext(AbstractContextManager):
-    __slots__ = ["identifier", "_data", "_parents", "_span", "_token", "_suppress_exceptions"]
-
     def __init__(self, identifier, parent=None, span=None, **kwargs):
         _deprecate_span_kwarg(span)
         self.identifier = identifier
