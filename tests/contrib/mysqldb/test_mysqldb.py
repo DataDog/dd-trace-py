@@ -667,6 +667,18 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         spans = tracer.pop()
 
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+    
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_service_override(self):
+        with self.override_config("mysqldb", dict(service='mysqldb-service')):
+            conn, tracer = self._get_conn_tracer()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            assert len(rows) == 1
+            spans = tracer.pop()
+
+            assert spans[0].service == "mysqldb-service"
 
     def test_trace_connect(self):
         # No span when trace_connect is False (the default)
