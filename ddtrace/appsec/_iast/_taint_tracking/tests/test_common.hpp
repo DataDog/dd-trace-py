@@ -1,6 +1,5 @@
 #pragma once
 #include <Initializer/Initializer.h>
-#include <Utils/GenericUtils.h>
 #include <gtest/gtest.h>
 #include <pybind11/embed.h>
 
@@ -26,7 +25,7 @@ class PyEnvWithContext : public ::testing::Test
 
     void TearDown() override
     {
-        initializer->reset_context();
+        initializer->reset_contexts();
         initializer.reset();
         py::finalize_interpreter();
     }

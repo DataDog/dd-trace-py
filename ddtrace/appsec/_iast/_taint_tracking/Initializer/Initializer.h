@@ -5,6 +5,7 @@
 #include "TaintTracking/TaintRange.h"
 #include "TaintTracking/TaintedObject.h"
 
+#include <mutex>
 #include <stack>
 #include <unordered_map>
 
@@ -24,6 +25,8 @@ class Initializer
     // This is a map instead of a set so we can change the contents on iteration; otherwise
     // keys and values are the same pointer.
     unordered_map<TaintRangeMapType*, TaintRangeMapTypePtr> active_map_addreses;
+
+    std::mutex active_map_addreses_mutex;
 
   public:
     /**
@@ -88,7 +91,16 @@ class Initializer
     /**
      * Resets the current taint tracking context.
      */
+    void reset_context(const TaintRangeMapTypePtr& tx_map);
+    /**
+     * Resets the current taint tracking context.
+     */
     void reset_context();
+
+    /**
+     * Resets all current taint tracking contexts.
+     */
+    void reset_contexts();
 
     /**
      * Allocates a new tainted object.
