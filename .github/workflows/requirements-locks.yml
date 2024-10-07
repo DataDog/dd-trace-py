@@ -3,11 +3,10 @@ on:
   push:
     branches:
       - main
+      - 'mq-working-branch**'
   pull_request:
     types: [opened, reopened, synchronize]
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
+
 jobs:
   validate:
     name: Check requirements lockfiles
