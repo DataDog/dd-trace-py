@@ -1,9 +1,12 @@
 rulesets:
   - python-best-practices:
     rules:
-      nested-blocks:
+      comment-fixme-todo-ownership:
         ignore:
           - "**"
       max-function-lines:
-        ignore: 
+        ignore:
           - "tests/ci_visibility/api/fake_runner_*.py"
+      nested-blocks:
+        ignore:
+          - "**"
