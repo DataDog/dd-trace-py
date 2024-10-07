@@ -10,6 +10,7 @@ from typing import Set
 from unittest.mock import Mock
 
 import mock
+import msgpack
 import pytest
 
 import ddtrace
@@ -29,13 +30,14 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
-import ddtrace.internal.test_visibility.api as api
+import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
+from tests.ci_visibility.util import set_up_mock_civisibility
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -270,9 +272,9 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
                                 "10s": 5,
                                 "30s": 3,
                                 "5m": 2,
-                                "5s": 10
-                            },
-                            "faulty_session_threshold": 30
+                                "5s": 10,
+                                "faulty_session_threshold": 30
+                            }
                         },
                         "flaky_test_retries_enabled": false,
                         "itr_enabled": true,
@@ -560,6 +562,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             if CIVisibility.enabled:
                 CIVisibility.disable()
         except Exception:
+            # no-dd-sa:python-best-practices/no-silent-exception
             pass
 
     def test_civisibilitywriter_agentless_url(self):
@@ -1091,10 +1094,10 @@ def test_civisibility_enable_respects_passed_in_tracer():
 
 
 class TestIsITRSkippable:
-    """Tests whether the CIVisibilty.is_item_itr_skippable work properly (the _suite_ and _test_ level methods are
+    """Tests whether the CIVisibility.is_item_itr_skippable work properly (the _suite_ and _test_ level methods are
     assumed to be working since they are called by is_item_itr_skippable in a wrapper-like way).
 
-    These tests mock CIVisibility._instance._test_suites_to_skip and _tests_to_skip , implying that
+    These tests mock CIVisibility._instance._test_suites_to_skip and _tests_to_skip, implying that
     CIVisibility._fetch_tests_to_skip() ran successfully.
 
     In test-level skipping mode, only the following tests should be skippable:
@@ -1127,7 +1130,9 @@ class TestIsITRSkippable:
     No tests should be skippable in suite-level skipping mode, and vice versa.
     """
 
-    test_level_tests_to_skip: Set[api.InternalTestId] = _make_fqdn_test_ids(
+    test_level_tests_to_skip: Set[
+        ddtrace.internal.test_visibility._internal_item_ids.InternalTestId
+    ] = _make_fqdn_test_ids(
         [
             ("module_1", "module_1_suite_1.py", "test_1"),
             ("module_1", "module_1_suite_1.py", "test_2"),
@@ -1157,66 +1162,90 @@ class TestIsITRSkippable:
     m1 = ext_api.TestModuleId("module_1")
     # Module 1 Suite 1
     m1_s1 = ext_api.TestSuiteId(m1, "module_1_suite_1.py")
-    m1_s1_t1 = api.InternalTestId(m1_s1, "test_1")
-    m1_s1_t2 = api.InternalTestId(m1_s1, "test_2")
-    m1_s1_t3 = api.InternalTestId(m1_s1, "test_3")
-    m1_s1_t4 = api.InternalTestId(m1_s1, "test_4[param1]")
-    m1_s1_t5 = api.InternalTestId(m1_s1, "test_5[param2]", parameters='{"arg1": "param_arg_1"}')
-    m1_s1_t6 = api.InternalTestId(m1_s1, "test_6[param3]", parameters='{"arg2": "param_arg_2"}')
-    m1_s1_t7 = api.InternalTestId(m1_s1, "test_6[param3]")
+    m1_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_1")
+    m1_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_2")
+    m1_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_3")
+    m1_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_4[param1]")
+    m1_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m1_s1, "test_5[param2]", parameters='{"arg1": "param_arg_1"}'
+    )
+    m1_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m1_s1, "test_6[param3]", parameters='{"arg2": "param_arg_2"}'
+    )
+    m1_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_6[param3]")
 
     # Module 1 Suite 2
     m1_s2 = ext_api.TestSuiteId(m1, "module_1_suite_2.py")
-    m1_s2_t1 = api.InternalTestId(m1_s2, "test_1")
-    m1_s2_t2 = api.InternalTestId(m1_s2, "test_2")
-    m1_s2_t3 = api.InternalTestId(m1_s2, "test_3")
-    m1_s2_t4 = api.InternalTestId(m1_s2, "test_4[param1]")
-    m1_s2_t5 = api.InternalTestId(m1_s2, "test_5[param2]", parameters='{"arg3": "param_arg_3"}')
-    m1_s2_t6 = api.InternalTestId(m1_s2, "test_6[param3]", parameters='{"arg4": "param_arg_4"}')
-    m1_s2_t7 = api.InternalTestId(m1_s2, "test_6[param3]")
+    m1_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_1")
+    m1_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_2")
+    m1_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_3")
+    m1_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_4[param1]")
+    m1_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m1_s2, "test_5[param2]", parameters='{"arg3": "param_arg_3"}'
+    )
+    m1_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m1_s2, "test_6[param3]", parameters='{"arg4": "param_arg_4"}'
+    )
+    m1_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_6[param3]")
 
     # Module 2
     m2 = ext_api.TestModuleId("module_2")
 
     # Module 2 Suite 1
     m2_s1 = ext_api.TestSuiteId(m2, "module_2_suite_1.py")
-    m2_s1_t1 = api.InternalTestId(m2_s1, "test_1")
-    m2_s1_t2 = api.InternalTestId(m2_s1, "test_2")
-    m2_s1_t3 = api.InternalTestId(m2_s1, "test_3")
-    m2_s1_t4 = api.InternalTestId(m2_s1, "test_4[param1]")
-    m2_s1_t5 = api.InternalTestId(m2_s1, "test_5[param2]", parameters='{"arg5": "param_arg_5"}')
-    m2_s1_t6 = api.InternalTestId(m2_s1, "test_6[param3]", parameters='{"arg6": "param_arg_6"}')
-    m2_s1_t7 = api.InternalTestId(m2_s1, "test_6[param3]")
+    m2_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_1")
+    m2_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_2")
+    m2_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_3")
+    m2_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_4[param1]")
+    m2_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m2_s1, "test_5[param2]", parameters='{"arg5": "param_arg_5"}'
+    )
+    m2_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m2_s1, "test_6[param3]", parameters='{"arg6": "param_arg_6"}'
+    )
+    m2_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_6[param3]")
 
     # Module 2 Suite 2
     m2_s2 = ext_api.TestSuiteId(m2, "module_2_suite_2.py")
-    m2_s2_t1 = api.InternalTestId(m2_s2, "test_1")
-    m2_s2_t2 = api.InternalTestId(m2_s2, "test_2")
-    m2_s2_t3 = api.InternalTestId(m2_s2, "test_3")
-    m2_s2_t4 = api.InternalTestId(m2_s2, "test_4[param1]")
-    m2_s2_t5 = api.InternalTestId(m2_s2, "test_5[param2]", parameters='{"arg7": "param_arg_7"}')
-    m2_s2_t6 = api.InternalTestId(m2_s2, "test_6[param3]", parameters='{"arg8": "param_arg_8"}')
-    m2_s2_t7 = api.InternalTestId(m2_s2, "test_6[param3]")
+    m2_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_1")
+    m2_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_2")
+    m2_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_3")
+    m2_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_4[param1]")
+    m2_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m2_s2, "test_5[param2]", parameters='{"arg7": "param_arg_7"}'
+    )
+    m2_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m2_s2, "test_6[param3]", parameters='{"arg8": "param_arg_8"}'
+    )
+    m2_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_6[param3]")
 
     # Module 3
     m3 = ext_api.TestModuleId("")
     m3_s1 = ext_api.TestSuiteId(m3, "no_module_suite_1.py")
-    m3_s1_t1 = api.InternalTestId(m3_s1, "test_1")
-    m3_s1_t2 = api.InternalTestId(m3_s1, "test_2")
-    m3_s1_t3 = api.InternalTestId(m3_s1, "test_3")
-    m3_s1_t4 = api.InternalTestId(m3_s1, "test_4[param1]")
-    m3_s1_t5 = api.InternalTestId(m3_s1, "test_5[param2]", parameters='{"arg9": "param_arg_9"}')
-    m3_s1_t6 = api.InternalTestId(m3_s1, "test_6[param3]", parameters='{"arg10": "param_arg_10"}')
-    m3_s1_t7 = api.InternalTestId(m3_s1, "test_6[param3]")
+    m3_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_1")
+    m3_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_2")
+    m3_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_3")
+    m3_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_4[param1]")
+    m3_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m3_s1, "test_5[param2]", parameters='{"arg9": "param_arg_9"}'
+    )
+    m3_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m3_s1, "test_6[param3]", parameters='{"arg10": "param_arg_10"}'
+    )
+    m3_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_6[param3]")
 
     m3_s2 = ext_api.TestSuiteId(m3, "no_module_suite_2.py")
-    m3_s2_t1 = api.InternalTestId(m3_s2, "test_1")
-    m3_s2_t2 = api.InternalTestId(m3_s2, "test_2")
-    m3_s2_t3 = api.InternalTestId(m3_s2, "test_3")
-    m3_s2_t4 = api.InternalTestId(m3_s2, "test_4[param1]")
-    m3_s2_t5 = api.InternalTestId(m3_s2, "test_5[param2]", parameters='{"arg11": "param_arg_11"}')
-    m3_s2_t6 = api.InternalTestId(m3_s2, "test_6[param3]", parameters='{"arg12": "param_arg_12"}')
-    m3_s2_t7 = api.InternalTestId(m3_s2, "test_6[param3]")
+    m3_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_1")
+    m3_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_2")
+    m3_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_3")
+    m3_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_4[param1]")
+    m3_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m3_s2, "test_5[param2]", parameters='{"arg11": "param_arg_11"}'
+    )
+    m3_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
+        m3_s2, "test_6[param3]", parameters='{"arg12": "param_arg_12"}'
+    )
+    m3_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_6[param3]")
 
     def _get_all_suite_ids(self):
         return {getattr(self, suite_id) for suite_id in vars(self.__class__) if re.match(r"^m\d_s\d$", suite_id)}
@@ -1284,3 +1313,70 @@ class TestIsITRSkippable:
             # Check all tests are not skippable
             for test_id in self._get_all_test_ids():
                 assert CIVisibility.is_item_itr_skippable(test_id) is False
+
+
+class TestCIVisibilitySetTestSessionName(TracerTestCase):
+    def tearDown(self):
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:
+            # no-dd-sa:python-best-practices/no-silent-exception
+            pass
+
+    def assert_test_session_name(self, name):
+        """Check that the payload metadata contains the test session name attributes."""
+        payload = msgpack.loads(
+            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+        )
+        assert payload["metadata"]["test_session_end"] == {"test_session.name": name}
+        assert payload["metadata"]["test_suite_end"] == {"test_session.name": name}
+        assert payload["metadata"]["test_module_end"] == {"test_session.name": name}
+        assert payload["metadata"]["test"] == {"test_session.name": name}
+
+    def test_set_test_session_name_from_command(self):
+        """When neither DD_TEST_SESSION_NAME nor a job id is provided, the test session name should be the test
+        command.
+        """
+        with _ci_override_env(dict()), set_up_mock_civisibility(), _patch_dummy_writer():
+            CIVisibility.enable()
+            CIVisibility.set_test_session_name(test_command="some_command")
+        self.assert_test_session_name("some_command")
+
+    def test_set_test_session_name_from_dd_test_session_name_env_var(self):
+        """When DD_TEST_SESSION_NAME is provided, the test session name should be its value."""
+        with _ci_override_env(
+            dict(
+                DD_TEST_SESSION_NAME="the_name",
+            )
+        ), set_up_mock_civisibility(), _patch_dummy_writer():
+            CIVisibility.enable()
+            CIVisibility.set_test_session_name(test_command="some_command")
+        self.assert_test_session_name("the_name")
+
+    def test_set_test_session_name_from_job_name_and_command(self):
+        """When DD_TEST_SESSION_NAME is not provided, but a job id is, the test session name should be constructed from
+        the job id and test command.
+        """
+        with _ci_override_env(
+            dict(
+                GITLAB_CI="1",
+                CI_JOB_NAME="the_job",
+            )
+        ), set_up_mock_civisibility(), _patch_dummy_writer():
+            CIVisibility.enable()
+            CIVisibility.set_test_session_name(test_command="some_command")
+        self.assert_test_session_name("the_job-some_command")
+
+    def test_set_test_session_name_from_dd_test_session_name_env_var_priority(self):
+        """When both DD_TEST_SESSION_NAME and job id are provided, DD_TEST_SESSION_NAME wins."""
+        with _ci_override_env(
+            dict(
+                GITLAB_CI="1",
+                CI_JOB_NAME="the_job",
+                DD_TEST_SESSION_NAME="the_name",
+            )
+        ), set_up_mock_civisibility(), _patch_dummy_writer():
+            CIVisibility.enable()
+            CIVisibility.set_test_session_name(test_command="some_command")
+        self.assert_test_session_name("the_name")

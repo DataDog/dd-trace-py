@@ -4,9 +4,6 @@ on:
   pull_request:
     paths:
       - src/**
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
 
 jobs:
   check:

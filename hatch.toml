@@ -373,6 +373,7 @@ dependencies = [
 [envs.ddtrace_unit_tests.env-vars]
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
+CMAKE_BUILD_PARALLEL_LEVEL="6"
 
 [envs.ddtrace_unit_tests.scripts]
 test = [

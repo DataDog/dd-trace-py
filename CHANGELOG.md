@@ -4,6 +4,62 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.12.3
+
+### Bug Fixes
+
+- Code Security
+  - This fix resolves an issue where exploit prevention was not properly blocking requests with custom redirection actions.
+  - Ensure the `Initializer` object is always reset and freed before the Python runtime.
+
+- LLM Observability
+  - Fixes an issue where the OpenAI and LangChain integrations would still submit integration metrics even in agentless mode. Integration metrics are now disabled if using agentless mode via `LLMObs.enable(agentless_enabled=True)` or setting `DD_LLMOBS_AGENTLESS_ENABLED=1`.
+  - Resolves an issue in the `LLMObs.annotate()` method where non-JSON serializable arguments were discarded entirely. Now, the `LLMObs.annotate()` method safely handles non-JSON-serializable arguments by defaulting to a placeholder text.
+  - Resolves an issue where attempting to tag non-JSON serializable request/response parameters resulted in a `TypeError` in the OpenAI, LangChain, Bedrock, and Anthropic integrations.
+  - Resolves an issue where attempting to tag non-JSON serializable request arguments caused a `TypeError`. The Anthropic integration now safely tags non-JSON serializable arguments with a default placeholder text.
+  - Resolves an issue where attempting to tag non-JSON serializable tool config arguments resulted in a `TypeError`. The LangChain integration now safely tags non-JSON serializable arguments with a default placeholder text.
+
+- Profiling
+  - All files with platform-dependent code have had their filenames updated to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
+  - Improves the error message when the native exporter fails to load and stops profiling from starting if ddtrace is also being injected.
+  - Enables endpoint profiling for stack v2, `DD_PROFILING_STACK_V2_ENABLED` is set.
+  - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Enables code provenance when using libdatadog exporter, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_STACK_V2_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Fixes an issue where flamegraph was upside down for stack v2, `DD_PROFILING_STACK_V2_ENABLED`.
+
+- Tracing
+  - Fixes an issue where `celery.apply` spans didn't close if the `after_task_publish` or `task_postrun` signals didn't get sent when using `apply_async`, which can happen if there is an internal exception during the handling of the task. This update also marks the span as an error if an exception occurs.
+  - Fixes an issue where `celery.apply` spans using task_protocol 1 didn't close by improving the check for the task id in the body.
+  - Fixes circular imports raised when psycopg automatic instrumentation is enabled.
+  - Removes a reference cycle that caused unnecessary garbage collection for top-level spans.
+  - Fixed an issue where a `TypeError` exception would be raised if the first message's `topic()` returned `None` during consumption.
+  - Kinesis: Resolves an issue where unparsable data in a Kinesis record would cause a NoneType error.
+
+---
+
+## 2.13.1
+
+
+### Bug Fixes
+
+- Code Security (IAST)
+  - Always report a telemetry log error when an IAST propagation error raises, regardless of whether the `_DD_IAST_DEBUG` environment variable is enabled or not.
+  - Code Security: Fixes potential memory leak on IAST exception handling.
+
+- Profiling:
+  - Updates filenames for all files with platform-dependent code to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
+  - Enables endpoint profiling for stack v2, `DD_PROFILING_STACK_V2_ENABLED` is set.
+  - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Enables code provenance when using libdatadog exporter, `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_STACK_V2_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Fixes an issue where the flamegraph was upside down for stack v2 when enabling  `DD_PROFILING_STACK_V2_ENABLED`.
+ 
+- Tracing
+  - Fixes an issue where `celery.apply` spans didn't close if the `after_task_publish` or `task_postrun` signals didn't get sent when using `apply_async`, which can happen if there is an internal exception during the handling of the task. This update also marks the span as an error if an exception occurs.
+  - Fixes an issue where `celery.apply` spans using task_protocol 1 didn't close by improving the check for the task id in the body.
+  - Removes a reference cycle that caused unnecessary garbage collection for top-level spans.
+
+---
+
 ## 2.14.2
 
 
