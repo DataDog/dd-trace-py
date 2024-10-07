@@ -17,7 +17,6 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         # Keep this in sync with hatch.toml
         python-version: ["3.7", "3.10", "3.12"]
-
     steps:
       - uses: actions/checkout@v4
         # Include all history and tags
