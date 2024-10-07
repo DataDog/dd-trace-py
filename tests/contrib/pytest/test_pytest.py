@@ -220,6 +220,25 @@ class PytestTestCase(TracerTestCase):
         test_span = spans[0]
         assert test_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
 
+    def test_pytest_command_test_session_name(self):
+        """Test that the pytest run command is used to set the test session name."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.set_test_session_name"
+        ) as set_test_session_name_mock:
+            self.inline_run("--ddtrace", file_name)
+
+        set_test_session_name_mock.assert_called_once_with(
+            test_command="pytest -p no:randomly --ddtrace {}".format(file_name)
+        )
+
     def test_ini_no_ddtrace(self):
         """Test ini config, overridden by --no-ddtrace cli parameter."""
         self.testdir.makefile(".ini", pytest="[pytest]\nddtrace=1\n")

@@ -414,6 +414,7 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": "True"},
         {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": "60"},
         {"name": "DD_TESTING_RAISE", "origin": "env_var", "value": "True"},
+        {"name": "DD_TEST_SESSION_NAME", "origin": "default", "value": "None"},
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": "True"},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": "False"},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": "2.0"},
