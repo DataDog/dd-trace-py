@@ -525,7 +525,7 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
-                extra_compile_args=debug_compile_args,
+                extra_compile_args=extra_compile_args + debug_compile_args,
             )
         )
 
