@@ -10,6 +10,7 @@ from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.civis import ci_config
 
 
 log = get_logger(__name__)
@@ -105,7 +106,7 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
         log.debug("CIVisibility not taking over ddtrace logger handler because debug mode is enabled")
         return
 
-    level = ddconfig.ci_visibility_log_level
+    level = ci_config.log_level
 
     if level.upper() == "NONE":
         log.debug("CIVisibility not taking over ddtrace logger because level is set to: %s", level)

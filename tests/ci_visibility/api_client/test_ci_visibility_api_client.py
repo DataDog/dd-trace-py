@@ -48,7 +48,7 @@ def _patch_env_for_testing():
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
         return_value=TestVisibilityAPISettings(),
     ), mock.patch(
-        "ddtrace.config._ci_visibility_agentless_enabled", True
+        "ddtrace.settings.civis.ci_config._agentless_enabled", True
     ):
         # Rebuild the config (yes, this is horrible)
         new_ddconfig = Config()
