@@ -1021,6 +1021,57 @@ def test_sanitized_url_in_http_meta(span, int_config):
     assert span.get_tag(http.URL) == FULL_URL
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+def test_url_in_http_with_empty_obfuscation_regex():
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.ext import http
+
+    assert config._obfuscation_query_string_pattern.pattern == b"", config._obfuscation_query_string_pattern
+
+    SENSITIVE_URL = "http://weblog:7777/?application_key=123"
+    config._add("myint", dict())
+    with tracer.trace("s") as span:
+        set_http_meta(
+            span,
+            config.myint,
+            method="GET",
+            url=SENSITIVE_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == SENSITIVE_URL
+
+
+# TODO(munir): Remove this test when global_query_string_obfuscation_disabled is removed
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
+    # Test that query strings are not added to urls when the obfuscation regex is an empty string
+    # and obfuscation is enabled (not disabled xD)
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.ext import http
+
+    # assert obfuscation is disabled when the regex is an empty string
+    assert config.global_query_string_obfuscation_disabled is True
+    assert config._obfuscation_query_string_pattern is not None
+
+    # Enable obfucation with an empty regex
+    config.global_query_string_obfuscation_disabled = False
+
+    config._add("myint", dict())
+    with tracer.trace("s") as span:
+        set_http_meta(
+            span,
+            config.myint,
+            method="GET",
+            url="http://weblog:7777/?application_key=123",
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == "http://weblog:7777/", span._meta
+
+
 def test_url_in_http_meta(span, int_config):
     SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
     REDACTED_URL = "http://example.com/search?<redacted>&q=query#frag?ment"
