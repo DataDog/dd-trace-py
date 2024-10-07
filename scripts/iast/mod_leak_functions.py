@@ -318,7 +318,7 @@ async def test_doit():
     tmp_str2 = "_extend"
     string27 += tmp_str2
 
-    # TODO(avara1986): Pydantic is in the deny list, remove from it and uncomment this lines
+    # TODO(avara1986): pydantic is in the DENY_LIST, remove from it and uncomment this lines
     # result = await anyio.to_thread.run_sync(functools.partial(pydantic_object, string_tainted=string27), string27)
     # result = pydantic_object(tag="test2", string_tainted=string27)
     # return result.tuple_strings[0]

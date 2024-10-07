@@ -339,6 +339,7 @@ dependencies = [
     "pytest-cov",
     "hypothesis",
     "requests",
+    "pytest-asyncio",
     "anyio",
     "pydantic",
     "pydantic-settings",

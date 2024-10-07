@@ -37,21 +37,22 @@ def _pre_checks(module, aspect_to_check="add_aspect"):
 
 @pytest.mark.asyncio
 async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
-    if iterations < 60000:
+    mem_reference_iterations = 50000
+    if iterations < mem_reference_iterations:
         print(
             "Error: not running with %d iterations. At least 60.000 are needed to stabilize the RSS info" % iterations
         )
         sys.exit(1)
 
     try:
-        mem_reference_iterations = 50000
+
         print("Test %d iterations" % iterations)
         current_rss = 0
         half_rss = 0
         enable_iast_propagation()
         from scripts.iast.mod_leak_functions import test_doit
 
-        # TODO(avara1986): pydantic is in the DENY_LIST
+        # TODO(avara1986): pydantic is in the DENY_LIST, remove from it and uncomment this lines
         #  from pydantic import main
         #  _pre_checks(main, "index_aspect")
 
