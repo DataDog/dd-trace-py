@@ -38,7 +38,7 @@ package-oci:
 onboarding_tests_installer:
   parallel:
     matrix:
-      - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine-libgcc]
+      - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine]
 
 
 onboarding_tests_k8s_injection:
