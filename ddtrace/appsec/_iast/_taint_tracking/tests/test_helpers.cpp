@@ -1,5 +1,4 @@
 #include <Aspects/Helpers.h>
-#include <TaintTracking/Source.h>
 #include <Utils/PythonErrorGuard.h>
 #include <tests/test_common.hpp>
 
