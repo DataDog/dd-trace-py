@@ -1,4 +1,4 @@
-#pragma once
+#pragma one
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 

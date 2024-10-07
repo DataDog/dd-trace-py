@@ -41,19 +41,8 @@ Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
         // Map wasn't in the active addresses, do nothing
         return;
     }
-<<<<<<< HEAD
-
-    for (const auto& [fst, snd] : *tx_map) {
-        snd.second->decref();
-    }
-=======
-    std::lock_guard<std::mutex> lock(active_map_addreses_mutex);
     tx_map->clear();
     active_map_addreses.erase(tx_map.get());
-}
->>>>>>> c4cfa38673 (chore(iast): fix all known memleaks in the native module + safety fixes (#10947))
-
-    tx_map->clear();
 }
 
 // User must check for nullptr return
