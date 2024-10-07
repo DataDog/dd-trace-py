@@ -56,6 +56,9 @@ ddtrace = "ddtrace.contrib.pytest.plugin"
 "ddtrace.pytest_bdd" = "ddtrace.contrib.pytest_bdd.plugin"
 "ddtrace.pytest_benchmark" = "ddtrace.contrib.pytest_benchmark.plugin"
 
+[project.entry-points.'ddtrace.products']
+"remote-configuration" = "ddtrace.internal.remoteconfig.product"
+
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
 Changelog = "https://github.com/DataDog/dd-trace-py/releases"
@@ -74,6 +77,7 @@ exclude = '''
   .venv*
   | \.riot
   | ddtrace/profiling/
+  | test_ci_visibility_api_client_skippable_real_world_responses\.py
 )
 '''
 
@@ -214,6 +218,7 @@ exclude = [
     "tests/profiling/simple_program_gevent.py",
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",
+    "tests/contrib/protobuf/schemas/**/*.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"

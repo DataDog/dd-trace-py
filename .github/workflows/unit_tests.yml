@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'mq-working-branch**'
   pull_request:
   workflow_dispatch: {}
 
@@ -13,25 +14,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-         - os: ubuntu-latest
-           archs: x86_64 i686
-         #- os: arm-4core-linux
-         #  archs: aarch64
-         - os: windows-latest
-           archs: AMD64 x86
-         - os: macos-latest
-           archs: arm64
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Keep this in sync with hatch.toml
+        python-version: ["3.7", "3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
         # Include all history and tags
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        name: Install Python
-        with:
-          python-version: '3.12'
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Install latest stable toolchain and rustfmt
@@ -43,4 +33,4 @@ jobs:
           version: "1.12.0"
 
       - name: Run tests
-        run: hatch run ddtrace_unit_tests:test
+        run: hatch run +py=${{ matrix.python-version }} ddtrace_unit_tests:test

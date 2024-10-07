@@ -101,9 +101,6 @@ venv = Venv(
         "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-        "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-        "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
-        "DD_CIVISIBILITY_ITR_ENABLED": "1",
         "DD_INJECTION_ENABLED": "1",
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
@@ -156,7 +153,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_memcheck",
-            pys=select_pys(min_version="3.8"),
+            pys=select_pys(min_version="3.9"),
             command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
             pkgs={
                 "requests": latest,
@@ -166,7 +163,7 @@ venv = Venv(
                 "psycopg2-binary": "~=2.9.9",
                 # Should be "pytest-memray": latest, but we need to pin to a specific commit in a fork
                 # while this PR gets merged: https://github.com/bloomberg/pytest-memray/pull/103
-                "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73": "",
+                "pytest-memray": "~=1.7.0",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -290,6 +287,7 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -401,6 +399,7 @@ venv = Venv(
             env={
                 "DD_TRACE_AGENT_URL": "http://ddagent:8126",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -754,8 +753,12 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
+                # ddtrace patches different methods for the following pymongo version:
+                # pymmongo<3.9, 3.9<=pymongo<3.12, 3.12<=pymongo<4.5, pymongo>=4.5
+                # To get full test coverage we must test all these version ranges
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.0", latest]}
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={"pymongo": ["~=3.8.0", "~=3.9.0", "~=3.11", "~=4.0", latest]},
                 ),
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
@@ -1431,7 +1434,8 @@ venv = Venv(
             name="mongoengine",
             command="pytest {cmdargs} tests/contrib/mongoengine",
             pkgs={
-                "pymongo": latest,
+                # pymongo v4.9.0 introduced breaking changes that are not yet supported by mongoengine
+                "pymongo": "<4.9.0",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -1557,6 +1561,7 @@ venv = Venv(
             pkgs={
                 "httpx": latest,
                 "pytest-asyncio": "==0.21.1",
+                "python-multipart": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
                 "aiofiles": latest,
@@ -1646,6 +1651,9 @@ venv = Venv(
             env={
                 "DD_PATCH_MODULES": "unittest:true",
                 "DD_AGENT_PORT": "9126",
+                # gitlab sets the service name to the repo name while locally the default service name is used
+                # setting DD_SERVICE ensures the output of the snapshot tests is consistent.
+                "DD_UNITTEST_SERVICE": "dd-trace-py",
             },
             pys=select_pys(),
         ),
@@ -2106,6 +2114,24 @@ venv = Venv(
             },
         ),
         Venv(
+            name="avro",
+            pys=select_pys(min_version="3.7", max_version="3.12"),
+            command="pytest {cmdargs} tests/contrib/avro",
+            pkgs={
+                "avro": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
+            name="protobuf",
+            command="pytest {cmdargs} tests/contrib/protobuf",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pkgs={
+                "protobuf": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
@@ -2363,6 +2389,10 @@ venv = Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
             pys=select_pys(min_version="3.8"),
+            # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
+            # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
+            # If this order is violated otel and datadog spans will not be interoperable.
+            env={"DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -2670,6 +2700,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_generativeai",
+            command="pytest {cmdargs} tests/contrib/google_generativeai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-generativeai": [latest],
+                "pillow": latest,
+            },
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
@@ -2790,6 +2830,152 @@ venv = Venv(
             },
             pkgs={
                 "gunicorn": latest,
+                #
+                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
+                # See https://github.com/workhorsy/py-cpuinfo/issues/177
+                "pytest-benchmark": latest,
+                "py-cpuinfo": "~=8.0.0",
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                # Python 3.7
+                Venv(
+                    pys="3.7",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==3.8.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                            },
+                        ),
+                    ],
+                ),
+                # Python 3.8 + 3.9
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==3.19.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                            },
+                        ),
+                    ],
+                ),
+                # Python 3.10
+                Venv(
+                    pys="3.10",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==3.19.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                            },
+                            venvs=[
+                                Venv(
+                                    pkgs={
+                                        "gevent": "==21.8.0",
+                                        "greenlet": "==1.1.0",
+                                    }
+                                ),
+                                Venv(
+                                    pkgs={"gevent": latest},
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+                # Python 3.11
+                Venv(
+                    pys="3.11",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==4.22.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                            },
+                            venvs=[
+                                Venv(
+                                    pkgs={"gevent": ["==22.10.2", latest]},
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+                # Python 3.12
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==4.22.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                            },
+                            venvs=[
+                                Venv(
+                                    pkgs={"gevent": ["==23.9.0"]},
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="profile-v2",
+            # NB riot commands that use this Venv must include --pass-env to work properly
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
+            env={"DD_PROFILING_ENABLE_ASSERTS": "1", "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1"},
+            pkgs={
+                "gunicorn": latest,
+                "lz4": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177

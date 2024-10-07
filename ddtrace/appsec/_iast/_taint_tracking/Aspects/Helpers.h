@@ -1,9 +1,11 @@
 #pragma once
 
+#include "Initializer/Initializer.h"
+#include "TaintTracking/TaintRange.h"
+#include <iostream>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-
-#include "TaintTracking/TaintRange.h"
+#include <regex>
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -20,36 +22,48 @@ api_common_replace(const py::str& string_method,
 
 template<class StrType>
 StrType
-all_as_formatted_evidence(StrType& text, TagMappingMode tag_mapping_mode);
+all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
+{
+    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+        return text;
+    }
+    TaintRangeRefs text_ranges = api_get_ranges(text);
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
+}
 
 template<class StrType>
 StrType
-int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode);
+int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode)
+{
+    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+        return text;
+    }
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
+}
 
-template<class StrType>
-StrType
-as_formatted_evidence(StrType& text,
+string
+as_formatted_evidence(const string& text,
                       TaintRangeRefs& text_ranges,
                       const optional<TagMappingMode>& tag_mapping_mode = TagMappingMode::Mapper,
                       const optional<const py::dict>& new_ranges = nullopt);
 
 template<class StrType>
 StrType
-api_as_formatted_evidence(StrType& text,
-                          optional<TaintRangeRefs>& text_ranges,
+api_as_formatted_evidence(const StrType& text,
+                          optional<const TaintRangeRefs>& text_ranges,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges);
 
-py::bytearray
-api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig);
-
 template<class StrType>
 StrType
-api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
+api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig);
+
+py::bytearray
+api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, const TaintRangeRefs& ranges_orig);
 
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
-convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
+convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig);
 
 bool
 set_ranges_on_splitted(const py::object& source_str,
@@ -65,11 +79,18 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            const py::list& split_result,
                            bool include_separator = false);
 
+PyObject*
+api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
+                                       const TaintRangeRefs& ranges_orig,
+                                       PyTextType py_str_type);
 bool
 has_pyerr();
 
 std::string
 has_pyerr_as_string();
+
+py::str
+has_pyerr_as_pystr();
 
 struct EVIDENCE_MARKS
 {
@@ -86,100 +107,78 @@ range_sort(const TaintRangePtr& t1, const TaintRangePtr& t2)
     return t1->start < t2->start;
 }
 
-template<class StrType>
-static StrType
-get_tag(const py::object& content)
+inline string
+get_tag(const string& content)
 {
-    if (content.is_none()) {
-        return StrType(EVIDENCE_MARKS::BLANK);
+    if (content.empty()) {
+        return { EVIDENCE_MARKS::BLANK };
     }
 
-    if (py::isinstance<py::str>(StrType(EVIDENCE_MARKS::LESS))) {
-        return StrType(EVIDENCE_MARKS::LESS) + content.cast<py::str>() + StrType(EVIDENCE_MARKS::GREATER);
-    }
-    return StrType(EVIDENCE_MARKS::LESS) + py::bytes(content.cast<py::str>()) + StrType(EVIDENCE_MARKS::GREATER);
+    return string(EVIDENCE_MARKS::LESS) + content + string(EVIDENCE_MARKS::GREATER);
 }
 
-inline py::object
+inline string
 get_default_content(const TaintRangePtr& taint_range)
 {
     if (!taint_range->source.name.empty()) {
-        return py::str(taint_range->source.name);
+        return taint_range->source.name;
     }
 
-    return py::cast<py::none>(Py_None);
+    return {};
 }
 
 // TODO OPTIMIZATION: check if we can use instead a struct object with range_guid_map, new_ranges and default members so
 // we dont have to get the keys by string
-inline py::object
+/**
+ * @brief Replaces a taint range with a new range from the provided dictionary.
+ *
+ * This function takes a `TaintRangePtr` and an optional dictionary of new ranges.
+ * If the `taint_range` is found in the dictionary, it is replaced with the corresponding new range.
+ * If the `taint_range` is not found or if `new_ranges` is null, an empty string is returned.
+ *
+ * @param taint_range A shared pointer to the original taint range.
+ * @param new_ranges An optional dictionary containing new taint ranges.
+ * @return A string representation of the hash of the new taint range if replaced, otherwise an empty string.
+ */
+inline string
 mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>& new_ranges)
 {
-    if (!taint_range or !new_ranges) {
-        return py::none{};
+
+    if (!taint_range or !new_ranges.has_value() or py::len(new_ranges.value()) == 0) {
+        return {};
     }
+
+    const py::dict& new_ranges_value = new_ranges.value();
     py::object o = py::cast(taint_range);
 
-    if (!new_ranges->contains(o)) {
-        return py::none{};
+    if (!new_ranges_value.contains(o)) {
+        return {};
     }
     const TaintRange new_range = py::cast<TaintRange>((*new_ranges)[o]);
-    return py::int_(new_range.get_hash());
+    return to_string(new_range.get_hash());
 }
 
-// TODO OPTIMIZATION: Remove py::types once this isn't used in Python
-template<class StrType>
-StrType
-as_formatted_evidence(StrType& text,
-                      TaintRangeRefs& text_ranges,
-                      const optional<TagMappingMode>& tag_mapping_mode,
-                      const optional<const py::dict>& new_ranges)
+// FIXME: maybe using an "unsigned" -1 as flag is not the best idea...
+inline unsigned long int
+getNum(const std::string& s)
 {
-    if (text_ranges.empty()) {
-        return text;
+    unsigned long int n = -1;
+    try {
+        n = std::stoul(s, nullptr, 10);
+        if (errno != 0) {
+            PyErr_Print();
+        }
+    } catch (std::exception&) {
+        // throw std::invalid_argument("Value is too big");
+        PyErr_Print();
     }
-    vector<StrType> res_vector;
-    long index = 0;
-
-    sort(text_ranges.begin(), text_ranges.end(), &range_sort);
-    for (const auto& taint_range : text_ranges) {
-        py::object content;
-        if (!tag_mapping_mode) {
-            content = get_default_content(taint_range);
-        } else
-            switch (*tag_mapping_mode) {
-                case TagMappingMode::Mapper:
-                    content = py::int_(taint_range->get_hash());
-                    break;
-                case TagMappingMode::Mapper_Replace:
-                    content = mapper_replace(taint_range, new_ranges);
-                    break;
-                default: {
-                    // Nothing
-                }
-            }
-        const auto tag = get_tag<StrType>(content);
-
-        const auto range_end = taint_range->start + taint_range->length;
-
-        res_vector.push_back(text[py::slice(py::int_{ index }, py::int_{ taint_range->start }, nullptr)]);
-        res_vector.push_back(StrType(EVIDENCE_MARKS::START_EVIDENCE));
-        res_vector.push_back(tag);
-        res_vector.push_back(text[py::slice(py::int_{ taint_range->start }, py::int_{ range_end }, nullptr)]);
-        res_vector.push_back(tag);
-        res_vector.push_back(StrType(EVIDENCE_MARKS::END_EVIDENCE));
-
-        index = range_end;
-    }
-    res_vector.push_back(text[py::slice(py::int_(index), nullptr, nullptr)]);
-    return StrType(EVIDENCE_MARKS::BLANK).attr("join")(res_vector);
+    return n;
 }
 
 inline PyObject*
 process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyObject* args, PyObject* kwargs)
 {
     // If orig_function is not None and not the built-in str, bytes, or bytearray, slice args
-
     if (const auto orig_function_type = Py_TYPE(orig_function);
         orig_function != Py_None && orig_function_type != &PyUnicode_Type && orig_function_type != &PyByteArray_Type &&
         orig_function_type != &PyBytes_Type) {
@@ -210,6 +209,75 @@ process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyOb
     return args;
 }
 
+/**
+ * @brief Splits a string containing taint markers into its textual components and the markers.
+ *
+ * This function takes a string that contains special taint markers (e.g., `:+-<...>-+:`) and splits it
+ * into separate components: the plain text parts and the taint markers. The markers represent taint information
+ * surrounding sections of the string, and the result is a vector where both text and markers are included as separate
+ * elements.
+ *
+ * @param str_to_split The input string containing taint markers.
+ *
+ * @return A vector of strings where each element is either a part of the original text or a taint marker.
+ *
+ * @example
+ * std::string tainted_str = "This :+-<123>-+:is a :+-<456>-+:test.";
+ * std::vector<std::string> result = split_taints(tainted_str);
+ * // result will be: ["This ", ":+-<123>-+:", "is a ", ":+-<456>-+:", "test."]
+ */
+inline vector<string>
+split_taints(const string& str_to_split)
+{
+    const std::regex rgx(R"((:\+-(<[0-9.a-z\-]+>)?|(<[0-9.a-z\-]+>)?-\+:))");
+    std::sregex_token_iterator iter(str_to_split.begin(), str_to_split.end(), rgx, { -1, 0 });
+    vector<string> res;
+
+    for (const std::sregex_token_iterator end; iter != end; ++iter) {
+        res.push_back(*iter);
+    }
+
+    return res;
+}
+
+/**
+ * @brief Retrieves a parameter from either the positional arguments, keyword arguments, or returns a default value.
+ *
+ * This function checks if a value is provided in the positional arguments (`args`) at the specified position.
+ * If not found, it checks the keyword arguments (`kwargs`) for the specified key. If neither is found,
+ * it returns the default value provided.
+ *
+ * @param position The position in the positional arguments (`args`) to check.
+ * @param keyword_name The name of the keyword to search for in the keyword arguments (`kwargs`).
+ * @param default_value The default value to return if the argument is not found in either `args` or `kwargs`.
+ * @param args The list of positional arguments.
+ * @param kwargs The dictionary of keyword arguments.
+ *
+ * @return The parameter found in the positional arguments, keyword arguments, or the default value if none is found.
+ *
+ * @example
+ * py::args args = py::make_tuple(42);
+ * py::kwargs kwargs;
+ * py::object default_value = py::int_(0);
+ * py::object result = parse_params(0, "key", default_value, args, kwargs);
+ * // In this case, the result will be 42 (the positional argument).
+ */
+inline py::object
+parse_params(size_t position,
+             const char* keyword_name,
+             const py::object& default_value,
+             const py::args& args,
+             const py::kwargs& kwargs)
+{
+    if (args.size() >= position + 1) {
+        return args[position];
+    }
+    if (kwargs && kwargs.contains(keyword_name)) {
+        return kwargs[keyword_name];
+    }
+    return default_value;
+}
+
 void
 pyexport_aspect_helpers(py::module& m);
 
@@ -232,19 +300,45 @@ exception_wrapper(Func func, const char* aspect_name, Args... args) -> std::opti
     }
     return std::nullopt;
 }
+
+The user of this macro could define a parameter (like nullptr) or a "get_results()" function as a lambda, like:
+
+    auto get_result = [&]() -> PyObject* {
+        try {
+            PyObject* res = do_modulo(candidate_text, candidate_tuple);
+            if (res == nullptr) {
+                return py_candidate_text.attr("__mod__")(py_candidate_tuple).ptr();
+            }
+            return res;
+        } catch (py::error_already_set& e) {
+            e.restore();
+            return nullptr;
+        }
+    };
+
+Please note that you have to handle the error_already_set exception in the lambda, as it's not caught by the macro.
+
+Example calling:
+    TRY_CATCH_ASPECT("foo_aspect", return result_o, , {  // no cleanup code here, but the comma is still needed
+        // code
+    });
 */
 
-#define TRY_CATCH_ASPECT(NAME, CLEANUP, ...)                                                                           \
+#define TRY_CATCH_ASPECT(NAME, RETURNRESULT, CLEANUP, ...)                                                             \
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
+    } catch (py::error_already_set & e) {                                                                              \
+        e.restore();                                                                                                   \
+        CLEANUP;                                                                                                       \
+        RETURNRESULT;                                                                                                  \
     } catch (const std::exception& e) {                                                                                \
-        const std::string error_message = "IAST propagation error in " NAME ". " + std::string(e.what());              \
+        const std::string error_message = NAME ". " + std::string(e.what());                                           \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
-        return result_o;                                                                                               \
+        RETURNRESULT;                                                                                                  \
     } catch (...) {                                                                                                    \
         const std::string error_message = "Unknown IAST propagation error in " NAME ". ";                              \
         iast_taint_log_error(error_message);                                                                           \
         CLEANUP;                                                                                                       \
-        return result_o;                                                                                               \
+        RETURNRESULT;                                                                                                  \
     }

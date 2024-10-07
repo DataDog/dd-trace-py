@@ -5,12 +5,16 @@ on:
   push:
     branches:
       - 'main'
+      - 'mq-working-branch**'
     paths:
       - 'docker/**'
 
 jobs:
   build-and-publish:
     uses: ./.github/workflows/build-and-publish-image.yml
+    permissions:
+      contents: read
+      packages: write
     with:
       tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest'
       platforms: 'linux/amd64,linux/arm64/v8'

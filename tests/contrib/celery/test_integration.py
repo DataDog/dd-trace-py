@@ -6,11 +6,11 @@ from time import sleep
 
 import celery
 from celery.exceptions import Retry
+import mock
 import pytest
 
 from ddtrace import Pin
 from ddtrace._trace.context import Context
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
@@ -442,6 +442,34 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("span.kind") == "consumer"
         assert span.error == 0
 
+    @mock.patch("kombu.messaging.Producer.publish", mock.Mock(side_effect=ValueError))
+    def test_fn_task_apply_async_soft_exception(self):
+        # If the underlying library runs into an exception that doesn't crash the app
+        # while calling apply_async, we should still close the span even
+        # if the closing signals didn't get called and mark the span as an error
+
+        @self.app.task
+        def fn_task_parameters(user, force_logout=False):
+            return (user, force_logout)
+
+        t = None
+        try:
+            t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
+        except ValueError:
+            traces = self.pop_traces()
+            assert 1 == len(traces)
+            assert traces[0][0].name == "celery.apply"
+            assert traces[0][0].resource == "tests.contrib.celery.test_integration.fn_task_parameters"
+            assert traces[0][0].get_tag("celery.action") == "apply_async"
+            assert traces[0][0].get_tag("component") == "celery"
+            assert traces[0][0].get_tag("span.kind") == "producer"
+            # Internal library errors get recorded on the span
+            assert traces[0][0].error == 1
+            assert traces[0][0].get_tag("error.type") == "builtins.ValueError"
+            assert "ValueError" in traces[0][0].get_tag("error.stack")
+            # apply_async runs into an internal error (ValueError) so nothing is returned to t
+            assert t is None
+
     def test_shared_task(self):
         # Ensure Django Shared Task are supported
         @celery.shared_task
@@ -513,78 +541,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
             assert run_span.service == "task-queue"
 
-    def test_worker_analytics_default(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure worker analytics sample rate is disabled by default
-        t = fn_task.apply()
-        self.assertTrue(t.successful())
-        self.assertEqual(42, t.result)
-
-        traces = self.pop_traces()
-        self.assertEqual(1, len(traces))
-        self.assertEqual(1, len(traces[0]))
-        span = traces[0][0]
-        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_worker_analytics_with_rate(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure worker analytics sample rate can be changed via
-        # configuration object
-        with self.override_config("celery", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            t = fn_task.apply()
-            self.assertTrue(t.successful())
-            self.assertEqual(42, t.result)
-
-            traces = self.pop_traces()
-            self.assertEqual(1, len(traces))
-            self.assertEqual(1, len(traces[0]))
-            span = traces[0][0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_worker_analytics_without_rate(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure worker analytics is 1.0 by default when enabled
-        # configuration object
-        with self.override_config("celery", dict(analytics_enabled=True)):
-            t = fn_task.apply()
-            self.assertTrue(t.successful())
-            self.assertEqual(42, t.result)
-
-            traces = self.pop_traces()
-            self.assertEqual(1, len(traces))
-            self.assertEqual(1, len(traces[0]))
-            span = traces[0][0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
-
-    def test_producer_analytics_default(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure producer analytics sample rate is disabled by default
-        t = fn_task.delay()
-        assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-
-        traces = self.pop_traces()
-
-        if self.ASYNC_USE_CELERY_FIXTURES:
-            self.assertEqual(2, len(traces))
-        else:
-            self.assertEqual(1, len(traces))
-
-        for trace in traces:
-            self.assertEqual(1, len(trace))
-            self.assertIsNone(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
     def test_trace_in_task(self):
         @self.app.task
         def fn_task():
@@ -610,50 +566,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_trace[0].name == "celery.run"
         assert run_trace[1].name == "test"
         assert run_trace[1].parent_id == run_trace[0].span_id
-
-    def test_producer_analytics_with_rate(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure producer analytics sample rate can be changed via
-        # configuration object
-        with self.override_config("celery", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            t = fn_task.delay()
-            assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-
-            traces = self.pop_traces()
-
-            if self.ASYNC_USE_CELERY_FIXTURES:
-                self.assertEqual(2, len(traces))
-            else:
-                self.assertEqual(1, len(traces))
-
-            for trace in traces:
-                self.assertEqual(1, len(trace))
-                self.assertEqual(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_producer_analytics_without_rate(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        # Ensure producer analytics is 1.0 by default when enabled
-        # configuration object
-        with self.override_config("celery", dict(analytics_enabled=True)):
-            t = fn_task.delay()
-            assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-
-            traces = self.pop_traces()
-
-            if self.ASYNC_USE_CELERY_FIXTURES:
-                self.assertEqual(2, len(traces))
-            else:
-                self.assertEqual(1, len(traces))
-
-            for trace in traces:
-                self.assertEqual(1, len(trace))
-                self.assertEqual(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_fn_task_apply_async_ot(self):
         """OpenTracing version of test_fn_task_apply_async."""

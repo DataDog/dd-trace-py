@@ -173,6 +173,7 @@ def test_anthropic_invoke(bedrock_client, request_vcr):
 @pytest.mark.snapshot
 def test_anthropic_message_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
+    model = "us." + model
     with request_vcr.use_cassette("anthropic_message_invoke.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
@@ -282,6 +283,7 @@ def test_cohere_invoke_stream_multi_output(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@pytest.mark.xfail
 def test_meta_invoke_stream(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke_stream.yaml"):

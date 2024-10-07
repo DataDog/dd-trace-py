@@ -326,7 +326,7 @@ class Config(object):
     """
 
     class _HTTPServerConfig(object):
-        _error_statuses = "500-599"  # type: str
+        _error_statuses = os.getenv("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 
         @property
@@ -370,13 +370,32 @@ class Config(object):
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
 
+        sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        if sample_rate is not None:
+            deprecate(
+                "DD_TRACE_SAMPLE_RATE is deprecated",
+                message="Please use DD_TRACE_SAMPLING_RULES instead.",
+                removal_version="3.0.0",
+            )
+
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
 
-        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+        rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
+        if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
+            # This warning will be logged when DD_TRACE_SAMPLE_RATE is set. This is intentional.
+            # Even though DD_TRACE_SAMPLE_RATE is treated as a global trace sampling rule, this configuration
+            # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
+            log.warning(
+                "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
+                "Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+                "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
+                rate_limit,
+            )
+        self._trace_rate_limit = int(rate_limit or DEFAULT_SAMPLING_RATE_LIMIT)
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
 
@@ -388,6 +407,14 @@ class Config(object):
             )
         )
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        if self._trace_api == "v0.3":
+            deprecate(
+                "DD_TRACE_API_VERSION=v0.3 is deprecated",
+                message="Traces will be submitted to the v0.4/traces agent endpoint instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._trace_api = "v0.4"
         self._trace_writer_buffer_size = int(
             os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
         )
@@ -416,9 +443,18 @@ class Config(object):
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
+        self.analytics_enabled = asbool(
+            os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=os.getenv("DD_ANALYTICS_ENABLED", default=False))
+        )
+        if self.analytics_enabled:
+            deprecate(
+                "Datadog App Analytics is deprecated and will be removed in a future version. "
+                "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
+                "environment variables and ddtrace.config.analytics_enabled configuration. "
+                "These configurations will also be removed.",
+                category=DDTraceDeprecationWarning,
+            )
 
-        self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
@@ -516,6 +552,18 @@ class Config(object):
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
 
+        legacy_client_tag_enabled = os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", None)
+        if legacy_client_tag_enabled is None:
+            self._http_client_tag_query_string = os.getenv("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", default="true")
+        else:
+            deprecate(
+                "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
+                message="Please use DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING instead.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            self._http_client_tag_query_string = legacy_client_tag_enabled.lower()
+
         dd_trace_obfuscation_query_string_regexp = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
@@ -532,12 +580,18 @@ class Config(object):
                 log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
+        # Test Visibility config items
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
         )
         self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
+        self.test_session_name = os.getenv("DD_TEST_SESSION_NAME")
+        self._test_visibility_early_flake_detection_enabled = asbool(
+            os.getenv("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", default=True)
+        )
+
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
@@ -546,6 +600,14 @@ class Config(object):
         self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
+        if self._span_aggregator_rlock is False:
+            deprecate(
+                "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
+                message="Soon the ddtrace library will only support using threading.Rlock to "
+                "aggregate and encode span data. If you need to disable the re-entrant lock and "
+                "revert to using threading.Lock, please contact Datadog support.",
+                removal_version="3.0.0",
+            )
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 

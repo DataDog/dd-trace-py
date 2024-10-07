@@ -26,6 +26,7 @@ vendor:
 
 ddtracerun:
   extends: .test_base_riot
+  parallel: 6
   services:
     - !reference [.test_base_riot, services]
     - !reference [.services, redis]
@@ -46,4 +47,3 @@ conftests:
   needs: []
   script:
     - hatch run meta-testing:meta-testing
-

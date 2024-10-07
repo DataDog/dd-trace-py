@@ -1,0 +1,35 @@
+[[
+  {
+    "name": "anthropic.request",
+    "service": "",
+    "resource": "Messages.create",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66ea050600000000",
+      "anthropic.request.api_key": "sk-...key>",
+      "anthropic.request.messages.0.content.0.text": "Valid content but unserializable metadata param",
+      "anthropic.request.messages.0.content.0.type": "text",
+      "anthropic.request.messages.0.role": "user",
+      "anthropic.request.model": "claude-3-opus-20240229",
+      "anthropic.request.parameters": "{\"max_tokens\": 15, \"metadata\": \"[Unserializable object: <object object at 0x105366a90>]\"}",
+      "error.message": "Object of type object is not JSON serializable",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/anthropic/patch.py\", line 95, in traced_chat_model_generate\n    chat_completions = func(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/_utils/_utils.py\", line 277, in wrapper\n    return func(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/resources/messages.py\", line 899, in create\n    return self._post(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/_base_client.py\", line 1239, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/_base_client.py\", line 921, in request\n    return self._request(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/_base_client.py\", line 942, in _request\n    request = self._build_request(options)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/_base_client.py\", line 484, in _build_request\n    return self._client.build_request(  # pyright: ignore[reportUnknownMemberType]\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/httpx/_client.py\", line 357, in build_request\n    return Request(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/httpx/_models.py\", line 340, in __init__\n    headers, stream = encode_request(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/httpx/_content.py\", line 212, in encode_request\n    return encode_json(json)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/httpx/_content.py\", line 175, in encode_json\n    body = json_dumps(json).encode(\"utf-8\")\n  File \"/Users/yun.kim/.pyenv/versions/3.10.5/lib/python3.10/json/__init__.py\", line 231, in dumps\n    return _default_encoder.encode(obj)\n  File \"/Users/yun.kim/.pyenv/versions/3.10.5/lib/python3.10/json/encoder.py\", line 199, in encode\n    chunks = self.iterencode(o, _one_shot=True)\n  File \"/Users/yun.kim/.pyenv/versions/3.10.5/lib/python3.10/json/encoder.py\", line 257, in iterencode\n    return _iterencode(o, 0)\n  File \"/Users/yun.kim/.pyenv/versions/3.10.5/lib/python3.10/json/encoder.py\", line 179, in default\n    raise TypeError(f'Object of type {o.__class__.__name__} '\nTypeError: Object of type object is not JSON serializable\n",
+      "error.type": "builtins.TypeError",
+      "language": "python",
+      "runtime-id": "3504323b756c4a859a59fadd9ea2782c"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 83398
+    },
+    "duration": 41390000,
+    "start": 1726612742776875000
+  }]]

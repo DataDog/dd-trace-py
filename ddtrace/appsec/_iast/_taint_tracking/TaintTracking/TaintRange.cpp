@@ -181,9 +181,8 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypeP
     auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
 
     set_fast_tainted_if_notinterned_unicode(str);
-    new_tainted_object->incref();
     if (it != tx_map->end()) {
-        it->second.second->decref();
+        it->second.second.reset();
         it->second = std::make_pair(get_internal_hash(str), new_tainted_object);
         return true;
     }
@@ -312,7 +311,6 @@ get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_map)
     }
 
     if (get_internal_hash(str) != it->second.first) {
-        it->second.second->decref();
         tx_map->erase(it);
         return nullptr;
     }
@@ -330,8 +328,24 @@ bytearray_hash(PyObject* bytearray)
 Py_hash_t
 get_internal_hash(PyObject* obj)
 {
+    // Shortcut check to avoid the slower checks for bytearray and re.match objects
+    if (PyUnicode_Check(obj) || PyBytes_Check(obj)) {
+        return PyObject_Hash(obj);
+    }
+
     if (PyByteArray_Check(obj)) {
         return bytearray_hash(obj);
+    }
+
+    if (PyReMatch_Check(obj)) {
+        // Use the match.string for hashing
+        PyObject* string_obj = PyObject_GetAttrString(obj, "string");
+        if (string_obj == nullptr) {
+            return PyObject_Hash(obj);
+        }
+        const auto hash = PyObject_Hash(string_obj);
+        Py_DECREF(string_obj);
+        return hash;
     }
 
     return PyObject_Hash(obj);
@@ -352,15 +366,13 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRa
             // If the tainted object is different, we need to decref the previous one
             // and incref the new one. But if it's the same object, we can avoid both
             // operations, since they would be redundant.
-            it->second.second->decref();
-            tainted_object->incref();
+            it->second.second.reset();
             it->second = std::make_pair(get_internal_hash(str), tainted_object);
         }
         // Update the hash, because for bytearrays it could have changed after the extend operation
         it->second.first = get_internal_hash(str);
         return;
     }
-    tainted_object->incref();
     tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), tainted_object) });
 }
 

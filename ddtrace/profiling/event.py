@@ -2,7 +2,6 @@ from collections import namedtuple
 import typing
 
 from ddtrace._trace import span as ddspan  # noqa:F401
-from ddtrace.internal import compat
 
 
 _T = typing.TypeVar("_T")
@@ -14,11 +13,7 @@ StackTraceType = typing.List[DDFrame]
 class Event(object):
     """An event happening at a point in time."""
 
-    __slots__ = ("timestamp",)
-
-    def __init__(self, timestamp=compat.time_ns()):
-        # type: (typing.Optional[int]) -> None
-        self.timestamp = timestamp
+    __slots__ = ()
 
     @property
     def name(self):

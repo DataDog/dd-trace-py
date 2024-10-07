@@ -8,7 +8,6 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
-from tests.utils import flaky
 
 
 OTEL_VERSION = parse_version(opentelemetry.version.__version__)
@@ -76,28 +75,33 @@ def test_otel_start_span_without_default_args(oteltracer):
 def test_otel_start_span_with_span_links(oteltracer):
     # create a span and generate an otel link object
     span1 = oteltracer.start_span("span-1")
-    span1_context = span1.get_span_context()
-    attributes1 = {"attr1": 1, "link.name": "moon"}
-    link_from_span_1 = opentelemetry.trace.Link(span1_context, attributes1)
-    # create another span and generate an otel link object
     span2 = oteltracer.start_span("span-2")
-    span2_context = span2.get_span_context()
-    attributes2 = {"attr2": 2, "link.name": "tree"}
-    link_from_span_2 = opentelemetry.trace.Link(span2_context, attributes2)
 
-    # create an otel span that links to span1 and span2
-    with oteltracer.start_as_current_span("span-3", links=[link_from_span_1, link_from_span_2]) as span3:
-        pass
+    try:
+        span1_context = span1.get_span_context()
+        attributes1 = {"attr1": 1, "link.name": "moon"}
+        link_from_span_1 = opentelemetry.trace.Link(span1_context, attributes1)
+        span2_context = span2.get_span_context()
+        attributes2 = {"attr2": 2, "link.name": "tree"}
+        link_from_span_2 = opentelemetry.trace.Link(span2_context, attributes2)
 
-    # assert that span3 has the expected links
-    ddspan3 = span3._ddspan
-    for span_context, attributes in ((span1_context, attributes1), (span2_context, attributes2)):
-        link = ddspan3._links.get(span_context.span_id)
-        assert link.trace_id == span_context.trace_id
-        assert link.span_id == span_context.span_id
-        assert link.tracestate == span_context.trace_state.to_header()
-        assert link.flags == span_context.trace_flags
-        assert link.attributes == attributes
+        # create an otel span that links to span1 and span2
+        with oteltracer.start_as_current_span("span-3", links=[link_from_span_1, link_from_span_2]) as span3:
+            pass
+
+        # assert that span3 has the expected links
+        ddspan3 = span3._ddspan
+        for span_context, attributes in ((span1_context, attributes1), (span2_context, attributes2)):
+            [link, *others] = [link for link in ddspan3._links if link.span_id == span_context.span_id]
+            assert not others
+            assert link.trace_id == span_context.trace_id
+            assert link.span_id == span_context.span_id
+            assert link.tracestate == span_context.trace_state.to_header()
+            assert link.flags == span_context.trace_flags
+            assert link.attributes == attributes
+    finally:
+        span1.end()
+        span2.end()
 
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
@@ -184,23 +188,28 @@ def test_distributed_trace_extract(oteltracer):  # noqa:F811
         assert sp.is_remote is False
 
 
-@flaky(1717428664)
+def otel_flask_app_env(flask_wsgi_application):
+    env = flask_default_env(flask_wsgi_application)
+    env.update({"DD_TRACE_OTEL_ENABLED": "true"})
+    return env
+
+
 @pytest.mark.parametrize(
     "flask_wsgi_application,flask_env_arg,flask_port,flask_command",
     [
         (
             "tests.opentelemetry.flask_app:app",
-            flask_default_env,
-            "8000",
-            ["ddtrace-run", "flask", "run", "-h", "0.0.0.0", "-p", "8000"],
+            otel_flask_app_env,
+            "8010",
+            ["ddtrace-run", "flask", "run", "-h", "0.0.0.0", "-p", "8010"],
         ),
         pytest.param(
             "tests.opentelemetry.flask_app:app",
-            flask_default_env,
-            "8001",
-            ["opentelemetry-instrument", "flask", "run", "-h", "0.0.0.0", "-p", "8001"],
+            otel_flask_app_env,
+            "8011",
+            ["opentelemetry-instrument", "flask", "run", "-h", "0.0.0.0", "-p", "8011"],
             marks=pytest.mark.skipif(
-                OTEL_VERSION < (1, 12),
+                OTEL_VERSION < (1, 16),
                 reason="otel flask instrumentation is in beta and is unstable with earlier versions of the api",
             ),
         ),

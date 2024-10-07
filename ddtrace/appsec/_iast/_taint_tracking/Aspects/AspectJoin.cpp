@@ -55,7 +55,7 @@ aspect_join_str(PyObject* sep,
 
     PyObject* new_result{ new_pyobject_id(result) };
     set_tainted_object(new_result, result_to, tx_taint_map);
-    Py_DecRef(result);
+    Py_DECREF(result);
     return new_result;
 }
 
@@ -134,7 +134,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
 
     PyObject* new_result{ new_pyobject_id(result) };
     set_tainted_object(new_result, result_to, tx_taint_map);
-    Py_DecRef(result);
+    Py_DECREF(result);
     return new_result;
 }
 
@@ -158,9 +158,10 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
             PyObject* list_aux = PyList_New(0);
             while ((item = PyIter_Next(iterator))) {
                 PyList_Append(list_aux, item);
+                Py_DECREF(item);
             }
             arg0 = list_aux;
-            Py_DecRef(iterator);
+            Py_DECREF(iterator);
             decref_arg0 = true;
         }
     }
@@ -181,22 +182,23 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     if (has_pyerr()) {
         if (decref_arg0) {
-            Py_DecRef(arg0);
+            Py_DECREF(arg0);
         }
         return nullptr;
     }
-
-    const auto ctx_map = Initializer::get_tainting_map();
-    if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
-        // Empty result cannot have taint ranges
-        if (decref_arg0) {
-            Py_DecRef(arg0);
+    TRY_CATCH_ASPECT("join_aspect", return result, , {
+        const auto ctx_map = Initializer::get_tainting_map();
+        if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
+            // Empty result cannot have taint ranges
+            if (decref_arg0) {
+                Py_DECREF(arg0);
+            }
+            return result;
         }
-        return result;
-    }
-    auto res = aspect_join(sep, result, arg0, ctx_map);
-    if (decref_arg0) {
-        Py_DecRef(arg0);
-    }
-    return res;
+        auto res = aspect_join(sep, result, arg0, ctx_map);
+        if (decref_arg0) {
+            Py_DECREF(arg0);
+        }
+        return res;
+    });
 }

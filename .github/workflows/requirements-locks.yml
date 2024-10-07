@@ -3,8 +3,10 @@ on:
   push:
     branches:
       - main
+      - 'mq-working-branch**'
   pull_request:
     types: [opened, reopened, synchronize]
+
 jobs:
   validate:
     name: Check requirements lockfiles

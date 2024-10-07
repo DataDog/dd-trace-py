@@ -9,8 +9,8 @@ import mock
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.span import Span
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -293,31 +293,18 @@ class SpanTestCase(TracerTestCase):
     @mock.patch("ddtrace._trace.span.log")
     def test_numeric_tags_none(self, span_log):
         s = Span(name="test.span")
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
+        s.set_tag("noneval", None)
         assert len(s.get_metrics()) == 0
-
-        # Ensure we log a debug message
-        span_log.debug.assert_called_once_with(
-            "ignoring not number metric %s:%s",
-            ANALYTICS_SAMPLE_RATE_KEY,
-            None,
-        )
-
-    def test_numeric_tags_true(self):
-        s = Span(name="test.span")
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, True)
-        expected = {ANALYTICS_SAMPLE_RATE_KEY: 1.0}
-        assert s.get_metrics() == expected
 
     def test_numeric_tags_value(self):
         s = Span(name="test.span")
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, 0.5)
-        expected = {ANALYTICS_SAMPLE_RATE_KEY: 0.5}
+        s.set_tag("point5", 0.5)
+        expected = {"point5": 0.5}
         assert s.get_metrics() == expected
 
     def test_numeric_tags_bad_value(self):
         s = Span(name="test.span")
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, "Hello")
+        s.set_tag("somestring", "Hello")
         assert len(s.get_metrics()) == 0
 
     def test_set_tag_none(self):
@@ -403,13 +390,15 @@ class SpanTestCase(TracerTestCase):
         }
         s1.link_span(s2.context, link_attributes)
 
-        assert s1._links.get(s2.span_id) == SpanLink(
-            trace_id=s2.trace_id,
-            span_id=s2.span_id,
-            tracestate="dd=s:1,congo=t61rcWkgMzE",
-            flags=1,
-            attributes=link_attributes,
-        )
+        assert [link for link in s1._links if link.span_id == s2.span_id] == [
+            SpanLink(
+                trace_id=s2.trace_id,
+                span_id=s2.span_id,
+                tracestate="dd=s:1,congo=t61rcWkgMzE",
+                flags=1,
+                attributes=link_attributes,
+            )
+        ]
 
     def test_init_with_span_links(self):
         links = [
@@ -420,11 +409,12 @@ class SpanTestCase(TracerTestCase):
         ]
         s = Span(name="test.span", links=links)
 
-        assert len(s._links) == 3
-        assert s._links.get(10) == links[0]
-        assert s._links.get(20) == links[1]
-        # duplicate links are overwritten (last one wins)
-        assert s._links.get(30) == links[3]
+        assert s._links == [
+            links[0],
+            links[1],
+            # duplicate links are overwritten (last one wins)
+            links[3],
+        ]
 
     def test_set_span_link(self):
         s = Span(name="test.span")
@@ -441,11 +431,12 @@ class SpanTestCase(TracerTestCase):
             mock.ANY,
         )
 
-        assert len(s._links) == 3
-        assert s._links.get(10) == SpanLink(trace_id=1, span_id=10)
-        assert s._links.get(20) == SpanLink(trace_id=1, span_id=20)
-        # duplicate links are overwritten (last one wins)
-        assert s._links.get(30) == SpanLink(trace_id=2, span_id=30, flags=1)
+        assert s._links == [
+            SpanLink(trace_id=1, span_id=10),
+            SpanLink(trace_id=1, span_id=20),
+            # duplicate links are overwritten (last one wins)
+            SpanLink(trace_id=2, span_id=30, flags=1),
+        ]
 
     # span links cannot have a span_id or trace_id value of 0 or less
     def test_span_links_error_with_id_0(self):
@@ -455,6 +446,60 @@ class SpanTestCase(TracerTestCase):
             SpanLink(span_id=0, trace_id=1)
         assert str(exc_span.value) == "span_id must be > 0. Value is 0"
         assert str(exc_trace.value) == "trace_id must be > 0. Value is 0"
+
+    def test_span_pointers(self):
+        s = Span(name="test.span")
+
+        s.set_link(trace_id=1, span_id=10)
+        s._add_span_pointer(
+            pointer_kind="some-kind",
+            pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+            pointer_hash="some-hash",
+            extra_attributes={"extra": "attribute"},
+        )
+        s.set_link(trace_id=1, span_id=15)
+        s._add_span_pointer(
+            pointer_kind="another-kind",
+            pointer_direction=_SpanPointerDirection.UPSTREAM,
+            pointer_hash="another-hash",
+            extra_attributes={"more-extra": "attribute"},
+        )
+
+        # We don't particularly care about how they're stored, but we do care
+        # that they are serizlied correctly into the _links when they get
+        # shipped.
+        assert [link.to_dict() for link in s._links] == [
+            {
+                "trace_id": "00000000000000000000000000000001",
+                "span_id": "000000000000000a",
+            },
+            {
+                "trace_id": "00000000000000000000000000000000",
+                "span_id": "0000000000000000",
+                "attributes": {
+                    "link.kind": "span-pointer",
+                    "ptr.kind": "some-kind",
+                    "ptr.dir": "d",
+                    "ptr.hash": "some-hash",
+                    "extra": "attribute",
+                },
+            },
+            {
+                "trace_id": "00000000000000000000000000000001",
+                "span_id": "000000000000000f",
+            },
+            {
+                "trace_id": "00000000000000000000000000000000",
+                "span_id": "0000000000000000",
+                "attributes": {
+                    "link.kind": "span-pointer",
+                    "ptr.kind": "another-kind",
+                    "ptr.dir": "u",
+                    "ptr.hash": "another-hash",
+                    "more-extra": "attribute",
+                },
+            },
+        ]
 
 
 @pytest.mark.parametrize(

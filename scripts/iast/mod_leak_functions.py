@@ -1,33 +1,32 @@
 import os
 import random
+import re
 import subprocess
 
 import requests
 
-from ddtrace.appsec._iast._utils import _is_iast_enabled
+from tests.utils import override_env
 
 
-if _is_iast_enabled():
+with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
 
 def test_doit():
     origin_string1 = "hiroot"
-
-    if _is_iast_enabled():
-        tainted_string_2 = taint_pyobject(
-            pyobject="1234", source_name="abcdefghijk", source_value="1234", source_origin=OriginType.PARAMETER
-        )
-    else:
-        tainted_string_2 = "1234"
+    tainted_string_2 = taint_pyobject(
+        pyobject="1234", source_name="abcdefghijk", source_value="1234", source_origin=OriginType.PARAMETER
+    )
 
     string1 = str(origin_string1)  # String with 1 propagation range
     string2 = str(tainted_string_2)  # String with 1 propagation range
 
     string3 = string1 + string2  # 2 propagation ranges: hiroot1234
     string4 = "-".join([string3, string3, string3])  # 6 propagation ranges: hiroot1234-hiroot1234-hiroot1234
-    string5 = string4[0:20]  # 1 propagation range: hiroot1234-hiroot123
+    string4_2 = string1
+    string4_2 += " " + " ".join(string_ for string_ in [string4, string4, string4])
+    string5 = string4_2[0:20]  # 1 propagation range: hiroot1234-hiroot123
     string6 = string5.title()  # 1 propagation range: Hiroot1234-Hiroot123
     string7 = string6.upper()  # 1 propagation range: HIROOT1234-HIROOT123
     string8 = "%s_notainted" % string7  # 1 propagation range: HIROOT1234-HIROOT123_notainted
@@ -71,6 +70,31 @@ def test_doit():
     string19 = os.path.normcase(string18)  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
     string20 = os.path.splitdrive(string19)[1]  # 1 propagation range: notainted_HIROOT1234-HIROOT123_notainted
 
-    expected = "notainted_HIROOT1234-HIROOT123_notainted"  # noqa: F841
-    # assert string20 == expected
-    return string20
+    re_slash = re.compile(r"[_.][a-zA-Z]*")
+    string21 = re_slash.findall(string20)[0]  # 1 propagation: '_HIROOT
+
+    re_match = re.compile(r"(\w+)", re.IGNORECASE)
+    re_match_result = re_match.match(string21)  # 1 propagation: 'HIROOT
+
+    string22_1 = re_match_result[0]  # 1 propagation: '_HIROOT
+    string22_2 = re_match_result.groups()[0]  # 1 propagation: '_HIROOT
+    string22 = string22_1 + string22_2  # 1 propagation: _HIROOT_HIROOT
+    tmp_str = "DDDD"
+    string23 = tmp_str + string22  # 1 propagation: 'DDDD_HIROOT_HIROOT
+
+    re_match = re.compile(r"(\w+)(_+)(\w+)", re.IGNORECASE)
+    re_match_result = re_match.search(string23)
+    string24 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDD_HIROOT
+
+    re_split = re.compile(r"[_.][a-zA-Z]*", re.IGNORECASE)
+    re_split_result = re_split.split(string24)
+
+    # TODO(avara1986): DDDD_ is constant but we're tainting all re results
+    string25 = re_split_result[0] + " EEE"
+    string26 = re.sub(r" EEE", "_OOO", string25, re.IGNORECASE)
+    string27 = re.subn(r"OOO", "III", string26, re.IGNORECASE)[0]
+
+    tmp_str2 = "_extend"
+    string27 += tmp_str2
+
+    return string27

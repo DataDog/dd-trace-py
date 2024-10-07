@@ -3,7 +3,7 @@ from celery.utils import nodenames
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -16,6 +16,7 @@ from ddtrace.contrib.internal.celery.utils import set_tags_from_context
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
@@ -48,6 +49,9 @@ def trace_prerun(*args, **kwargs):
     service = config.celery["worker_service_name"]
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
 
+    # Store an item called "prerun span" in case task_postrun doesn't get called
+    core.set_item("prerun_span", span)
+
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
@@ -57,7 +61,7 @@ def trace_prerun(*args, **kwargs):
     # set analytics sample rate
     rate = config.celery.get_analytics_sample_rate()
     if rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
     span.set_tag(SPAN_MEASURED_KEY)
     attach_span(task, task_id, span)
@@ -111,6 +115,9 @@ def trace_before_publish(*args, **kwargs):
     service = config.celery["producer_service_name"]
     span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
 
+    # Store an item called "task span" in case after_task_publish doesn't get called
+    core.set_item("task_span", span)
+
     span.set_tag_str(COMPONENT, config.celery.integration_name)
 
     # set span.kind to the type of request being performed
@@ -119,7 +126,7 @@ def trace_before_publish(*args, **kwargs):
     # set analytics sample rate
     rate = config.celery.get_analytics_sample_rate()
     if rate is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
     span.set_tag(SPAN_MEASURED_KEY)
     span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)

@@ -1,4 +1,3 @@
-import os
 import platform
 import sys
 
@@ -14,8 +13,6 @@ from ddtrace.internal.telemetry.data import _get_os_version
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
-from ddtrace.internal.telemetry.data import update_imported_dependencies
-from ddtrace.settings.asm import config as asm_config
 
 
 def test_get_application():
@@ -32,7 +29,6 @@ def test_get_application():
         "tracer_version": ddtrace.__version__,
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
-        "products": {"appsec": {"version": ddtrace.__version__, "enabled": asm_config._asm_enabled}},
     }
 
     assert get_application("", "", "") == expected_application
@@ -176,7 +172,10 @@ def test_get_container_id_when_container_does_not_exists():
         assert _get_container_id() == ""
 
 
+@pytest.mark.subprocess
 def test_update_imported_dependencies_both_empty():
+    from ddtrace.internal.telemetry.data import update_imported_dependencies
+
     already_imported = {}
     new_modules = []
     res = update_imported_dependencies(already_imported, new_modules)
@@ -185,8 +184,11 @@ def test_update_imported_dependencies_both_empty():
     assert new_modules == []
 
 
+@pytest.mark.subprocess
 def test_update_imported_dependencies():
     import xmltodict
+
+    from ddtrace.internal.telemetry.data import update_imported_dependencies
 
     already_imported = {}
     res = update_imported_dependencies(already_imported, [xmltodict.__name__])
@@ -207,27 +209,3 @@ def test_update_imported_dependencies():
     assert len(already_imported) == 2
     assert "pytest" in already_imported
     assert already_imported["pytest"] == res[0]["version"]
-
-
-def test_enable_products(run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_APPSEC_ENABLED"] = "true"
-
-    out, err, status, _ = run_python_code_in_subprocess(
-        """
-import ddtrace
-from ddtrace.internal.telemetry.data import get_application
-
-application = get_application("service-x", "1.1.1", "staging")
-assert "products" in application
-
-assert application["products"] == {
-    "appsec": {
-        "version": ddtrace.__version__,
-        "enabled": True,
-    },
-}
-""",
-        env=env,
-    )
-    assert status == 0, out + err

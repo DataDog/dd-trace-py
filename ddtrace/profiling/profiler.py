@@ -18,6 +18,8 @@ from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter  # noqa:F401
 from ddtrace.profiling import recorder
@@ -66,6 +68,8 @@ class Profiler(object):
         if profile_children:
             forksafe.register(self._restart_on_fork)
 
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+
     def stop(self, flush=True):
         """Stop the profiler.
 
@@ -74,6 +78,7 @@ class Profiler(object):
         atexit.unregister(self.stop)
         try:
             self._profiler.stop(flush)
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
@@ -237,12 +242,16 @@ class _ProfilerInstance(service.Service):
                     timeline_enabled=profiling_config.timeline_enabled,
                     output_filename=profiling_config.output_pprof,
                     sample_pool_capacity=profiling_config.sample_pool_capacity,
+                    enable_code_provenance=profiling_config.code_provenance,
                 )
                 ddup.start()
 
                 return []
             except Exception as e:
-                LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
+                try:
+                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ddup.failure_msg)
+                except Exception as ee:
+                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ee)
                 self._export_libdd_enabled = False
                 profiling_config.export.libdd_enabled = False
 
@@ -251,6 +260,12 @@ class _ProfilerInstance(service.Service):
                     LOG.error("Disabling stack_v2 as libdd collector failed to initialize")
                     self._stack_v2_enabled = False
                     profiling_config.stack.v2_enabled = False
+
+                # If this instance of ddtrace was injected, then do not enable profiling, since that will load
+                # protobuf, breaking some environments.
+                if profiling_config._injected:
+                    LOG.error("Profiling failures occurred in an injected instance of ddtrace, disabling profiling")
+                    return []
 
         # DEV: Import this only if needed to avoid importing protobuf
         # unnecessarily
