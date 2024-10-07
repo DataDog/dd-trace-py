@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+     SSI: Reports whether ddtrace library injection was successful to internal systems.
