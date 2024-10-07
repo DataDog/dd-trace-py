@@ -40,6 +40,13 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     return "ragas{}".format(ml_app_of_span_event)
 
 
+def _get_faithfulness_instance():
+    ragas_faithfulness_instance = faithfulness
+    if not ragas_faithfulness_instance.llm:
+        ragas_faithfulness_instance.llm = llm_factory()
+    return ragas_faithfulness_instance
+
+
 class RagasFaithfulnessEvaluator:
     """A class used by EvaluatorRunner to conduct ragas faithfulness evaluations
     on LLM Observability span events. The job of an Evaluator is to take a span and
@@ -72,7 +79,7 @@ class RagasFaithfulnessEvaluator:
             return
 
         self.llmobs_service = llmobs_service
-        self.ragas_faithfulness_instance = faithfulness
+        self.ragas_faithfulness_instance = _get_faithfulness_instance()
 
         if not self.ragas_faithfulness_instance.llm:
             self.ragas_faithfulness_instance.llm = llm_factory()
@@ -103,6 +110,9 @@ class RagasFaithfulnessEvaluator:
     def evaluate(self, span_event: dict) -> Optional[float]:
         if not self.enabled:
             return None
+
+        """Get the latest faithfulness instance from Ragas"""
+        self.ragas_faithfulness_instance = _get_faithfulness_instance()
 
         """Initialize defaults for variables we want to annotate on the LLM Observability trace of the
         ragas faithfulness evaluations."""
