@@ -23,7 +23,7 @@ class GILGuard
 #if PY_VERSION_HEX < 0x30d0000
         if (!_Py_IsFinalizing()) {
 #else
-        if (Py_IsFinalizing()) {
+        if (!Py_IsFinalizing()) {
 #endif
             _state = PyGILState_Ensure();
         }
@@ -50,7 +50,7 @@ class AllowThreads
 #if PY_VERSION_HEX < 0x30d0000
         if (!_Py_IsFinalizing()) {
 #else
-        if (Py_IsFinalizing()) {
+        if (!Py_IsFinalizing()) {
 #endif
             _state = PyEval_SaveThread();
         }
@@ -60,7 +60,7 @@ class AllowThreads
 #if PY_VERSION_HEX < 0x30d0000
         if (!_Py_IsFinalizing()) {
 #else
-        if (Py_IsFinalizing()) {
+        if (!Py_IsFinalizing()) {
 #endif
             PyEval_RestoreThread(_state);
         }
@@ -284,7 +284,7 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 #if PY_VERSION_HEX < 0x30d0000
             if (_Py_IsFinalizing()) {
 #else
-            if (!Py_IsFinalizing()) {
+            if (Py_IsFinalizing()) {
 #endif
                 break;
             }
@@ -302,7 +302,7 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 #if PY_VERSION_HEX < 0x30d0000
             if (!_Py_IsFinalizing()) {
 #else
-            if (Py_IsFinalizing()) {
+            if (!Py_IsFinalizing()) {
 #endif
                 PeriodicThread__on_shutdown(self);
             }
@@ -448,7 +448,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
 #if PY_VERSION_HEX < 0x30d0000
     if (_Py_IsFinalizing()) {
 #else
-    if (!Py_IsFinalizing()) {
+    if (Py_IsFinalizing()) {
 #endif
         // Do nothing. We are about to terminate and release resources anyway.
         return;
