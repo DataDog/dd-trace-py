@@ -121,7 +121,7 @@ class RagasFaithfulnessEvaluator:
         with self.llmobs_service.annotation_context(
             tags={RUNNER_IS_INTEGRATION_SPAN_TAG: RAGAS, "ml_app": _get_ml_app_for_ragas_trace(span_event)}
         ):
-            with self.llmobs_service.workflow("ragas_faithfulness"):
+            with self.llmobs_service.workflow("ragas.faithfulness"):
                 try:
                     faithfulness_inputs = self._extract_faithfulness_inputs(span_event)
                     if faithfulness_inputs is None:
@@ -198,7 +198,15 @@ class RagasFaithfulnessEvaluator:
                     )
 
     def _extract_faithfulness_inputs(self, span_event: dict) -> Optional[dict]:
-        with self.llmobs_service.workflow("ragas.extract_faithfulness_inputs"):
+        """
+        Extracts the question, answer, and context used as inputs to faithfulness
+        evaluation from a span event.
+
+        question - input.prompt.variables.question OR input.messages[-1].content
+        context - input.prompt.variables.context
+        answer - output.messages[-1].content
+        """
+        with self.llmobs_service.workflow("ragas.extract_faithfulnes_inputs"):
             self.llmobs_service.annotate(input_data=span_event)
             question, answer, context = None, None, None
 
@@ -217,6 +225,8 @@ class RagasFaithfulnessEvaluator:
                 return None
             prompt_variables = prompt.get("variables")
 
+            input_messages = meta_input.get("messages")
+
             messages = meta_output.get("messages")
             if messages is not None and len(messages) > 0:
                 answer = messages[-1].get("content")
@@ -225,8 +235,12 @@ class RagasFaithfulnessEvaluator:
                 question = prompt_variables.get("question")
                 context = prompt_variables.get("context")
 
+            if not question and len(input_messages) > 0:
+                question = input_messages[-1].get("content")
+
             self.llmobs_service.annotate(output_data={"question": question, "context": context, "answer": answer})
             if any(field is None for field in (question, context, answer)):
+                logger.debug("Failed to extract inputs required for faithfulness evaluation")
                 return None
 
             return {
