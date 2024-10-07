@@ -101,6 +101,9 @@ new_pyobject_id(PyObject* tainted_object)
         const auto res = PyObject_CallFunctionObjArgs(bytes_join_ptr.ptr(), val, NULL);
         Py_XDECREF(val);
         Py_XDECREF(empty_bytes);
+        if (res == nullptr) {
+            return tainted_object;
+        }
         return res;
     } else if (PyByteArray_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
@@ -125,6 +128,9 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(val);
         Py_XDECREF(empty_bytes);
         Py_XDECREF(empty_bytearray);
+        if (res == nullptr) {
+            return tainted_object;
+        }
         return res;
     }
     return tainted_object;
