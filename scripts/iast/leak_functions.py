@@ -45,7 +45,6 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
         sys.exit(1)
 
     try:
-
         print("Test %d iterations" % iterations)
         current_rss = 0
         half_rss = 0
