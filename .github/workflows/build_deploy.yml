@@ -10,6 +10,7 @@ on:
       # before merging/releasing
       - build_deploy*
       - 'upgrade-latest-*'
+      - 'mq-working-branch**'
   pull_request:
   release:
     types:

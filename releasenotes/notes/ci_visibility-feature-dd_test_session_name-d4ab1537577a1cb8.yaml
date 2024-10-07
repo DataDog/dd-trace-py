@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    CI Visibility: This adds the `test_session.name` tag to test events. The test session name can be set via the
+    DD_TEST_SESSION_NAME environment variable. If DD_TEST_SESSION_NAME is not specified, the test session name is set
+    from the CI job id and the test command.
