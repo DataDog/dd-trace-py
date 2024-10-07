@@ -59,8 +59,8 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
 
         for i in range(iterations):
             create_context()
-            result = await test_doit()  # noqa: F841
-            assert result == "DDD_III_extend", f"result is {result}"  # noqa: F841
+            result = await test_doit()
+            assert result == "DDD_III_extend", f"result is {result}"
             assert is_pyobject_tainted(result)
             reset_context()
 
@@ -71,11 +71,13 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
             current_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
 
             if i % print_every == 0:
-                print(f"Round {i} Max RSS: {current_rss}, {active_map_addreses_size()}")
+                print(
+                    f"Round {i} Max RSS: {current_rss}, Number of active maps addresses: {active_map_addreses_size()}"
+                )
 
         final_rss = current_rss
 
-        print(f"Round {iterations} Max RSS: {final_rss}, {active_map_addreses_size()}")
+        print(f"Round {iterations} Max RSS: {final_rss}, Number of active maps addresses: {active_map_addreses_size()}")
 
         percent_increase = ((final_rss - half_rss) / half_rss) * 100
         if percent_increase > fail_percent:

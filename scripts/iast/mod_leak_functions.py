@@ -254,6 +254,8 @@ async def test_doit():
     string4_2 += " " + " ".join(string_ for string_ in [string4, string4, string4])
     string4_2 += " " + " ".join(string_ for string_ in [string1, string1, string1])
 
+    string4_2 += " " + " ".join([string_ for string_ in [string4_2, string4_2, string4_2]])
+
     string5 = string4_2[0:100]
     string6 = string5.title()
     string7 = string6.upper()
