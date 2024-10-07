@@ -101,7 +101,7 @@ like this::
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
 
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 import logging
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
@@ -163,8 +163,8 @@ def _deprecate_span_kwarg(span):
         )
 
 
-class ExecutionContext:
-    __slots__ = ["identifier", "_data", "_parents", "_span", "_token"]
+class ExecutionContext(AbstractContextManager):
+    __slots__ = ["identifier", "_data", "_parents", "_span", "_token", "_suppress_exceptions"]
 
     def __init__(self, identifier, parent=None, span=None, **kwargs):
         _deprecate_span_kwarg(span)
@@ -172,10 +172,12 @@ class ExecutionContext:
         self._data = {}
         self._parents = []
         self._span = span
+        self._suppress_exceptions = []
         if parent is not None:
             self.addParent(parent)
         self._data.update(kwargs)
 
+    def __enter__(self):
         if self._span is None and "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
@@ -192,8 +194,8 @@ class ExecutionContext:
     def parent(self):
         return self._parents[0] if self._parents else None
 
-    def end(self):
-        dispatch_result = dispatch_with_results("context.ended.%s" % self.identifier, (self,))
+    def __exit__(self, exc_type, exc_value, traceback):
+        dispatch("context.ended.%s" % self.identifier, (self,))
         if self._span is None:
             try:
                 _CURRENT_CONTEXT.reset(self._token)
@@ -209,21 +211,17 @@ class ExecutionContext:
                 )
         if id(self) in DEPRECATION_MEMO:
             DEPRECATION_MEMO.remove(id(self))
-        return dispatch_result
+
+        return (
+            True
+            if exc_type is None
+            else any(issubclass(exc_type, exc_type_) for exc_type_ in self._suppress_exceptions)
+        )
 
     def addParent(self, context):
         if self.identifier == ROOT_CONTEXT_ID:
             raise ValueError("Cannot add parent to root context")
         self._parents.append(context)
-
-    @classmethod
-    @contextmanager
-    def context_with_data(cls, identifier, parent=None, span=None, **kwargs):
-        new_context = cls(identifier, parent=parent, span=span, **kwargs)
-        try:
-            yield new_context
-        finally:
-            new_context.end()
 
     def get_item(current, data_key: str, default: Optional[Any] = None) -> Any:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
@@ -294,15 +292,18 @@ def _reset_context():
 
 
 def context_with_data(identifier, parent=None, **kwargs):
-    return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+    return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+
+
+def add_suppress_exception(exc_type: type) -> None:
+    _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
 
 
 def get_item(data_key: str, span: Optional["Span"] = None) -> Any:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
-    else:
-        return _CURRENT_CONTEXT.get().get_item(data_key)
+    return _CURRENT_CONTEXT.get().get_item(data_key)
 
 
 def get_local_item(data_key: str, span: Optional["Span"] = None) -> Any:
@@ -313,8 +314,7 @@ def get_items(data_keys: List[str], span: Optional["Span"] = None) -> List[Optio
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return [span._local_root._get_ctx_item(key) for key in data_keys]
-    else:
-        return _CURRENT_CONTEXT.get().get_items(data_keys)
+    return _CURRENT_CONTEXT.get().get_items(data_keys)
 
 
 def set_safe(data_key: str, data_value: Optional[Any]) -> None:

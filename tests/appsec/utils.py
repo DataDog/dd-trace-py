@@ -25,7 +25,9 @@ def asm_context(
     tracer=None,
     span_name: str = "",
     ip_addr: typing.Optional[str] = None,
+    headers_case_sensitive: bool = False,
     headers: typing.Optional[typing.Dict[str, str]] = None,
+    block_request_callable: typing.Optional[typing.Callable[[], bool]] = None,
     service: typing.Optional[str] = None,
     config=None,
 ):
@@ -40,7 +42,9 @@ def asm_context(
         with core.context_with_data(
             "test.asm",
             remote_addr=ip_addr,
+            headers_case_sensitive=headers_case_sensitive,
             headers=headers,
+            block_request_callable=block_request_callable,
             service=service,
         ), tracer.trace(span_name or "test", span_type=SpanTypes.WEB, service=service) as span:
             yield span

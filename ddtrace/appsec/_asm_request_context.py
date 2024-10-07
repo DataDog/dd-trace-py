@@ -22,6 +22,7 @@ from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 
 # from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -60,6 +61,8 @@ class ASM_Environment:
 
     def __init__(self, span: Optional[Span] = None):
         self.root = not in_context()
+        if self.root:
+            core.add_suppress_exception(BlockingException)
         if span is None:
             self.span: Span = core.get_item("call")
         else:
