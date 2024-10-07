@@ -1120,7 +1120,7 @@ class HTTPPropagator(object):
             return Context()
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-            context = None
+            context = Context()
             # tracer configured to extract first only
             if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
