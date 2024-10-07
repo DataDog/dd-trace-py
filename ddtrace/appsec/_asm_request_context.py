@@ -168,7 +168,16 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
-    root_span = env.span._local_root or env.span
+    # Make sure we find a root span to attach the triggers to
+    if env.span is None:
+        from ddtrace import tracer
+
+        current_span = tracer.current_span()
+        if current_span is None:
+            return
+        root_span = current_span._local_root or current_span
+    else:
+        root_span = env.span._local_root or env.span
     if env.waf_triggers:
         report_list = get_triggers(root_span)
         if report_list is not None:
