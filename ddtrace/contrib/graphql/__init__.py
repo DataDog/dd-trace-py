@@ -35,9 +35,9 @@ Global Configuration
    Enabling instrumentation for resolvers will produce a ``graphql.resolve`` span for every graphql field.
    For complex graphql queries this could produce large traces.
 
-.. py:data:: ddtrace.config.graphql["simplify_resources"]
+.. py:data:: ddtrace.config.graphql["simplify_resource_name"]
 
-   To enable this option, set ``DD_TRACE_GRAPHQL_SIMPLIFY_RESOURCES`` to True.
+   To enable this option, set ``DD_TRACE_GRAPHQL_SIMPLIFY_RESOURCE_NAME`` to True.
 
    Default: ``False``
 
