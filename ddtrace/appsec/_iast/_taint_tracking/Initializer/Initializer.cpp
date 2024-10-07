@@ -14,7 +14,7 @@ Initializer::Initializer()
 {
     // Fill the taintedobjects stack
     for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
-        available_taintedobjects_stack.push(new TaintedObject());
+        available_taintedobjects_stack.push(make_shared<TaintedObject>());
     }
 
     // Fill the ranges stack
@@ -41,10 +41,17 @@ Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
         // Map wasn't in the active addresses, do nothing
         return;
     }
+<<<<<<< HEAD
 
     for (const auto& [fst, snd] : *tx_map) {
         snd.second->decref();
     }
+=======
+    std::lock_guard<std::mutex> lock(active_map_addreses_mutex);
+    tx_map->clear();
+    active_map_addreses.erase(tx_map.get());
+}
+>>>>>>> c4cfa38673 (chore(iast): fix all known memleaks in the native module + safety fixes (#10947))
 
     tx_map->clear();
 }
@@ -110,12 +117,12 @@ TaintedObjectPtr
 Initializer::allocate_tainted_object()
 {
     if (!available_taintedobjects_stack.empty()) {
-        const auto& toptr = available_taintedobjects_stack.top();
+        const auto toptr = available_taintedobjects_stack.top();
         available_taintedobjects_stack.pop();
         return toptr;
     }
     // Stack is empty, create new object
-    return new TaintedObject();
+    return make_shared<TaintedObject>();
 }
 
 TaintedObjectPtr
@@ -141,24 +148,6 @@ Initializer::allocate_tainted_object_copy(const TaintedObjectPtr& from)
         return allocate_tainted_object();
     }
     return allocate_ranges_into_taint_object_copy(from->ranges_);
-}
-
-void
-Initializer::release_tainted_object(TaintedObjectPtr tobj)
-{
-    if (!tobj) {
-        return;
-    }
-
-    tobj->reset();
-    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
-        available_taintedobjects_stack.push(tobj);
-        return;
-    }
-
-    // Stack full, just delete the object (but to a reset before so ranges are
-    // reused or freed)
-    delete tobj;
 }
 
 TaintRangePtr

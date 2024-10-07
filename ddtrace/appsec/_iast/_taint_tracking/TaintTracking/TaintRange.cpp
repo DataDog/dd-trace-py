@@ -181,9 +181,8 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypeP
     auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
 
     set_fast_tainted_if_notinterned_unicode(str);
-    new_tainted_object->incref();
     if (it != tx_map->end()) {
-        it->second.second->decref();
+        it->second.second.reset();
         it->second = std::make_pair(get_internal_hash(str), new_tainted_object);
         return true;
     }
@@ -312,7 +311,6 @@ get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_map)
     }
 
     if (get_internal_hash(str) != it->second.first) {
-        it->second.second->decref();
         tx_map->erase(it);
         return nullptr;
     }
@@ -352,15 +350,13 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRa
             // If the tainted object is different, we need to decref the previous one
             // and incref the new one. But if it's the same object, we can avoid both
             // operations, since they would be redundant.
-            it->second.second->decref();
-            tainted_object->incref();
+            it->second.second.reset();
             it->second = std::make_pair(get_internal_hash(str), tainted_object);
         }
         // Update the hash, because for bytearrays it could have changed after the extend operation
         it->second.first = get_internal_hash(str);
         return;
     }
-    tainted_object->incref();
     tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), tainted_object) });
 }
 

@@ -128,8 +128,6 @@ class Initializer
      */
     TaintedObjectPtr allocate_tainted_object_copy(const TaintedObjectPtr& from);
 
-    void release_tainted_object(TaintedObjectPtr tobj);
-
     // FIXME: these should be static functions of TaintRange
     // IMPORTANT: if the returned object is not assigned to the map, you have
     // responsibility of calling release_taint_range on it or you'll have a leak.
