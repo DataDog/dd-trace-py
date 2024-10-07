@@ -147,6 +147,10 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
+        # DEV uncomment to test local changes to the Dockerfile
+        # build:
+        #  context: ./docker
+        #  dockerfile: Dockerfile
         image: ghcr.io/datadog/dd-trace-py/testrunner@sha256:4c8afd048321e702f3605b4ae4d206fcd00e74bac708089cfe7f9c24383dc53b
         command: bash
         environment:
