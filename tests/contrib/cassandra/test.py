@@ -465,7 +465,7 @@ class TestCassandraConfig(TracerTestCase):
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
-            The cassandra integration should not use it.
+            The cassandra integration should use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
@@ -477,7 +477,7 @@ class TestCassandraConfig(TracerTestCase):
         assert spans
         assert len(spans) == 1
         query = spans[0]
-        assert query.service != "mysvc"
+        assert query.service == "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):

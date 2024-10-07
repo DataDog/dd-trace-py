@@ -2,7 +2,6 @@ from tornado import template
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 
@@ -28,7 +27,7 @@ def generate(func, renderer, args, kwargs):
     # trace the original call
     with pin.tracer.trace(
         "tornado.template",
-        service=trace_utils.int_service(pin, config.tornado),
+        service=pin.service,
         resource=resource,
         span_type=SpanTypes.TEMPLATE,
     ) as span:
