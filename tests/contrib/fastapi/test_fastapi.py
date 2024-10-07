@@ -465,11 +465,11 @@ def test_service_can_be_overridden(client, tracer, test_spans):
         response = client.get("/", headers={"sleep": "False"})
         assert response.status_code == 200
 
-        spans = test_spans.pop_traces()
-        assert len(spans) > 0
+    spans = test_spans.pop_traces()
+    assert len(spans) > 0
 
-        span = spans[0][0]
-        assert span.service == "test-override-service"
+    span = spans[0][0]
+    assert span.service == "test-override-service"
 
 
 def test_w_patch_starlette(client, tracer, test_spans):
