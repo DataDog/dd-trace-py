@@ -25,6 +25,7 @@ from ..periodic import PeriodicService
 from ..runtime import container
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
+from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from . import modules
@@ -55,20 +56,14 @@ class _TelemetryConfig:
     ENV = os.environ.get("DD_ENV", "")
     SERVICE = os.environ.get("DD_SERVICE", "unnamed-python-service")
     VERSION = os.environ.get("DD_VERSION", "")
-    AGENTLESS_MODE = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "").lower() in ("true", "1")
+    AGENTLESS_MODE = asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
     HEARTBEAT_INTERVAL = float(os.environ.get("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
-    TELEMETRY_ENABLED = os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower() in ("true", "1")
-    DEPENDENCY_COLLECTION = os.environ.get("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "true").lower() in (
-        "true",
-        "1",
-    )
+    TELEMETRY_ENABLED = asbool(os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower())
+    DEPENDENCY_COLLECTION = asbool(os.environ.get("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "true"))
     INSTALL_ID = os.environ.get("DD_INSTRUMENTATION_INSTALL_ID", None)
     INSTALL_TYPE = os.environ.get("DD_INSTRUMENTATION_INSTALL_TYPE", None)
     INSTALL_TIME = os.environ.get("DD_INSTRUMENTATION_INSTALL_TIME", None)
-    FORCE_START = os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false").lower() in (
-        "true",
-        "1",
-    )
+    FORCE_START = asbool(os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false"))
 
 
 class LogData(dict):
