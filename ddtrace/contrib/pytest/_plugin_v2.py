@@ -387,7 +387,7 @@ def _process_outcome(item, call, outcome) -> _TestOutcome:
 
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 
-    return _TestOutcome(test_id, exc_info)
+    return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo, outcome: pytest.TestReport) -> None:
