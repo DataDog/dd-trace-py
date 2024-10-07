@@ -188,7 +188,7 @@ def test_remote_config_enable_validate_rc_disabled(remote_config_worker):
     sys.version_info >= (3, 12, 0),
     reason="Python 3.12 subprocess will raise deprecation warning for forking in a multi-threaded process",
 )
-@pytest.mark.subprocess(env=dict(DD_REMOTE_CONFIGURATION_ENABLED="true"))
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_REMOTE_CONFIGURATION_ENABLED="true"))
 def test_remote_config_forksafe():
     import os
 
