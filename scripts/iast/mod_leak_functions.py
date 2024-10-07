@@ -66,6 +66,7 @@ class Aspectvalidation(BaseModel):
 class ImSubClassOfAString(str):
     def __add__(self, other):
         return "ImNotAString.__add__!!" + other
+
     def __iadd__(self, other):
         return "ImNotAString.__iadd__!!" + other
 
@@ -73,6 +74,7 @@ class ImSubClassOfAString(str):
 class ImNotAString:
     def __add__(self, other):
         return "ImNotAString.__add__!!" + other
+
     def __iadd__(self, other):
         return "ImNotAString.__iadd__!!" + other
 
