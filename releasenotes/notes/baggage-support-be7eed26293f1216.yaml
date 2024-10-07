@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Introduces support for Baggage. Baggage is enabled by default. The ``context.set_baggage_item``, ``context.get_baggage_item``, ``context.get_all_baggage_items``,``context.remove_baggage_item``, and ``context.remove_all_baggage_items`` are internal methods provided for manual modifications to baggage.
