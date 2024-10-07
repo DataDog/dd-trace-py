@@ -72,7 +72,7 @@ def ddtrace_iast_flask_patch():
 
 
 def enable_iast_propagation():
-    """Add iast AST patching in the ModuleWatchdog"""
+    """Add IAST AST patching in the ModuleWatchdog"""
     if asbool(os.getenv(IAST.ENV, "false")):
         from ddtrace.appsec._iast._utils import _is_python_version_supported
 
@@ -85,12 +85,12 @@ def enable_iast_propagation():
 
 
 def disable_iast_propagation():
-    """Add iast AST patching in the ModuleWatchdog. Only for testing proposes"""
+    """Remove IAST AST patching from the ModuleWatchdog. Only for testing proposes"""
     from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
     try:
-        ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+        ModuleWatchdog.remove_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
     except KeyError:
         log.warning("IAST is already disabled and it's not in the ModuleWatchdog")
 
