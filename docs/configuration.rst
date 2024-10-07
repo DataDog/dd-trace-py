@@ -537,6 +537,16 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.9.0:
 
+   DD_TEST_SESSION_NAME:
+     type: String
+     default: (autodetected)
+     description: |
+        Configures the ``CIVisibility`` service to use the given string as the value of the ``test_session.name`` tag in
+        test events. If not specified, this string will be constructed from the CI job id (if available) and the test
+        command used to start the test session.
+     version_added:
+        v2.16.0:
+
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean
      default: False
