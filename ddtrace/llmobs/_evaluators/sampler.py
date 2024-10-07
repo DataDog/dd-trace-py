@@ -86,9 +86,7 @@ class EvaluatorRunnerSampler:
             try:
                 sample_rate = float(rule[EvaluatorRunnerSamplingRule.SAMPLE_RATE_KEY])
             except ValueError:
-                parsing_failed_because(
-                    "sample_rate is not a float for rule: {}".format(json.dumps(rule)), KeyError
-                )
+                parsing_failed_because("sample_rate is not a float for rule: {}".format(json.dumps(rule)), KeyError)
                 continue
             span_name = rule.get(EvaluatorRunnerSamplingRule.SPAN_NAME_KEY, SamplingRule.NO_RULE)
             evaluator_label = rule.get(EvaluatorRunnerSamplingRule.EVALUATOR_LABEL_KEY, SamplingRule.NO_RULE)
