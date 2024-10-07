@@ -1143,10 +1143,11 @@ class HTTPPropagator(object):
             # baggage
             if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
                 baggage_context = _BaggageHeader._extract(normalized_headers)
-                if context:
-                    context._baggage = baggage_context._baggage
-                else:
-                    context = baggage_context
+                if baggage_context._baggage != {}:
+                    if context:
+                        context._baggage = baggage_context._baggage
+                    else:
+                        context = baggage_context
 
             return context
 
