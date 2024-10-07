@@ -667,10 +667,10 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         spans = tracer.pop()
 
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
-    
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_service_override(self):
-        with self.override_config("mysqldb", dict(service='mysqldb-service')):
+        with self.override_config("mysqldb", dict(service="mysqldb-service")):
             conn, tracer = self._get_conn_tracer()
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
