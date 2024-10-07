@@ -8,7 +8,6 @@ class TaintedObject
 
   private:
     TaintRangeRefs ranges_;
-    size_t rc_{};
 
   public:
     constexpr static int TAINT_RANGE_LIMIT = 100;
@@ -36,7 +35,7 @@ class TaintedObject
 
     [[nodiscard]] TaintRangeRefs get_ranges_copy() const { return ranges_; }
 
-    void add_ranges_shifted(TaintedObject* tainted_object,
+    void add_ranges_shifted(TaintedObjectPtr tainted_object,
                             RANGE_START offset,
                             RANGE_LENGTH max_length = -1,
                             RANGE_START orig_offset = -1);
@@ -53,12 +52,6 @@ class TaintedObject
     void move_ranges_to_stack();
 
     void reset();
-
-    void incref();
-
-    void decref();
-
-    void release();
 };
 
 void
