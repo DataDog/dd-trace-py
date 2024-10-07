@@ -1126,7 +1126,7 @@ class HTTPPropagator(object):
                 # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
-                    context = propagator._extract(normalized_headers)  # type: ignore
+                    context = propagator._extract(normalized_headers)
                     if config.propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     break
