@@ -287,7 +287,7 @@ add_compiler_args() {
       set_gcc
       ;;
     --)
-      set_cc # Default to GCC, since this is what will happen in the official build
+      set_cc # Use system default compiler
       ;;
     *)
       echo "Unknown option: $1"
