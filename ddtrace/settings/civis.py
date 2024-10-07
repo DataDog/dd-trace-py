@@ -1,3 +1,5 @@
+import typing as t
+
 from envier import En
 
 
@@ -30,7 +32,7 @@ class CIVisConfig(En):
 
     log_level = En.v(
         str,
-        "log_level",
+        "log.level",
         default="info",
         help_type="String",
         help="Enable ....",
@@ -48,8 +50,8 @@ class CIVisConfig(En):
 class CITestConfig(En):
     __prefix__ = "dd.test"
 
-    test_session_name = En.v(
-        str,
+    session_name = En.v(
+        t.Optional[str],
         "session.name",
         default=None,
         help_type="String",

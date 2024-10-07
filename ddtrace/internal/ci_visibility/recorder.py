@@ -780,7 +780,7 @@ class CIVisibility(Service):
             return
 
         if test_config.session_name:
-            test_session_name = test_config.test_session_name
+            test_session_name = test_config.session_name
         else:
             job_name = instance._tags.get(ci.JOB_NAME)
             test_session_name = f"{job_name}-{test_command}" if job_name else test_command
