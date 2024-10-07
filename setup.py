@@ -559,7 +559,7 @@ if not IS_PYSTON:
         )
 
         # Echion doesn't build on 3.7, so just skip it outright for now
-        if sys.version_info >= (3, 8):
+        if sys.version_info >= (3, 8) and sys.version_info < (3, 13):
             ext_modules.append(
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
