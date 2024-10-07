@@ -1,4 +1,5 @@
 import json
+import logging
 import sys
 import typing
 
@@ -41,6 +42,23 @@ def _aux_appsec_prepare_tracer(tracer):
 
 def get_response_body(response):
     return response.text
+
+
+@pytest.fixture(autouse=True)
+def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_writer):
+    if "skip_iast_check_logs" in request.keywords:
+        yield
+    else:
+        caplog.set_level(logging.DEBUG)
+        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+            yield
+
+        log_messages = [record.msg for record in caplog.get_records("call")]
+        for message in log_messages:
+            if "[IAST] " in message:
+                pytest.fail(message)
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
 
 def test_query_param_source(fastapi_application, client, tracer, test_spans):

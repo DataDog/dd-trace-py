@@ -159,7 +159,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
         _set_metric_iast_executed_source(source_origin)
         return pyobject_newid
     except ValueError as e:
-        iast_taint_log_error("Tainting object error (pyobject type %s): %s" % (type(pyobject), e))
+        log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e)
     return pyobject
 
 
@@ -201,16 +201,18 @@ if _is_iast_debug_enabled():
             return
         if event == "call":
             f_locals = frame.f_locals
-            if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
-                TAINTED_FRAMES.append(frame)
-                log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
-                log.debug("Tainted arguments:")
-                for arg in f_locals:
-                    if is_pyobject_tainted(f_locals[arg]):
-                        log.debug("\t%s: %s", arg, f_locals[arg])
-                log.debug("-----")
-
-            return trace_calls_and_returns
+            try:
+                if any([is_pyobject_tainted(f_locals[arg]) for arg in f_locals]):
+                    TAINTED_FRAMES.append(frame)
+                    log.debug("Call to %s on line %s of %s, args: %s", func_name, line_no, filename, frame.f_locals)
+                    log.debug("Tainted arguments:")
+                    for arg in f_locals:
+                        if is_pyobject_tainted(f_locals[arg]):
+                            log.debug("\t%s: %s", arg, f_locals[arg])
+                    log.debug("-----")
+                return trace_calls_and_returns
+            except AttributeError:
+                pass
         elif event == "return":
             if frame in TAINTED_FRAMES:
                 TAINTED_FRAMES.remove(frame)

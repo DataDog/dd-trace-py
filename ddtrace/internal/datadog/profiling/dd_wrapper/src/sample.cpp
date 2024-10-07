@@ -1,5 +1,8 @@
 #include "sample.hpp"
 
+#include "code_provenance.hpp"
+
+#include <algorithm>
 #include <chrono>
 #include <thread>
 
@@ -27,6 +30,8 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
     static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
     name = profile_state.insert_or_get(name);
     filename = profile_state.insert_or_get(filename);
+
+    CodeProvenance::get_instance().add_filename(filename);
 
     const ddog_prof_Location loc = {
         .mapping = null_mapping, // No support for mappings in Python
@@ -104,12 +109,16 @@ Datadog::Sample::clear_buffers()
 }
 
 bool
-Datadog::Sample::flush_sample()
+Datadog::Sample::flush_sample(bool reverse_locations)
 {
     if (dropped_frames > 0) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);
+    }
+
+    if (reverse_locations) {
+        std::reverse(locations.begin(), locations.end());
     }
 
     const ddog_prof_Sample sample = {
@@ -291,16 +300,6 @@ bool
 Datadog::Sample::push_trace_type(std::string_view trace_type)
 {
     if (!push_label(ExportLabelKey::trace_type, trace_type)) {
-        std::cout << "bad push" << std::endl;
-        return false;
-    }
-    return true;
-}
-
-bool
-Datadog::Sample::push_trace_resource_container(std::string_view trace_resource_container)
-{
-    if (!push_label(ExportLabelKey::trace_resource_container, trace_resource_container)) {
         std::cout << "bad push" << std::endl;
         return false;
     }
