@@ -182,6 +182,7 @@ class ExecutionContext(AbstractContextManager):
             self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
         dispatch("context.started.start_span.%s" % self.identifier, (self,))
+        return self
 
     def __repr__(self):
         return self.__class__.__name__ + " '" + self.identifier + "' @ " + str(id(self))
