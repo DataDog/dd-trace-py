@@ -290,15 +290,12 @@ class ElasticsearchPatchTest(TracerTestCase):
         """
         When a user specifies a service mapping it should override the default
         """
-        # with self.override_config("elasticsearch", dict(service="test_service")):
-        from ddtrace import config
-
-        config.elasticsearch["service"] = "test_service"
-        self.create_index(self.es)
-        spans = self.get_spans()
-        self.reset()
-        assert len(spans) == 1
-        assert spans[0].service == "test_service"
+        with self.override_config("elasticsearch", dict(service="test_service")):
+            self.create_index(self.es)
+            spans = self.get_spans()
+            self.reset()
+            assert len(spans) == 1
+            assert spans[0].service == "test_service"
 
     def test_none_param(self):
         try:
