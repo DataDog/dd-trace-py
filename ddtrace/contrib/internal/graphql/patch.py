@@ -61,7 +61,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("graphql"),
         resolvers_enabled=asbool(os.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
-        simplify_resource=asbool(os.getenv("DD_TRACE_GRAPHQL_SIMPLIFY_RESOURCES", default=False)),
+        simplify_resource_name=asbool(os.getenv("DD_TRACE_GRAPHQL_SIMPLIFY_RESOURCE_NAME", default=False)),
     ),
 )
 
@@ -170,7 +170,7 @@ def _traced_execute(func, args, kwargs):
         document = get_argument_value(args, kwargs, 1, "document")
     source_str = _get_source_str(document)
     resource = source_str
-    if config.graphql.simplify_resource:
+    if config.graphql.simplify_resource_name:
         # queries can look like:
         # query Name(args) {...
         # query Name {...
