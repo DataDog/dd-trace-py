@@ -571,7 +571,6 @@ class TestCIVisibilityWriter(TracerTestCase):
                 assert dummy_writer.intake_url == "https://foo.bar"
 
     def test_civisibilitywriter_coverage_agentless_url(self):
-        ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
         with _ci_override_env(
             dict(
                 DD_API_KEY="foobar.baz",
@@ -590,7 +589,6 @@ class TestCIVisibilityWriter(TracerTestCase):
                 _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
     def test_civisibilitywriter_coverage_agentless_with_intake_url_param(self):
-        ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
         with _ci_override_env(
             dict(
                 DD_API_KEY="foobar.baz",
