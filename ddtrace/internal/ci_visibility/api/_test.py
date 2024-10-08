@@ -126,13 +126,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
     def finish_test(
         self,
-        status: TestStatus,
+        status: Optional[TestStatus] = None,
         reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
         override_finish_time: Optional[float] = None,
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, reason: %s", self, status, reason)
-        self.set_status(status)
+        if status is not None:
+            self.set_status(status)
         if reason is not None:
             self.set_tag(test.SKIP_REASON, reason)
         if exc_info is not None:

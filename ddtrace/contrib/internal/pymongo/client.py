@@ -10,10 +10,12 @@ from wrapt import ObjectProxy
 
 # project
 import ddtrace
+from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -67,7 +69,7 @@ def _trace_mongo_client_init(func, args, kwargs):
     client.__getddpin__ = functools.partial(__getddpin__, client)
 
     # Set a pin on the traced mongo client
-    ddtrace.Pin(service=_DEFAULT_SERVICE).onto(client)
+    Pin(service=None).onto(client)
 
 
 # The function is exposed in the public API, but it is not used in the codebase.
@@ -128,7 +130,7 @@ def _datadog_trace_operation(operation, wrapped):
     span = pin.tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
-        service=pin.service,
+        service=trace_utils.ext_service(pin, config.pymongo),
     )
 
     span.set_tag_str(COMPONENT, config.pymongo.integration_name)
@@ -251,7 +253,7 @@ def _trace_cmd(cmd, socket_instance, address):
     s = pin.tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
-        service=pin.service,
+        service=trace_utils.ext_service(pin, config.pymongo),
     )
 
     s.set_tag_str(COMPONENT, config.pymongo.integration_name)
