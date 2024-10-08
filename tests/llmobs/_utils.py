@@ -498,7 +498,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "trace_id": mock.ANY,
             "span_id": mock.ANY,
             "parent_id": "undefined",
-            "name": "ragas_faithfulness",
+            "name": "ragas.faithfulness",
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",

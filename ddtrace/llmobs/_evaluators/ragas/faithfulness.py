@@ -5,7 +5,6 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 
 
 logger = get_logger(__name__)
@@ -37,7 +36,7 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     span_tags = span_event.get("tags")
     if span_tags is not None:
         ml_app_of_span_event = "-{}".format(parse_tags_str(",".join(span_tags)).get("ml_app"))
-    return "ragas{}".format(ml_app_of_span_event)
+    return "_dd.ragas{}".format(ml_app_of_span_event)
 
 
 def _get_faithfulness_instance():
@@ -118,84 +117,79 @@ class RagasFaithfulnessEvaluator:
         ragas faithfulness evaluations."""
         score, question, answer, context, statements, raw_faithfulness_list = math.nan, None, None, None, None, None
 
-        with self.llmobs_service.annotation_context(
-            tags={RUNNER_IS_INTEGRATION_SPAN_TAG: RAGAS, "ml_app": _get_ml_app_for_ragas_trace(span_event)}
-        ):
-            with self.llmobs_service.workflow("ragas.faithfulness"):
+        with self.llmobs_service.workflow("ragas.faithfulness", ml_app=_get_ml_app_for_ragas_trace(span_event)):
+            try:
+                faithfulness_inputs = self._extract_faithfulness_inputs(span_event)
+                if faithfulness_inputs is None:
+                    logger.debug(
+                        "Failed to extract question and context from span sampled for ragas_faithfulness evaluation"
+                    )
+                    return None
+
+                question = faithfulness_inputs["question"]
+                answer = faithfulness_inputs["answer"]
+                context = faithfulness_inputs["context"]
+
+                statements_prompt = self._create_statements_prompt(answer=answer, question=question)
+
+                statements = self.ragas_faithfulness_instance.llm.generate_text(statements_prompt)
+
+                statements = self.llm_output_parser_for_generated_statements.parse(statements.generations[0][0].text)
+
+                if statements is None:
+                    return None
+                statements = [item["simpler_statements"] for item in statements.dicts()]
+                statements = [item for sublist in statements for item in sublist]
+
+                assert isinstance(statements, List), "statements must be a list"
+
+                raw_nli_results = self.ragas_faithfulness_instance.llm.generate_text(
+                    self._create_nli_prompt(statements, context)
+                )
+                if len(raw_nli_results.generations) == 0:
+                    return None
+
+                raw_nli_results_texts = [
+                    raw_nli_results.generations[0][i].text
+                    for i in range(self.ragas_faithfulness_instance._reproducibility)
+                ]
+
+                raw_faithfulness_list = [
+                    faith.dicts()
+                    for faith in [
+                        self.llm_output_parser_for_faithfulness_score.parse(text) for text in raw_nli_results_texts
+                    ]
+                    if faith is not None
+                ]
+
+                if len(raw_faithfulness_list) == 0:
+                    return None
+
+                faithfulness_list = ensembler.from_discrete(
+                    raw_faithfulness_list,
+                    "verdict",
+                )
                 try:
-                    faithfulness_inputs = self._extract_faithfulness_inputs(span_event)
-                    if faithfulness_inputs is None:
-                        logger.debug(
-                            "Failed to extract question and context from span sampled for ragas_faithfulness evaluation"
-                        )
-                        return None
+                    faithfulness_list = StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
+                except Exception as e:
+                    logger.debug("Failed to parse faithfulness_list", exc_info=e)
+                    return None
 
-                    question = faithfulness_inputs["question"]
-                    answer = faithfulness_inputs["answer"]
-                    context = faithfulness_inputs["context"]
+                score = self._compute_score(faithfulness_list)
 
-                    statements_prompt = self._create_statements_prompt(answer=answer, question=question)
+                if math.isnan(score):
+                    return None
 
-                    statements = self.ragas_faithfulness_instance.llm.generate_text(statements_prompt)
-
-                    statements = self.llm_output_parser_for_generated_statements.parse(
-                        statements.generations[0][0].text
-                    )
-
-                    if statements is None:
-                        return None
-                    statements = [item["simpler_statements"] for item in statements.dicts()]
-                    statements = [item for sublist in statements for item in sublist]
-
-                    assert isinstance(statements, List), "statements must be a list"
-
-                    raw_nli_results = self.ragas_faithfulness_instance.llm.generate_text(
-                        self._create_nli_prompt(statements, context)
-                    )
-                    if len(raw_nli_results.generations) == 0:
-                        return None
-
-                    raw_nli_results_texts = [
-                        raw_nli_results.generations[0][i].text
-                        for i in range(self.ragas_faithfulness_instance._reproducibility)
-                    ]
-
-                    raw_faithfulness_list = [
-                        faith.dicts()
-                        for faith in [
-                            self.llm_output_parser_for_faithfulness_score.parse(text) for text in raw_nli_results_texts
-                        ]
-                        if faith is not None
-                    ]
-
-                    if len(raw_faithfulness_list) == 0:
-                        return None
-
-                    faithfulness_list = ensembler.from_discrete(
-                        raw_faithfulness_list,
-                        "verdict",
-                    )
-                    try:
-                        faithfulness_list = StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
-                    except Exception as e:
-                        logger.debug("Failed to parse faithfulness_list", exc_info=e)
-                        return None
-
-                    score = self._compute_score(faithfulness_list)
-
-                    if math.isnan(score):
-                        return None
-
-                    return score
-                finally:
-                    self.llmobs_service.annotate(
-                        input_data=span_event,
-                        output_data=score,
-                        metadata={
-                            "statements": statements,
-                            "faithfulness_list": raw_faithfulness_list,
-                        },
-                    )
+                return score
+            finally:
+                self.llmobs_service.annotate(
+                    input_data=span_event,
+                    output_data=score,
+                    metadata={
+                        "statements": statements,
+                        "faithfulness_list": raw_faithfulness_list,
+                    },
+                )
 
     def _extract_faithfulness_inputs(self, span_event: dict) -> Optional[dict]:
         """
@@ -206,7 +200,7 @@ class RagasFaithfulnessEvaluator:
         context - input.prompt.variables.context
         answer - output.messages[-1].content
         """
-        with self.llmobs_service.workflow("ragas.extract_faithfulnes_inputs"):
+        with self.llmobs_service.workflow("ragas.extract_faithfulness_inputs"):
             self.llmobs_service.annotate(input_data=span_event)
             question, answer, context = None, None, None
 
