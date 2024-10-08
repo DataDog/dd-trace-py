@@ -8,9 +8,7 @@ from typing import Optional
 from ddtrace import constants
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import _processor as appsec_processor
-from ddtrace.appsec._asm_request_context import add_context_callback
-from ddtrace.appsec._asm_request_context import call_waf_callback
-from ddtrace.appsec._asm_request_context import remove_context_callback
+from ddtrace.appsec._asm_request_context import asm_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal.logger import get_logger
@@ -76,11 +74,11 @@ class APIManager(Service):
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
 
     def _stop_service(self) -> None:
-        remove_context_callback(self._schema_callback, global_callback=True)
+        asm_context.remove_context_callback(self._schema_callback, global_callback=True)
         self._hashtable.clear()
 
     def _start_service(self) -> None:
-        add_context_callback(self._schema_callback, global_callback=True)
+        asm_context.add_context_callback(self._schema_callback, global_callback=True)
 
     def _should_collect_schema(self, env, priority: int) -> bool:
         # Rate limit per route
@@ -159,7 +157,7 @@ class APIManager(Service):
                 value = transform(value)
             waf_payload[address] = value
 
-        result = call_waf_callback(waf_payload)
+        result = asm_context.call_waf_callback(waf_payload)
         if result is None:
             return
         for meta, schema in result.derivatives.items():

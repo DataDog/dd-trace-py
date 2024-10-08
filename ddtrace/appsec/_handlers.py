@@ -7,7 +7,7 @@ from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 import xmltodict
 
-from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import asm_context
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
@@ -75,9 +75,6 @@ def _on_set_http_meta(
             asm_check_cookies(response_cookies)
 
     if asm_config._asm_enabled and span.span_type == SpanTypes.WEB:
-        # avoid circular import
-        from ddtrace.appsec._asm_request_context import set_waf_address
-
         status_code = str(status_code) if status_code is not None else None
 
         addresses = [
@@ -95,7 +92,7 @@ def _on_set_http_meta(
         ]
         for k, v in addresses:
             if v is not None:
-                set_waf_address(k, v)
+                asm_context.set_waf_address(k, v)
 
 
 # ASGI
@@ -458,9 +455,7 @@ def _on_grpc_server_response(message):
     if not _is_iast_enabled():
         return
 
-    from ddtrace.appsec._asm_request_context import set_waf_address
-
-    set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_RESPONSE_MESSAGE, message)
+    asm_context.set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_RESPONSE_MESSAGE, message)
     _on_grpc_response(message)
 
 
@@ -468,17 +463,14 @@ def _on_grpc_server_data(headers, request_message, method, metadata):
     if not _is_iast_enabled():
         return
 
-    from ddtrace.appsec._asm_request_context import set_headers
-    from ddtrace.appsec._asm_request_context import set_waf_address
-
-    set_headers(headers)
+    asm_context.set_headers(headers)
     if request_message is not None:
-        set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_MESSAGE, request_message)
+        asm_context.set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_MESSAGE, request_message)
 
-    set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_METHOD, method)
+    asm_context.set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_METHOD, method)
 
     if metadata:
-        set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, dict(metadata))
+        asm_context.set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, dict(metadata))
 
 
 def _wsgi_make_block_content(ctx, construct_url):
@@ -488,7 +480,7 @@ def _wsgi_make_block_content(ctx, construct_url):
     environ = ctx.get_item("environ")
     if req_span is None:
         raise ValueError("request span not found")
-    block_config = get_blocked()
+    block_config = asm_context.get_blocked()
     desired_type = block_config.get("type", "auto")
     ctype = None
     if desired_type == "none":
@@ -528,7 +520,7 @@ def _asgi_make_block_content(ctx, url):
     environ = ctx.get_item("environ")
     if req_span is None:
         raise ValueError("request span not found")
-    block_config = get_blocked()
+    block_config = asm_context.get_blocked()
     desired_type = block_config.get("type", "auto")
     ctype = None
     if desired_type == "none":

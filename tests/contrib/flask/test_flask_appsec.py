@@ -39,9 +39,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         # test a manual call to the blocking callable stored in _asm_request_context
         @self.app.route("/block")
         def test_route():
-            from ddtrace.appsec._asm_request_context import block_request
+            from ddtrace.appsec._asm_request_context import asm_context
 
-            return block_request()
+            return asm_context.block_request()
 
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()

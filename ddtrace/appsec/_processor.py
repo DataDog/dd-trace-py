@@ -16,8 +16,8 @@ import weakref
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import load_appsec
+from ddtrace.appsec._asm_request_context import asm_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
@@ -237,13 +237,13 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
 
-        _asm_request_context.start_context(span)
+        asm_context.start_context(span)
 
         ctx = self._ddwaf._at_request_start()
         self._span_to_waf_ctx[span] = ctx
-        peer_ip = _asm_request_context.get_ip()
-        headers = _asm_request_context.get_headers()
-        headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
+        peer_ip = asm_context.get_ip()
+        headers = asm_context.get_headers()
+        headers_case_sensitive = asm_context.get_headers_case_sensitive()
 
         span.set_metric(APPSEC.ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
@@ -251,22 +251,20 @@ class AppSecSpanProcessor(SpanProcessor):
         def waf_callable(custom_data=None, **kwargs):
             return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
 
-        _asm_request_context.set_waf_callback(waf_callable)
-        _asm_request_context.add_context_callback(_set_waf_request_metrics)
+        asm_context.set_waf_callback(waf_callable)
+        asm_context.add_context_callback(_set_waf_request_metrics)
         if headers is not None:
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
-            _asm_request_context.set_waf_address(
-                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive
-            )
+            asm_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
+            asm_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive)
             if not peer_ip:
                 return
 
             ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
+            asm_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
-                _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
+                asm_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
     def _waf_action(
         self,
@@ -290,7 +288,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.GRPC):
             return None
 
-        if _asm_request_context.get_blocked():
+        if asm_context.get_blocked():
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
                 return None
@@ -298,7 +296,7 @@ class AppSecSpanProcessor(SpanProcessor):
         data = {}
         ephemeral_data = {}
         iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
-        data_already_sent = _asm_request_context.get_data_sent()
+        data_already_sent = asm_context.get_data_sent()
         if data_already_sent is None:
             data_already_sent = set()
 
@@ -318,7 +316,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 if custom_data is not None and custom_data.get(key) is not None:
                     value = custom_data.get(key)
                 elif key in SPAN_DATA_NAMES:
-                    value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
+                    value = asm_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
                 # if value is a callable, it's a lazy value for api security that should not be sent now
                 if value is not None and not hasattr(value, "__call__"):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
@@ -352,7 +350,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
-        _asm_request_context.set_waf_telemetry_results(
+        asm_context.set_waf_telemetry_results(
             self._ddwaf.info.version,
             bool(waf_results.data),
             bool(blocked),
@@ -362,7 +360,7 @@ class AppSecSpanProcessor(SpanProcessor):
             waf_results.total_runtime,
         )
         if blocked:
-            _asm_request_context.set_blocked(blocked)
+            asm_context.set_blocked(blocked)
 
         try:
             info = self._ddwaf.info
@@ -390,18 +388,18 @@ class AppSecSpanProcessor(SpanProcessor):
                 (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
                 (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),
             ]:
-                headers_req = _asm_request_context.get_waf_address(id_tag)
+                headers_req = asm_context.get_waf_address(id_tag)
                 if headers_req:
                     _set_headers(span, headers_req, kind=kind)
 
-            _asm_request_context.store_waf_results_data(waf_results.data)
+            asm_context.store_waf_results_data(waf_results.data)
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
 
             # Partial DDAS-011-00
             span.set_tag_str(APPSEC.EVENT, "true")
 
-            remote_ip = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP)
+            remote_ip = asm_context.get_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP)
             if remote_ip:
                 # Note that if the ip collection is disabled by the env var
                 # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
@@ -430,15 +428,15 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
 
                 # this call is only necessary for tests or frameworks that are not using blocking
-                if not has_triggers(span) and _asm_request_context.in_context():
+                if not has_triggers(span) and asm_context.in_context():
                     log.debug("metrics waf call")
-                    _asm_request_context.call_waf_callback()
+                    asm_context.call_waf_callback()
 
                 self._ddwaf._at_request_end()
-                _asm_request_context.end_context(span)
+                asm_context.end_context(span)
         finally:
             # release asm context associated with that span if it was not already done
-            _asm_request_context.end_context(span)
+            asm_context.end_context(span)
 
             if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
                 return

@@ -18,6 +18,7 @@ import pytest
 import wrapt
 
 from ddtrace import config
+import ddtrace.appsec._request_context
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -1771,7 +1772,7 @@ Template tests
 def test_template(test_spans):
     # prepare a base template using the default engine
     template = django.template.Template("Hello {{name}}!")
-    ctx = django.template.Context({"name": "Django"})
+    ctx = ddtrace.appsec._request_context.Context({"name": "Django"})
 
     assert template.render(ctx) == "Hello Django!"
 
@@ -1801,7 +1802,7 @@ def test_template_no_instrumented(test_spans):
     # prepare a base template using the default engine
     with override_config("django", dict(instrument_templates=False)):
         template = django.template.Template("Hello {{name}}!")
-        ctx = django.template.Context({"name": "Django"})
+        ctx = ddtrace.appsec._request_context.Context({"name": "Django"})
 
         assert template.render(ctx) == "Hello Django!"
         spans = test_spans.get_spans()
@@ -1822,7 +1823,7 @@ def test_template_name(test_spans):
     # DEV: template.name can be an instance of PosixPath (see
     # https://github.com/DataDog/dd-trace-py/issues/2418)
     template.name = PosixPath("/my-template")
-    template.render(django.template.Context({"name": "Django"}))
+    template.render(ddtrace.appsec._request_context.Context({"name": "Django"}))
 
     spans = test_spans.get_spans()
     assert len(spans) == 1
