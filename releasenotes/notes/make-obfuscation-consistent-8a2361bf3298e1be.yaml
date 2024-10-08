@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    integrations: Ensures that ``http.url`` span tag contains the full query string when ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP `` is set to an empty string.
