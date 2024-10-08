@@ -150,12 +150,10 @@ DEPRECATION_MEMO = set()
 def _deprecate_span_kwarg(span):
     if (
         span is not None
-        and id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO
         # https://github.com/tiangolo/fastapi/pull/10876
         and "fastapi" not in sys.modules
         and "fastapi.applications" not in sys.modules
     ):
-        DEPRECATION_MEMO.add(id(_CURRENT_CONTEXT))
         deprecate(
             SPAN_DEPRECATION_MESSAGE,
             message=SPAN_DEPRECATION_SUGGESTION,
@@ -176,8 +174,6 @@ class ExecutionContext:
             self.addParent(parent)
         self._data.update(kwargs)
 
-        if self._span is None and "_CURRENT_CONTEXT" in globals():
-            self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
         dispatch("context.started.start_span.%s" % self.identifier, (self,))
 
@@ -194,19 +190,6 @@ class ExecutionContext:
 
     def end(self):
         dispatch_result = dispatch_with_results("context.ended.%s" % self.identifier, (self,))
-        if self._span is None:
-            try:
-                _CURRENT_CONTEXT.reset(self._token)
-            except ValueError:
-                log.debug(
-                    "Encountered ValueError during core contextvar reset() call. "
-                    "This can happen when a span holding an executioncontext is "
-                    "finished in a Context other than the one that started it."
-                )
-            except LookupError:
-                log.debug(
-                    "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
-                )
         if id(self) in DEPRECATION_MEMO:
             DEPRECATION_MEMO.remove(id(self))
         return dispatch_result
@@ -277,70 +260,4 @@ class ExecutionContext:
         return current
 
 
-def __getattr__(name):
-    if name == "root":
-        return _CURRENT_CONTEXT.get().root()
-    raise AttributeError
-
-
-_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
 _CONTEXT_CLASS = ExecutionContext
-
-
-def _reset_context():
-    """private function to reset the context. Only used in testing"""
-    global _CURRENT_CONTEXT
-    _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
-
-
-def context_with_data(identifier, parent=None, **kwargs):
-    return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
-
-
-def get_item(data_key: str, span: Optional["Span"] = None) -> Any:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        return span._local_root._get_ctx_item(data_key)
-    else:
-        return _CURRENT_CONTEXT.get().get_item(data_key)
-
-
-def get_local_item(data_key: str, span: Optional["Span"] = None) -> Any:
-    return _CURRENT_CONTEXT.get().get_local_item(data_key)
-
-
-def get_items(data_keys: List[str], span: Optional["Span"] = None) -> List[Optional[Any]]:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        return [span._local_root._get_ctx_item(key) for key in data_keys]
-    else:
-        return _CURRENT_CONTEXT.get().get_items(data_keys)
-
-
-def set_safe(data_key: str, data_value: Optional[Any]) -> None:
-    _CURRENT_CONTEXT.get().set_safe(data_key, data_value)
-
-
-# NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
-def set_item(data_key: str, data_value: Optional[Any], span: Optional["Span"] = None) -> None:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        span._local_root._set_ctx_item(data_key, data_value)
-    else:
-        _CURRENT_CONTEXT.get().set_item(data_key, data_value)
-
-
-def set_items(keys_values: Dict[str, Optional[Any]], span: Optional["Span"] = None) -> None:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        span._local_root._set_ctx_items(keys_values)
-    else:
-        _CURRENT_CONTEXT.get().set_items(keys_values)
-
-
-def discard_item(data_key: str) -> None:
-    _CURRENT_CONTEXT.get().discard_item(data_key)
-
-
-def discard_local_item(data_key: str) -> None:
-    _CURRENT_CONTEXT.get().discard_local_item(data_key)
