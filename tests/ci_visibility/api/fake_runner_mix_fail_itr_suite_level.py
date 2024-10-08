@@ -23,9 +23,10 @@ import sys
 from unittest import mock
 
 import ddtrace
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility import api as ext_api
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.test_visibility import api
+import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
@@ -52,20 +53,17 @@ def main():
     suite_1_id = ext_api.TestSuiteId(module_1_id, "suite_1")
     api.InternalTestSuite.discover(suite_1_id)
 
-    suite_1_test_1_id = api.InternalTestId(suite_1_id, "test_1")
-    suite_1_test_2_id = api.InternalTestId(suite_1_id, "test_2")
-    suite_1_test_3_id = api.InternalTestId(suite_1_id, "test_3")
-    suite_1_test_3_retry_1_id = api.InternalTestId(suite_1_id, "test_3", retry_number=1)
-    suite_1_test_3_retry_2_id = api.InternalTestId(suite_1_id, "test_3", retry_number=2)
-    suite_1_test_3_retry_3_id = api.InternalTestId(suite_1_id, "test_3", retry_number=3)
+    suite_1_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_1_id, "test_1")
+    suite_1_test_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_1_id, "test_2")
+    suite_1_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_1_id, "test_3")
 
-    suite_1_test_4_parametrized_1_id = api.InternalTestId(
+    suite_1_test_4_parametrized_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
         suite_1_id, "test_4", parameters=json.dumps({"param1": "value1"})
     )
-    suite_1_test_4_parametrized_2_id = api.InternalTestId(
+    suite_1_test_4_parametrized_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
         suite_1_id, "test_4", parameters=json.dumps({"param1": "value2"})
     )
-    suite_1_test_4_parametrized_3_id = api.InternalTestId(
+    suite_1_test_4_parametrized_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
         suite_1_id, "test_4", parameters=json.dumps({"param1": "value3"})
     )
 
@@ -77,11 +75,7 @@ def main():
         suite_1_test_3_id,
         codeowners=["@romain", "@romain2"],
         source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
-        is_early_flake_detection=True,
     )
-    api.InternalTest.discover_early_flake_retry(suite_1_test_3_retry_1_id)
-    api.InternalTest.discover_early_flake_retry(suite_1_test_3_retry_2_id)
-    api.InternalTest.discover_early_flake_retry(suite_1_test_3_retry_3_id)
 
     api.InternalTest.discover(suite_1_test_4_parametrized_1_id)
     api.InternalTest.discover(suite_1_test_4_parametrized_2_id)
@@ -89,24 +83,24 @@ def main():
 
     module_2_id = ext_api.TestModuleId("module_2")
     suite_2_id = ext_api.TestSuiteId(module_2_id, "suite_2")
-    suite_2_test_1_id = api.InternalTestId(suite_2_id, "test_1")
-    suite_2_test_2_parametrized_1_id = api.InternalTestId(
+    suite_2_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_2_id, "test_1")
+    suite_2_test_2_parametrized_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
         suite_2_id, "test_2", parameters=json.dumps({"param1": "value1"})
     )
-    suite_2_test_2_parametrized_2_id = api.InternalTestId(
+    suite_2_test_2_parametrized_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
         suite_2_id, "test_2", parameters=json.dumps({"param1": "value2"})
     )
-    suite_2_test_2_parametrized_3_id = api.InternalTestId(
+    suite_2_test_2_parametrized_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
         suite_2_id, "test_2", parameters=json.dumps({"param1": "value3"})
     )
-    suite_2_test_2_parametrized_4_id = api.InternalTestId(
+    suite_2_test_2_parametrized_4_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
         suite_2_id, "test_2", parameters=json.dumps({"param1": "value4"})
     )
-    suite_2_test_2_parametrized_5_id = api.InternalTestId(
+    suite_2_test_2_parametrized_5_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
         suite_2_id, "test_2", parameters=json.dumps({"param1": "value5"})
     )
     suite_2_test_2_source_file_info = ext_api.TestSourceFileInfo(Path("test_file_2.py"), 8, 9)
-    suite_2_test_3_id = api.InternalTestId(suite_2_id, "test_3")
+    suite_2_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_2_id, "test_3")
 
     api.InternalTestModule.discover(module_2_id)
     api.InternalTestSuite.discover(suite_2_id)
@@ -123,20 +117,19 @@ def main():
         suite_2_test_3_id,
         codeowners=["@romain"],
         source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
-        is_early_flake_detection=True,
     )
 
     module_3_id = ext_api.TestModuleId("module_3")
     suite_3_id = ext_api.TestSuiteId(module_3_id, "suite_3")
     suite_4_id = ext_api.TestSuiteId(module_3_id, "suite_4")
 
-    suite_3_test_1_id = api.InternalTestId(suite_3_id, "test_1")
-    suite_3_test_2_id = api.InternalTestId(suite_3_id, "test_2")
-    suite_3_test_3_id = api.InternalTestId(suite_3_id, "test_3")
+    suite_3_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_3_id, "test_1")
+    suite_3_test_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_3_id, "test_2")
+    suite_3_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_3_id, "test_3")
 
-    suite_4_test_1_id = api.InternalTestId(suite_4_id, "test_1")
-    suite_4_test_2_id = api.InternalTestId(suite_4_id, "test_2")
-    suite_4_test_3_id = api.InternalTestId(suite_4_id, "test_3")
+    suite_4_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_4_id, "test_1")
+    suite_4_test_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_4_id, "test_2")
+    suite_4_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_4_id, "test_3")
 
     api.InternalTestModule.discover(module_3_id)
 
@@ -167,13 +160,13 @@ def main():
     suite_5_id = ext_api.TestSuiteId(module_4_id, "suite_5")
     suite_6_id = ext_api.TestSuiteId(module_4_id, "suite_6")
 
-    suite_5_test_1_id = api.InternalTestId(suite_5_id, "test_1")
-    suite_5_test_2_id = api.InternalTestId(suite_5_id, "test_2")
-    suite_5_test_3_id = api.InternalTestId(suite_5_id, "test_3")
+    suite_5_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_5_id, "test_1")
+    suite_5_test_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_5_id, "test_2")
+    suite_5_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_5_id, "test_3")
 
-    suite_6_test_1_id = api.InternalTestId(suite_6_id, "test_1")
-    suite_6_test_2_id = api.InternalTestId(suite_6_id, "test_2")
-    suite_6_test_3_id = api.InternalTestId(suite_6_id, "test_3")
+    suite_6_test_1_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_6_id, "test_1")
+    suite_6_test_2_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_6_id, "test_2")
+    suite_6_test_3_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(suite_6_id, "test_3")
 
     api.InternalTestModule.discover(module_4_id)
 
@@ -235,13 +228,6 @@ def main():
     api.InternalTest.add_coverage_data(suite_1_id, {suite_1_test_3_rel_path_1: CoverageLines.from_list([2, 2])})
     api.InternalTest.mark_itr_skipped(suite_1_test_3_id)
     #
-    api.InternalTest.start(suite_1_test_3_retry_1_id)
-    api.InternalTest.mark_pass(suite_1_test_3_retry_1_id)
-    #
-    api.InternalTest.start(suite_1_test_3_retry_2_id)
-    api.InternalTest.mark_pass(suite_1_test_3_retry_2_id)
-    #
-    api.InternalTest.start(suite_1_test_3_retry_3_id)
     api.InternalTest.add_coverage_data(
         suite_1_id,
         {
@@ -251,7 +237,6 @@ def main():
             Path("my_rel_file_3.py"): CoverageLines.from_list([1, 3, 4, 5, 6] + list(range(79, 98))),
         },
     )
-    api.InternalTest.mark_pass(suite_1_test_3_retry_3_id)
 
     #
     # suite1_test_4 parametrized tests

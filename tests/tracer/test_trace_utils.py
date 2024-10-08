@@ -505,6 +505,26 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_not_called()
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
+def test_set_http_meta_custom_errors_via_env():
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.trace_utils import set_http_meta
+
+    config._add("myint", dict())
+    with tracer.trace("error") as span1:
+        set_http_meta(span1, config.myint, status_code=405)
+        assert span1.error == 1
+
+    with tracer.trace("noterror") as span2:
+        set_http_meta(span2, config.myint, status_code=403)
+        assert span2.error == 0
+
+    with tracer.trace("noterror2") as span3:
+        set_http_meta(span3, config.myint, status_code=413)
+        assert span3.error == 0
+
+
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
 def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     assert int_config.myint.is_header_tracing_configured is False
@@ -999,6 +1019,57 @@ def test_sanitized_url_in_http_meta(span, int_config):
         status_code=200,
     )
     assert span.get_tag(http.URL) == FULL_URL
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+def test_url_in_http_with_empty_obfuscation_regex():
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.ext import http
+
+    assert config._obfuscation_query_string_pattern.pattern == b"", config._obfuscation_query_string_pattern
+
+    SENSITIVE_URL = "http://weblog:7777/?application_key=123"
+    config._add("myint", dict())
+    with tracer.trace("s") as span:
+        set_http_meta(
+            span,
+            config.myint,
+            method="GET",
+            url=SENSITIVE_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == SENSITIVE_URL
+
+
+# TODO(munir): Remove this test when global_query_string_obfuscation_disabled is removed
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
+    # Test that query strings are not added to urls when the obfuscation regex is an empty string
+    # and obfuscation is enabled (not disabled xD)
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.ext import http
+
+    # assert obfuscation is disabled when the regex is an empty string
+    assert config.global_query_string_obfuscation_disabled is True
+    assert config._obfuscation_query_string_pattern is not None
+
+    # Enable obfucation with an empty regex
+    config.global_query_string_obfuscation_disabled = False
+
+    config._add("myint", dict())
+    with tracer.trace("s") as span:
+        set_http_meta(
+            span,
+            config.myint,
+            method="GET",
+            url="http://weblog:7777/?application_key=123",
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == "http://weblog:7777/", span._meta
 
 
 def test_url_in_http_meta(span, int_config):

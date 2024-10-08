@@ -59,10 +59,6 @@ class RateLimiter(object):
 
         self._lock = threading.Lock()
 
-    @property
-    def _has_been_configured(self):
-        return self.rate_limit != DEFAULT_SAMPLING_RATE_LIMIT
-
     def is_allowed(self, timestamp_ns: Optional[int] = None) -> bool:
         """
         Check whether the current request is allowed or not
