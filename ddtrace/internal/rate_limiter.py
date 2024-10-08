@@ -12,8 +12,6 @@ from typing import Optional  # noqa:F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
-from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
-
 
 class RateLimiter(object):
     """
