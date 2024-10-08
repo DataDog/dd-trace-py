@@ -119,7 +119,7 @@ Configuration
     for the associated table. The set may have exactly one or two elements,
     depending on the Table's Primary Key schema.
 
-    In python this would look like:
+    In python this would look like::
 
         ddtrace.config.botocore['dynamodb_primary_key_names_for_tables'] = {
             'table_name': {'key1', 'key2'},
@@ -130,7 +130,7 @@ Configuration
     environment variable which is parsed as a JSON object with strings for keys
     and lists of strings for values.
 
-    This would look something like:
+    This would look something like::
 
         export DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS='{
             "table_name": ["key1", "key2"],
