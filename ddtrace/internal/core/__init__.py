@@ -261,3 +261,7 @@ class ExecutionContext:
 
 
 _CONTEXT_CLASS = ExecutionContext
+
+
+def context_with_data(identifier, parent=None, **kwargs):
+    return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or None), **kwargs)
