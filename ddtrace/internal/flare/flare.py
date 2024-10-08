@@ -97,18 +97,23 @@ class Flare:
         Revert tracer flare configurations back to original state
         before sending the flare.
         """
-        self.revert_configs()
-
         # We only want the flare to be sent once, even if there are
         # multiple tracer instances
         lock_path = self.flare_dir / TRACER_FLARE_LOCK
+        log.info("lock_path")
+        log.info(lock_path)
         if not os.path.exists(lock_path):
+            log.info("found lock_path")
             try:
+                log.info("attempting to open lock file")
                 open(lock_path, "w").close()
             except Exception as e:
                 log.error("Failed to create %s file", lock_path)
                 raise e
             try:
+                log.info("creating connection to url")
+                log.info(self.url)
+                log.info("")
                 client = get_connection(self.url, timeout=self.timeout)
                 headers, body = self._generate_payload(flare_send_req.__dict__)
                 client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
@@ -121,13 +126,16 @@ class Flare:
                         response.reason,
                         response.read().decode(),
                     )
+                    log.info("non 200 response code when sending flare")
                     raise TracerFlareSendError(msg)
             except Exception as e:
                 log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
                 raise e
             finally:
+                log.info("closing client")
                 client.close()
                 # Clean up files regardless of success/failure
+                log.info("cleaning up files")
                 self.clean_up_files()
 
     def _generate_config_file(self, pid: int):

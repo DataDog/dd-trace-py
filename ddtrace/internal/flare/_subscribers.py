@@ -23,6 +23,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         flare: Flare,
         stale_flare_age: int = DEFAULT_STALE_FLARE_DURATION_MINS,
     ):
+        log.info("initializing tracer flare sub")
         super().__init__(data_connector, callback, "TracerFlareConfig")
         self.current_request_start: Optional[datetime] = None
         self.stale_tracer_flare_num_mins = stale_flare_age
@@ -57,7 +58,13 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             log.debug("No config items received from data connector")
             return
 
+        log.info("parsing metadata")
+        log.info(metadata)
+        log.info("")
         for md in metadata:
+            log.info("md:")
+            log.info(md)
+            log.info("")
             product_type = md.get("product_name")
             if product_type == "AGENT_CONFIG":
                 # We will only process one tracer flare request at a time
@@ -67,15 +74,23 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                         str(self.current_request_start),
                     )
                     continue
+                log.info("preparing tracer flare")
                 if _prepare_tracer_flare(self.flare, configs):
+                    log.info("setting self.current_request_start")
                     self.current_request_start = datetime.now()
+                    log.info(self.current_request_start)
+                    log.info("")
             elif product_type == "AGENT_TASK":
                 # Possible edge case where we don't have an existing flare request
                 # In this case we won't have anything to send, so we log and do nothing
                 if self.current_request_start is None:
                     log.warning("There is no tracer flare job to complete. Skipping new request.")
                     continue
+                log.info("generating tracer flare")
                 if _generate_tracer_flare(self.flare, configs):
+                    log.info("completed generation, resetting current request start")
                     self.current_request_start = None
+                    log.info(self.current_request_start)
+                    log.info("")
             else:
-                log.debug("Received unexpected product type for tracer flare: {}", product_type)
+                log.info("Received unexpected product type for tracer flare: {}", product_type)
