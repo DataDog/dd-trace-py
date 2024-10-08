@@ -5,6 +5,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Union
+from uuid import uuid4
 
 import ddtrace
 from ddtrace import Span
@@ -98,6 +99,17 @@ class LLMObs(Service):
 
         self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluator_runner)
         forksafe.register(self._child_after_fork)
+
+        self._annotation_context_kwargs = []
+        self._annotation_context_lock = forksafe.RLock()
+        self.tracer.on_start_span(self._do_annotations)
+
+    def _do_annotations(self, span):
+        if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
+            return
+        with self._annotation_context_lock:
+            for _, kwargs in self._instance._annotation_context_kwargs:
+                self.annotate(span, **kwargs)
 
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
@@ -252,6 +264,7 @@ class LLMObs(Service):
 
         cls.enabled = False
         cls._instance.stop()
+        cls._instance.tracer.deregister_on_start_span(cls._instance._do_annotations)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
@@ -262,8 +275,7 @@ class LLMObs(Service):
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
-        Do not use nested annotation contexts to override the same attributes since the order in which annotations
-        are applied is non-deterministic.
+        Annotations are applied in the order in which annotation contexts are entered.
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
@@ -273,9 +285,23 @@ class LLMObs(Service):
                         This argument is only applicable to LLM spans.
         :param name: Set to override the span name for any spans annotated within the returned context.
         """
-        return AnnotationContext(
-            cls._instance.tracer, lambda span: cls.annotate(span, tags=tags, prompt=prompt, _name=name)
-        )
+        annotation_context_key = uuid4().hex
+
+        def enqueue_annotations():
+            with cls._instance._annotation_context_lock:
+                cls._instance._annotation_context_kwargs.append(
+                    (annotation_context_key, {"tags": tags, "prompt": prompt, "_name": name})
+                )
+
+        def pop_annotations():
+            with cls._instance._annotation_context_lock:
+                for i, (key, _) in enumerate(cls._instance._annotation_context_kwargs):
+                    if key == annotation_context_key:
+                        cls._instance._annotation_context_kwargs.pop(i)
+                        return
+                    log.debug("Failed to pop annotation context")
+
+        return AnnotationContext(enqueue_annotations, pop_annotations)
 
     @classmethod
     def flush(cls) -> None:
@@ -690,9 +716,11 @@ class LLMObs(Service):
             log.warning("span_tags must be a dictionary of string key - primitive value pairs.")
             return
         try:
-            current_tags = span.get_tag(TAGS)
-            if current_tags:
-                span_tags.update(json.loads(current_tags))
+            current_tags_str = span.get_tag(TAGS)
+            if current_tags_str:
+                current_tags = json.loads(current_tags_str)
+                current_tags.update(span_tags)
+                span_tags = current_tags
             span.set_tag_str(TAGS, safe_json(span_tags))
         except Exception:
             log.warning("Failed to parse tags.", exc_info=True)

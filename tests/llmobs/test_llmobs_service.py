@@ -1658,9 +1658,16 @@ def test_annotation_context_finished_context_does_not_modify_name(LLMObs):
 
 def test_annotation_context_nested(LLMObs):
     with LLMObs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
-        with LLMObs.annotation_context(tags={"car": "car"}):
+        with LLMObs.annotation_context(tags={"foo": "baz"}):
             with LLMObs.agent(name="test_agent") as span:
-                assert json.loads(span.get_tag(TAGS)) == {"foo": "bar", "boo": "bar", "car": "car"}
+                assert json.loads(span.get_tag(TAGS)) == {"foo": "baz", "boo": "bar"}
+
+
+def test_annotation_context_nested_overrides_name(LLMObs):
+    with LLMObs.annotation_context(name="unexpected"):
+        with LLMObs.annotation_context(name="expected"):
+            with LLMObs.agent(name="test_agent") as span:
+                assert span.name == "expected"
 
 
 async def test_annotation_context_async_modifies_span_tags(LLMObs):
@@ -1704,9 +1711,9 @@ async def test_annotation_context_finished_context_async_does_not_modify_name(LL
 
 async def test_annotation_context_async_nested(LLMObs):
     async with LLMObs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
-        async with LLMObs.annotation_context(tags={"car": "car"}):
+        async with LLMObs.annotation_context(tags={"foo": "baz"}):
             with LLMObs.agent(name="test_agent") as span:
-                assert json.loads(span.get_tag(TAGS)) == {"foo": "bar", "boo": "bar", "car": "car"}
+                assert json.loads(span.get_tag(TAGS)) == {"foo": "baz", "boo": "bar"}
 
 
 def test_service_enable_starts_evaluator_runner_when_evaluators_exist():
