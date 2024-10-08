@@ -12,8 +12,6 @@ from typing import Union
 from urllib import parse
 
 from ddtrace._trace.span import Span
-
-# from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -23,8 +21,6 @@ from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
-
-# from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -206,9 +202,6 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
             telemetry_results["rasp"]["total_duration"] = 0.0
             update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
             telemetry_results["rasp"]["sum_eval"] = 0
-
-
-# GLOBAL_CALLBACKS[_CONTEXT_CALL].append(flush_waf_triggers)
 
 
 def finalize_asm_env(env: ASM_Environment) -> None:
