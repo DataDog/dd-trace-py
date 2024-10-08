@@ -7,7 +7,7 @@ import tests.internal.crashtracker.utils as utils
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_available():
     import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
 
@@ -15,7 +15,7 @@ def test_crashtracker_available():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_config():
     import pytest
 
@@ -29,7 +29,7 @@ def test_crashtracker_config():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_config_bytes():
     import pytest
 
@@ -58,7 +58,7 @@ def test_crashtracker_config_bytes():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_started():
     import pytest
 
@@ -79,7 +79,7 @@ def test_crashtracker_started():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_simple():
     # This test does the following
     # 1. Finds a random port in the range 10000-20000 it can bind to (5 retries)
@@ -122,7 +122,7 @@ def test_crashtracker_simple():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_simple_fork():
     # This is similar to the simple test, except crashtracker initialization is done
     # in the parent
@@ -158,7 +158,7 @@ def test_crashtracker_simple_fork():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_simple_sigbus():
     # This is similar to the simple fork test, except instead of raising a SIGSEGV,
     # it organically raises a real SIGBUS.
@@ -214,7 +214,7 @@ def test_crashtracker_simple_sigbus():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_raise_sigsegv():
     import os
     import signal
@@ -247,7 +247,7 @@ def test_crashtracker_raise_sigsegv():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_raise_sigbus():
     import os
     import signal
@@ -295,6 +295,7 @@ def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
+    env["DD_CRASHTRACKING_ENABLED"] = "true"
     stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
     # Check for expected exit condition
@@ -320,7 +321,7 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
-    env["DD_CRASHTRACKING_ENABLED"] = "false"
+    env["DD_CRASHTRACKING_ENABLED"] = "true"
     stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
     # Check for expected exit condition
@@ -342,7 +343,7 @@ exit(-1)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_auto_default(run_python_code_in_subprocess):
+def test_crashtracker_auto_enabled(run_python_code_in_subprocess):
     # Setup the listening socket before we open ddtrace
     port, sock = utils.crashtracker_receiver_bind()
     assert sock
@@ -350,6 +351,7 @@ def test_crashtracker_auto_default(run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
+    env["DD_CRASHTRACKING_ENABLED"] = "true"
     stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition
@@ -376,6 +378,7 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
     env["DD_CRASHTRACKING_STACKTRACE_RESOLVER"] = "none"
+    env["DD_CRASHTRACKING_ENABLED"] = "true"
     stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
     # Check for expected exit condition
@@ -415,7 +418,7 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_tags_required():
     # Tests tag ingestion in the core API
     import ctypes
@@ -462,6 +465,7 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
     # Call the program
     env = os.environ.copy()
     env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
+    env["DD_CRASHTRACKING_ENABLED"] = "true"
 
     # Injecting tags, but since the way we validate them is with a raw-data string search, we make things unique
     tag_prefix = "cryptocrystalline"
@@ -490,7 +494,7 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_user_tags_profiling():
     # Tests tag ingestion in the backend API (which is currently out of profiling)
     import ctypes
@@ -536,7 +540,7 @@ def test_crashtracker_user_tags_profiling():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
 def test_crashtracker_user_tags_core():
     # Tests tag ingestion in the core API
     import ctypes
@@ -579,3 +583,23 @@ def test_crashtracker_user_tags_core():
     for k, v in tags.items():
         assert k.encode() in data
         assert v.encode() in data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "false"})
+def test_crashtracker_disabled_noload():
+    """
+    When crashtracking is disabled, it should not be loaded under normal operation.  There are lots of ways of
+    checking module load, but here we specifically want to fail if and only if the crashtracking extension is loaded.
+    """
+    from ddtrace.internal.datadog.profiling import crashtracker as crashtracking
+
+    # Emulate the telemetry writer by checking a few interfaces
+    assert not crashtracking.is_available
+    assert not crashtracking.is_started()
+
+    # If the module was loaded, then the extension will be in /proc/self/maps
+    with open("/proc/self/maps") as f:
+        for line in f:
+            if "crashtrack" in line:
+                assert False, "crashtracking extension loaded"
