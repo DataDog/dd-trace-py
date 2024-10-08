@@ -183,6 +183,10 @@ def _default_span_processors_factory(
     return span_processors, appsec_processor, deferred_processors
 
 
+class _TracerSingleton:
+    pass
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -196,6 +200,7 @@ class Tracer(object):
     """
 
     SHUTDOWN_TIMEOUT = 5
+    _instance = None
 
     def __init__(
         self,

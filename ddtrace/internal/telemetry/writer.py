@@ -465,11 +465,15 @@ class TelemetryWriter(PeriodicService):
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
         # type: (str, Any, str) -> None
         """Creates and queues the name, origin, value of a configuration"""
+        if not isinstance(configuration_value, (bool, str, int, float, type(None))):
+            # convert unsupported types to strings
+            configuration_value = str(configuration_value)
+
         with self._lock:
             self._configuration_queue[configuration_name] = {
                 "name": configuration_name,
                 "origin": origin,
-                "value": str(configuration_value),
+                "value": configuration_value,
             }
 
     def add_configurations(self, configuration_list):

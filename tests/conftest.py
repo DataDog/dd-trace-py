@@ -584,6 +584,7 @@ class TelemetryTestSession(object):
             for c in event["payload"]["configuration"]:
                 if c["name"] == name or (name is None and c["name"] not in ignores):
                     configurations.append(c)
+        configurations.sort(key=lambda x: x["name"], reverse=False)
         return configurations
 
 
