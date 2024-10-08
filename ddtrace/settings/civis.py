@@ -8,7 +8,7 @@ class CIVisConfig(En):
 
     _itr_enabled = En.v(
         bool,
-        "itr.enabled",
+        "itr_enabled",
         default=False,
         help_type="Boolean",
         help="Enable ....",
@@ -16,7 +16,7 @@ class CIVisConfig(En):
 
     _agentless_enabled = En.v(
         bool,
-        "agentless.enabled",
+        "agentless_enabled",
         default=False,
         help_type="Boolean",
         help="Enable ....",
@@ -24,7 +24,7 @@ class CIVisConfig(En):
 
     _agentless_url = En.v(
         str,
-        "agentless.url",
+        "agentless_url",
         default="",
         help_type="String",
         help="Enable ....",
@@ -32,7 +32,7 @@ class CIVisConfig(En):
 
     log_level = En.v(
         str,
-        "log.level",
+        "log_level",
         default="info",
         help_type="String",
         help="Enable ....",
@@ -40,7 +40,7 @@ class CIVisConfig(En):
 
     early_flake_detection = En.v(
         bool,
-        "early.flake.detection",
+        "early_flake_detection",
         default=True,
         help_type="Boolean",
         help="Enable ....",
