@@ -8,7 +8,7 @@ import pytest
     "env_var_name,env_var_value,expected_obfuscation_config,expected_global_query_string_obfuscation_disabled,"
     "expected_http_tag_query_string",
     [
-        ("DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "", None, True, True),
+        ("DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "", 're.compile(b"")', True, True),
         (
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
             "(?i)(?:p(?:ass)?w(?:or))",
@@ -64,7 +64,7 @@ assert config.http_tag_query_string == %s
         ],
         env=env,
     )
-    assert b"AssertionError" not in out
+    assert b"AssertionError" not in out, out
 
 
 @pytest.mark.parametrize(
