@@ -115,7 +115,7 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin):
         """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
 
         test_id: InternalTestId
-        status: TestStatus
+        status: t.Optional[TestStatus] = None
         skip_reason: t.Optional[str] = None
         exc_info: t.Optional[TestExcInfo] = None
         override_finish_time: t.Optional[float] = None
@@ -124,7 +124,7 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin):
     @_catch_and_log_exceptions
     def finish(
         item_id: InternalTestId,
-        status: ext_api.TestStatus,
+        status: t.Optional[ext_api.TestStatus] = None,
         reason: t.Optional[str] = None,
         exc_info: t.Optional[ext_api.TestExcInfo] = None,
         override_finish_time: t.Optional[float] = None,
