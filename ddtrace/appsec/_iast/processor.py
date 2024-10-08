@@ -8,11 +8,15 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 
 from .._trace_utils import _asm_manual_keep
 from . import oce
+from ._iast_request_context import end_iast_context
+from ._iast_request_context import get_iast_reporter
+from ._iast_request_context import is_iast_request_enabled
+from ._iast_request_context import set_iast_request_enabled
+from ._iast_request_context import start_iast_context
 from ._metrics import _set_metric_iast_request_tainted
 from ._metrics import _set_span_tag_iast_executed_sink
 from ._metrics import _set_span_tag_iast_request_tainted
@@ -24,30 +28,20 @@ log = get_logger(__name__)
 
 @dataclass(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
-    @staticmethod
-    def is_span_analyzed(span: Optional[Span] = None) -> bool:
-        if span is None:
-            from ddtrace import tracer
-
-            span = tracer.current_root_span()
-
-        if span and span.span_type == SpanTypes.WEB and core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
-            return True
-        return False
+    def __post_init__(self) -> None:
+        load_appsec()
 
     def on_span_start(self, span: Span):
         if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
 
-        from ._taint_tracking import create_context
-
-        create_context()
+        start_iast_context()
 
         request_iast_enabled = False
         if oce.acquire_request(span):
             request_iast_enabled = True
 
-        core.set_item(IAST.REQUEST_IAST_ENABLED, request_iast_enabled, span=span)
+        set_iast_request_enabled(request_iast_enabled)
 
     def on_span_finish(self, span: Span):
         """Report reported vulnerabilities.
@@ -60,16 +54,14 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
 
-        from ._taint_tracking import reset_context
-
-        if not core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
+        if not is_iast_request_enabled():
             span.set_metric(IAST.ENABLED, 0.0)
-            reset_context()
+            end_iast_context(span)
             return
 
         span.set_metric(IAST.ENABLED, 1.0)
 
-        report_data: IastSpanReporter = core.get_item(IAST.CONTEXT_KEY, span=span)
+        report_data: Optional[IastSpanReporter] = get_iast_reporter()
 
         if report_data:
             report_data.build_and_scrub_value_parts()
@@ -79,12 +71,9 @@ class AppSecIastSpanProcessor(SpanProcessor):
         _set_metric_iast_request_tainted()
         _set_span_tag_iast_request_tainted(span)
         _set_span_tag_iast_executed_sink(span)
-        reset_context()
+        end_iast_context(span)
 
         if span.get_tag(ORIGIN_KEY) is None:
             span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
         oce.release_request()
-
-
-load_appsec()

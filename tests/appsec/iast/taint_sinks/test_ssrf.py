@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
@@ -16,8 +15,9 @@ from ddtrace.contrib.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.contrib.webbrowser.patch import patch as webbrowser_patch
 from ddtrace.contrib.webbrowser.patch import unpatch as webbrowser_unpatch
-from ddtrace.internal import core
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.utils import override_global_config
 
 
@@ -38,8 +38,8 @@ def _get_tainted_url():
     return add_aspect("http://localhost/", tainted_path), tainted_path
 
 
-def _check_report(span_report, tainted_path, label):
-    data = span_report.build_and_scrub_value_parts()
+def _check_report(tainted_path, label):
+    data = _get_iast_data()
 
     vulnerability = data["vulnerabilities"][0]
     source = data["sources"][0]
@@ -61,7 +61,7 @@ def _check_report(span_report, tainted_path, label):
     assert vulnerability["hash"] == hash_value
 
 
-def test_ssrf_requests(tracer, iast_span_defaults):
+def test_ssrf_requests(tracer, iast_context_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         requests_patch()
         try:
@@ -75,14 +75,12 @@ def test_ssrf_requests(tracer, iast_span_defaults):
             except ConnectionError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-            assert span_report
-            _check_report(span_report, tainted_path, "test_ssrf_requests")
+            _check_report(tainted_path, "test_ssrf_requests")
         finally:
             requests_unpatch()
 
 
-def test_ssrf_urllib3(tracer, iast_span_defaults):
+def test_ssrf_urllib3(tracer, iast_context_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         urllib3_patch()
         try:
@@ -95,14 +93,12 @@ def test_ssrf_urllib3(tracer, iast_span_defaults):
             except urllib3.exceptions.HTTPError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-            assert span_report
-            _check_report(span_report, tainted_path, "test_ssrf_urllib3")
+            _check_report(tainted_path, "test_ssrf_urllib3")
         finally:
             urllib3_unpatch()
 
 
-def test_ssrf_httplib(tracer, iast_span_defaults):
+def test_ssrf_httplib(tracer, iast_context_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         httplib_patch()
         try:
@@ -117,14 +113,12 @@ def test_ssrf_httplib(tracer, iast_span_defaults):
             except ConnectionError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-            assert span_report
-            _check_report(span_report, tainted_path, "test_ssrf_httplib")
+            _check_report(tainted_path, "test_ssrf_httplib")
         finally:
             httplib_unpatch()
 
 
-def test_ssrf_webbrowser(tracer, iast_span_defaults):
+def test_ssrf_webbrowser(tracer, iast_context_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         webbrowser_patch()
         try:
@@ -137,14 +131,12 @@ def test_ssrf_webbrowser(tracer, iast_span_defaults):
             except ConnectionError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-            assert span_report
-            _check_report(span_report, tainted_path, "test_ssrf_webbrowser")
+            _check_report(tainted_path, "test_ssrf_webbrowser")
         finally:
             webbrowser_unpatch()
 
 
-def test_urllib_request(tracer, iast_span_defaults):
+def test_urllib_request(tracer, iast_context_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         urllib_patch()
         try:
@@ -157,14 +149,13 @@ def test_urllib_request(tracer, iast_span_defaults):
             except urllib.error.URLError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-            assert span_report
-            _check_report(span_report, tainted_path, "test_urllib_request")
+            _check_report(tainted_path, "test_urllib_request")
         finally:
             urllib_unpatch()
 
 
-def _check_no_report_if_deduplicated(span_report, num_vuln_expected):
+def _check_no_report_if_deduplicated(num_vuln_expected):
+    span_report = _get_span_report()
     if num_vuln_expected == 0:
         assert span_report is None
     else:
@@ -174,7 +165,7 @@ def _check_no_report_if_deduplicated(span_report, num_vuln_expected):
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_ssrf_requests_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
+def test_ssrf_requests_deduplication(num_vuln_expected, tracer, iast_context_deduplication_enabled):
     requests_patch()
     try:
         import requests
@@ -188,14 +179,13 @@ def test_ssrf_requests_deduplication(num_vuln_expected, tracer, iast_span_dedupl
             except ConnectionError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
-        _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+        _check_no_report_if_deduplicated(num_vuln_expected)
     finally:
         requests_unpatch()
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_ssrf_urllib3_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
+def test_ssrf_urllib3_deduplication(num_vuln_expected, tracer, iast_context_deduplication_enabled):
     urllib3_patch()
     try:
         import urllib3
@@ -208,14 +198,13 @@ def test_ssrf_urllib3_deduplication(num_vuln_expected, tracer, iast_span_dedupli
             except urllib3.exceptions.HTTPError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
-        _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+        _check_no_report_if_deduplicated(num_vuln_expected)
     finally:
         requests_unpatch()
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_ssrf_httplib_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
+def test_ssrf_httplib_deduplication(num_vuln_expected, tracer, iast_context_deduplication_enabled):
     httplib_patch()
     try:
         import http.client
@@ -230,14 +219,13 @@ def test_ssrf_httplib_deduplication(num_vuln_expected, tracer, iast_span_dedupli
             except ConnectionError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
-        _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+        _check_no_report_if_deduplicated(num_vuln_expected)
     finally:
         httplib_unpatch()
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_ssrf_webbrowser_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
+def test_ssrf_webbrowser_deduplication(num_vuln_expected, tracer, iast_context_deduplication_enabled):
     webbrowser_patch()
     try:
         import webbrowser
@@ -250,8 +238,7 @@ def test_ssrf_webbrowser_deduplication(num_vuln_expected, tracer, iast_span_dedu
             except ConnectionError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
-        _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+        _check_no_report_if_deduplicated(num_vuln_expected)
     finally:
         webbrowser_unpatch()
 
@@ -270,7 +257,6 @@ def test_ssrf_urllib_deduplication(num_vuln_expected, tracer, iast_span_deduplic
             except urllib.error.URLError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
-        _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+        _check_no_report_if_deduplicated(num_vuln_expected)
     finally:
         urllib_unpatch()

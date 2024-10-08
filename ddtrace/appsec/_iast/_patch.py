@@ -8,6 +8,7 @@ from wrapt import FunctionWrapper
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
 
+from ._iast_request_context import is_iast_request_enabled
 from ._metrics import _set_metric_iast_instrumented_source
 from ._taint_utils import taint_structure
 from ._utils import _is_iast_enabled
@@ -51,9 +52,8 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
         try:
             from ._taint_tracking import is_pyobject_tainted
             from ._taint_tracking import taint_pyobject
-            from .processor import AppSecIastSpanProcessor
 
-            if not AppSecIastSpanProcessor.is_span_analyzed():
+            if not is_iast_request_enabled():
                 return value
 
             if not is_pyobject_tainted(value):
@@ -71,9 +71,8 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
     if _is_iast_enabled():
         from ._taint_tracking import taint_pyobject
-        from .processor import AppSecIastSpanProcessor
 
-        if not AppSecIastSpanProcessor.is_span_analyzed():
+        if not is_iast_request_enabled():
             for key, value in wrapped(*args, **kwargs):
                 yield key, value
         else:
@@ -101,9 +100,8 @@ def _patched_fastapi_function(origin, original_func, instance, args, kwargs):
     if _is_iast_enabled():
         try:
             from ._taint_tracking import is_pyobject_tainted
-            from .processor import AppSecIastSpanProcessor
 
-            if not AppSecIastSpanProcessor.is_span_analyzed():
+            if not is_iast_request_enabled():
                 return result
 
             if not is_pyobject_tainted(result):

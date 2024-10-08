@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -13,14 +12,13 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
-from ddtrace.internal import core
-from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import _taint_pyobject_multiranges
-from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
+from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
 from tests.utils import override_global_config
 
 
 # FIXME: ideally all these should pass, through the key is that we don't leak any potential PII
-
 _ignore_list = {46, 47}
 
 
@@ -28,7 +26,7 @@ _ignore_list = {46, 47}
     "evidence_input, sources_expected, vulnerabilities_expected",
     list(get_parametrize(VULN_SQL_INJECTION, ignore_list=_ignore_list)),
 )
-def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_span_defaults):
+def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults):
     with override_global_config(dict(_deduplication_enabled=False)):
         tainted_object = _taint_pyobject_multiranges(
             evidence_input["value"],
@@ -48,20 +46,16 @@ def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_
 
         SqlInjection.report(tainted_object)
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-        assert span_report
-
-        span_report.build_and_scrub_value_parts()
-        result = span_report._to_dict()
-        vulnerability = list(result["vulnerabilities"])[0]
-        source = list(result["sources"])[0]
+        data = _get_iast_data()
+        vulnerability = list(data["vulnerabilities"])[0]
+        source = list(data["sources"])[0]
         source["origin"] = origin_to_str(source["origin"])
 
         assert vulnerability["type"] == VULN_SQL_INJECTION
         assert source == sources_expected
 
 
-def test_redacted_report_no_match():
+def test_redacted_report_no_match(iast_context_defaults):
     string_evicence = taint_pyobject(
         pyobject="SomeEvidenceValue", source_name="source_name", source_value="SomeEvidenceValue"
     )
@@ -81,7 +75,7 @@ def test_redacted_report_no_match():
         assert v == {"name": "source_name", "origin": OriginType.PARAMETER, "value": "SomeEvidenceValue"}
 
 
-def test_redacted_report_source_name_match():
+def test_redacted_report_source_name_match(iast_context_defaults):
     string_evicence = taint_pyobject(pyobject="'SomeEvidenceValue'", source_name="secret", source_value="SomeValue")
     ev = Evidence(value=string_evicence)
     loc = Location(path="foobar.py", line=35, spanId=123)
@@ -99,7 +93,7 @@ def test_redacted_report_source_name_match():
         assert v == {"name": "secret", "origin": OriginType.PARAMETER, "pattern": "abcdefghi", "redacted": True}
 
 
-def test_redacted_report_source_value_match():
+def test_redacted_report_source_value_match(iast_context_defaults):
     string_evicence = taint_pyobject(
         pyobject="'SomeEvidenceValue'", source_name="SomeName", source_value="somepassword"
     )
@@ -119,7 +113,7 @@ def test_redacted_report_source_value_match():
         assert v == {"name": "SomeName", "origin": OriginType.PARAMETER, "pattern": "abcdefghijkl", "redacted": True}
 
 
-def test_redacted_report_evidence_value_match_also_redacts_source_value():
+def test_redacted_report_evidence_value_match_also_redacts_source_value(iast_context_defaults):
     string_evicence = taint_pyobject(
         pyobject="'SomeSecretPassword'", source_name="SomeName", source_value="SomeSecretPassword"
     )
@@ -144,7 +138,7 @@ def test_redacted_report_evidence_value_match_also_redacts_source_value():
         }
 
 
-def test_redacted_report_valueparts():
+def test_redacted_report_valueparts(iast_context_defaults):
     string_evicence = taint_pyobject(pyobject="1234", source_name="SomeName", source_value="SomeValue")
 
     ev = Evidence(value=add_aspect("SELECT * FROM users WHERE password = '", add_aspect(string_evicence, ":{SHA1}'")))
@@ -170,7 +164,7 @@ def test_redacted_report_valueparts():
         assert v == {"name": "SomeName", "origin": OriginType.PARAMETER, "pattern": "abcdefghi", "redacted": True}
 
 
-def test_redacted_report_valueparts_username_not_tainted():
+def test_redacted_report_valueparts_username_not_tainted(iast_context_defaults):
     string_evicence = taint_pyobject(pyobject="secret", source_name="SomeName", source_value="SomeValue")
 
     string_tainted = add_aspect(
@@ -201,7 +195,7 @@ def test_redacted_report_valueparts_username_not_tainted():
         assert v == {"name": "SomeName", "origin": OriginType.PARAMETER, "pattern": "abcdefghi", "redacted": True}
 
 
-def test_redacted_report_valueparts_username_tainted():
+def test_redacted_report_valueparts_username_tainted(iast_context_defaults):
     string_evicence = taint_pyobject(pyobject="secret", source_name="SomeName", source_value="SomeValue")
 
     string_tainted = add_aspect(
@@ -232,7 +226,7 @@ def test_redacted_report_valueparts_username_tainted():
         assert v == {"name": "SomeName", "origin": OriginType.PARAMETER, "pattern": "abcdefghi", "redacted": True}
 
 
-def test_regression_ci_failure():
+def test_regression_ci_failure(iast_context_defaults):
     string_evicence = taint_pyobject(pyobject="master", source_name="SomeName", source_value="master")
 
     string_tainted = add_aspect(

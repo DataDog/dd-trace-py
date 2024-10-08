@@ -17,6 +17,7 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
+from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
@@ -56,7 +57,7 @@ class ASM_Environment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        self.root = not in_context()
+        self.root = not in_asm_context()
         if self.root:
             core.add_suppress_exception(BlockingException)
         if span is None:
@@ -92,7 +93,7 @@ def _get_asm_context() -> Optional[ASM_Environment]:
     return core.get_item(_ASM_CONTEXT)
 
 
-def in_context() -> bool:
+def in_asm_context() -> bool:
     return core.get_item(_ASM_CONTEXT) is not None
 
 
@@ -432,8 +433,6 @@ def start_context(span: Span):
             core.get_local_item("headers_case_sensitive"),
             core.get_local_item("block_request_callable"),
         )
-    elif asm_config._iast_enabled:
-        core.set_item(_ASM_CONTEXT, ASM_Environment())
 
 
 def end_context(span: Span):
@@ -451,7 +450,7 @@ def _on_context_ended(ctx):
 def _on_wrapped_view(kwargs):
     return_value = [None, None]
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
-    if asm_config._asm_enabled and in_context():
+    if asm_config._asm_enabled and in_asm_context():
         log.debug("Flask WAF call for Suspicious Request Blocking on request")
         if kwargs:
             set_waf_address(REQUEST_PATH_PARAMS, kwargs)
@@ -464,9 +463,8 @@ def _on_wrapped_view(kwargs):
     if _is_iast_enabled() and kwargs:
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
-        if not AppSecIastSpanProcessor.is_span_analyzed():
+        if not is_iast_request_enabled():
             return return_value
 
         _kwargs = {}
@@ -483,12 +481,11 @@ def _on_set_request_tags(request, span, flask_config):
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_utils import taint_structure
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
 
-        if not AppSecIastSpanProcessor.is_span_analyzed(span._local_root or span):
+        if not is_iast_request_enabled():
             return
 
         request.cookies = taint_structure(
