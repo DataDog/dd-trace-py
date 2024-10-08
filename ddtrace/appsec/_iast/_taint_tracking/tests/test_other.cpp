@@ -1,6 +1,5 @@
 #include <Python.h>
 #include <gtest/gtest.h>
-#include <iostream> // jjj
 #include <tests/test_common.hpp>
 
 using PyByteArray_Check = PyEnvCheck;
