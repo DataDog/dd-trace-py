@@ -139,8 +139,8 @@ if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         patch_all(**modules_to_bool)
 
-    if config.trace_methods:
-        _install_trace_methods(config.trace_methods)
+    if config._trace_methods:
+        _install_trace_methods(config._trace_methods)
 
 if "DD_TRACE_GLOBAL_TAGS" in os.environ:
     env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")

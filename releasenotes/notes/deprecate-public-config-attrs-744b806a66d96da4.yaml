@@ -1,0 +1,11 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates the following ``ddtrace.config`` attributes:
+     http_tag_query_string, trace_http_header_tags, report_hostname, health_metrics_enabled, analytics_enabled,
+     client_ip_header, retrieve_client_ip, propagation_http_baggage_enabled, global_query_string_obfuscation_disabled,
+     trace_methods, ci_visibility_log_level, and service_mapping. These attributes are now private and should not be accessed directly.
+     The following environment variables should be used instead: DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING, DD_TRACE_HEADER_TAGS,
+     DD_TRACE_REPORT_HOSTNAME, DD_TRACE_HEALTH_METRICS_ENABLED, DD_TRACE_ANALYTICS_ENABLED, DD_TRACE_CLIENT_IP_HEADER, 
+     DD_TRACE_CLIENT_IP_ENABLED, DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED, DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP, 
+     DD_TRACE_METHODS, DD_CIVISIBILITY_LOG_LEVEL, and DD_SERVICE_MAPPING.

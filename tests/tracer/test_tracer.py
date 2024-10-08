@@ -1601,7 +1601,7 @@ def test_manual_drop(tracer, test_spans):
 @mock.patch("ddtrace.internal.hostname.get_hostname")
 def test_get_report_hostname_enabled(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    with override_global_config(dict(report_hostname=True)):
+    with override_global_config(dict(_report_hostname=True)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
@@ -1616,7 +1616,7 @@ def test_get_report_hostname_enabled(get_hostname, tracer, test_spans):
 @mock.patch("ddtrace.internal.hostname.get_hostname")
 def test_get_report_hostname_disabled(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    with override_global_config(dict(report_hostname=False)):
+    with override_global_config(dict(_report_hostname=False)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
@@ -1631,7 +1631,7 @@ def test_get_report_hostname_disabled(get_hostname, tracer, test_spans):
 @mock.patch("ddtrace.internal.hostname.get_hostname")
 def test_get_report_hostname_default(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    with override_global_config(dict(report_hostname=False)):
+    with override_global_config(dict(_report_hostname=False)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
