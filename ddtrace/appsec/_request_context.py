@@ -30,7 +30,7 @@ class Context:
         self.context_key: Text = context_key
 
     def get(self):
-        core.get_item(self.context_key)
+        return core.get_item(self.context_key)
 
     def in_context(self) -> bool:
         return core.get_item(self.context_key) is not None
