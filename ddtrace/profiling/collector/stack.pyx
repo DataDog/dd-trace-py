@@ -431,8 +431,7 @@ class _ThreadSpanLinks(_thread_span_links_base):
 
     def link_span(
             self,
-            span # type: import ddtrace.appsec._request_context
-typing.Optional[typing.Union[ddtrace.appsec._request_context.Context, ddspan.Span]]
+            span # type: typing.Optional[typing.Union[context.Context, ddspan.Span]]
     ):
         # type: (...) -> None
         """Link a span to its running environment.
