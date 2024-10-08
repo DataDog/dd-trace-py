@@ -130,8 +130,6 @@ def override_global_config(values):
         "_trace_compute_stats",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
-        "_ci_visibility_agentless_url",
-        "_ci_visibility_agentless_enabled",
         "_subexec_sensitive_user_wildcards",
         "_remote_config_enabled",
         "_remote_config_poll_interval",

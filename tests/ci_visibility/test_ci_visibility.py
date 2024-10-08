@@ -41,7 +41,6 @@ from tests.ci_visibility.util import set_up_mock_civisibility
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
-from tests.utils import override_global_config
 
 
 TEST_SHA_1 = "b3672ea5cbc584124728c48a443825d2940e0ddd"
@@ -567,14 +566,11 @@ class TestCIVisibilityWriter(TracerTestCase):
 
     def test_civisibilitywriter_agentless_url(self):
         with _ci_override_env(dict(DD_API_KEY="foobar.baz")):
-            with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}), mock.patch(
-                "ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url", "https://foo.bar"
-            ):
+            with mock.patch("ddtrace.settings.civis.ci_config._agentless_url", "https://foo.bar"):
                 dummy_writer = DummyCIVisibilityWriter()
                 assert dummy_writer.intake_url == "https://foo.bar"
 
     def test_civisibilitywriter_coverage_agentless_url(self):
-        ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
         with _ci_override_env(
             dict(
                 DD_API_KEY="foobar.baz",
@@ -593,7 +589,6 @@ class TestCIVisibilityWriter(TracerTestCase):
                 _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
     def test_civisibilitywriter_coverage_agentless_with_intake_url_param(self):
-        ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
         with _ci_override_env(
             dict(
                 DD_API_KEY="foobar.baz",
