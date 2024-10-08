@@ -567,18 +567,16 @@ class Config(object):
         dd_trace_obfuscation_query_string_regexp = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
-        self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
+        self.global_query_string_obfuscation_disabled = dd_trace_obfuscation_query_string_regexp == ""
         self._obfuscation_query_string_pattern = None
         self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
-        if dd_trace_obfuscation_query_string_regexp != "":
-            self.global_query_string_obfuscation_disabled = False  # Not empty obfuscation pattern
-            try:
-                self._obfuscation_query_string_pattern = re.compile(
-                    dd_trace_obfuscation_query_string_regexp.encode("ascii")
-                )
-            except Exception:
-                log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
-                self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
+        try:
+            self._obfuscation_query_string_pattern = re.compile(
+                dd_trace_obfuscation_query_string_regexp.encode("ascii")
+            )
+        except Exception:
+            log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
+            self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
         # Test Visibility config items
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
