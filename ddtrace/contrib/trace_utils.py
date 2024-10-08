@@ -404,14 +404,18 @@ def ext_service(pin, int_config, default=None):
 
 def _set_url_tag(integration_config, span, url, query):
     # type: (IntegrationConfig, Span, str, str) -> None
-
-    if integration_config.http_tag_query_string:  # Tagging query string in http.url
-        if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
-            span.set_tag_str(http.URL, url)
-        else:  # Redact query strings
-            span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
-    else:  # Not tagging query string in http.url
+    if not integration_config.http_tag_query_string:
         span.set_tag_str(http.URL, strip_query_string(url))
+    elif config.global_query_string_obfuscation_disabled:
+        # TODO(munir): This case exists for backwards compatibility. To remove query strings from URLs,
+        # users should set ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING=False``. This case should be
+        # removed when config.global_query_string_obfuscation_disabled is removed (v3.0).
+        span.set_tag_str(http.URL, url)
+    elif getattr(config._obfuscation_query_string_pattern, "pattern", None) == b"":
+        # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
+        span.set_tag_str(http.URL, strip_query_string(url))
+    else:
+        span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
 
 
 def set_http_meta(
