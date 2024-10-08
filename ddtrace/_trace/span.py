@@ -19,6 +19,7 @@ from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
+from ddtrace._trace.processor import spanSerialized
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
@@ -91,6 +92,15 @@ def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
 def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     """Get the 64 highest order bits from a 128bit integer"""
     return "{:032x}".format(large_int)[:16]
+
+
+def _check_span_serialized(func):
+    def wrapper(self, *args, **kwargs):
+        if spanSerialized:
+            log.warning("Tried calling %s on an ended span.", func.__name__)
+        func(self, *args, **kwargs)  # for now the function will still run and a warning will be logged
+
+    return wrapper
 
 
 class Span(object):
@@ -331,6 +341,7 @@ class Span(object):
                 if key in self._local_root._metrics:
                     del self._local_root._metrics[key]
 
+    @_check_span_serialized
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
@@ -416,6 +427,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
+    @_check_span_serialized
     def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct
@@ -427,6 +439,7 @@ class Span(object):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
+    @_check_span_serialized
     def set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
@@ -447,6 +460,7 @@ class Span(object):
         """Return all tags."""
         return self._meta.copy()
 
+    @_check_span_serialized
     def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
@@ -455,6 +469,7 @@ class Span(object):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
+    @_check_span_serialized
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
@@ -485,6 +500,7 @@ class Span(object):
             del self._meta[key]
         self._metrics[key] = value
 
+    @_check_span_serialized
     def set_metrics(self, metrics: _MetricDictType) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
         must be strings (or stringable). Values must be numeric.
@@ -518,6 +534,7 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
+    @_check_span_serialized
     def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, tag it with the current python stack.
@@ -533,6 +550,7 @@ class Span(object):
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
             self._meta[ERROR_STACK] = tb
 
+    @_check_span_serialized
     def set_exc_info(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
     ) -> None:
@@ -630,6 +648,7 @@ class Span(object):
                 attributes=attributes,
             )
 
+    @_check_span_serialized
     def set_link(
         self,
         trace_id: int,

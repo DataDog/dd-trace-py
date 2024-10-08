@@ -36,6 +36,7 @@ except ImportError:
     from collections import defaultdict as DefaultDict
 
 log = get_logger(__name__)
+spanSerialized = False
 
 
 class TraceProcessor(metaclass=abc.ABCMeta):
@@ -346,6 +347,7 @@ class SpanAggregator(SpanProcessor):
                 return
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
+            spanSerialized = True
             return None
 
     def shutdown(self, timeout: Optional[float]) -> None:
