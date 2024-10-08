@@ -131,7 +131,6 @@ def override_global_config(values):
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
-        "_ci_visibility_agentless_enabled",
         "_subexec_sensitive_user_wildcards",
         "_remote_config_enabled",
         "_remote_config_poll_interval",
@@ -196,16 +195,24 @@ def override_config(integration, values):
         >>> with self.override_config('flask', dict(service_name='test-service')):
             # Your test
     """
-    options = getattr(ddtrace.config, integration)
+    integration_config = getattr(ddtrace.config, integration)
+    with override_attributes(integration_config, values):
+        yield
 
-    original = dict((key, options.get(key)) for key in values.keys())
 
-    options.update(values)
+@contextlib.contextmanager
+def override_attributes(obj, attributes):
+    # store current attributes
+    original_attrs = dict((key, getattr(obj, key)) for key in attributes.keys())
     try:
+        # override attributes
+        for key, value in attributes.items():
+            setattr(obj, key, value)
         yield
     finally:
-        options.update(original)
-        ddtrace.config._reset()
+        # restore original attributes
+        for key, value in original_attrs.items():
+            setattr(obj, key, value)
 
 
 @contextlib.contextmanager

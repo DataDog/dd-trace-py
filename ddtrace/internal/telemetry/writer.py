@@ -12,7 +12,7 @@ from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.settings.civis import ci_config
+from ddtrace.settings import civis
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -245,7 +245,7 @@ class TelemetryWriter(PeriodicService):
         self._enabled = config._telemetry_enabled
 
         if agentless is None:
-            agentless = ci_config._agentless_enabled or config._dd_api_key is not None
+            agentless = civis.ci_config._agentless_enabled or config._dd_api_key is not None
 
         if agentless and not config._dd_api_key:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")

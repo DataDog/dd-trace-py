@@ -604,8 +604,8 @@ def _get_request_body(payload, payload_type, seq_id=1):
 
 
 def test_telemetry_writer_agent_setup():
-    with override_global_config(
-        {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": False}
+    with override_global_config({"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey"}), mock.patch(
+        "ddtrace.settings.civis.ci_config._agentless_enabled", False
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=False)
         assert new_telemetry_writer._enabled
@@ -625,8 +625,8 @@ def test_telemetry_writer_agent_setup():
     ],
 )
 def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless, arg_agentless, expected_endpoint):
-    with override_global_config(
-        {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": env_agentless}
+    with override_global_config({"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey"}), mock.patch(
+        "ddtrace.settings.civis.ci_config._agentless_enabled", env_agentless
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=arg_agentless)
         # Note: other tests are checking whether values bet set properly, so we're only looking at agentlessness here
@@ -634,8 +634,8 @@ def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless,
 
 
 def test_telemetry_writer_agentless_setup():
-    with override_global_config(
-        {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": True}
+    with override_global_config({"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey"}), mock.patch(
+        "ddtrace.settings.civis.ci_config._agentless_enabled", True
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
         assert new_telemetry_writer._enabled
@@ -645,8 +645,8 @@ def test_telemetry_writer_agentless_setup():
 
 
 def test_telemetry_writer_agentless_setup_eu():
-    with override_global_config(
-        {"_dd_site": "datadoghq.eu", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": True}
+    with override_global_config({"_dd_site": "datadoghq.eu", "_dd_api_key": "foobarkey"}), mock.patch(
+        "ddtrace.settings.civis.ci_config._agentless_enabled", True
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
         assert new_telemetry_writer._enabled
@@ -656,8 +656,8 @@ def test_telemetry_writer_agentless_setup_eu():
 
 
 def test_telemetry_writer_agentless_disabled_without_api_key():
-    with override_global_config(
-        {"_dd_site": "datad0g.com", "_dd_api_key": None, "_ci_visibility_agentless_enabled": True}
+    with override_global_config({"_dd_site": "datad0g.com", "_dd_api_key": None}), mock.patch(
+        "ddtrace.settings.civis.ci_config._agentless_enabled", True
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
         assert not new_telemetry_writer._enabled
@@ -676,7 +676,9 @@ def test_telemetry_writer_is_using_agentless_by_default_if_api_key_is_available(
 
 
 def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available():
-    with override_global_config({"_dd_api_key": None, "_ci_visibility_agentless_enabled": False}):
+    with override_global_config({"_dd_api_key": None}), mock.patch(
+        "ddtrace.settings.civis.ci_config._agentless_enabled", False
+    ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
         assert new_telemetry_writer._enabled
         assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"

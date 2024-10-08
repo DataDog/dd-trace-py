@@ -12,7 +12,7 @@ from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.settings.civis import ci_config
+from ddtrace.settings import civis
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
 from .. import agent
@@ -120,8 +120,8 @@ class CIVisibilityWriter(HTTPWriter):
         if use_evp:
             intake_url = intake_url if intake_url else agent.get_trace_url()
             intake_cov_url = intake_url
-        elif ci_config._agentless_url:
-            intake_url = intake_url if intake_url else ci_config._agentless_url
+        elif civis.ci_config._agentless_url:
+            intake_url = intake_url if intake_url else civis.ci_config._agentless_url
             intake_cov_url = intake_url
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))

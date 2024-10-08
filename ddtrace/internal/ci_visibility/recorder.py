@@ -78,8 +78,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer.writer import Response
-from ddtrace.settings.civis import ci_config
-from ddtrace.settings.civis import test_config
+from ddtrace.settings import civis
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -219,7 +218,7 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
-        if ci_config._agentless_enabled:
+        if civis.ci_config._agentless_enabled:
             if not self._api_key:
                 raise EnvironmentError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
@@ -233,7 +232,7 @@ class CIVisibility(Service):
                 self._configurations,
                 self._api_key,
                 self._dd_site,
-                ci_config._agentless_url if ci_config._agentless_url else None,
+                civis.ci_config._agentless_url if civis.ci_config._agentless_url else None,
                 self._service,
                 ddconfig.env,
             )
@@ -306,7 +305,7 @@ class CIVisibility(Service):
         # DEV: Remove this ``if`` once ITR is in GA
         _error_return_value = TestVisibilityAPISettings()
 
-        if not ci_config._itr_enabled:
+        if not civis.ci_config._itr_enabled:
             return _error_return_value
 
         if not self._api_client:
@@ -404,7 +403,7 @@ class CIVisibility(Service):
     def is_efd_enabled(cls):
         if cls._instance is None:
             return False
-        return cls._instance._api_settings.early_flake_detection.enabled and ci_config.early_flake_detection
+        return cls._instance._api_settings.early_flake_detection.enabled and civis.ci_config.early_flake_detection
 
     @classmethod
     def should_collect_coverage(cls):
@@ -475,7 +474,7 @@ class CIVisibility(Service):
     def enable(cls, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
         log.debug("Enabling %s", cls.__name__)
-        if ci_config._agentless_enabled:
+        if civis.ci_config._agentless_enabled:
             if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
                 log.critical(
                     "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"
@@ -550,7 +549,7 @@ class CIVisibility(Service):
                 self._unique_test_ids = unique_test_ids
                 log.info("Unique tests fetched for Early Flake Detection: %s", len(self._unique_test_ids))
         else:
-            if self._api_settings.early_flake_detection.enabled and not ci_config.early_flake_detection:
+            if self._api_settings.early_flake_detection.enabled and not civis.ci_config.early_flake_detection:
                 log.warning(
                     "Early Flake Detection is enabled by API but disabled by "
                     "DD_TEST_VISIBILITY_EARLY_FLAKE_DETECTION_ENABLED environment variable"
@@ -779,8 +778,8 @@ class CIVisibility(Service):
             log.debug("Not setting test session name because no CIVisibilityEventClient is active")
             return
 
-        if test_config.session_name:
-            test_session_name = test_config.session_name
+        if civis.test_config.session_name:
+            test_session_name = civis.test_config.session_name
         else:
             job_name = instance._tags.get(ci.JOB_NAME)
             test_session_name = f"{job_name}-{test_command}" if job_name else test_command
