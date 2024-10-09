@@ -214,6 +214,7 @@ class _ConfigItem:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
                 break
+        self.llm_prompt_postfix = ""
 
     def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
@@ -811,7 +812,11 @@ class Config(object):
         return _MLObsConfigPubSub
 
     def _handle_mlobs(self, data, test_tracer=None):
-        print(data)
+        prompt_postfixes = []
+        for configs in data["config"]:
+            if "prompt_postfix" in configs:
+                prompt_postfixes.append(configs["prompt_postfix"])
+        self.llm_prompt_postfix += " ".join(prompt_postfixes)
 
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
