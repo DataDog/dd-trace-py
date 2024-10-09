@@ -1,5 +1,7 @@
 import json
 import os
+import threading
+import time
 
 import mock
 import pytest
@@ -1668,6 +1670,39 @@ def test_annotation_context_nested_overrides_name(LLMObs):
         with LLMObs.annotation_context(name="expected"):
             with LLMObs.agent(name="test_agent") as span:
                 assert span.name == "expected"
+
+
+def test_annotation_context_only_applies_to_local_context(LLMObs):
+    agent_has_correct_name = False
+    tool_has_correct_name = False
+
+    def separate_annotation_context_one():
+        nonlocal agent_has_correct_name
+        with LLMObs.annotation_context(name="expected_agent"):
+            with LLMObs.agent(name="test_agent") as span:
+                time.sleep(0.5)
+                agent_has_correct_name = span.name == "expected_agent"
+
+    def separate_annotation_context_two():
+        nonlocal tool_has_correct_name
+        with LLMObs.agent(name="test_agent"):
+            with LLMObs.annotation_context(name="expected_tool"):
+                with LLMObs.tool(name="test_tool") as tool_span:
+                    time.sleep(0.5)
+                    tool_has_correct_name = tool_span.name == "expected_tool"
+
+    thread_one = threading.Thread(target=separate_annotation_context_one)
+    thread_two = threading.Thread(target=separate_annotation_context_two)
+    thread_one.start()
+    thread_two.start()
+
+    with LLMObs.agent(name="test_agent") as span:
+        assert span.name == "test_agent"
+
+    thread_one.join()
+    thread_two.join()
+    assert agent_has_correct_name is True
+    assert tool_has_correct_name is True
 
 
 async def test_annotation_context_async_modifies_span_tags(LLMObs):
