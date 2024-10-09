@@ -109,6 +109,12 @@ def mock_evaluator_logs():
 
 
 @pytest.fixture
+def mock_evaluator_sampler_logs():
+    with mock.patch("ddtrace.llmobs._evaluators.sampler.logger") as m:
+        yield m
+
+
+@pytest.fixture
 def mock_http_writer_logs():
     with mock.patch("ddtrace.internal.writer.writer.log") as m:
         yield m

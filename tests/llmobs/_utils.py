@@ -478,6 +478,8 @@ def _llm_span_with_expected_ragas_inputs(ragas_inputs=None):
 
 
 class DummyEvaluator:
+    LABEL = "dummy"
+
     def __init__(self, llmobs_service):
         self.llmobs_service = llmobs_service
 

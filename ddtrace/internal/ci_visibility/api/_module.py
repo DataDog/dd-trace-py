@@ -2,13 +2,13 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
-from ddtrace.internal.ci_visibility.constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE
@@ -32,8 +32,8 @@ class TestVisibilityModule(
     def __init__(
         self,
         name: str,
-        module_path: Optional[Path],
         session_settings: TestVisibilitySessionSettings,
+        module_path: Optional[Path] = None,
         initial_tags: Optional[Dict[str, str]] = None,
     ):
         super().__init__(name, session_settings, session_settings.module_operation_name, initial_tags)

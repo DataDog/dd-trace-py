@@ -6,8 +6,6 @@ Add all monkey-patching that needs to run by default here
 import os  # noqa:I001
 
 from ddtrace import config  # noqa:F401
-from ddtrace.debugging._config import di_config  # noqa:F401
-from ddtrace.debugging._config import er_config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
@@ -17,9 +15,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
-from ddtrace.settings.code_origin import config as co_config  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
-from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
 
 
@@ -72,26 +68,6 @@ if profiling_config.enabled:
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
 
-if symdb_config.enabled:
-    from ddtrace.internal import symbol_db
-
-    symbol_db.bootstrap()
-
-if di_config.enabled:  # Dynamic Instrumentation
-    from ddtrace.debugging import DynamicInstrumentation
-
-    DynamicInstrumentation.enable()
-
-if co_config.span.enabled:
-    from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
-
-    SpanCodeOriginProcessor.enable()
-
-if er_config.enabled:  # Exception Replay
-    from ddtrace.debugging._exception.replay import SpanExceptionHandler
-
-    SpanExceptionHandler.enable()
-
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
@@ -104,12 +80,6 @@ if asbool(os.getenv("DD_IAST_ENABLED", False)):
     from ddtrace.appsec._iast import enable_iast_propagation
 
     enable_iast_propagation()
-
-if config._remote_config_enabled:
-    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-    remoteconfig_poller.enable()
-    config.enable_remote_configuration()
 
 if asm_config._asm_enabled or config._remote_config_enabled:
     from ddtrace.appsec._remoteconfiguration import enable_appsec_rc

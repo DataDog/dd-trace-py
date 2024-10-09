@@ -12,7 +12,6 @@ from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
 
-from ...settings import _config as config  # noqa:F401
 from ..hostname import get_hostname
 
 

@@ -70,10 +70,12 @@ new_pyobject_id(PyObject* tainted_object)
         return nullptr;
 
     // Check that it's aligned correctly
-    if (reinterpret_cast<uintptr_t>(tainted_object) % alignof(PyObject) != 0) return tainted_object;
+    if (reinterpret_cast<uintptr_t>(tainted_object) % alignof(PyObject) != 0)
+        return tainted_object;
 
     // Try to safely access ob_type
-    if (const PyObject* temp = tainted_object;!temp->ob_type) return tainted_object;
+    if (const PyObject* temp = tainted_object; !temp->ob_type)
+        return tainted_object;
 
     py::gil_scoped_acquire acquire;
 
@@ -110,6 +112,9 @@ new_pyobject_id(PyObject* tainted_object)
         const auto res = PyObject_CallFunctionObjArgs(bytes_join_ptr.ptr(), val, NULL);
         Py_XDECREF(val);
         Py_XDECREF(empty_bytes);
+        if (res == nullptr) {
+            return tainted_object;
+        }
         return res;
     }
 
@@ -136,6 +141,9 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(val);
         Py_XDECREF(empty_bytes);
         Py_XDECREF(empty_bytearray);
+        if (res == nullptr) {
+            return tainted_object;
+        }
         return res;
     }
     return tainted_object;
