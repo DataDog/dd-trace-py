@@ -17,7 +17,6 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
@@ -461,6 +460,7 @@ def _on_wrapped_view(kwargs):
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
     if _is_iast_enabled() and kwargs:
+        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
@@ -478,6 +478,7 @@ def _on_wrapped_view(kwargs):
 
 def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
+        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_utils import taint_structure
@@ -555,8 +556,10 @@ def _get_headers_if_appsec():
 
 def listen():
     from ddtrace.appsec._handlers import listen
+    from ddtrace.appsec._iast._iast_request_context import iast_listen
 
     listen()
+    iast_listen()
     core.on("flask.finalize_request.post", _set_headers_and_response)
     core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")
     core.on("flask._patched_request", _on_pre_tracedrequest)
