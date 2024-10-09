@@ -1,4 +1,5 @@
 import json
+import os
 import time
 
 import mock
@@ -72,38 +73,42 @@ def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_me
 
 
 def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "DD_API_KEY": "dummy-api-key",
+            "DD_SITE": "datad0g.com",
+            "PYTHONPATH": ":".join(pypath),
+            "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+            "_DD_LLMOBS_WRITER_INTERVAL": "0.01",
+        }
+    )
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import os
 import time
-import mock
-from ddtrace._trace.span import Span
-from ddtrace.internal.utils.http import Response
+import atexit
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
-from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+from tests.llmobs._utils import logs_vcr
+from tests.llmobs._utils import DummyEvaluator
 
-os.environ["_DD_LLMOBS_EVALUATOR_DEFAULT_SAMPLE_RATE"] = "1.0"
-
-with mock.patch(
-    "ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic",
-    return_value=Response(
-        status=200,
-        body="{}",
-    ),
-):
-    LLMObs.enable(
-        site="datad0g.com",
-        api_key=os.getenv("DD_API_KEY"),
-        ml_app="unnamed-ml-app",
-    )
-    evaluator_runner = EvaluatorRunner(
-        interval=0.01, llmobs_service=LLMObs
-    )
-    evaluator_runner.evaluators.append(RagasFaithfulnessEvaluator(llmobs_service=LLMObs))
-    evaluator_runner.start()
-    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, Span("dummy_span"))
+ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_evaluator_runner.send_score_metric.yaml")
+ctx.__enter__()
+atexit.register(lambda: ctx.__exit__())
+LLMObs.enable()
+evaluator_runner = EvaluatorRunner(
+    interval=0.01, llmobs_service=LLMObs
+)
+evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
+evaluator_runner.start()
+evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, None)
+evaluator_runner.periodic()
 """,
+        env=env,
     )
     assert status == 0, err
     assert out == b""
