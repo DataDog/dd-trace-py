@@ -57,6 +57,7 @@ ddtrace = "ddtrace.contrib.pytest.plugin"
 "ddtrace.pytest_benchmark" = "ddtrace.contrib.pytest_benchmark.plugin"
 
 [project.entry-points.'ddtrace.products']
+"live-debugger" = "ddtrace.debugging._products.live_debugger"
 "remote-configuration" = "ddtrace.internal.remoteconfig.product"
 
 [project.urls]
