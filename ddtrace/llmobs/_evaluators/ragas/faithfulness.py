@@ -119,6 +119,7 @@ class RagasFaithfulnessEvaluator:
 
         with self.llmobs_service.workflow("ragas.faithfulness", ml_app=_get_ml_app_for_ragas_trace(span_event)):
             try:
+                """Get the necessary faithfulness inputs from the span event"""
                 faithfulness_inputs = self._extract_faithfulness_inputs(span_event)
                 if faithfulness_inputs is None:
                     logger.debug(
@@ -132,6 +133,7 @@ class RagasFaithfulnessEvaluator:
 
                 statements_prompt = self._create_statements_prompt(answer=answer, question=question)
 
+                """LLM step to break down the answer into simpler statements"""
                 statements = self.ragas_faithfulness_instance.llm.generate_text(statements_prompt)
 
                 statements = self.llm_output_parser_for_generated_statements.parse(statements.generations[0][0].text)
@@ -143,8 +145,9 @@ class RagasFaithfulnessEvaluator:
 
                 assert isinstance(statements, List), "statements must be a list"
 
+                """Check which statements contradict the conntext"""
                 raw_nli_results = self.ragas_faithfulness_instance.llm.generate_text(
-                    self._create_nli_prompt(statements, context)
+                    self._create_natural_language_inference_prompt(statements, context)
                 )
                 if len(raw_nli_results.generations) == 0:
                     return None
@@ -165,6 +168,7 @@ class RagasFaithfulnessEvaluator:
                 if len(raw_faithfulness_list) == 0:
                     return None
 
+                # collapse multiple generations into a single faithfulness list
                 faithfulness_list = ensembler.from_discrete(
                     raw_faithfulness_list,
                     "verdict",
@@ -252,8 +256,8 @@ class RagasFaithfulnessEvaluator:
                 question=question, answer=answer, sentences=sentences
             )
 
-    def _create_nli_prompt(self, statements, context_str):
-        with self.llmobs_service.task("ragas.create_nli_prompt"):
+    def _create_natural_language_inference_prompt(self, statements, context_str):
+        with self.llmobs_service.task("ragas.create_natural_language_inference_prompt"):
             statements_str: str = json.dumps(statements)
             prompt_value = self.ragas_faithfulness_instance.nli_statements_message.format(
                 context=context_str, statements=statements_str

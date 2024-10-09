@@ -548,7 +548,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "trace_id": mock.ANY,
             "span_id": mock.ANY,
             "parent_id": mock.ANY,
-            "name": "ragas.create_nli_prompt",
+            "name": "ragas.create_natural_language_inference_prompt",
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
