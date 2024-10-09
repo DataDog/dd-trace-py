@@ -26,7 +26,7 @@ if _is_python_version_supported():
     from ._native.aspect_split import _aspect_rsplit
     from ._native.aspect_split import _aspect_split
     from ._native.aspect_split import _aspect_splitlines
-    from .native.aspect_str import _aspect_str
+    from ._native.aspect_str import _aspect_str
     from ._native.aspects_ospath import _aspect_ospathbasename
     from ._native.aspects_ospath import _aspect_ospathdirname
     from ._native.aspects_ospath import _aspect_ospathjoin

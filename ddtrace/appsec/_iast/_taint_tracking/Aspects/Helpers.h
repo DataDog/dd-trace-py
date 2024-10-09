@@ -263,7 +263,7 @@ split_taints(const string& str_to_split)
  * // In this case, the result will be 42 (the positional argument).
  */
 inline py::object
-parse_params(size_t position,
+parse_param(size_t position,
              const char* keyword_name,
              const py::object& default_value,
              const py::args& args,

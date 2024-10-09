@@ -1,4 +1,5 @@
 #include <Aspects/AspectStr.h>
+#include <Aspects/Helpers.h>
 
 static void
 set_lengthupdated_ranges(const py::object& result, const TaintRangeRefs& ranges, const TaintRangeMapTypePtr& tx_map)
@@ -22,21 +23,24 @@ api_str_aspect(const py::object& orig_function,
                const py::args& args,
                const py::kwargs& kwargs)
 {
+    py::str result_o;
+
     auto result_or_args = py::reinterpret_borrow<py::object>(
       process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr()));
+
+    if (has_pyerr()) {
+        throw py::error_already_set();
+    }
 
     py::tuple args_tuple;
     if (py::isinstance<py::tuple>(result_or_args)) {
         args_tuple = result_or_args.cast<py::tuple>();
     } else {
-        return result_or_args;
+        result_o = result_or_args;
+        args_tuple = args;
     }
 
     const py::object text = args_tuple[0];
-    const py::str encoding = len(args) > 1 ? args_tuple[1] : py::str("");
-    const py::str errors = len(args) > 2 ? args_tuple[2] : py::str("strict");
-
-    py::str result_o;
 
     // Call the original if not a text type
     if (not is_text(text.ptr())) {
@@ -47,19 +51,30 @@ api_str_aspect(const py::object& orig_function,
         return py::reinterpret_borrow<py::str>(as_str);
     }
 
-    // With no encoding or errors we can also directly call PyObject_Str
-    if (len(args_tuple) == 1 or (len(encoding) == 0)) {
+    py::str encoding = parse_param(1, "encoding", py::str(""), args_tuple, kwargs);
+    py::str errors = parse_param(2, "errors", py::str(""), args_tuple, kwargs);
+
+    // With no encoding we can directly call PyObject_Str
+    if (len(encoding) == 0 and len(errors) == 0) {
         PyObject* as_str = PyObject_Str(text.ptr());
         if (as_str == nullptr) {
             throw py::error_already_set();
         }
         result_o = py::reinterpret_borrow<py::str>(as_str);
     } else {
+        if (len(encoding) == 0) {
+            // Oddly enough, the presence of just the "errors" argument is enough to trigger the decoding
+            // behaviour of str() even is "encoding" is empty (but then it will take the default utf-8 value)
+            encoding = "utf-8";
+        }
+
+        if (len(errors) == 0)
+            errors = "strict";
+
         // bytes or bytearray: we have to decode
         // If it has encoding, then the text object must not be a unicode object
         if (len(encoding) > 0 and py::isinstance<py::str>(text)) {
-            PyErr_SetString(PyExc_TypeError, "decoding str is not supported");
-            throw py::error_already_set();
+            throw py::type_error("decoding str is not supported");
         }
 
         const char* char_encoding = encoding.cast<string>().c_str();
@@ -67,8 +82,12 @@ api_str_aspect(const py::object& orig_function,
 
         char* text_raw_bytes;
         Py_ssize_t text_raw_bytes_size;
-        if (PyBytes_AsStringAndSize(text.ptr(), &text_raw_bytes, &text_raw_bytes_size) == -1) {
-            throw py::error_already_set();
+
+        if (py::isinstance<py::bytearray>(text)) {
+            text_raw_bytes = PyByteArray_AS_STRING(text.ptr());
+            text_raw_bytes_size = PyByteArray_GET_SIZE(text.ptr());
+        } else if (PyBytes_AsStringAndSize(text.ptr(), &text_raw_bytes, &text_raw_bytes_size) == -1) {
+                throw py::error_already_set();
         }
 
         PyObject* result_pyo = PyUnicode_Decode(text_raw_bytes, text_raw_bytes_size, char_encoding, char_errors);
