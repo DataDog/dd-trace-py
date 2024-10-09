@@ -9,7 +9,6 @@ from time import sleep
 
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -32,10 +31,6 @@ from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
 from tests.appsec.iast.conftest import IAST_VALID_LOG
-
-
-def setup():
-    oce._enabled = True
 
 
 def test_source_origin_refcount():

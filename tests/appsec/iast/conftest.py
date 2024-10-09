@@ -41,7 +41,6 @@ def no_request_sampling(tracer):
 
 def _start_iast_context_and_oce():
     oce.reconfigure()
-    oce._enabled = True
     oce.acquire_request(None)
     start_iast_context()
     set_iast_request_enabled(True)

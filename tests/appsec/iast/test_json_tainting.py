@@ -2,7 +2,6 @@ import json
 
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
@@ -14,7 +13,6 @@ from tests.utils import override_global_config
 
 def setup():
     create_context()
-    oce._enabled = True
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"

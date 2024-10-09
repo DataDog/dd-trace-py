@@ -1,7 +1,6 @@
 import mock
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import create_context
@@ -15,7 +14,6 @@ from ddtrace.appsec._iast._taint_utils import check_tainted_dbapi_args
 def setup():
     patch_iast()
     create_context()
-    oce._enabled = True
 
 
 def test_tainted_types():

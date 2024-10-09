@@ -33,7 +33,6 @@ class TestTracedCursor(TracerTestCase):
         with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
             "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
-            oce._enabled = True
             query = "SELECT * FROM db;"
             query = taint_pyobject(query, source_name="query", source_value=query, source_origin=OriginType.PARAMETER)
 

@@ -1,20 +1,14 @@
 import psycopg2.extensions as ext
 
-from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import LazyTaintList
-from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
 
 def setup_module():
     create_context()
-    oce._enabled = True
 
 
 def test_list():

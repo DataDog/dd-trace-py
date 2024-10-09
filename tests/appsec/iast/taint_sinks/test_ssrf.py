@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
@@ -22,10 +21,6 @@ from tests.utils import override_global_config
 
 
 FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_ssrf.py"
-
-
-def setup():
-    oce._enabled = True
 
 
 def _get_tainted_url():

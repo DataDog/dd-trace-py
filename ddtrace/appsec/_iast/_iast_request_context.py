@@ -106,33 +106,34 @@ def is_iast_request_enabled():
     return False
 
 
-def _iast_end_request(ctx, *args, **kwargs):
-    if _is_iast_enabled():
+def _iast_end_request(ctx=None, span=None, *args, **kwargs):
+    if span:
+        req_span = span
+    else:
         req_span = ctx.get_item("req_span")
+    if not is_iast_request_enabled():
+        req_span.set_metric(IAST.ENABLED, 0.0)
+        end_iast_context(req_span)
+        return
 
-        if not is_iast_request_enabled():
-            req_span.set_metric(IAST.ENABLED, 0.0)
-            end_iast_context(req_span)
-            return
-
-        req_span.set_metric(IAST.ENABLED, 1.0)
-
+    req_span.set_metric(IAST.ENABLED, 1.0)
+    if not req_span.get_tag(IAST.JSON):
         report_data: Optional[IastSpanReporter] = get_iast_reporter()
         _asm_manual_keep(req_span)
-        print("report_data!!!!!!!!!!!!!!")
-        print(report_data)
+
         if report_data:
             report_data.build_and_scrub_value_parts()
             req_span.set_tag_str(IAST.JSON, report_data._to_str())
         _set_metric_iast_request_tainted()
         _set_span_tag_iast_request_tainted(req_span)
         _set_span_tag_iast_executed_sink(req_span)
-        end_iast_context(req_span)
 
-        if req_span.get_tag(ORIGIN_KEY) is None:
-            req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+    end_iast_context(req_span)
 
-        oce.release_request()
+    if req_span.get_tag(ORIGIN_KEY) is None:
+        req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+
+    oce.release_request()
 
 
 def _iast_start_request(*args, **kwargs):
@@ -145,7 +146,5 @@ def _iast_start_request(*args, **kwargs):
 
 
 def iast_listen():
-    if _is_iast_enabled():
-        core.on("django.traced_get_response.pre", _iast_start_request)
-        core.on("context.ended.wsgi.__call__", _iast_end_request)
-        core.on("context.ended.asgi.__call__", _iast_end_request)
+    core.on("context.ended.wsgi.__call__", _iast_end_request)
+    core.on("context.ended.asgi.__call__", _iast_end_request)
