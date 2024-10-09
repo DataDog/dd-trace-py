@@ -13,5 +13,3 @@ deprecations:
      - Set DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP to an empty string instead of setting ddtrace.config.global_query_string_obfuscation_disabled to True (default value is False)
      - Use DD_TRACE_METHODS instead of ddtrace.config.trace_methods
      - Use DD_CIVISIBILITY_LOG_LEVEL instead of ddtrace.config.ci_visibility_log_level
-     - Use DD_SERVICE_MAPPING instead of ddtrace.config.service_mapping
- 
