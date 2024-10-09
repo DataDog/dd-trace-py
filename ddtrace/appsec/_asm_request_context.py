@@ -2,6 +2,7 @@ import functools
 import json
 import re
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -16,8 +17,6 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-from ddtrace.appsec._ddwaf import DDWaf_result
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -25,6 +24,9 @@ from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+
+if TYPE_CHECKING:
+    from ddtrace.appsec._ddwaf import DDWaf_result
 
 log = get_logger(__name__)
 
@@ -293,7 +295,7 @@ def set_waf_callback(value) -> None:
     set_value(_CALLBACKS, _WAF_CALL, value)
 
 
-def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional[DDWaf_result]:
+def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional["DDWaf_result"]:
     if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
@@ -459,6 +461,8 @@ def _on_wrapped_view(kwargs):
             return_value[0] = callback_block
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
+    from ddtrace.appsec._iast._utils import _is_iast_enabled
+
     if _is_iast_enabled() and kwargs:
         from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
         from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -477,6 +481,8 @@ def _on_wrapped_view(kwargs):
 
 
 def _on_set_request_tags(request, span, flask_config):
+    from ddtrace.appsec._iast._utils import _is_iast_enabled
+
     if _is_iast_enabled():
         from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
