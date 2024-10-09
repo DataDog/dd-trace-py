@@ -66,7 +66,9 @@ class ContainerIterator(Iterator, FullyNamedFunction):
         origin: Optional[Union[Tuple["ContainerIterator", ContainerKey], Tuple[FullyNamedFunction, str]]] = None,
     ) -> None:
         if isinstance(container, (type, ModuleType)):
-            self._iter = iter(container.__dict__.items())
+            # DEV: A module object could be partially initialised, therefore
+            # __dict__ can mutate.
+            self._iter = iter(container.__dict__.copy().items())
             self.__name__ = container.__name__
 
         elif isinstance(container, tuple):

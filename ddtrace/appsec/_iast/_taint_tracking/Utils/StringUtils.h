@@ -52,14 +52,16 @@ is_text(const PyObject* pyptr)
     };
 
     // Check that it's aligned correctly
-    if (reinterpret_cast<uintptr_t>(pyptr) % alignof(PyObject) != 0) return false;;
+    if (reinterpret_cast<uintptr_t>(pyptr) % alignof(PyObject) != 0)
+        return false;
+    ;
 
     // Try to safely access ob_type
-    if (const PyObject* temp = pyptr;!temp->ob_type) return false;
+    if (const PyObject* temp = pyptr; !temp->ob_type)
+        return false;
 
     return PyUnicode_Check(pyptr) or PyBytes_Check(pyptr) or PyByteArray_Check(pyptr);
 }
-
 
 inline bool
 is_tainteable(const PyObject* pyptr)
@@ -79,12 +81,22 @@ template<typename... Args>
 bool
 args_are_text_and_same_type(PyObject* first, PyObject* second, Args... args)
 {
-    // Check if both first and second are valid text types and of the same type
-    if (first == nullptr || second == nullptr || !is_text(first) || !is_text(second) ||
-        PyObject_Type(first) != PyObject_Type(second)) {
+    if (first == nullptr || second == nullptr) {
         return false;
     }
 
+    const auto type_first = PyObject_Type(first);
+    const auto type_second = PyObject_Type(second);
+
+    // Check if both first and second are valid text types and of the same type
+    if (!is_text(first) || !is_text(second) || type_first != type_second) {
+        Py_XDECREF(type_first);
+        Py_XDECREF(type_second);
+        return false;
+    }
+
+    Py_XDECREF(type_first);
+    Py_XDECREF(type_second);
     // Recursively check the rest of the arguments
     return args_are_text_and_same_type(second, args...);
 }

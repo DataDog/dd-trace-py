@@ -21,7 +21,7 @@ interactions:
       - !!binary |
         YXR0ZW1wdD0x
     method: POST
-    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-sonnet-20240229-v1%3A0/invoke
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-sonnet-20240229-v1%3A0/invoke
   response:
     body:
       string: '{"id":"msg_01E6sPP1ksqicYCaBrkvzna8","type":"message","role":"assistant","content":[{"type":"text","text":"Hobbits

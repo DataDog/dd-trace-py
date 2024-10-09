@@ -1,15 +1,19 @@
 import argparse
+import asyncio
+import dis
+import io
 import resource
 import sys
 
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+import pytest
+
+from ddtrace.appsec._iast import disable_iast_propagation
+from ddtrace.appsec._iast import enable_iast_propagation
+from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import reset_context
 from tests.utils import override_env
-
-
-with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import reset_context
 
 
 def parse_arguments():
@@ -22,26 +26,41 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def test_iast_leaks(iterations: int, fail_percent: float, print_every: int):
-    if iterations < 60000:
+def _pre_checks(module, aspect_to_check="add_aspect"):
+    """Ensure the module code is replaced by IAST patching. To do that, this function inspects the bytecode"""
+    dis_output = io.StringIO()
+    dis.dis(module, file=dis_output)
+    str_output = dis_output.getvalue()
+    # Should have replaced the binary op with the aspect in add_test:
+    assert f"({aspect_to_check})" in str_output
+
+
+@pytest.mark.asyncio
+async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
+    mem_reference_iterations = 50000
+    if iterations < mem_reference_iterations:
         print(
             "Error: not running with %d iterations. At least 60.000 are needed to stabilize the RSS info" % iterations
         )
         sys.exit(1)
 
     try:
-        mem_reference_iterations = 50000
         print("Test %d iterations" % iterations)
         current_rss = 0
         half_rss = 0
+        enable_iast_propagation()
+        from scripts.iast.mod_leak_functions import test_doit
 
-        mod = _iast_patched_module("scripts.iast.mod_leak_functions")
-        test_doit = mod.test_doit
+        # TODO(avara1986): pydantic is in the DENY_LIST, remove from it and uncomment this lines
+        #  from pydantic import main
+        #  _pre_checks(main, "index_aspect")
+
+        _pre_checks(test_doit)
 
         for i in range(iterations):
             create_context()
-            result = test_doit()  # noqa: F841
-            assert result == "DDD_III_extend", f"result is {result}"  # noqa: F841
+            result = await test_doit()
+            assert result == "DDD_III_extend", f"result is {result}"
             assert is_pyobject_tainted(result)
             reset_context()
 
@@ -52,11 +71,13 @@ def test_iast_leaks(iterations: int, fail_percent: float, print_every: int):
             current_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
 
             if i % print_every == 0:
-                print(f"Round {i} Max RSS: {current_rss}")
+                print(
+                    f"Round {i} Max RSS: {current_rss}, Number of active maps addresses: {active_map_addreses_size()}"
+                )
 
         final_rss = current_rss
 
-        print(f"Round {iterations} Max RSS: {final_rss}")
+        print(f"Round {iterations} Max RSS: {final_rss}, Number of active maps addresses: {active_map_addreses_size()}")
 
         percent_increase = ((final_rss - half_rss) / half_rss) * 100
         if percent_increase > fail_percent:
@@ -74,9 +95,12 @@ def test_iast_leaks(iterations: int, fail_percent: float, print_every: int):
 
     except KeyboardInterrupt:
         print("Test interrupted.")
+    finally:
+        disable_iast_propagation()
 
 
 if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
     args = parse_arguments()
     with override_env({"DD_IAST_ENABLED": "True"}):
-        sys.exit(test_iast_leaks(args.iterations, args.fail_percent, args.print_every))
+        sys.exit(loop.run_until_complete(iast_leaks(args.iterations, args.fail_percent, args.print_every)))
