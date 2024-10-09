@@ -383,6 +383,7 @@ class TestVisibilityItemBase(abc.ABC):
 
     def set_status(self, status: TestStatus) -> None:
         if self.is_finished():
+            breakpoint()
             error_msg = f"Status {self._status} already set for item {self}, not setting to {status}"
             log.warning(error_msg)
             return
@@ -428,11 +429,9 @@ class TestVisibilityItemBase(abc.ABC):
         for tag in tags:
             self._tags[tag] = tags[tag]
 
-    @_require_not_finished
     def get_tag(self, tag_name: str) -> Any:
         return self._tags.get(tag_name)
 
-    @_require_not_finished
     def get_tags(self, tag_names: List[str]) -> Dict[str, Any]:
         tags = {}
         for tag_name in tag_names:

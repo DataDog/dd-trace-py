@@ -2,6 +2,9 @@ from pathlib import Path
 import re
 import typing as t
 
+from _pytest.logging import caplog_handler_key
+from _pytest.logging import caplog_records_key
+from _pytest.runner import CallInfo
 import pytest
 
 from ddtrace import config as dd_config
@@ -33,6 +36,7 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
+from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
@@ -64,7 +68,7 @@ class _TestOutcome(t.NamedTuple):
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
-    This function has the side effect of marking the test as skipped immediately if it should be skipped.
+    This func   tion has the side effect of marking the test as skipped immediately if it should be skipped.
     """
     if not InternalTestSession.is_test_skipping_enabled():
         return False
@@ -318,18 +322,131 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         return
 
 
-def _process_outcome(item, call, outcome) -> _TestOutcome:
-    result = outcome.get_result()
+def _efd_run_when(item, nextitem, when):
+    hooks = {
+        "setup": item.ihook.pytest_runtest_setup,
+        "call": item.ihook.pytest_runtest_call,
+        "teardown": item.ihook.pytest_runtest_teardown,
+    }
+    hook = hooks[when]
+    # NOTE: we use nextitem=item here to make sure that logs don't generate a new line
+    if when == "teardown":
+        call = CallInfo.from_call(
+            lambda: hook(item=item, nextitem=pytest.Class.from_parent(item.session, name="forced_teardown")), when=when
+        )
+    else:
+        call = CallInfo.from_call(lambda: hook(item=item), when=when)
+    report = pytest.TestReport.from_item_and_call(item=item, call=call)
+    if report.outcome == "passed":
+        report.outcome = "efd_retry_passed"
+    elif report.outcome == "failed":
+        report.outcome = "efd_retry_failed"
+    item.ihook.pytest_runtest_logreport(report=report)
+    return call, report
 
+
+def _efd_get_outcome_from_item(
+    item: pytest.Item, nextitem: t.Optional[pytest.Item], force_teardown: bool = False
+) -> _TestOutcome:
+    _outcome_status: t.Optional[TestStatus] = None
+    _outcome_skip_reason: t.Optional[str] = None
+    _outcome_exc_info: t.Optional[TestExcInfo] = None
+
+    if force_teardown:
+        # Clear any previous fixtures:
+        t_call = pytest.CallInfo.from_call(
+            lambda: item.ihook.pytest_runtest_teardown(
+                item=item, nextitem=pytest.Class.from_parent(item.session, name="Fakeboi")
+            ),
+            when="teardown",
+        )
+        if t_call.excinfo is not None:
+            log.debug("Error during initial EFD teardoown", exc_info=True)
+            return _TestOutcome(
+                status=TestStatus.FAIL,
+                exc_info=TestExcInfo(t_call.excinfo.type, t_call.excinfo.value, t_call.excinfo.tb),
+            )
+
+    # _initrequest() needs to be called first because the test has already executed once
+    item._initrequest()
+
+    # Setup
+    setup_call, setup_report = _efd_run_when(item, nextitem, "setup")
+    if setup_report.failed:
+        _outcome_status = TestStatus.FAIL
+        if setup_call.excinfo is not None:
+            _outcome_exc_info = TestExcInfo(setup_call.excinfo.type, setup_call.excinfo.value, setup_call.excinfo.tb)
+            item.stash[caplog_records_key] = {}
+            item.stash[caplog_handler_key] = {}
+    # Call
+    if setup_report.outcome == "efd_retry_passed":
+        call_call, call_report = _efd_run_when(item, nextitem, "call")
+        if call_report.outcome == "efd_retry_failed":
+            _outcome_status = TestStatus.FAIL
+            if call_call.excinfo is not None:
+                _outcome_exc_info = TestExcInfo(call_call.excinfo.type, call_call.excinfo.value, call_call.excinfo.tb)
+                item.stash[caplog_records_key] = {}
+                item.stash[caplog_handler_key] = {}
+        elif call_report.skipped:
+            # A test that skips during retries is considered a failure
+            _outcome_status = TestStatus.FAIL
+        elif call_report.outcome == "efd_retry_passed":
+            _outcome_status = TestStatus.PASS
+
+    # Teardown
+    teardown_call, teardown_report = _efd_run_when(item, nextitem, "teardown")
+    # Only override the outcome if the teardown failed, otherwise defer to either setup or call outcome
+    if teardown_report.outcome == "efd_retry_failed":
+        _outcome_status = TestStatus.FAIL
+        if teardown_call.excinfo is not None:
+            _outcome_exc_info = TestExcInfo(
+                teardown_call.excinfo.type, teardown_call.excinfo.value, teardown_call.excinfo.tb
+            )
+            item.stash[caplog_records_key] = {}
+            item.stash[caplog_handler_key] = {}
+
+    item._initrequest()
+
+    # print(f"ROMAIN RESULTS {results}")
+    return _TestOutcome(status=_outcome_status, skip_reason=_outcome_skip_reason, exc_info=_outcome_exc_info)
+
+
+def _handle_efd_retries(item, original_outcome: _TestOutcome, force_teardown: bool = False) -> _TestOutcome:
+    test_id = _get_test_id_from_item(item)
+
+    while InternalTest.efd_should_retry(test_id):
+        retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
+
+        with core.context_with_data(f"pytest-efd-retry-{item.nodeid}") as ctx:
+            ctx.set_item("efd_retry_num", retry_num)
+            # breakpoint()
+            # clone_args = {"name": item.name}
+            # for arg in ["callspec", "callobj", "fixtureinfo", "originalname"]:
+            #     if hasattr(item, arg):
+            #         clone_args[arg] = getattr(item, arg)
+            # cloned_item = item.__class__.from_parent(item.parent, **clone_args)
+            # next_item = item.__class__.from_parent(item.parent, **clone_args)
+            # breakpoint()
+            retry_outcome = _efd_get_outcome_from_item(item, None, force_teardown)
+            # breakpoint()
+
+        InternalTest.efd_finish_retry(
+            test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
+        )
+
+    final_status = InternalTest.efd_get_final_status(test_id)
+
+    if final_status == TestStatus.PASS:
+        return _TestOutcome(TestStatus.PASS)
+
+    # If the final outcome is not passing, we simply use the original outcome
+    return original_outcome
+
+
+def _process_result(item, call, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 
     has_exception = call.excinfo is not None
-
-    # There are scenarios in which we may have already finished this item in setup or call, eg:
-    # - it was skipped by ITR
-    # - it was marked with skipif
-    if InternalTest.is_finished(test_id):
-        return _TestOutcome()
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
@@ -344,7 +461,6 @@ def _process_outcome(item, call, outcome) -> _TestOutcome:
     # - the test passed with xfail
     # - we are tearing down the test
     # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
-
     if call.when != "teardown" and not (has_exception or result.failed):
         return _TestOutcome()
 
@@ -385,20 +501,58 @@ def _process_outcome(item, call, outcome) -> _TestOutcome:
         InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
         return _TestOutcome(TestStatus.FAIL)
 
+    # NOTE: for EFD purposes, we need to know if the test failed during setup or teardown.
+    if call.when == "setup" and result.failed:
+        InternalTest.set_tag(test_id, "_dd.ci.efd_setup_failed", True)
+    elif call.when == "teardown" and result.failed:
+        InternalTest.set_tag(test_id, "_dd.ci.efd_teardown_failed", True)
+
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 
-    return _TestOutcome(test_id, exc_info)
+    return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo, outcome: pytest.TestReport) -> None:
+    # When EFD retries are active, we do not want makereport to generate results, but we want to record exceptions
+    # since they are not available in the output of runtest_protocol
+    with core.context_with_data(f"pytest-efd-retry-{item.nodeid}") as ctx:
+        if ctx.get_item("efd_retry_num") is not None:
+            return
+
+    original_result = outcome.get_result()
+
     test_id = _get_test_id_from_item(item)
 
-    test_outcome = _process_outcome(item, call, outcome)
+    test_outcome = _process_result(item, call, original_result)
 
+    # A None value for test_outcome.status implies the test has not finished yet
+    # Only continue to finishing the test if the test has finished, or if tearing down the test
     if test_outcome.status is None and call.when != "teardown":
         return
 
-    InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+    # Record a result if we haven't already recorded it:
+    if not InternalTest.is_finished(test_id):
+        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+
+    # EFD needs to retry tests that fail during their call phase so their outcome can be modified before it gets
+    # reported (otherwise they will be reported as failed and cause the session to fail).
+    if InternalTest.efd_should_retry(test_id):
+        if InternalTest.get_tag(test_id, "_dd.ci.efd_setup_failed"):
+            log.debug("Test item %s failed during setup, will not be retried for Early Flake Detection")
+        elif InternalTest.get_tag(test_id, "_dd.ci.efd_teardown_failed"):
+            # NOTE: tests that passed their call but failed during teardown are not retried
+            log.debug("Test item %s failed during teardown, will not be retried for Early Flake Detection")
+        else:
+            force_teardown = original_result.outcome == "failed"
+            efd_outcome = _handle_efd_retries(item, test_outcome, force_teardown=force_teardown)
+            if force_teardown:
+                # Avoid item.stash KeyError
+                item.stash[caplog_records_key] = item.stash.get(caplog_records_key, {})
+                item.stash[caplog_handler_key] = item.stash.get(caplog_handler_key, {})
+            # Only override the original test status if the original call failed.
+            # Note that a teardown failure will continue to show as failed
+            if original_result.outcome == "failed" and efd_outcome.status == TestStatus.PASS:
+                original_result.outcome = "efd_retry_passed"
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -449,6 +603,16 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         log.debug("encountered error during session finish", exc_info=True)
         # Try, again, to disable CI Visibility just in case
         _disable_ci_visibility()
+
+
+def pytest_report_teststatus(
+    report: pytest.TestReport,
+) -> t.Optional[pytest.TestShortLogReport]:
+    if report.outcome == "efd_retry_passed":
+        return pytest.TestShortLogReport("EFD retry passed", "r", ("EFD RETRY PASSED", {"green": True}))
+    if report.outcome == "efd_retry_failed":
+        return pytest.TestShortLogReport("EFD retry failed", "R", ("EFD RETRY FAILED", {"yellow": True}))
+    return None
 
 
 @pytest.hookimpl(trylast=True)

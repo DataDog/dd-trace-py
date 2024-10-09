@@ -188,8 +188,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if not efd_settings.enabled:
             return False
 
-        if self.get_session().efd_is_faulty_session():
-            return False
+        # if self.get_session().efd_is_faulty_session():
+        #     return False
 
         if self._efd_abort_reason is not None:
             return False
@@ -197,21 +197,21 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if not self.is_new():
             return False
 
-        if self._efd_initial_finish_time_ns is None:
-            log.debug("Early Flake Detection: efd_should_retry called but test has initial result")
+        if not self.is_finished():
+            log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
             return False
 
-        initial_duration_s = (self._efd_initial_finish_time_ns - self._span.start_ns) / 1e9
+        duration_s = self._span.duration
 
         num_retries = len(self._efd_retries)
 
-        if initial_duration_s <= 5:
+        if duration_s <= 5:
             return num_retries < efd_settings.slow_test_retries_5s
-        if initial_duration_s <= 10:
+        if duration_s <= 10:
             return num_retries < efd_settings.slow_test_retries_10s
-        if initial_duration_s <= 30:
+        if duration_s <= 30:
             return num_retries < efd_settings.slow_test_retries_30s
-        if initial_duration_s <= 300:
+        if duration_s <= 300:
             return num_retries < efd_settings.slow_test_retries_5m
 
         self._efd_abort_reason = "slow"
