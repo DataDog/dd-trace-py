@@ -1672,6 +1672,22 @@ def test_annotation_context_nested_overrides_name(LLMObs):
                 assert span.name == "expected"
 
 
+def test_annotation_context_nested_maintains_trace_structure(LLMObs, mock_llmobs_span_writer):
+    with LLMObs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
+        with LLMObs.agent(name="parent_span") as parent_span:
+            with LLMObs.annotation_context(tags={"foo": "baz"}):
+                with LLMObs.workflow(name="child_span") as child_span:
+                    assert json.loads(child_span.get_tag(TAGS)) == {"foo": "baz", "boo": "bar"}
+                    assert json.loads(parent_span.get_tag(TAGS)) == {"foo": "bar", "boo": "bar"}
+
+    assert len(mock_llmobs_span_writer.enqueue.call_args_list) == 2
+    parent_span, child_span = [span[0] for span, _ in mock_llmobs_span_writer.enqueue.call_args_list]
+    assert child_span["trace_id"] == parent_span["trace_id"]
+    assert child_span["span_id"] != parent_span["span_id"]
+    assert child_span["parent_id"] == parent_span["span_id"]
+    assert parent_span["parent_id"] == "undefined"
+
+
 def test_annotation_context_only_applies_to_local_context(LLMObs):
     """
     tests that annotation contexts only apply to spans belonging to the same

@@ -304,8 +304,7 @@ class LLMObs(Service):
                 current_ctx._set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
                 cls._instance.tracer.context_provider.activate(current_ctx)
             elif not current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID):
-                current_ctx = current_ctx._with_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
-                cls._instance.tracer.context_provider.activate(current_ctx)
+                current_ctx._set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
             else:
                 ctx_id = current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID)
             return ctx_id
