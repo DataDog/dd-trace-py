@@ -39,6 +39,7 @@ api_str_aspect(const py::object& orig_function,
         result_o = result_or_args;
         args_tuple = args;
     }
+    // py::tuple args_tuple = args;
 
     const py::object text = args_tuple[0];
 
@@ -87,7 +88,7 @@ api_str_aspect(const py::object& orig_function,
             text_raw_bytes = PyByteArray_AS_STRING(text.ptr());
             text_raw_bytes_size = PyByteArray_GET_SIZE(text.ptr());
         } else if (PyBytes_AsStringAndSize(text.ptr(), &text_raw_bytes, &text_raw_bytes_size) == -1) {
-                throw py::error_already_set();
+            throw py::error_already_set();
         }
 
         PyObject* result_pyo = PyUnicode_Decode(text_raw_bytes, text_raw_bytes_size, char_encoding, char_errors);

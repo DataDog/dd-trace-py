@@ -86,6 +86,7 @@ __all__ = [
     "ospathjoin_aspect",
     "_aspect_split",
     "_aspect_str",
+    "py_str_aspect",  # JJJ remove
     "split_aspect",
     "_aspect_rsplit",
     "rsplit_aspect",
@@ -140,29 +141,30 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
     return result
 
 
-# def str_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
-#     if orig_function is not None:
-#         if orig_function != builtin_str:
-#             if flag_added_args > 0:
-#                 args = args[flag_added_args:]
-#             return orig_function(*args, **kwargs)
-#         result = builtin_str(*args, **kwargs)
-#     else:
-#         result = args[0].str(*args[1:], **kwargs)
-#
-#     if args and is_pyobject_tainted(args[0]):
-#         try:
-#             if isinstance(args[0], (bytes, bytearray)):
-#                 encoding = parse_params(1, "encoding", "utf-8", *args, **kwargs)
-#                 errors = parse_params(2, "errors", "strict", *args, **kwargs)
-#                 check_offset = args[0].decode(encoding, errors)
-#             else:
-#                 check_offset = args[0]
-#             offset = result.index(check_offset)
-#             copy_and_shift_ranges_from_strings(args[0], result, offset)
-#         except Exception as e:
-#             iast_taint_log_error("str_aspect. {}".format(e))
-#     return result
+# JJJ remove
+def py_str_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+    if orig_function is not None:
+        if orig_function != builtin_str:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+        result = builtin_str(*args, **kwargs)
+    else:
+        result = args[0].str(*args[1:], **kwargs)
+
+    if args and is_pyobject_tainted(args[0]):
+        try:
+            if isinstance(args[0], (bytes, bytearray)):
+                encoding = parse_params(1, "encoding", "utf-8", *args, **kwargs)
+                errors = parse_params(2, "errors", "strict", *args, **kwargs)
+                check_offset = args[0].decode(encoding, errors)
+            else:
+                check_offset = args[0]
+            offset = result.index(check_offset)
+            copy_and_shift_ranges_from_strings(args[0], result, offset)
+        except Exception as e:
+            iast_taint_log_error("str_aspect. {}".format(e))
+    return result
 
 
 def bytes_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> bytes:
