@@ -1,5 +1,7 @@
 from envier import En
 
+from ddtrace.settings._core import report_telemetry as _report_telemetry
+
 
 class ExceptionReplayConfig(En):
     __prefix__ = "dd.exception"
@@ -15,3 +17,4 @@ class ExceptionReplayConfig(En):
 
 
 config = ExceptionReplayConfig()
+_report_telemetry(config)
