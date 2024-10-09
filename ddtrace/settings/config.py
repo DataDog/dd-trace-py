@@ -793,6 +793,26 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
+    def _mlobsPubSub(self):
+        from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+        from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
+        from ddtrace.internal.remoteconfig._pubsub import PubSub
+        from ddtrace.internal.remoteconfig._pubsub import RemoteConfigSubscriber
+
+        class _MLObsConfigPubSub(PubSub):
+            __publisher_class__ = RemoteConfigPublisher
+            __subscriber_class__ = RemoteConfigSubscriber
+            __shared_data__ = PublisherSubscriberConnector()
+
+            def __init__(self, callback):
+                self._publisher = self.__publisher_class__(self.__shared_data__, None)
+                self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "MLObsConfig")
+
+        return _MLObsConfigPubSub
+
+    def _handle_mlobs(self, data, test_tracer=None):
+        print(data)
+
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
         if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
@@ -879,6 +899,8 @@ class Config(object):
         remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
         remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
         remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
+        mlobs_pubsub = self._mlobsPubSub()(self._handle_mlobs)
+        remoteconfig_poller.register("DEBUG", mlobs_pubsub)
 
     def _remove_invalid_rules(self, rc_rules: List) -> List:
         """Remove invalid sampling rules from the given list"""
