@@ -566,7 +566,7 @@ class TestCIVisibilityWriter(TracerTestCase):
 
     def test_civisibilitywriter_agentless_url(self):
         with _ci_override_env(dict(DD_API_KEY="foobar.baz")):
-            with mock.patch("ddtrace.settings.civis.ci_config._agentless_url", "https://foo.bar"):
+            with mock.patch("ddtrace.settings.civis.ci_config.agentless_url", "https://foo.bar"):
                 dummy_writer = DummyCIVisibilityWriter()
                 assert dummy_writer.intake_url == "https://foo.bar"
 

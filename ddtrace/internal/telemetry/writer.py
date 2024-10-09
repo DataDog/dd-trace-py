@@ -245,7 +245,7 @@ class TelemetryWriter(PeriodicService):
         self._enabled = config._telemetry_enabled
 
         if agentless is None:
-            agentless = civis.ci_config._agentless_enabled or config._dd_api_key is not None
+            agentless = civis.ci_config.agentless_enabled or config._dd_api_key is not None
 
         if agentless and not config._dd_api_key:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")

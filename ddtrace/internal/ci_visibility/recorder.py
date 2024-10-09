@@ -218,7 +218,7 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
-        if civis.ci_config._agentless_enabled:
+        if civis.ci_config.agentless_enabled:
             if not self._api_key:
                 raise EnvironmentError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
@@ -232,7 +232,7 @@ class CIVisibility(Service):
                 self._configurations,
                 self._api_key,
                 self._dd_site,
-                civis.ci_config._agentless_url if civis.ci_config._agentless_url else None,
+                civis.ci_config.agentless_url if civis.ci_config.agentless_url else None,
                 self._service,
                 ddconfig.env,
             )
@@ -305,7 +305,7 @@ class CIVisibility(Service):
         # DEV: Remove this ``if`` once ITR is in GA
         _error_return_value = TestVisibilityAPISettings()
 
-        if not civis.ci_config._itr_enabled:
+        if not civis.ci_config.itr_enabled:
             return _error_return_value
 
         if not self._api_client:
@@ -474,7 +474,7 @@ class CIVisibility(Service):
     def enable(cls, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
         log.debug("Enabling %s", cls.__name__)
-        if civis.ci_config._agentless_enabled:
+        if civis.ci_config.agentless_enabled:
             if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
                 log.critical(
                     "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"

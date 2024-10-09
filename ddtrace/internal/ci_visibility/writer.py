@@ -120,8 +120,8 @@ class CIVisibilityWriter(HTTPWriter):
         if use_evp:
             intake_url = intake_url if intake_url else agent.get_trace_url()
             intake_cov_url = intake_url
-        elif civis.ci_config._agentless_url:
-            intake_url = intake_url if intake_url else civis.ci_config._agentless_url
+        elif civis.ci_config.agentless_url:
+            intake_url = intake_url if intake_url else civis.ci_config.agentless_url
             intake_cov_url = intake_url
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))

@@ -6,7 +6,7 @@ from envier import En
 class CIVisConfig(En):
     __prefix__ = "dd.civisibility"
 
-    _itr_enabled = En.v(
+    itr_enabled = En.v(
         bool,
         "itr_enabled",
         default=False,
@@ -14,7 +14,7 @@ class CIVisConfig(En):
         help="Enable ....",
     )
 
-    _agentless_enabled = En.v(
+    agentless_enabled = En.v(
         bool,
         "agentless_enabled",
         default=False,
@@ -22,7 +22,7 @@ class CIVisConfig(En):
         help="Enable ....",
     )
 
-    _agentless_url = En.v(
+    agentless_url = En.v(
         str,
         "agentless_url",
         default="",
