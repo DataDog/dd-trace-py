@@ -12,7 +12,6 @@ from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context import start_iast_context
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
-from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
@@ -38,59 +37,6 @@ def no_request_sampling(tracer):
     ):
         oce.reconfigure()
         yield
-
-
-def iast_span(tracer, env, request_sampling="100", deduplication=False):
-    # TODO!! DELETE ME!!!
-    try:
-        from ddtrace.contrib.langchain.patch import patch as langchain_patch
-        from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
-    except Exception:
-        langchain_patch = lambda: True  # noqa: E731
-        langchain_unpatch = lambda: True  # noqa: E731
-    try:
-        from ddtrace.contrib.sqlalchemy.patch import patch as sqlalchemy_patch
-        from ddtrace.contrib.sqlalchemy.patch import unpatch as sqlalchemy_unpatch
-    except Exception:
-        sqlalchemy_patch = lambda: True  # noqa: E731
-        sqlalchemy_unpatch = lambda: True  # noqa: E731
-    try:
-        from ddtrace.contrib.psycopg.patch import patch as psycopg_patch
-        from ddtrace.contrib.psycopg.patch import unpatch as psycopg_unpatch
-    except Exception:
-        psycopg_patch = lambda: True  # noqa: E731
-        psycopg_unpatch = lambda: True  # noqa: E731
-
-    env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling})
-    iast_span_processor = AppSecIastSpanProcessor()
-    VulnerabilityBase._reset_cache_for_testing()
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(env):
-        oce.reconfigure()
-        with tracer.trace("test") as span:
-            span.span_type = "web"
-            weak_hash_patch()
-            weak_cipher_patch()
-            sqli_sqlite_patch()
-            json_patch()
-            psycopg_patch()
-            sqlalchemy_patch()
-            cmdi_patch()
-            header_injection_patch()
-            langchain_patch()
-            iast_span_processor.on_span_start(span)
-            patch_common_modules()
-            yield span
-            unpatch_common_modules()
-            iast_span_processor.on_span_finish(span)
-            weak_hash_unpatch()
-            weak_cipher_unpatch()
-            sqli_sqlite_unpatch()
-            json_unpatch()
-            psycopg_unpatch()
-            sqlalchemy_unpatch()
-            cmdi_unpatch()
-            header_injection_unpatch()
-            langchain_unpatch()
 
 
 def _start_iast_context_and_oce():
@@ -175,7 +121,7 @@ def iast_span_defaults(tracer):
 IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True)
 def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
         yield
