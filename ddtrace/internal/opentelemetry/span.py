@@ -1,3 +1,4 @@
+from time import time_ns
 import traceback
 from typing import TYPE_CHECKING
 
@@ -15,7 +16,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
