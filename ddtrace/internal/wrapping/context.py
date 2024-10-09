@@ -400,7 +400,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
         super().__enter__()
 
         # Make the frame object available to the contexts
-        self.set("__frame__", sys._getframe(1))
+        self.set("__frame__", sys._getframe(1 + 2 * (sys.version_info >= (3, 12))))
 
         for context in self._contexts:
             context.__enter__()
@@ -437,7 +437,50 @@ class _UniversalWrappingContext(BaseWrappingContext):
             raise ValueError("Function is not wrapped")
         return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
 
-    if sys.version_info >= (3, 11):
+    if sys.version_info >= (3, 12):
+
+        def wrap(self) -> None:
+            f = self.__wrapped__
+
+            if self.is_wrapped(f):
+                raise ValueError("Function already wrapped")
+
+            code = f.__code__
+
+            # Activate local events for the code object
+            sys.monitoring.set_local_events(
+                sys.monitoring.DEBUGGER_ID,
+                code,
+                sys.monitoring.events.PY_START | sys.monitoring.events.PY_RETURN,
+            )
+
+            # Map the code object to the wrapping context
+            _universal_wrapping_contexts[id(code)] = self
+
+            # Mark the function as wrapped by a wrapping context
+            t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
+
+        def unwrap(self) -> None:
+            f = self.__wrapped__
+
+            if not self.is_wrapped(f):
+                return
+
+            code = f.__code__
+
+            # Remove the mapping between the code object and the wrapping context
+            try:
+                del _universal_wrapping_contexts[code]
+            except KeyError:
+                pass
+
+            # Deactivate local events for the code object
+            sys.monitoring.set_local_events(sys.monitoring.DEBUGGER_ID, code, 0)
+
+            # Remove the wrapping context marker
+            del f.__dd_context_wrapped__
+
+    elif sys.version_info >= (3, 11):
 
         def wrap(self) -> None:
             f = self.__wrapped__
@@ -685,3 +728,39 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             # Remove the wrapping context marker
             del wrapped.__dd_context_wrapped__
+
+
+if sys.version_info >= (3, 12):
+    _universal_wrapping_contexts: t.Dict[int, _UniversalWrappingContext] = {}
+
+    sys.monitoring.use_tool_id(sys.monitoring.DEBUGGER_ID, "datadog")
+
+    # These are not local events
+    sys.monitoring.set_events(sys.monitoring.DEBUGGER_ID, sys.monitoring.events.RAISE | sys.monitoring.events.RERAISE)
+
+    def monitoring_callback(*events: int) -> None:
+        def _(callback):
+            def _handler(code, _offset, *args):
+                context = _universal_wrapping_contexts.get(id(code))
+                if context is None:
+                    return
+                callback(context, *args)
+
+            for event in events:
+                sys.monitoring.register_callback(sys.monitoring.DEBUGGER_ID, event, _handler)
+
+            return callback
+
+        return _
+
+    @monitoring_callback(sys.monitoring.events.PY_START)
+    def _(context):
+        context.__enter__()
+
+    @monitoring_callback(sys.monitoring.events.PY_RETURN)
+    def _(context, value):
+        context.__return__(value)
+
+    @monitoring_callback(sys.monitoring.events.RAISE, sys.monitoring.events.RERAISE)
+    def _(context, exception):
+        context.__exit__(type(exception), exception, exception.__traceback__)
