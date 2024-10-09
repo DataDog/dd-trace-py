@@ -26,6 +26,7 @@ if _is_python_version_supported():
     from ._native.aspect_split import _aspect_rsplit
     from ._native.aspect_split import _aspect_split
     from ._native.aspect_split import _aspect_splitlines
+    from .native.aspect_str import _aspect_str
     from ._native.aspects_ospath import _aspect_ospathbasename
     from ._native.aspects_ospath import _aspect_ospathdirname
     from ._native.aspects_ospath import _aspect_ospathjoin
@@ -80,6 +81,7 @@ __all__ = [
     "_aspect_rsplit",
     "_aspect_split",
     "_aspect_splitlines",
+    "_aspect_str",
     "_convert_escaped_text_to_tainted_text",
     "_format_aspect",
     "active_map_addreses_size",
