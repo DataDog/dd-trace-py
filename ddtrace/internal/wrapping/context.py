@@ -72,99 +72,8 @@ CONTEXT_FOOT = Assembly()
 
 if sys.version_info >= (3, 14):
     raise NotImplementedError("Python >= 3.14 is not supported yet")
-elif sys.version_info >= (3, 13):
-    CONTEXT_HEAD.parse(
-        r"""
-            load_const                  {context_enter}
-            push_null
-            call                        0
-            pop_top
-        """
-    )
-    CONTEXT_RETURN.parse(
-        r"""
-            push_null
-            load_const                  {context_return}
-            swap                        3
-            call                        1
-        """
-    )
 
-    CONTEXT_RETURN_CONST = Assembly()
-    CONTEXT_RETURN_CONST.parse(
-        r"""
-            load_const                  {context_return}
-            push_null
-            load_const                  {value}
-            call                        1
-        """
-    )
-
-    CONTEXT_FOOT.parse(
-        r"""
-        try                             @_except lasti
-            push_exc_info
-            load_const                  {context_exit}
-            push_null
-            call                        0
-            pop_top
-            reraise                     2
-        tried
-
-        _except:
-            copy                        3
-            pop_except
-            reraise                     1
-        """
-    )
-
-elif sys.version_info >= (3, 12):
-    CONTEXT_HEAD.parse(
-        r"""
-            push_null
-            load_const                  {context_enter}
-            call                        0
-            pop_top
-        """
-    )
-
-    CONTEXT_RETURN.parse(
-        r"""
-            load_const                  {context_return}
-            push_null
-            swap                        3
-            call                        1
-        """
-    )
-
-    CONTEXT_RETURN_CONST = Assembly()
-    CONTEXT_RETURN_CONST.parse(
-        r"""
-            push_null
-            load_const                  {context_return}
-            load_const                  {value}
-            call                        1
-        """
-    )
-
-    CONTEXT_FOOT.parse(
-        r"""
-        try                             @_except lasti
-            push_exc_info
-            push_null
-            load_const                  {context_exit}
-            call                        0
-            pop_top
-            reraise                     2
-        tried
-
-        _except:
-            copy                        3
-            pop_except
-            reraise                     1
-        """
-    )
-
+# Starting with 3.12 we make use of the low-impact monitoring API.
 
 elif sys.version_info >= (3, 11):
     CONTEXT_HEAD.parse(
@@ -450,7 +359,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
         super().__enter__()
 
         # Make the frame object available to the contexts
-        self.set("__frame__", sys._getframe(1))
+        self.set("__frame__", sys._getframe(1 + 2 * (sys.version_info >= (3, 12))))
 
         for context in self._contexts:
             context.__enter__()
@@ -487,7 +396,56 @@ class _UniversalWrappingContext(BaseWrappingContext):
             raise ValueError("Function is not wrapped")
         return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
 
-    if sys.version_info >= (3, 11):
+    if sys.version_info >= (3, 12):
+        WRAPPING_LOCAL_EVENTS = sys.monitoring.events.PY_START | sys.monitoring.events.PY_RETURN
+
+        def wrap(self) -> None:
+            f = self.__wrapped__
+
+            if self.is_wrapped(f):
+                raise ValueError("Function already wrapped")
+
+            code = f.__code__
+
+            # Activate local events for the code object
+            sys.monitoring.set_local_events(
+                sys.monitoring.DEBUGGER_ID,
+                code,
+                self.WRAPPING_LOCAL_EVENTS | sys.monitoring.get_local_events(sys.monitoring.DEBUGGER_ID, code),
+            )
+
+            # Map the code object to the wrapping context
+            _universal_wrapping_contexts[id(code)] = self
+
+            # Mark the function as wrapped by a wrapping context
+            t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
+
+        def unwrap(self) -> None:
+            f = self.__wrapped__
+
+            if not self.is_wrapped(f):
+                return
+
+            code = f.__code__
+
+            # Remove the mapping between the code object and the wrapping
+            # context
+            try:
+                del _universal_wrapping_contexts[code]
+            except KeyError:
+                pass
+
+            # Deactivate local events for the code object
+            sys.monitoring.set_local_events(
+                sys.monitoring.DEBUGGER_ID,
+                code,
+                ~self.WRAPPING_LOCAL_EVENTS & sys.monitoring.get_local_events(sys.monitoring.DEBUGGER_ID, code),
+            )
+
+            # Remove the wrapping context marker
+            del f.__dd_context_wrapped__
+
+    elif sys.version_info >= (3, 11):
 
         def wrap(self) -> None:
             f = self.__wrapped__
@@ -504,10 +462,6 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 try:
                     if instr.name == "RETURN_VALUE":
                         return_code = CONTEXT_RETURN.bind({"context_return": self.__return__}, lineno=instr.lineno)
-                    elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
-                        return_code = CONTEXT_RETURN_CONST.bind(
-                            {"context_return": self.__return__, "value": instr.arg}, lineno=instr.lineno
-                        )
                     else:
                         return_code = []
 
@@ -623,8 +577,6 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 try:
                     if instr.name == "RETURN_VALUE":
                         return_code = CONTEXT_RETURN
-                    elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
-                        return_code = CONTEXT_RETURN_CONST
                     else:
                         return_code = None
 
@@ -735,3 +687,41 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             # Remove the wrapping context marker
             del wrapped.__dd_context_wrapped__
+
+
+if sys.version_info >= (3, 12):
+    from ddtrace.internal.monitoring import enable_tool
+
+    enable_tool(sys.monitoring.DEBUGGER_ID)
+
+    _universal_wrapping_contexts: t.Dict[int, _UniversalWrappingContext] = {}
+
+    # These are not local events
+    sys.monitoring.set_events(sys.monitoring.DEBUGGER_ID, sys.monitoring.events.RAISE | sys.monitoring.events.RERAISE)
+
+    def monitoring_callback(*events: int) -> None:
+        def _(callback):
+            def _handler(code, _offset, *args):
+                context = _universal_wrapping_contexts.get(id(code))
+                if context is None:
+                    return
+                callback(context, *args)
+
+            for event in events:
+                sys.monitoring.register_callback(sys.monitoring.DEBUGGER_ID, event, _handler)
+
+            return callback
+
+        return _
+
+    @monitoring_callback(sys.monitoring.events.PY_START)
+    def _(context):
+        context.__enter__()
+
+    @monitoring_callback(sys.monitoring.events.PY_RETURN)
+    def _(context, value):
+        context.__return__(value)
+
+    @monitoring_callback(sys.monitoring.events.RAISE, sys.monitoring.events.RERAISE)
+    def _(context, exception):
+        context.__exit__(type(exception), exception, exception.__traceback__)

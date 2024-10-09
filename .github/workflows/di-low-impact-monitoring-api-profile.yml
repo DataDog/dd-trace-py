@@ -1,0 +1,46 @@
+name: di-low-impact-monitoring-api-profile
+on:
+  push:
+    branches:
+      - main
+      - 'mq-working-branch**'
+  pull_request:
+    paths:
+      - 'ddtrace/internal/wrapping/context.py'
+      - 'scripts/profiles/di-low-impact-monitoring-api-profile/**'
+      - '.github/workflows/di-low-impact-monitoring-api-profile.yml'
+
+jobs:
+  di-low-impact-monitoring-api-profile:
+    runs-on: ubuntu-latest
+    env:
+      PREFIX: ${{ github.workspace }}/prefix
+    defaults:
+      run:
+        working-directory: ddtrace
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ddtrace
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup
+        run: |
+          bash scripts/profiles/di-low-impact-monitoring-api/setup.sh ${PREFIX}
+
+      - name: Run
+        run: |
+          bash scripts/profiles/di-low-impact-monitoring-api/run.sh ${PREFIX}
+          for a in `ls ${PREFIX}/artifacts`
+          do
+            sed -i 's|${{ github.workspace }}/ddtrace/||g' ${PREFIX}/artifacts/$a
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: di-low-impact-monitoring-api-profile
+          path: ${{ github.workspace }}/prefix/artifacts
+
