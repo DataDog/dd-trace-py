@@ -256,8 +256,8 @@ def test_deprecated_config_attributes(deprecated_name, name, test_value, env):
         assert len(warns) == 0
         expected_warning = (
             f"ddtrace.config.{deprecated_name} is deprecated and will be "
-            f"removed in version '3.0.0': Use {env} configuration instead. "
-            "This configuration must be set before importing ddtrace."
+            f"removed in version '3.0.0': Use the environment variable {env_var} "
+            "instead. This variable must be set before importing ddtrace."
         )
         # Test getting the configuration by the deprecated name
         getattr(config, deprecated_name) == test_value

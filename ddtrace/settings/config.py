@@ -653,8 +653,8 @@ class Config(object):
             new_name, env_var = self._DEPRECATED_ATTRS[name]
             deprecate(
                 f"ddtrace.config.{name} is deprecated",
-                message=f"Use {env_var} configuration instead. "
-                "This configuration must be set before importing ddtrace.",
+                message=f"Use the environment variable {env_var} instead. "
+                "This variable must be set before importing ddtrace.",
                 removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
