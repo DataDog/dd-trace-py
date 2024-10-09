@@ -11,6 +11,7 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
+from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
@@ -105,11 +106,17 @@ class LLMObs(Service):
         self.tracer.on_start_span(self._do_annotations)
 
     def _do_annotations(self, span):
+        # get the current span context
+        # only do the annotations if it matches the context
         if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
             return
+        current_context = self._instance.tracer.current_trace_context()
+        current_annotation_id = current_context._get_baggage_item("annotation_ctx_id")
         with self._annotation_context_lock:
-            for _, kwargs in self._instance._annotation_context_kwargs:
-                self.annotate(span, **kwargs)
+            for _, annotation_id, kwargs in self._instance._annotation_context_kwargs:
+                # only do the annotations if the context matches the current context
+                if annotation_id == current_annotation_id:
+                    self.annotate(span, **kwargs)
 
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
@@ -288,14 +295,28 @@ class LLMObs(Service):
         annotation_context_key = uuid4().hex
 
         def enqueue_annotations():
+            annotation_id = annotation_context_key
+
+            current_ctx = cls._instance.tracer.current_trace_context()
+            if current_ctx is None:
+                current_ctx = Context(is_remote=False)
+                current_ctx._set_baggage_item("annotation_ctx_id", annotation_id)
+                cls._instance.tracer.context_provider.activate(current_ctx)
+            elif not current_ctx._get_baggage_item("annotation_ctx_id"):
+                current_ctx = current_ctx._with_baggage_item("annotation_ctx_id", annotation_id)
+                cls._instance.tracer.context_provider.activate(current_ctx)
+            else:
+                annotation_id = current_ctx._get_baggage_item("annotation_ctx_id")
+
+            # if there is no context attached to
             with cls._instance._annotation_context_lock:
                 cls._instance._annotation_context_kwargs.append(
-                    (annotation_context_key, {"tags": tags, "prompt": prompt, "_name": name})
+                    (annotation_context_key, annotation_id, {"tags": tags, "prompt": prompt, "_name": name})
                 )
 
         def pop_annotations():
             with cls._instance._annotation_context_lock:
-                for i, (key, _) in enumerate(cls._instance._annotation_context_kwargs):
+                for i, (key, _, _) in enumerate(cls._instance._annotation_context_kwargs):
                     if key == annotation_context_key:
                         cls._instance._annotation_context_kwargs.pop(i)
                         return
