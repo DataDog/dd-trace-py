@@ -35,6 +35,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils.formats import asbool
 
+from .._constants import IAST
 from ._overhead_control_engine import OverheadControl
 from ._utils import _is_iast_enabled
 
@@ -71,7 +72,8 @@ def ddtrace_iast_flask_patch():
 
 
 def enable_iast_propagation():
-    if asbool(os.getenv("DD_IAST_ENABLED", False)):
+    """Add IAST AST patching in the ModuleWatchdog"""
+    if asbool(os.getenv(IAST.ENV, "false")):
         from ddtrace.appsec._iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
@@ -82,8 +84,20 @@ def enable_iast_propagation():
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
 
+def disable_iast_propagation():
+    """Remove IAST AST patching from the ModuleWatchdog. Only for testing proposes"""
+    from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+    from ddtrace.appsec._iast._loader import _exec_iast_patched_module
+
+    try:
+        ModuleWatchdog.remove_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+    except KeyError:
+        log.warning("IAST is already disabled and it's not in the ModuleWatchdog")
+
+
 __all__ = [
     "oce",
     "ddtrace_iast_flask_patch",
     "enable_iast_propagation",
+    "disable_iast_propagation",
 ]
