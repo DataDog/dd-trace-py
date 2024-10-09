@@ -91,7 +91,7 @@ Sampler::one_time_setup()
 }
 
 void
-Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
+Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
 {
     // Registering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
@@ -122,7 +122,7 @@ Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
 }
 
 void
-Sampler::unregister_thread(uintptr_t id)
+Sampler::unregister_thread(uint64_t id)
 {
     // unregistering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
