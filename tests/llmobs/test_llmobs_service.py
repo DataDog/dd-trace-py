@@ -1673,36 +1673,54 @@ def test_annotation_context_nested_overrides_name(LLMObs):
 
 
 def test_annotation_context_only_applies_to_local_context(LLMObs):
+    """
+    tests that annotation contexts only apply to spans belonging to the same
+    trace context and not globally to all spans.
+    """
     agent_has_correct_name = False
+    agent_has_correct_tags = False
     tool_has_correct_name = False
+    tool_does_not_have_tags = False
 
-    def separate_annotation_context_one():
+    # thread which registers an annotation context for 0.1 seconds
+    def context_one():
         nonlocal agent_has_correct_name
-        with LLMObs.annotation_context(name="expected_agent"):
+        nonlocal agent_has_correct_tags
+        with LLMObs.annotation_context(name="expected_agent", tags={"foo": "bar"}):
             with LLMObs.agent(name="test_agent") as span:
-                time.sleep(0.5)
+                time.sleep(0.1)
+                agent_has_correct_tags = json.loads(span.get_tag(TAGS)) == {"foo": "bar"}
                 agent_has_correct_name = span.name == "expected_agent"
 
-    def separate_annotation_context_two():
+    # thread which registers an annotation context for 0.5 seconds
+    def context_two():
         nonlocal tool_has_correct_name
+        nonlocal tool_does_not_have_tags
         with LLMObs.agent(name="test_agent"):
             with LLMObs.annotation_context(name="expected_tool"):
                 with LLMObs.tool(name="test_tool") as tool_span:
                     time.sleep(0.5)
+                    tool_does_not_have_tags = tool_span.get_tag(TAGS) is None
                     tool_has_correct_name = tool_span.name == "expected_tool"
 
-    thread_one = threading.Thread(target=separate_annotation_context_one)
-    thread_two = threading.Thread(target=separate_annotation_context_two)
+    thread_one = threading.Thread(target=context_one)
+    thread_two = threading.Thread(target=context_two)
     thread_one.start()
     thread_two.start()
 
     with LLMObs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
+        assert span.get_tag(TAGS) is None
 
     thread_one.join()
     thread_two.join()
+
+    # the context's in each thread shouldn't alter the span name of
+    # spans started in other threads.
     assert agent_has_correct_name is True
     assert tool_has_correct_name is True
+    assert agent_has_correct_tags is True
+    assert tool_does_not_have_tags is True
 
 
 async def test_annotation_context_async_modifies_span_tags(LLMObs):
