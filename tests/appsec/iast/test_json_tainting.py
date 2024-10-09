@@ -40,7 +40,7 @@ TEST_INPUTS = [
 
 
 @pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
-def test_taint_json(iast_span_defaults, input_jsonstr, res_type, tainted_type):
+def test_taint_json(iast_context_defaults, input_jsonstr, res_type, tainted_type):
     assert json._datadog_json_tainting_patch
     with override_global_config(dict(_iast_enabled=True)):
         input_str = taint_pyobject(
@@ -57,7 +57,7 @@ def test_taint_json(iast_span_defaults, input_jsonstr, res_type, tainted_type):
 
 
 @pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
-def test_taint_json_no_taint(iast_span_defaults, input_jsonstr, res_type, tainted_type):
+def test_taint_json_no_taint(iast_context_defaults, input_jsonstr, res_type, tainted_type):
     with override_global_config(dict(_iast_enabled=True)):
         input_str = input_jsonstr
         assert not is_pyobject_tainted(input_str)

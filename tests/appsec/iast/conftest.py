@@ -93,6 +93,19 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
             langchain_unpatch()
 
 
+def _start_iast_context_and_oce():
+    oce.reconfigure()
+    oce._enabled = True
+    oce.acquire_request(None)
+    start_iast_context()
+    set_iast_request_enabled(True)
+
+
+def _end_iast_context_and_oce():
+    end_iast_context()
+    oce.release_request()
+
+
 def iast_context(env, request_sampling="100", deduplication=False):
     try:
         from ddtrace.contrib.langchain.patch import patch as langchain_patch
@@ -116,10 +129,7 @@ def iast_context(env, request_sampling="100", deduplication=False):
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
     VulnerabilityBase._reset_cache_for_testing()
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(env):
-        oce.reconfigure()
-        start_iast_context()
-        oce.acquire_request(None)
-        set_iast_request_enabled(True)
+        _start_iast_context_and_oce()
         weak_hash_patch()
         weak_cipher_patch()
         sqli_sqlite_patch()
@@ -141,8 +151,7 @@ def iast_context(env, request_sampling="100", deduplication=False):
         cmdi_unpatch()
         header_injection_unpatch()
         langchain_unpatch()
-        end_iast_context()
-        oce.release_request()
+        _end_iast_context_and_oce()
 
 
 @pytest.fixture
@@ -157,14 +166,9 @@ def iast_context_deduplication_enabled(tracer):
 
 @pytest.fixture
 def iast_span_defaults(tracer):
-    # TODO!! DELETE ME!!!
-    yield from iast_span(tracer, dict(DD_IAST_ENABLED="true"))
-
-
-@pytest.fixture
-def iast_span_deduplication_enabled(tracer):
-    # TODO!! DELETEME
-    yield from iast_span(tracer, dict(DD_IAST_ENABLED="true"), deduplication=True)
+    for _ in iast_context(dict(DD_IAST_ENABLED="true")):
+        with tracer.trace("test") as span:
+            yield span
 
 
 # The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
