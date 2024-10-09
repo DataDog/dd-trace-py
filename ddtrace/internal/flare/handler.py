@@ -30,7 +30,7 @@ def _tracerFlarePubSub():
 
 def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
     if cleanup:
-        log.info("Cleaning up")
+        log.info("Reverting tracer flare configurations and cleaning up any generated files")
         flare.revert_configs()
         flare.clean_up_files()
         return
