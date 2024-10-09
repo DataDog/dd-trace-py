@@ -23,6 +23,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
@@ -101,7 +102,7 @@ class LLMObs(Service):
         self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluator_runner)
         forksafe.register(self._child_after_fork)
 
-        self._annotation_context_kwargs = []
+        self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
         self.tracer.on_start_span(self._do_annotations)
 
@@ -111,12 +112,11 @@ class LLMObs(Service):
         if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
             return
         current_context = self._instance.tracer.current_trace_context()
-        current_annotation_id = current_context._get_baggage_item("annotation_ctx_id")
+        current_context_id = current_context._get_baggage_item(ANNOTATIONS_CONTEXT_ID)
         with self._annotation_context_lock:
-            for _, annotation_id, kwargs in self._instance._annotation_context_kwargs:
-                # only do the annotations if the context matches the current context
-                if annotation_id == current_annotation_id:
-                    self.annotate(span, **kwargs)
+            for _, context_id, annotation_kwargs in self._instance._annotations:
+                if current_context_id == context_id:
+                    self.annotate(span, **annotation_kwargs)
 
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
@@ -292,37 +292,40 @@ class LLMObs(Service):
                         This argument is only applicable to LLM spans.
         :param name: Set to override the span name for any spans annotated within the returned context.
         """
-        annotation_context_key = uuid4().hex
+        # id to track an annotation for registering / de-registering
+        annotation_id = uuid4().hex
 
-        def enqueue_annotations():
-            annotation_id = annotation_context_key
-
+        def get_annotations_context_id():
             current_ctx = cls._instance.tracer.current_trace_context()
+            # default the context id to the annotation id
+            ctx_id = annotation_id
             if current_ctx is None:
                 current_ctx = Context(is_remote=False)
-                current_ctx._set_baggage_item("annotation_ctx_id", annotation_id)
+                current_ctx._set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
                 cls._instance.tracer.context_provider.activate(current_ctx)
-            elif not current_ctx._get_baggage_item("annotation_ctx_id"):
-                current_ctx = current_ctx._with_baggage_item("annotation_ctx_id", annotation_id)
+            elif not current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID):
+                current_ctx = current_ctx._with_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
                 cls._instance.tracer.context_provider.activate(current_ctx)
             else:
-                annotation_id = current_ctx._get_baggage_item("annotation_ctx_id")
+                ctx_id = current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+            return ctx_id
 
-            # if there is no context attached to
+        def register_annotation():
             with cls._instance._annotation_context_lock:
-                cls._instance._annotation_context_kwargs.append(
-                    (annotation_context_key, annotation_id, {"tags": tags, "prompt": prompt, "_name": name})
+                ctx_id = get_annotations_context_id()
+                cls._instance._annotations.append(
+                    (annotation_id, ctx_id, {"tags": tags, "prompt": prompt, "_name": name})
                 )
 
-        def pop_annotations():
+        def deregister_annotation():
             with cls._instance._annotation_context_lock:
-                for i, (key, _, _) in enumerate(cls._instance._annotation_context_kwargs):
-                    if key == annotation_context_key:
-                        cls._instance._annotation_context_kwargs.pop(i)
+                for i, (key, _, _) in enumerate(cls._instance._annotations):
+                    if key == annotation_id:
+                        cls._instance._annotations.pop(i)
                         return
                     log.debug("Failed to pop annotation context")
 
-        return AnnotationContext(enqueue_annotations, pop_annotations)
+        return AnnotationContext(register_annotation, deregister_annotation)
 
     @classmethod
     def flush(cls) -> None:

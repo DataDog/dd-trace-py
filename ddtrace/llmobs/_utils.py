@@ -50,21 +50,21 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict]]:
 
 
 class AnnotationContext:
-    def __init__(self, _add_annotator, _remove_annotator):
-        self._add_annotator = _add_annotator
-        self._remove_annotator = _remove_annotator
+    def __init__(self, _register_annotator, _deregister_annotator):
+        self._register_annotator = _register_annotator
+        self._deregister_annotator = _deregister_annotator
 
     def __enter__(self):
-        self._add_annotator()
+        self._register_annotator()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._remove_annotator()
+        self._deregister_annotator()
 
     async def __aenter__(self):
-        self._add_annotator()
+        self._register_annotator()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self._remove_annotator()
+        self._deregister_annotator()
 
 
 def _get_attr(o: object, attr: str, default: object):
