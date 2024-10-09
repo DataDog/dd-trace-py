@@ -1,7 +1,6 @@
 #pragma once
 #include "AspectFormat.h"
 #include "AspectSplit.h"
-#include "AspectStr.h"
 #include "AspectsOsPath.h"
 #include "Helpers.h"
 #include <pybind11/pybind11.h>
@@ -20,7 +19,4 @@ pyexport_m_aspect_helpers(py::module& m)
 
     py::module m_aspect_split = m.def_submodule("aspect_split", "Aspect split");
     pyexport_aspect_split(m_aspect_split);
-
-    py::module m_aspect_str = m.def_submodule("aspect_str", "Aspect str");
-    pyexport_aspect_str(m_aspect_str);
 }

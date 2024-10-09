@@ -33,7 +33,6 @@ from .._taint_tracking import _aspect_ospathsplitroot
 from .._taint_tracking import _aspect_rsplit
 from .._taint_tracking import _aspect_split
 from .._taint_tracking import _aspect_splitlines
-from .._taint_tracking import _aspect_str
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
@@ -65,7 +64,7 @@ modulo_aspect = aspects.modulo_aspect
 split_aspect = _aspect_split
 rsplit_aspect = _aspect_rsplit
 splitlines_aspect = _aspect_splitlines
-str_aspect = _aspect_str
+str_aspect = aspects.str_aspect
 ospathjoin_aspect = _aspect_ospathjoin
 ospathbasename_aspect = _aspect_ospathbasename
 ospathdirname_aspect = _aspect_ospathdirname
@@ -85,7 +84,6 @@ __all__ = [
     "re_sub_aspect",
     "ospathjoin_aspect",
     "_aspect_split",
-    "_aspect_str",
     "py_str_aspect",  # JJJ remove
     "split_aspect",
     "_aspect_rsplit",
