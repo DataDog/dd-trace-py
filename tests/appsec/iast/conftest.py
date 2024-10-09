@@ -175,7 +175,7 @@ def iast_span_defaults(tracer):
 IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope="module")
 def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
         yield

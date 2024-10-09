@@ -554,7 +554,7 @@ def _get_headers_if_appsec():
         return get_headers()
 
 
-def listen():
+def asm_listen():
     from ddtrace.appsec._handlers import listen
     from ddtrace.appsec._iast._iast_request_context import iast_listen
 
