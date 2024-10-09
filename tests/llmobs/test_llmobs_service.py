@@ -1673,6 +1673,7 @@ def test_annotation_context_nested_overrides_name(LLMObs):
 
 
 def test_annotation_context_nested_maintains_trace_structure(LLMObs, mock_llmobs_span_writer):
+    """This test makes sure starting/stopping annotation contexts do not modify the llmobs trace structure"""
     with LLMObs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         with LLMObs.agent(name="parent_span") as parent_span:
             with LLMObs.annotation_context(tags={"foo": "baz"}):
@@ -1686,6 +1687,21 @@ def test_annotation_context_nested_maintains_trace_structure(LLMObs, mock_llmobs
     assert child_span["span_id"] != parent_span["span_id"]
     assert child_span["parent_id"] == parent_span["span_id"]
     assert parent_span["parent_id"] == "undefined"
+
+    mock_llmobs_span_writer.reset_mock()
+
+    with LLMObs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
+        with LLMObs.agent(name="parent_span"):
+            pass
+        with LLMObs.workflow(name="child_span"):
+            pass
+
+    assert len(mock_llmobs_span_writer.enqueue.call_args_list) == 2
+    trace_one, trace_two = [span[0] for span, _ in mock_llmobs_span_writer.enqueue.call_args_list]
+    assert trace_one["trace_id"] != trace_two["trace_id"]
+    assert trace_one["span_id"] != trace_two["span_id"]
+    assert trace_two["parent_id"] == "undefined"
+    assert trace_one["parent_id"] == "undefined"
 
 
 def test_annotation_context_only_applies_to_local_context(LLMObs):
