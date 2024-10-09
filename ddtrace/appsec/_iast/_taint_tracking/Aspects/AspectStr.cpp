@@ -1,5 +1,21 @@
 #include <Aspects/AspectStr.h>
 
+static void
+set_lengthupdated_ranges(const py::object& result, const TaintRangeRefs& ranges, const TaintRangeMapTypePtr& tx_map)
+{
+    if (!tx_map || tx_map->empty()) {
+        return;
+    }
+
+    auto result_len = len(result);
+    TaintRangeRefs copy_ranges(ranges);
+    for (auto& range : copy_ranges) {
+        range->length = result_len;
+    }
+
+    set_ranges(result.ptr(), copy_ranges, tx_map);
+}
+
 py::str
 api_str_aspect(const py::object& orig_function,
                const int flag_added_args,
@@ -18,7 +34,7 @@ api_str_aspect(const py::object& orig_function,
 
     const py::object text = args_tuple[0];
     const py::str encoding = len(args) > 1 ? args_tuple[1] : py::str("");
-    const py::str errors = len(args) > 2 ? args_tuple[2] : py::str("");
+    const py::str errors = len(args) > 2 ? args_tuple[2] : py::str("strict");
 
     py::str result_o;
 
@@ -39,8 +55,7 @@ api_str_aspect(const py::object& orig_function,
         }
         result_o = py::reinterpret_borrow<py::str>(as_str);
     } else {
-        // Bytesomething: we have to decode
-
+        // bytes or bytearray: we have to decode
         // If it has encoding, then the text object must not be a unicode object
         if (len(encoding) > 0 and py::isinstance<py::str>(text)) {
             PyErr_SetString(PyExc_TypeError, "decoding str is not supported");
@@ -83,15 +98,13 @@ api_str_aspect(const py::object& orig_function,
             PyObject* check_offset = PyObject_Str(text.ptr());
             if (check_offset == nullptr) {
                 PyErr_Clear();
-                // FIXME: take all the length of result_o as range length as fallback
-                set_ranges(result_o.ptr(), ranges, tx_map);
+                set_lengthupdated_ranges(result_o, ranges, tx_map);
             } else {
                 auto len_result_o = len(result_o);
                 Py_ssize_t offset = PyUnicode_Find(result_o.ptr(), check_offset, 0, len_result_o, 1);
                 if (offset == -1) {
                     PyErr_Clear();
-                    // FIXME: take all the length of result_o as range length as fallback
-                    set_ranges(result_o.ptr(), ranges, tx_map);
+                    set_lengthupdated_ranges(result_o, ranges, tx_map);
                 } else {
                     copy_and_shift_ranges_from_strings(text, result_o, offset, len_result_o, tx_map);
                 }
