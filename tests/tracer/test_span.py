@@ -96,7 +96,7 @@ class SpanTestCase(TracerTestCase):
         assert s.get_tags() == dict(true="True", false="False")
         assert len(s.get_metrics()) == 0
 
-    def testset_baggage_item(self):
+    def test_set_baggage_item(self):
         s = Span(name="test.span")
         s.context.set_baggage_item("custom.key", "123")
         assert s.context.get_baggage_item("custom.key") == "123"
