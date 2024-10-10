@@ -1138,6 +1138,7 @@ class HTTPConnection:
         self._validate_path(url)
 
         request = '%s %s %s' % (method, url, self._http_vsn_str)
+        print(f"[DDTRACE_HTTP] putrequest: {request}")
 
         self._output(self._encode_request(request))
 
