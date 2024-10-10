@@ -60,7 +60,7 @@ class ASM_Environment:
         if self.root:
             core.add_suppress_exception(BlockingException)
         if span is None:
-            self.span: Span = core.get_item("call")
+            self.span: Span = core.get_item(core.get_item("call_key"))
         else:
             self.span = span
         self.waf_addresses: Dict[str, Any] = {}
