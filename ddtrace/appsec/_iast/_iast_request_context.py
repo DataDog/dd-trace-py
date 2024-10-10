@@ -37,11 +37,8 @@ class IASTEnvironment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        self.root = not in_iast_context()
         if span is None:
-            self.span: Span = core.get_item("call")
-        else:
-            self.span = span
+            self.span: Span = core.get_item(core.get_item("call_key"))
 
         self.request_enabled: bool = True
         self.iast_reporter: Optional[IastSpanReporter] = None

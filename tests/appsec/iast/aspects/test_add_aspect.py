@@ -14,6 +14,8 @@ from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TaintRange_
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from tests.appsec.iast.conftest import _end_iast_context_and_oce
+from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.utils import override_env
 
 
@@ -247,7 +249,7 @@ def test_add_aspect_tainting_add_left_twice(obj1, obj2):
 def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_msg, caplog):
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     string_to_taint = "my_string"
-    create_context()
+    _start_iast_context_and_oce()
     result = taint_pyobject(
         pyobject=string_to_taint,
         source_name="test_add_aspect_tainting_left_hand",
@@ -258,7 +260,7 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_
     ranges_result = get_tainted_ranges(result)
     assert len(ranges_result) == 1
 
-    reset_context()
+    _end_iast_context_and_oce()
     with override_env({IAST.ENV_DEBUG: iast_debug}), caplog.at_level(log_level):
         result = taint_pyobject(
             pyobject=string_to_taint,
@@ -277,7 +279,7 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_
     else:
         assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
 
-    create_context()
+    _start_iast_context_and_oce()
     result = taint_pyobject(
         pyobject=string_to_taint,
         source_name="test_add_aspect_tainting_left_hand",
