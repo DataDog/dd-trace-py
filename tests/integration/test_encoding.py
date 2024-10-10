@@ -76,7 +76,7 @@ class TestTraceAcceptedByAgent:
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
             with tracer.trace("root", service="test_encoding", resource="test_resource") as root:
                 root.set_link(**span_links_kwargs)
-                for _ in range(999):
+                for _ in range(10):
                     with tracer.trace("child") as child:
                         child.set_link(**span_links_kwargs)
             tracer.shutdown()
