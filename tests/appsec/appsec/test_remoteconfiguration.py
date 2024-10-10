@@ -8,7 +8,6 @@ import mock
 from mock.mock import ANY
 import pytest
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_capabilities
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -21,7 +20,6 @@ from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.trace_utils import set_http_meta
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
@@ -32,12 +30,13 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import Either
+from tests.appsec.utils import asm_context
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 def _set_and_get_appsec_tags(tracer):
-    with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+    with asm_context(tracer) as span:
         set_http_meta(
             span,
             {},
@@ -923,14 +922,13 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         _appsec_callback(rc_config, tracer)
-        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
-            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-                set_http_meta(
-                    span,
-                    rules.Config(),
-                )
-            assert get_triggers(span)
-            assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
+        with asm_context(tracer, ip_addr="8.8.4.4") as span:
+            set_http_meta(
+                span,
+                rules.Config(),
+            )
+        assert get_triggers(span)
+        assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
@@ -954,13 +952,12 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
 
         _appsec_callback(rc_config, tracer)
 
-        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
-            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-                set_http_meta(
-                    span,
-                    rules.Config(),
-                )
-            assert get_triggers(span) is None
+        with asm_context(tracer, ip_addr="8.8.4.4") as span:
+            set_http_meta(
+                span,
+                rules.Config(),
+            )
+        assert get_triggers(span) is None
 
 
 def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
@@ -984,14 +981,13 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
 
         _appsec_callback(rc_config, tracer)
 
-        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
-            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-                set_http_meta(
-                    span,
-                    rules.Config(),
-                )
-            assert get_triggers(span)
-            assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
+        with asm_context(tracer, ip_addr="8.8.4.4") as span:
+            set_http_meta(
+                span,
+                rules.Config(),
+            )
+        assert get_triggers(span)
+        assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_rules_data(tracer):
