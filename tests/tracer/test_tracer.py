@@ -2,6 +2,7 @@
 """
 tests for Tracer and utilities.
 """
+
 import contextlib
 import gc
 import logging
@@ -40,7 +41,6 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
-from tests.appsec.appsec.test_processor import tracer_appsec
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
@@ -50,9 +50,9 @@ from ..utils import override_env
 
 class TracerTestCases(TracerTestCase):
     @pytest.fixture(autouse=True)
-    def inject_fixtures(self, caplog):
+    def inject_fixtures(self, tracer, caplog):
         self._caplog = caplog
-        self._tracer_appsec = tracer_appsec
+        self._tracer_appsec = tracer
 
     def test_tracer_vars(self):
         span = self.trace("a", service="s", resource="r", span_type="t")

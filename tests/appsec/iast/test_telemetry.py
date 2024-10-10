@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
@@ -28,6 +27,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -74,7 +74,7 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer):
         tracer = DummyTracer(iast_enabled=True)
 
         telemetry_writer._namespace.flush()
-        with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        with asm_context(tracer=tracer) as span:
             import hashlib
 
             m = hashlib.new("md5")
