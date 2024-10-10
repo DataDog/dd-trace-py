@@ -176,6 +176,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
             headers = {}
 
         container.update_headers_with_container_info(headers, self._container_info)
+        container.update_header_with_external_info(headers)
 
         profile, libs = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         pprof = io.BytesIO()

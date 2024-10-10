@@ -109,6 +109,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
         container.update_headers_with_container_info(self._headers, container.get_container_info())
+        container.update_header_with_external_info(self._headers)
         self._hostname = ""
         if config.report_hostname:
             self._hostname = get_hostname()
