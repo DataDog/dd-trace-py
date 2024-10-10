@@ -39,6 +39,11 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
 
 
 def _get_faithfulness_instance():
+    """
+    This helper function ensures the faithfulness instance used in
+    ragas evaluator is updated with the latest ragas faithfulness
+    instance AND has an non-null llm
+    """
     ragas_faithfulness_instance = faithfulness
     if not ragas_faithfulness_instance.llm:
         ragas_faithfulness_instance.llm = llm_factory()
@@ -96,10 +101,7 @@ class RagasFaithfulnessEvaluator:
         score_result = self.evaluate(span_event)
         if score_result:
             self.llmobs_service.submit_evaluation(
-                span_context={
-                    "span_id": span_event.get("span_id"),
-                    "trace_id": span_event.get("trace_id"),
-                },
+                span_context=span_event,
                 label=RagasFaithfulnessEvaluator.LABEL,
                 metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
                 value=score_result,

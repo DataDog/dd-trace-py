@@ -487,7 +487,7 @@ class DummyEvaluator:
     def run_and_submit_evaluation(self, span):
         self.llmobs_service.submit_evaluation(
             span_context=span,
-            label="ragas_faithfulness",
+            label=DummyEvaluator.LABEL,
             value=1.0,
             metric_type="score",
         )

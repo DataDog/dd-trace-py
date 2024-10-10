@@ -4,6 +4,12 @@ from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.pydantic_v1 import Field
 
 
+"""
+This module contains helper pydantic models to validate the inputs
+and outputs of LLM calls used for Ragas
+"""
+
+
 class StatementFaithfulnessAnswer(BaseModel):
     statement: str = Field(..., description="the original statement, word-by-word")
     reason: str = Field(..., description="the reason of the verdict")
