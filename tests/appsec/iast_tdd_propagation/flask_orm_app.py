@@ -25,6 +25,8 @@ import ddtrace.auto  # noqa: F401  # isort: skip
 
 orm = os.getenv("FLASK_ORM", "sqlite")
 
+port = int(os.getenv("FLASK_RUN_PORT", 8000))
+
 orm_impl = importlib.import_module(f"{orm}_impl")
 
 
@@ -94,4 +96,4 @@ def untainted_view():
 
 if __name__ == "__main__":
     ddtrace_iast_flask_patch()
-    app.run(debug=False, port=8000)
+    app.run(debug=False, port=port)
