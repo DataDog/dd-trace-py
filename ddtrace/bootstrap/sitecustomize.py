@@ -79,7 +79,6 @@ def cleanup_loaded_modules():
             "google",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
             "wrapt",
-            "tests",
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
