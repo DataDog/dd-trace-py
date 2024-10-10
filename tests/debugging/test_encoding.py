@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from collections import defaultdict
 import inspect
 import json
 import sys
@@ -663,3 +664,14 @@ def test_capture_value_sequence_type(_type):
         ],
         "size": 1,
     }
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (defaultdict(int, {"bar": 42}), "{'bar': 42}"),
+        (frozenset({"foo"}), "{'foo'}"),
+    ],
+)
+def test_serialize_builtins(value, expected):
+    assert utils.serialize(value) == expected
