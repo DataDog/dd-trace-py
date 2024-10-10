@@ -52,13 +52,13 @@ def _deleted_rc_config():
         {
             "expected": {
                 "_trace_sample_rate": 1.0,
-                "logs_injection": False,
-                "trace_http_header_tags": {},
+                "_logs_injection": False,
+                "_trace_http_header_tags": {},
             },
             "expected_source": {
                 "_trace_sample_rate": "default",
-                "logs_injection": "default",
-                "trace_http_header_tags": "default",
+                "_logs_injection": "default",
+                "_trace_http_header_tags": "default",
             },
         },
         {
@@ -81,38 +81,38 @@ def _deleted_rc_config():
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
-            "expected": {"logs_injection": True},
-            "expected_source": {"logs_injection": "env_var"},
+            "expected": {"_logs_injection": True},
+            "expected_source": {"_logs_injection": "env_var"},
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
-            "code": {"logs_injection": False},
-            "expected": {"logs_injection": False},
-            "expected_source": {"logs_injection": "code"},
+            "code": {"_logs_injection": False},
+            "expected": {"_logs_injection": False},
+            "expected_source": {"_logs_injection": "code"},
         },
         {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
             "expected": {
-                "trace_http_header_tags": {"X-Header-Tag-1": "header_tag_1", "X-Header-Tag-2": "header_tag_2"}
+                "_trace_http_header_tags": {"X-Header-Tag-1": "header_tag_1", "X-Header-Tag-2": "header_tag_2"}
             },
-            "expected_source": {"trace_http_header_tags": "env_var"},
+            "expected_source": {"_trace_http_header_tags": "env_var"},
         },
         {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
-            "code": {"trace_http_header_tags": {"header": "value"}},
-            "expected": {"trace_http_header_tags": {"header": "value"}},
-            "expected_source": {"trace_http_header_tags": "code"},
+            "code": {"_trace_http_header_tags": {"header": "value"}},
+            "expected": {"_trace_http_header_tags": {"header": "value"}},
+            "expected_source": {"_trace_http_header_tags": "code"},
         },
         {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1,X-Header-Tag-2,X-Header-Tag-3:specific_tag3"},
             "expected": {
-                "trace_http_header_tags": {
+                "_trace_http_header_tags": {
                     "X-Header-Tag-1": "",
                     "X-Header-Tag-2": "",
                     "X-Header-Tag-3": "specific_tag3",
                 }
             },
-            "expected_source": {"trace_http_header_tags": "env_var"},
+            "expected_source": {"_trace_http_header_tags": "env_var"},
         },
         {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
@@ -122,14 +122,14 @@ def _deleted_rc_config():
                     {"header": "X-Header-Tag-70", "tag_name": ""},
                 ]
             },
-            "code": {"trace_http_header_tags": {"header": "value"}},
+            "code": {"_trace_http_header_tags": {"header": "value"}},
             "expected": {
-                "trace_http_header_tags": {
+                "_trace_http_header_tags": {
                     "X-Header-Tag-69": "header_tag_69",
                     "X-Header-Tag-70": "",
                 }
             },
-            "expected_source": {"trace_http_header_tags": "remote_config"},
+            "expected_source": {"_trace_http_header_tags": "remote_config"},
         },
         {
             "env": {"DD_TAGS": "key:value,key2:value2"},
@@ -220,7 +220,7 @@ def test_settings_missing_lib_config(config, monkeypatch):
 
 
 def test_config_subscription(config):
-    for s in ("_trace_sample_rate", "logs_injection", "trace_http_header_tags"):
+    for s in ("_trace_sample_rate", "_logs_injection", "_trace_http_header_tags"):
         _handler = mock.MagicMock()
         config._subscribe([s], _handler)
         setattr(config, s, "1")
@@ -615,3 +615,35 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
         env=env,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
+
+
+def test_config_public_properties_and_methods():
+    # Regression test to prevent unexpected changes to public attributes in Config
+    # By default most attributes should be private and set via Environment Variables
+    from ddtrace.settings import Config
+
+    public_attrs = set()
+    c = Config()
+    # Check for public attributes in Config
+    for attr in dir(c):
+        if not attr.startswith("_") and not attr.startswith("__"):
+            public_attrs.add(attr)
+    # Check for public keys in Config._config
+    for key in c._config:
+        if not key.startswith("_"):
+            public_attrs.add(key)
+
+    assert public_attrs == {
+        "trace_headers",
+        "service",
+        "service_mapping",
+        "env",
+        "tags",
+        "version",
+        "http",
+        "http_server",
+        "header_is_traced",
+        "convert_rc_trace_sampling_rules",
+        "enable_remote_configuration",
+        "get_from",
+    }, public_attrs

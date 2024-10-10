@@ -1004,7 +1004,7 @@ class HTTPPropagator(object):
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
+        if config._propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
@@ -1057,7 +1057,7 @@ class HTTPPropagator(object):
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)  # type: ignore
-                    if config.propagation_http_baggage_enabled is True:
+                    if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     return context
             # loop through all extract propagation styles
@@ -1066,7 +1066,7 @@ class HTTPPropagator(object):
 
                 if contexts:
                     context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
-                    if config.propagation_http_baggage_enabled is True:
+                    if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     return context
 

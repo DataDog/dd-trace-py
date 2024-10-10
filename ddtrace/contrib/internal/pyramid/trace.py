@@ -88,7 +88,7 @@ def trace_tween_factory(handler, registry):
                 # DEV: pyramid is special case maintains separate configuration from config api
                 analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)
 
-                if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
+                if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
                     span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True))
 
                 setattr(request, DD_TRACER, tracer)  # used to find the tracer in templates

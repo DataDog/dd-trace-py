@@ -75,7 +75,7 @@ class PyramidTestCase(PyramidBase):
         else:
             assert http.QUERY_STRING not in s.get_tags()
 
-        if config.http_tag_query_string:
+        if config._http_tag_query_string:
             assert s.get_tag(http.URL) == "http://localhost/" + fqs
         else:
             assert s.get_tag(http.URL) == "http://localhost/"

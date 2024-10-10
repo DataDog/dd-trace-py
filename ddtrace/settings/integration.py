@@ -76,10 +76,10 @@ class IntegrationConfig(AttrDict):
 
         if analytics_enabled:
             deprecate(
-                "Datadog App Analytics is deprecated"
+                "Datadog App Analytics is deprecated. "
                 f"App Analytics can be enabled via {env} and {legacy_env} "
                 f"environment variables and the ddtrace.config.{self.integration_name}.analytics_enabled configuration."
-                " This feature and its associated configuration will be removed in a future release.",
+                " This feature and its associated configurations will be removed in a future release.",
                 category=DDTraceDeprecationWarning,
             )
 
@@ -93,7 +93,7 @@ class IntegrationConfig(AttrDict):
         return analytics_enabled, analytics_sample_rate
 
     def get_http_tag_query_string(self, value):
-        if self.global_config.http_tag_query_string:
+        if self.global_config._http_tag_query_string:
             dd_http_server_tag_query_string = value if value else os.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
             # If invalid value, will default to True
             return dd_http_server_tag_query_string.lower() not in ("false", "0")
@@ -135,7 +135,7 @@ class IntegrationConfig(AttrDict):
     def _is_analytics_enabled(self, use_global_config):
         # DEV: analytics flag can be None which should not be taken as
         # enabled when global flag is disabled
-        if use_global_config and self.global_config.analytics_enabled:
+        if use_global_config and self.global_config._analytics_enabled:
             return self.analytics_enabled is not False
         else:
             return self.analytics_enabled is True

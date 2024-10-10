@@ -66,7 +66,7 @@ def test_inject(tracer):  # noqa: F811
 
 
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
-    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+    with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
         ctx._set_baggage_item("key1", "val1")
         tracer.context_provider.activate(ctx)
@@ -637,7 +637,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
 
 
 def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
-    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+    with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         headers = {
             "x-datadog-trace-id": "1234",
             "x-datadog-parent-id": "5678",

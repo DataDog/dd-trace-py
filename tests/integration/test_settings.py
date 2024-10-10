@@ -82,8 +82,8 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
 from ddtrace import config, tracer
 
 config._trace_sample_rate = 0.2
-config.logs_injection = False
-config.trace_http_header_tags = {"header": "value"}
+config._logs_injection = False
+config._trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
 config._tracing_enabled = False
 
