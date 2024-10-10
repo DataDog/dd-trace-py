@@ -1,10 +1,7 @@
 import mock
 import pytest
 
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_utils import LazyTaintDict
@@ -12,13 +9,20 @@ from ddtrace.appsec._iast._taint_utils import LazyTaintList
 from ddtrace.appsec._iast._taint_utils import check_tainted_dbapi_args
 
 
-def setup():
-    patch_iast()
-    create_context()
-    oce._enabled = True
+@pytest.fixture
+def lazy_taint_json_patch():
+    from ddtrace.appsec._iast._patches.json_tainting import patched_json_encoder_default
+    from ddtrace.appsec._iast._patches.json_tainting import try_unwrap
+    from ddtrace.appsec._iast._patches.json_tainting import try_wrap_function_wrapper
+
+    try_wrap_function_wrapper("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    try_wrap_function_wrapper("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    yield
+    try_unwrap("json.encoder", "JSONEncoder.default")
+    try_unwrap("simplejson.encoder", "JSONEncoder.default")
 
 
-def test_tainted_types():
+def test_tainted_types(iast_context_defaults):
     tainted = taint_pyobject(
         pyobject="hello", source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
     )
@@ -68,7 +72,7 @@ def test_tainted_types():
     assert not is_pyobject_tainted(not_tainted)
 
 
-def test_tainted_getitem():
+def test_tainted_getitem(iast_context_defaults):
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     tainted_knights = LazyTaintDict(
         {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1},
@@ -89,7 +93,7 @@ def test_tainted_getitem():
         tainted_knights["arthur"]
 
 
-def test_tainted_get():
+def test_tainted_get(iast_context_defaults):
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     tainted_knights = LazyTaintDict(
         {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1},
@@ -119,7 +123,7 @@ def test_tainted_get():
     assert not is_pyobject_tainted(robin)
 
 
-def test_tainted_items():
+def test_tainted_items(iast_context_defaults):
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
     tainted_knights = LazyTaintDict(
         {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))},
@@ -137,7 +141,7 @@ def test_tainted_items():
         assert not is_pyobject_tainted(v)
 
 
-def test_tainted_keys_and_values():
+def test_tainted_keys_and_values(iast_context_defaults):
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
     tainted_knights = LazyTaintDict(
         {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))},
@@ -157,7 +161,7 @@ def test_tainted_keys_and_values():
         assert not is_pyobject_tainted(v)
 
 
-def test_recursivity():
+def test_recursivity(iast_context_defaults):
     tainted_dict = LazyTaintDict(
         {
             "tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
@@ -180,7 +184,7 @@ def test_recursivity():
     check_taint(tainted_dict)
 
 
-def test_checked_tainted_args():
+def test_checked_tainted_args(iast_context_defaults):
     cursor = mock.Mock()
     cursor.execute.__name__ = "execute"
     cursor.executemany.__name__ = "executemany"
@@ -235,21 +239,8 @@ def test_checked_tainted_args():
     )
 
 
-@pytest.fixture
-def lazy_taint_json_patch():
-    from ddtrace.appsec._iast._patches.json_tainting import patched_json_encoder_default
-    from ddtrace.appsec._iast._patches.json_tainting import try_unwrap
-    from ddtrace.appsec._iast._patches.json_tainting import try_wrap_function_wrapper
-
-    try_wrap_function_wrapper("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
-    try_wrap_function_wrapper("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
-    yield
-    try_unwrap("json.encoder", "JSONEncoder.default")
-    try_unwrap("simplejson.encoder", "JSONEncoder.default")
-
-
 @pytest.mark.usefixtures("lazy_taint_json_patch")
-def test_json_encode_dict():
+def test_json_encode_dict(iast_context_defaults):
     import json
 
     tainted_dict = LazyTaintDict(
@@ -267,7 +258,7 @@ def test_json_encode_dict():
 
 
 @pytest.mark.usefixtures("lazy_taint_json_patch")
-def test_json_encode_list():
+def test_json_encode_list(iast_context_defaults):
     import json
 
     tainted_list = LazyTaintList(
@@ -279,7 +270,7 @@ def test_json_encode_list():
 
 
 @pytest.mark.usefixtures("lazy_taint_json_patch")
-def test_simplejson_encode_dict():
+def test_simplejson_encode_dict(iast_context_defaults):
     import simplejson as json
 
     tainted_dict = LazyTaintDict(
@@ -297,7 +288,7 @@ def test_simplejson_encode_dict():
 
 
 @pytest.mark.usefixtures("lazy_taint_json_patch")
-def test_simplejson_encode_list():
+def test_simplejson_encode_list(iast_context_defaults):
     import simplejson as json
 
     tainted_list = LazyTaintList(
@@ -308,7 +299,7 @@ def test_simplejson_encode_list():
     assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'
 
 
-def test_taint_structure():
+def test_taint_structure(iast_context_defaults):
     from ddtrace.appsec._iast._taint_utils import taint_structure
 
     d = {1: "foo"}

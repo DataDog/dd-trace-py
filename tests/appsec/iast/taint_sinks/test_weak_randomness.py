@@ -2,12 +2,11 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast.constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
-from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 FIXTURES_RANDOM_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness_random.py"
@@ -23,11 +22,11 @@ WEEK_RANDOMNESS_PY_VERSION = not ((3, 9, 0) <= sys.version_info)
     "random_func",
     DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
 )
-def test_weak_randomness(random_func, iast_span_defaults):
+def test_weak_randomness(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
 
     getattr(mod, "random_{}".format(random_func))()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     line, hash_value = get_line_and_hash(
         "weak_randomness_{}".format(random_func), VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_PATH
     )
@@ -42,11 +41,11 @@ def test_weak_randomness(random_func, iast_span_defaults):
 
 
 @pytest.mark.skipif(WEEK_RANDOMNESS_PY_VERSION, reason="Some random methods exists on 3.9 or higher")
-def test_weak_randomness_no_dynamic_import(iast_span_defaults):
+def test_weak_randomness_no_dynamic_import(iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
 
     mod.random_dynamic_import()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     assert span_report is None
 
 
@@ -55,11 +54,11 @@ def test_weak_randomness_no_dynamic_import(iast_span_defaults):
     "random_func",
     DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
 )
-def test_weak_randomness_module(random_func, iast_span_defaults):
+def test_weak_randomness_module(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_module")
 
     getattr(mod, "random_{}".format(random_func))()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     line, hash_value = get_line_and_hash(
         "weak_randomness_{}".format(random_func), VULN_WEAK_RANDOMNESS, filename=FIXTURES_RANDOM_MODULE_PATH
     )
@@ -78,18 +77,18 @@ def test_weak_randomness_module(random_func, iast_span_defaults):
     "random_func",
     DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
 )
-def test_weak_randomness_secure_module(random_func, iast_span_defaults):
+def test_weak_randomness_secure_module(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_secure_module")
 
     getattr(mod, "random_{}".format(random_func))()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     assert span_report is None
 
 
 @pytest.mark.skipif(WEEK_RANDOMNESS_PY_VERSION, reason="Some random methods exists on 3.9 or higher")
-def test_weak_randomness_secrets_secure_package(iast_span_defaults):
+def test_weak_randomness_secrets_secure_package(iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_secrets")
 
     mod.random_choice()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     assert span_report is None

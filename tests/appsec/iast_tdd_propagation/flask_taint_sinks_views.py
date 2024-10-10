@@ -6,9 +6,8 @@ from flask import Flask
 from flask import request
 
 from ddtrace import tracer
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.internal import core
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 class ResultResponse:
@@ -46,10 +45,10 @@ def create_app():
         crypt_obj.encrypt(data)
 
         response = ResultResponse(param)
-        report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
-        if report and report[0]:
-            response.sources = report[0].sources[0].value
-            response.vulnerabilities = list(report[0].vulnerabilities)[0].type
+        report = _get_span_report()
+        if report:
+            response.sources = report.sources[0].value
+            response.vulnerabilities = list(report.vulnerabilities)[0].type
 
         return response.json()
 
@@ -63,10 +62,10 @@ def create_app():
         crypt_obj.encrypt(data)
 
         response = ResultResponse(param)
-        report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
-        if report and report[0]:
-            response.sources = report[0].sources[0].value if report[0].sources else ""
-            response.vulnerabilities = list(report[0].vulnerabilities)[0].type
+        report = _get_span_report()
+        if report:
+            response.sources = report.sources[0].value if report.sources else ""
+            response.vulnerabilities = list(report.vulnerabilities)[0].type
 
         return response.json()
 

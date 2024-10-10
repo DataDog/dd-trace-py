@@ -1,23 +1,34 @@
 from typing import Any
 
 import bm
-from bm.utils import override_env
 
-
-with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import Source
-    from ddtrace.appsec._iast._taint_tracking import TaintRange
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import reset_context
-    from ddtrace.appsec._iast._taint_tracking import set_ranges
-    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-    from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._iast_request_context import end_iast_context
+from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
+from ddtrace.appsec._iast._iast_request_context import start_iast_context
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import set_ranges
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
 
 
 TAINT_ORIGIN = Source(name="sample_name", value="sample_value", origin=OriginType.PARAMETER)
 
 CHECK_RANGES = [TaintRange(0, 3, TAINT_ORIGIN), TaintRange(21, 3, TAINT_ORIGIN), TaintRange(41, 3, TAINT_ORIGIN)]
+
+
+def _start_iast_context_and_oce():
+    oce.reconfigure()
+    oce.acquire_request(None)
+    start_iast_context()
+    set_iast_request_enabled(True)
+
+
+def _end_iast_context_and_oce():
+    end_iast_context()
+    oce.release_request()
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: tuple) -> None:
@@ -53,8 +64,6 @@ def aspect_function(internal_loop, tainted):
 
 def new_request(enable_propagation):
     tainted = b"my_string".decode("ascii")
-    reset_context()
-    create_context()
 
     if enable_propagation:
         taint_pyobject_with_ranges(tainted, (CHECK_RANGES[0],))
@@ -74,6 +83,7 @@ class IastPropagation(bm.Scenario):
     def run(self):
         caller_loop = 10
         if self.iast_enabled:
+            _start_iast_context_and_oce()
             func = aspect_function
         else:
             func = normal_function
@@ -83,3 +93,5 @@ class IastPropagation(bm.Scenario):
                 launch_function(self.iast_enabled, func, self.internal_loop, caller_loop)
 
         yield _
+        if self.iast_enabled:
+            _end_iast_context_and_oce()

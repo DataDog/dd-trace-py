@@ -9,6 +9,7 @@ import xmltodict
 
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._iast._iast_request_context import in_iast_context
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec._iast._utils import _is_iast_enabled
@@ -194,15 +195,11 @@ def _on_request_span_modifier(
 
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if _is_iast_enabled():
+    if _is_iast_enabled() and in_iast_context():
         try:
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import origin_to_str
             from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-            from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-            if not AppSecIastSpanProcessor.is_span_analyzed():
-                return
 
             instance.query_string = taint_pyobject(
                 pyobject=instance.query_string,
@@ -290,9 +287,8 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
         from ddtrace.appsec._iast._taint_utils import taint_structure
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
-        if not AppSecIastSpanProcessor.is_span_analyzed():
+        if not in_iast_context():
             return
 
         http_req = fn_args[0]
@@ -357,16 +353,9 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
 
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
-    if _is_iast_enabled():
-        if not args:
-            return wrapped(*args, **kwargs)
-
-        from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
+    if _is_iast_enabled() and args and in_iast_context():
+        from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_utils import taint_structure
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-        if not AppSecIastSpanProcessor.is_span_analyzed():
-            return wrapped(*args, **kwargs)
 
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 

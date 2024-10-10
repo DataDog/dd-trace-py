@@ -2,7 +2,6 @@ import json
 
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
@@ -14,7 +13,6 @@ from tests.utils import override_global_config
 
 def setup():
     create_context()
-    oce._enabled = True
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
@@ -40,7 +38,7 @@ TEST_INPUTS = [
 
 
 @pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
-def test_taint_json(iast_span_defaults, input_jsonstr, res_type, tainted_type):
+def test_taint_json(iast_context_defaults, input_jsonstr, res_type, tainted_type):
     assert json._datadog_json_tainting_patch
     with override_global_config(dict(_iast_enabled=True)):
         input_str = taint_pyobject(
@@ -57,7 +55,7 @@ def test_taint_json(iast_span_defaults, input_jsonstr, res_type, tainted_type):
 
 
 @pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
-def test_taint_json_no_taint(iast_span_defaults, input_jsonstr, res_type, tainted_type):
+def test_taint_json_no_taint(iast_context_defaults, input_jsonstr, res_type, tainted_type):
     with override_global_config(dict(_iast_enabled=True)):
         input_str = input_jsonstr
         assert not is_pyobject_tainted(input_str)

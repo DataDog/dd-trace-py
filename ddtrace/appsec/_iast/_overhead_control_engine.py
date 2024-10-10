@@ -10,6 +10,7 @@ from typing import Tuple
 from typing import Type
 
 from ddtrace._trace.span import Span
+from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
@@ -96,7 +97,12 @@ class OverheadControl(object):
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
-        if self._request_quota <= 0 or not self._sampler.sample(span):
+        if self._request_quota <= 0:
+            return False
+
+        if span and not self._sampler.sample(span):
+            if _is_iast_debug_enabled():
+                log.debug("[IAST] Skip request by sampling rate")
             return False
 
         with self._lock:

@@ -1,12 +1,11 @@
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast.constants import VULN_CMDI
-from ddtrace.internal import core
 from ddtrace.internal.module import is_module_installed
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-from tests.appsec.iast.conftest import iast_span_defaults  # noqa: F401
+from tests.appsec.iast.conftest import iast_context_defaults  # noqa: F401
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.utils import override_env
 
 
@@ -19,7 +18,7 @@ with override_env({"DD_IAST_ENABLED": "True"}):
 
 
 @pytest.mark.skipif(not is_module_installed("langchain"), reason="Langchain tests work on 3.9 or higher")
-def test_openai_llm_appsec_iast_cmdi(iast_span_defaults):  # noqa: F811
+def test_openai_llm_appsec_iast_cmdi(iast_context_defaults):  # noqa: F811
     mod = _iast_patched_module(FIXTURES_MODULE)
     string_to_taint = "I need to use the terminal tool to print a Hello World"
     prompt = taint_pyobject(
@@ -31,7 +30,7 @@ def test_openai_llm_appsec_iast_cmdi(iast_span_defaults):  # noqa: F811
     res = mod.patch_langchain(prompt)
     assert res == "4"
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     assert span_report
     data = span_report.build_and_scrub_value_parts()
     vulnerability = data["vulnerabilities"][0]
