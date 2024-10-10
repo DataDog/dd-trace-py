@@ -446,11 +446,11 @@ def check_rust_toolchain():
 
 
 # Before adding any extensions, check that system pre-requisites are satisfied
-# try:
-#     check_rust_toolchain()
-# except EnvironmentError as e:
-#     print(f"{e}")
-#     sys.exit(1)
+try:
+    check_rust_toolchain()
+except EnvironmentError as e:
+    print(f"{e}")
+    sys.exit(1)
 
 
 def get_exts_for(name):
@@ -494,7 +494,7 @@ else:
     else:
         debug_compile_args = []
 
-if False: #not IS_PYSTON:
+if not IS_PYSTON:
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -641,13 +641,13 @@ setup(
         compiler_directives={"language_level": "3"},
     )
     + get_exts_for("psutil"),
-    # rust_extensions=[
-    #     RustExtension(
-    #         "ddtrace.internal.core._core",
-    #         path="src/core/Cargo.toml",
-    #         py_limited_api="auto",
-    #         binding=Binding.PyO3,
-    #         debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
-    #     ),
-    # ],
+    rust_extensions=[
+        RustExtension(
+            "ddtrace.internal.core._core",
+            path="src/core/Cargo.toml",
+            py_limited_api="auto",
+            binding=Binding.PyO3,
+            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+        ),
+    ],
 )
