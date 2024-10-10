@@ -156,7 +156,7 @@ def config(
     if version:
         call_ddup_config_version(ensure_binary_or_empty(version))
     if url:
-        call_ddup_config_url(ensure_binary_or_empty(url))
+        set_url(url)
     if output_filename:
         call_ddup_config_output_filename(ensure_binary_or_empty(output_filename))
 
@@ -247,6 +247,10 @@ def upload() -> None:
 
     with nogil:
         ddup_upload()
+
+
+def set_url(StringType url) -> None:
+    call_ddup_config_url(ensure_binary_or_empty(url))
 
 
 cdef class SampleHandle:
