@@ -264,10 +264,10 @@ split_taints(const string& str_to_split)
  */
 inline py::object
 parse_param(size_t position,
-             const char* keyword_name,
-             const py::object& default_value,
-             const py::args& args,
-             const py::kwargs& kwargs)
+            const char* keyword_name,
+            const py::object& default_value,
+            const py::args& args,
+            const py::kwargs& kwargs)
 {
     if (args.size() >= position + 1) {
         return args[position];
