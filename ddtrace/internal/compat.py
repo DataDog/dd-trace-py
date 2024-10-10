@@ -46,7 +46,8 @@ PYTHON_VERSION_INFO = sys.version_info
 PYTHON_VERSION = platform.python_version()
 PYTHON_INTERPRETER = platform.python_implementation()
 
-import http.client as httplib  # noqa: E402
+import ddtrace.internal.http_client as httplib  # noqa: E402
+#import http.client as httplib  # noqa: E402
 from io import StringIO  # noqa: E402
 from queue import Queue  # noqa: E402
 import urllib.parse as parse  # noqa: E402
