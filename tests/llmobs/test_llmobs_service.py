@@ -1567,10 +1567,10 @@ def test_llmobs_fork_evaluator_runner_run(monkeypatch):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", api_key="test_api_key")
         pid = os.fork()
         if pid:  # parent
-            llmobs_service._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "456"})
+            llmobs_service._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "456"}, None)
             assert len(llmobs_service._instance._evaluator_runner._buffer) == 1
         else:  # child
-            llmobs_service._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "456"})
+            llmobs_service._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "456"}, None)
             assert len(llmobs_service._instance._evaluator_runner._buffer) == 1
             llmobs_service.disable()
             os._exit(12)

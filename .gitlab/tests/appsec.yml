@@ -19,7 +19,6 @@ appsec iast:
 
 appsec iast tdd_propagation:
   extends: .test_base_riot_snapshot
-  allow_failure: true
   parallel: 2
   variables:
     SUITE_NAME: "appsec_iast_tdd_propagation"
