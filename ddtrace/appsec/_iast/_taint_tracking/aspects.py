@@ -415,7 +415,7 @@ def format_value_aspect(
     element: Any,
     options: int = 0,
     format_spec: Optional[str] = None,
-) -> str:
+) -> Union[str, bytes, bytearray]:
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:
@@ -438,7 +438,7 @@ def format_value_aspect(
                 try:
                     new_ranges = list()
                     for text_range in text_ranges:
-                        new_ranges.append(shift_taint_range(text_range, new_new_text.index(new_text)))
+                        new_ranges.append(shift_taint_range(text_range, new_new_text.index(new_text)))  # type: ignore
                     if new_ranges:
                         taint_pyobject_with_ranges(new_new_text, tuple(new_ranges))
                     return new_new_text
