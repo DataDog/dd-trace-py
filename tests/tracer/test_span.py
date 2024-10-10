@@ -98,20 +98,46 @@ class SpanTestCase(TracerTestCase):
 
     def test_set_baggage_item(self):
         s = Span(name="test.span")
-        s._set_baggage_item("custom.key", "123")
-        assert s._get_baggage_item("custom.key") == "123"
+        s.context.set_baggage_item("custom.key", "123")
+        assert s.context.get_baggage_item("custom.key") == "123"
 
-    def test_baggage_propagation(self):
+    def test_baggage_get(self):
         span1 = Span(name="test.span1")
-        span1._set_baggage_item("item1", "123")
+        span1.context.set_baggage_item("item1", "123")
 
         span2 = Span(name="test.span2", context=span1.context)
-        span2._set_baggage_item("item2", "456")
+        span2.context.set_baggage_item("item2", "456")
 
-        assert span2._get_baggage_item("item1") == "123"
-        assert span2._get_baggage_item("item2") == "456"
-        assert span1._get_baggage_item("item1") == "123"
-        assert span1._get_baggage_item("item2") is None
+        assert span2.context.get_baggage_item("item1") == "123"
+        assert span2.context.get_baggage_item("item2") == "456"
+        assert span1.context.get_baggage_item("item1") == "123"
+
+    def test_baggage_remove(self):
+        span1 = Span(name="test.span1")
+        span1.context.set_baggage_item("item1", "123")
+        span1.context.set_baggage_item("item2", "456")
+
+        span1.context.remove_baggage_item("item1")
+        assert span1.context.get_baggage_item("item1") is None
+        assert span1.context.get_baggage_item("item2") == "456"
+        span1.context.remove_baggage_item("item2")
+        assert span1.context.get_baggage_item("item2") is None
+
+    def test_baggage_remove_all(self):
+        span1 = Span(name="test.span1")
+        span1.context.set_baggage_item("item1", "123")
+        span1.context.set_baggage_item("item2", "456")
+
+        span1.context.remove_all_baggage_items()
+        assert span1.context.get_baggage_item("item1") is None
+        assert span1.context.get_baggage_item("item2") is None
+
+    def test_baggage_get_all(self):
+        span1 = Span(name="test.span1")
+        span1.context.set_baggage_item("item1", "123")
+        span1.context.set_baggage_item("item2", "456")
+
+        assert span1.context.get_all_baggage_items() == {"item1": "123", "item2": "456"}
 
     def test_set_tag_metric(self):
         s = Span(name="test.span")
