@@ -20,21 +20,45 @@ set_lengthupdated_ranges(PyObject* result,
 }
 
 static PyObject*
-call_original_function(PyObject* orig_function, PyObject* text, PyObject* pyo_encoding, PyObject* pyo_errors)
+call_original_function(PyObject* orig_function,
+                       int nargs,
+                       int flag_added_args,
+                       PyObject* const* args,
+                       PyObject* kwnames)
 {
-    PyObject* arg_errors = pyo_errors ? pyo_errors : PyUnicode_FromString("strict");
-    const auto res = PyObject_CallFunction(orig_function, "OOO", text, pyo_encoding, arg_errors);
-    if (res == nullptr) {
-        return nullptr;
+    int skip_args = 2 + flag_added_args;
+
+    // convert ** args to *args
+    py::list py_args_list;
+    for (Py_ssize_t i = skip_args; i < nargs; ++i) {
+        py_args_list.append(py::reinterpret_borrow<py::object>(args[i]));
     }
+    py::args py_args(py_args_list);
+
+    PyObject* kwargs = kwnames_to_kwargs(args, nargs, kwnames);
+    auto res = PyObject_Call(orig_function, py_args.ptr(), kwnames_to_kwargs(args, nargs, kwnames));
+    Py_DECREF(kwargs);
     return res;
 }
 
-static std::tuple<int, PyObject*, PyObject*, PyObject*, PyObject*>
+static std::tuple<int, int, PyObject*, PyObject*, PyObject*, PyObject*>
 get_args(PyObject* const* args, const Py_ssize_t nargs, PyObject* kwnames)
 {
+    int flag_added_args = -1;
+
     PyObject* orig_function = args[0];
-    PyObject* text = args[2];
+
+    if (nargs > 1) {
+        if (PyLong_Check(args[1])) {
+            flag_added_args = PyLong_AsLong(args[1]);
+        }
+    }
+
+    PyObject* text = nullptr;
+    if (nargs > 2) {
+        text = args[2];
+    }
+
     PyObject* pyo_encoding = nullptr;
     PyObject* pyo_errors = nullptr;
     int effective_args = 1;
@@ -48,6 +72,7 @@ get_args(PyObject* const* args, const Py_ssize_t nargs, PyObject* kwnames)
         effective_args = 3;
     }
 
+    // Not using kwnames to kwargs here for performance
     if (kwnames and PyTuple_Check(kwnames)) {
         for (Py_ssize_t i = 0; i < PyTuple_Size(kwnames); i++) {
             if (effective_args > 3) {
@@ -65,25 +90,36 @@ get_args(PyObject* const* args, const Py_ssize_t nargs, PyObject* kwnames)
                 ++effective_args;
                 pyo_errors = value;
             }
+
+            if (pyo_encoding and pyo_errors) {
+                break;
+            }
         }
     }
 
-    return { effective_args, orig_function, text, pyo_encoding, pyo_errors };
+    return { effective_args, flag_added_args, orig_function, text, pyo_encoding, pyo_errors };
 }
 
 PyObject*
 api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, PyObject* kwnames)
 {
-    if (nargs == 2 or (nargs > 2 and PyUnicode_Check(args[2]) and PyObject_Length(args[2]) == 0)) {
-        // str() without parameters or empty parameter, just return an empty string
-        return PyUnicode_FromString("");
-    }
     if (nargs < 2 or nargs > 5) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
     }
 
-    auto [effective_args, orig_function, text, pyo_encoding, pyo_errors] = get_args(args, nargs, kwnames);
+    auto [effective_args, flag_added_args, orig_function, text, pyo_encoding, pyo_errors] =
+      get_args(args, nargs, kwnames);
+
+    // This is a flag that the function was not the original
+    if (flag_added_args == -1 or not is_pointer_this_builtin(orig_function, "str")) {
+        return call_original_function(orig_function, nargs, flag_added_args, args, kwnames);
+    }
+
+    if (nargs == 2 or (nargs > 2 and PyUnicode_Check(args[2]) and PyObject_Length(args[2]) == 0)) {
+        // builtin str() without parameters or empty parameter, just return an empty string
+        return PyUnicode_FromString("");
+    }
 
     if (effective_args > 3) {
         string error_msg = "str() takes at most 3 arguments (" + to_string(effective_args) + " given)";
@@ -97,7 +133,7 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
     // If it has encoding, then the text object must be a bytes or bytearray object; if not, call the original
     // function so the error is raised
     if (has_encoding and (not PyByteArray_Check(text) and not PyBytes_Check(text))) {
-        return call_original_function(orig_function, text, pyo_encoding, pyo_errors);
+        return call_original_function(orig_function, nargs, flag_added_args, args, kwnames);
     }
 
     // Call the original if not a text type and has no encoding

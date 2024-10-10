@@ -278,6 +278,37 @@ parse_param(size_t position,
     return default_value;
 }
 
+// Convert the kwnames of a function with METH_FASTCALL | METH_KEYWORDS to a classic kwargs dictionary
+// so it can be used for other normal functions
+inline PyObject*
+kwnames_to_kwargs(PyObject* const* args, int nargs, PyObject* kwnames)
+{
+    PyObject* kwargs = PyDict_New();
+    if (kwargs == nullptr) {
+        return nullptr; // Memory allocation failed
+    }
+
+    if (kwnames == nullptr || nargs == 0 || args == nullptr) {
+        return kwargs; // Return empty dictionary
+    }
+
+    Py_ssize_t nkwargs = PyTuple_Size(kwnames);
+
+    // Iterate over the keyword arguments
+    for (Py_ssize_t i = 0; i < nkwargs; ++i) {
+        PyObject* key = PyTuple_GetItem(kwnames, i);
+        PyObject* value = args[nargs + i];
+
+        if (PyDict_SetItem(kwargs, key, value) < 0) {
+            Py_DECREF(kwargs);
+            return nullptr;
+        }
+    }
+
+    // Return the kwargs dictionary (new reference, must be decref by the caller)
+    return kwargs;
+}
+
 void
 pyexport_aspect_helpers(py::module& m);
 
