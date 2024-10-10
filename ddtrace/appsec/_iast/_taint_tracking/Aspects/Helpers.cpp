@@ -461,7 +461,7 @@ pyexport_aspect_helpers(py::module& m)
           "taint_escaped_text"_a,
           "ranges_orig"_a,
           py::return_value_policy::move);
-    m.def("parse_params", &parse_params);
+    m.def("parse_params", &parse_param);
     m.def("has_pyerr", &has_pyerr);
     m.def("has_pyerr_as_string", &has_pyerr_as_string);
 }
