@@ -19,7 +19,7 @@ if vcr:
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
         record_mode="once",
         match_on=["path"],
-        filter_headers=[("DD-API-KEY", "XXXXXX")],
+        filter_headers=["authorization", "OpenAI-Organization", "api-key", "x-api-key", ("DD-API-KEY", "XXXXXX")],
         # Ignore requests to the agent
         ignore_localhost=True,
     )
@@ -56,6 +56,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
 def _expected_llmobs_llm_span_event(
     span,
     span_kind="llm",
+    prompt=None,
     input_messages=None,
     input_documents=None,
     output_messages=None,
@@ -94,6 +95,8 @@ def _expected_llmobs_llm_span_event(
             meta_dict["input"].update({"messages": input_messages})
         if output_messages is not None:
             meta_dict["output"].update({"messages": output_messages})
+        if prompt is not None:
+            meta_dict["input"].update({"prompt": prompt})
     if span_kind == "embedding":
         if input_documents is not None:
             meta_dict["input"].update({"documents": input_documents})
@@ -192,6 +195,7 @@ def _llmobs_base_span_event(
         "status": "error" if error else "ok",
         "meta": {"span.kind": span_kind},
         "metrics": {},
+        "ml_app": tags.get("ml_app", "unnamed-ml-app") if tags else "unnamed-ml-app",
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
     }
     if session_id:
@@ -440,6 +444,40 @@ def _oversized_retrieval_event():
     }
 
 
+def expected_ragas_trace_tags():
+    return [
+        "version:",
+        "env:",
+        "service:",
+        "source:integration",
+        "ml_app:ragas-unnamed-ml-app",
+        "ddtrace.version:{}".format(ddtrace.__version__),
+        "language:python",
+        "error:0",
+        "runner.integration:ragas",
+    ]
+
+
+default_ragas_inputs = {
+    "question": "What is the capital of France?",
+    "context": "The capital of France is Paris.",
+    "answer": "The capital of France is Paris",
+}
+
+
+def _llm_span_with_expected_ragas_inputs(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+
+    return _expected_llmobs_llm_span_event(
+        span=Span("dummy"),
+        prompt={
+            "variables": {"question": ragas_inputs["question"], "context": ragas_inputs["context"]},
+        },
+        output_messages=[{"content": ragas_inputs["answer"]}],
+    )
+
+
 class DummyEvaluator:
     LABEL = "dummy"
 
@@ -453,3 +491,91 @@ class DummyEvaluator:
             value=1.0,
             metric_type="score",
         )
+
+
+def _expected_ragas_spans(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+    return [
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": "undefined",
+            "name": "ragas.faithfulness",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "ml_app": "ragas-unnamed-ml-app",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": "1.0"},
+                "metadata": {
+                    "statements": mock.ANY,
+                    "faithfulness_list": mock.ANY,
+                },
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "ragas.extract_faithfulness_inputs",
+            "ml_app": "ragas-unnamed-ml-app",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "ragas.create_statements_prompt",
+            "ml_app": "ragas-unnamed-ml-app",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {"span.kind": "task"},
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "ragas.create_natural_language_inference_prompt",
+            "ml_app": "ragas-unnamed-ml-app",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {"span.kind": "task"},
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "ragas.compute_score",
+            "ml_app": "ragas-unnamed-ml-app",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "task",
+                "output": {"value": "1.0"},
+                "metadata": {"faithful_statements": 1, "num_statements": 1},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+    ]

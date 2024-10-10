@@ -8,14 +8,20 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 
 
 logger = get_logger(__name__)
 
+
+def get_ragas_faithfulness():
+    from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+
+    return RagasFaithfulnessEvaluator
+
+
 SUPPORTED_EVALUATORS = {
-    "ragas_faithfulness": RagasFaithfulnessEvaluator,
+    "ragas_faithfulness": get_ragas_faithfulness,
 }
 
 
@@ -47,7 +53,8 @@ class EvaluatorRunner(PeriodicService):
         evaluators = evaluator_str.split(",")
         for evaluator in evaluators:
             if evaluator in SUPPORTED_EVALUATORS:
-                self.evaluators.append(SUPPORTED_EVALUATORS[evaluator](llmobs_service=llmobs_service))
+                evaluator_instance = SUPPORTED_EVALUATORS[evaluator]()
+                self.evaluators.append(evaluator_instance(llmobs_service=llmobs_service))
 
     def start(self, *args, **kwargs):
         if not self.evaluators:

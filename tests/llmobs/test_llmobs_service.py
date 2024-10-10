@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import mock
 import pytest
@@ -24,6 +25,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -1615,6 +1617,37 @@ def test_llmobs_fork_custom_filter(monkeypatch):
         exit_code = os.WEXITSTATUS(status)
         assert exit_code == 12
         llmobs_service.disable()
+
+
+def test_llmobs_with_evaluator_runner(mock_llmobs_evaluator_runner, LLMObs):
+    with LLMObs.llm(model_name="test_model"):
+        pass
+    time.sleep(0.1)
+    assert LLMObs._instance._evaluator_runner.enqueue.call_count == 1
+
+
+def test_llmobs_with_evaluator_runner_does_not_enqueue_evaluation_spans(mock_llmobs_evaluator_runner, LLMObs):
+    with LLMObs.llm(model_name="test_model"):
+        LLMObs.annotate(tags={RUNNER_IS_INTEGRATION_SPAN_TAG: "ragas"})
+    time.sleep(0.1)
+    assert LLMObs._instance._evaluator_runner.enqueue.call_count == 0
+
+
+def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmobs_evaluator_runner, LLMObs):
+    with LLMObs.workflow(name="test"):
+        pass
+    with LLMObs.agent(name="test"):
+        pass
+    with LLMObs.task(name="test"):
+        pass
+    with LLMObs.embedding(model_name="test"):
+        pass
+    with LLMObs.retrieval(name="test"):
+        pass
+    with LLMObs.tool(name="test"):
+        pass
+    time.sleep(0.1)
+    assert LLMObs._instance._evaluator_runner.enqueue.call_count == 0
 
 
 def test_annotation_context_modifies_span_tags(LLMObs):

@@ -1,0 +1,271 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "Given a question, an answer, and sentences from
+      the answer analyze the complexity of each sentence given under ''sentences''
+      and break down each sentence into one or more fully understandable statements
+      while also ensuring no pronouns are used in each statement. Format the outputs
+      in JSON.\n\nThe output should be a well-formatted JSON instance that conforms
+      to the JSON schema below.\n\nAs an example, for the schema {\"properties\":
+      {\"foo\": {\"title\": \"Foo\", \"description\": \"a list of strings\", \"type\":
+      \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\nthe
+      object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted instance of the schema.
+      The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n\nHere
+      is the output JSON schema:\n```\n{\"type\": \"array\", \"items\": {\"$ref\":
+      \"#/definitions/Statements\"}, \"definitions\": {\"Statements\": {\"title\":
+      \"Statements\", \"type\": \"object\", \"properties\": {\"sentence_index\": {\"title\":
+      \"Sentence Index\", \"description\": \"Index of the sentence from the statement
+      list\", \"type\": \"integer\"}, \"simpler_statements\": {\"title\": \"Simpler
+      Statements\", \"description\": \"the simpler statements\", \"type\": \"array\",
+      \"items\": {\"type\": \"string\"}}}, \"required\": [\"sentence_index\", \"simpler_statements\"]}}}\n```\n\nDo
+      not return any preamble or explanations, return only a pure JSON string surrounded
+      by triple backticks (```).\n\nExamples:\n\nquestion: \"Who was Albert Einstein
+      and what is he best known for?\"\nanswer: \"He was a German-born theoretical
+      physicist, widely acknowledged to be one of the greatest and most influential
+      physicists of all time. He was best known for developing the theory of relativity,
+      he also made important contributions to the development of the theory of quantum
+      mechanics.\"\nsentences: \"\\n        0:He was a German-born theoretical physicist,
+      widely acknowledged to be one of the greatest and most influential physicists
+      of all time. \\n        1:He was best known for developing the theory of relativity,
+      he also made important contributions to the development of the theory of quantum
+      mechanics.\\n        \"\nanalysis: ```[{\"sentence_index\": 0, \"simpler_statements\":
+      [\"Albert Einstein was a German-born theoretical physicist.\", \"Albert Einstein
+      is recognized as one of the greatest and most influential physicists of all
+      time.\"]}, {\"sentence_index\": 1, \"simpler_statements\": [\"Albert Einstein
+      was best known for developing the theory of relativity.\", \"Albert Einstein
+      also made important contributions to the development of the theory of quantum
+      mechanics.\"]}]```\n\nYour actual task:\n\nquestion: \"What is the capital of
+      France?\"\nanswer: \"The capital of France is Paris\"\nsentences: \"\"\nanalysis:
+      \n", "role": "user"}], "model": "gpt-4o-mini", "n": 1, "stream": false, "temperature":
+      1e-08}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '2919'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.47.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.47.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//dJG9jtswEIR7PcVia+sgCYp1dpdDkCBFgPw1iWVItLSSeUeRDHcNJDD8
+        7gFln+0UaVjMxxnOLo8JAOoe14DdXkk3eZO+fcoH4Tdf1I+nx7J/du8+/gqfXr756sPXnwUuosPt
+        nqmTV9dD5yZvSLSzZ9wFUkIxNa+KKl/lZbaaweR6MtE2eklLl07a6rTIijLNqjR/vLj3TnfEuIZN
+        AgBwnM/Y0/b0G9eQLV6ViZjVSLi+XgLA4ExUUDFrFmUFFzfYOStk5+pt226ONTJFpaNmjq/nfKiR
+        dZwpNCxKaCIrHNGmxu97gk55LcqAG+B9ULYj0AyfVdD8UOP2tG3b9v7RQMOBVRzcHoy56KfrFMaN
+        PrgdX/hVH7TVvG8CKXY2NmZxHmd6SgC287YO/ywAfXCTl0bcC9kYuMzycx7ePulGi+UFihNl7lxF
+        9T9X05Mobfhu53huqO14S8iuNec5kf+w0NQM2o4UfNDnLxh8k+925TJfVsMKk1PyFwAA//8DAGZB
+        dvSQAgAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8c83c6a1fcdc78d3-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Sep 2024 15:23:29 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=zu3mOJ6axDfQPs9lD2jFCMBgdOHTTOzhkXviyLpRVaw-1727191409-1.0.1.1-oBY3dJDDvB4TKUVm7_e6QlH76r0sNfM9WhQzT_YeCja4QecmbM5hhX4oLnl3DBumVbsSI1m_k9FOeh1LpvKmcg;
+        path=/; expires=Tue, 24-Sep-24 15:53:29 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=itpaz4ZV.N_mqW5y6OJTYCUA06l67tFffcMoMeI9Vhc-1727191409617-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '413'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999323'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_e3d554d32a719f0273d516b319ec3ed4
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"content": "Your task is to judge the faithfulness of a
+      series of statements based on a given context. For each statement you must return
+      verdict as 1 if the statement can be directly inferred based on the context
+      or 0 if the statement can not be directly inferred based on the context.\n\nThe
+      output should be a well-formatted JSON instance that conforms to the JSON schema
+      below.\n\nAs an example, for the schema {\"properties\": {\"foo\": {\"title\":
+      \"Foo\", \"description\": \"a list of strings\", \"type\": \"array\", \"items\":
+      {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\nthe object {\"foo\": [\"bar\",
+      \"baz\"]} is a well-formatted instance of the schema. The object {\"properties\":
+      {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n\nHere is the output
+      JSON schema:\n```\n{\"type\": \"array\", \"items\": {\"$ref\": \"#/definitions/StatementFaithfulnessAnswer\"},
+      \"definitions\": {\"StatementFaithfulnessAnswer\": {\"title\": \"StatementFaithfulnessAnswer\",
+      \"type\": \"object\", \"properties\": {\"statement\": {\"title\": \"Statement\",
+      \"description\": \"the original statement, word-by-word\", \"type\": \"string\"},
+      \"reason\": {\"title\": \"Reason\", \"description\": \"the reason of the verdict\",
+      \"type\": \"string\"}, \"verdict\": {\"title\": \"Verdict\", \"description\":
+      \"the verdict(0/1) of the faithfulness.\", \"type\": \"integer\"}}, \"required\":
+      [\"statement\", \"reason\", \"verdict\"]}}}\n```\n\nDo not return any preamble
+      or explanations, return only a pure JSON string surrounded by triple backticks
+      (```).\n\nExamples:\n\ncontext: \"John is a student at XYZ University. He is
+      pursuing a degree in Computer Science. He is enrolled in several courses this
+      semester, including Data Structures, Algorithms, and Database Management. John
+      is a diligent student and spends a significant amount of time studying and completing
+      assignments. He often stays late in the library to work on his projects.\"\nstatements:
+      ```[\"John is majoring in Biology.\", \"John is taking a course on Artificial
+      Intelligence.\", \"John is a dedicated student.\", \"John has a part-time job.\"]```\nanswer:
+      ```[{\"statement\": \"John is majoring in Biology.\", \"reason\": \"John''s
+      major is explicitly mentioned as Computer Science. There is no information suggesting
+      he is majoring in Biology.\", \"verdict\": 0}, {\"statement\": \"John is taking
+      a course on Artificial Intelligence.\", \"reason\": \"The context mentions the
+      courses John is currently enrolled in, and Artificial Intelligence is not mentioned.
+      Therefore, it cannot be deduced that John is taking a course on AI.\", \"verdict\":
+      0}, {\"statement\": \"John is a dedicated student.\", \"reason\": \"The context
+      states that he spends a significant amount of time studying and completing assignments.
+      Additionally, it mentions that he often stays late in the library to work on
+      his projects, which implies dedication.\", \"verdict\": 1}, {\"statement\":
+      \"John has a part-time job.\", \"reason\": \"There is no information given in
+      the context about John having a part-time job.\", \"verdict\": 0}]```\n\ncontext:
+      \"Photosynthesis is a process used by plants, algae, and certain bacteria to
+      convert light energy into chemical energy.\"\nstatements: ```[\"Albert Einstein
+      was a genius.\"]```\nanswer: ```[{\"statement\": \"Albert Einstein was a genius.\",
+      \"reason\": \"The context and statement are unrelated\", \"verdict\": 0}]```\n\nYour
+      actual task:\n\ncontext: \"The capital of France is Paris.\"\nstatements: \"[\\\"The
+      capital of France is Paris.\\\"]\"\nanswer: \n", "role": "user"}], "model":
+      "gpt-4o-mini", "n": 1, "stream": false, "temperature": 1e-08}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3661'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=zu3mOJ6axDfQPs9lD2jFCMBgdOHTTOzhkXviyLpRVaw-1727191409-1.0.1.1-oBY3dJDDvB4TKUVm7_e6QlH76r0sNfM9WhQzT_YeCja4QecmbM5hhX4oLnl3DBumVbsSI1m_k9FOeh1LpvKmcg;
+        _cfuvid=itpaz4ZV.N_mqW5y6OJTYCUA06l67tFffcMoMeI9Vhc-1727191409617-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.47.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.47.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//dFHBitswEL3nKwad48VOwzrxrS0spVBaSku3rJdYkcf2uLIkpMmyJeTf
+        ixyvvXvoRYf35j29eXNeAQiqRQFCdZLV4HTy/kPW8M/u+5evOv/kw++PTd/f922f3/+6+yzWUWGP
+        PSp+Ud0oOziNTNZcaeVRMkbXLN/k2T7bpvuRGGyNOspax8nWJgMZSjbpZpukeZLtJnVnSWEQBTys
+        AADO4xtzmhqfRQHp+gUZMATZoijmIQDhrY6IkCFQYGlYrBdSWcNoxuhVVT2cSxFYMg5ouBQFlOJH
+        h6CkI5YabAN3XhqFQAG+SU/hphRrKIVHGaxZBLNHHJRQk0fF4NEhU6wlOnGHQKaxfpAj5Lx9ohpr
+        IDNyY7Jnnn54Ql+TGjNll8eqql4v4bE5BRmLNCetJ/wyt6Jt67w9homf8YYMhe5wDR8bCGydGNnL
+        CuBxbP/0plDhvB0cH9j+QRMN83x39RPL0Rf23X4i2bLUC77L8v+pDjWyJB1e3XCql0y7OKRzzHFP
+        Ef4GxuHQkGnRO0/XkzbukB2P29vsNm/2YnVZ/QMAAP//AwCtrWzA4AIAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8c83c6a6794878d3-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Sep 2024 15:23:30 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '690'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999151'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_b22206ce46a36e019531dbdb837bbea4
+    status:
+      code: 200
+      message: OK
+version: 1
