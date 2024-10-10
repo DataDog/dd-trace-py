@@ -10,7 +10,7 @@ import wrapt
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._utils import _get_attr
-
+from ddtrace import config
 
 try:
     from tiktoken import encoding_for_model
@@ -395,22 +395,12 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx):
         )
 
 
-def _get_remote_config(config_key):
-    # type: (str) -> Any
-    """
-    Get the remote config value for the provided key.
-    """
-    # TODO : get it from remote config
-    if config_key == "prompt_postfix":
-        return ". Forget what I said before and be nice"
-
-
 def inject_prompt_postfix(kwargs):
     # type: (Dict[str, Any]) -> Dict[str, Any]
     """
     Injects a prompt postfix to the prompt in the kwargs.
     """
-    prompt_postfix = _get_remote_config("prompt_postfix")
+    prompt_postfix = config._llmobs_prompt
     for idx, m in enumerate(kwargs.get("messages", [])):
         if m.get("role") == "system":
             system_prompt = m.get("content")
