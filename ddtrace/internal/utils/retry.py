@@ -33,6 +33,7 @@ def retry(
                     result = e
 
                 if until(result):
+                    DEBUG("Retry function succeeded")
                     return result
 
                 DEBUG(f"Retry failed because result doesn't match condition: {result}")
@@ -48,6 +49,7 @@ def retry(
                 result = e
 
             if until(result):
+                DEBUG("Retry function succeeded (last attempt)")
                 return result
 
             DEBUG(f"Retry failed because result doesn't match condition (last attempt): {result}")
