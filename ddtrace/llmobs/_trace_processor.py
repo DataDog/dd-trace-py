@@ -27,6 +27,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -118,8 +119,8 @@ class LLMObsTraceProcessor(TraceProcessor):
 
         is_ragas_integration_span = False
 
-        if ml_app.startswith("_dd.ragas"):
-            ml_app = ml_app[4:]
+        if ml_app.startswith(RAGAS_ML_APP_PREFIX):
+            ml_app = ml_app.replace("_dd.", "")
             is_ragas_integration_span = True
 
         span.set_tag_str(ML_APP, ml_app)

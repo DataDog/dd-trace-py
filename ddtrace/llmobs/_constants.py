@@ -48,3 +48,5 @@ DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exce
 # Set for LLM Obs traces of evaluator integrations e.g. `runner.integration:ragas`.
 # Used to differentiate traces of Datadog-run operations vs user-application operations.
 RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
+
+RAGAS_ML_APP_PREFIX = "_dd.ragas"
