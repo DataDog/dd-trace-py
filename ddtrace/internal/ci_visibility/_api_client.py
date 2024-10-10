@@ -42,6 +42,7 @@ from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.utils.time import StopWatch
 
 
@@ -250,6 +251,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         headers.update(self._get_headers())
         return headers
 
+    @fibonacci_backoff_with_jitter(attempts=5, until=lambda result: isinstance(result, Response))
     def _do_request(self, method: str, endpoint: str, payload: str, timeout: t.Optional[float] = None) -> Response:
         timeout = timeout if timeout is not None else self._timeout
         headers = self._get_final_headers()

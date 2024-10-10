@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
-from json import loads
+import json
 import logging
 import os
 import re
@@ -27,6 +27,7 @@ from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
+from ddtrace.internal.http_client import IncompleteRead
 from ddtrace.internal.http import HTTPSConnection
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _get_metas_to_propagate
@@ -216,13 +217,14 @@ class Response(object):
     close the HTTPConnection used for the request.
     """
 
-    __slots__ = ["status", "body", "reason", "msg"]
+    __slots__ = ["status", "body", "reason", "msg", "_json"]
 
-    def __init__(self, status=None, body=None, reason=None, msg=None):
+    def __init__(self, status=None, body=None, reason=None, msg=None, _json=None):
         self.status = status
         self.body = body
         self.reason = reason
         self.msg = msg
+        self._json = _json
 
     @classmethod
     def from_http_response(cls, resp):
@@ -236,15 +238,49 @@ class Response(object):
         :rtype: ``Response``
         :returns: A new ``Response``
         """
+        body, json_data = cls._read_response_body(resp)
+
         return cls(
             status=resp.status,
-            body=resp.read(),
+            body=body,
             reason=getattr(resp, "reason", None),
             msg=getattr(resp, "msg", None),
+            _json=json_data,
         )
+
+    @staticmethod
+    def _read_response_body(resp):
+        json_data = None
+        body = None
+
+        try:
+            body = resp.read()
+        except IncompleteRead as e:
+            # In responses with chunked transfer encoding, the end of response should be marked by a chunk of length
+            # zero. However, sometimes we get a response with everything but the zero-length chunk at the end, and an
+            # IncompleteRead exception is raised. In general, in such a case we cannot know if we received all the data
+            # or if there were more chunks to be received and the connection was prematurely closed. However, if the
+            # response is JSON (which is usually the case for us), we can actually tell if the response is complete by
+            # checking if we can parse it as JSON, so we can recover from this case. Since we will need to decode the
+            # JSON later on anyway, we save the parsed JSON for later use.
+            if resp.getheader("content-type") in ("application/vnd.api+json", "application/json"):
+                try:
+                    json_data = json.loads(e.partial)
+                    body = e.partial
+                    log.debug("Response is valid JSON, recovered from incomplete read")
+                    print("Response is valid JSON, recovered from incomplete read") ## DEBUG
+                except json.JSONDecodeError:
+                    raise e
+            else:
+                raise e
+
+        return body, json_data
 
     def get_json(self):
         """Helper to parse the body of this request as JSON"""
+        if self._json is not None:
+            return self._json
+
         try:
             body = self.body
             if not body:
@@ -261,7 +297,7 @@ class Response(object):
                 log.debug("Cannot parse Datadog Agent response. This occurs because Datadog agent is out of date")
                 return
 
-            return loads(body)
+            return json.loads(body)
         except (ValueError, TypeError):
             log.debug("Unable to parse Datadog Agent JSON response: %r", body, exc_info=True)
 
