@@ -1,5 +1,10 @@
 # This is Python 3.10's http/client.py, with some added debugging around IncompleteRead handling to debug SDTEST-1010.
 
+def DEBUG(text):
+    from datetime import datetime
+    timestamp = datetime.utcnow().strftime("%H:%M:%S.%f")
+    print(f"{timestamp} [DDTRACE_HTTP] {text}", flush=True)
+
 r"""HTTP/1.1 client library
 
 <intro stuff goes here>
@@ -459,13 +464,13 @@ class HTTPResponse(io.BufferedIOBase):
             return b""
 
         if self.chunked:
-            print(f"[DDTRACE_HTTP] chunked response: start")
+            DEBUG(f"chunked response: start")
             try:
                 result = self._read_chunked(amt)
-                print(f"[DDTRACE_HTTP] chunked response: finished ok")
+                DEBUG(f"chunked response: finished ok")
                 return result
             except Exception as e:
-                print(f"[DDTRACE_HTTP] chunked response: finished with error: {e}")
+                DEBUG(f"chunked response: finished with error: {e}")
                 raise
 
         if amt is not None:
@@ -533,7 +538,7 @@ class HTTPResponse(io.BufferedIOBase):
     def _read_next_chunk_size(self):
         # Read the next chunk size from the file
         line = self.fp.readline(_MAXLINE + 1)
-        print(f"[DDTRACE_HTTP] chunked response: _read_next_chunk_size: {line=}")
+        DEBUG(f"chunked response: _read_next_chunk_size: {line=}")
         if len(line) > _MAXLINE:
             raise LineTooLong("chunk size")
         i = line.find(b";")
@@ -1138,7 +1143,7 @@ class HTTPConnection:
         self._validate_path(url)
 
         request = '%s %s %s' % (method, url, self._http_vsn_str)
-        print(f"[DDTRACE_HTTP] putrequest: {request}")
+        DEBUG(f"putrequest: {request}")
 
         self._output(self._encode_request(request))
 
