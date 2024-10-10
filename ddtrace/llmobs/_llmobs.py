@@ -573,7 +573,7 @@ class LLMObs(Service):
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
-        if _name is not None and not span.name.startswith("ragas."):
+        if _name is not None:
             span.name = _name
         if prompt is not None:
             cls._tag_prompt(span, prompt)
