@@ -6,6 +6,7 @@ import random
 from time import sleep
 import typing as t
 
+from ddtrace.internal.http_client import DEBUG
 
 class RetryError(Exception):
     pass
@@ -27,11 +28,14 @@ def retry(
                 try:
                     result = f(*args, **kwargs)
                 except Exception as e:
+                    DEBUG(f"Retry failed with exception: {e}")
                     exception = e
                     result = e
 
                 if until(result):
                     return result
+
+                DEBUG(f"Retry failed because result doesn't match condition: {result}")
 
                 sleep(s)
 
@@ -39,11 +43,14 @@ def retry(
             try:
                 result = f(*args, **kwargs)
             except Exception as e:
+                DEBUG(f"Retry failed with exception (last attempt): {e}")
                 exception = e
                 result = e
 
             if until(result):
                 return result
+
+            DEBUG(f"Retry failed because result doesn't match condition (last attempt): {result}")
 
             if exception is not None:
                 raise exception

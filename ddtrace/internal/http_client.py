@@ -2,8 +2,10 @@
 
 def DEBUG(text):
     from datetime import datetime
+    import threading
     timestamp = datetime.utcnow().strftime("%H:%M:%S.%f")
-    print(f"{timestamp} [DDTRACE_HTTP] {text}", flush=True)
+    thread_id = threading.get_native_id()
+    print(f"{timestamp} {thread_id} [DDTRACE_HTTP] {text}", flush=True)
 
 r"""HTTP/1.1 client library
 
