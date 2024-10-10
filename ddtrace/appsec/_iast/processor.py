@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
+from ddtrace.appsec import load_appsec
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.constants import ORIGIN_KEY
@@ -84,3 +85,6 @@ class AppSecIastSpanProcessor(SpanProcessor):
             span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
         oce.release_request()
+
+
+load_appsec()

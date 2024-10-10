@@ -79,3 +79,21 @@ def _get_metas_to_propagate(context):
         if isinstance(k, str) and k.startswith("_dd.p."):
             metas_to_propagate.append((k, v))
     return metas_to_propagate
+
+
+def get_blocked() -> Optional[Dict[str, Any]]:
+    # local import to avoid circular dependency
+    from ddtrace.internal import core
+
+    res = core.dispatch_with_results("asm.get_blocked")
+    if res and res.block_config:
+        return res.block_config.value
+    return None
+
+
+def set_blocked(block_settings: Optional[Dict[str, Any]] = None) -> None:
+    # local imports to avoid circular dependency
+    from ddtrace.internal import core
+    from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
+
+    core.dispatch("asm.set_blocked", (block_settings or STATUS_403_TYPE_AUTO,))

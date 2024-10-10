@@ -4,9 +4,9 @@ from ddtrace import Tracer
 from ddtrace import constants
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import SpanTypes
@@ -246,22 +246,12 @@ def should_block_user(tracer: Tracer, userid: str) -> bool:
         )
         return False
 
-    # Early check to avoid calling the WAF if the request is already blocked
-    span = tracer.current_root_span()
-    if not span:
-        log.warning(
-            "No root span in the current execution. should_block_user returning False"
-            "See https://docs.datadoghq.com/security_platform/application_security"
-            "/setup_and_configure/"
-            "?tab=set_user&code-lang=python for more information.",
-        )
-        return False
-
-    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+    # Early check to avoid calling the WAF if the request is already blockedxw
+    if get_blocked():
         return True
 
     _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)})
-    return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
+    return bool(get_blocked())
 
 
 def block_request() -> None:

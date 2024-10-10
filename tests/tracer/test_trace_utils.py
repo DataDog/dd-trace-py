@@ -30,6 +30,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
 
@@ -407,7 +408,7 @@ def test_set_http_meta(
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
     span.span_type = span_type
-    with override_global_config({"_asm_enabled": appsec_enabled}):
+    with asm_context(config={"_asm_enabled": appsec_enabled}):
         trace_utils.set_http_meta(
             span,
             int_config,
