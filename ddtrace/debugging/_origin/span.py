@@ -207,14 +207,14 @@ class SpanCodeOriginProcessor(SpanProcessor):
         seq = count(0)
         for frame in frame_stack(sys._getframe(1)):
             code = frame.f_code
-            frame_origin = Path(code.co_filename)
+            filename = code.co_filename
 
-            if is_user_code(frame_origin):
+            if is_user_code(Path(filename)):
                 n = next(seq)
                 if n >= co_config.max_user_frames:
                     break
 
-                span.set_tag_str(f"_dd.code_origin.frames.{n}.file", str(frame_origin.resolve()))
+                span.set_tag_str(f"_dd.code_origin.frames.{n}.file", filename)
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.line", str(code.co_firstlineno))
                 # DEV: Without a function object we cannot infer the function
                 # and any potential class name.
