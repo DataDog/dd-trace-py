@@ -7,6 +7,7 @@ from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 
 from ..._constants import IAST
+from .._iast_request_context import is_iast_request_enabled
 from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_iast_debug_enabled
@@ -126,6 +127,8 @@ def iast_taint_log_error(msg):
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
+    if not is_iast_request_enabled():
+        return False
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
 
@@ -138,6 +141,8 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     # Pyobject must be Text with len > 1
+    if not is_iast_request_enabled():
+        return pyobject
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
     # We need this validation in different contition if pyobject is not a text type and creates a side-effect such as
@@ -168,6 +173,8 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
+    if not is_iast_request_enabled():
+        return False
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
     try:
@@ -179,6 +186,8 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
+    if not is_iast_request_enabled():
+        return tuple()
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return tuple()
     try:

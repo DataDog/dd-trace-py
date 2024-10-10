@@ -32,7 +32,7 @@ def _iast_patched_module(module_name, new_module_object=False):
     return module
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True)
 def iast_create_context():
     env = {"DD_IAST_REQUEST_SAMPLING": "100"}
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(env):

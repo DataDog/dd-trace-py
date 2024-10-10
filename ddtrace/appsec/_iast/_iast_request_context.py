@@ -53,9 +53,9 @@ def in_iast_context() -> bool:
 
 
 def start_iast_context():
-    from ._taint_tracking import create_context as create_propagation_context
-
     if asm_config._iast_enabled:
+        from ._taint_tracking import create_context as create_propagation_context
+
         create_propagation_context()
         core.set_item(_IAST_CONTEXT, IASTEnvironment())
 

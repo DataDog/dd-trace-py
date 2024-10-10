@@ -39,11 +39,11 @@ def no_request_sampling(tracer):
         yield
 
 
-def _start_iast_context_and_oce():
+def _start_iast_context_and_oce(span=None):
     oce.reconfigure()
-    oce.acquire_request(None)
-    start_iast_context()
-    set_iast_request_enabled(True)
+    if oce.acquire_request(span):
+        start_iast_context()
+        set_iast_request_enabled(True)
 
 
 def _end_iast_context_and_oce():
@@ -71,10 +71,13 @@ def iast_context(env, request_sampling="100", deduplication=False):
         psycopg_patch = lambda: True  # noqa: E731
         psycopg_unpatch = lambda: True  # noqa: E731
 
+    class MockSpan:
+        _trace_id_64bits = 17577308072598193742
+
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
     VulnerabilityBase._reset_cache_for_testing()
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(env):
-        _start_iast_context_and_oce()
+        _start_iast_context_and_oce(MockSpan())
         weak_hash_patch()
         weak_cipher_patch()
         sqli_sqlite_patch()

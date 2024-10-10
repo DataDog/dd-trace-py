@@ -18,7 +18,6 @@ from ddtrace import Tracer
 from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
-from ddtrace.appsec._constants import IAST
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
@@ -30,6 +29,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
@@ -545,7 +545,7 @@ def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
     with override_global_config(dict(_iast_enabled=False)):
         cookies = {"foo": "bar"}
         trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
+        span_report = _get_span_report()
         assert not span_report
 
 
