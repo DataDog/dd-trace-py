@@ -143,6 +143,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
     # Pyobject must be Text with len > 1
     if not is_iast_request_enabled():
         return pyobject
+
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
     # We need this validation in different contition if pyobject is not a text type and creates a side-effect such as
