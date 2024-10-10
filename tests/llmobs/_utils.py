@@ -195,6 +195,7 @@ def _llmobs_base_span_event(
         "status": "error" if error else "ok",
         "meta": {"span.kind": span_kind},
         "metrics": {},
+        "ml_app": tags.get("ml_app", "unnamed-ml-app") if tags else "unnamed-ml-app",
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
     }
     if session_id:
@@ -504,6 +505,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
+            "ml_app": "ragas-unnamed-ml-app",
             "meta": {
                 "span.kind": "workflow",
                 "input": {"value": mock.ANY},
@@ -521,6 +523,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "span_id": mock.ANY,
             "parent_id": mock.ANY,
             "name": "ragas.extract_faithfulness_inputs",
+            "ml_app": "ragas-unnamed-ml-app",
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
@@ -537,6 +540,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "span_id": mock.ANY,
             "parent_id": mock.ANY,
             "name": "ragas.create_statements_prompt",
+            "ml_app": "ragas-unnamed-ml-app",
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
@@ -549,6 +553,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "span_id": mock.ANY,
             "parent_id": mock.ANY,
             "name": "ragas.create_natural_language_inference_prompt",
+            "ml_app": "ragas-unnamed-ml-app",
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
@@ -561,6 +566,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "span_id": mock.ANY,
             "parent_id": mock.ANY,
             "name": "ragas.compute_score",
+            "ml_app": "ragas-unnamed-ml-app",
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",

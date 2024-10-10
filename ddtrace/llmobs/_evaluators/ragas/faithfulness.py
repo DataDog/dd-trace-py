@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import parse_tags_str
 
 
 logger = get_logger(__name__)
@@ -30,13 +29,12 @@ except ImportError as e:
 def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     """
     The `ml_app` spans generated from traces of ragas will be named as `ragas-<ml_app>`
-    or `ragas` if `ml_app` is not present in the span tags.
+    or `ragas` if `ml_app` is not present in the span event.
     """
-    ml_app_of_span_event = ""
-    span_tags = span_event.get("tags")
-    if span_tags is not None:
-        ml_app_of_span_event = "-{}".format(parse_tags_str(",".join(span_tags)).get("ml_app"))
-    return "_dd.ragas{}".format(ml_app_of_span_event)
+    ml_app_of_span_event = span_event.get("ml_app")
+    if not ml_app_of_span_event:
+        return "_dd.ragas"
+    return "_dd.ragas-{}".format(ml_app_of_span_event)
 
 
 def _get_faithfulness_instance():
