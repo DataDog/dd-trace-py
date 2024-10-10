@@ -11,39 +11,42 @@ str_func()
     return safe_import("builtins", "str");
 }
 
-std::vector<PyObject*>
-generate_args(std::vector<py::object>& arg_list)
+static PyObject**
+one_arg(py::object value)
 {
-    std::vector<PyObject*> args(arg_list.size());
-    for (size_t i = 0; i < arg_list.size(); ++i) {
-        args[i] = arg_list[i].release().ptr(); // Transfer ownership to the args array
-    }
+    PyObject** args = new PyObject*[3];
+    args[0] = str_func().release().ptr();
+    args[1] = PyLong_FromLong(0);
+    args[2] = value.ptr();
     return args;
 }
 
 static PyObject**
-one_arg(py::object arg)
+two_args(py::object value, py::object value2)
 {
-    auto args_vector = vector<py::object>{ str_func(), py::int_(0), arg };
-    return generate_args(args_vector).data();
+    PyObject** args = new PyObject*[4];
+    args[0] = str_func().release().ptr();
+    args[1] = PyLong_FromLong(0);
+    args[2] = value.ptr();
+    args[3] = value2.ptr();
+    return args;
 }
 
 static PyObject**
-two_args(py::object arg1, py::str arg2)
+three_args(py::object value, py::object value2, py::object value3)
 {
-    auto args_vector = vector<py::object>{ str_func(), py::int_(0), arg1, arg2 };
-    return generate_args(args_vector).data();
-}
-
-static PyObject**
-three_args(py::object arg1, py::str arg2, py::str arg3)
-{
-    auto args_vector = vector<py::object>{ str_func(), py::int_(0), arg1, arg2, arg3 };
-    return generate_args(args_vector).data();
+    PyObject** args = new PyObject*[5];
+    args[0] = str_func().release().ptr();
+    args[1] = PyLong_FromLong(0);
+    args[2] = value.ptr();
+    args[3] = value2.ptr();
+    args[4] = value3.ptr();
+    return args;
 }
 
 TEST_F(CheckAspectStr, StrWithStr)
 {
+    // auto result = api_str_aspect(py::none().ptr(), one_arg(py::str("test")), 3, py::none().ptr());
     auto result = api_str_aspect(py::none().ptr(), one_arg(py::str("test")), 3, py::none().ptr());
     EXPECT_TRUE(PyUnicode_Check(result));
     EXPECT_STREQ(PyUnicode_AsUTF8(result), "test");
