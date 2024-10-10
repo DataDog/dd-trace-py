@@ -142,7 +142,8 @@ class RagasFaithfulnessEvaluator:
                 statements = [item["simpler_statements"] for item in statements.dicts()]
                 statements = [item for sublist in statements for item in sublist]
 
-                assert isinstance(statements, List), "statements must be a list"
+                if not isinstance(statements, List):
+                    return None
 
                 """Check which statements contradict the conntext"""
                 raw_nli_results = self.ragas_faithfulness_instance.llm.generate_text(
