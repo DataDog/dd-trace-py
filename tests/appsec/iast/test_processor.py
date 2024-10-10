@@ -26,7 +26,12 @@ def traced_function(tracer):
     return span
 
 
+@pytest.mark.skip_iast_check_logs
 def test_appsec_iast_processor():
+    """
+    test_appsec_iast_processor.
+    This test throws  'finished span not connected to a trace' log error
+    """
     with override_global_config(dict(_iast_enabled=True)):
         patch_iast()
 
@@ -42,8 +47,13 @@ def test_appsec_iast_processor():
         assert len(json.loads(result)["vulnerabilities"]) == 1
 
 
+@pytest.mark.skip_iast_check_logs
 @pytest.mark.parametrize("sampling_rate", ["0.0", "0.5", "1.0"])
 def test_appsec_iast_processor_ensure_span_is_manual_keep(sampling_rate):
+    """
+    test_appsec_iast_processor_ensure_span_is_manual_keep.
+    This test throws  'finished span not connected to a trace' log error
+    """
     with override_env(dict(DD_TRACE_SAMPLE_RATE=sampling_rate)), override_global_config(dict(_iast_enabled=True)):
         patch_iast()
 

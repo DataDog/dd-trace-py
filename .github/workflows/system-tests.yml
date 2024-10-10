@@ -300,3 +300,14 @@ jobs:
           name: logs_parametric
           path: artifact.tar.gz
 
+  finished:
+    runs-on: ubuntu-latest
+    needs: [parametric, system-tests]
+    if: success() || failure()
+    steps:
+      - name: True when everything else succeeded
+        if: needs.parametric.result == 'success' && needs.system-tests.result == 'success'
+        run: exit 0
+      - name: Fails if anything else failed
+        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success'
+        run: exit 1

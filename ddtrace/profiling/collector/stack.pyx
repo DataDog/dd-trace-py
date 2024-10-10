@@ -367,7 +367,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 handle.push_class_name(frames[0].class_name)
                 for frame in frames:
                     handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                handle.push_span(span, collect_endpoint)
+                handle.push_span(span)
                 handle.flush_sample()
             else:
                 event = stack_event.StackSampleEvent(
@@ -399,7 +399,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     handle.push_class_name(frames[0].class_name)
                     for frame in frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                    handle.push_span(span, collect_endpoint)
+                    handle.push_span(span)
                     handle.flush_sample()
                 else:
                     exc_event = stack_event.StackExceptionSampleEvent(
@@ -523,7 +523,8 @@ class StackCollector(collector.PeriodicCollector):
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
-            self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
+            link_span = stack_v2.link_span if self._stack_collector_v2_enabled else self._thread_span_links.link_span
+            self.tracer.context_provider._on_activate(link_span)
 
         # If libdd is enabled, propagate the configuration
         if config.export.libdd_enabled:
@@ -550,7 +551,8 @@ class StackCollector(collector.PeriodicCollector):
         LOG.debug("Profiling StackCollector stopping")
         super(StackCollector, self)._stop_service()
         if self.tracer is not None:
-            self.tracer.context_provider._deregister_on_activate(self._thread_span_links.link_span)
+            link_span = stack_v2.link_span if self._stack_collector_v2_enabled else self._thread_span_links.link_span
+            self.tracer.context_provider._deregister_on_activate(link_span)
         LOG.debug("Profiling StackCollector stopped")
 
         # Also tell the native thread running the v2 sampler to stop, if needed
