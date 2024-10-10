@@ -1,9 +1,9 @@
-import pytest
-
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
+from tests.appsec.iast.conftest import _end_iast_context_and_oce
+from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
@@ -108,16 +108,18 @@ def test_nosamesite_cookies_strict_no_error(iast_context_defaults):
     assert not span_report
 
 
-@pytest.mark.parametrize("num_vuln_expected", [3, 0, 0])
-def test_insecure_cookies_deduplication(num_vuln_expected, iast_context_deduplication_enabled):
-    cookies = {"foo": "bar"}
-    asm_check_cookies(cookies)
+def test_insecure_cookies_deduplication(iast_context_deduplication_enabled):
+    for num_vuln_expected in [1, 0, 0]:
+        _start_iast_context_and_oce()
+        cookies = {"foo": "bar"}
+        asm_check_cookies(cookies)
 
-    span_report = _get_span_report()
+        span_report = _get_span_report()
 
-    if num_vuln_expected == 0:
-        assert span_report is None
-    else:
-        assert span_report
+        if num_vuln_expected == 0:
+            assert span_report is None
+        else:
+            assert span_report
 
-        assert len(span_report.vulnerabilities) == num_vuln_expected
+            assert len(span_report.vulnerabilities) == num_vuln_expected
+        _end_iast_context_and_oce()

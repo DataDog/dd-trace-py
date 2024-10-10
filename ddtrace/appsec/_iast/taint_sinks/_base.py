@@ -63,9 +63,11 @@ class VulnerabilityBase(Operation):
                 log.debug(
                     "[IAST] VulnerabilityBase.wrapper. No request quota or this vulnerability is outside the context"
                 )
+                return wrapped(*args, **kwargs)
             elif cls.has_quota():
                 return func(wrapped, instance, args, kwargs)
-            return wrapped(*args, **kwargs)
+            else:
+                return wrapped(*args, **kwargs)
 
         return wrapper
 

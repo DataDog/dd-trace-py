@@ -2,6 +2,8 @@ import pytest
 
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast
+from tests.appsec.iast.conftest import _end_iast_context_and_oce
+from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.conftest import iast_context
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc2
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc4
@@ -182,19 +184,21 @@ def test_weak_cipher_rc4_unpatched(iast_context_defaults):
     assert span_report is None
 
 
-@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_weak_cipher_deduplication(num_vuln_expected, iast_context_deduplication_enabled):
-    for _ in range(0, 5):
-        cryptography_algorithm("Blowfish")
+def test_weak_cipher_deduplication(iast_context_deduplication_enabled):
+    for num_vuln_expected in [1, 0, 0]:
+        _start_iast_context_and_oce()
+        for _ in range(0, 5):
+            cryptography_algorithm("Blowfish")
 
-    span_report = _get_span_report()
+        span_report = _get_span_report()
 
-    if num_vuln_expected == 0:
-        assert span_report is None
-    else:
-        assert span_report
+        if num_vuln_expected == 0:
+            assert span_report is None
+        else:
+            assert span_report
 
-        assert len(span_report.vulnerabilities) == num_vuln_expected
+            assert len(span_report.vulnerabilities) == num_vuln_expected
+        _end_iast_context_and_oce()
 
 
 def test_weak_cipher_secure(iast_context_defaults):
