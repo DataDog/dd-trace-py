@@ -542,14 +542,6 @@ jobs:
       - run_test:
           pattern: "datastreams"
 
-  opentelemetry:
-    parallelism: 4
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'opentelemetry'
-          snapshot: true
-
   botocore:
     <<: *machine_executor
     parallelism: 6

@@ -10,18 +10,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "655529ab00000000",
+      "_dd.p.tid": "66e8a12600000000",
       "language": "python",
-      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
+      "runtime-id": "6e302be760e747f39d3f197ef512b456"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 7032
+      "process_id": 20350
     },
-    "duration": 45736250,
-    "start": 1700080043517030634
+    "duration": 41264458,
+    "start": 1726521638026493755
   },
      {
        "name": "internal",
@@ -34,17 +34,18 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "655529ab00000000",
+         "_dd.p.tid": "66e8a12600000000",
+         "_dd.parent_id": "f28563a262259d26",
          "language": "python",
-         "runtime-id": "9609b5511d35497e8ea3d3a71299ccd0",
-         "tracestate": "dd=s:1;t.dm:-0"
+         "runtime-id": "5017403802db4e88bb688ee14002f261",
+         "tracestate": "dd=p:f28563a262259d26;s:1;t.dm:-0"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 7039
+         "process_id": 20352
        },
-       "duration": 22333250,
-       "start": 1700080043530690050
+       "duration": 26241791,
+       "start": 1726521638035387047
      }]]

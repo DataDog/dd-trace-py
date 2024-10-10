@@ -1,3 +1,12 @@
+aiohttp:
+  extends: .test_base_riot_snapshot
+  parallel: 3
+  variables:
+    SUITE_NAME: "aiohttp"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
 algoliasearch:
   extends: .test_base_riot_snapshot
   variables:
@@ -160,6 +169,23 @@ gunicorn:
   variables:
     SUITE_NAME: "gunicorn"
 
+httplib:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httplib"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
+httpx:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "httpx"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+  parallel: 2
+
 jinja2:
   extends: .test_base_riot_snapshot
   variables:
@@ -208,6 +234,12 @@ protobuf:
   extends: .test_base_riot_snapshot
   variables:
     SUITE_NAME: "protobuf"
+
+opentelemetry:
+  parallel: 4
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "opentelemetry"
 
 opentracer:
   extends: .test_base_riot
@@ -277,6 +309,14 @@ rediscluster:
   variables:
     SUITE_NAME: "rediscluster"
 
+requests:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: "requests"
+  services:
+    - !reference [.test_base_riot_snapshot, services]
+    - !reference [.services, httpbin_local]
+
 rq:
   extends: .test_base_riot_snapshot
   services:
@@ -336,39 +376,10 @@ tornado:
   variables:
     SUITE_NAME: "tornado"
 
-aiohttp:
-  extends: .test_base_riot_snapshot
-  parallel: 3
-  variables:
-    SUITE_NAME: "aiohttp"
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, httpbin_local]
-
-requests:
+unittest:
   extends: .test_base_riot_snapshot
   variables:
-    SUITE_NAME: "requests"
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, httpbin_local]
-
-httplib:
-  extends: .test_base_riot_snapshot
-  variables:
-    SUITE_NAME: "httplib"
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, httpbin_local]
-
-httpx:
-  extends: .test_base_riot_snapshot
-  variables:
-    SUITE_NAME: "httpx"
-  services:
-    - !reference [.test_base_riot_snapshot, services]
-    - !reference [.services, httpbin_local]
-  parallel: 2
+    SUITE_NAME: "unittest"
 
 urllib3:
   extends: .test_base_riot_snapshot
