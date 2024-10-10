@@ -1,6 +1,5 @@
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
-from builtins import str as builtin_str
 import codecs
 from re import Match
 from re import Pattern
