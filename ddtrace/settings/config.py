@@ -621,6 +621,7 @@ class Config(object):
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
         self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
+        self._llmobs_prompt = ""
 
         self._inject_force = asbool(os.getenv("DD_INJECT_FORCE", False))
         self._lib_was_injected = False
@@ -816,7 +817,7 @@ class Config(object):
         for configs in data["config"]:
             if "prompt_postfix" in configs:
                 prompt_postfixes.append(configs["prompt_postfix"])
-        self.llm_prompt_postfix += " ".join(prompt_postfixes)
+        self._llmobs_prompt += " ".join(prompt_postfixes)
 
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None

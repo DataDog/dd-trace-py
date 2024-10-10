@@ -6,6 +6,7 @@ from openai import version
 from ddtrace import config
 from ddtrace.contrib.internal.openai import _endpoint_hooks
 from ddtrace.contrib.internal.openai.utils import _format_openai_api_key
+from ddtrace.contrib.internal.openai.utils import inject_prompt_postfix
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
@@ -250,6 +251,9 @@ def _patched_endpoint(openai, integration, patch_hook):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
+        # Add prompt postfix to kwargs
+        kwargs = inject_prompt_postfix(kwargs)
+
         g = _traced_endpoint(patch_hook, integration, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
@@ -315,6 +319,7 @@ def _patched_convert(openai, integration):
             return func(*args, **kwargs)
 
         span = pin.tracer.current_span()
+
         if not span:
             return func(*args, **kwargs)
 
