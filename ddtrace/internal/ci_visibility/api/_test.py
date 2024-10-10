@@ -23,6 +23,7 @@ from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
@@ -67,7 +68,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         self._is_new = is_new
 
-        self._is_efd_retry = is_efd_retry
+        self._efd_is_retry = is_efd_retry
         self._efd_retries: List[TestVisibilityTest] = []
         self._efd_abort_reason: Optional[str] = None
         self._efd_initial_finish_time_ns: Optional[int] = None
@@ -88,8 +89,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         }
 
     def _set_efd_tags(self) -> None:
-        if self._is_efd_retry:
-            self.set_tag(TEST_IS_RETRY, self._is_efd_retry)
+        if self._efd_is_retry:
+            self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
         if self._efd_abort_reason is not None:
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
 
@@ -182,14 +183,19 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         # decisions)
         return self._is_new and (self._parameters is None)
 
+    #
     # EFD (Early Flake Detection) functionality
+    #
+    def _efd_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
+        return self._efd_retries[retry_number - 1]
+
     def efd_should_retry(self):
         efd_settings = self._session_settings.efd_settings
         if not efd_settings.enabled:
             return False
 
-        # if self.get_session().efd_is_faulty_session():
-        #     return False
+        if self.get_session().efd_is_faulty_session():
+            return False
 
         if self._efd_abort_reason is not None:
             return False
@@ -217,8 +223,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._efd_abort_reason = "slow"
         return False
 
-    def _efd_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
-        return self._efd_retries[retry_number - 1]
+    def efd_has_retries(self) -> bool:
+        return len(self._efd_retries) > 0
 
     def efd_add_retry(self, start_immediately=False) -> Optional[int]:
         if not self.efd_should_retry():
@@ -258,14 +264,28 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._efd_initial_finish_time_ns = time_ns()
         self._status = status
 
-    def efd_get_final_status(self):
-        # NOTE: we look at self._status directly because the test has not been finished at the time we want to call this
-        # method
-        if (self._status == TestStatus.PASS) or any(
-            retry.get_status() == TestStatus.PASS for retry in self._efd_retries
-        ):
-            return TestStatus.PASS
-        return TestStatus.FAIL
+    def efd_get_final_status(self) -> EFDTestStatus:
+        status_counts: Dict[TestStatus, int] = {
+            TestStatus.PASS: 0,
+            TestStatus.FAIL: 0,
+            TestStatus.SKIP: 0,
+        }
+
+        # NOTE: we assume that any unfinished test (eg: defaulting to failed) mean the test failed
+        status_counts[self._status] += 1
+        for retry in self._efd_retries:
+            status_counts[retry._status] += 1
+
+        expected_total = len(self._efd_retries) + 1
+
+        if status_counts[TestStatus.PASS] == expected_total:
+            return EFDTestStatus.ALL_PASS
+        if status_counts[TestStatus.FAIL] == expected_total:
+            return EFDTestStatus.ALL_FAIL
+        if status_counts[TestStatus.SKIP] == expected_total:
+            return EFDTestStatus.ALL_SKIP
+
+        return EFDTestStatus.FLAKY
 
     def set_efd_abort_reason(self, reason: str) -> None:
         self._efd_abort_reason = reason

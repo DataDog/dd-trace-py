@@ -1,3 +1,4 @@
+from enum import Enum
 import typing as t
 
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
@@ -11,14 +12,39 @@ from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 log = get_logger(__name__)
 
 
+class EFDTestStatus(Enum):
+    ALL_PASS = "passed"
+    ALL_FAIL = "failed"
+    ALL_SKIP = "skipped"
+    FLAKY = "flaky"
+
+
 class EFDSessionMixin:
     @staticmethod
     @_catch_and_log_exceptions
-    def is_faulty_session() -> bool:
+    def efd_enabled() -> bool:
+        log.debug("Checking if Early Flake Detection is enabled for the session")
+        is_enabled = core.dispatch_with_results("test_visibility.efd.is_enabled").is_enabled.value
+        log.debug("Early Flake Detection enabled: %s", is_enabled)
+        return is_enabled
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def efd_is_faulty_session() -> bool:
         log.debug("Checking if session is faulty for Early Flake Detection")
         is_faulty_session = core.dispatch_with_results("test_visibility.efd.session_is_faulty").is_faulty_session.value
         log.debug("Session faulty: %s", is_faulty_session)
         return is_faulty_session
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def efd_has_failed_tests() -> bool:
+        log.debug("Checking if session has failed tests for Early Flake Detection")
+        has_failed_tests = core.dispatch_with_results(
+            "test_visibility.efd.session_has_failed_tests"
+        ).has_failed_tests.value
+        log.debug("Session has EFD failed tests: %s", has_failed_tests)
+        return has_failed_tests
 
 
 class EFDTestMixin:
@@ -115,7 +141,7 @@ class EFDTestMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def efd_get_final_status(item_id):
+    def efd_get_final_status(item_id) -> EFDTestStatus:
         log.debug("Getting final status for item %s in Early Flake Detection", item_id)
         final_status = core.dispatch_with_results(
             "test_visibility.efd.get_final_status", (item_id,)

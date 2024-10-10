@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 import re
 import typing as t
@@ -46,6 +47,7 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
@@ -59,6 +61,21 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
 
+@dataclass
+class __EFD_OUTCOMES:
+    ATTEMPT_PASSED = "dd_efd_attempt_passed"
+    ATTEMPT_FAILED = "dd_efd_attempt_failed"
+    ATTEMPT_SKIPPED = "dd_efd_attempt_skipped"
+    FINAL_PASSED = "dd_efd_final_passed"
+    FINAL_FAILED = "dd_efd_final_failed"
+    FINAL_SKIPPED = "dd_efd_final_skipped"
+    FINAL_FLAKY = "dd_efd_final_flaky"
+
+
+_EFD_OUTCOMES = __EFD_OUTCOMES()
+_EFD_FLAKY_OUTCOME = "Flaky"
+
+
 class _TestOutcome(t.NamedTuple):
     status: t.Optional[TestStatus] = None
     skip_reason: t.Optional[str] = None
@@ -68,7 +85,7 @@ class _TestOutcome(t.NamedTuple):
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
-    This func   tion has the side effect of marking the test as skipped immediately if it should be skipped.
+    This function has the side effect of marking the test as skipped immediately if it should be skipped.
     """
     if not InternalTestSession.is_test_skipping_enabled():
         return False
@@ -176,6 +193,13 @@ def pytest_configure(config: pytest.Config) -> None:
         _disable_ci_visibility()
 
 
+def pytest_unconfigure(config: pytest.Config) -> None:
+    if not is_test_visibility_enabled():
+        return
+
+    _disable_ci_visibility()
+
+
 def pytest_sessionstart(session: pytest.Session) -> None:
     if not is_test_visibility_enabled():
         return
@@ -235,6 +259,10 @@ def _pytest_collection_finish(session) -> None:
         if InternalTestSession.is_test_skipping_enabled() and _is_test_unskippable(item):
             InternalTest.mark_itr_unskippable(test_id)
             InternalTestSuite.mark_itr_unskippable(suite_id)
+
+        # NOTE: EFD enablement status is already specified during service enablement
+        if InternalTestSession.efd_is_faulty_session():
+            log.warning("Early Flake Detection disabled: too many new tests detected")
 
 
 def pytest_collection_finish(session) -> None:
@@ -338,10 +366,14 @@ def _efd_run_when(item, nextitem, when):
         call = CallInfo.from_call(lambda: hook(item=item), when=when)
     report = pytest.TestReport.from_item_and_call(item=item, call=call)
     if report.outcome == "passed":
-        report.outcome = "efd_retry_passed"
-    elif report.outcome == "failed":
-        report.outcome = "efd_retry_failed"
-    item.ihook.pytest_runtest_logreport(report=report)
+        report.outcome = _EFD_OUTCOMES.ATTEMPT_PASSED
+    elif report.outcome == "failed" or report.outcome == "error":
+        report.outcome = _EFD_OUTCOMES.ATTEMPT_FAILED
+    elif report.outcome == "skipped":
+        report.outcome = _EFD_OUTCOMES.ATTEMPT_SKIPPED
+    # Only log for actual test calls, or failures
+    if when == "call" or "passed" not in report.outcome:
+        item.ihook.pytest_runtest_logreport(report=report)
     return call, report
 
 
@@ -379,9 +411,9 @@ def _efd_get_outcome_from_item(
             item.stash[caplog_records_key] = {}
             item.stash[caplog_handler_key] = {}
     # Call
-    if setup_report.outcome == "efd_retry_passed":
+    if setup_report.outcome == _EFD_OUTCOMES.ATTEMPT_PASSED:
         call_call, call_report = _efd_run_when(item, nextitem, "call")
-        if call_report.outcome == "efd_retry_failed":
+        if call_report.outcome == _EFD_OUTCOMES.ATTEMPT_FAILED:
             _outcome_status = TestStatus.FAIL
             if call_call.excinfo is not None:
                 _outcome_exc_info = TestExcInfo(call_call.excinfo.type, call_call.excinfo.value, call_call.excinfo.tb)
@@ -390,13 +422,13 @@ def _efd_get_outcome_from_item(
         elif call_report.skipped:
             # A test that skips during retries is considered a failure
             _outcome_status = TestStatus.FAIL
-        elif call_report.outcome == "efd_retry_passed":
+        elif call_report.outcome == _EFD_OUTCOMES.ATTEMPT_PASSED:
             _outcome_status = TestStatus.PASS
 
     # Teardown
     teardown_call, teardown_report = _efd_run_when(item, nextitem, "teardown")
     # Only override the outcome if the teardown failed, otherwise defer to either setup or call outcome
-    if teardown_report.outcome == "efd_retry_failed":
+    if teardown_report.outcome == _EFD_OUTCOMES.ATTEMPT_FAILED:
         _outcome_status = TestStatus.FAIL
         if teardown_call.excinfo is not None:
             _outcome_exc_info = TestExcInfo(
@@ -407,11 +439,10 @@ def _efd_get_outcome_from_item(
 
     item._initrequest()
 
-    # print(f"ROMAIN RESULTS {results}")
     return _TestOutcome(status=_outcome_status, skip_reason=_outcome_skip_reason, exc_info=_outcome_exc_info)
 
 
-def _handle_efd_retries(item, original_outcome: _TestOutcome, force_teardown: bool = False) -> _TestOutcome:
+def _handle_efd_retries(item, original_outcome: _TestOutcome, force_teardown: bool = False) -> EFDTestStatus:
     test_id = _get_test_id_from_item(item)
 
     while InternalTest.efd_should_retry(test_id):
@@ -419,28 +450,13 @@ def _handle_efd_retries(item, original_outcome: _TestOutcome, force_teardown: bo
 
         with core.context_with_data(f"pytest-efd-retry-{item.nodeid}") as ctx:
             ctx.set_item("efd_retry_num", retry_num)
-            # breakpoint()
-            # clone_args = {"name": item.name}
-            # for arg in ["callspec", "callobj", "fixtureinfo", "originalname"]:
-            #     if hasattr(item, arg):
-            #         clone_args[arg] = getattr(item, arg)
-            # cloned_item = item.__class__.from_parent(item.parent, **clone_args)
-            # next_item = item.__class__.from_parent(item.parent, **clone_args)
-            # breakpoint()
             retry_outcome = _efd_get_outcome_from_item(item, None, force_teardown)
-            # breakpoint()
 
         InternalTest.efd_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
 
-    final_status = InternalTest.efd_get_final_status(test_id)
-
-    if final_status == TestStatus.PASS:
-        return _TestOutcome(TestStatus.PASS)
-
-    # If the final outcome is not passing, we simply use the original outcome
-    return original_outcome
+    return InternalTest.efd_get_final_status(test_id)
 
 
 def _process_result(item, call, result) -> _TestOutcome:
@@ -534,25 +550,38 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo, outcome
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
-    # EFD needs to retry tests that fail during their call phase so their outcome can be modified before it gets
-    # reported (otherwise they will be reported as failed and cause the session to fail).
+    # EFD retries tests only if their teardown succeeded to ensure the best chance they will succeed
     if InternalTest.efd_should_retry(test_id):
+        # Don't mark the original test's call as failed if it will be EFD-retried to avoid failing the session
+        # pytest_terminal_summary will then update the counts according to the test's final status
+        if call.when == "call" and test_outcome.status == TestStatus.FAIL:
+            original_result.outcome = _EFD_OUTCOMES.ATTEMPT_FAILED
+            return
         if InternalTest.get_tag(test_id, "_dd.ci.efd_setup_failed"):
             log.debug("Test item %s failed during setup, will not be retried for Early Flake Detection")
-        elif InternalTest.get_tag(test_id, "_dd.ci.efd_teardown_failed"):
+            return
+        if InternalTest.get_tag(test_id, "_dd.ci.efd_teardown_failed"):
             # NOTE: tests that passed their call but failed during teardown are not retried
             log.debug("Test item %s failed during teardown, will not be retried for Early Flake Detection")
-        else:
-            force_teardown = original_result.outcome == "failed"
-            efd_outcome = _handle_efd_retries(item, test_outcome, force_teardown=force_teardown)
-            if force_teardown:
-                # Avoid item.stash KeyError
-                item.stash[caplog_records_key] = item.stash.get(caplog_records_key, {})
-                item.stash[caplog_handler_key] = item.stash.get(caplog_handler_key, {})
-            # Only override the original test status if the original call failed.
-            # Note that a teardown failure will continue to show as failed
-            if original_result.outcome == "failed" and efd_outcome.status == TestStatus.PASS:
-                original_result.outcome = "efd_retry_passed"
+            return
+
+        original_result.outcome = _EFD_OUTCOMES.ATTEMPT_PASSED
+        efd_outcome = _handle_efd_retries(item, test_outcome)
+        final_outcomes = {
+            EFDTestStatus.ALL_PASS: _EFD_OUTCOMES.FINAL_PASSED,
+            EFDTestStatus.ALL_FAIL: _EFD_OUTCOMES.FINAL_FAILED,
+            EFDTestStatus.ALL_SKIP: _EFD_OUTCOMES.FINAL_SKIPPED,
+            EFDTestStatus.FLAKY: _EFD_OUTCOMES.FINAL_FLAKY,
+        }
+        final_report = pytest.TestReport(
+            nodeid=item.nodeid,
+            location=item.location,
+            keywords=item.keywords,
+            when="call",
+            longrepr=None,
+            outcome=final_outcomes[efd_outcome],
+        )
+        item.ihook.pytest_runtest_logreport(report=final_report)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -570,9 +599,78 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
         log.debug("encountered error during makereport", exc_info=True)
 
 
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Report flaky or failed tests"""
+    # Before yield gives us a chance to have short reports of failures:
+    initial_size = len(terminalreporter.stats.get("failed", []))
+    # Fill in attempt failures so the terminal reports them properly
+    for failed_report in terminalreporter.getreports(_EFD_OUTCOMES.ATTEMPT_FAILED):
+        failed_report.outcome = "failed"
+        terminalreporter.stats.setdefault("failed", []).append(failed_report)
+
+    yield
+
+    # After yield gives us a chance to:
+    # - print our flaky test status summary
+    # - modify the total counts
+
+    # Reset the failed attempts so they don't count towards the final total
+    if initial_size == 0:
+        terminalreporter.stats.pop("failed", None)
+    else:
+        terminalreporter.stats["failed"] = terminalreporter.stats["failed"][:initial_size]
+
+    if InternalTestSession.efd_enabled():
+        terminalreporter.write_sep("=", "Datadog Early Flake Detection", purple=True, bold=True)
+
+    # Print summary info
+    passed_reports = terminalreporter.getreports(_EFD_OUTCOMES.FINAL_PASSED)
+    if passed_reports:
+        terminalreporter.write_sep("_", "PASSED", green=True, bold=True)
+        for passed_report in passed_reports:
+            line = f"{terminalreporter._tw.markup('PASSED', green=True)} {passed_report.nodeid}"
+            terminalreporter.write_line(line)
+        del terminalreporter.stats[_EFD_OUTCOMES.FINAL_PASSED]
+
+    failed_reports = terminalreporter.getreports(_EFD_OUTCOMES.FINAL_FAILED)
+    if failed_reports:
+        terminalreporter.write_sep("_", "FAILED", red=True, bold=True)
+        for failed_report in failed_reports:
+            line = f"{terminalreporter._tw.markup('FAILED', red=True)} {failed_report.nodeid}"
+            terminalreporter.write_line(line)
+        del terminalreporter.stats[_EFD_OUTCOMES.FINAL_FAILED]
+
+    skipped_reports = terminalreporter.getreports(_EFD_OUTCOMES.FINAL_SKIPPED)
+    if skipped_reports:
+        terminalreporter.write_sep("_", "SKIPPED", yellow=True, bold=True)
+        for skipped_report in skipped_reports:
+            line = f"{terminalreporter._tw.markup('SKIPPED', yellow=True)} {skipped_report.nodeid}"
+            terminalreporter.write_line(line)
+        del terminalreporter.stats[_EFD_OUTCOMES.FINAL_SKIPPED]
+
+    flaky_reports = terminalreporter.getreports(_EFD_FLAKY_OUTCOME)
+    if flaky_reports:
+        terminalreporter.write_sep("_", "FLAKY", yellow=True, bold=True)
+        for flaky_report in flaky_reports:
+            line = f"{terminalreporter._tw.markup('FLAKY', yellow=True)} {flaky_report.nodeid}"
+            terminalreporter.write_line(line)
+
+    # Recategorize failed, passed, and skipped into their final counts so they show up in the correct summary
+    for status in ["failed", "passed", "skipped"]:
+        reports = terminalreporter.stats.pop(f"dd_efd_attempt_{status}", [])
+        if reports:
+            terminalreporter.stats.setdefault(status, []).extend(reports)
+
+    return
+
+
 def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
+
+    if InternalTestSession.efd_has_failed_tests():
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
@@ -583,14 +681,13 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
         if not isinstance(lines_pct_value, float):
             log.warning("Tried to add total covered percentage to session span but the format was unexpected")
-            return
-        InternalTestSession.set_covered_lines_pct(lines_pct_value)
+        else:
+            InternalTestSession.set_covered_lines_pct(lines_pct_value)
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
 
     InternalTestSession.finish(force_finish_children=True)
-    disable_test_visibility()
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -601,17 +698,51 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         _pytest_sessionfinish(session, exitstatus)
     except Exception:  # noqa: E722
         log.debug("encountered error during session finish", exc_info=True)
-        # Try, again, to disable CI Visibility just in case
-        _disable_ci_visibility()
+
+
+def _efd_get_retry_num(nodeid) -> t.Optional[int]:
+    with core.context_with_data(f"pytest-efd-retry-{nodeid}") as ctx:
+        return ctx.get_item("efd_retry_num")
+
+
+def _efd_get_attempt_string(nodeid) -> str:
+    retry_number = _efd_get_retry_num(nodeid)
+    return "ATTEMPT {} ".format(retry_number) if retry_number is not None else "INITIAL ATTEMPT "
 
 
 def pytest_report_teststatus(
     report: pytest.TestReport,
 ) -> t.Optional[pytest.TestShortLogReport]:
-    if report.outcome == "efd_retry_passed":
-        return pytest.TestShortLogReport("EFD retry passed", "r", ("EFD RETRY PASSED", {"green": True}))
-    if report.outcome == "efd_retry_failed":
-        return pytest.TestShortLogReport("EFD retry failed", "R", ("EFD RETRY FAILED", {"yellow": True}))
+    if report.outcome == _EFD_OUTCOMES.ATTEMPT_PASSED:
+        return pytest.TestShortLogReport(
+            _EFD_OUTCOMES.ATTEMPT_PASSED,
+            "r",
+            (f"EFD RETRY {_efd_get_attempt_string(report.nodeid)}PASSED", {"green": True}),
+        )
+    if report.outcome == _EFD_OUTCOMES.ATTEMPT_FAILED:
+        return pytest.TestShortLogReport(
+            _EFD_OUTCOMES.ATTEMPT_FAILED,
+            "R",
+            (f"EFD RETRY {_efd_get_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+        )
+    if report.outcome == _EFD_OUTCOMES.ATTEMPT_SKIPPED:
+        return pytest.TestShortLogReport(
+            _EFD_OUTCOMES.ATTEMPT_SKIPPED,
+            "s",
+            (f"EFD RETRY {_efd_get_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+        )
+    if report.outcome == _EFD_OUTCOMES.FINAL_PASSED:
+        return pytest.TestShortLogReport(_EFD_OUTCOMES.FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
+    if report.outcome == _EFD_OUTCOMES.FINAL_FAILED:
+        return pytest.TestShortLogReport(_EFD_OUTCOMES.FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
+    if report.outcome == _EFD_OUTCOMES.FINAL_SKIPPED:
+        return pytest.TestShortLogReport(
+            _EFD_OUTCOMES.FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True})
+        )
+    if report.outcome == _EFD_OUTCOMES.FINAL_FLAKY:
+        # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the final
+        # count of terminal summary
+        return pytest.TestShortLogReport(_EFD_FLAKY_OUTCOME, "K", ("EFD FINAL STATUS: FLAKY", {"yellow": True}))
     return None
 
 

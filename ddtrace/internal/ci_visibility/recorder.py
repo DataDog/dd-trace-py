@@ -71,6 +71,7 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
+from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
@@ -1220,8 +1221,18 @@ def _register_itr_handlers():
 
 
 @_requires_civisibility_enabled
+def _on_efd_is_enabled() -> bool:
+    return CIVisibility.get_session().efd_is_enabled()
+
+
+@_requires_civisibility_enabled
 def _on_efd_session_is_faulty() -> bool:
     return CIVisibility.get_session().efd_is_faulty_session()
+
+
+@_requires_civisibility_enabled
+def _on_efd_session_has_efd_failed_tests() -> bool:
+    return CIVisibility.get_session().efd_has_failed_tests()
 
 
 @_requires_civisibility_enabled
@@ -1254,7 +1265,7 @@ def _on_efd_record_initial(efd_record_initial_args: EFDTestMixin.EFDRecordInitia
 
 
 @_requires_civisibility_enabled
-def _on_efd_get_final_status(test_id: InternalTestId):
+def _on_efd_get_final_status(test_id: InternalTestId) -> EFDTestStatus:
     return CIVisibility.get_test_by_id(test_id).efd_get_final_status()
 
 
@@ -1265,7 +1276,9 @@ def _on_efd_finish_test(test_id: InternalTestId):
 
 def _register_efd_handlers():
     log.debug("Registering EFD handlers")
+    core.on("test_visibility.efd.is_enabled", _on_efd_is_enabled, "is_enabled")
     core.on("test_visibility.efd.session_is_faulty", _on_efd_session_is_faulty, "is_faulty_session")
+    core.on("test_visibility.efd.session_has_failed_tests", _on_efd_session_has_efd_failed_tests, "has_failed_tests")
     core.on("test_visibility.efd.should_retry_test", _on_efd_should_retry_test, "should_retry_test")
     core.on("test_visibility.efd.add_retry", _on_efd_add_retry, "retry_number")
     core.on("test_visibility.efd.start_retry", _on_efd_start_retry)

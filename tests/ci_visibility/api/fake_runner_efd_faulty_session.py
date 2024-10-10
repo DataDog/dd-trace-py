@@ -136,7 +136,7 @@ def run_tests():
 
     # START TESTS
 
-    assert api.InternalTestSession.is_faulty_session(), "Session should be faulty"
+    assert api.InternalTestSession.efd_is_faulty_session(), "Session should be faulty"
 
     # START M1
 
