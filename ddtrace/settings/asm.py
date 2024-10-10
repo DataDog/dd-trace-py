@@ -17,6 +17,7 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.settings._core import report_telemetry as _report_telemetry
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -236,3 +237,4 @@ class ASMConfig(Env):
 
 
 config = ASMConfig()
+_report_telemetry(config)
