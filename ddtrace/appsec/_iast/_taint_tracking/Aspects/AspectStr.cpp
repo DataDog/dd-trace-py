@@ -19,6 +19,58 @@ set_lengthupdated_ranges(PyObject* result,
     set_ranges(result, copy_ranges, tx_map);
 }
 
+static PyObject*
+call_original_function(PyObject* orig_function, PyObject* text, PyObject* pyo_encoding, PyObject* pyo_errors)
+{
+    PyObject* arg_errors = pyo_errors ? pyo_errors : PyUnicode_FromString("strict");
+    const auto res = PyObject_CallFunction(orig_function, "OOO", text, pyo_encoding, arg_errors);
+    if (res == nullptr) {
+        return nullptr;
+    }
+    return res;
+}
+
+static std::tuple<int, PyObject*, PyObject*, PyObject*, PyObject*>
+get_args(PyObject* const* args, const Py_ssize_t nargs, PyObject* kwnames)
+{
+    PyObject* orig_function = args[0];
+    PyObject* text = args[2];
+    PyObject* pyo_encoding = nullptr;
+    PyObject* pyo_errors = nullptr;
+    int effective_args = 1;
+
+    if (nargs > 3) {
+        pyo_encoding = args[3];
+        effective_args = 2;
+    }
+    if (nargs > 4) {
+        pyo_errors = args[4];
+        effective_args = 3;
+    }
+
+    if (kwnames and PyTuple_Check(kwnames)) {
+        for (Py_ssize_t i = 0; i < PyTuple_Size(kwnames); i++) {
+            if (effective_args > 3) {
+                // Will produce an error, so end here
+                break;
+            }
+            PyObject* key = PyTuple_GET_ITEM(kwnames, i); // Keyword name
+            PyObject* value = args[nargs + i];            // Keyword value
+            if (PyUnicode_CompareWithASCIIString(key, "encoding") == 0) {
+                pyo_encoding = value;
+                ++effective_args;
+                continue;
+            }
+            if (PyUnicode_CompareWithASCIIString(key, "errors") == 0) {
+                ++effective_args;
+                pyo_errors = value;
+            }
+        }
+    }
+
+    return { effective_args, orig_function, text, pyo_encoding, pyo_errors };
+}
+
 PyObject*
 api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, PyObject* kwnames)
 {
@@ -27,100 +79,59 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
         return nullptr;
     }
 
-    PyObject* orig_function = args[0];
-    PyObject* py_flag_added_args = args[1];
-    PyObject* text = args[2];
-    PyObject* pyo_encoding = nullptr;
-    PyObject* pyo_errors = nullptr;
+    auto [effective_args, orig_function, text, pyo_encoding, pyo_errors] = get_args(args, nargs, kwnames);
 
-    if (nargs > 3)
-        pyo_encoding = args[3];
-    if (nargs > 4)
-        pyo_errors = args[4];
-
-    if (kwnames and PyTuple_Check(kwnames)) {
-        for (Py_ssize_t i = 0; i < PyTuple_Size(kwnames); i++) {
-            PyObject* key = PyTuple_GET_ITEM(kwnames, i); // Keyword name
-            PyObject* value = args[nargs + i];            // Keyword value
-            if (PyUnicode_CompareWithASCIIString(key, "encoding") == 0) {
-                pyo_encoding = value;
-                continue;
-            }
-            if (PyUnicode_CompareWithASCIIString(key, "errors") == 0) {
-                pyo_errors = value;
-            }
-        }
+    if (effective_args > 3) {
+        string error_msg = "str() takes at most 3 arguments (" + to_string(effective_args) + " given)";
+        py::set_error(PyExc_TypeError, error_msg.c_str());
+        return nullptr;
     }
 
-    bool has_encoding = pyo_encoding != nullptr and PyUnicode_GetLength(pyo_encoding) > 0;
-    bool has_errors = pyo_errors != nullptr and PyUnicode_GetLength(pyo_errors) > 0;
+    const bool has_encoding = pyo_encoding != nullptr and PyUnicode_GetLength(pyo_encoding) > 0;
+    const bool has_errors = pyo_errors != nullptr and PyUnicode_GetLength(pyo_errors) > 0;
 
-    const char* encoding = has_encoding ? PyUnicode_AsUTF8(pyo_encoding) : "";
-    if (encoding == nullptr)
-        encoding = "";
-
-    const char* errors = has_errors ? PyUnicode_AsUTF8(pyo_errors) : "";
-    if (errors == nullptr)
-        errors = "";
-
-    PyObject* result_o = nullptr;
-    // FIXME?
-    // const auto flag_added_args = PyLong_Check(py_flag_added_args) ? PyLong_AsLong(py_flag_added_args) : 0L;
-    // const auto result_or_args = process_flag_added_args(orig_function, flag_added_args, *args, nullptr);
-    //
-    //
-    // if (not PyTuple_Check(result_or_args)) {
-    //     return result_or_args;
-    // }
-
-    if (has_pyerr()) {
-        throw py::error_already_set();
+    // If it has encoding, then the text object must be a bytes or bytearray object; if not, call the original
+    // function so the error is raised
+    if (has_encoding and (not PyByteArray_Check(text) and not PyBytes_Check(text))) {
+        return call_original_function(orig_function, text, pyo_encoding, pyo_errors);
     }
 
-    // Call the original if not a text type
+    // Call the original if not a text type and has no encoding
     if (not is_text(text)) {
         PyObject* as_str = PyObject_Str(text);
-        if (as_str == nullptr) {
-            throw py::error_already_set();
-        }
         return as_str;
     }
+
+    PyObject* result_o = nullptr;
 
     // With no encoding or errors arguments we can directly call PyObject_Str, which is faster
     if (!has_encoding and !has_errors) {
         result_o = PyObject_Str(text);
         if (result_o == nullptr) {
-            throw py::error_already_set();
+            return nullptr;
         }
     } else {
-        if (!has_encoding) {
-            // Oddly enough, the presence of just the "errors" argument is enough to trigger the decoding
-            // behaviour of str() even is "encoding" is empty (but then it will take the default utf-8 value)
-            encoding = "utf-8";
-        }
-
-        if (!has_errors)
-            errors = "strict";
-
-        // bytes or bytearray: we have to decode
-        // If it has encoding, then the text object must not be a unicode object
-        if (has_encoding and PyUnicode_Check(text)) {
-            throw py::type_error("decoding str is not supported");
-        }
-
-        char* text_raw_bytes;
+        // Oddly enough, the presence of just the "errors" argument is enough to trigger the decoding
+        // behaviour of str() even is "encoding" is empty (but then it will take the default utf-8 value)
+        char* text_raw_bytes = nullptr;
         Py_ssize_t text_raw_bytes_size;
 
         if (PyByteArray_Check(text)) {
             text_raw_bytes = PyByteArray_AS_STRING(text);
             text_raw_bytes_size = PyByteArray_GET_SIZE(text);
         } else if (PyBytes_AsStringAndSize(text, &text_raw_bytes, &text_raw_bytes_size) == -1) {
+            if (has_pyerr()) {
+                return nullptr;
+            }
             throw py::error_already_set();
         }
 
+        const char* encoding = has_encoding ? PyUnicode_AsUTF8(pyo_encoding) : "utf-8";
+        const char* errors = has_errors ? PyUnicode_AsUTF8(pyo_errors) : "strict";
         result_o = PyUnicode_Decode(text_raw_bytes, text_raw_bytes_size, encoding, errors);
+
         if (PyErr_Occurred()) {
-            throw py::error_already_set();
+            return nullptr;
         }
         if (result_o == nullptr) {
             Py_RETURN_NONE;
@@ -138,13 +149,13 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
             return result_o;
         }
 
-        // JJJ optimize
-        auto len_result_o = py::len(py::reinterpret_borrow<py::object>(result_o));
-
         if (PyUnicode_Check(text)) {
             set_ranges(result_o, ranges, tx_map);
         } else {
+            // Encoding on Bytes or Bytearray: size could change
+            const auto len_result_o = PyObject_Length(result_o);
             PyObject* check_offset = PyObject_Str(text);
+
             if (check_offset == nullptr) {
                 PyErr_Clear();
                 set_lengthupdated_ranges(result_o, len_result_o, ranges, tx_map);
