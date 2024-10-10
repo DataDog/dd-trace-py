@@ -14,7 +14,6 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -53,7 +52,7 @@ def in_iast_context() -> bool:
 
 
 def start_iast_context():
-    if asm_config._iast_enabled:
+    if _is_iast_enabled():
         from ._taint_tracking import create_context as create_propagation_context
 
         create_propagation_context()
@@ -90,6 +89,8 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
 
 def set_iast_request_enabled(request_enabled) -> None:
     env = _get_iast_context()
+    print("set_iast_request_enabled")
+    print(env)
     if env:
         env.request_enabled = request_enabled
     else:

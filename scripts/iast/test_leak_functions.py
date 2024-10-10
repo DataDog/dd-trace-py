@@ -2,14 +2,21 @@ import argparse
 import resource
 import sys
 
+from ddtrace.appsec._iast._iast_request_context import end_iast_context
+from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
+from ddtrace.appsec._iast._iast_request_context import start_iast_context
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import override_env
 
 
-with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import reset_context
+def _start_iast_context_and_oce():
+    start_iast_context()
+    set_iast_request_enabled(True)
+
+
+def _end_iast_context_and_oce():
+    end_iast_context()
 
 
 def parse_arguments():
@@ -39,11 +46,11 @@ def test_iast_leaks(iterations: int, fail_percent: float, print_every: int):
         test_doit = mod.test_doit
 
         for i in range(iterations):
-            create_context()
+            _start_iast_context_and_oce()
             result = test_doit()  # noqa: F841
             assert result == "DDD_III_extend", f"result is {result}"  # noqa: F841
             assert is_pyobject_tainted(result)
-            reset_context()
+            _end_iast_context_and_oce()
 
             if i == mem_reference_iterations:
                 half_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
