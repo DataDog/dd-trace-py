@@ -98,8 +98,6 @@ class OverheadControl(object):
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
         if self._request_quota <= 0:
-            if _is_iast_debug_enabled():
-                log.debug("[IAST] No request quota")
             return False
 
         if span and not self._sampler.sample(span):
