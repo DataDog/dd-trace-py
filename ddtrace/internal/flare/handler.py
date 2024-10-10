@@ -30,6 +30,7 @@ def _tracerFlarePubSub():
 
 def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
     if cleanup:
+        log.info("Cleaning up")
         flare.revert_configs()
         flare.clean_up_files()
         return
@@ -60,7 +61,13 @@ def _prepare_tracer_flare(flare: Flare, configs: List[dict]) -> bool:
         # AGENT_CONFIG is currently being used for multiple purposes
         # We only want to prepare for a tracer flare if the config name
         # starts with 'flare-log-level'
+        if not isinstance(c, dict):
+            log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
+            continue
         if not c.get("name", "").startswith("flare-log-level"):
+            log.debug(
+                "Config item name does not start with flare-log-level, received %s instead. Skipping...", c.get("name")
+            )
             continue
 
         flare_log_level = c.get("config", {}).get("log_level").upper()
@@ -78,7 +85,14 @@ def _generate_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
         # AGENT_TASK is currently being used for multiple purposes
         # We only want to generate the tracer flare if the task_type is
         # 'tracer_flare'
-        if type(c) != dict or c.get("task_type") != "tracer_flare":
+        if not isinstance(c, dict):
+            log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
+            continue
+        if c.get("task_type") != "tracer_flare":
+            log.debug(
+                "Config item does not have the expected task_type. Expected [tracer_flare], received [%s]. Skipping...",
+                c.get("task_type"),
+            )
             continue
         args = c.get("args", {})
         flare_request = FlareSendRequest(
