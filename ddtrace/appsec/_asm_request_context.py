@@ -62,7 +62,7 @@ class ASM_Environment:
         if self.root:
             core.add_suppress_exception(BlockingException)
         if span is None:
-            self.span: Span = core.get_item("call")
+            self.span: Span = core.get_item(core.get_item("call_key"))
         else:
             self.span = span
         self.waf_addresses: Dict[str, Any] = {}
@@ -434,6 +434,8 @@ def start_context(span: Span):
             core.get_local_item("headers_case_sensitive"),
             core.get_local_item("block_request_callable"),
         )
+    elif asm_config._iast_enabled:
+        core.set_item(_ASM_CONTEXT, ASM_Environment())
 
 
 def end_context(span: Span):
@@ -566,6 +568,7 @@ def asm_listen():
 
     listen()
     iast_listen()
+
     core.on("flask.finalize_request.post", _set_headers_and_response)
     core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")
     core.on("flask._patched_request", _on_pre_tracedrequest)

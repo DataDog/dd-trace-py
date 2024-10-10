@@ -2,10 +2,10 @@ from dataclasses import dataclass
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
+from ddtrace.appsec import load_appsec
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 
-from .. import load_appsec
 from . import oce
 from ._iast_request_context import _iast_end_request
 from ._iast_request_context import set_iast_request_enabled

@@ -19,7 +19,6 @@ def test_context_set_and_reset():
         block_request_callable=(lambda: True),
         config=config_asm,
     ):
-        #        with _asm_request_context.asm_request_context_manager(_TEST_IP, _TEST_HEADERS, True, lambda: True):
         assert _asm_request_context.get_ip() == _TEST_IP
         assert _asm_request_context.get_headers() == _TEST_HEADERS
         assert _asm_request_context.get_headers_case_sensitive()
