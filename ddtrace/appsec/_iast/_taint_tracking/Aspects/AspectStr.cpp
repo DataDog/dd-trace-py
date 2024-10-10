@@ -74,7 +74,11 @@ get_args(PyObject* const* args, const Py_ssize_t nargs, PyObject* kwnames)
 PyObject*
 api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, PyObject* kwnames)
 {
-    if (nargs < 3 or nargs > 5) {
+    if (nargs == 2 or (nargs > 2 and PyUnicode_Check(args[2]) and PyObject_Length(args[2]) == 0)) {
+        // str() without parameters or empty parameter, just return an empty string
+        return PyUnicode_FromString("");
+    }
+    if (nargs < 2 or nargs > 5) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
     }
