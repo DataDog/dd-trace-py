@@ -1,0 +1,21 @@
+name: Build profiling native checks image
+
+on:
+  workflow_dispatch:
+  push:
+    #    branches:
+    #      - main
+    #    paths:
+    #      - 'docker/Dockerfile.profiling_native_checks'
+
+jobs:
+  build-and-publish-image:
+    uses: ./.github/workflows/build-and-publish-image.yml
+    with:
+      tags: 'ghcr.io/datadog/dd-trace-py/profiling_native_checks:${{ github.sha }},ghcr.io/datadog/dd-trace-py/profiling_native_checks:latest'
+      platforms: linux/amd64
+      build-args: ''
+      context: ./docker
+      file: Dockerfile.profiling_native_checks
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
