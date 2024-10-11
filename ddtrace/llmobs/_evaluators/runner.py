@@ -14,14 +14,18 @@ from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 logger = get_logger(__name__)
 
 
-def get_ragas_faithfulness():
+def load_ragas_faithfulness():
+    """
+    Lazy load ragas faithfulness evaluator so ragas dependencies are not required unless
+    the evaluator is enabled.
+    """
     from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 
     return RagasFaithfulnessEvaluator
 
 
 SUPPORTED_EVALUATORS = {
-    "ragas_faithfulness": get_ragas_faithfulness,
+    "ragas_faithfulness": load_ragas_faithfulness,
 }
 
 
