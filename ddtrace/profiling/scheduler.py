@@ -2,10 +2,8 @@
 import logging
 from typing import Any  # noqa F401
 from typing import Callable
-from typing import Dict  # noqa F401
 from typing import List
 from typing import Optional
-from typing import Sequence  # noqa F401
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
@@ -53,7 +51,6 @@ class Scheduler(periodic.PeriodicService):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
         if self._export_libdd_enabled:
-            ddup.set_url(agent.get_url())
             ddup.upload()
 
             # These are only used by the Python uploader, but set them here to keep logs/etc

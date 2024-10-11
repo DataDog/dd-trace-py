@@ -10,12 +10,10 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
-from ddtrace.internal import writer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
@@ -111,7 +109,6 @@ class _ProfilerInstance(service.Service):
 
     def __init__(
         self,
-        url: Optional[str] = None,
         service: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         env: Optional[str] = None,
@@ -128,7 +125,6 @@ class _ProfilerInstance(service.Service):
     ):
         super().__init__()
         # User-supplied values
-        self.url: Optional[str] = url
         self.service: Optional[str] = service if service is not None else config.service
         self.tags: Dict[str, str] = tags if tags is not None else profiling_config.tags
         self.env: Optional[str] = env if env is not None else config.env
