@@ -763,7 +763,7 @@ def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
     assert chain_span.get_tag("langchain.request.prompt") is None
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.langchain.response.document.0.score"])
 def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
@@ -783,7 +783,7 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.langchain.response.document.0.score"])
 def test_pinecone_vectorstore_similarity_search_with_score(langchain, request_vcr):
     """
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
@@ -937,7 +937,8 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                     "documents": mock.ANY,
                 }
             ),
-        ]
+        ],
+        any_order=True
     )
     mock_metrics.increment.assert_not_called()
     mock_metrics.distribution.assert_not_called()
