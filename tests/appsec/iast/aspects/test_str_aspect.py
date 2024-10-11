@@ -61,11 +61,11 @@ def test_str_aspect_objs(obj):
 @pytest.mark.parametrize(
     "args",
     [
-        ("utf-8", "strict"),
-        ("latin1", "strict"),
-        ("iso-8859-8", "strict"),
-        ("sjis", "strict"),
-        ("utf-8", "replace"),
+        ("utf-8",),
+        ("latin1",),
+        ("iso-8859-8",),
+        ("sjis",),
+        ("utf-8",),
     ],
 )
 @pytest.mark.parametrize("kwargs", [{}, {"errors": "ignore"}, {"errors": "replace"}])
