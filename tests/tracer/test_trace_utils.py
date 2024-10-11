@@ -29,7 +29,6 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
@@ -539,14 +538,6 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     result_keys.sort(reverse=True)
     assert result_keys == ["runtime-id", http.USER_AGENT]
     mock_store_headers.assert_not_called()
-
-
-def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
-    with override_global_config(dict(_iast_enabled=False)):
-        cookies = {"foo": "bar"}
-        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
-        span_report = _get_span_report()
-        assert not span_report
 
 
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")

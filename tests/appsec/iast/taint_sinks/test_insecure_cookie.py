@@ -2,9 +2,11 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
+from ddtrace.contrib import trace_utils
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
+from tests.utils import override_global_config
 
 
 def test_insecure_cookies(iast_context_defaults):
@@ -123,3 +125,11 @@ def test_insecure_cookies_deduplication(iast_context_deduplication_enabled):
 
             assert len(span_report.vulnerabilities) == num_vuln_expected
         _end_iast_context_and_oce()
+
+
+def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
+    with override_global_config(dict(_iast_enabled=False)):
+        cookies = {"foo": "bar"}
+        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
+        span_report = _get_span_report()
+        assert not span_report
