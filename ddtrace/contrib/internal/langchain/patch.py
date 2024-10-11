@@ -877,13 +877,14 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     provider = instance.__class__.__name__.lower()
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__),
         submit_to_llmobs=True,
         interface_type="similarity_search",
         provider=provider,
         api_key=_extract_api_key(instance),
     )
     documents = []
+    documents_with_maybe_score = []
     try:
         if integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.query", integration.trunc(query))
@@ -914,6 +915,9 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             else:
                 # if not with score add None to tuple
                 document, score = document_and_maybe_score, None
+            documents_with_maybe_score.append((document, score))
+
+        for idx, (document, score) in enumerate(documents_with_maybe_score):
             span.set_tag_str(
                 "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
             )
@@ -942,7 +946,8 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                     "query": query,
                     "k": k or "",
                     "documents": [
-                        {"page_content": document.page_content, "metadata": document.metadata} for document in documents
+                        {"page_content": document.page_content, "metadata": document.metadata}
+                        for document, _ in documents_with_maybe_score
                     ],
                 },
             )
@@ -964,7 +969,7 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
     provider = instance.__class__.__name__.lower()
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__),
         submit_to_llmobs=True,
         interface_type="similarity_search",
         provider=provider,
@@ -1392,8 +1397,6 @@ def patch():
         wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
         if langchain_openai:
             safe_wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding, langchain)
-            # should we wrap also embed query even when it always calls embed documents ?
-            safe_wrap("langchain_openai", "OpenAIEmbeddings.embed_query", traced_embedding, langchain)
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _patch_embeddings_and_vectorstores()
@@ -1425,7 +1428,6 @@ def unpatch():
         unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
         unwrap(langchain.chains.base.Chain, "__call__")
         unwrap(langchain.chains.base.Chain, "acall")
-        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_query")
         unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_documents")
     else:
         unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
@@ -1448,8 +1450,6 @@ def unpatch():
         unwrap(langchain_core.tools.BaseTool, "ainvoke")
         if langchain_openai:
             safe_unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
-            # should we wrap also embed query even when it always calls embed documents ?
-            safe_unwrap(langchain_openai.OpenAIEmbeddings, "embed_query")
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _unpatch_embeddings_and_vectorstores()
@@ -1558,15 +1558,12 @@ def safe_unwrap(module_object, func_name):
     attr = deep_getattr(module_object, func_name, None)
     if attr and isinstance(attr, wrapt.ObjectProxy):
         unwrap(module_object, func_name)
-    elif attr is None:
-        log.debug("Method %s not found in %s", func_name, module_object.__module__)
 
 
 def get_module_from_name(module_name: str):
     try:
         return __import__(module_name)
-    except ImportError as e:
-        print(f"Error importing module {module_name}: {e}")
+    except ImportError:
         return None
 
 
