@@ -139,7 +139,6 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.header"
 
 
-@pytest.mark.skip(reason="TODO")
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
 @pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Header annotation doesn't work on fastapi 94 or lower")
 def test_header_value_source_typing_param(fastapi_application, client, tracer, test_spans):
@@ -313,7 +312,6 @@ def test_path_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.path"
 
 
-@pytest.mark.skip(reason="TODO")
 def test_path_body_receive_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/index.html")
     async def test_route(request: Request):
@@ -351,7 +349,6 @@ def test_path_body_receive_source(fastapi_application, client, tracer, test_span
         assert result["ranges_origin"] == "http.request.body"
 
 
-@pytest.mark.skip(reason="TODO")
 def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/index.html")
     async def test_route(request: Request):
@@ -388,7 +385,6 @@ def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.body"
 
 
-@pytest.mark.skip(reason="TODO")
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
 @pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Default is mandatory on 94 or lower")
 def test_path_body_body_source_formdata_latest(fastapi_application, client, tracer, test_spans):
@@ -422,7 +418,6 @@ def test_path_body_body_source_formdata_latest(fastapi_application, client, trac
         assert result["ranges_origin"] == "http.request.body"
 
 
-@pytest.mark.skip(reason="TODO")
 def test_path_body_body_source_formdata_90(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/index.html")
     async def test_route(path: str = Form(...)):
