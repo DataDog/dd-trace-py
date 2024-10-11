@@ -64,6 +64,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             )
         ), override_env(IAST_ENV):
             _end_iast_context_and_oce()
+        super(FlaskAppSecIASTEnabledTestCase, self).tearDown()
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
