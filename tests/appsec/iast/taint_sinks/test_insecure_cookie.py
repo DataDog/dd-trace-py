@@ -127,9 +127,9 @@ def test_insecure_cookies_deduplication(iast_context_deduplication_enabled):
         _end_iast_context_and_oce()
 
 
-def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
+def test_set_http_meta_insecure_cookies_iast_disabled():
     with override_global_config(dict(_iast_enabled=False)):
         cookies = {"foo": "bar"}
-        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
+        trace_utils.set_http_meta(None, None, request_cookies=cookies)
         span_report = _get_span_report()
         assert not span_report

@@ -6,9 +6,7 @@ from ddtrace.appsec import load_appsec
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 
-from . import oce
 from ._iast_request_context import _iast_end_request
-from ._iast_request_context import set_iast_request_enabled
 from ._iast_request_context import start_iast_context
 
 
@@ -22,12 +20,6 @@ class AppSecIastSpanProcessor(SpanProcessor):
             return
 
         start_iast_context()
-
-        request_iast_enabled = False
-        if oce.acquire_request(span):
-            request_iast_enabled = True
-
-        set_iast_request_enabled(request_iast_enabled)
 
     def on_span_finish(self, span: Span):
         """Report reported vulnerabilities.
