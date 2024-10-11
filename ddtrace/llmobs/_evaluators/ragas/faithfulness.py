@@ -4,7 +4,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
+from ddtrace.llmobs._constants import TEMP_RAGAS_ML_APP_PREFIX
 
 
 logger = get_logger(__name__)
@@ -34,8 +34,8 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     """
     ml_app_of_span_event = span_event.get("ml_app")
     if not ml_app_of_span_event:
-        return RAGAS_ML_APP_PREFIX
-    return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app_of_span_event)
+        return TEMP_RAGAS_ML_APP_PREFIX
+    return "{}-{}".format(TEMP_RAGAS_ML_APP_PREFIX, ml_app_of_span_event)
 
 
 def _get_faithfulness_instance():
