@@ -564,10 +564,8 @@ def _get_headers_if_appsec():
 
 def asm_listen():
     from ddtrace.appsec._handlers import listen
-    from ddtrace.appsec._iast._iast_request_context import iast_listen
 
     listen()
-    iast_listen()
 
     core.on("flask.finalize_request.post", _set_headers_and_response)
     core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")
