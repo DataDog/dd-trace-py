@@ -877,8 +877,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
         "error:0",
     ]
     mock_metrics.assert_has_calls(
-        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)],
-        any_order=True,
+        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)], any_order=True
     )
     mock_logs.assert_not_called()
 
