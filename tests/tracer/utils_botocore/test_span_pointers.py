@@ -10,9 +10,9 @@ import pytest
 
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.utils_botocore.span_pointers import _aws_dynamodb_item_span_pointer_hash
-from ddtrace._trace.utils_botocore.span_pointers import _aws_s3_object_span_pointer_hash
 from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
+from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _aws_dynamodb_item_span_pointer_hash
+from ddtrace._trace.utils_botocore.span_pointers.s3 import _aws_s3_object_span_pointer_hash
 
 
 class TestS3ObjectPointer:
