@@ -479,8 +479,7 @@ def _build_render_template_wrapper(name):
             flask_config=config.flask,
             tags={COMPONENT: config.flask.integration_name},
             span_type=SpanTypes.TEMPLATE,
-            call_key=[name + ".call", "current_span"],
-        ) as ctx, ctx.get_item(name + ".call"):
+        ) as ctx, ctx.get_item("call"):
             return wrapped(*args, **kwargs)
 
     return traced_render
@@ -559,6 +558,15 @@ def patched_jsonify(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
+    with core.context_with_data(
+        "flask.jsonify",
+        span_name="flask.jsonify",
+        flask_config=config.flask,
+        tags={COMPONENT: config.flask.integration_name},
+        pin=pin,
+        call_key="flask_jsonify_call",
+    ) as ctx, ctx.get_item("flask_jsonify_call"):
+        return wrapped(*args, **kwargs)
     with core.context_with_data(
         "flask.jsonify",
         span_name="flask.jsonify",
