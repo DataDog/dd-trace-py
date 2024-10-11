@@ -39,7 +39,7 @@ class IASTEnvironment:
         if span is None:
             self.span: Span = core.get_item(core.get_item("call_key"))
 
-        self.request_enabled: bool = True
+        self.request_enabled: bool = False
         self.iast_reporter: Optional[IastSpanReporter] = None
 
 
@@ -69,7 +69,7 @@ def end_iast_context(span: Optional[Span] = None):
 
 
 def finalize_iast_env(env: IASTEnvironment) -> None:
-    core.discard_local_item(_IAST_CONTEXT)
+    core.discard_item(_IAST_CONTEXT)
 
 
 def set_iast_reporter(iast_reporter: IastSpanReporter) -> None:
@@ -109,13 +109,15 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 req_span = span
             else:
                 req_span = ctx.get_item("req_span")
-            if not is_iast_request_enabled():
-                req_span.set_metric(IAST.ENABLED, 0.0)
-                end_iast_context(req_span)
-                return
+            exist_data = req_span.get_tag(IAST.JSON)
+            if not exist_data:
+                if not is_iast_request_enabled():
+                    req_span.set_metric(IAST.ENABLED, 0.0)
+                    end_iast_context(req_span)
+                    oce.release_request()
+                    return
 
-            req_span.set_metric(IAST.ENABLED, 1.0)
-            if not req_span.get_tag(IAST.JSON):
+                req_span.set_metric(IAST.ENABLED, 1.0)
                 report_data: Optional[IastSpanReporter] = get_iast_reporter()
 
                 if report_data:
@@ -126,12 +128,13 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 _set_span_tag_iast_request_tainted(req_span)
                 _set_span_tag_iast_executed_sink(req_span)
 
-            end_iast_context(req_span)
+                set_iast_request_enabled(False)
+                end_iast_context(req_span)
 
-            if req_span.get_tag(ORIGIN_KEY) is None:
-                req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+                if req_span.get_tag(ORIGIN_KEY) is None:
+                    req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
-            oce.release_request()
+                oce.release_request()
     except Exception:
         log.debug("[IAST] Error finishing IAST context", exc_info=True)
 
