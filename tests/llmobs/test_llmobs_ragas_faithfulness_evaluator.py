@@ -133,6 +133,10 @@ def test_ragas_faithfulness_emits_traces(ragas, LLMObs):
     root_span = spans[0]
     root_span_id = root_span["span_id"]
     assert root_span["parent_id"] == "undefined"
+    assert root_span["meta"] is not None
+    assert root_span["meta"]["metadata"] is not None
+    assert isinstance(root_span["meta"]["metadata"]["faithfulness_list"], list)
+    assert isinstance(root_span["meta"]["metadata"]["statements"], list)
     root_span_trace_id = root_span["trace_id"]
     for child_span in spans[1:]:
         assert child_span["trace_id"] == root_span_trace_id

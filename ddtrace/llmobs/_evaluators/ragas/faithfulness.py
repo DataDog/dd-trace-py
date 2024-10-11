@@ -151,7 +151,7 @@ class RagasFaithfulnessEvaluator:
                     output_data=score,
                     metadata={
                         "statements": statements,
-                        "faithfulness_list": faithfulness_list,
+                        "faithfulness_list": faithfulness_list.dicts() if faithfulness_list else None,
                     },
                 )
 
