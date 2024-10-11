@@ -311,6 +311,7 @@ test = [
     "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
+    "DD_IAST_ENABLED=true python -m pytest tests/appsec/contrib_appsec/test_fastapi_appsec_iast.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 

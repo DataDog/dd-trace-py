@@ -15,6 +15,11 @@ log = get_logger(__name__)
 
 @dataclass(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
+    def __post_init__(self) -> None:
+        from ddtrace.appsec import load_appsec
+
+        load_appsec()
+
     def on_span_start(self, span: Span):
         if span.span_type != SpanTypes.WEB:
             return
