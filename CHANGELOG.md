@@ -10,7 +10,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ### Bug Fixes
 
 - Code Security (IAST)
-  - This fix ensures that only the IAST propagation context is cleared instead of all contexts, which could otherwise cause propagation loss in multithreaded applications. Additionally, it improves validations in both the Processor and Vulnerability Reporter, depending on whether IAST is active or not.
+  - Ensures that only the IAST propagation context is cleared instead of all contexts, which could otherwise cause propagation loss in multithreaded applications. Additionally, it improves validations in both the Processor and Vulnerability Reporter, depending on whether IAST is active or not.
 - Profiling
   - Fixes endpoint profiling for stack v2, when ``DD_PROFILING_STACK_V2_ENABLED`` is set.
 - Tracing
