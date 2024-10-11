@@ -21,10 +21,11 @@ from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.packaging.version import parse as parse_version
@@ -180,8 +181,9 @@ def traced_handler(wrapped, instance, args, kwargs):
             route=request_spans[0].get_tag(http.ROUTE),
         )
     core.dispatch("asgi.start_request", ("starlette",))
-    if core.get_item(HTTP_REQUEST_BLOCKED):
-        raise trace_utils.InterruptException("starlette")
+    blocked = get_blocked()
+    if blocked:
+        raise BlockingException(blocked)
 
     # https://github.com/encode/starlette/issues/1336
     if _STARLETTE_VERSION <= parse_version("0.33.0") and len(request_spans) > 1:
