@@ -71,6 +71,8 @@ def unpatch():
 def _iast_h(wrapped, instance, args, kwargs):
     if asm_config._iast_enabled:
         _iast_report_header_injection(args)
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 

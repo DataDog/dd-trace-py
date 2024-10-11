@@ -89,8 +89,6 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
 
 def set_iast_request_enabled(request_enabled) -> None:
     env = _get_iast_context()
-    print("set_iast_request_enabled")
-    print(env)
     if env:
         env.request_enabled = request_enabled
     else:
@@ -118,11 +116,11 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
         req_span.set_metric(IAST.ENABLED, 1.0)
         if not req_span.get_tag(IAST.JSON):
             report_data: Optional[IastSpanReporter] = get_iast_reporter()
-            _asm_manual_keep(req_span)
 
             if report_data:
                 report_data.build_and_scrub_value_parts()
                 req_span.set_tag_str(IAST.JSON, report_data._to_str())
+                _asm_manual_keep(req_span)
             _set_metric_iast_request_tainted()
             _set_span_tag_iast_request_tainted(req_span)
             _set_span_tag_iast_executed_sink(req_span)

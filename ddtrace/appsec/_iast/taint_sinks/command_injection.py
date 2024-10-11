@@ -54,6 +54,8 @@ def _iast_cmdi_osspawn(wrapped, instance, args, kwargs):
     mode, file, func_args, _, _ = args
     _iast_report_cmdi(func_args)
 
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
@@ -61,6 +63,8 @@ def _iast_cmdi_subprocess_init(wrapped, instance, args, kwargs):
     cmd_args = args[0] if len(args) else kwargs["args"]
     _iast_report_cmdi(cmd_args)
 
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
