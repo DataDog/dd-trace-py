@@ -567,12 +567,3 @@ def patched_jsonify(wrapped, instance, args, kwargs):
         call_key="flask_jsonify_call",
     ) as ctx, ctx.get_item("flask_jsonify_call"):
         return wrapped(*args, **kwargs)
-    with core.context_with_data(
-        "flask.jsonify",
-        span_name="flask.jsonify",
-        flask_config=config.flask,
-        tags={COMPONENT: config.flask.integration_name},
-        pin=pin,
-        call_key="flask_jsonify_call",
-    ) as ctx, ctx.get_item("flask_jsonify_call"):
-        return wrapped(*args, **kwargs)
