@@ -128,6 +128,20 @@ class Contrib_TestClass_For_Threats:
             query = dict(root_span()._get_ctx_item("http.request.query"))
             assert query == {"q": "1"} or query == {"q": ["1"]}
 
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("user_agent", "priority"),
+        [("Mozilla/5.0", False), ("Arachni/v1.5.1", True), ("dd-test-scanner-log-block", True)],
+    )
+    def test_priority(self, interface: Interface, root_span, get_tag, asm_enabled, user_agent, priority):
+        """Check that we only set manual keep for traces with appsec events."""
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers={"User-Agent": user_agent})
+            assert response.status_code == (403 if user_agent == "dd-test-scanner-log-block" and asm_enabled else 200)
+        span_priority = root_span()._span.context.sampling_priority
+        assert (span_priority == 2) if asm_enabled and priority else (span_priority < 2)
+
     def test_querystrings(self, interface: Interface, root_span):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
