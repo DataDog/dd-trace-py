@@ -54,7 +54,6 @@ from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._signal.tracing import SpanDecoration
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
@@ -305,7 +304,6 @@ class Debugger(Service):
 
         debugger.start()
 
-        atexit.register(cls.disable)
         register_post_run_module_hook(cls._on_run_module)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
 
@@ -326,7 +324,6 @@ class Debugger(Service):
 
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
 
-        atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
 
         cls._instance.stop(join=join)

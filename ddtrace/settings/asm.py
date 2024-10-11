@@ -17,6 +17,7 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.settings._core import report_telemetry as _report_telemetry
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -212,6 +213,11 @@ class ASMConfig(Env):
         # Only for deprecation phase
         if self._auto_user_instrumentation_local_mode == "":
             self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode or LOGIN_EVENTS_MODE.IDENT
+        if not self._asm_libddwaf_available:
+            self._asm_enabled = False
+            self._asm_can_be_enabled = False
+            self._iast_enabled = False
+            self._api_security_enabled = False
 
     def reset(self):
         """For testing puposes, reset the configuration to its default values given current environment variables."""
@@ -231,9 +237,4 @@ class ASMConfig(Env):
 
 
 config = ASMConfig()
-
-if not config._asm_libddwaf_available:
-    config._asm_enabled = False
-    config._asm_can_be_enabled = False
-    config._iast_enabled = False
-    config._api_security_enabled = False
+_report_telemetry(config)
