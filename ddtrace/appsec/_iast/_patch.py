@@ -117,11 +117,11 @@ def _on_iast_fastapi_patch():
     _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
     # Header sources
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "Headers.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-    )
+    # try_wrap_function_wrapper(
+    #     "starlette.datastructures",
+    #     "Headers.__getitem__",
+    #     functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+    # )
     try_wrap_function_wrapper(
         "starlette.datastructures",
         "Headers.get",
