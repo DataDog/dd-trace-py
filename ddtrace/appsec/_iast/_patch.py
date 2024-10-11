@@ -48,13 +48,10 @@ def try_wrap_function_wrapper(module: Text, name: Text, wrapper: Callable):
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
 
-    if _is_iast_enabled():
+    if _is_iast_enabled() and is_iast_request_enabled():
         try:
             from ._taint_tracking import is_pyobject_tainted
             from ._taint_tracking import taint_pyobject
-
-            if not is_iast_request_enabled():
-                return value
 
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
@@ -176,12 +173,12 @@ def _on_iast_fastapi_patch():
     #     "FormData.__getitem__",
     #     functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
     # )
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "FormData.get",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
-    )
-    _set_metric_iast_instrumented_source(OriginType.BODY)
+    # try_wrap_function_wrapper(
+    #     "starlette.datastructures",
+    #     "FormData.get",
+    #     functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+    # )
+    # _set_metric_iast_instrumented_source(OriginType.BODY)
 
     # Instrumented on _iast_starlette_scope_taint
     _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
