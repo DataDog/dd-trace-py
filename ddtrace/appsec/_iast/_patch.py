@@ -134,7 +134,7 @@ def _on_iast_fastapi_patch():
 
     # Body source
     # try_wrap_function_wrapper("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
-    try_wrap_function_wrapper("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
+    # try_wrap_function_wrapper("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
     try_wrap_function_wrapper(
         "starlette.datastructures",
         "FormData.__getitem__",
