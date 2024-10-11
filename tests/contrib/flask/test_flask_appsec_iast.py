@@ -355,6 +355,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _deduplication_enabled=False,
             )
         ), override_env(IAST_ENV_SAMPLING_0):
+            oce.reconfigure()
             _iast_start_request(MockSpan())
             resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
             assert resp.status_code == 200
