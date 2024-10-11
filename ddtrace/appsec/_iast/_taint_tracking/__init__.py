@@ -81,6 +81,7 @@ __all__ = [
     "_aspect_rsplit",
     "_aspect_split",
     "_aspect_splitlines",
+    "_aspect_str",
     "_convert_escaped_text_to_tainted_text",
     "_format_aspect",
     "active_map_addreses_size",
