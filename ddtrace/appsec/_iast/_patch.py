@@ -94,12 +94,9 @@ def _patched_dictionary(origin_key, origin_value, original_func, instance, args,
 def _patched_fastapi_function(origin, original_func, instance, args, kwargs):
     result = original_func(*args, **kwargs)
 
-    if _is_iast_enabled():
+    if _is_iast_enabled() and is_iast_request_enabled():
         try:
             from ._taint_tracking import is_pyobject_tainted
-
-            if not is_iast_request_enabled():
-                return result
 
             if not is_pyobject_tainted(result):
                 from ._taint_tracking import origin_to_str
@@ -144,21 +141,21 @@ def _on_iast_fastapi_patch():
     _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
     # Header sources
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "Headers.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-    )
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "Headers.get",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-    )
-    try_wrap_function_wrapper(
-        "fastapi",
-        "Header",
-        functools.partial(_patched_fastapi_function, OriginType.HEADER),
-    )
+    # try_wrap_function_wrapper(
+    #     "starlette.datastructures",
+    #     "Headers.__getitem__",
+    #     functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+    # )
+    # try_wrap_function_wrapper(
+    #     "starlette.datastructures",
+    #     "Headers.get",
+    #     functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+    # )
+    # try_wrap_function_wrapper(
+    #     "fastapi",
+    #     "Header",
+    #     functools.partial(_patched_fastapi_function, OriginType.HEADER),
+    # )
     _set_metric_iast_instrumented_source(OriginType.HEADER)
 
     # Path source

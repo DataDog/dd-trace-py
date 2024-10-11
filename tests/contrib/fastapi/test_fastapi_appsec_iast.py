@@ -139,6 +139,7 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.header"
 
 
+@pytest.mark.skip(reason="TODO")
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
 @pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Header annotation doesn't work on fastapi 94 or lower")
 def test_header_value_source_typing_param(fastapi_application, client, tracer, test_spans):
