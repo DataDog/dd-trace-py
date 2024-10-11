@@ -465,7 +465,7 @@ default_ragas_inputs = {
 }
 
 
-def _llm_span_with_expected_ragas_inputs(ragas_inputs=None):
+def _llm_span_with_expected_ragas_inputs_in_prompt(ragas_inputs=None):
     if not ragas_inputs:
         ragas_inputs = default_ragas_inputs
 
@@ -474,6 +474,20 @@ def _llm_span_with_expected_ragas_inputs(ragas_inputs=None):
         prompt={
             "variables": {"question": ragas_inputs["question"], "context": ragas_inputs["context"]},
         },
+        output_messages=[{"content": ragas_inputs["answer"]}],
+    )
+
+
+def _llm_span_with_expected_ragas_inputs_in_messages(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+
+    return _expected_llmobs_llm_span_event(
+        span=Span("dummy"),
+        prompt={
+            "variables": {"context": ragas_inputs["context"]},
+        },
+        input_messages=[{"content": ragas_inputs["question"]}],
         output_messages=[{"content": ragas_inputs["answer"]}],
     )
 

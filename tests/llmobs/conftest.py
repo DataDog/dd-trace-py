@@ -181,6 +181,15 @@ def ragas(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
 
 
 @pytest.fixture
+def reset_ragas_faithfulness_llm():
+    import ragas
+
+    previous_llm = ragas.metrics.faithfulness.llm
+    yield
+    ragas.metrics.faithfulness.llm = previous_llm
+
+
+@pytest.fixture
 def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
     patcher = mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate")
     LLMObsMockRagas = patcher.start()
