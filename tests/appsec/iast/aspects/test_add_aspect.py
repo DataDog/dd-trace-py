@@ -249,6 +249,7 @@ def test_add_aspect_tainting_add_left_twice(obj1, obj2):
 def test_taint_object_error_with_no_context(log_level, iast_debug, caplog):
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     string_to_taint = "my_string"
+    _end_iast_context_and_oce()
     _start_iast_context_and_oce()
     result = taint_pyobject(
         pyobject=string_to_taint,

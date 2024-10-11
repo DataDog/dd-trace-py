@@ -185,6 +185,7 @@ def test_weak_cipher_rc4_unpatched(iast_context_defaults):
 
 
 def test_weak_cipher_deduplication(iast_context_deduplication_enabled):
+    _end_iast_context_and_oce()
     for num_vuln_expected in [1, 0, 0]:
         _start_iast_context_and_oce()
         for _ in range(0, 5):

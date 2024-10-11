@@ -111,6 +111,7 @@ def test_nosamesite_cookies_strict_no_error(iast_context_defaults):
 
 
 def test_insecure_cookies_deduplication(iast_context_deduplication_enabled):
+    _end_iast_context_and_oce()
     for num_vuln_expected in [1, 0, 0]:
         _start_iast_context_and_oce()
         cookies = {"foo": "bar"}

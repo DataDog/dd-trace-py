@@ -161,6 +161,7 @@ def _check_no_report_if_deduplicated(num_vuln_expected):
 
 def test_ssrf_requests_deduplication(iast_context_deduplication_enabled):
     requests_patch()
+    _end_iast_context_and_oce()
     try:
         import requests
         from requests.exceptions import ConnectionError
@@ -183,6 +184,7 @@ def test_ssrf_requests_deduplication(iast_context_deduplication_enabled):
 
 def test_ssrf_urllib3_deduplication(iast_context_deduplication_enabled):
     urllib3_patch()
+    _end_iast_context_and_oce()
     try:
         for num_vuln_expected in [1, 0, 0]:
             _start_iast_context_and_oce()
@@ -204,6 +206,7 @@ def test_ssrf_urllib3_deduplication(iast_context_deduplication_enabled):
 
 def test_ssrf_httplib_deduplication(iast_context_deduplication_enabled):
     httplib_patch()
+    _end_iast_context_and_oce()
     try:
         import http.client
 
@@ -227,6 +230,7 @@ def test_ssrf_httplib_deduplication(iast_context_deduplication_enabled):
 
 def test_ssrf_webbrowser_deduplication(iast_context_deduplication_enabled):
     webbrowser_patch()
+    _end_iast_context_and_oce()
     try:
         import webbrowser
 
@@ -248,6 +252,7 @@ def test_ssrf_webbrowser_deduplication(iast_context_deduplication_enabled):
 
 def test_ssrf_urllib_deduplication(iast_context_deduplication_enabled):
     urllib_patch()
+    _end_iast_context_and_oce()
     try:
         import urllib.request
 
