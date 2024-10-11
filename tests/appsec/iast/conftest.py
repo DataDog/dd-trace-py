@@ -41,13 +41,15 @@ def no_request_sampling(tracer):
 
 def _start_iast_context_and_oce(span=None):
     oce.reconfigure()
+    request_iast_enabled = False
     if oce.acquire_request(span):
         start_iast_context()
-        set_iast_request_enabled(True)
+        request_iast_enabled = True
+    set_iast_request_enabled(request_iast_enabled)
 
 
-def _end_iast_context_and_oce():
-    end_iast_context()
+def _end_iast_context_and_oce(span=None):
+    end_iast_context(span)
     oce.release_request()
 
 

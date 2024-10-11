@@ -7,7 +7,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 
 from ._iast_request_context import _iast_end_request
-from ._iast_request_context import start_iast_context
+from ._iast_request_context import _iast_start_request
 
 
 log = get_logger(__name__)
@@ -19,7 +19,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        start_iast_context()
+        _iast_start_request(span)
 
     def on_span_finish(self, span: Span):
         """Report reported vulnerabilities.

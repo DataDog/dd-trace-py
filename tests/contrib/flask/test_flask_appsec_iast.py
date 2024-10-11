@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._iast_request_context import _iast_start_request
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
@@ -354,7 +355,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _deduplication_enabled=False,
             )
         ), override_env(IAST_ENV_SAMPLING_0):
-            _start_iast_context_and_oce(MockSpan())
+            _iast_start_request(MockSpan())
             resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
             assert resp.status_code == 200
 
