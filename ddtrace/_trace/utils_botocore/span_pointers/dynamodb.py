@@ -33,6 +33,11 @@ def _extract_span_pointers_for_dynamodb_response(
             dynamodb_primary_key_names_for_tables, request_parameters
         )
 
+    if operation_name == "UpdateItem":
+        return _extract_span_pointers_for_dynamodb_updateitem_response(
+            request_parameters,
+        )
+
     return []
 
 
@@ -57,6 +62,29 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
     except Exception as e:
         log.warning(
             "failed to generate DynamoDB.PutItem span pointer: %s",
+            str(e),
+        )
+        return []
+
+
+def _extract_span_pointers_for_dynamodb_updateitem_response(
+    request_parmeters: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
+    try:
+        table_name = request_parmeters["TableName"]
+        key = request_parmeters["Key"]
+
+        return [
+            _aws_dynamodb_item_span_pointer_description(
+                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                table_name=table_name,
+                primary_key=key,
+            )
+        ]
+
+    except Exception as e:
+        log.warning(
+            "failed to generate DynamoDB.UpdateItem span pointer: %s",
             str(e),
         )
         return []
