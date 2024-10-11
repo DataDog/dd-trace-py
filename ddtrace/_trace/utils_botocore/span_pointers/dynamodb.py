@@ -33,8 +33,9 @@ def _extract_span_pointers_for_dynamodb_response(
             dynamodb_primary_key_names_for_tables, request_parameters
         )
 
-    if operation_name == "UpdateItem":
-        return _extract_span_pointers_for_dynamodb_updateitem_response(
+    if operation_name in ("UpdateItem", "DeleteItem"):
+        return _extract_span_pointers_for_dynamodb_keyed_operation_response(
+            operation_name,
             request_parameters,
         )
 
@@ -67,7 +68,8 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
         return []
 
 
-def _extract_span_pointers_for_dynamodb_updateitem_response(
+def _extract_span_pointers_for_dynamodb_keyed_operation_response(
+    operation_name: str,
     request_parmeters: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
     try:
@@ -84,7 +86,8 @@ def _extract_span_pointers_for_dynamodb_updateitem_response(
 
     except Exception as e:
         log.warning(
-            "failed to generate DynamoDB.UpdateItem span pointer: %s",
+            "failed to generate DynamoDB.%s span pointer: %s",
+            operation_name,
             str(e),
         )
         return []
