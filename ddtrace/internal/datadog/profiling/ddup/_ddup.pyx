@@ -141,7 +141,6 @@ def config(
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
@@ -156,8 +155,6 @@ def config(
         call_ddup_config_env(ensure_binary_or_empty(env))
     if version:
         call_ddup_config_version(ensure_binary_or_empty(version))
-    if url:
-        set_url(url)
     if output_filename:
         call_ddup_config_output_filename(ensure_binary_or_empty(output_filename))
 
