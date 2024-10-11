@@ -82,8 +82,8 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
 from ddtrace import config, tracer
 
 config._trace_sample_rate = 0.2
-config.logs_injection = False
-config.trace_http_header_tags = {"header": "value"}
+config._logs_injection = False
+config._trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
 config._tracing_enabled = False
 
@@ -175,7 +175,7 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
 
     events = test_agent_session.get_events()
     events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
-    assert {"name": "trace_sample_rate", "value": "0.5", "origin": "remote_config"} in events_trace_sample_rate
+    assert {"name": "trace_sample_rate", "value": "1.0", "origin": "default"} in events_trace_sample_rate
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")

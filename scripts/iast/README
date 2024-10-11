@@ -53,7 +53,7 @@ sh scripts/iast/run_memory.sh"
 docker run --rm -it -v ${PWD}:/ddtrace python_311_debug /bin/bash -c "cd /ddtrace && source scripts/iast/.env && \
 valgrind --tool=memcheck --leak-check=full  --log-file=scripts/iast/valgrind_bench_overload.out --track-origins=yes \
 --suppressions=scripts/iast/valgrind-python.supp  --show-leak-kinds=all \
-python3.11 scripts/iast/test_leak_functions.py --iterations 100"
+python3.11 scripts/iast/leak_functions.py  --iterations 100"
 
 ##### Understanding results of memcheck
 

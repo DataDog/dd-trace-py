@@ -337,18 +337,12 @@ class CMakeBuild(build_ext):
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
-        # Get development paths
-        python_include = sysconfig.get_paths()["include"]
-        python_lib = sysconfig.get_config_var("LIBDIR")
-
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
         cmake_args += [
             "-S{}".format(ext.source_dir),  # cmake>=3.13
             "-B{}".format(cmake_build_dir),  # cmake>=3.13
-            "-DPython3_INCLUDE_DIRS={}".format(python_include),
-            "-DPython3_LIBRARIES={}".format(python_lib),
-            "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+            "-DPython3_ROOT_DIR={}".format(sysconfig.get_config_var("prefix")),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
@@ -531,16 +525,13 @@ if not IS_PYSTON:
 
         ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
 
-    if platform.system() == "Linux" and is_64_bit_python():
+    if (
+        platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
+    ) and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
-                cmake_args=[
-                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
-                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
-                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
-                ],
                 optional=False,
             )
         )
@@ -549,11 +540,6 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
-                cmake_args=[
-                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
-                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
-                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
-                ],
                 optional=False,
             )
         )
