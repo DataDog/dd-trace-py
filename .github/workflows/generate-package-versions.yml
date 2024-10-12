@@ -78,14 +78,24 @@ jobs:
           pip install requests
           pip install riot==0.19.1
 
-      - name: Run regenerate-riot-latest
-        run: scripts/regenerate-riot-latest.sh
-
-      - name: Get latest version
-        id: new-latest
+      - name: Regenerate and check branch
+        id: regenerate-check
         run: |
-          NEW_LATEST=$(python scripts/get_latest_version.py ${{ env.VENV_NAME }})
-          echo "NEW_LATEST=$NEW_LATEST" >> $GITHUB_ENV
+          branch_exists=true
+          while [ "$branch_exists" = true ]; do
+            scripts/regenerate-riot-latest.sh
+            
+            # Get the latest version
+            NEW_LATEST=$(python scripts/get_latest_version.py ${{ env.VENV_NAME }})
+            echo "NEW_LATEST=$NEW_LATEST" >> $GITHUB_ENV
+            
+            if git branch -r | grep -q "origin/$BRANCH_NAME"; then
+              echo "Branch already exists. Regenerating..."
+            else
+              branch_exists=false
+              echo "Branch does not exist. Proceeding to create a pull request."
+            fi
+          done
 
       - name: Create Pull Request
         id: pr
