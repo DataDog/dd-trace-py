@@ -395,6 +395,19 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_override_service_name(self):
+        from ddtrace import config
+
+        config.psycopg["service"] = "psycopg-service"
+
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "psycopg-service"
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_span_name_v0_schema(self):
         conn = self._get_conn()

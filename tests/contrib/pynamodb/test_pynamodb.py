@@ -240,6 +240,21 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    @mock_dynamodb
+    def test_service_name_override(self):
+        from ddtrace import config
+
+        config.pynamodb["service"] = "pynamodb-service"
+
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        list_result = self.conn.list_tables()
+
+        span = self.get_spans()[0]
+        assert span.service == "pynamodb-service", "Expected 'pynamodb-service', got %s" % span.service
+        assert len(list_result["TableNames"]) == 1
+        assert list_result["TableNames"][0] == "Test"
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYNAMODB_SERVICE="mypynamodb"))
     @mock_dynamodb
     def test_env_user_specified_pynamodb_service(self):
