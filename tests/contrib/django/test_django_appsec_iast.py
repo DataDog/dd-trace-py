@@ -44,11 +44,10 @@ def check_native_code_exception_in_each_django_test(request, caplog, telemetry_w
         with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
             yield
 
-        # TODO(avara1986: Django raises message like "no quota", its ok
-        # log_messages = [record.message for record in caplog.get_records("call")]
-        # for message in log_messages:
-        #     if IAST_VALID_LOG.search(message):
-        #         pytest.fail(message)
+        log_messages = [record.message for record in caplog.get_records("call")]
+        for message in log_messages:
+            if IAST_VALID_LOG.search(message):
+                pytest.fail(message)
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 0
 

@@ -141,7 +141,6 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
 
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
-    # Pyobject must be Text with len > 1
     if not is_iast_request_enabled():
         return pyobject
 

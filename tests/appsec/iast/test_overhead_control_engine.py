@@ -195,7 +195,3 @@ def test_oce_concurrent_requests_futures_in_spans(tracer, iast_span_defaults, ca
 
     assert len(results) == num_requests * 3
     assert len(span_report.vulnerabilities) >= 1
-
-    # log_messages = [record.message for record in caplog.get_records("call")]
-    # if not any(message.startswith("[IAST] no vulnerability quota") for message in log_messages):
-    #     pytest.fail()
