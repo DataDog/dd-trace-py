@@ -186,6 +186,12 @@ class ExecutionContext(AbstractContextManager):
     def parent(self) -> Optional["ExecutionContext"]:
         return self._parent
 
+    @parent.setter
+    def parent(self, value: "ExecutionContext") -> None:
+        if self._parent is not None:
+            raise ValueError("Cannot overwrite ExecutionContext parent")
+        self._parent = value
+
     def __exit__(
         self, exc_type: Optional[type], exc_value: Optional[BaseException], traceback: Optional[types.TracebackType]
     ) -> bool:
