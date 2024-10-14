@@ -156,11 +156,7 @@ track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
     // Holds echion's global lock
     std::lock_guard<std::mutex> guard(thread_info_map_lock);
     if (thread_info_map.find(thread_id) != thread_info_map.end()) {
-        auto thread_info_ptr = thread_info_map.find(thread_id)->second;
-        // echion doesn't check for nullptr, why not?
-        if (second != nullptr) {
-            second->asyncio_loop = (loop != PyNone) ? (uintptr_t)loop : 0;
-        }
+      thread_info_map.find(thread_id)->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
     }
 }
 
@@ -170,7 +166,7 @@ init_asyncio(PyObject* _asyncio_current_tasks, PyObject* _asyncio_scheduled_task
     asyncio_current_tasks = _asyncio_current_tasks;
     asyncio_scheduled_tasks = _asyncio_scheduled_tasks;
     asyncio_eager_tasks = _asyncio_eager_tasks;
-    if (asyncio_eager_tasks == PyNone) {
+    if (asyncio_eager_tasks == Py_None) {
         asyncio_eager_tasks = NULL;
     }
 }
