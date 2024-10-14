@@ -10,9 +10,9 @@ import pytest
 
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.utils_botocore.span_pointers import _aws_dynamodb_item_span_pointer_hash
-from ddtrace._trace.utils_botocore.span_pointers import _aws_s3_object_span_pointer_hash
 from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
+from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _aws_dynamodb_item_span_pointer_hash
+from ddtrace._trace.utils_botocore.span_pointers.s3 import _aws_s3_object_span_pointer_hash
 
 
 class TestS3ObjectPointer:
@@ -413,6 +413,208 @@ class TestBotocoreSpanPointers:
                 },
                 expected_pointers=[],
                 expected_warning_regex=".*missing primary key field: some-key",
+            ),
+            PointersCase(
+                name="dynamodb.UpdateItem",
+                endpoint_name="dynamodb",
+                operation_name="UpdateItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Key": {
+                        "some-key": {"S": "some-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.UpdateItem table does not need to be known",
+                endpoint_name="dynamodb",
+                operation_name="UpdateItem",
+                request_parameters={
+                    "TableName": "unknown-table",
+                    "Key": {
+                        "some-key": {"S": "some-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="d8840182e4052ee105348b033e0a6810",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.UpdateItem with two key attributes",
+                endpoint_name="dynamodb",
+                operation_name="UpdateItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Key": {
+                        "some-key": {"S": "some-value"},
+                        "other-key": {"N": "123"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7aa1b80b0e49bd2078a5453399f4dd67",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.UpdateItem with three keys, impossibly",
+                endpoint_name="dynamodb",
+                operation_name="UpdateItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Key": {
+                        "some-key": {"S": "some-value"},
+                        "other-key": {"N": "123"},
+                        "third-key-what": {"S": "some-other-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[],
+                expected_warning_regex=".*unexpected number of primary key fields: 3",
+            ),
+            PointersCase(
+                name="dynamodb.UpdateItem missing the key",
+                endpoint_name="dynamodb",
+                operation_name="UpdateItem",
+                request_parameters={
+                    "TableName": "some-table",
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[],
+                expected_warning_regex=".*'Key'.*",
+            ),
+            PointersCase(
+                name="dynamodb.DeleteItem",
+                endpoint_name="dynamodb",
+                operation_name="DeleteItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Key": {
+                        "some-key": {"S": "some-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.DeleteItem table does not need to be known",
+                endpoint_name="dynamodb",
+                operation_name="DeleteItem",
+                request_parameters={
+                    "TableName": "unknown-table",
+                    "Key": {
+                        "some-key": {"S": "some-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="d8840182e4052ee105348b033e0a6810",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.DeleteItem with two key attributes",
+                endpoint_name="dynamodb",
+                operation_name="DeleteItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Key": {
+                        "some-key": {"S": "some-value"},
+                        "other-key": {"N": "123"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7aa1b80b0e49bd2078a5453399f4dd67",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.DeleteItem with three keys, impossibly",
+                endpoint_name="dynamodb",
+                operation_name="DeleteItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Key": {
+                        "some-key": {"S": "some-value"},
+                        "other-key": {"N": "123"},
+                        "third-key-what": {"S": "some-other-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[],
+                expected_warning_regex=".*unexpected number of primary key fields: 3",
+            ),
+            PointersCase(
+                name="dynamodb.DeleteItem missing the key",
+                endpoint_name="dynamodb",
+                operation_name="DeleteItem",
+                request_parameters={
+                    "TableName": "some-table",
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[],
+                expected_warning_regex=".*'Key'.*",
             ),
         ],
         ids=lambda case: case.name,

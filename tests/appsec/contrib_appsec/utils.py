@@ -311,7 +311,7 @@ class Contrib_TestClass_For_Threats:
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled, client_ip_header=env_var)):
+        with override_global_config(dict(_asm_enabled=asm_enabled, _client_ip_header=env_var)):
             self.update_tracer(interface)
             response = interface.client.get("/", headers=headers)
             assert self.status(response) == 200
