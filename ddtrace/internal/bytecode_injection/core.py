@@ -593,6 +593,9 @@ def _generate_exception_table(
     For format see:
     https://github.com/python/cpython/blob/208b0fb645c0e14b0826c0014e74a0b70c58c9d6/InternalDocs/exception_handling.md#format-of-the-exception-table
     """
+
+    assert sys.version_info >= (3, 11)
+
     parsed_exception_table = dis._parse_exception_table(code)  # type: ignore[attr-defined]
 
     def calculate_additional_offset(original_offset: int, is_start: bool = False) -> int:

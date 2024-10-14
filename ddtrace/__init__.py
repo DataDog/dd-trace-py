@@ -65,3 +65,6 @@ def check_supported_python_version():
 
 
 check_supported_python_version()
+
+from ddtrace.internal.error_reporting.handled_exceptions import init_handled_exceptions_reporting
+init_handled_exceptions_reporting()
