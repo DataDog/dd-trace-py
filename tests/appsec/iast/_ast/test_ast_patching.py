@@ -181,9 +181,9 @@ def test_module_path_none(caplog):
     ],
 )
 def test_astpatch_globals_module_unchanged(module_name):
+    """
+    This is a regression test for partially matching function names:
+    ``globals()`` was being incorrectly patched with the aspect for ``glob()``
+    """
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
     assert ("", "") == (module_path, new_source)
-    if ("", "") != (module_path, new_source):
-        new_code = astunparse.unparse(new_source)
-        assert not new_code.startswith("\nimport ddtrace.appsec._iast")
-        assert "ddtrace_taint_sinks.ast_function(globals, 0)" not in new_code
