@@ -15,6 +15,7 @@ import platform
 from .._types import StringType
 from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
+from ddtrace.internal import agent
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
@@ -140,7 +141,6 @@ def config(
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
@@ -155,8 +155,6 @@ def config(
         call_ddup_config_env(ensure_binary_or_empty(env))
     if version:
         call_ddup_config_version(ensure_binary_or_empty(version))
-    if url:
-        call_ddup_config_url(ensure_binary_or_empty(url))
     if output_filename:
         call_ddup_config_output_filename(ensure_binary_or_empty(output_filename))
 
@@ -210,6 +208,9 @@ def start() -> None:
 
 
 def upload() -> None:
+    url_bytes = ensure_binary_or_empty(agent.get_trace_url())
+    ddup_config_url(string_view(<const char*>url_bytes, len(url_bytes)))
+
     runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
 

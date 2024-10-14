@@ -40,7 +40,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
     def __init__(
         self,
         enable_code_provenance: bool = True,
-        endpoint: typing.Optional[str] = None,
         api_key: typing.Optional[str] = None,
         timeout: float = config.api_timeout,
         service: typing.Optional[str] = None,
@@ -56,7 +55,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
         super().__init__(*args, **kwargs)
         # repeat this to please mypy
         self.enable_code_provenance: bool = enable_code_provenance
-        self.endpoint: str = endpoint if endpoint is not None else agent.get_trace_url()
         self.api_key: typing.Optional[str] = api_key
         # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
         # backend is not as fast as the tracer one.
@@ -229,7 +227,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
         )
         headers["Content-Type"] = content_type
 
-        client = agent.get_connection(self.endpoint, self.timeout)
+        endpoint = agent.get_trace_url()
+        client = agent.get_connection(endpoint, self.timeout)
         self._upload(client, self.endpoint_path, body, headers)
 
         return profile, libs
