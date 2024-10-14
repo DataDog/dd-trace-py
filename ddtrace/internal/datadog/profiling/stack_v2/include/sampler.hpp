@@ -47,11 +47,11 @@ class Sampler
                       PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
 
-      // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
-      // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
-      // update the next rate with the latest interval. This is not perfect because the adjustment is based on
-      // self-time, and we're not currently accounting for the echion self-time.
-      void set_interval(double new_interval);
+    // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
+    // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
+    // update the next rate with the latest interval. This is not perfect because the adjustment is based on
+    // self-time, and we're not currently accounting for the echion self-time.
+    void set_interval(double new_interval);
 };
 
 } // namespace Datadog
