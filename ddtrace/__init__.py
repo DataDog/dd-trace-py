@@ -70,6 +70,11 @@ _DEPRECATED_MODULE_ATTRIBUTES = [
 ]
 
 
+# TODO: move to the appropriate place
+from ddtrace.internal.error_reporting.handled_exceptions import HandledExceptionReportingWatchdog
+HandledExceptionReportingWatchdog.install()
+
+
 def __getattr__(name):
     if name in _DEPRECATED_MODULE_ATTRIBUTES:
         debtcollector.deprecate(
