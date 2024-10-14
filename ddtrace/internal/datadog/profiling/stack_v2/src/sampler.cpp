@@ -149,3 +149,35 @@ Sampler::stop()
     // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
     ++thread_seq_num;
 }
+
+void
+track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
+{
+    // Holds echion's global lock
+    std::lock_guard<std::mutex> guard(thread_info_map_lock);
+    if (thread_info_map.find(thread_id) != thread_info_map.end()) {
+        auto thread_info_ptr = thread_info_map.find(thread_id)->second;
+        // echion doesn't check for nullptr, why not?
+        if (second != nullptr) {
+            second->asyncio_loop = (loop != PyNone) ? (uintptr_t)loop : 0;
+        }
+    }
+}
+
+void
+init_asyncio(PyObject* _asyncio_current_tasks, PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks)
+{
+    asyncio_current_tasks = _asyncio_current_tasks;
+    asyncio_scheduled_tasks = _asyncio_scheduled_tasks;
+    asyncio_eager_tasks = _asyncio_eager_tasks;
+    if (asyncio_eager_tasks == PyNone) {
+        asyncio_eager_tasks = NULL;
+    }
+}
+
+void
+link_tasks(PyObject* parent, PyObject* child)
+{
+    std::lock_guard<std::mutex> guard(task_link_map_lock);
+    task_link_map[child] = parent;
+}
