@@ -100,6 +100,7 @@ def test_appsec_enabled():
         "meta." + FINGERPRINTING.NETWORK,
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
+        "meta." + FINGERPRINTING.SESSION,
     ]
 )
 def test_appsec_enabled_attack():
