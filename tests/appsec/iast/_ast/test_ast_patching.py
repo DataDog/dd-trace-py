@@ -208,3 +208,18 @@ def test_astpatch_bytesio_module_changed(module_name):
         "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects"
     )
     assert "ddtrace_aspects.bytesio_aspect(" in new_code
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        ("tests.appsec.iast.fixtures.ast.other.globals_builtin"),
+    ],
+)
+def test_astpatch_globals_module_unchanged(module_name):
+    module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
+    assert ("", "") == (module_path, new_source)
+    if ("", "") != (module_path, new_source):
+        new_code = astunparse.unparse(new_source)
+        assert not new_code.startswith("\nimport ddtrace.appsec._iast")
+        assert "ddtrace_taint_sinks.ast_function(globals, 0)" not in new_code

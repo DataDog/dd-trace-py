@@ -278,7 +278,7 @@ class AstVisitor(ast.NodeTransformer):
         if function_name in self._taint_sink_replace_disabled:
             return False
 
-        return any(allowed in function_name for allowed in self._taint_sink_replace_any)
+        return function_name in self._taint_sink_replace_any
 
     def _add_original_function_as_arg(self, call_node: ast.Call, is_function: bool) -> Any:
         """
