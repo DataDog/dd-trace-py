@@ -45,7 +45,7 @@ class Sampler
     void init_asyncio(PyObject* _asyncio_current_tasks,
                       PyObject* _asyncio_scheduled_tasks,
                       PyObject* _asyncio_eager_tasks);
-    void link_tasks(PyObject* parent, PyObject* child)
+    void link_tasks(PyObject* parent, PyObject* child);
 
       // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
       // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
