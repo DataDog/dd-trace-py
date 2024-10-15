@@ -5,7 +5,6 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Union
-from uuid import uuid4
 
 import ddtrace
 from ddtrace import Span
@@ -15,6 +14,7 @@ from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal._rand import rand64bits
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -293,7 +293,7 @@ class LLMObs(Service):
         :param name: Set to override the span name for any spans annotated within the returned context.
         """
         # id to track an annotation for registering / de-registering
-        annotation_id = uuid4().hex
+        annotation_id = rand64bits()
 
         def get_annotations_context_id():
             current_ctx = cls._instance.tracer.current_trace_context()

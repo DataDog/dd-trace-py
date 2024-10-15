@@ -1,7 +1,6 @@
 import json
 import os
 import threading
-import time
 
 import mock
 import pytest
@@ -1714,13 +1713,15 @@ def test_annotation_context_only_applies_to_local_context(LLMObs):
     tool_has_correct_name = False
     tool_does_not_have_tags = False
 
+    event = threading.Event()
+
     # thread which registers an annotation context for 0.1 seconds
     def context_one():
         nonlocal agent_has_correct_name
         nonlocal agent_has_correct_tags
         with LLMObs.annotation_context(name="expected_agent", tags={"foo": "bar"}):
             with LLMObs.agent(name="test_agent") as span:
-                time.sleep(0.1)
+                event.wait()
                 agent_has_correct_tags = json.loads(span.get_tag(TAGS)) == {"foo": "bar"}
                 agent_has_correct_name = span.name == "expected_agent"
 
@@ -1731,7 +1732,7 @@ def test_annotation_context_only_applies_to_local_context(LLMObs):
         with LLMObs.agent(name="test_agent"):
             with LLMObs.annotation_context(name="expected_tool"):
                 with LLMObs.tool(name="test_tool") as tool_span:
-                    time.sleep(0.5)
+                    event.wait()
                     tool_does_not_have_tags = tool_span.get_tag(TAGS) is None
                     tool_has_correct_name = tool_span.name == "expected_tool"
 
@@ -1744,6 +1745,7 @@ def test_annotation_context_only_applies_to_local_context(LLMObs):
         assert span.name == "test_agent"
         assert span.get_tag(TAGS) is None
 
+    event.set()
     thread_one.join()
     thread_two.join()
 
