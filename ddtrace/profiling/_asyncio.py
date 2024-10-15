@@ -1,10 +1,10 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
-import threading
 from types import ModuleType  # noqa:F401
 import typing  # noqa:F401
 
+from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils import get_argument_value
@@ -58,7 +58,7 @@ def _(asyncio):
         loop = get_argument_value(args, kwargs, 1, "loop")
         try:
             if init_stack_v2:
-                stack_v2.track_asyncio_loop(typing.cast(int, threading.current_thread().ident), loop)
+                stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
             return f(*args, **kwargs)
         finally:
             THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
