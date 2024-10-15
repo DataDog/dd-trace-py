@@ -275,17 +275,17 @@ class ExecutionContext(AbstractContextManager):
 
     @property
     def span(self) -> "Span":
-        if self._span is None:
+        if self._inner_span is None:
             raise ValueError("No span set on ExecutionContext")
-        return self._span
+        return self._inner_span
 
     @span.setter
     def span(self, value: "Span") -> None:
-        if self._span is not None:
-            if self._span is not value:
-                raise ValueError("Cannot overwrite ExecutionContext span")
-            return
-        self._span = value
+        # if self._inner_span is not None:
+        #     if self._inner_span is not value:
+        #         raise ValueError(f"Cannot overwrite ExecutionContext span {self._inner_span.name} with {value.name}")
+        #     return
+        self._inner_span = value
         if "span_key" in self._data:
             self._data[self._data["span_key"]] = value
 
