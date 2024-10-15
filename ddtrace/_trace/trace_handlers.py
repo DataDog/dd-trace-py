@@ -122,11 +122,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
-    call_keys = ctx.get_item("call_key", "call")
-    if isinstance(call_keys, str):
-        call_keys = [call_keys]
-    for call_key in call_keys:
-        ctx.set_item(call_key, span)
+    ctx.set_item(ctx.get_item("call_key", "call"), span)
     return span
 
 
@@ -136,7 +132,7 @@ def _on_traced_request_context_started_flask(ctx):
         ctx.set_item(ctx["call_key"], nullcontext())
         return
 
-    ctx.set_item("current_span", current_span)
+    ctx.set_item("call", current_span)
     flask_config = ctx["flask_config"]
     _set_flask_request_tags(ctx["flask_request"], current_span, flask_config)
     request_span = _start_span(ctx)
@@ -319,7 +315,7 @@ def _cookies_from_response_headers(response_headers):
 
 
 def _on_flask_render(template, flask_config):
-    span = core.get_item("current_span")
+    span = core.get_item("call")
     if not span:
         return
     name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))

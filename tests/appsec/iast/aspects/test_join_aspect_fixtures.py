@@ -311,6 +311,32 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abcde"
         assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "abcde"
 
+    def test_string_join_generator_multiples_times(self):
+        base_string = "abcde"
+        gen_string = "--+--"
+        gen = (gen_string for _ in ["1", "2", "3"])
+        result = mod.do_join_generator_as_argument(base_string, gen)
+        assert result == "--+--abcde--+--abcde--+--"
+        assert not get_tainted_ranges(result)
+        result = mod.do_join_generator_as_argument(base_string, gen)
+        assert result == ""
+        # Tainted
+        tainted_base_string = taint_pyobject(
+            pyobject=base_string,
+            source_name="joiner",
+            source_value=base_string,
+            source_origin=OriginType.PARAMETER,
+        )
+        gen = (gen_string for _ in ["1", "2", "3"])
+        result = mod.do_join_generator_as_argument(tainted_base_string, gen)
+        result_2 = mod.do_join_generator_as_argument(tainted_base_string, gen)
+        assert result == "--+--abcde--+--abcde--+--"
+        assert result_2 == ""
+
+        ranges = get_tainted_ranges(result)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abcde"
+
     def test_string_join_args_kwargs(self):
         # type: () -> None
         # Not tainted

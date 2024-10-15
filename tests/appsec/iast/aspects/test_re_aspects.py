@@ -1,6 +1,8 @@
 import re
 import typing
 
+import pytest
+
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -493,10 +495,18 @@ def test_re_finditer_aspect_tainted_string():
     re_slash = re.compile(r"[/.][a-z]*")
 
     res_iterator = re_finditer_aspect(None, 1, re_slash, tainted_foobarbaz)
-    assert isinstance(res_iterator, typing.Iterator)
+    assert isinstance(res_iterator, typing.Iterator), f"res_iterator is of type {type(res_iterator)}"
+    try:
+        tainted_item = next(res_iterator)
+        assert get_tainted_ranges(tainted_item) == [
+            TaintRange(0, 18, Source("test_re_sub_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER)),
+        ]
+    except StopIteration:
+        pytest.fail("re_finditer_aspect result generator is depleted")
+
     for i in res_iterator:
         assert get_tainted_ranges(i) == [
-            TaintRange(0, len(i), Source("test_re_sub_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER)),
+            TaintRange(0, 18, Source("test_re_sub_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER)),
         ]
 
 
@@ -507,6 +517,12 @@ def test_re_finditer_aspect_not_tainted():
 
     res_iterator = re_finditer_aspect(None, 1, re_slash, not_tainted_foobarbaz)
     assert isinstance(res_iterator, typing.Iterator)
+
+    try:
+        tainted_item = next(res_iterator)
+        assert not is_pyobject_tainted(tainted_item)
+    except StopIteration:
+        pytest.fail("re_finditer_aspect result generator is finished")
     for i in res_iterator:
         assert not is_pyobject_tainted(i)
 
