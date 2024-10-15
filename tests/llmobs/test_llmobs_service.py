@@ -11,6 +11,7 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.service import ServiceStatus
+import ddtrace.llmobs
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -1682,6 +1683,24 @@ def test_llmobs_fork_custom_filter(monkeypatch):
         exit_code = os.WEXITSTATUS(status)
         assert exit_code == 12
         llmobs_service.disable()
+
+
+def test_llmobs_fork_disabled(monkeypatch):
+    """Test that after being disabled the service remains disabled when forking"""
+    monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
+    svc = ddtrace.llmobs.LLMObs(tracer=DummyTracer())
+    pid = os.fork()
+    assert not svc.enabled, "both the parent and child should be disabled"
+    assert svc._llmobs_span_writer.status == ServiceStatus.STOPPED
+    assert svc._llmobs_eval_metric_writer.status == ServiceStatus.STOPPED
+    if not pid:
+        svc.disable()
+        os._exit(12)
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+    svc.disable()
 
 
 def test_annotation_context_modifies_span_tags(LLMObs):
