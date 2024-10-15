@@ -36,6 +36,7 @@ def test_debugger_fork():
     import os
     import sys
 
+    import ddtrace.auto  # noqa: F401
     from ddtrace.debugging import DynamicInstrumentation
     from ddtrace.internal.service import ServiceStatus
 

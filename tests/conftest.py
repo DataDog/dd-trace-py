@@ -576,6 +576,17 @@ class TelemetryTestSession(object):
         deps.sort(key=lambda x: x["name"], reverse=False)
         return deps
 
+    def get_configurations(self, name=None, ignores=None):
+        ignores = ignores or []
+        configurations = []
+        events_with_configs = self.get_events("app-started") + self.get_events("app-client-configuration-change")
+        for event in events_with_configs:
+            for c in event["payload"]["configuration"]:
+                if c["name"] == name or (name is None and c["name"] not in ignores):
+                    configurations.append(c)
+        configurations.sort(key=lambda x: x["name"], reverse=False)
+        return configurations
+
 
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):

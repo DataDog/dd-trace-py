@@ -438,3 +438,18 @@ def _oversized_retrieval_event():
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
+
+
+class DummyEvaluator:
+    LABEL = "dummy"
+
+    def __init__(self, llmobs_service):
+        self.llmobs_service = llmobs_service
+
+    def run_and_submit_evaluation(self, span):
+        self.llmobs_service.submit_evaluation(
+            span_context=span,
+            label=DummyEvaluator.LABEL,
+            value=1.0,
+            metric_type="score",
+        )
