@@ -44,8 +44,8 @@ def test_asyncio(monkeypatch):
     else:
         maintask = loop.create_task(hello())
 
-    # Wait for the collector to run at least once on this thread, while it is doing something
-    # 2.5+ seconds at times
+    # Wait for the stack collector to run on this thread.
+    # TODO(taegyunkim): Also, test that this thread is sampled.
     start_time = time.time()
     while time.time() < start_time + loop_run_time:
         pass
