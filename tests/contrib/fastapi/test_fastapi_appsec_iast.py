@@ -490,6 +490,7 @@ def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spa
         assert result["ranges_origin"] == "http.request.body"
 
 
+@pytest.mark.skipif(fastapi_version < (0, 65, 0), reason="UploadFile not supported")
 def test_path_body_body_upload(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/uploadfile/")
     async def create_upload_file(files: typing.List[UploadFile]):

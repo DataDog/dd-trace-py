@@ -905,7 +905,7 @@ def do_join_generator(mystring: str) -> Text:
     return "".join(gen)
 
 
-def do_join_generator_as_argument(mystring: str, gen: Generator) -> Text:
+def do_join_generator_as_argument(mystring: str, gen: Generator[str, None, None]) -> Text:
     return mystring.join(gen)
 
 
