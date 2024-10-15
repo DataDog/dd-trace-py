@@ -494,11 +494,11 @@ def _dry(fn: Callable, description: Optional[str] = None) -> Any:
 
 
 if __name__ == "__main__":
-    # subprocess.check_output(
-    #     "git stash",
-    #     shell=True,
-    #     cwd=os.pardir,
-    # )
+    subprocess.check_output(
+        "git stash",
+        shell=True,
+        cwd=os.pardir,
+    )
     start_branch = (
         subprocess.check_output(
             "git rev-parse --abbrev-ref HEAD",
