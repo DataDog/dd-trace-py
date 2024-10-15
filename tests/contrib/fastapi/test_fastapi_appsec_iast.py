@@ -497,12 +497,10 @@ def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spa
         assert result["ranges_origin"] == "http.request.body"
 
 
-@pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Default is mandatory on 94 or lower")
+@pytest.mark.skipif(fastapi_version < (0, 65, 0), reason="UploadFile not supported")
 def test_path_body_body_upload(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/uploadfile/")
-    async def create_upload_file(
-        files: typing.List[UploadFile] = File(description="Multiple files as UploadFile"),
-    ):
+    async def create_upload_file(files: typing.List[UploadFile]):
         from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 
         ranges_result = get_tainted_ranges(files[0])
