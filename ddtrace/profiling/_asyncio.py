@@ -73,8 +73,8 @@ def _(asyncio):
                 return f(*args, **kwargs)
             finally:
                 children = get_argument_value(args, kwargs, 1, "children")
-                # Not sure this has to be 2 or 3
-                loop = get_argument_value(args, kwargs, 2, "loop")
+                # Pass an invalid positional index for 'loop'
+                loop = get_argument_value(args, kwargs, -1, "loop")
                 # Link the parent gathering task to the gathered children
                 parent = globals()["current_task"](loop)
                 for child in children:
