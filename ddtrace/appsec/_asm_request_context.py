@@ -506,9 +506,9 @@ def _on_set_request_tags(request, span, flask_config):
 
 
 def _on_pre_tracedrequest(ctx):
-    _on_set_request_tags(ctx.get_item("flask_request"), ctx["current_span"], ctx.get_item("flask_config"))
+    _on_set_request_tags(ctx.get_item("flask_request"), ctx["call"], ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
-    current_span = ctx["current_span"]
+    current_span = ctx["call"]
     if asm_config._asm_enabled:
         set_block_request_callable(functools.partial(block_request_callable, current_span))
         if get_blocked():
