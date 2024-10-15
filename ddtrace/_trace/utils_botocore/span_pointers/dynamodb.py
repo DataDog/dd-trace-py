@@ -172,7 +172,7 @@ def _identify_dynamodb_batch_write_item_processed_items(
     processed_items = {}
 
     if not all(table_name in requested_items for table_name in unprocessed_items):
-        raise Exception("unprocessed items include tables not in the requested items")
+        raise ValueError("unprocessed items include tables not in the requested items")
 
     for table_name, requested_write_requests in requested_items.items():
         if table_name not in unprocessed_items:
@@ -183,7 +183,7 @@ def _identify_dynamodb_batch_write_item_processed_items(
                 unprocessed_write_request in requested_write_requests
                 for unprocessed_write_request in unprocessed_items[table_name]
             ):
-                raise Exception("unprocessed write requests include items not in the requested write requests")
+                raise ValueError("unprocessed write requests include items not in the requested write requests")
 
             these_processed_items = [
                 deepcopy(processed_write_request)

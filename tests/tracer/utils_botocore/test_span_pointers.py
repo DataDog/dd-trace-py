@@ -1,6 +1,5 @@
 import logging
 import re
-from typing import Any
 from typing import Dict
 from typing import List
 from typing import NamedTuple
@@ -1061,7 +1060,7 @@ class TestDynamoDBWriteRequestLogic:
         )
         assert processed_items == test_case.expected_processed_items
 
-        def collect_all_ids(thing: Any, accumulator: Set[int]) -> None:
+        def collect_all_ids(thing: object, accumulator: Set[int]) -> None:
             if isinstance(thing, dict):
                 accumulator.add(id(thing))
                 for value in thing.values():
@@ -1078,7 +1077,7 @@ class TestDynamoDBWriteRequestLogic:
                 pass
 
             else:
-                raise Exception(f"unknown type of thing: {type(thing)}")
+                raise ValueError(f"unknown type of thing: {type(thing)}")
 
         processed_items_ids: Set[int] = set()
         collect_all_ids(processed_items, processed_items_ids)
