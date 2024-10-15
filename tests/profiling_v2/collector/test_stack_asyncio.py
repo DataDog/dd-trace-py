@@ -22,7 +22,7 @@ def test_asyncio(monkeypatch):
     assert stack_v2.is_available, stack_v2.failure_msg
 
     sleep_time = 0.2
-    loop_run_time = 30
+    loop_run_time = 60
 
     async def stuff() -> None:
         start_time = time.time()
