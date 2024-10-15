@@ -13,6 +13,7 @@ else:
 
 from typing import Any
 from typing import Iterator
+from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -32,7 +33,7 @@ class Constant_Class(type):
     def __setattr__(self, __name: str, __value: Any) -> None:
         raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
 
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[Tuple[str, Any]]:
         def aux():
             for t in self.__dict__.items():
                 if not t[0].startswith("_"):
