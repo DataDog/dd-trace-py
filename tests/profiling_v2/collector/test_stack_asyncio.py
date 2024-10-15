@@ -1,6 +1,9 @@
 import asyncio
 import os
+import sys
 import time
+
+import pytest
 
 from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.profiling import _asyncio
@@ -10,6 +13,7 @@ from tests.profiling.collector import _asyncio_compat
 from tests.profiling.collector import pprof_utils
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="stack v2 is available only on 3.8+ as echion does")
 def test_asyncio(monkeypatch):
     pprof_output_prefix = "/tmp/test_asyncio"
     monkeypatch.setattr(config.stack, "v2_enabled", True)
