@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: Adds span pointers for successful DynamoDB ``DeleteItem`` spans.

@@ -79,10 +79,10 @@ PATCH_MODULES = {
     "falcon": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
-    "logbook": config.logs_injection,
-    "logging": config.logs_injection,
-    "loguru": config.logs_injection,
-    "structlog": config.logs_injection,
+    "logbook": config._logs_injection,  # type: ignore
+    "logging": config._logs_injection,  # type: ignore
+    "loguru": config._logs_injection,  # type: ignore
+    "structlog": config._logs_injection,  # type: ignore
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,

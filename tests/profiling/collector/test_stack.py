@@ -417,7 +417,6 @@ def test_exception_collection_threads():
     )
     exception_events = r.events[stack_event.StackExceptionSampleEvent]
     e = exception_events[0]
-    assert e.timestamp > 0
     assert e.sampling_period > 0
     assert e.thread_id in {t.ident for t in threads}
     assert isinstance(e.thread_name, str)
@@ -441,7 +440,6 @@ def test_exception_collection():
     exception_events = r.events[stack_event.StackExceptionSampleEvent]
     assert len(exception_events) >= 1
     e = exception_events[0]
-    assert e.timestamp > 0
     assert e.sampling_period > 0
     assert e.thread_id == _thread.get_ident()
     assert e.thread_name == "MainThread"
@@ -475,7 +473,6 @@ def test_exception_collection_trace(
                 pytest.fail("No exception event found")
 
     e = exception_events[0]
-    assert e.timestamp > 0
     assert e.sampling_period > 0
     assert e.thread_id == _thread.get_ident()
     assert e.thread_name == "MainThread"

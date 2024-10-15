@@ -21,10 +21,11 @@ from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.packaging.version import parse as parse_version
@@ -59,6 +60,14 @@ def traced_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
 
 
+def traced_route_init(wrapped, _instance, args, kwargs):
+    handler = get_argument_value(args, kwargs, 1, "endpoint")
+
+    core.dispatch("service_entrypoint.patch", (inspect.unwrap(handler),))
+
+    return wrapped(*args, **kwargs)
+
+
 def patch():
     if getattr(starlette, "_datadog_patch", False):
         return
@@ -69,6 +78,8 @@ def patch():
     Pin().onto(starlette)
 
     # We need to check that Fastapi instrumentation hasn't already patched these
+    if not isinstance(starlette.routing.Route.__init__, ObjectProxy):
+        _w("starlette.routing", "Route.__init__", traced_route_init)
     if not isinstance(starlette.routing.Route.handle, ObjectProxy):
         _w("starlette.routing", "Route.handle", traced_handler)
     if not isinstance(starlette.routing.Mount.handle, ObjectProxy):
@@ -170,8 +181,9 @@ def traced_handler(wrapped, instance, args, kwargs):
             route=request_spans[0].get_tag(http.ROUTE),
         )
     core.dispatch("asgi.start_request", ("starlette",))
-    if core.get_item(HTTP_REQUEST_BLOCKED):
-        raise trace_utils.InterruptException("starlette")
+    blocked = get_blocked()
+    if blocked:
+        raise BlockingException(blocked)
 
     # https://github.com/encode/starlette/issues/1336
     if _STARLETTE_VERSION <= parse_version("0.33.0") and len(request_spans) > 1:

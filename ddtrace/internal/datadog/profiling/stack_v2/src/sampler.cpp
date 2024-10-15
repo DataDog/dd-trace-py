@@ -1,5 +1,7 @@
 #include "sampler.hpp"
 
+#include "thread_span_links.hpp"
+
 #include "echion/interp.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
@@ -64,6 +66,7 @@ _stack_v2_atfork_child()
     // The only thing we need to do at fork is to propagate the PID to echion
     // so we don't even reveal this function to the user
     _set_pid(getpid());
+    ThreadSpanLinks::postfork_child();
 }
 
 __attribute__((constructor)) void
@@ -88,7 +91,7 @@ Sampler::one_time_setup()
 }
 
 void
-Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
+Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
 {
     // Registering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
@@ -119,7 +122,7 @@ Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
 }
 
 void
-Sampler::unregister_thread(uintptr_t id)
+Sampler::unregister_thread(uint64_t id)
 {
     // unregistering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };

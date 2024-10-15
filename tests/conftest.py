@@ -558,6 +558,35 @@ class TelemetryTestSession(object):
         requests = self.get_requests(event_type, filter_heartbeats)
         return [req["body"] for req in requests]
 
+    def get_metrics(self, name=None):
+        metrics = []
+        for event in self.get_events("generate-metrics"):
+            for series in event["payload"]["series"]:
+                if name is None or series["metric"] == name:
+                    metrics.append(series)
+        metrics.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+        return metrics
+
+    def get_dependencies(self, name=None):
+        deps = []
+        for event in self.get_events("app-dependencies-loaded"):
+            for dep in event["payload"]["dependencies"]:
+                if name is None or dep["name"] == name:
+                    deps.append(dep)
+        deps.sort(key=lambda x: x["name"], reverse=False)
+        return deps
+
+    def get_configurations(self, name=None, ignores=None):
+        ignores = ignores or []
+        configurations = []
+        events_with_configs = self.get_events("app-started") + self.get_events("app-client-configuration-change")
+        for event in events_with_configs:
+            for c in event["payload"]["configuration"]:
+                if c["name"] == name or (name is None and c["name"] not in ignores):
+                    configurations.append(c)
+        configurations.sort(key=lambda x: x["name"], reverse=False)
+        return configurations
+
 
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):

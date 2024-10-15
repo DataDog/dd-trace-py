@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
@@ -28,6 +27,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -74,7 +74,7 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer):
         tracer = DummyTracer(iast_enabled=True)
 
         telemetry_writer._namespace.flush()
-        with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        with asm_context(tracer=tracer) as span:
             import hashlib
 
             m = hashlib.new("md5")
@@ -185,8 +185,10 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
 
+@pytest.mark.skip_iast_check_logs
 def test_log_metric(telemetry_writer):
-    _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+    with override_env({IAST.ENV_DEBUG: "true"}):
+        _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
 
     list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 1
@@ -194,27 +196,30 @@ def test_log_metric(telemetry_writer):
     assert str(list_metrics_logs[0]["stack_trace"]).startswith('  File "/')
 
 
+@pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled(telemetry_writer):
     with override_env({IAST.ENV_DEBUG: "false"}):
-        _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+        _set_iast_error_metric("test_log_metric_debug_disabled raises")
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
-        assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
+        assert list_metrics_logs[0]["message"] == "test_log_metric_debug_disabled raises"
         assert "stack_trace" not in list_metrics_logs[0].keys()
 
 
+@pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled_deduplication(telemetry_writer):
     with override_env({IAST.ENV_DEBUG: "false"}):
         for i in range(10):
-            _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+            _set_iast_error_metric("test_log_metric_debug_disabled_deduplication raises")
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
-        assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
+        assert list_metrics_logs[0]["message"] == "test_log_metric_debug_disabled_deduplication raises"
         assert "stack_trace" not in list_metrics_logs[0].keys()
 
 
+@pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled_deduplication_different_messages(telemetry_writer):
     with override_env({IAST.ENV_DEBUG: "false"}):
         for i in range(10):

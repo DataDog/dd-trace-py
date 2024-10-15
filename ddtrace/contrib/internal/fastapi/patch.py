@@ -11,6 +11,7 @@ from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.internal.starlette.patch import traced_handler
+from ddtrace.contrib.starlette.patch import traced_route_init
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -76,6 +77,9 @@ def patch():
     if not isinstance(fastapi.BackgroundTasks.add_task, ObjectProxy):
         _w("fastapi", "BackgroundTasks.add_task", _trace_background_tasks(fastapi))
     # We need to check that Starlette instrumentation hasn't already patched these
+    if not isinstance(fastapi.routing.APIRoute.__init__, ObjectProxy):
+        _w("fastapi.routing", "APIRoute.__init__", traced_route_init)
+
     if not isinstance(fastapi.routing.APIRoute.handle, ObjectProxy):
         _w("fastapi.routing", "APIRoute.handle", traced_handler)
 

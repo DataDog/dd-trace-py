@@ -14,6 +14,7 @@ from typing import Union  # noqa:F401
 from ddtrace.internal._file_queue import File_Queue
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
@@ -34,6 +35,7 @@ from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
+from ._core import get_config as _get_config
 from ._otel_remapper import otel_remapping as _otel_remapping
 from .http import HttpConfig
 from .integration import IntegrationConfig
@@ -94,8 +96,8 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
 )
 
 
-def _parse_propagation_styles(name, default):
-    # type: (str, Optional[str]) -> Optional[List[str]]
+def _parse_propagation_styles(styles_str):
+    # type: (str) -> Optional[List[str]]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -131,10 +133,7 @@ def _parse_propagation_styles(name, default):
         DD_TRACE_PROPAGATION_STYLE_INJECT="b3"
     """
     styles = []
-    envvar = os.getenv(name, default=default)
-    if envvar is None:
-        return None
-    for style in envvar.split(","):
+    for style in styles_str.split(","):
         style = style.strip().lower()
         if style == "b3 single header":
             deprecate(
@@ -147,7 +146,7 @@ def _parse_propagation_styles(name, default):
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
-            log.warning("Unknown style {!r} provided for %r, allowed values are %r", style, name, PROPAGATION_STYLE_ALL)
+            log.warning("Unknown DD_TRACE_PROPAGATION_STYLE: {!r}, allowed values are %r", style, PROPAGATION_STYLE_ALL)
             continue
         styles.append(style)
     return styles
@@ -201,6 +200,7 @@ class _ConfigItem:
 
     def __init__(self, name, default, envs):
         # type: (str, Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
+        # _ConfigItem._name is only used in __repr__ and instrumentation telemetry
         self._name = name
         self._env_value: _JSONType = None
         self._code_value: _JSONType = None
@@ -214,6 +214,7 @@ class _ConfigItem:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
                 break
+        telemetry_writer.add_configuration(name, self._telemetry_value(), self.source())
 
     def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
@@ -247,6 +248,16 @@ class _ConfigItem:
             return "env_var"
         return "default"
 
+    def _telemetry_value(self) -> str:
+        val = self.value()
+        if val is None:
+            return ""
+        elif isinstance(val, (bool, int, float)):
+            return str(val).lower()
+        elif isinstance(val, dict):
+            return ",".join(":".join((k, str(v))) for k, v in val.items())
+        return str(val)
+
     def __repr__(self):
         return "<{} name={} default={} env_value={} user_value={} remote_config_value={}>".format(
             self.__class__.__name__,
@@ -275,23 +286,23 @@ def _default_config() -> Dict[str, _ConfigItem]:
             default=lambda: "",
             envs=[("DD_TRACE_SAMPLING_RULES", str)],
         ),
-        "logs_injection": _ConfigItem(
-            name="logs_injection",
+        "_logs_injection": _ConfigItem(
+            name="logs_injection_enabled",
             default=False,
             envs=[("DD_LOGS_INJECTION", asbool)],
         ),
-        "trace_http_header_tags": _ConfigItem(
-            name="trace_http_header_tags",
+        "_trace_http_header_tags": _ConfigItem(
+            name="trace_header_tags",
             default=lambda: {},
             envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
         ),
         "tags": _ConfigItem(
-            name="tags",
+            name="trace_tags",
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
         ),
         "_tracing_enabled": _ConfigItem(
-            name="tracing_enabled",
+            name="trace_enabled",
             default=True,
             envs=[("DD_TRACE_ENABLED", asbool)],
         ),
@@ -301,17 +312,17 @@ def _default_config() -> Dict[str, _ConfigItem]:
             envs=[("DD_PROFILING_ENABLED", asbool)],
         ),
         "_asm_enabled": _ConfigItem(
-            name="asm_enabled",
+            name="appsec_enabled",
             default=False,
             envs=[("DD_APPSEC_ENABLED", asbool)],
         ),
         "_sca_enabled": _ConfigItem(
-            name="sca_enabled",
+            name="DD_APPSEC_SCA_ENABLED",
             default=None,
             envs=[("DD_APPSEC_SCA_ENABLED", asbool)],
         ),
         "_dsm_enabled": _ConfigItem(
-            name="dsm_enabled",
+            name="data_streams_enabled",
             default=False,
             envs=[("DD_DATA_STREAMS_ENABLED", asbool)],
         ),
@@ -325,8 +336,32 @@ class Config(object):
     available and can be updated by users.
     """
 
+    # Maps deprecated configuration attributes to their corresponding environment variable and
+    # internalized attribute name
+    _DEPRECATED_ATTRS = {
+        "http_tag_query_string": ("_http_tag_query_string", "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING"),
+        "trace_http_header_tags": ("_trace_http_header_tags", "DD_TRACE_HEADER_TAGS"),
+        "report_hostname": ("_report_hostname", "DD_TRACE_REPORT_HOSTNAME"),
+        "health_metrics_enabled": ("_health_metrics_enabled", "DD_TRACE_HEALTH_METRICS_ENABLED"),
+        "analytics_enabled": ("_analytics_enabled", "DD_TRACE_ANALYTICS_ENABLED"),
+        "client_ip_header": ("_client_ip_header", "DD_TRACE_CLIENT_IP_HEADER"),
+        "retrieve_client_ip": ("_retrieve_client_ip", "DD_TRACE_CLIENT_IP_ENABLED"),
+        "propagation_http_baggage_enabled": (
+            "_propagation_http_baggage_enabled",
+            "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED",
+        ),
+        "global_query_string_obfuscation_disabled": (
+            "_global_query_string_obfuscation_disabled",
+            'DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""',
+        ),
+        "trace_methods": ("_trace_methods", "DD_TRACE_METHODS"),
+        "ci_visibility_log_level": ("_ci_visibility_log_level", "DD_CIVISIBILITY_LOG_LEVEL"),
+        "test_session_name": ("_test_session_name", "DD_TEST_SESSION_NAME"),
+        "logs_injection": ("_logs_injection", "DD_LOGS_INJECTION"),
+    }
+
     class _HTTPServerConfig(object):
-        _error_statuses = "500-599"  # type: str
+        _error_statuses = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 
         @property
@@ -370,24 +405,47 @@ class Config(object):
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
 
+        # Remove the SCA configuration from instrumentation telemetry if it is not set
+        # this behavior is validated by system tests
+        # FIXME(munir): Is this really needed? Should report the default value (None) instead?
+        if self._config["_sca_enabled"].value() is None:
+            telemetry_writer.remove_configuration("DD_APPSEC_SCA_ENABLED")
+
+        sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        if sample_rate is not None:
+            deprecate(
+                "DD_TRACE_SAMPLE_RATE is deprecated",
+                message="Please use DD_TRACE_SAMPLING_RULES instead.",
+                removal_version="3.0.0",
+            )
+
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
-        self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
-        self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
+        self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool)
+        self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
-        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
-        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
-        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
-
-        self.http = HttpConfig(header_tags=self.trace_http_header_tags)
-        self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
-        self._remote_config_poll_interval = float(
-            os.getenv(
-                "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
+        rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
+        if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
+            # This warning will be logged when DD_TRACE_SAMPLE_RATE is set. This is intentional.
+            # Even though DD_TRACE_SAMPLE_RATE is treated as a global trace sampling rule, this configuration
+            # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
+            log.warning(
+                "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
+                "Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+                "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
+                rate_limit,
             )
+        self._trace_rate_limit = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
+        self._partial_flush_enabled = _get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
+        self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
+
+        self.http = HttpConfig(header_tags=self._trace_http_header_tags)
+        self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
+        self._remote_config_poll_interval = _get_config(
+            ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "DD_REMOTECONFIG_POLL_SECONDS"], 5.0, float
         )
-        self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        self._trace_api = _get_config("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
             deprecate(
                 "DD_TRACE_API_VERSION=v0.3 is deprecated",
@@ -396,38 +454,34 @@ class Config(object):
                 category=DDTraceDeprecationWarning,
             )
             self._trace_api = "v0.4"
-        self._trace_writer_buffer_size = int(
-            os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
+        self._trace_writer_buffer_size = _get_config("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", DEFAULT_BUFFER_SIZE, int)
+        self._trace_writer_payload_size = _get_config(
+            "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE, int
         )
-        self._trace_writer_payload_size = int(
-            os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE)
+        self._trace_writer_interval_seconds = _get_config(
+            "DD_TRACE_WRITER_INTERVAL_SECONDS", DEFAULT_PROCESSING_INTERVAL, float
         )
-        self._trace_writer_interval_seconds = float(
-            os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL)
+        self._trace_writer_connection_reuse = _get_config(
+            "DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS, asbool
         )
-        self._trace_writer_connection_reuse = asbool(
-            os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS)
-        )
-        self._trace_writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+        self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
-        self._trace_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
-        self._trace_agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
-        self._trace_agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+        self._trace_agent_hostname = _get_config(["DD_AGENT_HOST", "DD_TRACE_AGENT_HOSTNAME"])
+        self._trace_agent_port = _get_config(["DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"])
+        self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
 
-        self._stats_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
-        self._stats_agent_port = os.getenv("DD_DOGSTATSD_PORT")
-        self._stats_agent_url = os.getenv("DD_DOGSTATSD_URL")
-        self._agent_timeout_seconds = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
+        self._stats_agent_hostname = _get_config(["DD_AGENT_HOST", "DD_DOGSTATSD_HOST"])
+        self._stats_agent_port = _get_config("DD_DOGSTATSD_PORT")
+        self._stats_agent_url = _get_config("DD_DOGSTATSD_URL")
+        self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
 
-        self._span_traceback_max_size = int(os.getenv("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", default=30))
+        self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        self.analytics_enabled = asbool(
-            os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=os.getenv("DD_ANALYTICS_ENABLED", default=False))
-        )
-        if self.analytics_enabled:
+        self._analytics_enabled = _get_config(["DD_TRACE_ANALYTICS_ENABLED", "DD_ANALYTICS_ENABLED"], False, asbool)
+        if self._analytics_enabled:
             deprecate(
                 "Datadog App Analytics is deprecated and will be removed in a future version. "
                 "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
@@ -435,28 +489,25 @@ class Config(object):
                 "These configurations will also be removed.",
                 category=DDTraceDeprecationWarning,
             )
+        self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
+        self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
 
-        self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
-        self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
+        self._propagation_http_baggage_enabled = _get_config("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", False, asbool)
 
-        self.propagation_http_baggage_enabled = asbool(
-            os.getenv("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", default=False)
-        )
-
-        self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+        self.env = _get_config("DD_ENV", self.tags.get("env"))
+        self.service = _get_config("DD_SERVICE", self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
 
         if self.service is None and in_gcp_function():
-            self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
+            self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_azure_function():
-            self.service = os.environ.get("WEBSITE_SITE_NAME")
+            self.service = _get_config("WEBSITE_SITE_NAME", DEFAULT_SPAN_SERVICE_NAME)
 
         self._extra_services = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
-        self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
+        self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self._unparsed_service_mapping = os.getenv("DD_SERVICE_MAPPING", default="")
+        self._unparsed_service_mapping = _get_config("DD_SERVICE_MAPPING", "")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
 
         # The service tag corresponds to span.service and should not be
@@ -468,19 +519,19 @@ class Config(object):
         if self.version and "version" in self.tags:
             del self.tags["version"]
 
-        self.report_hostname = asbool(os.getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
+        self._report_hostname = _get_config("DD_TRACE_REPORT_HOSTNAME", False, asbool)
 
-        self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
+        self._health_metrics_enabled = _get_config("DD_TRACE_HEALTH_METRICS_ENABLED", False, asbool)
 
-        self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
-        self._telemetry_heartbeat_interval = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
-        self._telemetry_dependency_collection = asbool(os.getenv("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True))
+        self._telemetry_enabled = _get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool)
+        self._telemetry_heartbeat_interval = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
+        self._telemetry_dependency_collection = _get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
 
-        self._runtime_metrics_enabled = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
+        self._runtime_metrics_enabled = _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
 
-        self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True))
+        self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
 
-        self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+        self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
         if self._128_bit_trace_id_logging_enabled:
             deprecate(
                 "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
@@ -489,27 +540,25 @@ class Config(object):
                 category=DDTraceDeprecationWarning,
             )
 
-        self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
-        self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
+        self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
+        self._sampling_rules_file = _get_config("DD_SPAN_SAMPLING_RULES_FILE")
 
         # Propagation styles
-        self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE", default=_PROPAGATION_STYLE_DEFAULT
-        )
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
         #  take precedence over DD_TRACE_PROPAGATION_STYLE
-        propagation_style_extract = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=None)
-        if propagation_style_extract is not None:
-            self._propagation_style_extract = propagation_style_extract
+        self._propagation_style_extract = _parse_propagation_styles(
+            _get_config(
+                ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT
+            )
+        )
+        self._propagation_style_inject = _parse_propagation_styles(
+            _get_config(["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT)
+        )
 
-        propagation_style_inject = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_INJECT", default=None)
-        if propagation_style_inject is not None:
-            self._propagation_style_inject = propagation_style_inject
-
-        self._propagation_extract_first = asbool(os.getenv("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False))
+        self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
 
         # Datadog tracer tags propagation
-        x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
+        x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
         if x_datadog_tags_max_length < 0:
             log.warning(
                 (
@@ -523,19 +572,17 @@ class Config(object):
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+        self._raise = _get_config("DD_TESTING_RAISE", False, asbool)
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function()
-        self._trace_compute_stats = asbool(
-            os.getenv(
-                "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
-            )
+        self._trace_compute_stats = _get_config(
+            ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
         )
-        self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
+        self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
 
-        legacy_client_tag_enabled = os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", None)
+        legacy_client_tag_enabled = _get_config("DD_HTTP_CLIENT_TAG_QUERY_STRING")
         if legacy_client_tag_enabled is None:
-            self._http_client_tag_query_string = os.getenv("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", default="true")
+            self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
         else:
             deprecate(
                 "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
@@ -545,36 +592,35 @@ class Config(object):
             )
             self._http_client_tag_query_string = legacy_client_tag_enabled.lower()
 
-        dd_trace_obfuscation_query_string_regexp = os.getenv(
+        dd_trace_obfuscation_query_string_regexp = _get_config(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
-        self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
+        self._global_query_string_obfuscation_disabled = dd_trace_obfuscation_query_string_regexp == ""
         self._obfuscation_query_string_pattern = None
-        self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
-        if dd_trace_obfuscation_query_string_regexp != "":
-            self.global_query_string_obfuscation_disabled = False  # Not empty obfuscation pattern
-            try:
-                self._obfuscation_query_string_pattern = re.compile(
-                    dd_trace_obfuscation_query_string_regexp.encode("ascii")
-                )
-            except Exception:
-                log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
-                self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
+        self._http_tag_query_string = True  # Default behaviour of query string tagging in http.url
+        try:
+            self._obfuscation_query_string_pattern = re.compile(
+                dd_trace_obfuscation_query_string_regexp.encode("ascii")
+            )
+        except Exception:
+            log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
+            self._http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
-        self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
-        self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
-        self._ci_visibility_intelligent_testrunner_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
+        self._ci_visibility_agentless_enabled = _get_config("DD_CIVISIBILITY_AGENTLESS_ENABLED", False, asbool)
+        self._ci_visibility_agentless_url = _get_config("DD_CIVISIBILITY_AGENTLESS_URL", "")
+        self._ci_visibility_intelligent_testrunner_enabled = _get_config("DD_CIVISIBILITY_ITR_ENABLED", True, asbool)
+        self._ci_visibility_log_level = _get_config("DD_CIVISIBILITY_LOG_LEVEL", "info")
+        self._test_session_name = _get_config("DD_TEST_SESSION_NAME")
+        self._test_visibility_early_flake_detection_enabled = _get_config(
+            "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
-        self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
-        self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
+        self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool)
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
-        self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
-        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
+        self._span_aggregator_rlock = _get_config("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True, asbool)
         if self._span_aggregator_rlock is False:
             deprecate(
                 "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
@@ -584,27 +630,44 @@ class Config(object):
                 removal_version="3.0.0",
             )
 
-        self.trace_methods = os.getenv("DD_TRACE_METHODS")
+        self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._telemetry_install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", None)
-        self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
-        self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
+        self._telemetry_install_id = _get_config("DD_INSTRUMENTATION_INSTALL_ID")
+        self._telemetry_install_type = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
+        self._telemetry_install_time = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
 
-        self._dd_api_key = os.getenv("DD_API_KEY")
-        self._dd_site = os.getenv("DD_SITE", "datadoghq.com")
+        self._dd_api_key = _get_config("DD_API_KEY")
+        self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
-        self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
-        self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
-        self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP")
-        self._llmobs_agentless_enabled = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
+        self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
+        self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
+        self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
+        self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", False, asbool)
 
-        self._inject_force = asbool(os.getenv("DD_INJECT_FORCE", False))
+        self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False
-        self._inject_was_attempted = asbool(os.getenv("_DD_INJECT_WAS_ATTEMPTED", False))
+        self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
 
     def __getattr__(self, name) -> Any:
+        if name in self._DEPRECATED_ATTRS:
+            new_name, env_var = self._DEPRECATED_ATTRS[name]
+            deprecate(
+                f"ddtrace.config.{name} is deprecated",
+                message=f"Use the environment variable {env_var} instead. "
+                "This variable must be set before importing ddtrace.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            if name == new_name:
+                raise RuntimeError(
+                    f"Circular mapping detected: deprecated attribute {name} "
+                    f"in {self._DEPRECATED_ATTRS} maps to a deprecated attribute {new_name}"
+                )
+            return getattr(self, new_name)
+
         if name in self._config:
             return self._config[name].value()
+
         if name not in self._integration_configs:
             self._integration_configs[name] = IntegrationConfig(self, name)
 
@@ -731,6 +794,17 @@ class Config(object):
             self._set_config_items([(key, value, "code")])
             return None
         else:
+            if key in self._DEPRECATED_ATTRS:
+                # replace deprecated attribute name with the new name
+                new_key, env_var = self._DEPRECATED_ATTRS[key]
+                deprecate(
+                    f"ddtrace.config.{key} is deprecated",
+                    message=f"Use the environment variable {env_var} instead. "
+                    "This variable must be set before importing ddtrace.",
+                    removal_version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
+                key = new_key
             return super(self.__class__, self).__setattr__(key, value)
 
     def _set_config_items(self, items):
@@ -738,11 +812,10 @@ class Config(object):
         item_names = []
         for key, value, origin in items:
             item_names.append(key)
-            self._config[key].set_value_source(value, origin)
-        if self._telemetry_enabled:
-            from ..internal.telemetry import telemetry_writer
-
-            telemetry_writer.add_configs_changed(item_names)
+            item = self._config[key]
+            item.set_value_source(value, origin)
+            if self._telemetry_enabled:
+                telemetry_writer.add_configuration(item._name, item._telemetry_value(), item.source())
         self._notify_subscribers(item_names)
 
     def _reset(self):
@@ -804,7 +877,7 @@ class Config(object):
                         base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
             if "log_injection_enabled" in lib_config:
-                base_rc_config["logs_injection"] = lib_config["log_injection_enabled"]
+                base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
 
             if "tracing_tags" in lib_config:
                 tags = lib_config["tracing_tags"]
@@ -819,18 +892,18 @@ class Config(object):
                 tags = lib_config["tracing_header_tags"]
                 if tags:
                     tags = self._format_tags(lib_config["tracing_header_tags"])
-                base_rc_config["trace_http_header_tags"] = tags
+                base_rc_config["_trace_http_header_tags"] = tags
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
         # called unconditionally to handle the case where header tags have been unset
         self._handle_remoteconfig_header_tags(base_rc_config)
 
     def _handle_remoteconfig_header_tags(self, base_rc_config):
         """Implements precedence order between remoteconfig header tags from code, env, and RC"""
-        header_tags_conf = self._config["trace_http_header_tags"]
+        header_tags_conf = self._config["_trace_http_header_tags"]
         env_headers = header_tags_conf._env_value or {}
         code_headers = header_tags_conf._code_value or {}
         non_rc_header_tags = {**code_headers, **env_headers}
-        selected_header_tags = base_rc_config.get("trace_http_header_tags") or non_rc_header_tags
+        selected_header_tags = base_rc_config.get("_trace_http_header_tags") or non_rc_header_tags
         self.http = HttpConfig(header_tags=selected_header_tags)
 
     def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
