@@ -23,13 +23,11 @@ class LLMObsContextProvider(DefaultContextProvider):
     that support contextvars.
     """
 
-    def __init__(self):
-        # type: () -> None
+    def __init__(self) -> None:
         super(DefaultContextProvider, self).__init__()
         _DD_LLMOBS_CONTEXTVAR.set(None)
 
-    def _has_active_context(self):
-        # type: () -> bool
+    def _has_active_context(self) -> bool:
         """Returns whether there is an active context in the current execution."""
         ctx = _DD_LLMOBS_CONTEXTVAR.get()
         return ctx is not None

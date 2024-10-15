@@ -891,10 +891,9 @@ class LLMObs(Service):
         if not context.trace_id or not context.span_id:
             log.warning("Failed to extract trace/span ID from request headers.")
             return
-        if PARENT_ID_KEY not in request_headers:
-            log.warning("Failed to extract LLMObs parent ID from request headers.")
         _parent_id = request_headers.get(PARENT_ID_KEY)
         if _parent_id is None:
+            log.warning("Failed to extract LLMObs parent ID from request headers.")
             return
         try:
             parent_id = int(_parent_id)
