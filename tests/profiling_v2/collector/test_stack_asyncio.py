@@ -15,7 +15,7 @@ def test_asyncio(monkeypatch):
     monkeypatch.setattr(config.stack, "v2_enabled", True)
     monkeypatch.setattr(config, "output_pprof", pprof_output_prefix)
 
-    assert stack_v2.is_available
+    assert stack_v2.is_available, stack_v2.failure_msg
 
     sleep_time = 0.2
     max_wait_for_collector_seconds = 10
