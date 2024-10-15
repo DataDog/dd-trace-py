@@ -72,26 +72,6 @@ def test_asyncio(monkeypatch):
     # 2. task name label t1_name or t2_name
     #  - function name label "stuff"
     # And they all have thread name "MainThread"
-    # 3. sample without task name label which should be captured while looping
-    #  within this test, and it should have thread name "MainThread"
-
-    # expected_events = [
-    #     pprof_utils.StackEvent(
-    #         task_name="main",
-    #         thread_name="MainThread",
-    #         filename=__file__,
-    #     ),
-    #     pprof_utils.StackEvent(
-    #         task_name=t1_name,
-    #         thread_name="MainThread",
-    #         filename=__file__,
-    #     ),
-    #     pprof_utils.StackEvent(
-    #         task_name=t2_name,
-    #         thread_name="MainThread",
-    #         filename=__file__
-    #     ),
-    # ]
 
     checked_main = False
     checked_t1 = False
