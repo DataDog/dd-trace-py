@@ -19,10 +19,8 @@ class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
     def after_import(self, module: ModuleType):
         if not module.__name__:
             return
-        print('analyzing', module.__name__)
         for package in ENABLED_PACKAGES:
             if module.__name__.startswith(package):
-                print('----------> yes')
                 instrument_module(module.__name__)
 
 
