@@ -6,7 +6,6 @@ import sys
 import typing
 
 from fastapi import Cookie
-from fastapi import File
 from fastapi import Form
 from fastapi import Header
 from fastapi import Request
@@ -104,9 +103,6 @@ def test_query_param_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.parameter"
 
 
-@pytest.mark.skip(
-    reason="The refactor 10988 introduced (or disclosed) a FastAPI error in headers: https://github.com/DataDog/dd-trace-py/actions/runs/11290104662/job/31401282016"
-)
 def test_header_value_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
@@ -142,9 +138,6 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.header"
 
 
-@pytest.mark.skip(
-    reason="The refactor 10988 introduced (or disclosed) a FastAPI error in headers: https://github.com/DataDog/dd-trace-py/actions/runs/11290104662/job/31401282016"
-)
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
 @pytest.mark.skipif(fastapi_version < (0, 95, 0), reason="Header annotation doesn't work on fastapi 94 or lower")
 def test_header_value_source_typing_param(fastapi_application, client, tracer, test_spans):
