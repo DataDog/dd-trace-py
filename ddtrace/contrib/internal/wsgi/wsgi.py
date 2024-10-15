@@ -108,6 +108,7 @@ class _DDWSGIMiddlewareBase(object):
             distributed_headers=environ,
             environ=environ,
             middleware=self,
+            span_key="req_span",
         ) as ctx:
             ctx.set_item("wsgi.construct_url", construct_url)
 

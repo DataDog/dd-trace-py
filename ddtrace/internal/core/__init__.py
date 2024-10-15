@@ -23,7 +23,7 @@ This example shows how ``core.context_with_data`` might be used to create a node
             pin=pin,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
-        ) as ctx, ctx.get_item("flask_request_call"):
+        ) as ctx, ctx.span:
             return wrapped(*args, **kwargs)
 
 
@@ -284,6 +284,8 @@ class ExecutionContext(AbstractContextManager):
         if self._span is not None:
             raise ValueError("Cannot overwrite ExecutionContext span")
         self._span = value
+        if "span_key" in self._data:
+            self._data[self._data["span_key"]] = value
 
 
 def __getattr__(name):

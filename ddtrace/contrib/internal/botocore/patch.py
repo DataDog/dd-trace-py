@@ -238,6 +238,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         pin=pin,
         span_name=function_vars.get("trace_operation"),
         span_type=SpanTypes.HTTP,
+        span_key="instrumented_api_call",
     ) as ctx, ctx.span:
         core.dispatch("botocore.patched_api_call.started", [ctx])
         if args and config.botocore["distributed_tracing"]:
@@ -252,7 +253,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
-                    config.botocore.operations[ctx["instrumented_api_call"].resource].is_error_code,
+                    config.botocore.operations[ctx.span.resource].is_error_code,
                 ],
             )
             raise

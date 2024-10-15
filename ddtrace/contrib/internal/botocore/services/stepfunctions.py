@@ -66,6 +66,7 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
         span_name=call_name,
         service=schematize_service_name("{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)),
         span_type=SpanTypes.HTTP,
+        span_key="patched_stepfunctions_api_call",
         instance=instance,
         args=args,
         params=params,
