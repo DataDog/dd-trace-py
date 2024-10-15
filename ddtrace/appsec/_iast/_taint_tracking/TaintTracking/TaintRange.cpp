@@ -341,14 +341,14 @@ get_internal_hash(PyObject* obj)
         // Use the match.string for hashing
         PyObject* string_obj = PyObject_GetAttrString(obj, "string");
         if (string_obj == nullptr) {
-            return PyObject_Hash(obj);
+            py::set_error(PyExc_TypeError, "Invalid re.Match object");
         }
         const auto hash = PyObject_Hash(string_obj);
         Py_DECREF(string_obj);
         return hash;
     }
 
-    return PyObject_Hash(obj);
+    py::set_error(PyExc_TypeError, "Invalid object");
 }
 
 void
