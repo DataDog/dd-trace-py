@@ -6,7 +6,6 @@ import sys
 import typing
 
 from fastapi import Cookie
-from fastapi import File
 from fastapi import Form
 from fastapi import Header
 from fastapi import Request
@@ -493,9 +492,7 @@ def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spa
 
 def test_path_body_body_upload(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/uploadfile/")
-    async def create_upload_file(
-        files: typing.List[UploadFile] = File(description="Multiple files as UploadFile"),
-    ):
+    async def create_upload_file(files: typing.List[UploadFile]):
         from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 
         ranges_result = get_tainted_ranges(files[0])
