@@ -12,15 +12,18 @@ if sys.version_info >= (3, 11):  # and sys.version_info < (3, 12):
     from ddtrace.internal.error_reporting.handled_exceptions_py3_11 import _inject_handled_exception_reporting  # noqa
     inject_handled_exception_reporting = _inject_handled_exception_reporting
 
+ENABLED_PACKAGES = ['mypack', 'django', 'saleor']
+
 
 class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
     def after_import(self, module: ModuleType):
         if not module.__name__:
             return
-        # print('analyzing', module.__name__)
-        if module.__name__.startswith('mypack'):
-            # print('----------> yes')
-            instrument_module(module.__name__)
+        print('analyzing', module.__name__)
+        for package in ENABLED_PACKAGES:
+            if module.__name__.startswith(package):
+                print('----------> yes')
+                instrument_module(module.__name__)
 
 
 def instrument_module(module_name: str):
