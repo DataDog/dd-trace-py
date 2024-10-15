@@ -740,7 +740,8 @@ class LLMObs(Service):
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
-        :param dict metadata: A dictionary of additional metadata to include with the evaluation metric.
+        :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
+                                evaluation metric.
         """
         if cls.enabled is False:
             log.warning(
