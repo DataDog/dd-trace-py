@@ -110,6 +110,7 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -273,7 +274,9 @@ class ExecutionContext(AbstractContextManager):
         return current
 
     @property
-    def span(self) -> Optional["Span"]:
+    def span(self) -> "Span":
+        if self._span is None:
+            raise ValueError("No span set on ExecutionContext")
         return self._span
 
     @span.setter
@@ -286,6 +289,8 @@ class ExecutionContext(AbstractContextManager):
 def __getattr__(name):
     if name == "root":
         return _CURRENT_CONTEXT.get().root()
+    if name == "current":
+        return _CURRENT_CONTEXT.get()
     raise AttributeError
 
 
@@ -355,7 +360,13 @@ def discard_local_item(data_key: str) -> None:
 
 
 def get_span() -> Optional["Span"]:
-    return _CURRENT_CONTEXT.get().span
+    current: Optional[ExecutionContext] = _CURRENT_CONTEXT.get()
+    while current is not None:
+        try:
+            return current.span
+        except ValueError:
+            current = current.parent
+    return None
 
 
 def get_root_span() -> Optional["Span"]:
