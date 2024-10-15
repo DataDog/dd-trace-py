@@ -22,11 +22,11 @@ def test_asyncio(monkeypatch):
     assert stack_v2.is_available, stack_v2.failure_msg
 
     sleep_time = 0.2
-    max_wait_for_collector_seconds = 10
+    loop_run_time = 30
 
     async def stuff() -> None:
         start_time = time.time()
-        while time.time() < start_time + max_wait_for_collector_seconds:
+        while time.time() < start_time + loop_run_time:
             await asyncio.sleep(sleep_time)
 
     async def hello():
@@ -47,7 +47,7 @@ def test_asyncio(monkeypatch):
     # Wait for the collector to run at least once on this thread, while it is doing something
     # 2.5+ seconds at times
     start_time = time.time()
-    while time.time() < start_time + max_wait_for_collector_seconds:
+    while time.time() < start_time + loop_run_time:
         pass
 
     t1, t2 = loop.run_until_complete(maintask)
