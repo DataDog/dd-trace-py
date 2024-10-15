@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: This introduces the ability to add metadata to evaluation metrics via the `submit_evaluation` method.

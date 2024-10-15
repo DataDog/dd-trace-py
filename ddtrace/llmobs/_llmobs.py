@@ -727,6 +727,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
+        metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -739,6 +740,7 @@ class LLMObs(Service):
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
+        :param dict metadata: A dictionary of additional metadata to include with the evaluation metric.
         """
         if cls.enabled is False:
             log.warning(
@@ -816,18 +818,26 @@ class LLMObs(Service):
                 except TypeError:
                     log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
 
-        cls._instance._llmobs_eval_metric_writer.enqueue(
-            {
-                "span_id": span_id,
-                "trace_id": trace_id,
-                "label": str(label),
-                "metric_type": metric_type.lower(),
-                "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,
-                "ml_app": ml_app,
-                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
-            }
-        )
+        evaluation_metric = {
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "label": str(label),
+            "metric_type": metric_type.lower(),
+            "timestamp_ms": timestamp_ms,
+            "{}_value".format(metric_type): value,
+            "ml_app": ml_app,
+            "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
+        }
+
+        if metadata:
+            if not isinstance(metadata, dict):
+                log.warning("metadata must be json serializable dictionary.")
+            else:
+                metadata = safe_json(metadata)
+                if metadata and isinstance(metadata, str):
+                    evaluation_metric["metadata"] = json.loads(metadata)
+
+        cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
