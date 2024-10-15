@@ -28,7 +28,6 @@ def wrapped_function(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
 import inspect
-import os
 import sys
 
 from ddtrace.internal.logger import get_logger
@@ -73,7 +72,7 @@ def ddtrace_iast_flask_patch():
 
 def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
-    if asbool(os.getenv(IAST.ENV, "false")):
+    if _is_iast_enabled():
         from ddtrace.appsec._iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
