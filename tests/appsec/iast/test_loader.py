@@ -7,7 +7,7 @@ import mock
 
 import ddtrace.appsec._iast._loader
 import ddtrace.bootstrap.preload
-from tests.utils import override_env
+from ddtrace.settings.asm import config as asm_config
 
 
 ASPECTS_MODULE = "ddtrace.appsec._iast._taint_tracking.aspects"
@@ -26,10 +26,11 @@ def test_patching_error():
         del sys.modules[ASPECTS_MODULE]
 
     ddtrace.appsec._iast._loader.IS_IAST_ENABLED = True
+    asm_config._iast_enabled = True
 
-    with override_env({"DD_IAST_ENABLED": "true"}), mock.patch(
-        "ddtrace.appsec._iast._loader.compile", side_effect=ValueError
-    ) as loader_compile, mock.patch("ddtrace.appsec._iast._loader.exec") as loader_exec:
+    with mock.patch("ddtrace.appsec._iast._loader.compile", side_effect=ValueError) as loader_compile, mock.patch(
+        "ddtrace.appsec._iast._loader.exec"
+    ) as loader_exec:
         importlib.reload(ddtrace.bootstrap.preload)
         imported_fixture_module = importlib.import_module(fixture_module)
 

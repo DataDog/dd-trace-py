@@ -71,7 +71,7 @@ if profiling_config.enabled:
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
-if config._iast_enabled:
+if asm_config._iast_enabled:
     """
     This is the entry point for the IAST instrumentation. `enable_iast_propagation` is called on patch_all function
     too but patch_all depends of DD_TRACE_ENABLED environment variable. This is the reason why we need to call it

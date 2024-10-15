@@ -32,9 +32,7 @@ import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.utils.formats import asbool
 
-from .._constants import IAST
 from ._overhead_control_engine import OverheadControl
 from ._utils import _is_iast_enabled
 
