@@ -1,0 +1,15 @@
+---
+deprecations:
+  - |
+    tracing: The following attributes are now private and should not be accessed directly. The corresponding environment variables should be used instead.
+     - Use DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING instead of ddtrace.config.http_tag_query_string
+     - Use DD_TRACE_HEADER_TAGS instead of ddtrace.config.trace_http_header_tags
+     - Use DD_TRACE_REPORT_HOSTNAME instead of ddtrace.config.report_hostname
+     - Use DD_TRACE_HEALTH_METRICS_ENABLED instead of ddtrace.config.health_metrics_enabled
+     - Use DD_TRACE_ANALYTICS_ENABLED instead of ddtrace.config.analytics_enabled
+     - Use DD_TRACE_CLIENT_IP_HEADER instead of ddtrace.config.client_ip_header 
+     - Use DD_TRACE_CLIENT_IP_ENABLED  ddtrace.config.retrieve_client_ip
+     - Use DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED instead of ddtrace.config.propagation_http_baggage_enabled
+     - Set DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP to an empty string instead of setting ddtrace.config.global_query_string_obfuscation_disabled to True (default value is False)
+     - Use DD_TRACE_METHODS instead of ddtrace.config.trace_methods
+     - Use DD_CIVISIBILITY_LOG_LEVEL instead of ddtrace.config.ci_visibility_log_level

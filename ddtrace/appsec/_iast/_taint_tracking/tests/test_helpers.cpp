@@ -445,7 +445,7 @@ TEST_F(ParseParamsCheck, PositionalArgumentPresent)
     py::kwargs kwargs;
     py::object default_value = py::int_(0);
 
-    py::object result = parse_params(0, "key", default_value, args, kwargs);
+    py::object result = parse_param(0, "key", default_value, args, kwargs);
     EXPECT_EQ(result.cast<int>(), 42);
 }
 
@@ -456,7 +456,7 @@ TEST_F(ParseParamsCheck, KeywordArgumentPresent)
     kwargs["key"] = py::int_(42);
     py::object default_value = py::int_(0);
 
-    py::object result = parse_params(0, "key", default_value, args, kwargs);
+    py::object result = parse_param(0, "key", default_value, args, kwargs);
     EXPECT_EQ(result.cast<int>(), 42);
 }
 
@@ -466,7 +466,7 @@ TEST_F(ParseParamsCheck, NoArgumentUsesDefault)
     py::kwargs kwargs;
     py::object default_value = py::int_(42);
 
-    py::object result = parse_params(0, "key", default_value, args, kwargs);
+    py::object result = parse_param(0, "key", default_value, args, kwargs);
     EXPECT_EQ(result.cast<int>(), 42);
 }
 
@@ -477,7 +477,7 @@ TEST_F(ParseParamsCheck, PositionalOverridesKeyword)
     kwargs["key"] = py::int_(42);
     py::object default_value = py::int_(0);
 
-    py::object result = parse_params(0, "key", default_value, args, kwargs);
+    py::object result = parse_param(0, "key", default_value, args, kwargs);
     EXPECT_EQ(result.cast<int>(), 100);
 }
 
@@ -487,7 +487,7 @@ TEST_F(ParseParamsCheck, HandlesMissingKeyword)
     py::kwargs kwargs;
     py::object default_value = py::str("default_value");
 
-    py::object result = parse_params(0, "missing_key", default_value, args, kwargs);
+    py::object result = parse_param(0, "missing_key", default_value, args, kwargs);
     EXPECT_STREQ(result.cast<std::string>().c_str(), "default_value");
 }
 

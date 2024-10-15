@@ -208,3 +208,18 @@ def test_astpatch_bytesio_module_changed(module_name):
         "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects"
     )
     assert "ddtrace_aspects.bytesio_aspect(" in new_code
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        ("tests.appsec.iast.fixtures.ast.other.globals_builtin"),
+    ],
+)
+def test_astpatch_globals_module_unchanged(module_name):
+    """
+    This is a regression test for partially matching function names:
+    ``globals()`` was being incorrectly patched with the aspect for ``glob()``
+    """
+    module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
+    assert ("", "") == (module_path, new_source)
