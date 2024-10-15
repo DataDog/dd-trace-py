@@ -9,12 +9,15 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-- LLM Observability: Fixes an issue where the OpenAI and LangChain integrations would still submit integration metrics even in agentless mode. Integration metrics are now disabled if using agentless mode via `LLMObs.enable(agentless_enabled=True)` or setting `DD_LLMOBS_AGENTLESS_ENABLED=1`.
-- ASM: This fix resolves an issue where exploit prevention was not properly blocking requests with custom redirection actions.
-- Code security: This fix resolves an issue where partial matches on function names we aimed to patch were being patched instead of full matches on them.
-- Code Security: ensure the `Initializer` object is always reset and freed before the Python runtime.
-- profiling: Improves the error message when the native exporter fails to load and stops profiling from starting if ddtrace is also being injected.
-- Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+- LLM Observability
+  - Fixes an issue where the OpenAI and LangChain integrations would still submit integration metrics even in agentless mode. Integration metrics are now disabled if using agentless mode via `LLMObs.enable(agentless_enabled=True)` or setting `DD_LLMOBS_AGENTLESS_ENABLED=1`.
+- Code Security
+  - Resolves an issue where exploit prevention was not properly blocking requests with custom redirection actions.
+  - Resolves an issue where partial matches on function names we aimed to patch were being patched instead of full matches on them.
+  - Ensures the `Initializer` object is always reset and freed before the Python runtime.
+- Profiling
+  - Improves the error message when the native exporter fails to load and stops profiling from starting if ddtrace is also being injected.
+  - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
 
 
 ---
