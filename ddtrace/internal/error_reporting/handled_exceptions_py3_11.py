@@ -4,7 +4,7 @@ from bytecode import Instr, Bytecode
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-assert sys.version_info >= (3, 11) and sys.version_info < (3, 12)  # nosec
+assert sys.version_info >= (3, 11)  # and sys.version_info < (3, 12)  # nosec
 
 
 def _inject_handled_exception_reporting(func):
@@ -31,7 +31,7 @@ def _inject_handled_exception_reporting(func):
         # invoking the callback
         Instr("PUSH_NULL"),
         Instr("LOAD_FAST", '_default_datadog_exc_callback'),
-        Instr("PRECALL", 0),
+        # Instr("PRECALL", 0),  # Not necessary on 3.11! Seems not supported on 3.12!
         Instr("CALL", 0),
         Instr("POP_TOP"),
     ]

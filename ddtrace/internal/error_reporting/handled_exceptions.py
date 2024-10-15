@@ -8,7 +8,7 @@ from ddtrace.internal.module import BaseModuleWatchdog
 inject_handled_exception_reporting = None
 
 # Import are noqa'd otherwise some formatters will helpfully remove them
-if sys.version_info >= (3, 11) and sys.version_info < (3, 12):
+if sys.version_info >= (3, 11):  # and sys.version_info < (3, 12):
     from ddtrace.internal.error_reporting.handled_exceptions_py3_11 import _inject_handled_exception_reporting  # noqa
     inject_handled_exception_reporting = _inject_handled_exception_reporting
 
