@@ -1,3 +1,4 @@
+import itertools
 from io import BytesIO
 from io import StringIO
 from typing import Any, Iterable, List
@@ -273,7 +274,9 @@ def copy_ranges_to_iterable_with_strings(iterable: Iterable[str], ranges: List[T
     iterable_type = type(iterable)
 
     new_result = []
-    for i in iterable:
+    # do this so it doesn't consume a potential generator
+    items, items_backup = itertools.tee(iterable)
+    for i in items_backup:
         i = copy_ranges_to_string(i, ranges)
         new_result.append(i)
 
