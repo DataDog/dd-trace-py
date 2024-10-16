@@ -23,7 +23,6 @@ def report_telemetry(env: Any) -> None:
                 source = "default"
             else:
                 source = "unknown"
-
             telemetry_writer.add_configuration(env_name, env_val, source)
 
 

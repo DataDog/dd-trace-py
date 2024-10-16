@@ -206,7 +206,6 @@ class ASMConfig(Env):
         "_asm_config_keys",
         "_deduplication_enabled",
         "_iast_supported_python_version",
-        "iast_enabled",
     ]
     _iast_redaction_numeral_pattern = Env.var(
         str,
