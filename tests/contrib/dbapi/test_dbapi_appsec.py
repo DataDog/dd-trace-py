@@ -2,6 +2,7 @@ import mock
 import pytest
 
 from ddtrace import Pin
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._utils import _is_python_version_supported
 from ddtrace.contrib.dbapi import TracedCursor
@@ -14,7 +15,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-IAST_ENV = {"DD_IAST_ENABLED": "True", "DD_IAST_REQUEST_SAMPLING": "100"}
+IAST_ENV = {"DD_IAST_ENABLED": "True", IAST.ENV_REQUEST_SAMPLING: "100"}
 
 
 class TestTracedCursor(TracerTestCase):

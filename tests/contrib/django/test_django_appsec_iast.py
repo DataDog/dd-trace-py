@@ -26,7 +26,7 @@ TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
 @pytest.fixture(autouse=True)
 def iast_context():
     with override_env(
-        {IAST.ENV: "True", "DD_IAST_REQUEST_SAMPLING": "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
+        {IAST.ENV: "True", IAST.ENV_REQUEST_SAMPLING: "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
     ):
         yield
 
@@ -165,7 +165,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_view_with_exception(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(
-        {"DD_IAST_REQUEST_SAMPLING": sampling}
+        {IAST.ENV_REQUEST_SAMPLING: sampling}
     ):
         response = _aux_appsec_get_root_span_with_exception(
             client,
@@ -600,7 +600,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(
-        {"DD_IAST_REQUEST_SAMPLING": sampling}
+        {IAST.ENV_REQUEST_SAMPLING: sampling}
     ):
         root_span, response = _aux_appsec_get_root_span(
             client,

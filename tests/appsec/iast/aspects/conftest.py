@@ -3,6 +3,7 @@ import types
 
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
@@ -34,7 +35,7 @@ def _iast_patched_module(module_name, new_module_object=False):
 
 @pytest.fixture(autouse=True)
 def iast_create_context():
-    env = {"DD_IAST_REQUEST_SAMPLING": "100"}
+    env = {IAST.ENV_REQUEST_SAMPLING: "100"}
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(env):
         _start_iast_context_and_oce()
         yield

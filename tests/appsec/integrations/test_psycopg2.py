@@ -1,6 +1,7 @@
 import psycopg2.extensions as ext
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import LazyTaintList
@@ -12,7 +13,7 @@ from tests.utils import override_global_config
 
 @pytest.fixture(autouse=True)
 def iast_create_context():
-    env = {"DD_IAST_REQUEST_SAMPLING": "100"}
+    env = {IAST.ENV_REQUEST_SAMPLING: "100"}
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(env):
         _start_iast_context_and_oce()
         yield

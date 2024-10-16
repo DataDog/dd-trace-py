@@ -15,7 +15,6 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.constants import APPSEC_ENV
-from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._core import report_telemetry as _report_telemetry
 from ddtrace.vendor.debtcollector import deprecate
@@ -65,7 +64,9 @@ class ASMConfig(Env):
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
-    _iast_enabled = Env.var(bool, IAST_ENV, default=False)
+    _iast_enabled = Env.var(bool, IAST.ENV, default=False)
+    _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False)
+    _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
@@ -175,6 +176,8 @@ class ASMConfig(Env):
         "_asm_obfuscation_parameter_value_regexp",
         "_appsec_standalone_enabled",
         "_iast_enabled",
+        "_iast_debug",
+        "_iast_propagation_debug",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",

@@ -26,8 +26,8 @@ from tests.utils import override_global_config
 
 
 TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
-IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
-IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
+IAST_ENV = {IAST.ENV_REQUEST_SAMPLING: "100"}
+IAST_ENV_SAMPLING_0 = {IAST.ENV_REQUEST_SAMPLING: "0"}
 
 werkzeug_version = version("werkzeug")
 flask_version = tuple([int(v) for v in version("flask").split(".")])
@@ -1287,7 +1287,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=False,
             )
-        ), override_env({"DD_IAST_REQUEST_SAMPLING": "100"}):
+        ), override_env({IAST.ENV_REQUEST_SAMPLING: "100"}):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
             self.tracer._iast_enabled = False
             self.tracer._asm_enabled = False

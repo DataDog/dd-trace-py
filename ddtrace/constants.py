@@ -30,10 +30,6 @@ SPAN_MEASURED_KEY = "_dd.measured"
 KEEP_SPANS_RATE_KEY = "_dd.tracer_kr"
 MULTIPLE_IP_HEADERS = "_dd.multiple-ip-headers"
 
-APPSEC_ENV = "DD_APPSEC_ENABLED"
-
-IAST_ENV = "DD_IAST_ENABLED"
-
 MANUAL_DROP_KEY = "manual.drop"
 MANUAL_KEEP_KEY = "manual.keep"
 

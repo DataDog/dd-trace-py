@@ -25,7 +25,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
+IAST_ENV = {IAST.ENV_REQUEST_SAMPLING: "100"}
 
 TEST_FILE_PATH = "tests/contrib/fastapi/test_fastapi_appsec_iast.py"
 

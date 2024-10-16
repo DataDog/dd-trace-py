@@ -31,7 +31,7 @@ from tests.utils import override_global_config
 def no_request_sampling(tracer):
     with override_env(
         {
-            "DD_IAST_REQUEST_SAMPLING": "100",
+            IAST.ENV_REQUEST_SAMPLING: "100",
             "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
         }
     ):
@@ -76,7 +76,7 @@ def iast_context(env, request_sampling="100", deduplication=False):
     class MockSpan:
         _trace_id_64bits = 17577308072598193742
 
-    env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
+    env.update({IAST.ENV_REQUEST_SAMPLING: request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
     VulnerabilityBase._reset_cache_for_testing()
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(env):
         _start_iast_context_and_oce(MockSpan())
