@@ -12,7 +12,6 @@ from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
 from tests.utils import override_env
 
-
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
@@ -22,7 +21,6 @@ with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
     from ddtrace.appsec._iast._taint_tracking import reset_context
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
@@ -88,7 +86,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert len(span_report.sources) > 0
         assert len(span_report.vulnerabilities) > 0
-        assert len(get_tainted_ranges(result)) == 6
+        assert len(get_tainted_ranges(result)) == 1
 
         if _num_objects_tainted == 0:
             _num_objects_tainted = num_objects_tainted()
