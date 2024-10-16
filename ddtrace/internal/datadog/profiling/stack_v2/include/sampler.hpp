@@ -41,11 +41,16 @@ class Sampler
     void stop();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
+    void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
+    void init_asyncio(PyObject* _asyncio_current_tasks,
+                      PyObject* _asyncio_scheduled_tasks,
+                      PyObject* _asyncio_eager_tasks);
+    void link_tasks(PyObject* parent, PyObject* child);
 
-    // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our own
-    // intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just update
-    // the next rate with the latest interval. This is not perfect because the adjustment is based on self-time, and
-    // we're not currently accounting for the echion self-time.
+    // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
+    // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
+    // update the next rate with the latest interval. This is not perfect because the adjustment is based on
+    // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
 };
 
