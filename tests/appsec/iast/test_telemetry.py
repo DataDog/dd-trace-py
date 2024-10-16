@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
@@ -28,6 +27,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -65,7 +65,8 @@ def test_metric_verbosity(lvl, env_lvl, expected_result):
         assert metric_verbosity(lvl)(lambda: 1)() == expected_result
 
 
-def test_metric_executed_sink(no_request_sampling, telemetry_writer):
+@pytest.mark.skip_iast_check_logs
+def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -74,7 +75,7 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer):
         tracer = DummyTracer(iast_enabled=True)
 
         telemetry_writer._namespace.flush()
-        with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        with asm_context(tracer=tracer) as span:
             import hashlib
 
             m = hashlib.new("md5")
@@ -87,12 +88,12 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer):
         metrics_result = telemetry_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST].values()
-    assert len(generate_metrics) >= 1
+    assert len(generate_metrics) == 1
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
     filtered_metrics = [metric for metric in generate_metrics if metric._tags[0] == ("vulnerability_type", "WEAK_HASH")]
     assert [metric._tags for metric in filtered_metrics] == [(("vulnerability_type", "WEAK_HASH"),)]
-    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") > 0
+    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == 2
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 

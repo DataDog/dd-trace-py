@@ -2,6 +2,8 @@ import re
 
 from envier import En
 
+from ddtrace.settings._core import report_telemetry as _report_telemetry
+
 
 class SymbolDatabaseConfig(En):
     __prefix__ = "dd.symbol_database"
@@ -36,3 +38,4 @@ class SymbolDatabaseConfig(En):
 
 
 config = SymbolDatabaseConfig()
+_report_telemetry(config)

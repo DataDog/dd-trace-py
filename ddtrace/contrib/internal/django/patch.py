@@ -19,7 +19,6 @@ from wrapt.importer import when_imported
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace._trace.trace_handlers import _ctype_from_headers
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
@@ -36,15 +35,15 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
-from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -443,7 +442,7 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.root.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
+    set_blocked()
     _gather_block_metadata(request, request_headers, ctx)
     raise PermissionDenied()
 
@@ -496,7 +495,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         def blocked_response():
             from django.http import HttpResponse
 
-            block_config = core.get_item(HTTP_REQUEST_BLOCKED) or {}
+            block_config = get_blocked() or {}
             desired_type = block_config.get("type", "auto")
             status = block_config.get("status_code", 403)
             if desired_type == "none":
@@ -505,7 +504,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 if location:
                     response["location"] = location
             else:
-                ctype = _ctype_from_headers(block_config, request_headers)
+                ctype = block_config.get("content-type", "application/json")
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
@@ -514,7 +513,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             return response
 
         try:
-            if core.get_item(HTTP_REQUEST_BLOCKED):
+            if get_blocked():
                 response = blocked_response()
                 return response
 
@@ -535,27 +534,27 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             )
             core.dispatch("django.start_response.post", ("Django",))
 
-            if core.get_item(HTTP_REQUEST_BLOCKED):
+            if get_blocked():
                 response = blocked_response()
                 return response
 
             try:
                 response = func(*args, **kwargs)
             except BlockingException as e:
-                core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
+                set_blocked(e.args[0])
                 response = blocked_response()
                 return response
 
-            if core.get_item(HTTP_REQUEST_BLOCKED):
+            if get_blocked():
                 response = blocked_response()
                 return response
 
             return response
         finally:
             core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
-            if not core.get_item(HTTP_REQUEST_BLOCKED):
+            if not get_blocked():
                 core.dispatch("django.finalize_response", ("Django",))
-                if core.get_item(HTTP_REQUEST_BLOCKED):
+                if get_blocked():
                     response = blocked_response()
                     return response  # noqa: B012
 

@@ -145,8 +145,8 @@ def _store_headers(headers, span, integration_config, request_or_response):
         return
 
     for header_name, header_value in headers.items():
-        """config._header_tag_name gets an element of the dictionary in config.trace_http_header_tags
-        which gets the value from DD_TRACE_HEADER_TAGS environment variable."""
+        # config._header_tag_name gets an element of the dictionary in config._trace_http_header_tags
+        # which gets the value from DD_TRACE_HEADER_TAGS environment variable."""
         tag_name = integration_config._header_tag_name(header_name)
         if tag_name is None:
             continue
@@ -188,7 +188,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
         return peer_ip
 
     ip_header_value = ""
-    user_configured_ip_header = config.client_ip_header
+    user_configured_ip_header = config._client_ip_header
     if user_configured_ip_header:
         # Used selected the header to use to get the IP
         ip_header_value = get_header_value(
@@ -406,7 +406,7 @@ def _set_url_tag(integration_config, span, url, query):
     # type: (IntegrationConfig, Span, str, str) -> None
     if not integration_config.http_tag_query_string:
         span.set_tag_str(http.URL, strip_query_string(url))
-    elif config.global_query_string_obfuscation_disabled:
+    elif config._global_query_string_obfuscation_disabled:
         # TODO(munir): This case exists for backwards compatibility. To remove query strings from URLs,
         # users should set ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING=False``. This case should be
         # removed when config.global_query_string_obfuscation_disabled is removed (v3.0).
@@ -491,7 +491,7 @@ def set_http_meta(
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if asm_config._asm_enabled or config.retrieve_client_ip:
+        if asm_config._asm_enabled or config._retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
             request_ip = core.get_item("http.request.remote_ip", span=span)
 
