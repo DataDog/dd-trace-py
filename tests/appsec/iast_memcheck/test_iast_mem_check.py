@@ -4,24 +4,19 @@ import pytest
 from pytest_memray import LeaksFilterFunction
 from pytest_memray import Stack
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._stacktrace import get_info_frame
-from ddtrace.internal import core
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import initializer_size
+from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
+from ddtrace.appsec._iast._taint_tracking import reset_context
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info_frame_py
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
-from tests.utils import override_env
-
-
-with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import initializer_size
-    from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-    from ddtrace.appsec._iast._taint_tracking import reset_context
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
@@ -64,7 +59,7 @@ class IASTFilter(LeaksFilterFunction):
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
+def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
     """Biggest allocating functions:
     - join_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:124 -> 8.0KiB
     - _prepare_report: ddtrace/appsec/_iast/taint_sinks/_base.py:111 -> 8.0KiB
@@ -84,7 +79,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         )
         result = mod.propagation_memory_check(tainted_string_1, tainted_string_2)
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = _get_span_report()
         assert len(span_report.sources) > 0
         assert len(span_report.vulnerabilities) > 0
         assert len(get_tainted_ranges(result)) == 1
@@ -125,7 +120,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-async def test_propagation_memory_check_async(origin1, origin2, iast_span_defaults):
+async def test_propagation_memory_check_async(origin1, origin2, iast_context_defaults):
     """Biggest allocating functions:
     - join_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:124 -> 8.0KiB
     - _prepare_report: ddtrace/appsec/_iast/taint_sinks/_base.py:111 -> 8.0KiB
@@ -145,7 +140,7 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_span_defaul
         )
         result = await mod.propagation_memory_check_async(tainted_string_1, tainted_string_2)
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = _get_span_report()
         assert len(span_report.sources) > 0
         assert len(span_report.vulnerabilities) > 0
         assert len(get_tainted_ranges(result)) == 6
