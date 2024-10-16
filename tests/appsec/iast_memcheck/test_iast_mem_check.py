@@ -12,6 +12,7 @@ from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
 from tests.utils import override_env
 
+
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
