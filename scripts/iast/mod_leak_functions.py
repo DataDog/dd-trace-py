@@ -277,7 +277,9 @@ async def test_doit():
 
     string3 = add_variants(string2, string1)
 
-    string4 = "-".join([string3, string3, string3])
+    string3_1 = string3[:150]
+
+    string4 = "-".join([string3_1, string3_1, string3_1])
     string4_2 = string1
     string4_2 += " " + " ".join(string_ for string_ in [string4, string4, string4])
     string4_2 += " " + " ".join(string_ for string_ in [string1, string1, string1])
@@ -295,7 +297,9 @@ async def test_doit():
     string8_5 = format_variants(string8_4, string1)
     await anyio.to_thread.run_sync(modulo_exceptions, string8_5)
 
-    string9 = "notainted#{}".format(string8_5)
+    string8_6 = string8_5[65:150]
+
+    string9 = "notainted#{}".format(string8_6)
     string9_2 = f"{string9}_notainted"
     string9_3 = f"{string9_2:=^30}_notainted"
     string10 = "nottainted\n" + string9_3
@@ -307,7 +311,6 @@ async def test_doit():
         string13_3, string13_5, string13_5 = string13_2.split(" ")
     except ValueError:
         pass
-
     sink_points(string13_2)
 
     # os path propagation
