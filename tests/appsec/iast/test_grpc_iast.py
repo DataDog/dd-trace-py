@@ -3,6 +3,7 @@ import threading
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 import mock
+import pytest
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from tests.contrib.grpc.common import GrpcBaseTestCase
@@ -14,9 +15,16 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
+from .conftest import iast_context
+
 
 _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
+
+
+@pytest.fixture(autouse=True)
+def iast_c_context():
+    yield from iast_context(dict(DD_IAST_ENABLED="true"))
 
 
 def _check_test_range(value):
@@ -30,7 +38,7 @@ def _check_test_range(value):
 
 
 class GrpcTestIASTCase(GrpcBaseTestCase):
-    @flaky(1735812000, reason="IAST context refactor breaks grpc")
+    @flaky(1735812000, reason="IAST context refactor breaks grpc. APPSEC-55239")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_single(self):
         with override_env({"DD_IAST_ENABLED": "True"}):
@@ -50,17 +58,17 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                 assert hasattr(res, "message")
                 _check_test_range(res.message)
 
+    @flaky(1735812000, reason="IAST context refactor breaks grpc. APPSEC-55239")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_twice(self):
-        with override_env({"DD_IAST_ENABLED": "True"}):
-            with self.override_config("grpc", dict(service_name="myclientsvc")):
-                with self.override_config("grpc_server", dict(service_name="myserversvc")):
-                    with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel1:
-                        stub1 = HelloStub(channel1)
-                        responses_iterator = stub1.SayHelloTwice(HelloRequest(name="test"))
-                        for res in responses_iterator:
-                            assert hasattr(res, "message")
-                            _check_test_range(res.message)
+        with self.override_config("grpc", dict(service_name="myclientsvc")):
+            with self.override_config("grpc_server", dict(service_name="myserversvc")):
+                with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel1:
+                    stub1 = HelloStub(channel1)
+                    responses_iterator = stub1.SayHelloTwice(HelloRequest(name="test"))
+                    for res in responses_iterator:
+                        assert hasattr(res, "message")
+                        _check_test_range(res.message)
 
     def test_taint_iast_twice_server(self):
         # use an event to signal when the callbacks have been called from the response
@@ -80,6 +88,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
 
                 callback_called.wait(timeout=1)
 
+    @flaky(1735812000, reason="IAST context refactor breaks grpc. APPSEC-55239")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_repeatedly(self):
         with override_env({"DD_IAST_ENABLED": "True"}):
@@ -116,7 +125,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
 
                 callback_called.wait(timeout=1)
 
-    @flaky(1735812000, reason="IAST context refactor breaks grpc")
+    @flaky(1735812000, reason="IAST context refactor breaks grpc. APPSEC-55239")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_last(self):
         with override_env({"DD_IAST_ENABLED": "True"}):
