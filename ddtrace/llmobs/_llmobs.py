@@ -322,6 +322,7 @@ class LLMObs(Service):
                     if key == annotation_id:
                         cls._instance._annotations.pop(i)
                         return
+                else:
                     log.debug("Failed to pop annotation context")
 
         return AnnotationContext(register_annotation, deregister_annotation)
