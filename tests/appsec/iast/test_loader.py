@@ -19,9 +19,9 @@ def test_patching_error():
     the module should still be imported successfully.
     """
     fixture_module = "tests.appsec.iast.fixtures.loader"
-    asm_config_orig_value = asm_config._iast_enabled
+    asm_config_orig_value = asm_config.iast_enabled
     try:
-        asm_config._iast_enabled = True
+        asm_config.iast_enabled = True
 
         if fixture_module in sys.modules:
             del sys.modules[fixture_module]
@@ -43,4 +43,4 @@ def test_patching_error():
             assert ASPECTS_MODULE not in sys.modules
 
     finally:
-        asm_config._iast_enabled = asm_config_orig_value
+        asm_config.iast_enabled = asm_config_orig_value

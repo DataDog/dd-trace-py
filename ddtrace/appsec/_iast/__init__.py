@@ -32,9 +32,9 @@ import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.settings.asm import config as asm_config
 
 from ._overhead_control_engine import OverheadControl
-from ._utils import _is_iast_enabled
 
 
 log = get_logger(__name__)
@@ -50,7 +50,7 @@ def ddtrace_iast_flask_patch():
     and must be before the `app.run()` call. It also requires `DD_IAST_ENABLED` to be
     activated.
     """
-    if not _is_iast_enabled():
+    if not asm_config.iast_enabled:
         return
 
     from ._ast.ast_patching import astpatch_module

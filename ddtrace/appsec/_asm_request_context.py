@@ -17,7 +17,6 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -432,7 +431,7 @@ def start_context(span: Span):
             core.get_local_item("headers_case_sensitive"),
             core.get_local_item("block_request_callable"),
         )
-    elif asm_config._iast_enabled:
+    elif asm_config.iast_enabled:
         core.set_item(_ASM_CONTEXT, ASM_Environment())
 
 
@@ -461,7 +460,7 @@ def _on_wrapped_view(kwargs):
             return_value[0] = callback_block
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
-    if _is_iast_enabled() and kwargs:
+    if asm_config.iast_enabled and kwargs:
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
@@ -479,7 +478,7 @@ def _on_wrapped_view(kwargs):
 
 
 def _on_set_request_tags(request, span, flask_config):
-    if _is_iast_enabled():
+    if asm_config.iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_utils import taint_structure

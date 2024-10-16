@@ -267,7 +267,7 @@ class Tracer(object):
         self._partial_flush_min_spans = config._partial_flush_min_spans
         # Direct link to the appsec processor
         self._appsec_processor = None
-        self._iast_enabled = asm_config._iast_enabled
+        self._iast_enabled = asm_config.iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
@@ -493,7 +493,8 @@ class Tracer(object):
             self._asm_enabled = asm_config._asm_enabled = appsec_enabled
 
         if iast_enabled is not None:
-            self._iast_enabled = asm_config._iast_enabled = iast_enabled
+            asm_config._iast_enabled = iast_enabled
+            self._iast_enabled = asm_config.iast_enabled
 
         if appsec_standalone_enabled is not None:
             self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled = appsec_standalone_enabled

@@ -168,7 +168,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             break
 
     if request_spans:
-        if _is_iast_enabled():
+        if asm_config.iast_enabled:
             from ddtrace.appsec._iast._patch import _iast_instrument_starlette_scope
 
             _iast_instrument_starlette_scope(scope)

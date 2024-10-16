@@ -16,18 +16,6 @@ def _is_python_version_supported() -> bool:
     return (3, 6, 0) <= sys.version_info < (3, 13, 0)
 
 
-def _is_iast_enabled():
-    if not asm_config._iast_enabled:
-        return False
-
-    if not _is_python_version_supported():
-        log = get_logger(__name__)
-        log.info("IAST is not compatible with the current Python version")
-        return False
-
-    return True
-
-
 def _get_source_index(sources: List, source) -> int:
     i = 0
     for source_ in sources:

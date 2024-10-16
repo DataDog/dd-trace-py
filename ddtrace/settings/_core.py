@@ -17,12 +17,13 @@ def report_telemetry(env: Any) -> None:
             env_name = env._full_prefix + _normalized(e.name)
             env_val = e(env, env._full_prefix)
             raw_val = env.source.get(env_name)
-            if env_name in env.source and env_val == e._cast(e.type, raw_val, env):
+            if env_name in env.source:  # and env_val == e._cast(e.type, raw_val, env):
                 source = "env_var"
             elif env_val == e.default:
                 source = "default"
             else:
                 source = "unknown"
+
             telemetry_writer.add_configuration(env_name, env_val, source)
 
 

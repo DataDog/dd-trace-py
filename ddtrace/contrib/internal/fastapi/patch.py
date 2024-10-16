@@ -86,7 +86,7 @@ def patch():
     if not isinstance(fastapi.routing.Mount.handle, ObjectProxy):
         _w("starlette.routing", "Mount.handle", traced_handler)
 
-    if _is_iast_enabled():
+    if asm_config.iast_enabled:
         from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
 
         _on_iast_fastapi_patch()

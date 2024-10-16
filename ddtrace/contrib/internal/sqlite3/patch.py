@@ -47,7 +47,7 @@ def patch():
     sqlite3.connect = wrapped
     sqlite3.dbapi2.connect = wrapped
 
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 

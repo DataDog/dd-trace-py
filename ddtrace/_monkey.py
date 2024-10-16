@@ -225,14 +225,14 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         from ddtrace.appsec._iast._patch_modules import patch_iast
         from ddtrace.appsec.iast import enable_iast_propagation
 
         patch_iast()
         enable_iast_propagation()
 
-    if asm_config._ep_enabled or asm_config._iast_enabled:
+    if asm_config._ep_enabled or asm_config.iast_enabled:
         from ddtrace.appsec._common_module_patches import patch_common_modules
 
         patch_common_modules()

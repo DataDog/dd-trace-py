@@ -41,7 +41,7 @@ def wrapped_loads(wrapped, instance, args, kwargs):
     from .._taint_utils import taint_structure
 
     obj = wrapped(*args, **kwargs)
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         from .._taint_tracking import get_tainted_ranges
         from .._taint_tracking import taint_pyobject
         from ..processor import AppSecIastSpanProcessor
