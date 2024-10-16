@@ -8,10 +8,9 @@ from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._utils import _is_python_version_supported
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.settings import Config
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.settings.integration import IntegrationConfig
 from tests.utils import TracerTestCase
-from tests.utils import override_env
 
 
 class TestTracedCursor(TracerTestCase):
