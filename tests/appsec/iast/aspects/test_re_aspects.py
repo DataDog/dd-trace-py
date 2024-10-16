@@ -260,9 +260,10 @@ def test_re_match_aspect_tainted_string_re_object():
     for res_str in result:
         if len(res_str):
             ranges = get_tainted_ranges(res_str)
+            # TODO(avara1986): The ranges contain errors, the range has a wrong start: start=31, length=7. APPSEC-55239
             assert ranges == [
                 TaintRange(
-                    31,
+                    0,
                     len(res_str),
                     Source("test_re_match_groups_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
                 ),

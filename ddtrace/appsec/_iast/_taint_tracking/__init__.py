@@ -130,7 +130,7 @@ def iast_taint_log_error(msg):
 def is_pyobject_tainted(pyobject: Any) -> bool:
     if not is_iast_request_enabled():
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return False
 
     try:
@@ -144,7 +144,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
     if not is_iast_request_enabled():
         return pyobject
 
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return pyobject
     # We need this validation in different contition if pyobject is not a text type and creates a side-effect such as
     # __len__ magic method call.
@@ -176,7 +176,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
     if not is_iast_request_enabled():
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return False
     try:
         set_ranges(pyobject, ranges)
@@ -189,7 +189,7 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
 def get_tainted_ranges(pyobject: Any) -> Tuple:
     if not is_iast_request_enabled():
         return tuple()
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return tuple()
     try:
         return get_ranges(pyobject)
