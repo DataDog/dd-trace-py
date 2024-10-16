@@ -37,13 +37,14 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "b2f2d49f2f5d5c4dd78d1d9b83280db8ac2949c0"
+    "9d5bcc5867d7aefff73c837adcba4ef46eecebc6"
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
-    GIT_REPOSITORY "https://github.com/sanchda/echion.git"
+    GIT_REPOSITORY "https://github.com/taegyunkim/echion.git"
     GIT_TAG ${ECHION_COMMIT})
 FetchContent_GetProperties(echion)
+
 if(NOT echion_POPULATED)
     FetchContent_Populate(echion)
 endif()

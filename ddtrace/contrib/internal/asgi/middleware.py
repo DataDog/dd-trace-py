@@ -23,6 +23,7 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils import get_blocked
 
 
 log = get_logger(__name__)
@@ -138,20 +139,19 @@ class TraceMiddleware:
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
         pin = ddtrace.pin.Pin(service="asgi", tracer=self.tracer)
-        with pin.tracer.trace(
-            name=operation_name,
-            service=trace_utils.int_service(None, self.integration_config),
-            resource=resource,
-            span_type=SpanTypes.WEB,
-        ) as span, core.context_with_data(
+        with core.context_with_data(
             "asgi.__call__",
             remote_addr=scope.get("REMOTE_ADDR"),
             headers=headers,
             headers_case_sensitive=True,
             environ=scope,
             middleware=self,
-            span=span,
-        ) as ctx:
+            span_name=operation_name,
+            resource=resource,
+            span_type=SpanTypes.WEB,
+            service=trace_utils.int_service(None, self.integration_config),
+            pin=pin,
+        ) as ctx, ctx.get_item("call") as span:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
             ctx.set_item("req_span", span)
 
@@ -242,9 +242,9 @@ class TraceMiddleware:
                     )
                     core.dispatch("asgi.start_response", ("asgi",))
                 core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
-
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    raise trace_utils.InterruptException("wrapped_send")
+                blocked = get_blocked()
+                if blocked:
+                    raise BlockingException(blocked)
                 try:
                     return await send(message)
                 finally:
@@ -287,11 +287,10 @@ class TraceMiddleware:
 
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
+                # Do not block right here. Wait for route to be resolved in starlette/patch.py
                 return await self.app(scope, receive, wrapped_send)
             except BlockingException as e:
                 core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
-                return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
-            except trace_utils.InterruptException:
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
             except Exception as exc:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()

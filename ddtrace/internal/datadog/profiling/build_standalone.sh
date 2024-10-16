@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 ### Useful globals
@@ -8,6 +8,8 @@ BUILD_DIR="build"
 
 ### Compiler discovery
 # Initialize variables to store the highest versions
+highest_cc=""
+highest_cxx=""
 highest_gcc=""
 highest_gxx=""
 highest_clang=""
@@ -18,24 +20,44 @@ highest_clangxx=""
 find_highest_compiler_version() {
   local base_name=$1
   local highest_var_name=$2
+  local highest_version=0
+  local current_version
+  local found_version=""
 
-  # Try to find the latest versions of both GCC and Clang
-  # The range 5-20 is arbitrary (GCC 5 was released in 2015, and 20 is just a
-  # a high number since Clang is on version 17)
+  # Function to extract the numeric version from the compiler output
+  get_version() {
+    $1 --version 2>&1 | grep -oE '[0-9]+(\.[0-9]+)?' | head -n 1
+  }
+
+  # Try to find the latest versions of both GCC and Clang (numbered versions)
+  # The range 5-20 is arbitrary (GCC 5 was released in 2015, and 20 is a high number since Clang is on version 17)
   for version in {20..5}; do
     if command -v "${base_name}-${version}" &> /dev/null; then
-      eval "$highest_var_name=${base_name}-${version}"
-      return
+      current_version=$(get_version "${base_name}-${version}")
+      if (( $(echo "$current_version > $highest_version" | bc -l) )); then
+        highest_version=$current_version
+        found_version="${base_name}-${version}"
+      fi
     fi
   done
 
-  # Check for the base version if no numbered version was found
+  # Check the base version if it exists
   if command -v "$base_name" &> /dev/null; then
-    eval "$highest_var_name=$base_name"
+    current_version=$(get_version "$base_name")
+    if (( $(echo "$current_version > $highest_version" | bc -l) )); then
+      found_version="$base_name"
+    fi
+  fi
+
+  # Assign the result to the variable name passed
+  if [[ -n $found_version ]]; then
+    eval "$highest_var_name=$found_version"
   fi
 }
 
 # Find highest versions for each compiler
+find_highest_compiler_version cc highest_cc
+find_highest_compiler_version c++ highest_cxx
 find_highest_compiler_version gcc highest_gcc
 find_highest_compiler_version g++ highest_gxx
 find_highest_compiler_version clang highest_clang
@@ -73,10 +95,24 @@ cmake_args=(
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   -DCMAKE_VERBOSE_MAKEFILE=ON
   -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
+  -DPython3_ROOT_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
 )
 
 # Initial build targets; no matter what, dd_wrapper is the base dependency, so it's always built
 targets=("dd_wrapper")
+
+set_cc() {
+  if [ -z "${CC:-}" ]; then
+    export CC=$highest_cc
+  fi
+  if [ -z "${CXX:-}" ]; then
+    export CXX=$highest_cxx
+  fi
+  cmake_args+=(
+    -DCMAKE_C_COMPILER=$CC
+    -DCMAKE_CXX_COMPILER=$CXX
+  )
+}
 
 # Helper functions for finding the compiler(s)
 set_clang() {
@@ -252,7 +288,7 @@ add_compiler_args() {
       set_gcc
       ;;
     --)
-      set_gcc # Default to GCC, since this is what will happen in the official build
+      set_cc # Use system default compiler
       ;;
     *)
       echo "Unknown option: $1"

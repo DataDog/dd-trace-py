@@ -1,6 +1,5 @@
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
-from builtins import str as builtin_str
 import codecs
 import itertools
 from re import Match
@@ -65,6 +64,7 @@ modulo_aspect = aspects.modulo_aspect
 split_aspect = _aspect_split
 rsplit_aspect = _aspect_rsplit
 splitlines_aspect = _aspect_splitlines
+str_aspect = aspects.str_aspect
 ospathjoin_aspect = _aspect_ospathjoin
 ospathbasename_aspect = _aspect_ospathbasename
 ospathdirname_aspect = _aspect_ospathdirname
@@ -135,31 +135,6 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
             copy_and_shift_ranges_from_strings(args[0], result, 0)
         except Exception as e:
             iast_taint_log_error("IAST propagation error. bytesio_aspect. {}".format(e))
-    return result
-
-
-def str_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
-    if orig_function is not None:
-        if orig_function != builtin_str:
-            if flag_added_args > 0:
-                args = args[flag_added_args:]
-            return orig_function(*args, **kwargs)
-        result = builtin_str(*args, **kwargs)
-    else:
-        result = args[0].str(*args[1:], **kwargs)
-
-    if args and is_pyobject_tainted(args[0]):
-        try:
-            if isinstance(args[0], (bytes, bytearray)):
-                encoding = parse_params(1, "encoding", "utf-8", *args, **kwargs)
-                errors = parse_params(2, "errors", "strict", *args, **kwargs)
-                check_offset = args[0].decode(encoding, errors)
-            else:
-                check_offset = args[0]
-            offset = result.index(check_offset)
-            copy_and_shift_ranges_from_strings(args[0], result, offset)
-        except Exception as e:
-            iast_taint_log_error("str_aspect. {}".format(e))
     return result
 
 
@@ -441,7 +416,7 @@ def format_value_aspect(
     element: Any,
     options: int = 0,
     format_spec: Optional[str] = None,
-) -> str:
+) -> Union[str, bytes, bytearray]:
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:
@@ -464,7 +439,7 @@ def format_value_aspect(
                 try:
                     new_ranges = list()
                     for text_range in text_ranges:
-                        new_ranges.append(shift_taint_range(text_range, new_new_text.index(new_text)))
+                        new_ranges.append(shift_taint_range(text_range, new_new_text.index(new_text)))  # type: ignore
                     if new_ranges:
                         taint_pyobject_with_ranges(new_new_text, tuple(new_ranges))
                     return new_new_text
