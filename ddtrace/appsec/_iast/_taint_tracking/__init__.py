@@ -205,7 +205,6 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
 if _is_iast_debug_enabled():
     TAINTED_FRAMES = []
 
-
     def trace_calls_and_returns(frame, event, arg):
         co = frame.f_code
         func_name = co.co_name
@@ -238,16 +237,15 @@ if _is_iast_debug_enabled():
                 log.debug("Return from %s on line %d of %s, return value: %s", func_name, line_no, filename, arg)
                 if isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO, list, tuple, dict)):
                     if (
-                            (isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO)) and is_pyobject_tainted(arg))
-                            or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
-                            or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
+                        (isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO)) and is_pyobject_tainted(arg))
+                        or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
+                        or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
                     ):
                         log.debug("Return value is tainted")
                     else:
                         log.debug("Return value is NOT tainted")
                 log.debug("-----")
         return
-
 
     threading.settrace(trace_calls_and_returns)
 
