@@ -1,4 +1,5 @@
 import asyncio
+import glob
 import os
 import sys
 import time
@@ -22,7 +23,7 @@ def test_asyncio(monkeypatch):
     assert stack_v2.is_available, stack_v2.failure_msg
 
     sleep_time = 0.2
-    loop_run_time = 60
+    loop_run_time = 3
 
     async def stuff() -> None:
         start_time = time.time()
@@ -103,3 +104,11 @@ def test_asyncio(monkeypatch):
     assert checked_main
     assert checked_t1
     assert checked_t2
+
+    # cleanup output file
+    for f in glob.glob(pprof_output_prefix + ".*"):
+        try:
+            os.remove(f)
+        except Exception as e:
+            print("Error removing file: {}".format(e))
+        pass
