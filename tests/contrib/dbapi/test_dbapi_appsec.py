@@ -3,10 +3,13 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._utils import _is_python_version_supported
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.settings import Config
 from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.settings.asm import config as asm_config
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
@@ -24,13 +27,12 @@ class TestTracedCursor(TracerTestCase):
         from ddtrace.appsec._iast._taint_tracking import reset_context
 
         reset_context()
+        asm_config._iast_enabled = False
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query(self):
-        from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
-        with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
+        asm_config._iast_enabled = True
+        with mock.patch(
             "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             oce._enabled = True
@@ -47,11 +49,8 @@ class TestTracedCursor(TracerTestCase):
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query_args(self):
-        with override_env({"DD_IAST_ENABLED": "True"}):
-            from ddtrace.appsec._iast._taint_tracking import OriginType
-            from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
-        with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True), mock.patch(
+        asm_config._iast_enabled = True
+        with mock.patch(
             "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             oce._enabled = True
@@ -71,9 +70,8 @@ class TestTracedCursor(TracerTestCase):
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_untainted_query(self):
-        with override_env({"DD_IAST_ENABLED": "True"}), mock.patch(
-            "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
-        ), mock.patch(
+        asm_config._iast_enabled = True
+        with mock.patch(
             "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             query = "SELECT * FROM db;"
@@ -88,9 +86,8 @@ class TestTracedCursor(TracerTestCase):
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_untainted_query_and_args(self):
-        with override_env({"DD_IAST_ENABLED": "True"}), mock.patch(
-            "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
-        ), mock.patch(
+        asm_config._iast_enabled = True
+        with mock.patch(
             "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             query = "SELECT ? FROM db;"
@@ -106,11 +103,7 @@ class TestTracedCursor(TracerTestCase):
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query_iast_disabled(self):
-        with override_env({"DD_IAST_ENABLED": "True"}):
-            from ddtrace.appsec._iast._taint_tracking import OriginType
-            from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
-        with mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=False), mock.patch(
+        with mock.patch(
             "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
         ) as mock_sql_injection_report:
             oce._enabled = True
