@@ -115,6 +115,54 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
 
 PyCFunction stack_v2_link_span = cast_to_pycfunction(_stack_v2_link_span);
 
+static PyObject*
+stack_v2_track_asyncio_loop(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uintptr_t thread_id; // map key
+    PyObject* loop;
+
+    if (!PyArg_ParseTuple(args, "lO", &thread_id, &loop)) {
+        return NULL;
+    }
+
+    Sampler::get().track_asyncio_loop(thread_id, loop);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_v2_init_asyncio(PyObject* self, PyObject* args)
+{
+    (void)self;
+    PyObject* asyncio_current_tasks;
+    PyObject* asyncio_scheduled_tasks;
+    PyObject* asyncio_eager_tasks;
+
+    if (!PyArg_ParseTuple(args, "OOO", &asyncio_current_tasks, &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
+        return NULL;
+    }
+
+    Sampler::get().init_asyncio(asyncio_current_tasks, asyncio_scheduled_tasks, asyncio_eager_tasks);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_v2_link_tasks(PyObject* self, PyObject* args)
+{
+    (void)self;
+    PyObject *parent, *child;
+
+    if (!PyArg_ParseTuple(args, "OO", &parent, &child)) {
+        return NULL;
+    }
+
+    Sampler::get().link_tasks(parent, child);
+
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef _stack_v2_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_v2_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_v2_stop, METH_VARARGS, "Stop the sampler" },
@@ -125,6 +173,10 @@ static PyMethodDef _stack_v2_methods[] = {
       reinterpret_cast<PyCFunction>(stack_v2_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },
+    // asyncio task support
+    { "track_asyncio_loop", stack_v2_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
+    { "init_asyncio", stack_v2_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
+    { "link_tasks", stack_v2_link_tasks, METH_VARARGS, "Link two tasks" },
     { NULL, NULL, 0, NULL }
 };
 
