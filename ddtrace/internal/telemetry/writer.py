@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import ctypes
 import http.client as httplib  # noqa: E402
 import itertools
 from logging import getLogger
 import os
+import platform
 import sys
 import time
 from typing import TYPE_CHECKING  # noqa:F401
@@ -357,6 +359,44 @@ class TelemetryWriter(PeriodicService):
         # Reset the error after it has been reported.
         self._error = (0, "")
         self.add_event(payload, "app-started")
+
+        self._write_to_memfd(payload)
+
+    def _write_to_memfd(self, payload):
+        arch = platform.machine()
+        SYSCALL_MEMFD_CREATE = {
+            "x86_64": 319,
+            "i386": 356,
+            "armv7l": 385,
+            "aarch64": 279,
+        }
+        memfd_syscall = SYSCALL_MEMFD_CREATE.get(arch)
+        if memfd_syscall is None:
+            log.debug("failed to resolve memfd syscall number %s", arch)
+            return
+        libc = ctypes.CDLL(None, use_errno=True)
+        file_name = "datadog.tracing_library.json".encode("utf-8")
+        flags = 0x0001  # MFD_CLOEXEC
+
+        fd = libc.syscall(memfd_syscall, ctypes.c_char_p(file_name), ctypes.c_uint(flags))
+        if fd == -1:
+            errno = ctypes.get_errno()
+            log.debug("failed to create memfd, errno: %d (%s)", errno, os.strerror(errno))
+            return
+        if fd < 2:
+            log.debug("failed to create memfd, unexpected fd value: %d", fd)
+            return
+        # Write to the memfd without closing it immediately
+        f = os.fdopen(fd, "w")
+        try:
+            f.write(self._encoder.encode(payload))
+            f.flush()
+        except Exception as e:
+            log.debug("failed to write to memfd: %s", e)
+            f.close()
+            return
+        # memfd remains open for further use
+        # it is collected at process deletion time
 
     def _app_heartbeat_event(self):
         # type: () -> None
