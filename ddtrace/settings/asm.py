@@ -1,7 +1,6 @@
 import os
 import os.path
 import sys
-import pdb
 from platform import machine
 from platform import system
 from typing import List
@@ -21,8 +20,6 @@ from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._core import report_telemetry as _report_telemetry
 from ddtrace.vendor.debtcollector import deprecate
-
-# from ddtrace.appsec._iast._utils import _is_python_version_supported
 
 
 def _validate_sample_rate(r: float) -> None:
@@ -249,13 +246,6 @@ class ASMConfig(Env):
     @property
     def iast_enabled(self) -> bool:
         return self._iast_enabled and self._iast_supported_python_version
-
-    # @iast_enabled.setter
-    # def iast_enabled(self, value: bool):
-    #     if self._iast_supported_python_version:
-    #         self._iast_enabled = value
-    #     else:
-    #         self._iast_enabled = False
 
 
 config = ASMConfig()
