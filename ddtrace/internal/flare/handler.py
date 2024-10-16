@@ -52,7 +52,7 @@ def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
         log.warning("Received unexpected tracer flare product type: %s", product_type)
 
 
-def _prepare_tracer_flare(flare: Flare, configs: List[dict]) -> bool:
+def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
     """
     Update configurations to start sending tracer logs to a file
     to be sent in a flare later.
