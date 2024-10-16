@@ -15,7 +15,6 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace._trace.span import Span  # noqa:F401
-from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.trace_utils import with_traced_module
@@ -28,6 +27,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 

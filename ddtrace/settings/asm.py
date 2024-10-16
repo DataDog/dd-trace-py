@@ -1,8 +1,8 @@
 import os
 import os.path
-import sys
 from platform import machine
 from platform import system
+import sys
 from typing import List
 from typing import Optional
 

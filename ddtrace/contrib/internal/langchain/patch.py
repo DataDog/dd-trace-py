@@ -27,8 +27,6 @@ try:
 except ImportError:
     langchain_pinecone = None
 
-from ddtrace.appsec._iast import _is_iast_enabled
-
 
 try:
     from langchain.callbacks.openai_info import get_openai_token_cost_for_model
@@ -64,6 +62,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.pin import Pin
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)

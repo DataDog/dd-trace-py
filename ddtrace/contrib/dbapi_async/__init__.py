@@ -1,5 +1,4 @@
 from ddtrace import config
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger

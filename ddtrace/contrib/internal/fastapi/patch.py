@@ -7,7 +7,6 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.internal.starlette.patch import traced_handler
@@ -15,6 +14,7 @@ from ddtrace.contrib.starlette.patch import traced_route_init
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)

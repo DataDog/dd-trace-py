@@ -16,7 +16,8 @@ def report_telemetry(env: Any) -> None:
         if isinstance(e, EnvVariable) and not e.private:
             env_name = env._full_prefix + _normalized(e.name)
             env_val = e(env, env._full_prefix)
-            raw_val = env.source.get(env_name)
+            # FIXME: AttributeError EnvVariable has no attribute '_cast'
+            # raw_val = env.source.get(env_name)
             if env_name in env.source:  # and env_val == e._cast(e.type, raw_val, env):
                 source = "env_var"
             elif env_val == e.default:
