@@ -1,5 +1,4 @@
 import os
-from re import Match
 import sys
 
 from _io import BytesIO

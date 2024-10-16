@@ -1,6 +1,7 @@
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
+import itertools
 from re import Match
 from re import Pattern
 from types import BuiltinFunctionType
@@ -994,10 +995,9 @@ def re_finditer_aspect(orig_function: Optional[Callable], flag_added_args: int, 
             string = args[0]
             if is_pyobject_tainted(string):
                 ranges = get_ranges(string)
-                new_result = list(result)
-                for elem in new_result:
+                result, result_backup = itertools.tee(result)
+                for elem in result_backup:
                     taint_pyobject_with_ranges(elem, ranges)
-                return (a for a in new_result)
     except Exception as e:
         iast_taint_log_error("IAST propagation error. re_finditer_aspect. {}".format(e))
     return result

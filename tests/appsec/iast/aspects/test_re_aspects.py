@@ -9,12 +9,12 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import index_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_expand_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_findall_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_finditer_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_fullmatch_aspect
-from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_group_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_groups_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_match_aspect
@@ -23,7 +23,9 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
 
+
 pytest.skip(reason="TAINTEABLE_TYPES Match contains errors. APPSEC-55239", allow_module_level=True)
+
 
 def test_re_findall_aspect_tainted_string():
     tainted_foobarbaz = taint_pyobject(
@@ -254,7 +256,7 @@ def test_re_match_aspect_tainted_string_re_object():
 
     re_match = re_match_aspect(None, 1, re_obj, add_aspect("Winston Wolfe, problem solver. ", tainted_isaac_newton))
     result = re_groups_aspect(None, 1, re_match)
-    assert result == ('Winston', 'Wolfe', 'problem', 'solver', 'Isaac', 'Newton')
+    assert result == ("Winston", "Wolfe", "problem", "solver", "Isaac", "Newton")
     for res_str in result:
         if len(res_str):
             ranges = get_tainted_ranges(res_str)
@@ -514,6 +516,7 @@ def test_re_finditer_aspect_tainted_string():
             TaintRange(0, 18, Source("test_re_sub_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER)),
         ]
 
+
 def test_re_finditer_aspect_tainted_bytes():
     tainted_multipart = taint_pyobject(
         pyobject=b' name="files"; filename="test.txt"\r\nContent-Type: text/plain',
@@ -522,16 +525,13 @@ def test_re_finditer_aspect_tainted_bytes():
         source_origin=OriginType.PARAMETER,
     )
     SPECIAL_CHARS = re.escape(b'()<>@,;:\\"/[]?={} \t')
-    QUOTED_STR = br'"(?:\\.|[^"])*"'
-    VALUE_STR = br'(?:[^' + SPECIAL_CHARS + br']+|' + QUOTED_STR + br')'
-    OPTION_RE_STR = (
-            br'(?:;|^)\s*([^' + SPECIAL_CHARS + br']+)\s*=\s*(' + VALUE_STR + br')'
-    )
+    QUOTED_STR = rb'"(?:\\.|[^"])*"'
+    VALUE_STR = rb"(?:[^" + SPECIAL_CHARS + rb"]+|" + QUOTED_STR + rb")"
+    OPTION_RE_STR = rb"(?:;|^)\s*([^" + SPECIAL_CHARS + rb"]+)\s*=\s*(" + VALUE_STR + rb")"
     OPTION_RE = re.compile(OPTION_RE_STR)
     res_no_tainted = OPTION_RE.finditer(tainted_multipart)
     res_iterator = re_finditer_aspect(None, 1, OPTION_RE, tainted_multipart)
     assert isinstance(res_iterator, typing.Iterator), f"res_iterator is of type {type(res_iterator)}"
-
 
     for i in res_no_tainted:
         assert i.group(0) == b'; filename="test.txt"'
@@ -545,12 +545,12 @@ def test_re_finditer_aspect_tainted_bytes():
     except StopIteration:
         pytest.fail("re_finditer_aspect result generator is depleted")
 
-
     for i in res_iterator:
         assert i.group(0) == b'; filename="test.txt"'
         assert get_tainted_ranges(i) == [
             TaintRange(0, 60, Source("test_re_sub_aspect_tainted_string", tainted_multipart, OriginType.PARAMETER)),
         ]
+
 
 def test_re_finditer_aspect_not_tainted():
     not_tainted_foobarbaz = "/foo/bar/baaz.jpeg"
