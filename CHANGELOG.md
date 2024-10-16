@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.12.4
+
+
+### Bug Fixes
+
+- profiling: fixes an issue where stack v2 couldn't be enabled as pthread was not properly linked on some debian based images for aarch64 architecture.
+
+
+---
+
 ## 2.14.3
 
 
