@@ -199,7 +199,7 @@ class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
     def __init__(self, default, envs):
-        # type: (str, Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
+        # type: (Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
         # _ConfigItem._name is only used in __repr__ and instrumentation telemetry
         self._name = envs[0][0]
         self._env_value: _JSONType = None
