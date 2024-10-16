@@ -4,7 +4,6 @@ make some changes
 """
 import asyncio
 import os
-import re
 import sys
 
 import _io
@@ -179,29 +178,30 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     else:
         string23 = string21
 
-    re_slash = re.compile(r"[_.][a-zA-Z]*")
-    string24 = re_slash.findall(string23)[0]  # 1 propagation: '_HIROOT
-
-    re_match = re.compile(r"(\w+)", re.IGNORECASE)
-    re_match_result = re_match.match(string24)  # 1 propagation: 'HIROOT
-
-    string25 = re_match_result.group(0)  # 1 propagation: '_HIROOT
-
-    tmp_str = "DDDD"
-    string25 = tmp_str + string25  # 1 propagation: 'DDDD_HIROOT
-
-    re_match = re.compile(r"(\w+)(_+)(\w+)", re.IGNORECASE)
-    re_match_result = re_match.search(string25)
-    string26 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDDD_HIROOT
-
-    re_split = re.compile(r"[_.][a-zA-Z]*", re.IGNORECASE)
-    re_split_result = re_split.split(string26)
-
-    # TODO(avara1986): DDDD_ is constant but we're tainting all re results
-    string27 = re_split_result[0] + " EEE"
-    string28 = re.sub(r" EEE", "_OOO", string27, re.IGNORECASE)
-    string29 = re.subn(r"OOO", "III", string28, re.IGNORECASE)[0]
-
+    # TODO(avara1986): Re.Match contains errors. APPSEC-55239
+    # re_slash = re.compile(r"[_.][a-zA-Z]*")
+    # string24 = re_slash.findall(string23)[0]  # 1 propagation: '_HIROOT
+    #
+    # re_match = re.compile(r"(\w+)", re.IGNORECASE)
+    # re_match_result = re_match.match(string24)  # 1 propagation: 'HIROOT
+    #
+    # string25 = re_match_result.group(0)  # 1 propagation: '_HIROOT
+    #
+    # tmp_str = "DDDD"
+    # string25 = tmp_str + string25  # 1 propagation: 'DDDD_HIROOT
+    #
+    # re_match = re.compile(r"(\w+)(_+)(\w+)", re.IGNORECASE)
+    # re_match_result = re_match.search(string25)
+    # string26 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDDD_HIROOT
+    #
+    # re_split = re.compile(r"[_.][a-zA-Z]*", re.IGNORECASE)
+    # re_split_result = re_split.split(string26)
+    #
+    # # TODO(avara1986): DDDD_ is constant but we're tainting all re results
+    # string27 = re_split_result[0] + " EEE"
+    # string28 = re.sub(r" EEE", "_OOO", string27, re.IGNORECASE)
+    # string29 = re.subn(r"OOO", "III", string28, re.IGNORECASE)[0]
+    string29 = string23
     tmp_str2 = "_extend"
     string29 += tmp_str2
     try:

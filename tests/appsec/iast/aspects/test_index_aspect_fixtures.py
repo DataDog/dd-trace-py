@@ -10,6 +10,7 @@ from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.utils import flaky
 from tests.utils import override_env
 
 
@@ -121,6 +122,7 @@ def test_propagate_ranges_with_no_context(caplog):
     assert not any("[IAST] " in message for message in log_messages), log_messages
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_re_match_index_indexerror():
     regexp = r"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
@@ -138,6 +140,7 @@ def test_re_match_index_indexerror():
         mod.do_re_match_index(string_input, regexp, "doesntexist")
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.parametrize(
     "input_str, index, tainted, expected_result, ",
     [
@@ -174,6 +177,7 @@ def test_re_match_index(input_str, index, tainted, expected_result):
     assert len(get_tainted_ranges(result)) == int(tainted)
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_re_match_index_indexerror_bytes():
     regexp = rb"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
@@ -191,6 +195,7 @@ def test_re_match_index_indexerror_bytes():
         mod.do_re_match_index(string_input, regexp, b"doesntexist")
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.parametrize(
     "input_str, index, tainted, expected_result, ",
     [
