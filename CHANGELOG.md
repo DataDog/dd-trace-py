@@ -4,6 +4,18 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.13.2
+
+
+### Bug Fixes
+
+- botocore: fixes bedrock model and model provider interpretation from `modelId` when using cross-region inference.
+- Code Security: Ensure IAST propagation does not raise side effects related to re.finditer.
+- profiling: fixes an issue where stack v2 couldn't be enabled as pthread was not properly linked on some debian based images for aarch64 architecture.
+
+
+---
+
 ## 2.14.3
 
 
