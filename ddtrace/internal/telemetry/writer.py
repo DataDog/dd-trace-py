@@ -3,6 +3,7 @@ import http.client as httplib  # noqa: E402
 import itertools
 from logging import getLogger
 import os
+import re
 import sys
 import time
 from typing import TYPE_CHECKING  # noqa:F401
@@ -697,28 +698,23 @@ class TelemetryWriter(PeriodicService):
             filename = traceback.tb_frame.f_code.co_filename
             self.add_error(1, str(value), filename, lineno)
 
-            dir_parts = filename.split(os.path.sep)
-            # Check if exception was raised in the  `ddtrace.contrib` package
-            if "ddtrace" in dir_parts and "contrib" in dir_parts:
-                ddtrace_index = dir_parts.index("ddtrace")
-                contrib_index = dir_parts.index("contrib")
-                # Check if the filename has the following format:
-                # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
-                if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
-                    integration_name = dir_parts[contrib_index + 1]
-                    if "internal" in dir_parts:
-                        # Check if the filename has the format:
-                        # `../ddtrace/contrib/internal/integration_name/..(subpath and/or file)...`
-                        internal_index = dir_parts.index("internal")
-                        integration_name = dir_parts[internal_index + 1]
-                    self.add_count_metric(
-                        "tracers",
-                        "integration_errors",
-                        1,
-                        (("integration_name", integration_name), ("error_type", tp.__name__)),
-                    )
-                    error_msg = "{}:{} {}".format(filename, lineno, str(value))
-                    self.add_integration(integration_name, True, error_msg=error_msg)
+            separator = os.path.sep
+            # Match the integration name from the filename ex: ddtrace/contrib/internal/{redis}/patch.py
+            pattern = (
+                rf"ddtrace{separator}contrib(?:{separator}internal{separator}([^\\{separator}]+)|"
+                rf"{separator}([^\\{separator}]+))"
+            )
+            match = re.search(pattern, filename)
+            if match:
+                integration_name = match.group(1) or match.group(2)
+                self.add_count_metric(
+                    "tracers",
+                    "integration_errors",
+                    1,
+                    (("integration_name", integration_name), ("error_type", tp.__name__)),
+                )
+                error_msg = "{}:{} {}".format(filename, lineno, str(value))
+                self.add_integration(integration_name, True, error_msg=error_msg)
 
             if self._enabled and not self.started:
                 self._app_started(False)
