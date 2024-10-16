@@ -231,15 +231,13 @@ def test_llm_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
     )
 
 
-def test_llm_span_no_model_raises_error(LLMObs, mock_logs):
-    with pytest.raises(TypeError):
-        with LLMObs.llm(name="test_llm_call", model_provider="test_provider"):
-            pass
+def test_llm_span_no_model_sets_default(LLMObs, mock_llmobs_span_writer):
+    with LLMObs.llm(name="test_llm_call", model_provider="test_provider") as span:
+        assert span.get_tag(MODEL_NAME) == "custom_model"
 
-
-def test_llm_span_empty_model_name_logs_warning(LLMObs, mock_logs):
-    _ = LLMObs.llm(model_name="", name="test_llm_call", model_provider="test_provider")
-    mock_logs.warning.assert_called_once_with("LLMObs.llm() missing model_name")
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "llm", model_name="custom_model", model_provider="test_provider")
+    )
 
 
 def test_default_model_provider_set_to_custom(LLMObs):
@@ -324,15 +322,12 @@ def test_agent_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
-def test_embedding_span_no_model_raises_error(LLMObs):
-    with pytest.raises(TypeError):
-        with LLMObs.embedding(name="test_embedding", model_provider="test_provider"):
-            pass
-
-
-def test_embedding_span_empty_model_name_logs_warning(LLMObs, mock_logs):
-    _ = LLMObs.embedding(model_name="", name="test_embedding", model_provider="test_provider")
-    mock_logs.warning.assert_called_once_with("LLMObs.embedding() missing model_name")
+def test_embedding_span_no_model_sets_default(LLMObs, mock_llmobs_span_writer):
+    with LLMObs.embedding(name="test_embedding", model_provider="test_provider") as span:
+        assert span.get_tag(MODEL_NAME) == "custom_model"
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "embedding", model_name="custom_model", model_provider="test_provider")
+    )
 
 
 def test_embedding_default_model_provider_set_to_custom(LLMObs):
