@@ -70,6 +70,8 @@ def ddtrace_iast_flask_patch():
 
 def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
+    # DEV: These imports are here to avoid _ast.ast_patching import in the top level
+    # because they are slow and affect serverless startup time
     from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
@@ -79,6 +81,8 @@ def enable_iast_propagation():
 
 def disable_iast_propagation():
     """Remove IAST AST patching from the ModuleWatchdog. Only for testing proposes"""
+    # DEV: These imports are here to avoid _ast.ast_patching import in the top level
+    # because they are slow and affect serverless startup time
     from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
