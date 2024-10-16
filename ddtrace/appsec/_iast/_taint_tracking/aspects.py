@@ -2,6 +2,7 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
+import itertools
 from re import Match
 from re import Pattern
 from types import BuiltinFunctionType
@@ -990,9 +991,7 @@ def re_findall_aspect(
     return result
 
 
-def re_finditer_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
+def re_finditer_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Iterator:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
@@ -1021,9 +1020,9 @@ def re_finditer_aspect(
         string = args[0]
         if is_pyobject_tainted(string):
             ranges = get_ranges(string)
-            for elem in result:
+            result, result_backup = itertools.tee(result)
+            for elem in result_backup:
                 taint_pyobject_with_ranges(elem, ranges)
-
     return result
 
 
