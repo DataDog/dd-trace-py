@@ -15,7 +15,6 @@ from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_iast_debug_enabled
 from .._utils import _is_python_version_supported
 
-
 log = get_logger(__name__)
 
 if _is_python_version_supported():
@@ -206,6 +205,7 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
 if _is_iast_debug_enabled():
     TAINTED_FRAMES = []
 
+
     def trace_calls_and_returns(frame, event, arg):
         co = frame.f_code
         func_name = co.co_name
@@ -238,15 +238,16 @@ if _is_iast_debug_enabled():
                 log.debug("Return from %s on line %d of %s, return value: %s", func_name, line_no, filename, arg)
                 if isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO, list, tuple, dict)):
                     if (
-                        (isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO)) and is_pyobject_tainted(arg))
-                        or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
-                        or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
+                            (isinstance(arg, (str, bytes, bytearray, BytesIO, StringIO)) and is_pyobject_tainted(arg))
+                            or (isinstance(arg, (list, tuple)) and any([is_pyobject_tainted(x) for x in arg]))
+                            or (isinstance(arg, dict) and any([is_pyobject_tainted(x) for x in arg.values()]))
                     ):
                         log.debug("Return value is tainted")
                     else:
                         log.debug("Return value is NOT tainted")
                 log.debug("-----")
         return
+
 
     threading.settrace(trace_calls_and_returns)
 
@@ -271,7 +272,7 @@ def copy_ranges_to_string(s: str, ranges: List[TaintRange]) -> str:
 
 # Given a list of ranges, try to match them with the iterable and return a new iterable with a new range applied that
 # matched the original one Source. If no range matches, take the Source from the first one.
-def copy_ranges_to_iterable_with_strings(iterable: Iterable[str], ranges: List[TaintRange]) -> Iterable[str]:
+def copy_ranges_to_iterable_with_strings(iterable: Iterable[str], ranges: Iterable[TaintRange]) -> Iterable[str]:
     iterable_type = type(iterable)
 
     new_result = []
@@ -281,4 +282,4 @@ def copy_ranges_to_iterable_with_strings(iterable: Iterable[str], ranges: List[T
         i = copy_ranges_to_string(i, ranges)
         new_result.append(i)
 
-    return iterable_type(new_result)
+    return iterable_type(new_result)  # type: ignore[call-arg]
