@@ -1,5 +1,4 @@
 import os
-from re import Match
 import sys
 
 from _io import BytesIO
@@ -120,13 +119,12 @@ class IAST(metaclass=Constant_Class):
     LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
-    CONTEXT_KEY: Literal["_iast_data"] = "_iast_data"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
-    REQUEST_IAST_ENABLED: Literal["_dd.iast.request_enabled"] = "_dd.iast.request_enabled"
     TEXT_TYPES = (str, bytes, bytearray)
-    TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
+    # TODO(avara1986): `Match` contains errors. APPSEC-55239
+    TAINTEABLE_TYPES = (str, bytes, bytearray, BytesIO, StringIO)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):

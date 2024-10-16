@@ -4,7 +4,6 @@ import logging
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Source
 from tests.utils import override_env
@@ -18,10 +17,6 @@ with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import set_ranges
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-
-
-def setup():
-    oce._enabled = True
 
 
 def test_taint_ranges_as_evidence_info_nothing_tainted():
