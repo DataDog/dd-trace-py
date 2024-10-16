@@ -27,8 +27,6 @@ try:
 except ImportError:
     langchain_pinecone = None
 
-from ddtrace.appsec._iast import _is_iast_enabled
-
 
 try:
     from langchain.callbacks.openai_info import get_openai_token_cost_for_model
@@ -64,6 +62,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.pin import Pin
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -678,7 +677,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             for k, v in final_outputs.items():
                 span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
-        if _is_iast_enabled():
+        if asm_config.iast_enabled:
             taint_outputs(instance, inputs, final_outputs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -1341,7 +1340,7 @@ def patch():
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _patch_embeddings_and_vectorstores()
 
-    if _is_iast_enabled():
+    if asm_config.iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 
         def wrap_output_parser(module, parser):

@@ -22,7 +22,7 @@ def patch():
 
     _w("webbrowser", "open", _wrap_open)
 
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_SSRF)
 
 

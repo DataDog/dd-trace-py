@@ -85,7 +85,7 @@ class Contrib_TestClass_For_Threats:
 
     def update_tracer(self, interface):
         interface.tracer._asm_enabled = asm_config._asm_enabled
-        interface.tracer._iast_enabled = asm_config._iast_enabled
+        interface.tracer._iast_enabled = asm_config.iast_enabled
         interface.tracer.configure(api_version="v0.4")
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
@@ -1348,14 +1348,14 @@ class Contrib_TestClass_For_Threats:
         def validate_top_function(trace):
             top_function = trace["frames"][0]["function"]
             if any(top_function.endswith(top_function) for top_function in top_functions) or (
-                asm_config._iast_enabled and top_function.endswith("ast_function")
+                asm_config.iast_enabled and top_function.endswith("ast_function")
             ):
                 return True
             # some wrapper functions may be present
             assert top_function == "__call__"
             top_function = trace["frames"][1]["function"]
             return any(top_function.endswith(top_function) for top_function in top_functions) or (
-                asm_config._iast_enabled and top_function.endswith("ast_function")
+                asm_config.iast_enabled and top_function.endswith("ast_function")
             )
 
         with override_global_config(
@@ -1489,7 +1489,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
 
     def test_iast(self, interface, root_span, get_tag):
-        if interface.name == "fastapi" and asm_config._iast_enabled:
+        if interface.name == "fastapi" and asm_config.iast_enabled:
             raise pytest.xfail("fastapi does not fully support IAST for now")
         from ddtrace.ext import http
 
@@ -1499,7 +1499,7 @@ class Contrib_TestClass_For_Threats:
         assert self.status(response) == 200
         assert get_tag(http.STATUS_CODE) == "200"
         assert self.body(response).startswith("command_injection endpoint")
-        if asm_config._iast_enabled:
+        if asm_config.iast_enabled:
             assert get_tag("_dd.iast.json") is not None
         else:
             assert get_tag("_dd.iast.json") is None

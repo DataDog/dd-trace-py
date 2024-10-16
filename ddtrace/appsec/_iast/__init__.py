@@ -28,16 +28,13 @@ def wrapped_function(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
 import inspect
-import os
 import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
 
-from .._constants import IAST
 from ._overhead_control_engine import OverheadControl
-from ._utils import _is_iast_enabled
 
 
 log = get_logger(__name__)
@@ -53,7 +50,7 @@ def ddtrace_iast_flask_patch():
     and must be before the `app.run()` call. It also requires `DD_IAST_ENABLED` to be
     activated.
     """
-    if not _is_iast_enabled():
+    if not asm_config.iast_enabled:
         return
 
     from ._ast.ast_patching import astpatch_module
@@ -73,19 +70,19 @@ def ddtrace_iast_flask_patch():
 
 def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
-    if asbool(os.getenv(IAST.ENV, "false")):
-        from ddtrace.appsec._iast._utils import _is_python_version_supported
+    # DEV: These imports are here to avoid _ast.ast_patching import in the top level
+    # because they are slow and affect serverless startup time
+    from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+    from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
-        if _is_python_version_supported():
-            from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-            from ddtrace.appsec._iast._loader import _exec_iast_patched_module
-
-            log.debug("IAST enabled")
-            ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+    log.debug("IAST enabled")
+    ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
 
 def disable_iast_propagation():
     """Remove IAST AST patching from the ModuleWatchdog. Only for testing proposes"""
+    # DEV: These imports are here to avoid _ast.ast_patching import in the top level
+    # because they are slow and affect serverless startup time
     from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 

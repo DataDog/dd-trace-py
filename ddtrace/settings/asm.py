@@ -2,6 +2,7 @@ import os
 import os.path
 from platform import machine
 from platform import system
+import sys
 from typing import List
 from typing import Optional
 
@@ -59,12 +60,18 @@ def build_libddwaf_filename() -> str:
     return os.path.join(_DIRNAME, "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION)
 
 
+def _is_python_version_supported() -> bool:
+    # IAST supports Python versions 3.6 to 3.12
+    return (3, 6, 0) <= sys.version_info < (3, 13, 0)
+
+
 class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
     _asm_static_rule_file = Env.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
+    _iast_supported_python_version = _is_python_version_supported()
     _iast_enabled = Env.var(bool, IAST_ENV, default=False)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
@@ -198,6 +205,7 @@ class ASMConfig(Env):
         "_ep_max_stack_trace_depth",
         "_asm_config_keys",
         "_deduplication_enabled",
+        "_iast_supported_python_version",
     ]
     _iast_redaction_numeral_pattern = Env.var(
         str,
@@ -216,7 +224,6 @@ class ASMConfig(Env):
         if not self._asm_libddwaf_available:
             self._asm_enabled = False
             self._asm_can_be_enabled = False
-            self._iast_enabled = False
             self._api_security_enabled = False
 
     def reset(self):
@@ -234,6 +241,10 @@ class ASMConfig(Env):
                 return self._auto_user_instrumentation_rc_mode
             return self._auto_user_instrumentation_local_mode
         return LOGIN_EVENTS_MODE.DISABLED
+
+    @property
+    def iast_enabled(self) -> bool:
+        return self._iast_enabled and self._iast_supported_python_version
 
 
 config = ASMConfig()

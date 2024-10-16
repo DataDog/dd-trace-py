@@ -11,7 +11,6 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.contrib.trace_utils import _set_url_tag
@@ -68,7 +67,7 @@ def _on_set_http_meta(
     response_headers,
     response_cookies,
 ):
-    if _is_iast_enabled():
+    if asm_config.iast_enabled:
         from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 
         if response_cookies:
@@ -194,7 +193,7 @@ def _on_request_span_modifier(
 
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if _is_iast_enabled():
+    if asm_config.iast_enabled:
         try:
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -221,7 +220,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
 
 
 def _on_flask_patch(flask_version):
-    if _is_iast_enabled():
+    if asm_config.iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._patch import _patched_dictionary
         from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
@@ -284,7 +283,7 @@ def _on_flask_patch(flask_version):
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
-    if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):
+    if asm_config.iast_enabled and fn_args and isinstance(fn_args[0], first_arg_expected_type):
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -357,7 +356,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
 
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
-    if _is_iast_enabled():
+    if asm_config.iast_enabled:
         if not args:
             return wrapped(*args, **kwargs)
 
@@ -374,7 +373,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 
 
 def _on_django_patch():
-    if _is_iast_enabled():
+    if asm_config.iast_enabled:
         try:
             from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -447,7 +446,7 @@ def _patch_protobuf_class(cls):
 
 
 def _on_grpc_response(message):
-    if not _is_iast_enabled():
+    if not asm_config.iast_enabled:
         return
 
     msg_cls = type(message)
@@ -455,7 +454,7 @@ def _on_grpc_response(message):
 
 
 def _on_grpc_server_response(message):
-    if not _is_iast_enabled():
+    if not asm_config.iast_enabled:
         return
 
     from ddtrace.appsec._asm_request_context import set_waf_address
@@ -465,7 +464,7 @@ def _on_grpc_server_response(message):
 
 
 def _on_grpc_server_data(headers, request_message, method, metadata):
-    if not _is_iast_enabled():
+    if not asm_config.iast_enabled:
         return
 
     from ddtrace.appsec._asm_request_context import set_headers

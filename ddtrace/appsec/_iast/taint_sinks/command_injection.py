@@ -25,7 +25,7 @@ def get_version() -> str:
 
 
 def patch():
-    if not asm_config._iast_enabled:
+    if not asm_config.iast_enabled:
         return
 
     if not getattr(os, "_datadog_cmdi_patch", False):

@@ -27,7 +27,7 @@ def _aux_appsec_get_root_span(
     if cookies is None:
         cookies = {}
     tracer._asm_enabled = asm_config._asm_enabled
-    tracer._iast_enabled = asm_config._iast_enabled
+    tracer._iast_enabled = asm_config.iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     # Set cookies

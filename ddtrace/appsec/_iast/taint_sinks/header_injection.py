@@ -27,7 +27,7 @@ def get_version() -> Text:
 
 
 def patch():
-    if not asm_config._iast_enabled:
+    if not asm_config.iast_enabled:
         return
 
     if not set_and_check_module_is_patched("flask", default_attr="_datadog_header_injection_patch"):
@@ -69,7 +69,7 @@ def unpatch():
 
 
 def _iast_h(wrapped, instance, args, kwargs):
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         _iast_report_header_injection(args)
     return wrapped(*args, **kwargs)
 

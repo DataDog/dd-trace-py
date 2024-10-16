@@ -50,7 +50,7 @@ def patch():
     if hasattr(mysql.connector, "Connect"):
         mysql.connector.Connect = mysql.connector.connect
 
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
     mysql.connector._datadog_patch = True
 

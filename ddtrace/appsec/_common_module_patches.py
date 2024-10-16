@@ -35,7 +35,7 @@ def patch_common_modules():
     try_wrap_function_wrapper("_io", "StringIO.read", wrapped_read_F3E51D71B4EC16EF)
     try_wrap_function_wrapper("os", "system", wrapped_system_5542593D237084A7)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
 
 
@@ -51,7 +51,7 @@ def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs
     wrapper for _io.BytesIO and _io.StringIO read function
     """
     result = original_read_callable(*args, **kwargs)
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         from ddtrace.appsec._iast._taint_tracking import copy_and_shift_ranges_from_strings
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
@@ -68,7 +68,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     """
     wrapper for open file function
     """
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
 
         check_and_report_path_traversal(*args, **kwargs)
@@ -114,7 +114,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     """
     wrapper for open url function
     """
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         # TODO: IAST SSRF sink to be added
         pass
 
@@ -153,7 +153,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 
         _iast_report_ssrf(original_request_callable, *args, **kwargs)
@@ -193,7 +193,7 @@ def wrapped_system_5542593D237084A7(original_command_callable, instance, args, k
     """
     command = args[0] if args else kwargs.get("command", None)
     if command is not None:
-        if asm_config._iast_enabled:
+        if asm_config.iast_enabled:
             from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
 
             _iast_report_cmdi(command)

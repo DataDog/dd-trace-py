@@ -23,7 +23,7 @@ def patch():
     _w("sqlalchemy", "create_engine", _wrap_create_engine)
     _w("sqlalchemy.engine", "create_engine", _wrap_create_engine)
 
-    if asm_config._iast_enabled:
+    if asm_config.iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 
