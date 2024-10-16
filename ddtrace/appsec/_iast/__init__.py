@@ -30,6 +30,8 @@ def wrapped_function(wrapped, instance, args, kwargs):
 import inspect
 import sys
 
+from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 
@@ -70,19 +72,12 @@ def ddtrace_iast_flask_patch():
 
 def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
-    if _is_iast_enabled():
-        from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-        from ddtrace.appsec._iast._loader import _exec_iast_patched_module
-
-        log.debug("IAST enabled")
-        ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+    log.debug("IAST enabled")
+    ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
 
 def disable_iast_propagation():
     """Remove IAST AST patching from the ModuleWatchdog. Only for testing proposes"""
-    from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-    from ddtrace.appsec._iast._loader import _exec_iast_patched_module
-
     try:
         ModuleWatchdog.remove_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
     except KeyError:
