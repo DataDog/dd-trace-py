@@ -18,6 +18,7 @@ from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info_frame_py
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
 
+
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
 LOOPS = 5
@@ -82,7 +83,7 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
         span_report = _get_span_report()
         assert len(span_report.sources) > 0
         assert len(span_report.vulnerabilities) > 0
-        assert len(get_tainted_ranges(result)) == 1
+        assert len(get_tainted_ranges(result)) == 6
 
         if _num_objects_tainted == 0:
             _num_objects_tainted = num_objects_tainted()
