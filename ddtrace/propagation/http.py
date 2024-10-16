@@ -1095,6 +1095,7 @@ class HTTPPropagator(object):
 
     @staticmethod
     def extract(headers):
+        # type: (Dict[str,str]) -> Context
         """Extract a Context from HTTP headers into a new Context.
         For tracecontext propagation we extract tracestate headers for
         propagation even if another propagation style is specified before tracecontext,
@@ -1140,7 +1141,7 @@ class HTTPPropagator(object):
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
 
-            # baggage
+            # baggage headers are handled separately from the other propagation styles
             if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
                 baggage_context = _BaggageHeader._extract(normalized_headers)
                 if baggage_context._baggage != {}:
