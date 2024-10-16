@@ -22,7 +22,7 @@ def extract_span_pointers_from_successful_botocore_response(
 
     if endpoint_name == "dynamodb":
         return _extract_span_pointers_for_dynamodb_response(
-            dynamodb_primary_key_names_for_tables, operation_name, request_parameters
+            dynamodb_primary_key_names_for_tables, operation_name, request_parameters, response
         )
 
     return []
