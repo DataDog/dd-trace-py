@@ -187,6 +187,7 @@ class TelemetryWriter(PeriodicService):
         self._send_product_change_updates = False
 
         self.started = False
+        self._memfd_ref = None
 
         # Debug flag that enables payload debug mode.
         self._debug = os.environ.get("DD_TELEMETRY_DEBUG", "false").lower() in ("true", "1")
@@ -397,6 +398,7 @@ class TelemetryWriter(PeriodicService):
             return
         # memfd remains open for further use
         # it is collected at process deletion time
+        self._memfd_ref = f
 
     def _app_heartbeat_event(self):
         # type: () -> None
