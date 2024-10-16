@@ -1,7 +1,9 @@
-import itertools
 from io import BytesIO
 from io import StringIO
-from typing import Any, Iterable, List
+import itertools
+from typing import Any
+from typing import Iterable
+from typing import List
 from typing import Tuple
 
 from ddtrace.internal._unpatched import _threading as threading
@@ -12,6 +14,7 @@ from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_iast_debug_enabled
 from .._utils import _is_python_version_supported
+
 
 log = get_logger(__name__)
 

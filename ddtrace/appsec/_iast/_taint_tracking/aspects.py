@@ -1,3 +1,4 @@
+import _io
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
@@ -16,17 +17,9 @@ from typing import Text
 from typing import Tuple
 from typing import Union
 
-import _io
-
 from ddtrace.appsec._constants import IAST
 
-from .._taint_tracking import (
-    TagMappingMode,
-    taint_pyobject,
-    _taint_pyobject_base,
-    copy_ranges_to_iterable_with_strings,
-    copy_ranges_to_string,
-)
+from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
 from .._taint_tracking import _aspect_ospathbasename
 from .._taint_tracking import _aspect_ospathdirname
@@ -41,11 +34,14 @@ from .._taint_tracking import _aspect_split
 from .._taint_tracking import _aspect_splitlines
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
+from .._taint_tracking import _taint_pyobject_base
 from .._taint_tracking import are_all_text_all_ranges
 from .._taint_tracking import as_formatted_evidence
 from .._taint_tracking import common_replace
 from .._taint_tracking import copy_and_shift_ranges_from_strings
 from .._taint_tracking import copy_ranges_from_strings
+from .._taint_tracking import copy_ranges_to_iterable_with_strings
+from .._taint_tracking import copy_ranges_to_string
 from .._taint_tracking import get_ranges
 from .._taint_tracking import get_tainted_ranges
 from .._taint_tracking import iast_taint_log_error
@@ -54,8 +50,10 @@ from .._taint_tracking import new_pyobject_id
 from .._taint_tracking import parse_params
 from .._taint_tracking import set_ranges
 from .._taint_tracking import shift_taint_range
+from .._taint_tracking import taint_pyobject
 from .._taint_tracking import taint_pyobject_with_ranges
 from .._taint_tracking._native import aspects  # noqa: F401
+
 
 TEXT_TYPES = Union[str, bytes, bytearray]
 
