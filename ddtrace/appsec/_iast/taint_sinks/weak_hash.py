@@ -126,6 +126,8 @@ def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs:
         WeakHash.report(
             evidence_value=instance.name,
         )
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
@@ -147,6 +149,8 @@ def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
         WeakHash.report(
             evidence_value=args[0].lower(),
         )
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
@@ -156,4 +160,6 @@ def wrapped_function(wrapped: Callable, evidence: Text, instance: Any, args: Any
     WeakHash.report(
         evidence_value=evidence,
     )
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
