@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._iast_request_context import _iast_start_request
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
@@ -16,6 +17,8 @@ from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
+from tests.appsec.iast.conftest import _end_iast_context_and_oce
+from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
@@ -28,17 +31,6 @@ IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 werkzeug_version = version("werkzeug")
 flask_version = tuple([int(v) for v in version("flask").split(".")])
-
-
-@pytest.fixture(autouse=True)
-def reset_context():
-    with override_env({"DD_IAST_ENABLED": "True"}):
-        from ddtrace.appsec._iast._taint_tracking import create_context
-        from ddtrace.appsec._iast._taint_tracking import reset_context
-
-    yield
-    reset_context()
-    _ = create_context()
 
 
 class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
@@ -58,10 +50,21 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_header_injection()
             patch_json()
             oce.reconfigure()
+            _start_iast_context_and_oce()
 
             self.tracer._iast_enabled = True
             self.tracer._asm_enabled = True
             self.tracer.configure(api_version="v0.4")
+
+    def tearDown(self):
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ), override_env(IAST_ENV):
+            _end_iast_context_and_oce()
+        super(FlaskAppSecIASTEnabledTestCase, self).tearDown()
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
@@ -343,6 +346,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             return request.query_string, 200
 
+        class MockSpan:
+            _trace_id_64bits = 17577308072598193742
+
+        _end_iast_context_and_oce()
         with override_global_config(
             dict(
                 _iast_enabled=True,
@@ -350,11 +357,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             )
         ), override_env(IAST_ENV_SAMPLING_0):
             oce.reconfigure()
-
+            _iast_start_request(MockSpan())
             resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
+
             assert root_span.get_metric(IAST.ENABLED) == 0.0
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")

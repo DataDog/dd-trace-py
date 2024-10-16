@@ -1,6 +1,7 @@
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
+import itertools
 from re import Match
 from re import Pattern
 from types import BuiltinFunctionType
@@ -965,9 +966,7 @@ def re_findall_aspect(
     return result
 
 
-def re_finditer_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
+def re_finditer_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Iterator:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
@@ -978,27 +977,29 @@ def re_finditer_aspect(
     self = args[0]
     args = args[(flag_added_args or 1) :]
     result = orig_function(*args, **kwargs)
-
-    if not isinstance(self, (Pattern, ModuleType)):
-        # This is not the sub we're looking for
-        return result
-    elif isinstance(self, ModuleType):
-        if self.__name__ != "re" or self.__package__ not in ("", "re"):
+    try:
+        if not isinstance(self, (Pattern, ModuleType)):
+            # This is not the sub we're looking for
             return result
-        # In this case, the first argument is the pattern
-        # which we don't need to check for tainted ranges
-        args = args[1:]
+        elif isinstance(self, ModuleType):
+            if self.__name__ != "re" or self.__package__ not in ("", "re"):
+                return result
+            # In this case, the first argument is the pattern
+            # which we don't need to check for tainted ranges
+            args = args[1:]
 
-    elif not isinstance(result, Iterator):
-        return result
+        elif not isinstance(result, Iterator):
+            return result
 
-    if len(args) >= 1:
-        string = args[0]
-        if is_pyobject_tainted(string):
-            ranges = get_ranges(string)
-            for elem in result:
-                taint_pyobject_with_ranges(elem, ranges)
-
+        if len(args) >= 1:
+            string = args[0]
+            if is_pyobject_tainted(string):
+                ranges = get_ranges(string)
+                result, result_backup = itertools.tee(result)
+                for elem in result_backup:
+                    taint_pyobject_with_ranges(elem, ranges)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. re_finditer_aspect. {}".format(e))
     return result
 
 

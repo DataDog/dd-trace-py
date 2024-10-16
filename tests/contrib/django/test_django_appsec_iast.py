@@ -24,14 +24,11 @@ TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
 
 
 @pytest.fixture(autouse=True)
-def reset_context():
-    with override_env({IAST.ENV: "True"}):
-        from ddtrace.appsec._iast._taint_tracking import create_context
-        from ddtrace.appsec._iast._taint_tracking import reset_context
-
-        _ = create_context()
+def iast_context():
+    with override_env(
+        {IAST.ENV: "True", "DD_IAST_REQUEST_SAMPLING": "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
+    ):
         yield
-        reset_context()
 
 
 # The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid

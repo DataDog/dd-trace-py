@@ -1,13 +1,23 @@
+from copy import deepcopy
+import itertools
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Set
+from typing import Union
+from typing import cast
 
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _standard_hashing_function
 from ddtrace.internal.logger import get_logger
 
+
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
 
 log = get_logger(__name__)
 
@@ -23,19 +33,47 @@ _DynamoDBItemPrimaryKeyValue = Dict[_DynamoDBItemTypeTag, str]  # must be length
 _DynamoDBItemPrimaryKey = Dict[_DynamoDBItemFieldName, _DynamoDBItemPrimaryKeyValue]
 
 
+class _DynamoDBPutRequest(TypedDict):
+    Item: _DynamoDBItem
+
+
+class _DynamoDBPutRequestWriteRequest(TypedDict):
+    PutRequest: _DynamoDBPutRequest
+
+
+class _DynamoDBDeleteRequest(TypedDict):
+    Key: _DynamoDBItemPrimaryKey
+
+
+class _DynamoDBDeleteRequestWriteRequest(TypedDict):
+    DeleteRequest: _DynamoDBDeleteRequest
+
+
+_DynamoDBWriteRequest = Union[_DynamoDBPutRequestWriteRequest, _DynamoDBDeleteRequestWriteRequest]
+
+
 def _extract_span_pointers_for_dynamodb_response(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     operation_name: str,
     request_parameters: Dict[str, Any],
+    response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
     if operation_name == "PutItem":
         return _extract_span_pointers_for_dynamodb_putitem_response(
             dynamodb_primary_key_names_for_tables, request_parameters
         )
 
-    if operation_name == "UpdateItem":
-        return _extract_span_pointers_for_dynamodb_updateitem_response(
+    if operation_name in ("UpdateItem", "DeleteItem"):
+        return _extract_span_pointers_for_dynamodb_keyed_operation_response(
+            operation_name,
             request_parameters,
+        )
+
+    if operation_name == "BatchWriteItem":
+        return _extract_span_pointers_for_dynamodb_batchwriteitem_response(
+            dynamodb_primary_key_names_for_tables,
+            request_parameters,
+            response,
         )
 
     return []
@@ -67,7 +105,8 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
         return []
 
 
-def _extract_span_pointers_for_dynamodb_updateitem_response(
+def _extract_span_pointers_for_dynamodb_keyed_operation_response(
+    operation_name: str,
     request_parmeters: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
     try:
@@ -84,10 +123,78 @@ def _extract_span_pointers_for_dynamodb_updateitem_response(
 
     except Exception as e:
         log.warning(
-            "failed to generate DynamoDB.UpdateItem span pointer: %s",
+            "failed to generate DynamoDB.%s span pointer: %s",
+            operation_name,
             str(e),
         )
         return []
+
+
+def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    request_parameters: Dict[str, Any],
+    response: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
+    try:
+        requested_items = request_parameters["RequestItems"]
+        unprocessed_items = response.get("UnprocessedItems", {})
+
+        processed_items = _identify_dynamodb_batch_write_item_processed_items(requested_items, unprocessed_items)
+
+        return list(
+            itertools.chain.from_iterable(
+                [
+                    _aws_dynamodb_item_span_pointer_description(
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        table_name=table_name,
+                        primary_key=_aws_dynamodb_item_primary_key_from_write_request(
+                            dynamodb_primary_key_names_for_tables, table_name, write_request
+                        ),
+                    )
+                    for write_request in processed_items_for_table
+                ]
+                for table_name, processed_items_for_table in processed_items.items()
+            )
+        )
+
+    except Exception as e:
+        log.warning(
+            "failed to generate DynamoDB.BatchWriteItem span pointer: %s",
+            str(e),
+        )
+        return []
+
+
+def _identify_dynamodb_batch_write_item_processed_items(
+    requested_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
+    unprocessed_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
+) -> Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]:
+    processed_items = {}
+
+    if not all(table_name in requested_items for table_name in unprocessed_items):
+        raise ValueError("unprocessed items include tables not in the requested items")
+
+    for table_name, requested_write_requests in requested_items.items():
+        if table_name not in unprocessed_items:
+            processed_items[table_name] = deepcopy(requested_write_requests)
+
+        else:
+            if not all(
+                unprocessed_write_request in requested_write_requests
+                for unprocessed_write_request in unprocessed_items[table_name]
+            ):
+                raise ValueError("unprocessed write requests include items not in the requested write requests")
+
+            these_processed_items = [
+                deepcopy(processed_write_request)
+                for processed_write_request in requested_write_requests
+                if processed_write_request not in unprocessed_items[table_name]
+            ]
+            if these_processed_items:
+                # no need to include them if they are all unprocessed
+                processed_items[table_name] = these_processed_items
+
+    return processed_items
 
 
 def _aws_dynamodb_item_primary_key_from_item(
@@ -103,6 +210,39 @@ def _aws_dynamodb_item_primary_key_from_item(
         )
         for primary_key_field_name in primary_key_field_names
     }
+
+
+def _aws_dynamodb_item_primary_key_from_write_request(
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    table_name: _DynamoDBTableName,
+    write_request: _DynamoDBWriteRequest,
+) -> _DynamoDBItemPrimaryKey:
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_WriteRequest.html
+
+    if len(write_request) != 1:
+        raise ValueError(f"unexpected number of write request fields: {len(write_request)}")
+
+    if "PutRequest" in write_request:
+        # Unfortunately mypy doesn't properly see the if statement above as a
+        # type-narrowing from _DynamoDBWriteRequest to
+        # _DynamoDBPutRequestWriteRequest, so we help it out ourselves.
+        write_request = cast(_DynamoDBPutRequestWriteRequest, write_request)
+
+        return _aws_dynamodb_item_primary_key_from_item(
+            dynamodb_primary_key_names_for_tables[table_name],
+            write_request["PutRequest"]["Item"],
+        )
+
+    elif "DeleteRequest" in write_request:
+        # Unfortunately mypy doesn't properly see the if statement above as a
+        # type-narrowing from _DynamoDBWriteRequest to
+        # _DynamoDBDeleteRequestWriteRequest, so we help it out ourselves.
+        write_request = cast(_DynamoDBDeleteRequestWriteRequest, write_request)
+
+        return write_request["DeleteRequest"]["Key"]
+
+    else:
+        raise ValueError(f"unexpected write request structure: {''.join(sorted(write_request.keys()))}")
 
 
 def _aws_dynamodb_item_span_pointer_description(
