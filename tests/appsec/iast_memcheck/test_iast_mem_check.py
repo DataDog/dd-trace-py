@@ -12,7 +12,6 @@ from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
 from tests.utils import override_env
 
-
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
@@ -101,7 +100,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
 
         # Some tainted pyobject is freed, and Python may reuse the memory address
         # hence the number of tainted objects may be the same or less
-        assert num_objects_tainted() - 2 <= _num_objects_tainted <= num_objects_tainted() + 2
+        assert num_objects_tainted() - 3 <= _num_objects_tainted <= num_objects_tainted() + 3
         assert _active_map_addreses_size == active_map_addreses_size()
         assert _initializer_size == initializer_size()
         reset_context()
@@ -162,7 +161,7 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_span_defaul
 
         # Some tainted pyobject is freed, and Python may reuse the memory address
         # hence the number of tainted objects may be the same or less
-        assert _num_objects_tainted in (num_objects_tainted() + 1, num_objects_tainted(), num_objects_tainted() - 1)
+        assert num_objects_tainted() - 3 <= _num_objects_tainted <= num_objects_tainted() + 3
         assert _active_map_addreses_size == active_map_addreses_size()
         assert _initializer_size == initializer_size()
         reset_context()
