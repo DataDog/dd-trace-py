@@ -29,7 +29,7 @@ from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 
 # Debug mode from the tracer will do the same here, so only need to do this otherwise.
-if config.logs_injection:
+if config._logs_injection:
     _configure_log_injection()
 
 

@@ -54,7 +54,7 @@ class PackageForTesting:
         import_name=None,
         import_module_to_validate=None,
         test_propagation=False,
-        fixme_propagation_fails=False,
+        fixme_propagation_fails=None,
         expect_no_change=False,
     ):
         self.name = name
@@ -469,6 +469,15 @@ PACKAGES = [
         "And the Easter of that year is: 2004-04-11",
         import_name="dateutil",
         import_module_to_validate="dateutil.relativedelta",
+    ),
+    PackageForTesting(
+        "python-multipart",
+        "0.0.5",  # this version validates APPSEC-55240 issue, don't upgrade it
+        "multipart/form-data; boundary=d8b5635eb590e078a608e083351288a0",
+        "d8b5635eb590e078a608e083351288a0",
+        "",
+        import_module_to_validate="multipart.multipart",
+        test_propagation=True,
     ),
     PackageForTesting(
         "pytz",
@@ -954,7 +963,7 @@ def test_flask_packages_patched(package, venv):
 
 @pytest.mark.parametrize(
     "package",
-    [package for package in PACKAGES if package.test_propagation],
+    [package for package in PACKAGES if package.test_propagation and SKIP_FUNCTION(package)],
     ids=lambda package: package.name,
 )
 def test_flask_packages_propagation(package, venv, printer):
@@ -986,7 +995,7 @@ def test_packages_not_patched_import(package, venv):
         pytest.skip(reason)
         return
 
-    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_name]
+    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_module_to_validate]
 
     # 1. Try with the specified version
     package.install(venv)
