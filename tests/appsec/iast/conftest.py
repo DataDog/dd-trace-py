@@ -130,7 +130,7 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
         yield
     else:
-        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
             yield
 
         log_messages = [record.message for record in caplog.get_records("call")]

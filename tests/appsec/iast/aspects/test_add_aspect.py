@@ -17,6 +17,7 @@ from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 @pytest.mark.parametrize(
@@ -320,7 +321,7 @@ def test_propagate_ranges_with_no_context(caplog):
     )
 
     reset_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result_2 = add_aspect(result, "another_string")
 
     create_context()
