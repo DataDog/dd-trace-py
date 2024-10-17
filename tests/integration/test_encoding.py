@@ -63,3 +63,22 @@ class TestTraceAcceptedByAgent:
             tracer.shutdown()
         log.warning.assert_not_called()
         log.error.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "span_links_kwargs",
+        [
+            {"trace_id": 12345, "span_id": 67890},
+        ],
+    )
+    def test_trace_with_links_accepted_by_agent(self, span_links_kwargs):
+        """Links should not break things."""
+        tracer = Tracer()
+        with mock.patch("ddtrace.internal.writer.writer.log") as log:
+            with tracer.trace("root", service="test_encoding", resource="test_resource") as root:
+                root.set_link(**span_links_kwargs)
+                for _ in range(10):
+                    with tracer.trace("child") as child:
+                        child.set_link(**span_links_kwargs)
+            tracer.shutdown()
+        log.warning.assert_not_called()
+        log.error.assert_not_called()

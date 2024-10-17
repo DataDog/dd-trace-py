@@ -91,7 +91,7 @@ Sampler::one_time_setup()
 }
 
 void
-Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
+Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
 {
     // Registering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
@@ -122,7 +122,7 @@ Sampler::register_thread(uintptr_t id, uint64_t native_id, const char* name)
 }
 
 void
-Sampler::unregister_thread(uintptr_t id)
+Sampler::unregister_thread(uint64_t id)
 {
     // unregistering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
@@ -148,4 +148,35 @@ Sampler::stop()
     // Modifying the thread sequence number will cause the sampling thread to exit when it completes
     // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
     ++thread_seq_num;
+}
+
+void
+Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
+{
+    // Holds echion's global lock
+    std::lock_guard<std::mutex> guard(thread_info_map_lock);
+    if (thread_info_map.find(thread_id) != thread_info_map.end()) {
+        thread_info_map.find(thread_id)->second->asyncio_loop =
+          (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
+    }
+}
+
+void
+Sampler::init_asyncio(PyObject* _asyncio_current_tasks,
+                      PyObject* _asyncio_scheduled_tasks,
+                      PyObject* _asyncio_eager_tasks)
+{
+    asyncio_current_tasks = _asyncio_current_tasks;
+    asyncio_scheduled_tasks = _asyncio_scheduled_tasks;
+    asyncio_eager_tasks = _asyncio_eager_tasks;
+    if (asyncio_eager_tasks == Py_None) {
+        asyncio_eager_tasks = NULL;
+    }
+}
+
+void
+Sampler::link_tasks(PyObject* parent, PyObject* child)
+{
+    std::lock_guard<std::mutex> guard(task_link_map_lock);
+    task_link_map[child] = parent;
 }

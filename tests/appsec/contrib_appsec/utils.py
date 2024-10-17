@@ -115,17 +115,32 @@ class Contrib_TestClass_For_Threats:
             assert get_tag("http.status_code") == "200"
             assert self.headers(response)["content-type"] == "text/html; charset=utf-8"
 
-    def test_simple_attack(self, interface: Interface, root_span):
+    def test_simple_attack(self, interface: Interface, root_span, get_tag):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/.git?q=1")
             assert response.status_code == 404
             triggers = get_triggers(root_span())
             assert triggers is not None, "no appsec struct in root span"
-            assert core.get_item("http.request.uri", span=root_span()) == "http://localhost:8000/.git?q=1"
-            assert core.get_item("http.request.headers", span=root_span()) is not None
-            query = dict(core.get_item("http.request.query", span=root_span()))
+            assert root_span()._get_ctx_item("http.request.uri") == "http://localhost:8000/.git?q=1"
+            assert root_span()._get_ctx_item("http.request.headers") is not None
+            assert root_span()._get_ctx_item("http.request.method") == "GET"
+            query = dict(root_span()._get_ctx_item("http.request.query"))
             assert query == {"q": "1"} or query == {"q": ["1"]}
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("user_agent", "priority"),
+        [("Mozilla/5.0", False), ("Arachni/v1.5.1", True), ("dd-test-scanner-log-block", True)],
+    )
+    def test_priority(self, interface: Interface, root_span, get_tag, asm_enabled, user_agent, priority):
+        """Check that we only set manual keep for traces with appsec events."""
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers={"User-Agent": user_agent})
+            assert response.status_code == (403 if user_agent == "dd-test-scanner-log-block" and asm_enabled else 200)
+        span_priority = root_span()._span.context.sampling_priority
+        assert (span_priority == 2) if asm_enabled and priority else (span_priority < 2)
 
     def test_querystrings(self, interface: Interface, root_span):
         with override_global_config(dict(_asm_enabled=True)):
@@ -296,7 +311,7 @@ class Contrib_TestClass_For_Threats:
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled, client_ip_header=env_var)):
+        with override_global_config(dict(_asm_enabled=asm_enabled, _client_ip_header=env_var)):
             self.update_tracer(interface)
             response = interface.client.get("/", headers=headers)
             assert self.status(response) == 200
@@ -1249,7 +1264,7 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             assert self.body(response) == "awesome_test"
             # only two global callbacks are expected for API Security and Nested Events
-            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 2
+            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 1
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
@@ -1476,6 +1491,7 @@ class Contrib_TestClass_For_Threats:
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
             raise pytest.xfail("fastapi does not fully support IAST for now")
+
         from ddtrace.ext import http
 
         url = "/rasp/command_injection/?cmd=ls"

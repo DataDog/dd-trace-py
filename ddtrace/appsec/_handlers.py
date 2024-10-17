@@ -7,15 +7,22 @@ from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 import xmltodict
 
+from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._iast._iast_request_context import in_iast_context
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.trace_utils import _get_request_header_user_agent
+from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
 
@@ -89,10 +96,7 @@ def _on_set_http_meta(
         ]
         for k, v in addresses:
             if v is not None:
-                set_waf_address(k, v, span)
-
-
-core.on("set_http_meta_for_asm", _on_set_http_meta)
+                set_waf_address(k, v)
 
 
 # ASGI
@@ -191,15 +195,11 @@ def _on_request_span_modifier(
 
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if _is_iast_enabled():
+    if _is_iast_enabled() and in_iast_context():
         try:
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import origin_to_str
             from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-            from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-            if not AppSecIastSpanProcessor.is_span_analyzed():
-                return
 
             instance.query_string = taint_pyobject(
                 pyobject=instance.query_string,
@@ -278,10 +278,6 @@ def _on_flask_patch(flask_version):
             _set_metric_iast_instrumented_source(OriginType.QUERY)
 
 
-def _on_flask_blocked_request(_):
-    core.set_item(HTTP_REQUEST_BLOCKED, True)
-
-
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
@@ -291,9 +287,8 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
         from ddtrace.appsec._iast._taint_utils import taint_structure
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
-        if not AppSecIastSpanProcessor.is_span_analyzed():
+        if not in_iast_context():
             return
 
         http_req = fn_args[0]
@@ -358,16 +353,9 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
 
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
-    if _is_iast_enabled():
-        if not args:
-            return wrapped(*args, **kwargs)
-
-        from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
+    if _is_iast_enabled() and args and in_iast_context():
+        from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_utils import taint_structure
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-        if not AppSecIastSpanProcessor.is_span_analyzed():
-            return wrapped(*args, **kwargs)
 
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
@@ -482,19 +470,131 @@ def _on_grpc_server_data(headers, request_message, method, metadata):
         set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, dict(metadata))
 
 
+def _wsgi_make_block_content(ctx, construct_url):
+    middleware = ctx.get_item("middleware")
+    req_span = ctx.get_item("req_span")
+    headers = ctx.get_item("headers")
+    environ = ctx.get_item("environ")
+    if req_span is None:
+        raise ValueError("request span not found")
+    block_config = get_blocked()
+    desired_type = block_config.get("type", "auto")
+    ctype = None
+    if desired_type == "none":
+        content = ""
+        resp_headers = [("content-type", "text/plain; charset=utf-8"), ("location", block_config.get("location", ""))]
+    else:
+        ctype = block_config.get("content-type", "application/json")
+        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+        resp_headers = [("content-type", ctype)]
+    status = block_config.get("status_code", 403)
+    try:
+        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+        if ctype is not None:
+            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
+        req_span.set_tag_str(http.STATUS_CODE, str(status))
+        url = construct_url(environ)
+        query_string = environ.get("QUERY_STRING")
+        _set_url_tag(middleware._config, req_span, url, query_string)
+        if query_string and middleware._config.trace_query_string:
+            req_span.set_tag_str(http.QUERY_STRING, query_string)
+        method = environ.get("REQUEST_METHOD")
+        if method:
+            req_span.set_tag_str(http.METHOD, method)
+        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
+        if user_agent:
+            req_span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+    resp_headers.append(("Content-Length", str(len(content))))
+    return status, resp_headers, content
+
+
+def _asgi_make_block_content(ctx, url):
+    middleware = ctx.get_item("middleware")
+    req_span = ctx.get_item("req_span")
+    headers = ctx.get_item("headers")
+    environ = ctx.get_item("environ")
+    if req_span is None:
+        raise ValueError("request span not found")
+    block_config = get_blocked()
+    desired_type = block_config.get("type", "auto")
+    ctype = None
+    if desired_type == "none":
+        content = ""
+        resp_headers = [
+            (b"content-type", b"text/plain; charset=utf-8"),
+            (b"location", block_config.get("location", "").encode()),
+        ]
+    else:
+        ctype = block_config.get("content-type", "application/json")
+        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+        # ctype = f"{ctype}; charset=utf-8" can be considered at some point
+        resp_headers = [(b"content-type", ctype.encode())]
+    status = block_config.get("status_code", 403)
+    try:
+        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+        if ctype is not None:
+            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
+        req_span.set_tag_str(http.STATUS_CODE, str(status))
+        query_string = environ.get("QUERY_STRING")
+        _set_url_tag(middleware.integration_config, req_span, url, query_string)
+        if query_string and middleware._config.trace_query_string:
+            req_span.set_tag_str(http.QUERY_STRING, query_string)
+        method = environ.get("REQUEST_METHOD")
+        if method:
+            req_span.set_tag_str(http.METHOD, method)
+        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
+        if user_agent:
+            req_span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+    resp_headers.append((b"Content-Length", str(len(content)).encode()))
+    return status, resp_headers, content
+
+
+def _on_flask_blocked_request(span):
+    core.set_item(HTTP_REQUEST_BLOCKED, True)
+    span.set_tag_str(http.STATUS_CODE, "403")
+    request = core.get_item("flask_request")
+    try:
+        base_url = getattr(request, "base_url", None)
+        query_string = getattr(request, "query_string", None)
+        if base_url and query_string:
+            _set_url_tag(core.get_item("flask_config"), span, base_url, query_string)
+        if query_string and core.get_item("flask_config").trace_query_string:
+            span.set_tag_str(http.QUERY_STRING, query_string)
+        if request.method is not None:
+            span.set_tag_str(http.METHOD, request.method)
+        user_agent = _get_request_header_user_agent(request.headers)
+        if user_agent:
+            span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+
+def _on_start_response_blocked(ctx, flask_config, response_headers, status):
+    trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
+
+
 def listen():
+    core.on("set_http_meta_for_asm", _on_set_http_meta)
     core.on("flask.request_call_modifier", _on_request_span_modifier, "request_body")
     core.on("flask.request_init", _on_request_init)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
 
+    core.on("flask.start_response.blocked", _on_start_response_blocked)
 
-core.on("django.func.wrapped", _on_django_func_wrapped)
-core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
-core.on("django.patch", _on_django_patch)
-core.on("flask.patch", _on_flask_patch)
+    core.on("django.func.wrapped", _on_django_func_wrapped)
+    core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
+    core.on("django.patch", _on_django_patch)
+    core.on("flask.patch", _on_flask_patch)
 
-core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
+    core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
 
-core.on("grpc.client.response.message", _on_grpc_response)
-core.on("grpc.server.response.message", _on_grpc_server_response)
-core.on("grpc.server.data", _on_grpc_server_data)
+    core.on("grpc.client.response.message", _on_grpc_response)
+    core.on("grpc.server.response.message", _on_grpc_server_response)
+    core.on("grpc.server.data", _on_grpc_server_data)
+
+    core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
+    core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
