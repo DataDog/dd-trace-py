@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.11.8
+
+
+### Bug Fixes
+
+- tracing(flare): Resolves the issue where tracer flares would not be generated if unexpected types were received in the AGENT_CONFIG remote configuration product.
+
+
+---
+
 ## 2.14.3
 
 
