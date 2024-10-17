@@ -14,7 +14,6 @@ from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._constants import SESSION_ID
 
 
@@ -95,12 +94,6 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
     if nearest_llmobs_ancestor:
         return str(nearest_llmobs_ancestor.span_id)
     return span.get_tag(PROPAGATED_PARENT_ID_KEY)
-
-
-def _is_evaluations_span_event(span_event) -> bool:
-    if span_event.get("ml_app") and span_event["ml_app"].startswith(RAGAS_ML_APP_PREFIX):
-        return True
-    return False
 
 
 def _get_span_name(span: Span) -> str:

@@ -32,10 +32,15 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     The `ml_app` spans generated from traces of ragas will be named as `ragas-<ml_app>`
     or `ragas` if `ml_app` is not present in the span event.
     """
-    ml_app_of_span_event = span_event.get("ml_app")
-    if not ml_app_of_span_event:
+    tags = span_event.get("tags", [])
+    ml_app = None
+    for tag in tags:
+        if tag.startswith("ml_app:"):
+            ml_app = tag.split(":")[1]
+            break
+    if not ml_app:
         return RAGAS_ML_APP_PREFIX
-    return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app_of_span_event)
+    return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
 
 
 def _get_faithfulness_instance():

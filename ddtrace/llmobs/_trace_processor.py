@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import ddtrace
 from ddtrace import Span
@@ -36,7 +37,6 @@ from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
-from ddtrace.llmobs._utils import _is_evaluations_span_event
 
 
 log = get_logger(__name__)
@@ -63,18 +63,19 @@ class LLMObsTraceProcessor(TraceProcessor):
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
         is_llm_span = span.get_tag(SPAN_KIND) == "llm"
+        is_ragas_integration_span = False
         try:
-            span_event = self._llmobs_span_event(span)
+            span_event, is_ragas_integration_span = self._llmobs_span_event(span)
             self._span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
         finally:
-            if not span_event or not is_llm_span or _is_evaluations_span_event(span_event):
+            if not span_event or not is_llm_span or is_ragas_integration_span:
                 return
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
-    def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
+    def _llmobs_span_event(self, span: Span) -> Tuple[Dict[str, Any], bool]:
         """Span event object structure."""
         span_kind = span._meta.pop(SPAN_KIND)
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
@@ -136,7 +137,6 @@ class LLMObsTraceProcessor(TraceProcessor):
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
-            "ml_app": ml_app,
         }
         session_id = _get_session_id(span)
         if session_id is not None:
@@ -147,7 +147,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
         )
 
-        return llmobs_span_event
+        return llmobs_span_event, is_ragas_integration_span
 
     @staticmethod
     def _llmobs_tags(
