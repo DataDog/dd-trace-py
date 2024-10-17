@@ -24,7 +24,7 @@ _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
 
 @pytest.fixture(autouse=True)
 def iast_c_context():
-    yield from iast_context(dict(DD_IAST_ENABLED="true"))
+    yield from iast_context(dict(DD_IAST_ENABLED="true"), asm_enabled=True)
 
 
 def _check_test_range(value):
@@ -151,8 +151,8 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
         with mock.patch.dict("sys.modules", {"google._upb._message": None}), override_env({"DD_IAST_ENABLED": "True"}):
             from collections import UserDict
 
-            from ddtrace.appsec._handlers import _custom_protobuf_getattribute
-            from ddtrace.appsec._handlers import _patch_protobuf_class
+            from ddtrace.appsec._iast._handlers import _custom_protobuf_getattribute
+            from ddtrace.appsec._iast._handlers import _patch_protobuf_class
 
             class MyUserDict(UserDict):
                 pass
@@ -164,9 +164,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
             _custom_protobuf_getattribute(mutable_mapping, "data")
 
     def test_address_server_data(self):
-        with override_env({"DD_IAST_ENABLED": "True"}), override_global_config(
-            dict(_asm_enabled=True)
-        ), override_config("grpc", dict(service_name="myclientsvc")), override_config(
+        with override_config("grpc", dict(service_name="myclientsvc")), override_config(
             "grpc_server", dict(service_name="myserversvc")
         ):
             with mock.patch("ddtrace.appsec._asm_request_context.set_waf_address") as mock_set_waf_addr:

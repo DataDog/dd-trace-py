@@ -4,7 +4,7 @@ from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._handlers import _on_django_patch
+from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
 from ddtrace.appsec._iast._metrics import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._iast._metrics import TELEMETRY_MANDATORY_VERBOSITY

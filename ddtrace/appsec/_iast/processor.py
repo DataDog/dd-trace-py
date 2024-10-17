@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
-from ddtrace.appsec import load_appsec
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 
@@ -16,9 +15,9 @@ log = get_logger(__name__)
 @dataclass(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
     def __post_init__(self) -> None:
-        from ddtrace.appsec import load_appsec
+        from ddtrace.appsec import load_iast
 
-        load_appsec()
+        load_iast()
 
     def on_span_start(self, span: Span):
         if span.span_type != SpanTypes.WEB:
@@ -37,6 +36,3 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
         _iast_end_request(span=span)
-
-
-load_appsec()

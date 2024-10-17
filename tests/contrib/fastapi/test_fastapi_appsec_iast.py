@@ -16,7 +16,7 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
+from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
