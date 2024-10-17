@@ -38,7 +38,7 @@ with tracer.trace("test") as span:
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events(subprocess=True)
     events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
 
     assert {
@@ -95,7 +95,7 @@ telemetry_writer._app_started()
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events(subprocess=True)
     events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
     assert {
         "name": "trace_sample_rate",
@@ -173,7 +173,7 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events(subprocess=True)
     events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
     assert {"name": "trace_sample_rate", "value": "1.0", "origin": "default"} in events_trace_sample_rate
 
@@ -200,7 +200,7 @@ assert span.get_metric("_dd.rule_psr") == 0.5
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events(subprocess=True)
     events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
     assert {"name": "trace_sample_rate", "value": "0.5", "origin": "remote_config"} in events_trace_sample_rate
 
@@ -237,7 +237,7 @@ assert span.get_tag("http.request.headers.used-with-default") == "defaultname"
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events(subprocess=True)
     events_trace_header_tags = _get_telemetry_config_items(events, "trace_header_tags")
     assert {
         "name": "trace_header_tags",
