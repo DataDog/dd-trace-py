@@ -4,6 +4,7 @@ from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._handlers import _on_django_patch
+from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
 from ddtrace.appsec._iast._metrics import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
@@ -162,8 +163,9 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
 
 def test_metric_request_tainted(no_request_sampling, telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
-        dict(_iast_enabled=True)
+        dict(_iast_enabled=True, _iast_request_sampling=100.0)
     ):
+        oce.reconfigure()
         tracer = DummyTracer(iast_enabled=True)
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
