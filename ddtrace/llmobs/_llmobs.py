@@ -64,6 +64,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "bedrock": "botocore",
     "openai": "openai",
     "langchain": "langchain",
+    "google_generativeai": "google_generativeai",
 }
 
 
