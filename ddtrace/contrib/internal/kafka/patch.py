@@ -171,12 +171,12 @@ def traced_produce(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
-        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
-
         cluster_id = _get_cluster_id(instance)
         core.set_item("kafka_cluster_id", cluster_id)
         if cluster_id:
             span.set_tag_str(kafkax.CLUSTER_ID, cluster_id)
+
+        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
