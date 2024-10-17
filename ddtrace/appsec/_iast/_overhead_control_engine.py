@@ -14,6 +14,7 @@ from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -21,7 +22,7 @@ log = get_logger(__name__)
 
 def get_request_sampling_value() -> float:
     # Percentage of requests analyzed by IAST (default: 30%)
-    return float(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30.0))
+    return float(asm_config._iast_request_sampling)
 
 
 MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
