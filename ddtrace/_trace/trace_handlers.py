@@ -483,14 +483,15 @@ def _on_botocore_patched_api_call_success(ctx, response):
 
     set_botocore_response_metadata_tags(span, response)
 
-    for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
-        dynamodb_primary_key_names_for_tables=config.botocore.dynamodb_primary_key_names_for_tables,
-        endpoint_name=ctx.get_item("endpoint_name"),
-        operation_name=ctx.get_item("operation"),
-        request_parameters=ctx.get_item("params"),
-        response=response,
-    ):
-        _set_span_pointer(span, span_pointer_description)
+    if config.botocore.add_span_pointers:
+        for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
+            dynamodb_primary_key_names_for_tables=config.botocore.dynamodb_primary_key_names_for_tables,
+            endpoint_name=ctx.get_item("endpoint_name"),
+            operation_name=ctx.get_item("operation"),
+            request_parameters=ctx.get_item("params"),
+            response=response,
+        ):
+            _set_span_pointer(span, span_pointer_description)
 
 
 def _on_botocore_trace_context_injection_prepared(
