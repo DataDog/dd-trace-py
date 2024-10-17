@@ -151,7 +151,7 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
             service=trace_utils.int_service(None, self.integration_config),
             pin=pin,
-        ) as ctx, ctx.get_item("call") as span:
+        ) as ctx, ctx.span as span:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
             ctx.set_item("req_span", span)
 
