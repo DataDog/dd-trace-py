@@ -65,8 +65,8 @@ class ASMConfig(Env):
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
     _iast_enabled = Env.var(bool, IAST.ENV, default=False)
-    _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False)
-    _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False)
+    _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False, private=True)
+    _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
