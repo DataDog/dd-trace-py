@@ -53,6 +53,8 @@ DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
+BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+
 CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.20.0"
@@ -347,6 +349,9 @@ class CMakeBuild(build_ext):
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
+
+        if BUILD_PROFILING_NATIVE_TESTS:
+            cmake_args += ["-DBUILD_TESTING=ON"]
 
         # If it's been enabled, also propagate sccache to the CMake build.  We have to manually set the default CC/CXX
         # compilers here, because otherwise the way we wrap sccache will conflict with the CMake wrappers
