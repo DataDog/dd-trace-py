@@ -404,7 +404,7 @@ class LLMObs(Service):
     @classmethod
     def llm(
         cls,
-        model_name: str,
+        model_name: Optional[str] = None,
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -414,6 +414,7 @@ class LLMObs(Service):
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
         :param str model_name: The name of the invoked LLM.
+                               If not provided, a default value of "custom_model" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -425,12 +426,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if not model_name:
-            log.warning("LLMObs.llm() missing model_name")
+        if model_name is None:
+            model_name = "custom_model"
         if model_provider is None:
             model_provider = "custom"
-        if model_name is None:
-            model_name = "unknown"
         return cls._instance._start_span(
             "llm", name, model_name=model_name, model_provider=model_provider, session_id=session_id, ml_app=ml_app
         )
@@ -504,7 +503,7 @@ class LLMObs(Service):
     @classmethod
     def embedding(
         cls,
-        model_name: str,
+        model_name: Optional[str] = None,
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -514,6 +513,7 @@ class LLMObs(Service):
         Trace a call to an embedding model or function to create an embedding.
 
         :param str model_name: The name of the invoked embedding model.
+                               If not provided, a default value of "custom_model" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "embedding" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -525,12 +525,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if not model_name:
-            log.warning("LLMObs.embedding() missing model_name")
+        if model_name is None:
+            model_name = "custom_model"
         if model_provider is None:
             model_provider = "custom"
-        if model_name is None:
-            model_name = "unknown"
         return cls._instance._start_span(
             "embedding",
             name,
