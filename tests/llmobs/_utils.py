@@ -224,6 +224,7 @@ def _expected_llmobs_eval_metric_event(
     score_value=None,
     numerical_value=None,
     tags=None,
+    metadata=None,
 ):
     eval_metric_event = {
         "span_id": span_id,
@@ -250,7 +251,8 @@ def _expected_llmobs_eval_metric_event(
 
     if ml_app is not None:
         eval_metric_event["ml_app"] = ml_app
-
+    if metadata is not None:
+        eval_metric_event["metadata"] = metadata
     return eval_metric_event
 
 
