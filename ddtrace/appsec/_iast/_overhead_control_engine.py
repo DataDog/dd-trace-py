@@ -22,7 +22,7 @@ log = get_logger(__name__)
 
 def get_request_sampling_value() -> float:
     # Percentage of requests analyzed by IAST (default: 30%)
-    return asm_config._iast_request_sampling
+    return float(asm_config._iast_request_sampling)
 
 
 MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))

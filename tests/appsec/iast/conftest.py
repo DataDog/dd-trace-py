@@ -53,7 +53,7 @@ def _end_iast_context_and_oce(span=None):
     oce.release_request()
 
 
-def iast_context(env, request_sampling="100", deduplication=False):
+def iast_context(env, request_sampling=100.0, deduplication=False):
     try:
         from ddtrace.contrib.langchain.patch import patch as langchain_patch
         from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
