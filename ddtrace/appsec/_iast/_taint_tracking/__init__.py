@@ -1,6 +1,8 @@
 from io import BytesIO
 from io import StringIO
+import itertools
 from typing import Any
+from typing import Sequence
 from typing import Tuple
 
 from ddtrace.internal._unpatched import _threading as threading
@@ -62,7 +64,6 @@ if _is_python_version_supported():
 
     new_pyobject_id = ops.new_pyobject_id
     set_ranges_from_values = ops.set_ranges_from_values
-
 
 __all__ = [
     "OriginType",
@@ -140,7 +141,7 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
     return False
 
 
-def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
+def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     if not is_iast_request_enabled():
         return pyobject
 
@@ -166,10 +167,22 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
     try:
         pyobject_newid = set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
-        _set_metric_iast_executed_source(source_origin)
         return pyobject_newid
     except ValueError as e:
         log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e, exc_info=True)
+    return pyobject
+
+
+def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
+    try:
+        if source_origin is None:
+            source_origin = OriginType.PARAMETER
+
+        res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin)
+        _set_metric_iast_executed_source(source_origin)
+        return res
+    except ValueError as e:
+        log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e)
     return pyobject
 
 
@@ -244,3 +257,36 @@ if _is_iast_debug_enabled():
         return
 
     threading.settrace(trace_calls_and_returns)
+
+
+def copy_ranges_to_string(s: str, ranges: Sequence[TaintRange]) -> str:
+    for r in ranges:
+        if s in r.source.value:
+            s = _taint_pyobject_base(
+                pyobject=s, source_name=r.source.name, source_value=r.source.value, source_origin=r.source.origin
+            )
+            break
+        else:
+            # no total match found, maybe partial match, just take the first one
+            s = _taint_pyobject_base(
+                pyobject=s,
+                source_name=ranges[0].source.name,
+                source_value=ranges[0].source.value,
+                source_origin=ranges[0].source.origin,
+            )
+    return s
+
+
+# Given a list of ranges, try to match them with the iterable and return a new iterable with a new range applied that
+# matched the original one Source. If no range matches, take the Source from the first one.
+def copy_ranges_to_iterable_with_strings(iterable: Sequence[str], ranges: Sequence[TaintRange]) -> Sequence[str]:
+    iterable_type = type(iterable)
+
+    new_result = []
+    # do this so it doesn't consume a potential generator
+    items, items_backup = itertools.tee(iterable)
+    for i in items_backup:
+        i = copy_ranges_to_string(i, ranges)
+        new_result.append(i)
+
+    return iterable_type(new_result)  # type: ignore[call-arg]
