@@ -2619,6 +2619,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    name="langchain_v0_langchain_community_v0",
                     pkgs={
                         "vcrpy": "==6.0.1",
                         "langchain": "==0.0.192",
@@ -2630,6 +2631,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
+                    name="langchain_v1_langchain_community_v0",
                     pkgs={
                         "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
@@ -2638,10 +2640,12 @@ venv = Venv(
                         "langchain-openai": "==0.1.6",
                         "langchain-anthropic": "==0.1.11",
                         "langchain-pinecone": "==0.1.0",
+                        "langchain-qdrant": "==0.1.4",
                         "langchain-aws": "==0.1.3",
                         "langchain-cohere": "==0.1.4",
                         "openai": "==1.30.3",
                         "pinecone-client": latest,
+                        "qdrant-client": latest,
                         "botocore": "==1.34.51",
                         "boto3": "==1.34.51",
                         "cohere": "==5.4.0",
@@ -2651,17 +2655,23 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
+                    name="langchain_v2_langchain_community_v2",
                     pkgs={
                         "vcrpy": "==5.1.0",
                         "langchain": "==0.2.0",
+                        "langchain-community": "==0.2.0",
                         "langchain-core": "==0.2.0",
                         "langchain-openai": latest,
                         "langchain-pinecone": latest,
+                        "langchain-qdrant": latest,
+                        "langchain-milvus": latest,
                         "langchain-anthropic": latest,
                         "langchain-aws": latest,
                         "langchain-cohere": latest,
                         "openai": latest,
                         "pinecone-client": latest,
+                        "qdrant-client": latest,
+                        "pymilvus": latest,
                         "botocore": "==1.34.51",
                         "boto3": "==1.34.51",
                         "cohere": latest,
@@ -2670,6 +2680,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.9"),
                 ),
                 Venv(
+                    name="langchain_latest",
                     pkgs={
                         "vcrpy": "==5.1.0",
                         "langchain": latest,
@@ -2677,11 +2688,15 @@ venv = Venv(
                         "langchain-core": latest,
                         "langchain-openai": latest,
                         "langchain-pinecone": latest,
+                        "langchain-qdrant": latest,
+                        "langchain-milvus": latest,
                         "langchain-anthropic": latest,
                         "langchain-aws": latest,
                         "langchain-cohere": latest,
                         "openai": latest,
                         "pinecone-client": latest,
+                        "qdrant-client": latest,
+                        "pymilvus": latest,
                         "botocore": latest,
                         "cohere": latest,
                     },
