@@ -209,6 +209,34 @@ def pydantic_object(tag, string_tainted):
     return m
 
 
+def re_module(string_tainted):
+    re_slash = re.compile(r"[_.][a-zA-Z]*")
+    string21 = re_slash.findall(string_tainted)[0]  # 1 propagation: '_HIROOT
+
+    re_match = re.compile(r"(\w+)", re.IGNORECASE)
+    re_match_result = re_match.match(string21)  # 1 propagation: 'HIROOT
+
+    string22_1 = re_match_result[0]  # 1 propagation: '_HIROOT
+    string22_2 = re_match_result.groups()[0]  # 1 propagation: '_HIROOT
+    string22 = string22_1 + string22_2  # 1 propagation: _HIROOT_HIROOT
+    tmp_str = "DDDD"
+    string23 = tmp_str + string22  # 1 propagation: 'DDDD_HIROOT_HIROOT
+
+    re_match = re.compile(r"(\w+)(_+)(\w+)", re.IGNORECASE)
+    re_match_result = re_match.search(string23)
+    string24 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDD_HIROOT
+
+    re_split = re.compile(r"[_.][a-zA-Z]*", re.IGNORECASE)
+    re_split_result = re_split.split(string24)
+
+    # TODO(avara1986): DDDD_ is constant but we're tainting all re results
+    string25 = re_split_result[0] + " EEE"
+    string26 = re.sub(r" EEE", "_OOO", string25, re.IGNORECASE)
+    string27 = re.subn(r"OOO", "III", string26, re.IGNORECASE)[0]
+
+    return string27
+
+
 def sink_points(string_tainted):
     try:
         # Path traversal vulnerability
@@ -249,7 +277,9 @@ async def test_doit():
 
     string3 = add_variants(string2, string1)
 
-    string4 = "-".join([string3, string3, string3])
+    string3_1 = string3[:150]
+
+    string4 = "-".join([string3_1, string3_1, string3_1])
     string4_2 = string1
     string4_2 += " " + " ".join(string_ for string_ in [string4, string4, string4])
     string4_2 += " " + " ".join(string_ for string_ in [string1, string1, string1])
@@ -267,7 +297,9 @@ async def test_doit():
     string8_5 = format_variants(string8_4, string1)
     await anyio.to_thread.run_sync(modulo_exceptions, string8_5)
 
-    string9 = "notainted#{}".format(string8_5)
+    string8_6 = string8_5[65:150]
+
+    string9 = "notainted#{}".format(string8_6)
     string9_2 = f"{string9}_notainted"
     string9_3 = f"{string9_2:=^30}_notainted"
     string10 = "nottainted\n" + string9_3
@@ -279,7 +311,6 @@ async def test_doit():
         string13_3, string13_5, string13_5 = string13_2.split(" ")
     except ValueError:
         pass
-
     sink_points(string13_2)
 
     # os path propagation
@@ -290,36 +321,14 @@ async def test_doit():
     string18 = os.path.splitext(string17 + ".jpg")[0]
     string19 = os.path.normcase(string18)
     string20 = os.path.splitdrive(string19)[1]
-
-    re_slash = re.compile(r"[_.][a-zA-Z]*")
-    string21 = re_slash.findall(string20)[0]  # 1 propagation: '_HIROOT
-
-    re_match = re.compile(r"(\w+)", re.IGNORECASE)
-    re_match_result = re_match.match(string21)  # 1 propagation: 'HIROOT
-
-    string22_1 = re_match_result[0]  # 1 propagation: '_HIROOT
-    string22_2 = re_match_result.groups()[0]  # 1 propagation: '_HIROOT
-    string22 = string22_1 + string22_2  # 1 propagation: _HIROOT_HIROOT
-    tmp_str = "DDDD"
-    string23 = tmp_str + string22  # 1 propagation: 'DDDD_HIROOT_HIROOT
-
-    re_match = re.compile(r"(\w+)(_+)(\w+)", re.IGNORECASE)
-    re_match_result = re_match.search(string23)
-    string24 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDD_HIROOT
-
-    re_split = re.compile(r"[_.][a-zA-Z]*", re.IGNORECASE)
-    re_split_result = re_split.split(string24)
-
-    # TODO(avara1986): DDDD_ is constant but we're tainting all re results
-    string25 = re_split_result[0] + " EEE"
-    string26 = re.sub(r" EEE", "_OOO", string25, re.IGNORECASE)
-    string27 = re.subn(r"OOO", "III", string26, re.IGNORECASE)[0]
-
+    # TODO(avara1986): Re.Match contains errors. APPSEC-55239
+    # string21 = re_module(string20)
+    string21 = string20
     tmp_str2 = "_extend"
-    string27 += tmp_str2
+    string21 += tmp_str2
 
     # TODO(avara1986): pydantic is in the DENY_LIST, remove from it and uncomment this lines
-    # result = await anyio.to_thread.run_sync(functools.partial(pydantic_object, string_tainted=string27), string27)
-    # result = pydantic_object(tag="test2", string_tainted=string27)
+    # result = await anyio.to_thread.run_sync(functools.partial(pydantic_object, string_tainted=string21), string21)
+    # result = pydantic_object(tag="test2", string_tainted=string21)
     # return result.tuple_strings[0]
-    return string27
+    return string21

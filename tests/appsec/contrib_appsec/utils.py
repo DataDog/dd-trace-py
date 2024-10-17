@@ -1491,6 +1491,7 @@ class Contrib_TestClass_For_Threats:
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
             raise pytest.xfail("fastapi does not fully support IAST for now")
+
         from ddtrace.ext import http
 
         url = "/rasp/command_injection/?cmd=ls"

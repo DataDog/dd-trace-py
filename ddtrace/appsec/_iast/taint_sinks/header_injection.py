@@ -8,6 +8,7 @@ from ddtrace.settings.asm import config as asm_config
 from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
+from .._iast_request_context import is_iast_request_enabled
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
@@ -15,7 +16,6 @@ from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper
 from ..constants import HEADER_NAME_VALUE_SEPARATOR
 from ..constants import VULN_HEADER_INJECTION
-from ..processor import AppSecIastSpanProcessor
 from ._base import VulnerabilityBase
 
 
@@ -71,6 +71,8 @@ def unpatch():
 def _iast_h(wrapped, instance, args, kwargs):
     if asm_config._iast_enabled:
         _iast_report_header_injection(args)
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
@@ -101,7 +103,7 @@ def _iast_report_header_injection(headers_args) -> None:
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, HeaderInjection.vulnerability_type)
     _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
 
-    if AppSecIastSpanProcessor.is_span_analyzed() and HeaderInjection.has_quota():
+    if is_iast_request_enabled() and HeaderInjection.has_quota():
         if is_pyobject_tainted(header_name) or is_pyobject_tainted(header_value):
             header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
             HeaderInjection.report(evidence_value=header_evidence)
