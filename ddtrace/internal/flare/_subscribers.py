@@ -36,7 +36,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             return flare_age >= stale_age
         return False
 
-    def _get_data_from_connector_and_exec(self):
+    def _get_data_from_connector_and_exec(self, _=None):
         if self.has_stale_flare():
             log.info(
                 "Tracer flare request started at %s is stale, reverting "
@@ -67,6 +67,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                         str(self.current_request_start),
                     )
                     continue
+                log.info("Preparing tracer flare")
                 if _prepare_tracer_flare(self.flare, configs):
                     self.current_request_start = datetime.now()
             elif product_type == "AGENT_TASK":
@@ -75,7 +76,8 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 if self.current_request_start is None:
                     log.warning("There is no tracer flare job to complete. Skipping new request.")
                     continue
+                log.info("Generating and sending tracer flare")
                 if _generate_tracer_flare(self.flare, configs):
                     self.current_request_start = None
             else:
-                log.debug("Received unexpected product type for tracer flare: {}", product_type)
+                log.warning("Received unexpected product type for tracer flare: {}", product_type)
