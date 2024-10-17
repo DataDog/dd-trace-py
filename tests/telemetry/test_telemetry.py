@@ -270,9 +270,6 @@ patch(raise_errors=False, sqlite3=True)
 
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
-import logging
-logging.basicConfig()
-
 import flask
 f = flask.Flask("hi")
 
