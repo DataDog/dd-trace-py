@@ -495,6 +495,7 @@ class AgentWriter(HTTPWriter):
             _headers.update(headers)
         self._container_info = container.get_container_info()
         container.update_headers_with_container_info(_headers, self._container_info)
+        container.update_header_with_external_info(_headers)
 
         _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
