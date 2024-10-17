@@ -3,11 +3,20 @@ import threading
 import time
 
 import opentelemetry
+from opentelemetry.baggage import get_baggage
+from opentelemetry.baggage import remove_baggage
+from opentelemetry.baggage import set_baggage
 import pytest
 
 import ddtrace
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+
+# from ddtrace.contrib.pytest.plugin import ddspan
+from tests.opentelemetry.flask_app import otel  # noqa: F401
+
+
+# from tests.utils import flaky
 
 
 @pytest.mark.snapshot
@@ -129,3 +138,43 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(2)
         await coro(3)
         await coro(4)
+
+
+def test_otel_baggage(oteltracer):
+    """testing otel baggage set and get"""
+    with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
+        context = set_baggage("key1", "value1")
+        context = set_baggage("key2", "value2", context)
+        assert get_baggage("key1", context) == "value1"
+        assert get_baggage("key2", context) == "value2"
+
+
+def test_otel_baggage_set(oteltracer):
+    from ddtrace import tracer
+
+    with oteltracer.start_as_current_span("otel-baggage-set") as span:  # noqa: F841
+        context = set_baggage("key1", "value1")  # noqa: F841
+        ddcontext = tracer.current_trace_context()
+        assert ddcontext._baggage == {"key1": "value1"}
+        assert ddcontext.get_baggage_item("key1") == "value1"
+
+
+def test_otel_baggage_get(oteltracer):
+    from ddtrace import tracer
+
+    with oteltracer.start_as_current_span("otel-baggage-get") as span:  # noqa: F841
+        with ddtrace.tracer.trace("otel-baggage-get-ddtrace") as ddspan:  # noqa: F841
+            ddcontext = tracer.current_trace_context()
+            ddcontext.set_baggage_item("key1", "value1")
+            assert get_baggage("key1") == "value1"
+
+
+def test_otel_baggage_remove(oteltracer):
+    from ddtrace import tracer
+
+    with oteltracer.start_as_current_span("otel-baggage-remove") as span:  # noqa: F841
+        context = set_baggage("key1", "value1")
+        context = set_baggage("key2", "value2", context)
+        context = remove_baggage("key1", context)
+        ddcontext = tracer.current_trace_context()
+        assert ddcontext.get_baggage_item("key1") is None
