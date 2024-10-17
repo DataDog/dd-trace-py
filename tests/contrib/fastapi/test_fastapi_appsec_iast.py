@@ -21,11 +21,8 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.utils import override_env
 from tests.utils import override_global_config
 
-
-IAST_ENV = {IAST.ENV_REQUEST_SAMPLING: "100"}
 
 TEST_FILE_PATH = "tests/contrib/fastapi/test_fastapi_appsec_iast.py"
 
@@ -87,7 +84,7 @@ def test_query_param_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -122,7 +119,7 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -158,7 +155,7 @@ def test_header_value_source_typing_param(fastapi_application, client, tracer, t
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         _aux_appsec_prepare_tracer(tracer)
 
         resp = client.get(
@@ -192,7 +189,7 @@ def test_cookies_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -228,7 +225,7 @@ def test_cookies_source_typing_param(fastapi_application, client, tracer, test_s
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -262,7 +259,7 @@ def test_path_param_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -296,7 +293,7 @@ def test_path_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -331,7 +328,7 @@ def test_path_body_receive_source(fastapi_application, client, tracer, test_span
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post(
@@ -367,7 +364,7 @@ def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post(
@@ -404,7 +401,7 @@ def test_path_body_body_source_formdata_latest(fastapi_application, client, trac
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post("/index.html", data={"path": "/var/log"})
@@ -435,7 +432,7 @@ def test_path_body_body_source_formdata_90(fastapi_application, client, tracer, 
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post("/index.html", data={"path": "/var/log"})
@@ -475,7 +472,7 @@ def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spa
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post(
@@ -504,7 +501,7 @@ def test_path_body_body_upload(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         tmp = io.BytesIO(b"upload this")
@@ -536,7 +533,7 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         # label test_fastapi_sqli_path_parameter
         cur.execute(add_aspect("SELECT 1 FROM ", param_str))
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(

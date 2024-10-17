@@ -21,13 +21,10 @@ from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
-IAST_ENV = {IAST.ENV_REQUEST_SAMPLING: "100"}
-IAST_ENV_SAMPLING_0 = {IAST.ENV_REQUEST_SAMPLING: "0"}
 
 werkzeug_version = version("werkzeug")
 flask_version = tuple([int(v) for v in version("flask").split(".")])
@@ -44,7 +41,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=True,
                 _deduplication_enabled=False,
             )
-        ), override_env(IAST_ENV):
+        ):
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             patch_sqlite_sqli()
             patch_header_injection()
@@ -62,7 +59,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=True,
                 _deduplication_enabled=False,
             )
-        ), override_env(IAST_ENV):
+        ):
             _end_iast_context_and_oce()
         super(FlaskAppSecIASTEnabledTestCase, self).tearDown()
 
@@ -350,12 +347,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             _trace_id_64bits = 17577308072598193742
 
         _end_iast_context_and_oce()
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-                _deduplication_enabled=False,
-            )
-        ), override_env(IAST_ENV_SAMPLING_0):
+        with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=0.0)):
             oce.reconfigure()
             _iast_start_request(MockSpan())
             resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
@@ -386,8 +378,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
                 _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
             )
-        ), override_env(IAST_ENV):
+        ):
             oce.reconfigure()
 
             if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
@@ -1286,8 +1279,9 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=False,
+                _iast_request_sampling=100.0,
             )
-        ), override_env({IAST.ENV_REQUEST_SAMPLING: "100"}):
+        ):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
             self.tracer._iast_enabled = False
             self.tracer._asm_enabled = False

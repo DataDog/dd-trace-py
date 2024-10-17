@@ -2,7 +2,6 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._utils import _is_python_version_supported
 from ddtrace.contrib.dbapi import TracedCursor
@@ -11,11 +10,7 @@ from ddtrace.settings.integration import IntegrationConfig
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.utils import TracerTestCase
-from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-IAST_ENV = {"DD_IAST_ENABLED": "True", IAST.ENV_REQUEST_SAMPLING: "100"}
 
 
 class TestTracedCursor(TracerTestCase):
@@ -25,19 +20,17 @@ class TestTracedCursor(TracerTestCase):
             dict(
                 _iast_enabled=True,
                 _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
             )
-        ), override_env(IAST_ENV):
+        ):
             _start_iast_context_and_oce()
         self.cursor = mock.Mock()
         self.cursor.execute.__name__ = "execute"
 
     def tearDown(self):
         with override_global_config(
-            dict(
-                _iast_enabled=True,
-                _deduplication_enabled=False,
-            )
-        ), override_env(IAST_ENV):
+            dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)
+        ):
             _end_iast_context_and_oce()
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")

@@ -110,7 +110,7 @@ def _aux_appsec_get_root_span_with_exception(
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_weak_hash(client, test_spans, tracer):
-    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True, _deduplication_enabled=False)):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)):
         oce.reconfigure()
         patch_iast({"weak_hash": True})
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
@@ -157,15 +157,15 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 @pytest.mark.parametrize(
     "sampling",
     [
-        "0",
-        "100",
-        "50",
+        0.0,
+        100.0,
+        50.0,
     ],
 )
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_view_with_exception(client, test_spans, tracer, payload, content_type, deduplication, sampling):
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(
-        {IAST.ENV_REQUEST_SAMPLING: sampling}
+    with override_global_config(
+        dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
     ):
         response = _aux_appsec_get_root_span_with_exception(
             client,
@@ -591,16 +591,16 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
 @pytest.mark.parametrize(
     "sampling",
     [
-        "0",
-        "100",
-        "50",
+        0.0,
+        100.0,
+        50.0,
     ],
 )
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, content_type, deduplication, sampling):
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(
-        {IAST.ENV_REQUEST_SAMPLING: sampling}
+    with override_global_config(
+        dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
     ):
         root_span, response = _aux_appsec_get_root_span(
             client,

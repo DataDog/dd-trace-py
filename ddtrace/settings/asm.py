@@ -65,6 +65,7 @@ class ASMConfig(Env):
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
     _iast_enabled = Env.var(bool, IAST.ENV, default=False)
+    _iast_request_sampling = Env.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
@@ -176,6 +177,7 @@ class ASMConfig(Env):
         "_asm_obfuscation_parameter_value_regexp",
         "_appsec_standalone_enabled",
         "_iast_enabled",
+        "_iast_request_sampling",
         "_iast_debug",
         "_iast_propagation_debug",
         "_ep_enabled",
