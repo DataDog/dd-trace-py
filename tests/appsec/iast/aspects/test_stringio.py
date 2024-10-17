@@ -17,8 +17,7 @@ def test_stringio_aspect_read():
             source_origin=OriginType.PARAMETER,
         )
         sio = stringio_aspect(None, 0, tainted)
-        val = sio.read()  # devuelve rango
+        val = sio.read()
         assert is_pyobject_tainted(val)
-        ranges = get_tainted_ranges(val)  # devuelve rango
+        ranges = get_tainted_ranges(val)
         assert len(ranges) == 1
-        print("JJJ ranges: %s" % str(ranges))
