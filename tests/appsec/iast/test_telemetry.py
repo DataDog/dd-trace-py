@@ -2,7 +2,6 @@ import pytest
 
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._handlers import _on_django_patch
 from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
@@ -188,7 +187,7 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
 
 @pytest.mark.skip_iast_check_logs
 def test_log_metric(telemetry_writer):
-    with override_env({IAST.ENV_DEBUG: "true"}):
+    with override_global_config(dict(_iast_debug=True)):
         _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
 
     list_metrics_logs = list(telemetry_writer._logs)
@@ -199,7 +198,7 @@ def test_log_metric(telemetry_writer):
 
 @pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled(telemetry_writer):
-    with override_env({IAST.ENV_DEBUG: "false"}):
+    with override_global_config(dict(_iast_debug=False)):
         _set_iast_error_metric("test_log_metric_debug_disabled raises")
 
         list_metrics_logs = list(telemetry_writer._logs)
@@ -210,7 +209,7 @@ def test_log_metric_debug_disabled(telemetry_writer):
 
 @pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled_deduplication(telemetry_writer):
-    with override_env({IAST.ENV_DEBUG: "false"}):
+    with override_global_config(dict(_iast_debug=False)):
         for i in range(10):
             _set_iast_error_metric("test_log_metric_debug_disabled_deduplication raises")
 
@@ -222,7 +221,7 @@ def test_log_metric_debug_disabled_deduplication(telemetry_writer):
 
 @pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled_deduplication_different_messages(telemetry_writer):
-    with override_env({IAST.ENV_DEBUG: "false"}):
+    with override_global_config(dict(_iast_debug=False)):
         for i in range(10):
             _set_iast_error_metric(f"test_format_key_error_and_no_log_metric raises {i}")
 
@@ -233,7 +232,7 @@ def test_log_metric_debug_disabled_deduplication_different_messages(telemetry_wr
 
 
 def test_django_instrumented_metrics(telemetry_writer):
-    with override_global_config(dict(_iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True, _iast_debug=True)):
         _on_django_patch()
 
     metrics_result = telemetry_writer._namespace._metrics_data
