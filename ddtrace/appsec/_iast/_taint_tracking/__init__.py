@@ -141,7 +141,6 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
     return False
 
 
-
 def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     if not is_iast_request_enabled():
         return pyobject
