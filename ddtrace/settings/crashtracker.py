@@ -3,6 +3,7 @@ import typing as t
 from envier import En
 
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings._core import report_telemetry as _report_telemetry
 
 
 resolver_default = "full"
@@ -111,3 +112,4 @@ class CrashtrackingConfig(En):
 
 
 config = CrashtrackingConfig()
+_report_telemetry(config)

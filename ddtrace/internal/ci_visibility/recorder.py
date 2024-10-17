@@ -783,8 +783,8 @@ class CIVisibility(Service):
             log.debug("Not setting test session name because no CIVisibilityEventClient is active")
             return
 
-        if ddconfig.test_session_name:
-            test_session_name = ddconfig.test_session_name
+        if ddconfig._test_session_name:
+            test_session_name = ddconfig._test_session_name
         else:
             job_name = instance._tags.get(ci.JOB_NAME)
             test_session_name = f"{job_name}-{test_command}" if job_name else test_command

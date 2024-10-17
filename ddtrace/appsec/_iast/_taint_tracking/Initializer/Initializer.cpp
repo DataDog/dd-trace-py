@@ -5,7 +5,7 @@
 using namespace std;
 using namespace pybind11::literals;
 
-thread_local struct ThreadContextCache_
+struct ThreadContextCache_
 {
     TaintRangeMapTypePtr tx_map = nullptr;
 } ThreadContextCache;
