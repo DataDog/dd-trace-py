@@ -1,0 +1,8 @@
+.testrunner:
+  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:7a2e802af76051f82d698919d2837eff18dbb48e
+  # DEV: we have a larger pool of amd64 runners, prefer that over arm64
+  tags: [ "arch:amd64" ]
+  timeout: 20m
+  before_script:
+    - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
+    - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
