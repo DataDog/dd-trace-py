@@ -6,7 +6,6 @@ from ddtrace.appsec import load_appsec
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 
-from ._iast_request_context import _iast_end_request
 from ._iast_request_context import _iast_start_request
 
 
@@ -36,7 +35,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         """
         if span.span_type != SpanTypes.WEB:
             return
-        _iast_end_request(span=span)
+        # _iast_end_request(span=span)
 
 
 load_appsec()

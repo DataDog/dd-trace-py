@@ -17,8 +17,6 @@ from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
-from tests.appsec.iast.conftest import _end_iast_context_and_oce
-from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_global_config
@@ -40,28 +38,18 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
                 _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
             )
         ):
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             patch_sqlite_sqli()
             patch_header_injection()
             patch_json()
-            oce.reconfigure()
-            _start_iast_context_and_oce()
 
             self.tracer._iast_enabled = True
             self.tracer._asm_enabled = True
             self.tracer.configure(api_version="v0.4")
-
-    def tearDown(self):
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-                _deduplication_enabled=False,
-            )
-        ):
-            _end_iast_context_and_oce()
-        super(FlaskAppSecIASTEnabledTestCase, self).tearDown()
+            oce.reconfigure()
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
@@ -315,6 +303,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
             )
         ):
             resp = self.client.post("/sqli/hello/1000/?select%20from%20table", data={"name": "test"})
@@ -346,7 +336,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         class MockSpan:
             _trace_id_64bits = 17577308072598193742
 
-        _end_iast_context_and_oce()
         with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=0.0)):
             oce.reconfigure()
             _iast_start_request(MockSpan())
@@ -556,6 +545,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 json_data = json.loads(request.data)
             value = json_data.get("json_body")
             assert value == "master"
+
             assert is_pyobject_tainted(value)
             query = add_aspect(add_aspect("SELECT tbl_name FROM sqlite_", value), " WHERE tbl_name LIKE 'password'")
             # label test_flask_request_body
@@ -567,6 +557,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
                 _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
             )
         ):
             resp = self.client.post(
@@ -1162,6 +1153,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
                 _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
             )
         ):
             resp = self.client.post("/no_http_only_cookie_empty/", data={"name": "test"})
@@ -1258,6 +1250,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
                 _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
             )
         ):
             resp = self.client.post("/cookie_secure/", data={"name": "test"})
