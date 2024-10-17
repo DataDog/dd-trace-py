@@ -27,16 +27,16 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._constants import TEMP_RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
-from ddtrace.llmobs._utils import _is_evaluations_span
+from ddtrace.llmobs._utils import _is_evaluations_span_event
 
 
 log = get_logger(__name__)
@@ -62,7 +62,6 @@ class LLMObsTraceProcessor(TraceProcessor):
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
-        is_evaluation_span = _is_evaluations_span(span)
         is_llm_span = span.get_tag(SPAN_KIND) == "llm"
         try:
             span_event = self._llmobs_span_event(span)
@@ -70,7 +69,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
         finally:
-            if not span_event or is_evaluation_span or not is_llm_span:
+            if not span_event or not is_llm_span or _is_evaluations_span_event(span_event):
                 return
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
@@ -119,8 +118,7 @@ class LLMObsTraceProcessor(TraceProcessor):
 
         is_ragas_integration_span = False
 
-        if ml_app.startswith(TEMP_RAGAS_ML_APP_PREFIX):
-            ml_app = ml_app.replace("_dd.", "")
+        if ml_app.startswith(RAGAS_ML_APP_PREFIX):
             is_ragas_integration_span = True
 
         span.set_tag_str(ML_APP, ml_app)
