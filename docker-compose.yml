@@ -70,6 +70,7 @@ services:
         - KAFKA_CFG_BROKER_ID=1
         - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
         - KAFKA_CFGOFFSETS_TOPIC_REPLICATION_FACTOR=1
+        - KAFKA_KRAFT_CLUSTER_ID=l2CkTNt1R_yAKe8I5S1f-w
     rediscluster:
         platform: linux/amd64
         image: grokzen/redis-cluster:6.2.0

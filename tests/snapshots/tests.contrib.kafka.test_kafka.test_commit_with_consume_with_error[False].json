@@ -49,6 +49,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65df90dd00000000",
       "component": "kafka",
+      "kafka.cluster_id": "l2CkTNt1R_yAKe8I5S1f-w",
       "kafka.message_key": "test_key",
       "kafka.tombstone": "False",
       "kafka.topic": "test_commit_with_consume_with_error_False",
