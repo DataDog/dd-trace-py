@@ -36,7 +36,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             return flare_age >= stale_age
         return False
 
-    def _get_data_from_connector_and_exec(self, test_tracer=None):
+    def _get_data_from_connector_and_exec(self, _=None):
         if self.has_stale_flare():
             log.info(
                 "Tracer flare request started at %s is stale, reverting "
