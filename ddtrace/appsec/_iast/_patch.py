@@ -8,6 +8,7 @@ from wrapt import FunctionWrapper
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
 
+from ._iast_request_context import is_iast_request_enabled
 from ._metrics import _set_metric_iast_instrumented_source
 from ._taint_utils import taint_structure
 from ._utils import _is_iast_enabled
@@ -47,14 +48,10 @@ def try_wrap_function_wrapper(module: Text, name: Text, wrapper: Callable):
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
 
-    if _is_iast_enabled():
+    if _is_iast_enabled() and is_iast_request_enabled():
         try:
             from ._taint_tracking import is_pyobject_tainted
             from ._taint_tracking import taint_pyobject
-            from .processor import AppSecIastSpanProcessor
-
-            if not AppSecIastSpanProcessor.is_span_analyzed():
-                return value
 
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
@@ -71,9 +68,8 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
     if _is_iast_enabled():
         from ._taint_tracking import taint_pyobject
-        from .processor import AppSecIastSpanProcessor
 
-        if not AppSecIastSpanProcessor.is_span_analyzed():
+        if not is_iast_request_enabled():
             for key, value in wrapped(*args, **kwargs):
                 yield key, value
         else:
@@ -95,29 +91,6 @@ def _patched_dictionary(origin_key, origin_value, original_func, instance, args,
     return taint_structure(result, origin_key, origin_value, override_pyobject_tainted=True)
 
 
-def _patched_fastapi_function(origin, original_func, instance, args, kwargs):
-    result = original_func(*args, **kwargs)
-
-    if _is_iast_enabled():
-        try:
-            from ._taint_tracking import is_pyobject_tainted
-            from .processor import AppSecIastSpanProcessor
-
-            if not AppSecIastSpanProcessor.is_span_analyzed():
-                return result
-
-            if not is_pyobject_tainted(result):
-                from ._taint_tracking import origin_to_str
-                from ._taint_tracking import taint_pyobject
-
-                return taint_pyobject(
-                    pyobject=result, source_name=origin_to_str(origin), source_value=result, source_origin=origin
-                )
-        except Exception:
-            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
-    return result
-
-
 def _on_iast_fastapi_patch():
     from ddtrace.appsec._iast._taint_tracking import OriginType
 
@@ -126,11 +99,6 @@ def _on_iast_fastapi_patch():
         "starlette.requests",
         "cookie_parser",
         functools.partial(_patched_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
-    )
-    try_wrap_function_wrapper(
-        "fastapi",
-        "Cookie",
-        functools.partial(_patched_fastapi_function, OriginType.COOKIE_NAME),
     )
     _set_metric_iast_instrumented_source(OriginType.COOKIE)
     _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
@@ -158,11 +126,6 @@ def _on_iast_fastapi_patch():
         "starlette.datastructures",
         "Headers.get",
         functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-    )
-    try_wrap_function_wrapper(
-        "fastapi",
-        "Header",
-        functools.partial(_patched_fastapi_function, OriginType.HEADER),
     )
     _set_metric_iast_instrumented_source(OriginType.HEADER)
 

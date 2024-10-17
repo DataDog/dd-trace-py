@@ -40,6 +40,8 @@ from .._taint_tracking import as_formatted_evidence
 from .._taint_tracking import common_replace
 from .._taint_tracking import copy_and_shift_ranges_from_strings
 from .._taint_tracking import copy_ranges_from_strings
+from .._taint_tracking import copy_ranges_to_iterable_with_strings
+from .._taint_tracking import copy_ranges_to_string
 from .._taint_tracking import get_ranges
 from .._taint_tracking import get_tainted_ranges
 from .._taint_tracking import iast_taint_log_error
@@ -943,25 +945,26 @@ def re_findall_aspect(
     args = args[(flag_added_args or 1) :]
     result = orig_function(*args, **kwargs)
 
-    if not isinstance(self, (Pattern, ModuleType)):
-        # This is not the sub we're looking for
-        return result
-    elif isinstance(self, ModuleType):
-        if self.__name__ != "re" or self.__package__ not in ("", "re"):
+    try:
+        if not isinstance(self, (Pattern, ModuleType)):
+            # This is not the sub we're looking for
             return result
-        # In this case, the first argument is the pattern
-        # which we don't need to check for tainted ranges
-        args = args[1:]
-    elif not isinstance(result, list) or not len(result):
-        return result
+        elif isinstance(self, ModuleType):
+            if self.__name__ != "re" or self.__package__ not in ("", "re"):
+                return result
+            # In this case, the first argument is the pattern
+            # which we don't need to check for tainted ranges
+            args = args[1:]
+        elif not isinstance(result, list) or not len(result):
+            return result
 
-    if len(args) >= 1:
-        string = args[0]
-        if is_pyobject_tainted(string):
-            for i in result:
-                if len(i):
-                    # Taint results
-                    copy_and_shift_ranges_from_strings(string, i, 0, len(i))
+        if len(args) >= 1:
+            string = args[0]
+            ranges = get_tainted_ranges(string)
+            if ranges:
+                result = copy_ranges_to_iterable_with_strings(result, ranges)
+    except Exception as e:
+        iast_taint_log_error("re_findall_aspect. {}".format(e))
 
     return result
 
@@ -977,27 +980,29 @@ def re_finditer_aspect(orig_function: Optional[Callable], flag_added_args: int, 
     self = args[0]
     args = args[(flag_added_args or 1) :]
     result = orig_function(*args, **kwargs)
-
-    if not isinstance(self, (Pattern, ModuleType)):
-        # This is not the sub we're looking for
-        return result
-    elif isinstance(self, ModuleType):
-        if self.__name__ != "re" or self.__package__ not in ("", "re"):
+    try:
+        if not isinstance(self, (Pattern, ModuleType)):
+            # This is not the sub we're looking for
             return result
-        # In this case, the first argument is the pattern
-        # which we don't need to check for tainted ranges
-        args = args[1:]
+        elif isinstance(self, ModuleType):
+            if self.__name__ != "re" or self.__package__ not in ("", "re"):
+                return result
+            # In this case, the first argument is the pattern
+            # which we don't need to check for tainted ranges
+            args = args[1:]
 
-    elif not isinstance(result, Iterator):
-        return result
+        elif not isinstance(result, Iterator):
+            return result
 
-    if len(args) >= 1:
-        string = args[0]
-        if is_pyobject_tainted(string):
-            ranges = get_ranges(string)
-            result, result_backup = itertools.tee(result)
-            for elem in result_backup:
-                taint_pyobject_with_ranges(elem, ranges)
+        if len(args) >= 1:
+            string = args[0]
+            if is_pyobject_tainted(string):
+                ranges = get_ranges(string)
+                result, result_backup = itertools.tee(result)
+                for elem in result_backup:
+                    taint_pyobject_with_ranges(elem, ranges)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. re_finditer_aspect. {}".format(e))
     return result
 
 
@@ -1169,11 +1174,11 @@ def re_groups_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
     if not result or not isinstance(self, Match) or not is_pyobject_tainted(self):
         return result
 
-    for group in result:
-        if group is not None:
-            copy_and_shift_ranges_from_strings(self, group, 0, len(group))
-
-    return result
+    try:
+        return copy_ranges_to_iterable_with_strings(result, get_ranges(self))
+    except Exception as e:
+        iast_taint_log_error("re_groups_aspect. {}".format(e))
+        return result
 
 
 def re_group_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
@@ -1191,12 +1196,13 @@ def re_group_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
     if not result or not isinstance(self, Match) or not is_pyobject_tainted(self):
         return result
 
-    if isinstance(result, tuple):
-        for group in result:
-            if group is not None:
-                copy_and_shift_ranges_from_strings(self, group, 0, len(group))
-    else:
-        copy_and_shift_ranges_from_strings(self, result, 0, len(result))
+    try:
+        if isinstance(result, tuple):
+            result = copy_ranges_to_iterable_with_strings(result, get_ranges(self))
+        else:
+            result = copy_ranges_to_string(result, get_ranges(self))
+    except Exception as e:
+        iast_taint_log_error("re_group_aspect. {}".format(e))
 
     return result
 
@@ -1217,13 +1223,16 @@ def re_expand_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
         # No need to taint the result
         return result
 
-    if not is_pyobject_tainted(self) and len(args) and not is_pyobject_tainted(args[0]):
-        # Nothing tainted, no need to taint the result either
-        return result
+    try:
+        if not is_pyobject_tainted(self) and len(args) and not is_pyobject_tainted(args[0]):
+            # Nothing tainted, no need to taint the result either
+            return result
 
-    if is_pyobject_tainted(self):
-        copy_and_shift_ranges_from_strings(self, result, 0, len(result))
-    elif is_pyobject_tainted(args[0]):
-        copy_and_shift_ranges_from_strings(args[0], result, 0, len(result))
+        if is_pyobject_tainted(self):
+            result = copy_ranges_to_string(result, get_ranges(self))
+        elif is_pyobject_tainted(args[0]):
+            result = copy_ranges_to_string(result, get_ranges(args[0]))
+    except Exception as e:
+        iast_taint_log_error("re_expand_aspect. {}".format(e))
 
     return result

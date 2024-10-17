@@ -17,7 +17,6 @@ import weakref
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec import load_appsec
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
@@ -141,6 +140,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return self._ddwaf is not None
 
     def __post_init__(self) -> None:
+        from ddtrace.appsec import load_appsec
         from ddtrace.appsec._ddwaf import DDWaf
 
         load_appsec()
@@ -430,7 +430,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
 
                 # this call is only necessary for tests or frameworks that are not using blocking
-                if not has_triggers(span) and _asm_request_context.in_context():
+                if not has_triggers(span) and _asm_request_context.in_asm_context():
                     log.debug("metrics waf call")
                     _asm_request_context.call_waf_callback()
 
