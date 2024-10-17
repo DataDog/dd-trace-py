@@ -327,7 +327,7 @@ def serialize_key(instance, topic, key, headers):
 def _get_cluster_id(instance):
     if instance and getattr(instance, "_dd_cluster_id", None):
         return instance._dd_cluster_id
-    
+
     if getattr(instance, "list_topics", None) is None:
         return None
 
