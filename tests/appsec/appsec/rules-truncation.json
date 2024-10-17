@@ -1,0 +1,68 @@
+{
+    "version": "2.1",
+    "metadata": {
+        "rules_version": "rules_truncation"
+    },
+    "rules": [
+        {
+            "id": "trc-001-001",
+            "name": "Block on Headers truncation",
+            "tags": {
+                "type": "payload-truncation",
+                "category": "payload-blocking"
+            },
+            "conditions": [
+                {
+                    "operator": "greater_than",
+                    "parameters": {
+                        "inputs": [
+                            {
+                                "address": "server.request.headers.no_cookies.truncated"
+                            }
+                        ],
+                        "type": "signed",
+                        "value": 1
+                    }
+                }
+            ],
+            "on_match": [
+                "block"
+            ]
+        },
+        {
+            "id": "ua0-600-55x",
+            "name": "Datadog test scanner: user-agent",
+            "tags": {
+                "type": "security_scanner",
+                "category": "attack_attempt",
+                "cwe": "200",
+                "capec": "1000/118/169",
+                "tool_name": "Datadog Canary Test",
+                "confidence": "1"
+            },
+            "conditions": [
+                {
+                    "parameters": {
+                        "inputs": [
+                            {
+                                "address": "server.request.headers.no_cookies",
+                                "key_path": [
+                                    "user-agent"
+                                ]
+                            },
+                            {
+                                "address": "grpc.server.request.metadata",
+                                "key_path": [
+                                    "dd-canary"
+                                ]
+                            }
+                        ],
+                        "regex": "^dd-test-scanner-log(?:$|/|\\s)"
+                    },
+                    "operator": "match_regex"
+                }
+            ],
+            "transformers": []
+        }
+    ]
+}
