@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
+from .appsec._iast._utils import _is_iast_enabled
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
@@ -79,10 +80,10 @@ PATCH_MODULES = {
     "falcon": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
-    "logbook": config.logs_injection,  # type: ignore
-    "logging": config.logs_injection,  # type: ignore
-    "loguru": config.logs_injection,  # type: ignore
-    "structlog": config.logs_injection,  # type: ignore
+    "logbook": config._logs_injection,  # type: ignore
+    "logging": config._logs_injection,  # type: ignore
+    "loguru": config._logs_injection,  # type: ignore
+    "structlog": config._logs_injection,  # type: ignore
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
@@ -225,7 +226,7 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if asm_config._iast_enabled:
+    if _is_iast_enabled():
         from ddtrace.appsec._iast._patch_modules import patch_iast
         from ddtrace.appsec.iast import enable_iast_propagation
 

@@ -12,9 +12,8 @@ from flask import Flask
 from flask import request
 
 from ddtrace import tracer
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec.iast import ddtrace_iast_flask_patch
-from ddtrace.internal import core
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.utils import override_env
 
 
@@ -60,17 +59,17 @@ def shutdown():
 def tainted_view():
     param = request.args.get("param", "param")
 
-    report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
+    report = _get_span_report()
 
-    assert not (report and report[0])
+    assert not (report and report)
 
     orm_impl.execute_query("select * from User where name = '" + param + "'")
 
     response = ResultResponse(param)
-    report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
-    if report and report[0]:
-        response.sources = report[0].sources[0].value
-        response.vulnerabilities = list(report[0].vulnerabilities)[0].type
+    report = _get_span_report()
+    if report:
+        response.sources = report.sources[0].value
+        response.vulnerabilities = list(report.vulnerabilities)[0].type
 
     return response.json()
 
@@ -79,17 +78,17 @@ def tainted_view():
 def untainted_view():
     param = request.args.get("param", "param")
 
-    report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
+    report = _get_span_report()
 
-    assert not (report and report[0])
+    assert not (report and report)
 
     orm_impl.execute_untainted_query("select * from User where name = '" + param + "'")
 
     response = ResultResponse(param)
-    report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
-    if report and report[0]:
-        response.sources = report[0].sources[0].value
-        response.vulnerabilities = list(report[0].vulnerabilities)[0].type
+    report = _get_span_report()
+    if report:
+        response.sources = report.sources[0].value
+        response.vulnerabilities = list(report.vulnerabilities)[0].type
 
     return response.json()
 

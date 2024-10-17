@@ -2,7 +2,9 @@
 Trace queries to aws api done via botocore client
 """
 import collections
+import json
 import os
+from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
@@ -59,6 +61,32 @@ PATCHING_FUNCTIONS = {
 log = get_logger(__name__)
 
 
+def _load_dynamodb_primary_key_names_for_tables() -> Dict[str, Set[str]]:
+    try:
+        encoded_table_primary_keys = os.getenv("DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", "{}")
+        raw_table_primary_keys = json.loads(encoded_table_primary_keys)
+
+        table_primary_keys = {}
+        for table, primary_keys in raw_table_primary_keys.items():
+            if not isinstance(table, str):
+                raise ValueError(f"expected string table name: {table}")
+
+            if not isinstance(primary_keys, list):
+                raise ValueError(f"expected list of primary keys: {primary_keys}")
+
+            unique_primary_keys = set(primary_keys)
+            if not len(unique_primary_keys) == len(primary_keys):
+                raise ValueError(f"expected unique primary keys: {primary_keys}")
+
+            table_primary_keys[table] = unique_primary_keys
+
+        return table_primary_keys
+
+    except Exception as e:
+        log.warning("failed to load DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS: %s", e)
+        return {}
+
+
 # Botocore default settings
 config._add(
     "botocore",
@@ -73,6 +101,7 @@ config._add(
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
         "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
+        "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
     },
 )
 
