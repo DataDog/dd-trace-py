@@ -89,7 +89,6 @@ def set_iast_reporter(iast_reporter: IastSpanReporter) -> None:
 
 def get_iast_reporter() -> Optional[IastSpanReporter]:
     env = _get_iast_context()
-
     if env:
         return env.iast_reporter
     return None
@@ -112,15 +111,20 @@ def is_iast_request_enabled():
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
-        if _is_iast_enabled():
-            if span:
-                req_span = span
-            else:
-                req_span = ctx.get_item("req_span")
-            exist_data = req_span.get_tag(IAST.JSON)
+        if span:
+            req_span = span
+        else:
+            req_span = ctx.get_item("req_span")
 
-            if is_iast_request_enabled() and not exist_data:
-                req_span.set_metric(IAST.ENABLED, 1.0)
+        if _is_iast_enabled():
+            req_span.set_metric(IAST.ENABLED, 1.0)
+            exist_data = req_span.get_tag(IAST.JSON)
+            if not exist_data:
+                if not is_iast_request_enabled():
+                    end_iast_context(req_span)
+                    oce.release_request()
+                    return
+
                 report_data: Optional[IastSpanReporter] = get_iast_reporter()
 
                 if report_data:
@@ -138,9 +142,8 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                     req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
                 oce.release_request()
-            else:
-                end_iast_context(req_span)
-                oce.release_request()
+        else:
+            req_span.set_metric(IAST.ENABLED, 0.0)
     except Exception:
         log.debug("[IAST] Error finishing IAST context", exc_info=True)
 

@@ -79,7 +79,12 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
     env.update({"_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
     VulnerabilityBase._reset_cache_for_testing()
     with override_global_config(
-        dict(_asm_enabled=asm_enabled, _iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=request_sampling)
+        dict(
+            _asm_enabled=asm_enabled,
+            _iast_enabled=True,
+            _deduplication_enabled=deduplication,
+            _iast_request_sampling=request_sampling,
+        )
     ), override_env(env):
         _start_iast_context_and_oce(MockSpan())
         weak_hash_patch()
