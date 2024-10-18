@@ -45,6 +45,7 @@ config._add(
         _default_service=schematize_service_name("kafka"),
         distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
         trace_empty_poll_enabled=asbool(os.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
+        span_links_enabled=asbool(os.getenv("DD_KAFKA_SPAN_LINKS_ENABLED", default=config._span_links_enabled)),
     ),
 )
 
@@ -193,8 +194,8 @@ def traced_produce(func, instance, args, kwargs):
         if rate is not None:
             span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
-        # inject headers with Datadog tags if trace propagation is enabled
-        if config.kafka.distributed_tracing_enabled:
+        # inject headers with Datadog tags if trace propagation or span links are enabled
+        if config.kafka.distributed_tracing_enabled or config.kafka.span_links_enabled:
             # inject headers with Datadog tags:
             headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
             Propagator.inject(span.context, headers)
@@ -237,6 +238,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     first_message = messages[0] if len(messages) else None
     if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers():
         ctx = Propagator.extract(dict(first_message.headers()))
+
     with pin.tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
@@ -251,6 +253,9 @@ def _instrument_message(messages, pin, start_ns, instance, err):
             if message is not None and first_message is not None:
                 core.set_item("kafka_topic", str(first_message.topic()))
                 core.dispatch("kafka.consume.start", (instance, first_message, span))
+
+        if first_message and config._span_links_enabled:
+            trace_utils.extract_context_and_set_span_links(messages, lambda msg: msg.headers(), span)
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)

@@ -687,3 +687,16 @@ def _convert_to_string(attr):
         else:
             return ensure_text(attr)
     return attr
+
+
+def extract_context_and_set_span_links(messages, getter, span):
+    for message in messages:
+        ctx = HTTPPropagator.extract(dict(getter(message)))
+
+        if ctx.trace_id and ctx.span_id:
+            span.link_span(ctx)
+            log.debug(
+                "Successfully linked span %d to context with span id %d.",
+                span.span_id,
+                ctx.span_id,
+            )

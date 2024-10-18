@@ -104,6 +104,7 @@ config._add(
         "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
         "add_span_pointers": asbool(os.getenv("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),
+        "span_links_enabled": asbool(os.getenv("DD_BOTOCORE_ADD_SPAN_POINTERS", default=config._span_links_enabled)),
     },
 )
 
