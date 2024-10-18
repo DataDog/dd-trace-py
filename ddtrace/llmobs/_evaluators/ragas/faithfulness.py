@@ -12,8 +12,20 @@ logger = get_logger(__name__)
 RAGAS_DEPENDENCIES_PRESENT = False
 
 try:
+    import ragas
     from ragas.llms import llm_factory
-    from ragas.llms.output_parser import RagasoutputParser
+
+    ragas_output_parser = None
+    # ragas >= 0.2.0 has RagasoutputParserOld instead of RagasoutputParser
+    if hasattr(ragas.llms.output_parser, "RagasoutputParser"):
+        from ragas.llms.output_parser import RagasoutputParser
+
+        ragas_output_parser = RagasoutputParser
+    else:
+        from ragas.llms.output_parser import RagasoutputParserOld
+
+        ragas_output_parser = RagasoutputParserOld
+
     from ragas.metrics import faithfulness
     from ragas.metrics.base import ensembler
     from ragas.metrics.base import get_segmenter
@@ -82,14 +94,17 @@ class RagasFaithfulnessEvaluator:
                                       submitting evaluation metrics.
         """
         self.ragas_dependencies_present = True
-        if not RAGAS_DEPENDENCIES_PRESENT:
+        if not RAGAS_DEPENDENCIES_PRESENT or not ragas_output_parser:
+            self.ragas_dependencies_present = False
+            return
+        if not ragas_output_parser:
             self.ragas_dependencies_present = False
             return
 
         self.llmobs_service = llmobs_service
         self.ragas_faithfulness_instance = _get_faithfulness_instance()
 
-        self.llm_output_parser_for_generated_statements = RagasoutputParser(pydantic_object=StatementsAnswers)
+        self.llm_output_parser_for_generated_statements = ragas_output_parser(pydantic_object=StatementsAnswers)
 
         self.llm_output_parser_for_faithfulness_score = RagasoutputParser(pydantic_object=StatementFaithfulnessAnswers)
 
