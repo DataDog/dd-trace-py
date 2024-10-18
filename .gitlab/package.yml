@@ -8,7 +8,7 @@ build_base_venvs:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     PIP_VERBOSE: 1
   script:
-    - pip install riot~=0.19.1
+    - pip install riot==0.20.0
     - riot -P -v generate --python=$PYTHON_VERSION
   artifacts:
     name: venv_$PYTHON_VERSION
