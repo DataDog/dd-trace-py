@@ -581,7 +581,6 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
         query_params = request.query_params.get("iast_queryparam")
-        # resp.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
         ranges_result = get_tainted_ranges(query_params)
         response = JSONResponse(
             {
