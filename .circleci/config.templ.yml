@@ -80,7 +80,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot@git+https://www.github.com/DataDog/riot@taegyunkim/pin-virtualenv
+      - run: pip3 install riot@git+https://www.github.com/DataDog/riot@taegyunkim/upload-artifact
 
   setup_rust:
     description: "Install rust toolchain"

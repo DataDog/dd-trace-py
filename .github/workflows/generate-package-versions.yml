@@ -76,7 +76,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install packaging
           pip install requests
-          pip install riot@git+https://www.github.com/DataDog/riot@taegyunkim/pin-virtualenv
+          pip install riot@git+https://www.github.com/DataDog/riot@taegyunkim/upload-artifact
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
