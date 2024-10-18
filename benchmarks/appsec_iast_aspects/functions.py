@@ -1,4 +1,66 @@
-from ddtrace.appsec._iast._taint_tracking.aspects import *
+import ddtrace._version as version
+
+# Some old versions could not have or export some symbols, so we import them dynamically and assign None if not found
+# which will make the aspect benchmark fail but not the entire benchmark
+symbols = [
+    "add_aspect",
+    "add_inplace_aspect",
+    "bytearray_aspect",
+    "bytearray_extend_aspect",
+    "bytes_aspect",
+    "bytesio_aspect",
+    "capitalize_aspect",
+    "casefold_aspect",
+    "decode_aspect",
+    "encode_aspect",
+    "format_aspect",
+    "format_map_aspect",
+    "index_aspect",
+    "join_aspect",
+    "lower_aspect",
+    "ljust_aspect",
+    "modulo_aspect",
+    "ospathbasename_aspect",
+    "ospathdirname_aspect",
+    "ospathjoin_aspect",
+    "ospathnormcase_aspect",
+    "ospathsplit_aspect",
+    "ospathsplitdrive_aspect",
+    "ospathsplitext_aspect",
+    "re_sub_aspect",
+    "rsplit_aspect",
+    "splitlines_aspect",
+    "str_aspect",
+    "stringio_aspect",
+    "repr_aspect",
+    "slice_aspect",
+    "replace_aspect",
+    "re_subn_aspect",
+    "re_search_aspect",
+    "re_match_aspect",
+    "re_groups_aspect",
+    "re_group_aspect",
+    "re_fullmatch_aspect",
+    "re_finditer_aspect",
+    "re_findall_aspect",
+    "re_expand_aspect",
+]
+
+notfound_symbols = []
+
+for symbol in symbols:
+    try:
+        # Dynamically import the symbol from the module and assign to globals
+        globals()[symbol] = __import__("ddtrace.appsec._iast._taint_tracking.aspects", fromlist=[symbol]).__dict__[
+            symbol
+        ]
+    except (ImportError, KeyError):
+        # If the symbol is not found, assign None and print a warning
+        globals()[symbol] = None
+        notfound_symbols.append(symbol)
+        # print(f"Warning: {symbol} not found in the current version")
+
+print("Warning: symbols not found in the tested version [%s]: %s", (version.version, str(notfound_symbols)))
 import _io
 import os
 import re
