@@ -53,7 +53,7 @@ def _end_iast_context_and_oce(span=None):
     oce.release_request()
 
 
-def iast_context(env, request_sampling="100", deduplication=False):
+def iast_context(env, request_sampling="100", deduplication=False, asm_enabled=False):
     try:
         from ddtrace.contrib.langchain.patch import patch as langchain_patch
         from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
@@ -78,7 +78,9 @@ def iast_context(env, request_sampling="100", deduplication=False):
 
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
     VulnerabilityBase._reset_cache_for_testing()
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(env):
+    with override_global_config(
+        dict(_asm_enabled=asm_enabled, _iast_enabled=True, _deduplication_enabled=deduplication)
+    ), override_env(env):
         _start_iast_context_and_oce(MockSpan())
         weak_hash_patch()
         weak_cipher_patch()
