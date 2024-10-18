@@ -8,6 +8,7 @@ from bm.utils import override_env
 
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
+
 has_new_context = True
 try:
     from ddtrace.appsec._iast._iast_request_context import end_iast_context
