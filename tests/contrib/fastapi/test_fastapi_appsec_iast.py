@@ -17,6 +17,9 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
+from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
@@ -569,3 +572,202 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
         assert vulnerability["hash"] == hash_value
+
+
+def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value=query_params, secure=False, httponly=True, samesite="strict")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = json.loads(span.get_tag(IAST.JSON))
+        assert loaded["sources"] == []
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_INSECURE_COOKIE
+        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
+        assert "path" not in vulnerability["location"].keys()
+        assert "line" not in vulnerability["location"].keys()
+        assert vulnerability["location"]["spanId"]
+        assert vulnerability["hash"]
+
+
+def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value="", secure=False, httponly=True, samesite="strict")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = span.get_tag(IAST.JSON)
+        assert loaded is None
+
+
+def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value=query_params, secure=True, httponly=False, samesite="strict")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = json.loads(span.get_tag(IAST.JSON))
+        assert loaded["sources"] == []
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
+        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
+        assert "path" not in vulnerability["location"].keys()
+        assert "line" not in vulnerability["location"].keys()
+        assert vulnerability["location"]["spanId"]
+        assert vulnerability["hash"]
+
+
+def test_fasapi_no_http_only_cookie_empty(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value="", secure=True, httponly=False, samesite="strict")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = span.get_tag(IAST.JSON)
+        assert loaded is None
+
+
+def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value=query_params, secure=True, httponly=True, samesite="none")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = json.loads(span.get_tag(IAST.JSON))
+        assert loaded["sources"] == []
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
+        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
+        assert "path" not in vulnerability["location"].keys()
+        assert "line" not in vulnerability["location"].keys()
+        assert vulnerability["location"]["spanId"]
+        assert vulnerability["hash"]
