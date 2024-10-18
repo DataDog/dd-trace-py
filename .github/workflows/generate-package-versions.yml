@@ -76,6 +76,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install packaging
           pip install requests
+          pip install virtualenv==20.26.6
           pip install riot==0.19.1
 
       - name: Run regenerate-riot-latest
