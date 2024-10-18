@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: When starting LLM and embedding spans, the ``model_name`` argument is now optional and will default to ``custom``.
+     This applies to both inline methods (e.g. ``LLMObs.llm()``) and function decorators (e.g. ``@llm``).
