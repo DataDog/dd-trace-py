@@ -1006,6 +1006,7 @@ def test_rc_rules_data(tracer):
             "rules_override": [],
             "scanners": [],
             "processors": [],
+            "metadata": {},
             "ignore": [],
         }
         with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:

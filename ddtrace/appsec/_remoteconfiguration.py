@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
 import os
 from typing import Any
 from typing import Dict
@@ -89,14 +88,16 @@ def disable_appsec_rc():
 def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, ruleset: Dict[str, Any]) -> None:
     rules = features.get(feature, None)
     if rules is not None:
-        try:
-            if ruleset.get(feature) is None:
-                ruleset[feature] = rules
-            else:
+        if ruleset.get(feature) is None:
+            ruleset[feature] = rules
+        else:
+            if isinstance(rules, list) and isinstance(ruleset[feature], list):
                 ruleset[feature] = ruleset[feature] + rules
-            log.debug("Reloading Appsec %s: %s", message, str(rules)[:20])
-        except json.JSONDecodeError:
-            log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
+            elif isinstance(rules, dict) and isinstance(ruleset[feature], dict):
+                ruleset[feature] = {**ruleset[feature], **rules}
+            else:
+                log.debug("Invalid type for %s: %s with %s", message, str(type(ruleset[feature])), str(type(rules)))
+        log.debug("Reloading Appsec %s: %s", message, str(rules)[:20])
 
 
 def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
@@ -128,6 +129,8 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
         _add_rules_to_list(features, "rules_data", "rules data", ruleset)
         _add_rules_to_list(features, "rules_override", "rules override", ruleset)
         _add_rules_to_list(features, "scanners", "scanners", ruleset)
+        _add_rules_to_list(features, "metadata", "metadata", ruleset)
+
         if ruleset:
             return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
 
