@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 
 
@@ -13,19 +14,13 @@ RAGAS_DEPENDENCIES_PRESENT = False
 
 try:
     import ragas
+
+    if parse_version(ragas.__version__) >= (0, 2, 0):
+        logger.warning("Ragas version: {} is not supported for ragas_faithfulness", ragas.__version__)
+        raise ValueError
+
     from ragas.llms import llm_factory
-
-    ragas_output_parser = None
-    # ragas >= 0.2.0 has RagasoutputParserOld instead of RagasoutputParser
-    if hasattr(ragas.llms.output_parser, "RagasoutputParser"):
-        from ragas.llms.output_parser import RagasoutputParser
-
-        ragas_output_parser = RagasoutputParser
-    else:
-        from ragas.llms.output_parser import RagasOutputParserOld
-
-        ragas_output_parser = RagasOutputParserOld
-
+    from ragas.llms.output_parser import RagasoutputParser
     from ragas.metrics import faithfulness
     from ragas.metrics.base import ensembler
     from ragas.metrics.base import get_segmenter
@@ -34,8 +29,8 @@ try:
     from ddtrace.llmobs._evaluators.ragas.models import StatementsAnswers
 
     RAGAS_DEPENDENCIES_PRESENT = True
-except ImportError as e:
-    logger.warning("RagasFaithfulnessEvaluator is disabled because Ragas requirements are not installed", exc_info=e)
+except Exception as e:
+    logger.warning("Failed to import Ragas dependencies, not enabling ragas_faithfulness evaluator", exc_info=e)
 
 
 def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
@@ -93,22 +88,16 @@ class RagasFaithfulnessEvaluator:
                           cccccbgfdveevingkfhkkbevjvchlltguucbbjvtrgbk
                                       submitting evaluation metrics.
         """
-        self.ragas_dependencies_present = True
-        if not RAGAS_DEPENDENCIES_PRESENT or not ragas_output_parser:
-            self.ragas_dependencies_present = False
-            return
-        if not ragas_output_parser:
-            self.ragas_dependencies_present = False
+        self.ragas_dependencies_present = RAGAS_DEPENDENCIES_PRESENT
+        if not self.ragas_dependencies_present:
             return
 
         self.llmobs_service = llmobs_service
         self.ragas_faithfulness_instance = _get_faithfulness_instance()
 
-        self.llm_output_parser_for_generated_statements = ragas_output_parser(pydantic_object=StatementsAnswers)
+        self.llm_output_parser_for_generated_statements = RagasoutputParser(pydantic_object=StatementsAnswers)
 
-        self.llm_output_parser_for_faithfulness_score = ragas_output_parser(
-            pydantic_object=StatementFaithfulnessAnswers
-        )
+        self.llm_output_parser_for_faithfulness_score = RagasoutputParser(pydantic_object=StatementFaithfulnessAnswers)
 
         self.split_answer_into_sentences = get_segmenter(
             language=self.ragas_faithfulness_instance.nli_statements_message.language, clean=False
