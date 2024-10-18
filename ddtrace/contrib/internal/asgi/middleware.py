@@ -243,7 +243,6 @@ class TraceMiddleware:
                     except Exception:
                         log.debug("failed to extract response cookies", exc_info=True)
 
-                    response_headers = None
                     status_code = message["status"]
                     trace_utils.set_http_meta(
                         span,
