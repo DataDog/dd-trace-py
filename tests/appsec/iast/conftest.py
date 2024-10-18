@@ -31,7 +31,7 @@ from tests.utils import override_global_config
 def no_request_sampling(tracer):
     with override_env(
         {
-            "DD_IAST_REQUEST_SAMPLING": "100",
+            IAST.ENV_REQUEST_SAMPLING: "100",
             "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
         }
     ):
@@ -53,7 +53,7 @@ def _end_iast_context_and_oce(span=None):
     oce.release_request()
 
 
-def iast_context(env, request_sampling="100", deduplication=False, asm_enabled=False):
+def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False):
     try:
         from ddtrace.contrib.langchain.patch import patch as langchain_patch
         from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
@@ -76,10 +76,15 @@ def iast_context(env, request_sampling="100", deduplication=False, asm_enabled=F
     class MockSpan:
         _trace_id_64bits = 17577308072598193742
 
-    env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
+    env.update({"_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
     VulnerabilityBase._reset_cache_for_testing()
     with override_global_config(
-        dict(_asm_enabled=asm_enabled, _iast_enabled=True, _deduplication_enabled=deduplication)
+        dict(
+            _asm_enabled=asm_enabled,
+            _iast_enabled=True,
+            _deduplication_enabled=deduplication,
+            _iast_request_sampling=request_sampling,
+        )
     ), override_env(env):
         _start_iast_context_and_oce(MockSpan())
         weak_hash_patch()
@@ -132,7 +137,7 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
         yield
     else:
-        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
             yield
 
         log_messages = [record.message for record in caplog.get_records("call")]
