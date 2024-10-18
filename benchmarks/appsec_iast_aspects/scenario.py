@@ -14,7 +14,7 @@ with override_env({"DD_IAST_ENABLED": "True"}):
         from ddtrace.appsec._iast._taint_tracking import create_context as start_iast_context
         from ddtrace.appsec._iast._taint_tracking import reset_context as end_iast_context
 
-        set_iast_request_enabled = lambda x: None
+        set_iast_request_enabled = lambda x: None  # noqa: E731
 
 
 def _start_iast_context_and_oce():
