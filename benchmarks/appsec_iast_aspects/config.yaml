@@ -492,14 +492,3 @@ upper_aspect: &upper_aspect
 upper_noaspect:
   <<: *upper_aspect
   function_name: "upper_noaspect"
-
-zfill_aspect: &zfill_aspect
-  processes: 10
-  loops: 1
-  values: 6
-  warmups: 1
-  function_name: "iast_zfill_aspect"
-
-zfill_noaspect:
-  <<: *zfill_aspect
-  function_name: "zfill_noaspect"

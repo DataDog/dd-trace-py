@@ -1,4 +1,10 @@
+import os
+import re
+
+import _io
+
 import ddtrace._version as version
+
 
 # Some old versions could not have or export some symbols, so we import them dynamically and assign None if not found
 # which will make the aspect benchmark fail but not the entire benchmark
@@ -17,8 +23,8 @@ symbols = [
     "format_map_aspect",
     "index_aspect",
     "join_aspect",
-    "lower_aspect",
     "ljust_aspect",
+    "lower_aspect",
     "modulo_aspect",
     "ospathbasename_aspect",
     "ospathdirname_aspect",
@@ -27,23 +33,29 @@ symbols = [
     "ospathsplit_aspect",
     "ospathsplitdrive_aspect",
     "ospathsplitext_aspect",
+    "re_expand_aspect",
+    "re_findall_aspect",
+    "re_finditer_aspect",
+    "re_fullmatch_aspect",
+    "re_group_aspect",
+    "re_groups_aspect",
+    "re_match_aspect",
+    "re_search_aspect",
     "re_sub_aspect",
+    "re_subn_aspect",
+    "replace_aspect",
+    "repr_aspect",
     "rsplit_aspect",
+    "slice_aspect",
+    "split_aspect",
+    "split_aspect",
     "splitlines_aspect",
     "str_aspect",
     "stringio_aspect",
-    "repr_aspect",
-    "slice_aspect",
-    "replace_aspect",
-    "re_subn_aspect",
-    "re_search_aspect",
-    "re_match_aspect",
-    "re_groups_aspect",
-    "re_group_aspect",
-    "re_fullmatch_aspect",
-    "re_finditer_aspect",
-    "re_findall_aspect",
-    "re_expand_aspect",
+    "swapcase_aspect",
+    "title_aspect",
+    "translate_aspect",
+    "upper_aspect",
 ]
 
 notfound_symbols = []
@@ -63,13 +75,9 @@ for symbol in symbols:
 if notfound_symbols:
     print("Warning: symbols not found in the tested version [%s]: %s" % (version.version, str(notfound_symbols)))
 
-import _io
-import os
-import re
-
 
 def iast_add_aspect():
-    return add_aspect(3, 4)
+    return add_aspect(3, 4)  # noqa: F821
 
 
 def add_noaspect():
@@ -77,7 +85,7 @@ def add_noaspect():
 
 
 def iast_add_inplace_aspect():
-    return add_inplace_aspect(42, 1)
+    return add_inplace_aspect(42, 1)  # noqa: F821
 
 
 def add_inplace_noaspect():
@@ -87,7 +95,7 @@ def add_inplace_noaspect():
 
 
 def iast_bytearray_aspect():
-    return bytearray_aspect(bytearray, 0, b"test")
+    return bytearray_aspect(bytearray, 0, b"test")  # noqa: F821
 
 
 def bytearray_noaspect():
@@ -96,7 +104,7 @@ def bytearray_noaspect():
 
 def iast_bytearray_extend_aspect():
     ba = bytearray(b"hello")
-    bytearray_extend_aspect(None, 0, ba, b" world")
+    bytearray_extend_aspect(None, 0, ba, b" world")  # noqa: F821
 
 
 def bytearray_extend_noaspect():
@@ -105,7 +113,7 @@ def bytearray_extend_noaspect():
 
 
 def iast_bytes_aspect():
-    return bytes_aspect(bytes, 0, "hello", "utf-8")
+    return bytes_aspect(bytes, 0, "hello", "utf-8")  # noqa: F821
 
 
 def bytes_noaspect():
@@ -113,7 +121,7 @@ def bytes_noaspect():
 
 
 def iast_bytesio_aspect():
-    x = bytesio_aspect(None, 0, b"data")
+    x = bytesio_aspect(None, 0, b"data")  # noqa: F821
     return x.read()
 
 
@@ -123,7 +131,7 @@ def bytesio_noaspect():
 
 
 def iast_capitalize_aspect():
-    return capitalize_aspect(str, 0, "example")
+    return capitalize_aspect(str, 0, "example")  # noqa: F821
 
 
 def capitalize_noaspect():
@@ -131,7 +139,7 @@ def capitalize_noaspect():
 
 
 def iast_casefold_aspect():
-    return casefold_aspect(str, 0, "EXAMPLE")
+    return casefold_aspect(str, 0, "EXAMPLE")  # noqa: F821
 
 
 def casefold_noaspect():
@@ -139,7 +147,7 @@ def casefold_noaspect():
 
 
 def iast_decode_aspect():
-    return decode_aspect(str, 0, b"hello", "utf-8")
+    return decode_aspect(str, 0, b"hello", "utf-8")  # noqa: F821
 
 
 def decode_noaspect():
@@ -147,7 +155,7 @@ def decode_noaspect():
 
 
 def iast_encode_aspect():
-    return encode_aspect(bytes, 0, "hello", "utf-8")
+    return encode_aspect(bytes, 0, "hello", "utf-8")  # noqa: F821
 
 
 def encode_noaspect():
@@ -155,7 +163,7 @@ def encode_noaspect():
 
 
 def iast_format_aspect():
-    return format_aspect(None, 1, "Hello, {}!", "World")
+    return format_aspect(None, 1, "Hello, {}!", "World")  # noqa: F821
 
 
 def format_noaspect():
@@ -163,7 +171,7 @@ def format_noaspect():
 
 
 def iast_format_map_aspect():
-    return format_map_aspect(None, 1, "{greeting}, World!", {"greeting": "Hello"})
+    return format_map_aspect(None, 1, "{greeting}, World!", {"greeting": "Hello"})  # noqa: F821
 
 
 def format_map_noaspect():
@@ -171,7 +179,7 @@ def format_map_noaspect():
 
 
 def iast_index_aspect():
-    return index_aspect("example", 3)
+    return index_aspect("example", 3)  # noqa: F821
 
 
 def index_noaspect():
@@ -179,7 +187,7 @@ def index_noaspect():
 
 
 def iast_join_aspect():
-    return join_aspect(None, 1, ", ", ["one", "two", "three"])
+    return join_aspect(None, 1, ", ", ["one", "two", "three"])  # noqa: F821
 
 
 def join_noaspect():
@@ -187,7 +195,7 @@ def join_noaspect():
 
 
 def iast_lower_aspect():
-    return lower_aspect(None, 1, "EXAMPLE")
+    return lower_aspect(None, 1, "EXAMPLE")  # noqa: F821
 
 
 def lower_noaspect():
@@ -195,7 +203,7 @@ def lower_noaspect():
 
 
 def iast_ljust_aspect():
-    return ljust_aspect(None, 1, "example", 10)
+    return ljust_aspect(None, 1, "example", 10)  # noqa: F821
 
 
 def ljust_noaspect():
@@ -203,7 +211,7 @@ def ljust_noaspect():
 
 
 def iast_modulo_aspect():
-    return modulo_aspect("hello %s", "foo")
+    return modulo_aspect("hello %s", "foo")  # noqa: F821
 
 
 def modulo_noaspect():
@@ -211,7 +219,7 @@ def modulo_noaspect():
 
 
 def iast_ospathbasename_aspect():
-    return ospathbasename_aspect("/path/to/file")
+    return ospathbasename_aspect("/path/to/file")  # noqa: F821
 
 
 def ospathbasename_noaspect():
@@ -219,7 +227,7 @@ def ospathbasename_noaspect():
 
 
 def iast_ospathdirname_aspect():
-    return ospathdirname_aspect("/path/to/file")
+    return ospathdirname_aspect("/path/to/file")  # noqa: F821
 
 
 def ospathdirname_noaspect():
@@ -227,7 +235,7 @@ def ospathdirname_noaspect():
 
 
 def iast_ospathjoin_aspect():
-    return ospathjoin_aspect("/path", "to", "file")
+    return ospathjoin_aspect("/path", "to", "file")  # noqa: F821
 
 
 def ospathjoin_noaspect():
@@ -235,7 +243,7 @@ def ospathjoin_noaspect():
 
 
 def iast_ospathnormcase_aspect():
-    return ospathnormcase_aspect("example")
+    return ospathnormcase_aspect("example")  # noqa: F821
 
 
 def ospathnormcase_noaspect():
@@ -243,7 +251,7 @@ def ospathnormcase_noaspect():
 
 
 def iast_ospathsplit_aspect():
-    return ospathsplit_aspect("/path/to/file")
+    return ospathsplit_aspect("/path/to/file")  # noqa: F821
 
 
 def ospathsplit_noaspect():
@@ -251,7 +259,7 @@ def ospathsplit_noaspect():
 
 
 def iast_ospathsplitdrive_aspect():
-    return ospathsplitdrive_aspect("/path/to/file")
+    return ospathsplitdrive_aspect("/path/to/file")  # noqa: F821
 
 
 def ospathsplitdrive_noaspect():
@@ -259,7 +267,7 @@ def ospathsplitdrive_noaspect():
 
 
 def iast_ospathsplitext_aspect():
-    return ospathsplitext_aspect("/path/to/file")
+    return ospathsplitext_aspect("/path/to/file")  # noqa: F821
 
 
 def ospathsplitext_noaspect():
@@ -267,7 +275,7 @@ def ospathsplitext_noaspect():
 
 
 def iast_re_sub_aspect():
-    return re_sub_aspect(None, 1, re.compile("/"), "_", "foo/bar")
+    return re_sub_aspect(None, 1, re.compile("/"), "_", "foo/bar")  # noqa: F821
 
 
 def re_sub_noaspect():
@@ -275,7 +283,7 @@ def re_sub_noaspect():
 
 
 def iast_rsplit_aspect():
-    return rsplit_aspect(None, 0, "foo bar baz")
+    return rsplit_aspect(None, 0, "foo bar baz")  # noqa: F821
 
 
 def rsplit_noaspect():
@@ -283,7 +291,7 @@ def rsplit_noaspect():
 
 
 def iast_splitlines_aspect():
-    return splitlines_aspect(None, 0, "line1\nline2\nline3")
+    return splitlines_aspect(None, 0, "line1\nline2\nline3")  # noqa: F821
 
 
 def splitlines_noaspect():
@@ -291,7 +299,7 @@ def splitlines_noaspect():
 
 
 def iast_str_aspect():
-    return str_aspect(str, 0, 42)
+    return str_aspect(str, 0, 42)  # noqa: F821
 
 
 def str_noaspect():
@@ -299,7 +307,7 @@ def str_noaspect():
 
 
 def iast_stringio_aspect():
-    io = stringio_aspect(None, 0, "data")
+    io = stringio_aspect(None, 0, "data")  # noqa: F821
     return io.read()
 
 
@@ -309,7 +317,7 @@ def stringio_noaspect():
 
 
 def iast_repr_aspect():
-    return repr_aspect(None, 0, 42)
+    return repr_aspect(None, 0, 42)  # noqa: F821
 
 
 def repr_noaspect():
@@ -317,7 +325,7 @@ def repr_noaspect():
 
 
 def iast_slice_aspect():
-    return slice_aspect(
+    return slice_aspect(  # noqa: F821
         "example",
         1,
         3,
@@ -330,7 +338,7 @@ def slice_noaspect():
 
 
 def iast_replace_aspect():
-    return replace_aspect(None, 1, "example", "example", "foo")
+    return replace_aspect(None, 1, "example", "example", "foo")  # noqa: F821
 
 
 def replace_noaspect():
@@ -338,7 +346,7 @@ def replace_noaspect():
 
 
 def iast_re_subn_aspect():
-    return re_subn_aspect(None, 1, re.compile("/"), "_", "foo/bar")
+    return re_subn_aspect(None, 1, re.compile("/"), "_", "foo/bar")  # noqa: F821
 
 
 def re_subn_noaspect():
@@ -346,7 +354,7 @@ def re_subn_noaspect():
 
 
 def iast_re_search_aspect():
-    return re_search_aspect(None, 1, re.compile("foo"), "foo bar")
+    return re_search_aspect(None, 1, re.compile("foo"), "foo bar")  # noqa: F821
 
 
 def re_search_noaspect():
@@ -354,7 +362,7 @@ def re_search_noaspect():
 
 
 def iast_re_match_aspect():
-    return re_match_aspect(None, 1, re.compile("foo"), "foo bar")
+    return re_match_aspect(None, 1, re.compile("foo"), "foo bar")  # noqa: F821
 
 
 def re_match_noaspect():
@@ -362,7 +370,7 @@ def re_match_noaspect():
 
 
 def iast_re_groups_aspect():
-    return re_groups_aspect(None, 0, re.match(r"(\w+) (\w+)", "Hello World"))
+    return re_groups_aspect(None, 0, re.match(r"(\w+) (\w+)", "Hello World"))  # noqa: F821
 
 
 def re_groups_noaspect():
@@ -370,7 +378,7 @@ def re_groups_noaspect():
 
 
 def iast_re_group_aspect():
-    return re_group_aspect(None, 0, re.match(r"(\w+) (\w+)", "Hello World"))
+    return re_group_aspect(None, 0, re.match(r"(\w+) (\w+)", "Hello World"))  # noqa: F821
 
 
 def re_group_noaspect():
@@ -378,7 +386,7 @@ def re_group_noaspect():
 
 
 def iast_re_fullmatch_aspect():
-    return re_fullmatch_aspect(None, 1, re.compile("foo"), "foo")
+    return re_fullmatch_aspect(None, 1, re.compile("foo"), "foo")  # noqa: F821
 
 
 def re_fullmatch_noaspect():
@@ -386,7 +394,7 @@ def re_fullmatch_noaspect():
 
 
 def iast_re_finditer_aspect():
-    return re_finditer_aspect(None, 1, re.compile("foo"), "foo bar foo")
+    return re_finditer_aspect(None, 1, re.compile("foo"), "foo bar foo")  # noqa: F821
 
 
 def re_finditer_noaspect():
@@ -394,7 +402,7 @@ def re_finditer_noaspect():
 
 
 def iast_re_findall_aspect():
-    return re_findall_aspect(None, 1, re.compile("foo"), "foo bar foo")
+    return re_findall_aspect(None, 1, re.compile("foo"), "foo bar foo")  # noqa: F821
 
 
 def re_findall_noaspect():
@@ -404,10 +412,50 @@ def re_findall_noaspect():
 def iast_re_expand_aspect():
     re_obj = re.compile(r"(\w+) (\w+)")
     match = re.match(re_obj, "Hello World")
-    return re_expand_aspect(None, 1, match, "Salute: \\1 Subject: \\2")
+    return re_expand_aspect(None, 1, match, "Salute: \\1 Subject: \\2")  # noqa: F821
 
 
 def re_expand_noaspect():
     re_obj = re.compile(r"(\w+) (\w+)")
     match = re.match(re_obj, "Hello World")
     return match.expand("Salute: \\1 Subject: \\2")
+
+
+def iast_upper_aspect():
+    return upper_aspect(None, 1, "example")  # noqa: F821
+
+
+def upper_noaspect():
+    return "example".upper()
+
+
+def iast_translate_aspect():
+    return translate_aspect(None, 1, "example", {101: 105})  # noqa: F821
+
+
+def translate_noaspect():
+    return "example".translate({101: 105})
+
+
+def iast_title_aspect():
+    return title_aspect(None, 1, "hello world")  # noqa: F821
+
+
+def title_noaspect():
+    return "hello world".title()
+
+
+def iast_swapcase_aspect():
+    return swapcase_aspect(None, 1, "Hello World")  # noqa: F821
+
+
+def swapcase_noaspect():
+    return "Hello World".swapcase()
+
+
+def iast_split_aspect():
+    return split_aspect(None, 1, "foo bar baz")  # noqa: F821
+
+
+def split_noaspect():
+    return "foo bar baz".split()
