@@ -11,7 +11,11 @@ see specific integration documentation for more details.
 The following environment variables for the tracer are supported:
 
 
+General
+-------
+
 .. ddtrace-configuration-options::
+
    DD_ENV:
      description: |
          Set an application's environment e.g. ``prod``, ``pre-prod``, ``staging``. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
@@ -59,6 +63,9 @@ The following environment variables for the tracer are supported:
 
 Tracing
 -------
+
+.. ddtrace-configuration-options::
+
    DD_ASGI_TRACE_WEBSOCKET:
      default: False
      
@@ -364,7 +371,9 @@ Tracing
         v1.9.0:
 
 AppSec
----
+------
+
+.. ddtrace-configuration-options::
 
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String
@@ -471,6 +480,8 @@ AppSec
 Test Visibility
 ---------------
 
+.. ddtrace-configuration-options::
+
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean
      default: False
@@ -537,6 +548,9 @@ Test Visibility
 
 Datadog Agent
 -------------
+
+.. ddtrace-configuration-options::
+
    DD_AGENT_HOST:
      type: String
      
@@ -581,6 +595,9 @@ Datadog Agent
 
 Logging
 -------
+
+.. ddtrace-configuration-options::
+
    DD_LOGS_INJECTION:
      type: Boolean
      default: False
@@ -627,6 +644,9 @@ Logging
 
 Sampling
 --------
+
+.. ddtrace-configuration-options::
+
    DD_SPAN_SAMPLING_RULES:
      type: string
      
@@ -690,6 +710,9 @@ Sampling
 
 Other
 -----
+
+.. ddtrace-configuration-options::
+
    DD_DOGSTATSD_URL:
      type: URL
      
