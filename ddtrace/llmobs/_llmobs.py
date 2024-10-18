@@ -363,8 +363,7 @@ class LLMObs(Service):
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
-        :param str model_name: The name of the invoked LLM.
-                               If not provided, a default value of "custom_model" will be set.
+        :param str model_name: The name of the invoked LLM. If not provided, a default value of "custom" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -377,7 +376,7 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         if model_name is None:
-            model_name = "custom_model"
+            model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
         return cls._instance._start_span(
@@ -463,7 +462,7 @@ class LLMObs(Service):
         Trace a call to an embedding model or function to create an embedding.
 
         :param str model_name: The name of the invoked embedding model.
-                               If not provided, a default value of "custom_model" will be set.
+                               If not provided, a default value of "custom" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "embedding" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -476,7 +475,7 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         if model_name is None:
-            model_name = "custom_model"
+            model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
         return cls._instance._start_span(

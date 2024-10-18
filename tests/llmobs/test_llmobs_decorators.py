@@ -78,7 +78,7 @@ def test_llm_decorator_no_model_name_sets_default(LLMObs, mock_llmobs_span_write
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(
-            span, "llm", model_name="custom_model", model_provider="test_provider", session_id="test_session_id"
+            span, "llm", model_name="custom", model_provider="test_provider", session_id="test_session_id"
         )
     )
 
@@ -91,7 +91,7 @@ def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
     f()
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_span_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(span, "llm", model_name="custom_model", model_provider="custom")
+        _expected_llmobs_llm_span_event(span, "llm", model_name="custom", model_provider="custom")
     )
 
 
@@ -120,7 +120,7 @@ def test_embedding_decorator_no_model_name_sets_default(LLMObs, mock_llmobs_span
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(
-            span, "embedding", model_name="custom_model", model_provider="test_provider", session_id="test_session_id"
+            span, "embedding", model_name="custom", model_provider="test_provider", session_id="test_session_id"
         )
     )
 
@@ -133,7 +133,7 @@ def test_embedding_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
     f()
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_span_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(span, "embedding", model_name="custom_model", model_provider="custom")
+        _expected_llmobs_llm_span_event(span, "embedding", model_name="custom", model_provider="custom")
     )
 
 

@@ -32,7 +32,7 @@ def _model_decorator(operation_kind):
                         return await func(*args, **kwargs)
                     traced_model_name = model_name
                     if traced_model_name is None:
-                        traced_model_name = "custom_model"
+                        traced_model_name = "custom"
                     span_name = name
                     if span_name is None:
                         span_name = func.__name__
@@ -55,7 +55,7 @@ def _model_decorator(operation_kind):
                         return func(*args, **kwargs)
                     traced_model_name = model_name
                     if traced_model_name is None:
-                        traced_model_name = "custom_model"
+                        traced_model_name = "custom"
                     span_name = name
                     if span_name is None:
                         span_name = func.__name__
