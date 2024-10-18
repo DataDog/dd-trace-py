@@ -23,7 +23,9 @@
             "tests/subprocesstest.py",
             "tests/wait-for-services.py",
             "tests/webclient.py",
-            "tests/test_module/*"
+            "tests/test_module/*",
+            ".gitlab-ci.yml",
+            ".gitlab/*"
         ],
         "core": [
             "ddtrace/internal/__init__.py",
