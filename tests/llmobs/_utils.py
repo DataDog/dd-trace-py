@@ -193,6 +193,7 @@ def _llmobs_base_span_event(
         "meta": {"span.kind": span_kind},
         "metrics": {},
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
+        "_dd": {"span_id": str(span.span_id), "trace_id": "{:x}".format(span.trace_id)},
     }
     if session_id:
         span_event["session_id"] = session_id

@@ -51,6 +51,7 @@ class LLMObsSpanEvent(TypedDict):
     meta: Dict[str, Any]
     metrics: Dict[str, Any]
     collection_errors: List[str]
+    _dd: Dict[str, str]
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
