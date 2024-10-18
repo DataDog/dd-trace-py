@@ -98,7 +98,6 @@ class Flare:
         before sending the flare.
         """
         self.revert_configs()
-
         # We only want the flare to be sent once, even if there are
         # multiple tracer instances
         lock_path = self.flare_dir / TRACER_FLARE_LOCK
