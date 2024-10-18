@@ -52,6 +52,55 @@ class _DynamoDBDeleteRequestWriteRequest(TypedDict):
 _DynamoDBWriteRequest = Union[_DynamoDBPutRequestWriteRequest, _DynamoDBDeleteRequestWriteRequest]
 
 
+class _DynamoDBTransactConditionCheck(TypedDict, total=False):
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_ConditionCheck.html
+    Key: _DynamoDBItemPrimaryKey
+    TableName: _DynamoDBTableName
+
+
+class _DynamoDBTransactConditionCheckItem(TypedDict):
+    ConditionCheck: _DynamoDBTransactConditionCheck
+
+
+class _DynanmoDBTransactDelete(TypedDict, total=False):
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Delete.html
+    Key: _DynamoDBItemPrimaryKey
+    TableName: _DynamoDBTableName
+
+
+class _DynamoDBTransactDeleteItem(TypedDict):
+    Delete: _DynanmoDBTransactDelete
+
+
+class _DynamoDBTransactPut(TypedDict, total=False):
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Put.html
+    Item: _DynamoDBItem
+    TableName: _DynamoDBTableName
+
+
+class _DynamoDBTransactPutItem(TypedDict):
+    Put: _DynamoDBTransactPut
+
+
+class _DynamoDBTransactUpdate(TypedDict, total=False):
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Update.html
+    Key: _DynamoDBItemPrimaryKey
+    TableName: _DynamoDBTableName
+
+
+class _DynamoDBTransactUpdateItem(TypedDict):
+    Update: _DynamoDBTransactUpdate
+
+
+# https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItem.html
+_DynamoDBTransactWriteItem = Union[
+    _DynamoDBTransactConditionCheckItem,
+    _DynamoDBTransactDeleteItem,
+    _DynamoDBTransactPutItem,
+    _DynamoDBTransactUpdateItem,
+]
+
+
 def _extract_span_pointers_for_dynamodb_response(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     operation_name: str,
@@ -63,20 +112,27 @@ def _extract_span_pointers_for_dynamodb_response(
             dynamodb_primary_key_names_for_tables, request_parameters
         )
 
-    if operation_name in ("UpdateItem", "DeleteItem"):
+    elif operation_name in ("UpdateItem", "DeleteItem"):
         return _extract_span_pointers_for_dynamodb_keyed_operation_response(
             operation_name,
             request_parameters,
         )
 
-    if operation_name == "BatchWriteItem":
+    elif operation_name == "BatchWriteItem":
         return _extract_span_pointers_for_dynamodb_batchwriteitem_response(
             dynamodb_primary_key_names_for_tables,
             request_parameters,
             response,
         )
 
-    return []
+    elif operation_name == "TransactWriteItems":
+        return _extract_span_pointers_for_dynamodb_transactwriteitems_response(
+            dynamodb_primary_key_names_for_tables,
+            request_parameters,
+        )
+
+    else:
+        return []
 
 
 def _extract_span_pointers_for_dynamodb_putitem_response(
@@ -165,6 +221,29 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
         return []
 
 
+def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    request_parameters: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
+    try:
+        return list(
+            itertools.chain.from_iterable(
+                _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
+                    dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
+                    transact_write_request=transact_write_request,
+                )
+                for transact_write_request in request_parameters["TransactItems"]
+            )
+        )
+
+    except Exception as e:
+        log.warning(
+            "failed to generate DynamoDB.TransactWriteItems span pointer: %s",
+            str(e),
+        )
+        return []
+
+
 def _identify_dynamodb_batch_write_item_processed_items(
     requested_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
     unprocessed_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
@@ -243,6 +322,65 @@ def _aws_dynamodb_item_primary_key_from_write_request(
 
     else:
         raise ValueError(f"unexpected write request structure: {''.join(sorted(write_request.keys()))}")
+
+
+def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    transact_write_request: _DynamoDBTransactWriteItem,
+) -> List[_SpanPointerDescription]:
+    if len(transact_write_request) != 1:
+        raise ValueError(f"unexpected number of transact write request fields: {len(transact_write_request)}")
+
+    if "ConditionCheck" in transact_write_request:
+        # ConditionCheck requests don't actually modify anything, so we don't
+        # consider the associated item to be passing information between spans.
+        return []
+
+    elif "Delete" in transact_write_request:
+        # Unfortunately mypy does not properly see the if statement above as a
+        # type-narrowing from _DynamoDBTransactWriteItem to
+        # _DynamoDBTransactDeleteItem, so we help it out ourselves.
+
+        transact_write_request = cast(_DynamoDBTransactDeleteItem, transact_write_request)
+
+        table_name = transact_write_request["Delete"]["TableName"]
+        key = transact_write_request["Delete"]["Key"]
+
+    elif "Put" in transact_write_request:
+        # Unfortunately mypy does not properly see the if statement above as a
+        # type-narrowing from _DynamoDBTransactWriteItem to
+        # _DynamoDBTransactPutItem, so we help it out ourselves.
+
+        transact_write_request = cast(_DynamoDBTransactPutItem, transact_write_request)
+
+        table_name = transact_write_request["Put"]["TableName"]
+        key = _aws_dynamodb_item_primary_key_from_item(
+            dynamodb_primary_key_names_for_tables[table_name],
+            transact_write_request["Put"]["Item"],
+        )
+
+    elif "Update" in transact_write_request:
+        # Unfortunately mypy does not properly see the if statement above as a
+        # type-narrowing from _DynamoDBTransactWriteItem to
+        # _DynamoDBTransactUpdateItem, so we help it out ourselves.
+
+        transact_write_request = cast(_DynamoDBTransactUpdateItem, transact_write_request)
+
+        table_name = transact_write_request["Update"]["TableName"]
+        key = transact_write_request["Update"]["Key"]
+
+    else:
+        raise ValueError(
+            f"unexpected transact write request structure: {''.join(sorted(transact_write_request.keys()))}"
+        )
+
+    return [
+        _aws_dynamodb_item_span_pointer_description(
+            pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+            table_name=table_name,
+            primary_key=key,
+        )
+    ]
 
 
 def _aws_dynamodb_item_span_pointer_description(
