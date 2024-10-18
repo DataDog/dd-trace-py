@@ -7,8 +7,9 @@ build_base_venvs:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     PIP_VERBOSE: 1
-  script:
+  script: # pip 24.1 dropped support for python 3.7
     - pip install riot~=0.19.1
+    - pip install -U "pip<24.1"
     - riot -P -v generate --python=$PYTHON_VERSION
   artifacts:
     name: venv_$PYTHON_VERSION
