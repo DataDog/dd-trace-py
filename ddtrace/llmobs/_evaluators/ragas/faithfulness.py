@@ -116,10 +116,14 @@ class RagasFaithfulnessEvaluator:
             )
 
     def evaluate(self, span_event: dict) -> Optional[float]:
+        """
+        Performs a faithfulness evaluation on a span event, returning the faithfulness score.
+        If the ragas faithfulness instance does not have `llm` set, we set `llm` using the `llm_factory()`
+        method from ragas which defaults to openai's gpt-4o-turbo.
+        """
         if not self.ragas_dependencies_present:
             return None
 
-        # Get the latest faithfulness instance from Ragas
         self.ragas_faithfulness_instance = _get_faithfulness_instance()
 
         score, question, answer, context, statements, faithfulness_list = math.nan, None, None, None, None, None
