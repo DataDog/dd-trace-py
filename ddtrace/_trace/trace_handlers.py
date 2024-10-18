@@ -28,7 +28,6 @@ from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
-from ddtrace.internal.compat import nullcontext
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
@@ -122,17 +121,16 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
-    ctx.set_item(ctx.get_item("call_key", "call"), span)
+    ctx.span = span
     return span
 
 
 def _on_traced_request_context_started_flask(ctx):
     current_span = ctx["pin"].tracer.current_span()
     if not ctx["pin"].enabled or not current_span:
-        ctx.set_item(ctx["call_key"], nullcontext())
         return
 
-    ctx.set_item("call", current_span)
+    ctx.span = current_span
     flask_config = ctx["flask_config"]
     _set_flask_request_tags(ctx["flask_request"], current_span, flask_config)
     request_span = _start_span(ctx)
@@ -315,7 +313,7 @@ def _cookies_from_response_headers(response_headers):
 
 
 def _on_flask_render(template, flask_config):
-    span = core.get_item("call")
+    span = core.get_span()
     if not span:
         return
     name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
@@ -366,13 +364,13 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
-    before_request_tags(ctx["pin"], ctx["call"], request)
-    ctx["call"]._metrics[SPAN_MEASURED_KEY] = 1
+    before_request_tags(ctx["pin"], ctx.span, request)
+    ctx.span._metrics[SPAN_MEASURED_KEY] = 1
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
-    span = ctx["call"]
+    span = ctx.span
     after_request_tags(ctx["pin"], span, request, response)
     trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
 
@@ -385,7 +383,7 @@ def _on_django_start_response(
     remake_body(request)
 
     trace_utils.set_http_meta(
-        ctx["call"],
+        ctx.span,
         ctx["distributed_headers_config"],
         method=request.method,
         query=query,
@@ -398,24 +396,24 @@ def _on_django_start_response(
 
 
 def _on_django_cache(ctx: core.ExecutionContext, rowcount: int):
-    ctx["call"].set_metric(db.ROWCOUNT, rowcount)
+    ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
-            ctx["call"]._ignore_exception(exc)
+            ctx.span._ignore_exception(exc)
 
 
 def _on_django_process_exception(ctx: core.ExecutionContext, should_set_traceback: bool):
     if should_set_traceback:
-        ctx["call"].set_traceback()
+        ctx.span.set_traceback()
 
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
-        ctx["call"].set_tag_str(tk, tv)
-    _set_url_tag(django_config, ctx["call"], url, query)
+        ctx.span.set_tag_str(tk, tv)
+    _set_url_tag(django_config, ctx.span, url, query)
 
 
 def _on_django_after_request_headers_post(
@@ -449,7 +447,7 @@ def _on_django_after_request_headers_post(
 
 
 def _on_botocore_patched_api_call_started(ctx):
-    span = ctx.get_item(ctx.get_item("call_key"))
+    span = ctx.span
     set_patched_api_call_span_tags(
         span,
         ctx.get_item("instance"),
@@ -467,7 +465,7 @@ def _on_botocore_patched_api_call_started(ctx):
 
 
 def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_error_code_fn):
-    span = ctx.get_item(ctx.get_item("call_key"))
+    span = ctx.span
     # `ClientError.response` contains the result, so we can still grab response metadata
     set_botocore_response_metadata_tags(span, response, is_error_code_fn=is_error_code_fn)
 
@@ -479,18 +477,19 @@ def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_er
 
 
 def _on_botocore_patched_api_call_success(ctx, response):
-    span = ctx.get_item(ctx.get_item("call_key"))
+    span = ctx.span
 
     set_botocore_response_metadata_tags(span, response)
 
-    for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
-        dynamodb_primary_key_names_for_tables=config.botocore.dynamodb_primary_key_names_for_tables,
-        endpoint_name=ctx.get_item("endpoint_name"),
-        operation_name=ctx.get_item("operation"),
-        request_parameters=ctx.get_item("params"),
-        response=response,
-    ):
-        _set_span_pointer(span, span_pointer_description)
+    if config.botocore.add_span_pointers:
+        for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
+            dynamodb_primary_key_names_for_tables=config.botocore.dynamodb_primary_key_names_for_tables,
+            endpoint_name=ctx.get_item("endpoint_name"),
+            operation_name=ctx.get_item("operation"),
+            request_parameters=ctx.get_item("params"),
+            response=response,
+        ):
+            _set_span_pointer(span, span_pointer_description)
 
 
 def _on_botocore_trace_context_injection_prepared(
@@ -498,7 +497,7 @@ def _on_botocore_trace_context_injection_prepared(
 ):
     endpoint_name = ctx.get_item("endpoint_name")
     if cloud_service is not None:
-        span = ctx.get_item(ctx["call_key"])
+        span = ctx.span
         inject_kwargs = dict(endpoint_service=endpoint_name) if cloud_service == "sns" else dict()
         schematize_kwargs = dict(cloud_provider="aws", cloud_service=cloud_service)
         if endpoint_name != "lambda":
@@ -514,22 +513,22 @@ def _on_botocore_kinesis_update_record(ctx, stream, data_obj: Dict, record, inje
     if inject_trace_context:
         if "_datadog" not in data_obj:
             data_obj["_datadog"] = {}
-        HTTPPropagator.inject(ctx[ctx["call_key"]].context, data_obj["_datadog"])
+        HTTPPropagator.inject(ctx.span.context, data_obj["_datadog"])
 
 
 def _on_botocore_update_messages(ctx, span, _, trace_data, __, message=None):
-    context = span.context if span else ctx[ctx["call_key"]].context
+    context = span.context if span else ctx.span.context
     HTTPPropagator.inject(context, trace_data)
 
 
 def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __):
-    context = span.context if span else ctx[ctx["call_key"]].context
+    context = span.context if span else ctx.span.context
     HTTPPropagator.inject(context, trace_data["_datadog"])
     ctx.set_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY, trace_data)
 
 
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
-    span = ctx[ctx["call_key"]]
+    span = ctx.span
     integration = ctx["bedrock_integration"]
     span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
     span.set_tag_str("bedrock.request.model", ctx["model_name"])
@@ -543,7 +542,7 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
 
 
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
-    span = ctx[ctx["call_key"]]
+    span = ctx.span
     span.set_exc_info(*exc_info)
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
@@ -553,7 +552,7 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
 
 
 def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_token_count, output_token_count):
-    span = ctx[ctx["call_key"]]
+    span = ctx.span
     span.set_tag_str("bedrock.response.id", reqid)
     span.set_tag_str("bedrock.response.duration", latency)
     span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
@@ -562,20 +561,15 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
 
 def _propagate_context(ctx, headers):
     distributed_tracing_enabled = ctx["integration_config"].distributed_tracing_enabled
-    call_key = ctx.get_item("call_key")
-    if call_key is None:
-        log.warning("call_key not found in ctx")
-    if distributed_tracing_enabled and call_key:
-        span = ctx[ctx["call_key"]]
+    span = ctx.span
+    if distributed_tracing_enabled and span:
         HTTPPropagator.inject(span.context, headers)
 
 
 def _after_job_execution(ctx, job_failed, span_tags):
     """sets job.status and job.origin span tags after job is performed"""
     # get_status() returns None when ttl=0
-    call_key = ctx.get_item("call_key")
-    if call_key:
-        span = ctx[ctx["call_key"]]
+    span = ctx.span
     if span:
         if job_failed:
             span.error = 1
@@ -598,7 +592,7 @@ def _on_botocore_bedrock_process_response(
     should_set_choice_ids: bool,
 ) -> None:
     text = formatted_response["text"]
-    span = ctx[ctx["call_key"]]
+    span = ctx.span
     model_name = ctx["model_name"]
     if should_set_choice_ids:
         for i in range(len(text)):
@@ -651,7 +645,7 @@ def _on_botocore_kinesis_getrecords_post(
 
 def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
-        ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
+        ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
 def _on_test_visibility_enable(config) -> None:
