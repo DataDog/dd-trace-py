@@ -22,12 +22,14 @@ from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._redaction import DDRedactedExpressionError
 from ddtrace.debugging._safety import get_args
 from ddtrace.debugging._safety import get_globals
 from ddtrace.debugging._safety import get_locals
+from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import LogSignal
@@ -105,6 +107,15 @@ class Snapshot(LogSignal):
     _message: Optional[str] = field(default=None)
     duration: Optional[int] = field(default=None)  # nanoseconds
 
+    @property
+    def session(self):
+        session_id = self.probe.tags.get("sessionId")
+        return Session.lookup(session_id) if session_id is not None else None
+
+    @property
+    def rate_exceeded(self) -> bool:
+        return self.session is None and cast(RateLimitMixin, self.probe).limiter.limit() is RateLimitExceeded
+
     def _eval_segment(self, segment: TemplateSegment, _locals: Mapping[str, Any]) -> str:
         probe = cast(LogProbeMixin, self.probe)
         capture = probe.limits
@@ -141,7 +152,7 @@ class Snapshot(LogSignal):
         if not self._eval_condition(scope):
             return
 
-        if probe.limiter.limit() is RateLimitExceeded:
+        if self.rate_exceeded:
             self.state = SignalState.SKIP_RATE
             return
 
@@ -162,7 +173,7 @@ class Snapshot(LogSignal):
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
             if not self._eval_condition(full_scope):
                 return
-            if probe.limiter.limit() is RateLimitExceeded:
+            if self.rate_exceeded:
                 self.state = SignalState.SKIP_RATE
                 return
         elif self.state not in {SignalState.NONE, SignalState.DONE}:
@@ -201,7 +212,7 @@ class Snapshot(LogSignal):
             return
 
         if probe.take_snapshot:
-            if probe.limiter.limit() is RateLimitExceeded:
+            if self.rate_exceeded:
                 self.state = SignalState.SKIP_RATE
                 return
 
