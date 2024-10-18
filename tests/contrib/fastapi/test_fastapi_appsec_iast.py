@@ -624,7 +624,6 @@ def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
         query_params = request.query_params.get("iast_queryparam")
-        # resp.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
         ranges_result = get_tainted_ranges(query_params)
         response = JSONResponse(
             {
@@ -660,7 +659,6 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
         query_params = request.query_params.get("iast_queryparam")
-        # resp.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
         ranges_result = get_tainted_ranges(query_params)
         response = JSONResponse(
             {
@@ -704,7 +702,6 @@ def test_fasapi_no_http_only_cookie_empty(fastapi_application, client, tracer, t
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
         query_params = request.query_params.get("iast_queryparam")
-        # resp.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
         ranges_result = get_tainted_ranges(query_params)
         response = JSONResponse(
             {
@@ -740,7 +737,6 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
 
         query_params = request.query_params.get("iast_queryparam")
-        # resp.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
         ranges_result = get_tainted_ranges(query_params)
         response = JSONResponse(
             {
