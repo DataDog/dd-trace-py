@@ -145,14 +145,17 @@ class RagasFaithfulnessEvaluator:
 
                 statements = self._create_statements(question, answer)
                 if statements is None:
+                    logger.debug("Failed to create statements from answer for `ragas_faithfulness` evaluator")
                     return None
 
                 faithfulness_list = self._create_verdicts(context, statements)
                 if faithfulness_list is None:
+                    logger.debug("Failed to create faithfulness list `ragas_faithfulness` evaluator")
                     return None
 
                 score = self._compute_score(faithfulness_list)
                 if math.isnan(score):
+                    logger.debug("Score computation returned NaN for `ragas_faithfulness` evaluator")
                     return None
 
                 return score
