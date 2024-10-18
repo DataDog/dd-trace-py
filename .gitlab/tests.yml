@@ -40,7 +40,7 @@ variables:
   services:
     - !reference [.services, ddagent]
   script:
-    - pip install riot@git+https://www.github.com/DataDog/riot@taegyunkim/upload-artifact
+    - pip install riot==0.20.0
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
