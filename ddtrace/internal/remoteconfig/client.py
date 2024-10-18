@@ -241,6 +241,7 @@ class RemoteConfigClient:
             self._headers.update(parse_tags_str(additional_header_str))
 
         container.update_headers_with_container_info(self._headers, container.get_container_info())
+        container.update_header_with_external_info(self._headers)
 
         tags = ddtrace.config.tags.copy()
 
