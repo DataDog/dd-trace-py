@@ -45,7 +45,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -76,7 +76,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install packaging
           pip install requests
-          pip install riot==0.19.1
+          pip install riot@git+https://www.github.com/DataDog/riot@taegyunkim/pin-virtualenv
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh

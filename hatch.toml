@@ -17,7 +17,7 @@ dependencies = [
     "ddapm-test-agent>=1.2.0",
     "packaging==23.1",
     "pygments==2.16.1",
-    "riot==0.19.1",
+    "riot @ git+https://www.github.com/DataDog/riot@taegyunkim/pin-virtualenv",
     "ruff==0.1.3",
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
