@@ -106,7 +106,9 @@ class RagasFaithfulnessEvaluator:
 
         self.llm_output_parser_for_generated_statements = ragas_output_parser(pydantic_object=StatementsAnswers)
 
-        self.llm_output_parser_for_faithfulness_score = RagasoutputParser(pydantic_object=StatementFaithfulnessAnswers)
+        self.llm_output_parser_for_faithfulness_score = ragas_output_parser(
+            pydantic_object=StatementFaithfulnessAnswers
+        )
 
         self.split_answer_into_sentences = get_segmenter(
             language=self.ragas_faithfulness_instance.nli_statements_message.language, clean=False
