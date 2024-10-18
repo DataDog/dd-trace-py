@@ -9,6 +9,7 @@ from opentelemetry.baggage import set_baggage
 import pytest
 
 import ddtrace
+from ddtrace import tracer
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 
@@ -150,8 +151,6 @@ def test_otel_baggage(oteltracer):
 
 
 def test_otel_baggage_set(oteltracer):
-    from ddtrace import tracer
-
     with oteltracer.start_as_current_span("otel-baggage-set") as span:  # noqa: F841
         context = set_baggage("key1", "value1")  # noqa: F841
         ddcontext = tracer.current_trace_context()
@@ -160,18 +159,22 @@ def test_otel_baggage_set(oteltracer):
 
 
 def test_otel_baggage_get(oteltracer):
-    from ddtrace import tracer
-
     with oteltracer.start_as_current_span("otel-baggage-get") as span:  # noqa: F841
         with ddtrace.tracer.trace("otel-baggage-get-ddtrace") as ddspan:  # noqa: F841
+            import pdb
+
+            pdb.set_trace()
             ddcontext = tracer.current_trace_context()
             ddcontext.set_baggage_item("key1", "value1")
-            assert get_baggage("key1") == "value1"
+            assert (
+                get_baggage(
+                    "key1",
+                )
+                == "value1"
+            )
 
 
 def test_otel_baggage_remove(oteltracer):
-    from ddtrace import tracer
-
     with oteltracer.start_as_current_span("otel-baggage-remove") as span:  # noqa: F841
         context = set_baggage("key1", "value1")
         context = set_baggage("key2", "value2", context)

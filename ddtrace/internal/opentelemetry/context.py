@@ -3,8 +3,6 @@ from ddtrace._trace.context import Context as DDContext
 from ddtrace._trace.provider import BaseContextProvider as DDBaseContextProvider  # noqa:F401
 from ddtrace._trace.span import Span as DDSpan
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.wrapping import wrap as _w
 from ddtrace.propagation.http import _TraceContext
 
 
@@ -16,16 +14,6 @@ class DDRuntimeContext:
     Responsible for converting between OpenTelemetry and Datadog spans. This class is loaded by entrypoint
     when `opentelemetry.context` is imported.
     """
-
-    def __init__(self) -> None:
-        """monkey patching for otel baggage API"""
-        from opentelemetry.baggage import clear
-        from opentelemetry.baggage import remove_baggage
-        from opentelemetry.baggage import set_baggage
-
-        _w(set_baggage, wrap_set_baggage)
-        _w(remove_baggage, wrap_remove_baggage)
-        _w(clear, wrap_remove_all_baggage)
 
     def attach(self, otel_context):
         """
@@ -100,41 +88,3 @@ class DDRuntimeContext:
         This can reterive a default, gevent, or asyncio context provider.
         """
         return ddtracer.context_provider
-
-
-# monkey patching for otel baggage API
-def wrap_set_baggage(func, args, kwargs):
-    """
-    Set baggage item on the current context.
-    """
-    context = func(*args, **kwargs)
-    name: str = get_argument_value(args, kwargs, 0, "name")  # type: ignore
-    value = get_argument_value(args, kwargs, 1, "value")
-    # active ddspan and add baggage
-    ddcontext = ddtracer.current_trace_context()
-    if ddcontext:
-        ddcontext.set_baggage_item(name, value)
-    return context
-
-
-def wrap_remove_baggage(func, args, kwargs):
-    """
-    Remove baggage item from the current context.
-    """
-    context = func(*args, **kwargs)
-    name: str = get_argument_value(args, kwargs, 0, "name")  # type: ignore
-    ddcontext = ddtracer.current_trace_context()
-    if ddcontext:
-        ddcontext.remove_baggage_item(name)
-    return context
-
-
-def wrap_remove_all_baggage(func, args, kwargs):
-    """
-    Remove all baggage items from the current context.
-    """
-    context = func(*args, **kwargs)
-    ddcontext = ddtracer.current_trace_context()
-    if ddcontext:
-        ddcontext.remove_all_baggage_items()
-    return context
