@@ -22,9 +22,9 @@ try:
 
         ragas_output_parser = RagasoutputParser
     else:
-        from ragas.llms.output_parser import RagasoutputParserOld
+        from ragas.llms.output_parser import RagasOutputParserOld
 
-        ragas_output_parser = RagasoutputParserOld
+        ragas_output_parser = RagasOutputParserOld
 
     from ragas.metrics import faithfulness
     from ragas.metrics.base import ensembler
