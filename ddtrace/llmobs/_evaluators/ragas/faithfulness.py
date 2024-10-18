@@ -10,7 +10,6 @@ from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 logger = get_logger(__name__)
 
 RAGAS_DEPENDENCIES_PRESENT = False
-RAGAS = "ragas"
 
 try:
     from ragas.llms import llm_factory
@@ -29,13 +28,13 @@ except ImportError as e:
 
 def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     """
-    The `ml_app` spans generated from traces of ragas will be named as `ragas-<ml_app>`
-    or `ragas` if `ml_app` is not present in the span event.
+    The `ml_app` spans generated from traces of ragas will be named as `dd-ragas-<ml_app>`
+    or `dd-ragas` if `ml_app` is not present in the span event.
     """
-    tags = span_event.get("tags", [])
+    tags = span_event.get("tags", [])  # list[str]
     ml_app = None
     for tag in tags:
-        if tag.startswith("ml_app:"):
+        if isinstance(tag, str) and tag.startswith("ml_app:"):
             ml_app = tag.split(":")[1]
             break
     if not ml_app:
@@ -75,22 +74,20 @@ class RagasFaithfulnessEvaluator:
 
         For more information, see https://docs.ragas.io/en/latest/concepts/metrics/faithfulness/
 
-        The `ragas.metrics.faithfulness` instance is used for faithfulness scores. If there is not llm attribute set
+        The `ragas.metrics.faithfulness` instance is used for faithfulness scores. If there is no llm attribute set
         on this instance, it will be set to the default `llm_factory()` which uses openai.
 
         :param llmobs_service: An instance of the LLM Observability service used for tracing the evaluation and
-                                submitting evaluation metrics.
+                          cccccbgfdveevingkfhkkbevjvchlltguucbbjvtrgbk
+                                      submitting evaluation metrics.
         """
-        self.enabled = True
+        self.ragas_dependencies_present = True
         if not RAGAS_DEPENDENCIES_PRESENT:
-            self.enabled = False
+            self.ragas_dependencies_present = False
             return
 
         self.llmobs_service = llmobs_service
         self.ragas_faithfulness_instance = _get_faithfulness_instance()
-
-        if not self.ragas_faithfulness_instance.llm:
-            self.ragas_faithfulness_instance.llm = llm_factory()
 
         self.llm_output_parser_for_generated_statements = RagasoutputParser(pydantic_object=StatementsAnswers)
 
@@ -113,19 +110,18 @@ class RagasFaithfulnessEvaluator:
             )
 
     def evaluate(self, span_event: dict) -> Optional[float]:
-        if not self.enabled:
+        if not self.ragas_dependencies_present:
             return None
 
-        """Get the latest faithfulness instance from Ragas"""
+        # Get the latest faithfulness instance from Ragas
         self.ragas_faithfulness_instance = _get_faithfulness_instance()
 
-        """Initialize defaults for variables we want to annotate on the LLM Observability trace of the
-        ragas faithfulness evaluations."""
         score, question, answer, context, statements, faithfulness_list = math.nan, None, None, None, None, None
 
-        with self.llmobs_service.workflow("ragas.faithfulness", ml_app=_get_ml_app_for_ragas_trace(span_event)):
+        with self.llmobs_service.workflow(
+            "ragas.faithfulness", ml_app=_get_ml_app_for_ragas_trace(span_event)
+        ) as ragas_faithfulness_workflow:
             try:
-                """Get the necessary faithfulness inputs from the span event"""
                 faithfulness_inputs = self._extract_faithfulness_inputs(span_event)
                 if faithfulness_inputs is None:
                     logger.debug(
@@ -152,6 +148,7 @@ class RagasFaithfulnessEvaluator:
                 return score
             finally:
                 self.llmobs_service.annotate(
+                    span=ragas_faithfulness_workflow,
                     input_data=span_event,
                     output_data=score,
                     metadata={
@@ -160,7 +157,7 @@ class RagasFaithfulnessEvaluator:
                     },
                 )
 
-    def _create_statements(self, question, answer):
+    def _create_statements(self, question: str, answer: str) -> Optional[List[str]]:
         with self.llmobs_service.workflow("ragas.create_statements"):
             statements_prompt = self._create_statements_prompt(answer=answer, question=question)
 
@@ -178,7 +175,7 @@ class RagasFaithfulnessEvaluator:
                 return None
             return statements
 
-    def _create_verdicts(self, context, statements):
+    def _create_verdicts(self, context: str, statements: List[str]) -> Optional["StatementFaithfulnessAnswers"]:
         with self.llmobs_service.workflow("ragas.create_verdicts"):
             """Check which statements contradict the conntext"""
             raw_nli_results = self.ragas_faithfulness_instance.llm.generate_text(
@@ -187,9 +184,13 @@ class RagasFaithfulnessEvaluator:
             if len(raw_nli_results.generations) == 0:
                 return None
 
-            raw_nli_results_texts = [
-                raw_nli_results.generations[0][i].text for i in range(self.ragas_faithfulness_instance._reproducibility)
-            ]
+            reproducibility = (
+                self.ragas_faithfulness_instance._reproducibility
+                if hasattr(self.ragas_faithfulness_instance, "_reproducibility")
+                else 1
+            )
+
+            raw_nli_results_texts = [raw_nli_results.generations[0][i].text for i in range(reproducibility)]
 
             raw_faithfulness_list = [
                 faith.dicts()
@@ -222,8 +223,8 @@ class RagasFaithfulnessEvaluator:
         context - input.prompt.variables.context
         answer - output.messages[-1].content
         """
-        with self.llmobs_service.workflow("ragas.extract_faithfulness_inputs"):
-            self.llmobs_service.annotate(input_data=span_event)
+        with self.llmobs_service.workflow("ragas.extract_faithfulness_inputs") as extract_inputs_workflow:
+            self.llmobs_service.annotate(span=extract_inputs_workflow, input_data=span_event)
             question, answer, context = None, None, None
 
             meta_io = span_event.get("meta")
@@ -254,16 +255,14 @@ class RagasFaithfulnessEvaluator:
             if not question and len(input_messages) > 0:
                 question = input_messages[-1].get("content")
 
-            self.llmobs_service.annotate(output_data={"question": question, "context": context, "answer": answer})
+            self.llmobs_service.annotate(
+                span=extract_inputs_workflow, output_data={"question": question, "context": context, "answer": answer}
+            )
             if any(field is None for field in (question, context, answer)):
                 logger.debug("Failed to extract inputs required for faithfulness evaluation")
                 return None
 
-            return {
-                "question": question,
-                "context": context,
-                "answer": answer,
-            }
+            return {"question": question, "context": context, "answer": answer}
 
     def _create_statements_prompt(self, answer, question):
         with self.llmobs_service.task("ragas.create_statements_prompt"):
@@ -282,10 +281,10 @@ class RagasFaithfulnessEvaluator:
             )
             return prompt_value
 
-    def _compute_score(self, answers):
+    def _compute_score(self, faithfulness_list: "StatementFaithfulnessAnswers") -> float:
         with self.llmobs_service.task("ragas.compute_score"):
-            faithful_statements = sum(1 if answer.verdict else 0 for answer in answers.__root__)
-            num_statements = len(answers.__root__)
+            faithful_statements = sum(1 if answer.verdict else 0 for answer in faithfulness_list.__root__)
+            num_statements = len(faithfulness_list.__root__)
             if num_statements:
                 score = faithful_statements / num_statements
             else:

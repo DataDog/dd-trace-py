@@ -16,7 +16,7 @@ def _llm_span_without_io():
 
 def test_ragas_evaluator_init(ragas, LLMObs):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    assert rf_evaluator.enabled
+    assert rf_evaluator.ragas_dependencies_present
     assert rf_evaluator.llmobs_service == LLMObs
     assert rf_evaluator.ragas_faithfulness_instance == ragas.metrics.faithfulness
     assert rf_evaluator.ragas_faithfulness_instance.llm == ragas.llms.llm_factory()
@@ -24,7 +24,7 @@ def test_ragas_evaluator_init(ragas, LLMObs):
 
 def test_ragas_faithfulness_disabled_if_dependencies_not_present(LLMObs, ragas, mock_ragas_dependencies_not_present):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    assert not rf_evaluator.enabled
+    assert not rf_evaluator.ragas_dependencies_present
     assert rf_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt()) is None
 
 
