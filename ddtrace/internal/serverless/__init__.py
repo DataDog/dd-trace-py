@@ -37,3 +37,9 @@ def in_azure_function():
     return (
         os.environ.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and os.environ.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
     )
+
+
+def in_aws_glue():
+    # type: () -> bool
+    """Returns whether the environment is AWS Glue."""
+    return os.environ.get("GLUE_VERSION", "") != ""

@@ -6,13 +6,14 @@ from ..compat import PYTHON_VERSION_INFO
 from ..logger import get_logger
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
+from ..serverless import in_aws_glue
 
 
 log = get_logger(__name__)
 
 
 def maybe_start_serverless_mini_agent():
-    if not (in_gcp_function() or in_azure_function()):
+    if not (in_gcp_function() or in_azure_function() or in_aws_glue()):
         return
 
     if sys.platform != "win32" and sys.platform != "linux":
