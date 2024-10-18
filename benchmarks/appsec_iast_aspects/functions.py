@@ -60,7 +60,9 @@ for symbol in symbols:
         notfound_symbols.append(symbol)
         # print(f"Warning: {symbol} not found in the current version")
 
-print("Warning: symbols not found in the tested version [%s]: %s", (version.version, str(notfound_symbols)))
+if notfound_symbols:
+    print("Warning: symbols not found in the tested version [%s]: %s" % (version.version, str(notfound_symbols)))
+
 import _io
 import os
 import re
