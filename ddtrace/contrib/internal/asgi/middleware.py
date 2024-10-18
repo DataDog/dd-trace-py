@@ -238,8 +238,8 @@ class TraceMiddleware:
                 if span and message.get("type") == "http.response.start" and "status" in message:
                     cookies = {}
                     try:
-                        cookie_key, *split_cookie = response_headers.get("set-cookie", "").split("=")
-                        cookies[cookie_key] = "=".join(split_cookie)
+                        cookie_key, cookie_value = response_headers.get("set-cookie", "").split("=", maxsplit=1)
+                        cookies[cookie_key] = cookie_value
                     except Exception:
                         log.debug("failed to extract response cookies", exc_info=True)
 
