@@ -10,13 +10,17 @@ from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
 
-has_new_context = True
 try:
+    # 2.15+
     from ddtrace.appsec._iast._iast_request_context import end_iast_context
     from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
     from ddtrace.appsec._iast._iast_request_context import start_iast_context
 except ImportError:
-    has_new_context = False
+    # Pre 2.15
+    from ddtrace.appsec._iast._taint_tracking import create_context as start_iast_context
+    from ddtrace.appsec._iast._taint_tracking import reset_context as end_iast_context
+
+    set_iast_request_enabled = lambda x: None
 
 
 # Copypasted here from tests.iast.aspects.conftest since the benchmarks can't access tests.*
@@ -49,7 +53,7 @@ class IAST_Aspects(bm.Scenario):
 
     def run(self):
         args = ast.literal_eval(self.args)
-        if has_new_context and self.iast_enabled:
+        if self.iast_enabled:
             with override_env({"DD_IAST_ENABLED": "True"}):
                 _start_iast_context_and_oce()
 
@@ -60,12 +64,12 @@ class IAST_Aspects(bm.Scenario):
                         module_patched = _iast_patched_module(self.mod_original_name)
 
                     getattr(module_patched, self.function_name)(*args)
+
                 else:
                     module_unpatched = importlib.import_module(self.mod_original_name)
                     getattr(module_unpatched, self.function_name)(*args)
 
         yield _
-        if has_new_context:
-            if self.iast_enabled:
-                with override_env({"DD_IAST_ENABLED": "True"}):
-                    _end_iast_context_and_oce()
+        if self.iast_enabled:
+            with override_env({"DD_IAST_ENABLED": "True"}):
+                _end_iast_context_and_oce()
