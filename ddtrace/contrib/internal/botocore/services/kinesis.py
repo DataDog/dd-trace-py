@@ -61,7 +61,7 @@ def select_records_for_injection(params: List[Any], inject_trace_context: bool) 
     if "Records" in params and params["Records"]:
         for i, record in enumerate(params["Records"]):
             if "Data" in record:
-                records_to_inject_into.append((record, inject_trace_context and i == 0))
+                records_to_inject_into.append((record, inject_trace_context))
     elif "Data" in params:
         records_to_inject_into.append((params, inject_trace_context))
     return records_to_inject_into
@@ -105,7 +105,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                         data_obj.get("_datadog") if data_obj else None,
                         record,
                         result,
-                        config.botocore.propagation_enabled,
+                        config,
                         extract_DD_json,
                     ],
                 )
@@ -131,7 +131,8 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
     )
     is_kinesis_put_operation = endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}
 
-    child_of = parent_ctx.get_item("distributed_context")
+    extracted_contexts = parent_ctx.get_item("distributed_contexts", default=[])
+    child_of = extracted_contexts[0] if len(extracted_contexts) > 0 and config.botocore.propagation_enabled else None
 
     if should_instrument:
         with core.context_with_data(
@@ -156,8 +157,18 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
         ) as ctx, ctx.span:
             core.dispatch("botocore.patched_kinesis_api_call.started", [ctx])
 
+            for extracted_context in extracted_contexts:
+                ctx.span.link_span(extracted_context)
+                log.debug(
+                    "Successfully linked span %d to context with span id %d.",
+                    ctx.span.span_id,
+                    extracted_context.span_id,
+                )
+
             if is_kinesis_put_operation:
-                records_to_process = select_records_for_injection(params, bool(config.botocore["distributed_tracing"]))
+                records_to_process = select_records_for_injection(
+                    params, bool(config.botocore["distributed_tracing"] or config.botocore.span_links_enabled)
+                )
                 for record, should_inject_trace_context in records_to_process:
                     update_record(ctx, record, stream_arn, inject_trace_context=should_inject_trace_context)
 

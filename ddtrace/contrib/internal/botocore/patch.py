@@ -243,7 +243,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         span_key="instrumented_api_call",
     ) as ctx, ctx.span:
         core.dispatch("botocore.patched_api_call.started", [ctx])
-        if args and config.botocore["distributed_tracing"]:
+        if args and (config.botocore["distributed_tracing"] or config.botocore.span_links_enabled):
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
         try:
