@@ -77,3 +77,6 @@ def _pep440_to_semver(version=None):
     elif ".dev" in tracer_version:
         tracer_version = tracer_version.replace(".dev", "-dev", 1)
     return tracer_version
+
+
+version = _pep440_to_semver()
