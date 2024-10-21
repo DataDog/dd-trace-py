@@ -101,9 +101,6 @@ venv = Venv(
         "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-        "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-        "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
-        "DD_CIVISIBILITY_ITR_ENABLED": "1",
         "DD_INJECTION_ENABLED": "1",
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
@@ -156,7 +153,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_memcheck",
-            pys=select_pys(min_version="3.8"),
+            pys=select_pys(min_version="3.9"),
             command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
             pkgs={
                 "requests": latest,
@@ -166,7 +163,7 @@ venv = Venv(
                 "psycopg2-binary": "~=2.9.9",
                 # Should be "pytest-memray": latest, but we need to pin to a specific commit in a fork
                 # while this PR gets merged: https://github.com/bloomberg/pytest-memray/pull/103
-                "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73": "",
+                "pytest-memray": "~=1.7.0",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -290,6 +287,7 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -401,6 +399,7 @@ venv = Venv(
             env={
                 "DD_TRACE_AGENT_URL": "http://ddagent:8126",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -1435,7 +1434,8 @@ venv = Venv(
             name="mongoengine",
             command="pytest {cmdargs} tests/contrib/mongoengine",
             pkgs={
-                "pymongo": latest,
+                # pymongo v4.9.0 introduced breaking changes that are not yet supported by mongoengine
+                "pymongo": "<4.9.0",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -1561,6 +1561,7 @@ venv = Venv(
             pkgs={
                 "httpx": latest,
                 "pytest-asyncio": "==0.21.1",
+                "python-multipart": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
                 "aiofiles": latest,
@@ -2388,6 +2389,10 @@ venv = Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
             pys=select_pys(min_version="3.8"),
+            # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
+            # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
+            # If this order is violated otel and datadog spans will not be interoperable.
+            env={"DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -2966,7 +2971,7 @@ venv = Venv(
         Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling-v2",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
             env={"DD_PROFILING_ENABLE_ASSERTS": "1", "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1"},
             pkgs={
                 "gunicorn": latest,

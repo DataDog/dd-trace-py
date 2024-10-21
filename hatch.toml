@@ -17,14 +17,18 @@ dependencies = [
     "ddapm-test-agent>=1.2.0",
     "packaging==23.1",
     "pygments==2.16.1",
-    "riot==0.19.1",
+    "riot==0.20.0",
     "ruff==0.1.3",
     "clang-format==18.1.5",
+    "cmake-format==0.6.13",
 ]
 
 [envs.lint.scripts]
 black_check = [
     "black --check {args:.}",
+]
+cmakeformat_check = [
+    "bash scripts/cmake-format.sh"
 ]
 cformat_check = [
     "bash scripts/cformat.sh"
@@ -34,6 +38,7 @@ style = [
     "ruff check {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
+    "cmakeformat_check",
 ]
 fmt = [
     "black {args:.}",
@@ -78,7 +83,7 @@ dependencies = [  # copied from library dependencies
     "protobuf>=3",
     "typing_extensions",
     "xmltodict>=0.12",
-    "envier",
+    "envier==0.5.2",
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
     "bytecode",
@@ -216,7 +221,7 @@ django = ["~=4.2"]
 
 [[envs.appsec_threats_django.matrix]]
 python = ["3.10", "3.12"]
-django = ["~=5.0"]
+django = ["~=5.1"]
 
 
 ## ASM Flask
@@ -309,31 +314,6 @@ test = [
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 
-# ASM Appsec Aggregated Leak Testing
-
-[envs.appsec_aggregated_leak_testing]
-template = "appsec_aggregated_leak_testing"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis",
-    "requests",
-]
-
-[envs.appsec_aggregated_leak_testing.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-
-[envs.appsec_aggregated_leak_testing.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
-]
-
-[[envs.appsec_aggregated_leak_testing.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
-
-
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_fastapi.matrix]]
@@ -347,7 +327,39 @@ fastapi = ["==0.94.1"]
 
 [[envs.appsec_threats_fastapi.matrix]]
 python = ["3.8", "3.10", "3.12"]
-fastapi = ["~=0.109"]
+fastapi = ["~=0.114.2"]
+
+
+## ASM Appsec Aggregated Leak Testing
+
+[envs.appsec_aggregated_leak_testing]
+template = "appsec_aggregated_leak_testing"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+    "pytest-asyncio",
+    "anyio",
+    "pydantic",
+    "pydantic-settings",
+]
+
+[envs.appsec_aggregated_leak_testing.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+DD_IAST_ENABLED = "true"
+
+[envs.appsec_aggregated_leak_testing.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+]
+
+[[envs.appsec_aggregated_leak_testing.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12"]
+
+
 
 ## Unit Tests
 
@@ -362,6 +374,7 @@ dependencies = [
 [envs.ddtrace_unit_tests.env-vars]
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
+CMAKE_BUILD_PARALLEL_LEVEL="6"
 
 [envs.ddtrace_unit_tests.scripts]
 test = [

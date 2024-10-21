@@ -5,6 +5,7 @@
 // Needed for conversions from Vector to Tuple in get_ranges, dont remove even
 // if CLion tells it's not used!
 #include "StringUtils.h"
+#include "Initializer/Initializer.h"
 
 using namespace pybind11::literals;
 
@@ -68,6 +69,16 @@ new_pyobject_id(PyObject* tainted_object)
     if (!tainted_object)
         return nullptr;
 
+    // Check that it's aligned correctly
+    if (reinterpret_cast<uintptr_t>(tainted_object) % alignof(PyObject) != 0)
+        return tainted_object;
+
+    // Try to safely access ob_type
+    if (const PyObject* temp = tainted_object; !temp->ob_type)
+        return tainted_object;
+
+    py::gil_scoped_acquire acquire;
+
     if (PyUnicode_Check(tainted_object)) {
         PyObject* empty_unicode = PyUnicode_New(0, 127);
         if (!empty_unicode)
@@ -85,6 +96,7 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(val);
         return result;
     }
+
     if (PyBytes_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
         if (!empty_bytes)
@@ -100,8 +112,13 @@ new_pyobject_id(PyObject* tainted_object)
         const auto res = PyObject_CallFunctionObjArgs(bytes_join_ptr.ptr(), val, NULL);
         Py_XDECREF(val);
         Py_XDECREF(empty_bytes);
+        if (res == nullptr) {
+            return tainted_object;
+        }
         return res;
-    } else if (PyByteArray_Check(tainted_object)) {
+    }
+
+    if (PyByteArray_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
         if (!empty_bytes)
             return tainted_object;
@@ -124,6 +141,9 @@ new_pyobject_id(PyObject* tainted_object)
         Py_XDECREF(val);
         Py_XDECREF(empty_bytes);
         Py_XDECREF(empty_bytearray);
+        if (res == nullptr) {
+            return tainted_object;
+        }
         return res;
     }
     return tainted_object;
@@ -141,4 +161,32 @@ get_pyobject_size(PyObject* obj)
         len_candidate_text = PyByteArray_Size(obj);
     }
     return len_candidate_text;
+}
+
+bool
+PyIOBase_Check(const PyObject* obj)
+{
+    if (!obj)
+        return false;
+
+    try {
+        return py::isinstance((PyObject*)obj, safe_import("_io", "_IOBase"));
+    } catch (py::error_already_set& err) {
+        PyErr_Clear();
+        return false;
+    }
+}
+
+bool
+PyReMatch_Check(const PyObject* obj)
+{
+    if (!obj)
+        return false;
+
+    try {
+        return py::isinstance((PyObject*)obj, safe_import("re", "Match"));
+    } catch (py::error_already_set& err) {
+        PyErr_Clear();
+        return false;
+    }
 }

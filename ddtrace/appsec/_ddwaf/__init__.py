@@ -98,6 +98,7 @@ if _DDWAF_LOADED:
             diagnostics = ddwaf_object()
             ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
             self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(diagnostics))
+            self._cached_version = ""
             self._set_info(diagnostics)
             info = self.info
             if not self._handle or info.failed:
@@ -119,7 +120,8 @@ if _DDWAF_LOADED:
             info_struct = diagnostics.struct
             rules = info_struct.get("rules", {}) if info_struct else {}  # type: ignore
             errors_result = rules.get("errors", {})
-            version = info_struct.get("ruleset_version", "") if info_struct else ""  # type: ignore
+            version = info_struct.get("ruleset_version", self._cached_version) if info_struct else self._cached_version  # type: ignore
+            self._cached_version = version
             self._info = DDWaf_info(len(rules.get("loaded", [])), len(rules.get("failed", [])), errors_result, version)
             ddwaf_object_free(diagnostics)
 

@@ -4,53 +4,31 @@ on:
   push:
     branches:
       - main
+      - 'mq-working-branch**'
   pull_request:
   workflow_dispatch: {}
   schedule:
     - cron: '00 04 * * 2-6'
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
 
 jobs:
-  needs-run:
-    runs-on: ubuntu-latest
-    outputs:
-      outcome: ${{ steps.run_needed.outcome }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: run_needed
-        name: Check if run is needed
-        run:  |
-          git fetch origin ${{ github.event.pull_request.base.sha || github.sha }}
-          export PATHS=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha || github.sha }})
-          python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml', '.github/workflows/system-tests.yml'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
-        continue-on-error: true
-
   system-tests-build-agent:
     runs-on: ubuntu-latest
-    needs: needs-run
     steps:
 
       - name: Checkout system tests
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v4
         with:
           repository: 'DataDog/system-tests'
 
       - name: Build agent
-        id: build
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./build.sh -i agent
 
       - name: Save
         id: save
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: |
           docker image save system_tests/agent:latest | gzip > agent_${{ github.sha }}.tar.gz
 
       - uses: actions/upload-artifact@v4
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: agent_${{ github.sha }}
           path: |
@@ -59,7 +37,6 @@ jobs:
 
   system-tests-build-weblog:
     runs-on: ubuntu-latest
-    needs: needs-run
     strategy:
       matrix:
         include:
@@ -78,16 +55,16 @@ jobs:
       # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
       DD_API_KEY: 1234567890abcdef1234567890abcdef
       CMAKE_BUILD_PARALLEL_LEVEL: 12
+      SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
+      SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
 
       - name: Checkout system tests
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v4
         with:
           repository: 'DataDog/system-tests'
 
       - name: Checkout dd-trace-py
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v4
         with:
           path: 'binaries/dd-trace-py'
@@ -97,18 +74,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Build
-        id: build
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./build.sh -i weblog
 
       - name: Save
         id: save
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: |
           docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
 
       - uses: actions/upload-artifact@v4
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: |
@@ -117,7 +90,7 @@ jobs:
 
   system-tests:
     runs-on: ubuntu-latest
-    needs: [needs-run, system-tests-build-agent, system-tests-build-weblog]
+    needs: [system-tests-build-agent, system-tests-build-weblog]
     strategy:
       matrix:
         weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12]
@@ -132,134 +105,131 @@ jobs:
       # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
       DD_API_KEY: 1234567890abcdef1234567890abcdef
       CMAKE_BUILD_PARALLEL_LEVEL: 12
+      SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
+      SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
 
       - name: Checkout system tests
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v4
         with:
           repository: 'DataDog/system-tests'
 
       - name: Build runner
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: ./.github/actions/install_runner
 
       - uses: actions/download-artifact@v4
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: images_artifacts/
 
       - uses: actions/download-artifact@v4
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: agent_${{ github.sha }}
           path: images_artifacts/
 
       - name: docker load
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         id: docker_load
         run: |
           docker load < images_artifacts/${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
           docker load < images_artifacts/agent_${{ github.sha }}.tar.gz
 
       - name: Run DEFAULT
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh DEFAULT
 
       - name: Run SAMPLING
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh SAMPLING
 
       - name: Run INTEGRATIONS
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh INTEGRATIONS
 
       - name: Run CROSSED_TRACING_LIBRARIES
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh CROSSED_TRACING_LIBRARIES
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
 
       - name: Run APPSEC_MISSING_RULES
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_MISSING_RULES
 
       - name: Run APPSEC_CUSTOM_RULES
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_CUSTOM_RULES
 
       - name: Run APPSEC_CORRUPTED_RULES
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_CORRUPTED_RULES
 
       - name: Run APPSEC_RULES_MONITORING_WITH_ERRORS
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_RULES_MONITORING_WITH_ERRORS
 
       - name: Run APPSEC_LOW_WAF_TIMEOUT
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_LOW_WAF_TIMEOUT
 
       - name: Run APPSEC_CUSTOM_OBFUSCATION
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_CUSTOM_OBFUSCATION
 
       - name: Run APPSEC_RATE_LIMITER
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_RATE_LIMITER
 
       - name: Run APPSEC_STANDALONE
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE
 
       - name: Run APPSEC_RUNTIME_ACTIVATION
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RUNTIME_ACTIVATION
 
       - name: Run APPSEC_WAF_TELEMETRY
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_WAF_TELEMETRY
 
       - name: Run APPSEC_DISABLED
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_DISABLED
 
       - name: Run APPSEC_BLOCKING
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_BLOCKING
 
       - name: Run APPSEC_BLOCKING_FULL_DENYLIST
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
 
       - name: Run APPSEC_REQUEST_BLOCKING
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_REQUEST_BLOCKING
 
       - name: Run APPSEC_RASP
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RASP
 
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
-        if: always() && steps.docker_load.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule')
+        if: always() && steps.docker_load.outcome == 'success'
         id: compress-artifact
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        if: always() && steps.docker_load.outcome == 'success' && (steps.compress-artifact.outcome == 'success' || github.event_name == 'schedule')
+        if: always() && steps.docker_load.outcome == 'success'
         with:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
           path: artifact.tar.gz
@@ -268,17 +238,14 @@ jobs:
   parametric:
     runs-on:
       group: "APM Larger Runners"
-    needs: needs-run
     env:
       TEST_LIBRARY: python
     steps:
       - name: Checkout system tests
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v4
         with:
           repository: 'DataDog/system-tests'
       - name: Checkout dd-trace-py
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v4
         with:
           path: 'binaries/dd-trace-py'
@@ -287,20 +254,31 @@ jobs:
 
       - name: Build runner
         id: build_runner
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: ./.github/actions/install_runner
 
       - name: Run
-        if: always() && steps.build_runner.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule')
+        if: always() && steps.build_runner.outcome == 'success'
         run: ./run.sh PARAMETRIC
 
       - name: Compress artifact
-        if: always() && steps.build_runner.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule')
+        if: always() && steps.build_runner.outcome == 'success'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        if: always() && steps.build_runner.outcome == 'success' && (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule')
+        if: always() && steps.build_runner.outcome == 'success'
         with:
           name: logs_parametric
           path: artifact.tar.gz
+
+  finished:
+    runs-on: ubuntu-latest
+    needs: [parametric, system-tests]
+    if: success() || failure()
+    steps:
+      - name: True when everything else succeeded
+        if: needs.parametric.result == 'success' && needs.system-tests.result == 'success'
+        run: exit 0
+      - name: Fails if anything else failed
+        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success'
+        run: exit 1

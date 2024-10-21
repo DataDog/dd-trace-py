@@ -36,7 +36,6 @@ from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
-from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
 
@@ -205,7 +204,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
         if not self._report_metrics:
             return
-        if config.health_metrics_enabled and self.dogstatsd:
+        if config._health_metrics_enabled and self.dogstatsd:
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
     def _set_drop_rate(self) -> None:
@@ -540,38 +539,32 @@ class AgentWriter(HTTPWriter):
     def _agent_endpoint(self):
         return self._intake_endpoint(client=None)
 
-    def _downgrade(self, payload, response, client):
+    def _downgrade(self, response, client):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
             # sending it, but we chuck it away instead.
             log.warning(
+                "Calling endpoint '%s' but received %s; downgrading API. "
                 "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
                 "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
-                "endpoint available, or explicitly set the trace API version to, e.g., v0.4."
+                "endpoint available, or explicitly set the trace API version to, e.g., v0.4.",
+                client.ENDPOINT,
+                response.status,
             )
-            return None
-        if client.ENDPOINT == "v0.4/traces":
-            self._clients = [AgentWriterClientV3(self._buffer_size, self._max_payload_size)]
-            # These endpoints share the same encoding, so we can try sending the
-            # same payload over the downgraded endpoint.
-            return payload
+        else:
+            log.error(
+                "unsupported endpoint '%s': received response %s from intake (%s)",
+                client.ENDPOINT,
+                response.status,
+                self.intake_url,
+            )
 
     def _send_payload(self, payload, count, client) -> Response:
         response = super(AgentWriter, self)._send_payload(payload, count, client)
         if response.status in [404, 415]:
-            log.debug("calling endpoint '%s' but received %s; downgrading API", client.ENDPOINT, response.status)
-            payload = self._downgrade(payload, response, client)
-            if payload is not None:
-                self._send_payload(payload, count, client)
-            else:
-                log.error(
-                    "unsupported endpoint '%s': received response %s from intake (%s)",
-                    client.ENDPOINT,
-                    response.status,
-                    self.intake_url,
-                )
+            self._downgrade(response, client)
         elif response.status < 400:
             if self._response_cb:
                 raw_resp = response.get_json()

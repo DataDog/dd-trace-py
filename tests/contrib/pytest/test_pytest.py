@@ -16,11 +16,15 @@ from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import git
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
+from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
@@ -64,6 +68,13 @@ def _get_spans_from_list(
     return selected_spans
 
 
+def _fetch_test_to_skip_side_effect(itr_data):
+    def _():
+        CIVisibility._instance._itr_data = itr_data
+
+    return _
+
+
 class PytestTestCase(TracerTestCase):
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch, git_repo):
@@ -79,7 +90,7 @@ class PytestTestCase(TracerTestCase):
         """
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             yield
 
@@ -208,6 +219,25 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
         test_span = spans[0]
         assert test_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
+
+    def test_pytest_command_test_session_name(self):
+        """Test that the pytest run command is used to set the test session name."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.set_test_session_name"
+        ) as set_test_session_name_mock:
+            self.inline_run("--ddtrace", file_name)
+
+        set_test_session_name_mock.assert_called_once_with(
+            test_command="pytest -p no:randomly --ddtrace {}".format(file_name)
+        )
 
     def test_ini_no_ddtrace(self):
         """Test ini config, overridden by --no-ddtrace cli parameter."""
@@ -1452,8 +1482,14 @@ class PytestTestCase(TracerTestCase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                import pytest
+
+                @pytest.mark.parametrize("paramslash", ["c/d", "/d/c", "f/"])
+                def test_ok_1(paramslash):
+                    assert True"""
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -1461,14 +1497,22 @@ class PytestTestCase(TracerTestCase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                import pytest
+
+                @pytest.mark.parametrize("slashparam", ["a/b", "/b/a", "a/"])
+                def test_ok_2(slashparam):
+                    assert True
+
+                """
+                )
             )
         self.testdir.chdir()
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
 
-        assert len(spans) == 7
+        assert len(spans) == 11
         test_module_spans = sorted(
             [span for span in spans if span.get_tag("type") == "test_module_end"],
             key=lambda s: s.get_tag("test.module"),
@@ -1482,6 +1526,15 @@ class PytestTestCase(TracerTestCase):
         )
         assert test_suite_spans[0].get_tag("test.suite") == "test_inner_abc.py"
         assert test_suite_spans[1].get_tag("test.suite") == "test_outer_abc.py"
+
+        test_spans = _get_spans_from_list(spans, "test")
+        for test_span in test_spans:
+            if test_span.get_tag("test.name").startswith("test_ok_1"):
+                assert test_span.get_tag("test.module_path") == "test_outer_package"
+            elif test_span.get_tag("test.name").startswith("test_ok_2"):
+                assert test_span.get_tag("test.module_path") == "test_outer_package/test_inner_package"
+            else:
+                raise ValueError("Unexpected span name")
 
     def test_pytest_module_path_empty(self):
         """
@@ -1546,7 +1599,7 @@ class PytestTestCase(TracerTestCase):
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, False, False, True),
+            return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
@@ -1611,15 +1664,20 @@ class PytestTestCase(TracerTestCase):
         """
         )
 
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_test_ids(
+                [
+                    ("", "test_cov.py", "test_cov"),
+                ]
+            )
+        )
+
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, True, False, True),
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_tests_to_skip",
-            {
-                "test_cov.py": ["test_cov"],
-            },
+            return_value=TestVisibilityAPISettings(True, True, False, True),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
@@ -1700,7 +1758,7 @@ class PytestTestCase(TracerTestCase):
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, False, False, True),
+            return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
@@ -1776,7 +1834,7 @@ class PytestTestCase(TracerTestCase):
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(True, False, False, True),
+            return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
@@ -1905,6 +1963,16 @@ class PytestTestCase(TracerTestCase):
                 )
             )
         self.testdir.chdir()
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_suite_ids(
+                [
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py"),
+                    ("test_outer_package", "test_outer_abc.py"),
+                ]
+            )
+        )
+
         with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
@@ -1912,16 +1980,11 @@ class PytestTestCase(TracerTestCase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_test_suites_to_skip",
-            [
-                "test_outer_package/test_outer_abc.py",
-                "test_outer_package/test_inner_package/test_inner_class_abc.py",
-            ],
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
         ):
             self.inline_run("--ddtrace")
 
@@ -1994,18 +2057,23 @@ class PytestTestCase(TracerTestCase):
                 assert True"""
             )
         self.testdir.chdir()
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_test_ids(
+                [
+                    ("test_outer_package", "test_outer_abc.py", "test_outer_ok"),
+                ]
+            )
+        )
+
         with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_tests_to_skip",
-            {
-                "test_outer_package/test_outer_abc.py": ["test_outer_ok"],
-                "test_outer_package/test_inner_package/test_inner_abc.py": [],
-            },
         ):
-            self.inline_run("--ddtrace", "-vv")
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -2200,9 +2268,10 @@ class PytestTestCase(TracerTestCase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=True
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_suite_itr_skippable", return_value=True
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
         ):
             self.inline_run("--ddtrace")
 
@@ -2274,7 +2343,8 @@ class PytestTestCase(TracerTestCase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=False
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
         ):
             self.inline_run("--ddtrace")
 
@@ -2371,17 +2441,25 @@ class PytestTestCase(TracerTestCase):
                 assert True"""
             )
         self.testdir.chdir()
-        with override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_suite_ids(
+                [
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py"),
+                    ("test_outer_package", "test_outer_abc.py"),
+                ]
+            )
+        )
+
+        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled", return_value=True
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_test_suites_to_skip",
-            [
-                "test_outer_package/test_inner_package/test_inner_abc.py",
-                "test_outer_package/test_outer_abc.py",
-            ],
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
         ):
             self.inline_run("--ddtrace")
 
@@ -2427,15 +2505,23 @@ class PytestTestCase(TracerTestCase):
                 assert True"""
             )
         self.testdir.chdir()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled", return_value=True
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_tests_to_skip",
-            {
-                "test_outer_package/test_inner_package/test_inner_abc.py": ["test_inner_ok"],
-                "test_outer_package/test_outer_abc.py": ["test_outer_ok"],
-            },
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_test_ids(
+                [
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_ok"),
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_shouldskip_skipif"),
+                    ("test_outer_package", "test_outer_abc.py", "test_outer_ok"),
+                ]
+            )
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
         ):
             self.inline_run("--ddtrace")
 
@@ -2511,21 +2597,25 @@ class PytestTestCase(TracerTestCase):
                 )
             )
         self.testdir.chdir()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_test_ids(
+                [
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_ok"),
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_unskippable"),
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_shouldskip_skipif"),
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_shouldskip_skip"),
+                    ("test_outer_package", "test_outer_abc.py", "test_outer_ok"),
+                ]
+            )
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_tests_to_skip",
-            {
-                "test_outer_package/test_inner_package/test_inner_abc.py": [
-                    "test_inner_ok",
-                    "test_inner_unskippable",
-                    "test_inner_shouldskip_skipif",
-                    "test_inner_shouldskip_skip",
-                ],
-                "test_outer_package/test_outer_abc.py": ["test_outer_ok"],
-            },
         ):
             self.inline_run("--ddtrace")
 
@@ -2644,24 +2734,32 @@ class PytestTestCase(TracerTestCase):
                 """
                 )
             )
+
         self.testdir.chdir()
-        with override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_suite_ids(
+                [
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py"),
+                    ("test_outer_package", "test_outer_abc.py"),
+                ]
+            )
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_test_suites_to_skip",
-            [
-                "test_outer_package/test_outer_abc.py",
-                "test_outer_package/test_inner_package/test_inner_abc.py",
-            ],
+        ), override_env(
+            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
         ):
             self.inline_run("--ddtrace")
 
@@ -2778,20 +2876,23 @@ class PytestTestCase(TracerTestCase):
                 )
             )
         self.testdir.chdir()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_test_ids(
+                [
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_unskippable"),
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_shouldskip_skipif"),
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_shouldskip_skip"),
+                ]
+            )
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_tests_to_skip",
-            {
-                "test_outer_package/test_inner_package/test_inner_abc.py": [
-                    "test_inner_unskippable",
-                    "test_inner_shouldskip_skipif",
-                    "test_inner_shouldskip_skip",
-                ],
-                "test_outer_package/test_outer_abc.py": [],  # simulates defaultdict behavior
-            },
         ):
             self.inline_run("--ddtrace")
 
@@ -2876,21 +2977,25 @@ class PytestTestCase(TracerTestCase):
                 )
             )
         self.testdir.chdir()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_test_ids(
+                [
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_ok"),
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_unskippable"),
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_shouldskip_skipif"),
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py", "test_inner_shouldskip_skip"),
+                    ("test_outer_package", "test_outer_abc.py", "test_outer_ok"),
+                ]
+            )
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_tests_to_skip",
-            {
-                "test_outer_package/test_inner_package/test_inner_abc.py": [
-                    "test_inner_ok",
-                    "test_inner_unskippable",
-                    "test_inner_shouldskip_skipif",
-                    "test_inner_shouldskip_skip",
-                ],
-                "test_outer_package/test_outer_abc.py": ["test_outer_ok"],
-            },
         ):
             self.inline_run("--ddtrace")
 
@@ -3011,7 +3116,20 @@ class PytestTestCase(TracerTestCase):
                 )
             )
         self.testdir.chdir()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_suite_ids(
+                [
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py"),
+                    ("test_outer_package", "test_outer_abc.py"),
+                ]
+            )
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
@@ -3019,15 +3137,9 @@ class PytestTestCase(TracerTestCase):
             return_value=True,
         ), override_env(
             {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_test_suites_to_skip",
-            [
-                "test_outer_package/test_outer_abc.py",
-                "test_outer_package/test_inner_package/test_inner_abc.py",
-            ],
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
         ):
             self.inline_run("--ddtrace")
 
@@ -3144,24 +3256,31 @@ class PytestTestCase(TracerTestCase):
                 )
             )
         self.testdir.chdir()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+
+        _itr_data = ITRData(
+            skippable_items=_make_fqdn_suite_ids(
+                [
+                    ("test_outer_package.test_inner_package", "test_inner_abc.py"),
+                ]
+            )
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), override_env(
-            dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True", DD_TRACE_DEBUG="1", DD_TESTING_RAISE="true")
-        ), mock.patch.object(
-            ddtrace.internal.ci_visibility.recorder.CIVisibility,
-            "_test_suites_to_skip",
-            [
-                "test_outer_package/test_inner_package/test_inner_abc.py",
-            ],
+            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig("suite")
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
         ):
-            self.inline_run("--ddtrace", "-v")
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 12

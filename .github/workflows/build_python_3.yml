@@ -1,9 +1,6 @@
 name: Build Python 3
 
 on:
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
   workflow_call:
     inputs:
       cibw_build:
@@ -82,7 +79,7 @@ jobs:
           platforms: all
 
       - name: Build wheels arm64
-        if: matrix.os == 'arm-4core-linux'
+        if: always() && matrix.os == 'arm-4core-linux'
         run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --only ${{ matrix.only }}
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
@@ -116,7 +113,7 @@ jobs:
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
       - name: Build wheels
-        if: matrix.os != 'arm-4core-linux'
+        if: always() && matrix.os != 'arm-4core-linux'
         uses: pypa/cibuildwheel@v2.16.5
         with:
           only: ${{ matrix.only }}

@@ -6,6 +6,11 @@ from typing import Optional  # noqa:F401
 
 import ddtrace
 from ddtrace import config
+from ddtrace.ext import SpanTypes
+from ddtrace.ext.test import TEST_SESSION_NAME
+from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
+from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
+from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
@@ -43,14 +48,20 @@ class CIVisibilityEventClient(WriterClientBase):
     def __init__(self):
         encoder = CIVisibilityEncoderV01(0, 0)
         encoder.set_metadata(
+            "*",
             {
                 "language": "python",
                 "env": config.env,
                 "runtime-id": get_runtime_id(),
                 "library_version": ddtrace.__version__,
-            }
+            },
         )
         super(CIVisibilityEventClient, self).__init__(encoder)
+
+    def set_test_session_name(self, test_session_name: str) -> None:
+        if isinstance(self.encoder, CIVisibilityEncoderV01):
+            for event_type in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
+                self.encoder.set_metadata(event_type, {TEST_SESSION_NAME: test_session_name})
 
 
 class CIVisibilityCoverageClient(WriterClientBase):
@@ -106,11 +117,11 @@ class CIVisibilityWriter(HTTPWriter):
             timeout = config._agent_timeout_seconds
         intake_cov_url = None
         if use_evp:
-            intake_url = agent.get_trace_url()
-            intake_cov_url = agent.get_trace_url()
+            intake_url = intake_url if intake_url else agent.get_trace_url()
+            intake_cov_url = intake_url
         elif config._ci_visibility_agentless_url:
-            intake_url = config._ci_visibility_agentless_url
-            intake_cov_url = config._ci_visibility_agentless_url
+            intake_url = intake_url if intake_url else config._ci_visibility_agentless_url
+            intake_cov_url = intake_url
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
