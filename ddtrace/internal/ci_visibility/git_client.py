@@ -151,6 +151,18 @@ class CIVisibilityGitClient(object):
         return self._metadata_upload_status.value  # type: ignore
 
     @classmethod
+    def _get_git_dir(cls, cwd=None):
+        # type: (Optional[str]) -> Optional[str]
+        if cwd is None:
+            cwd = os.getcwd()
+
+        git_dir = os.path.join(cwd, ".git")
+        if not os.path.exists(git_dir):
+            return None
+
+        return git_dir
+
+    @classmethod
     def _run_protocol(
         cls,
         serializer,  # CIVisibilityGitClientSerializerV1
@@ -166,6 +178,11 @@ class CIVisibilityGitClient(object):
         log.setLevel(log_level)
         _metadata_upload_status.value = METADATA_UPLOAD_STATUS.IN_PROCESS
         try:
+            if not cls._get_git_dir(cwd=cwd):
+                log.debug("Missing .git directory; skipping git metadata upload")
+                _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
+                return
+
             if _tags is None:
                 _tags = {}
             repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
