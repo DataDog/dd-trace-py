@@ -622,7 +622,7 @@ class TestBotocoreSpanPointers:
                 expected_warning_regex=".*'Key'.*",
             ),
             PointersCase(
-                name="BatchWriteItem works with multiple items and tables",
+                name="dynamodb.BatchWriteItem works with multiple items and tables",
                 endpoint_name="dynamodb",
                 operation_name="BatchWriteItem",
                 request_parameters={
@@ -700,7 +700,7 @@ class TestBotocoreSpanPointers:
                 expected_warning_regex=None,
             ),
             PointersCase(
-                name="BatchWriteItem still needs the mapping sometimes",
+                name="dynamodb.BatchWriteItem still needs the mapping sometimes",
                 endpoint_name="dynamodb",
                 operation_name="BatchWriteItem",
                 request_parameters={
@@ -715,6 +715,95 @@ class TestBotocoreSpanPointers:
                             },
                         ],
                     },
+                },
+                response={},
+                expected_pointers=[],
+                expected_warning_regex=".*unknown-table.*",
+            ),
+            PointersCase(
+                name="dynamodb.TransactWriteItems basic case",
+                endpoint_name="dynamodb",
+                operation_name="TransactWriteItems",
+                request_parameters={
+                    "TransactItems": [
+                        {
+                            "Put": {
+                                "TableName": "some-table",
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                        {
+                            "Delete": {
+                                "TableName": "unknown-table",
+                                "Key": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                        {
+                            "Update": {
+                                "TableName": "some-table",
+                                "Key": {
+                                    "some-key": {"S": "some-value"},
+                                    "other-key": {"N": "123"},
+                                },
+                            },
+                        },
+                        {
+                            "ConditionCheck": {
+                                "TableName": "do-not-care-table",
+                                "Key": {
+                                    "do-not-care-key": {"S": "meh"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        # Update
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7aa1b80b0e49bd2078a5453399f4dd67",
+                        extra_attributes={},
+                    ),
+                    _SpanPointerDescription(
+                        # Put
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                    _SpanPointerDescription(
+                        # Delete
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="d8840182e4052ee105348b033e0a6810",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.TransactWriteItems still needs the mapping sometimes",
+                endpoint_name="dynamodb",
+                operation_name="TransactWriteItems",
+                request_parameters={
+                    "TransactItems": [
+                        {
+                            "Put": {
+                                "TableName": "unknown-table",
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
                 },
                 response={},
                 expected_pointers=[],
