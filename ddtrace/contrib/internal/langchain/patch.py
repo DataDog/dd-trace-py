@@ -7,8 +7,8 @@ from typing import Optional
 from typing import Union
 
 import langchain
-from pydantic import SecretStr
 
+from pydantic import SecretStr
 
 try:
     import langchain_core
@@ -941,7 +941,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                "sampled %s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__),
                 attrs={
                     "query": query,
                     "k": k or "",
@@ -1287,11 +1287,28 @@ def _patch_embeddings_and_vectorstores():
         base_langchain_module = langchain_community
     if not PATCH_LANGCHAIN_V0 and langchain_community is None:
         return
+
     for text_embedding_model in text_embedding_models:
         if hasattr(base_langchain_module.embeddings, text_embedding_model):
-            embedding_module = getattr(base_langchain_module.embeddings, text_embedding_model)
-            safe_wrap(embedding_module, "embed_query", traced_embedding, langchain)
-            safe_wrap(embedding_module, "embed_documents", traced_embedding, langchain)
+            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
+            if not isinstance(
+                deep_getattr(base_langchain_module.embeddings, "%s.embed_query" % text_embedding_model),
+                wrapt.ObjectProxy,
+            ):
+                wrap(
+                    base_langchain_module.__name__,
+                    "embeddings.%s.embed_query" % text_embedding_model,
+                    traced_embedding(langchain),
+                )
+            if not isinstance(
+                deep_getattr(base_langchain_module.embeddings, "%s.embed_documents" % text_embedding_model),
+                wrapt.ObjectProxy,
+            ):
+                wrap(
+                    base_langchain_module.__name__,
+                    "embeddings.%s.embed_documents" % text_embedding_model,
+                    traced_embedding(langchain),
+                )
 
     for vectorstore in vectorstore_classes:
         # wraps langchain-community internal vectorstore classes.
@@ -1315,15 +1332,29 @@ def _unpatch_embeddings_and_vectorstores():
     base_langchain_module = langchain if PATCH_LANGCHAIN_V0 else langchain_community
     if not PATCH_LANGCHAIN_V0 and langchain_community is None:
         return
+
     for text_embedding_model in text_embedding_models:
-        if hasattr(base_langchain_module.embeddings, text_embedding_model):
-            embedding_module = getattr(base_langchain_module.embeddings, text_embedding_model)
-            safe_unwrap(embedding_module, "embed_query")
-            safe_unwrap(embedding_module, "embed_documents")
+        if isinstance(
+            deep_getattr(base_langchain_module.embeddings, "%s.embed_query" % text_embedding_model),
+            wrapt.ObjectProxy,
+        ):
+            unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_query")
+        if isinstance(
+            deep_getattr(base_langchain_module.embeddings, "%s.embed_documents" % text_embedding_model),
+            wrapt.ObjectProxy,
+        ):
+            unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_documents")
 
     for vectorstore in vectorstore_classes:
         if hasattr(base_langchain_module.vectorstores, vectorstore):
             vectorstore_module = getattr(base_langchain_module.vectorstores, vectorstore)
+            unwrap_vector_retrieval(vectorstore_module)
+
+    for langchain_third_party_vectorstore, vectorstores_attribute in langchain_third_party_vectorstore_classes.items():
+        # wraps third party vectorstore classes that are not part of the langchain module.
+        third_party_module = get_module_from_name(langchain_third_party_vectorstore)
+        if third_party_module:
+            vectorstore_module = deep_getattr(third_party_module, vectorstores_attribute)
             unwrap_vector_retrieval(vectorstore_module)
 
 
@@ -1396,7 +1427,7 @@ def patch():
         wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain))
         wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
         if langchain_openai:
-            safe_wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding, langchain)
+            wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _patch_embeddings_and_vectorstores()
@@ -1429,6 +1460,7 @@ def unpatch():
         unwrap(langchain.chains.base.Chain, "__call__")
         unwrap(langchain.chains.base.Chain, "acall")
         unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_documents")
+        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_query")
     else:
         unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
         unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
@@ -1449,7 +1481,7 @@ def unpatch():
         unwrap(langchain_core.tools.BaseTool, "invoke")
         unwrap(langchain_core.tools.BaseTool, "ainvoke")
         if langchain_openai:
-            safe_unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
+            unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _unpatch_embeddings_and_vectorstores()
