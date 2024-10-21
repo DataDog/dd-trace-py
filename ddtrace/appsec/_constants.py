@@ -1,4 +1,5 @@
 import os
+from re import Match
 import sys
 
 from _io import BytesIO
@@ -125,8 +126,7 @@ class IAST(metaclass=Constant_Class):
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
     TEXT_TYPES = (str, bytes, bytearray)
-    # TODO(avara1986): `Match` contains errors. APPSEC-55239
-    TAINTEABLE_TYPES = (str, bytes, bytearray, BytesIO, StringIO)
+    TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
