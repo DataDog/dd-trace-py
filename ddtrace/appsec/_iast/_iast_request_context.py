@@ -43,8 +43,7 @@ class IASTEnvironment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        if span is None:
-            self.span: Span = core.get_item(core.get_item("call_key"))
+        self.span = span or core.get_span()
 
         self.request_enabled: bool = False
         self.iast_reporter: Optional[IastSpanReporter] = None
