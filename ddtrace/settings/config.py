@@ -198,10 +198,10 @@ _JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JS
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
-    def __init__(self, name, default, envs):
-        # type: (str, Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
+    def __init__(self, default, envs):
+        # type: (Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
         # _ConfigItem._name is only used in __repr__ and instrumentation telemetry
-        self._name = name
+        self._name = envs[0][0]
         self._env_value: _JSONType = None
         self._code_value: _JSONType = None
         self._rc_value: _JSONType = None
@@ -214,7 +214,7 @@ class _ConfigItem:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
                 break
-        telemetry_writer.add_configuration(name, self._telemetry_value(), self.source())
+        telemetry_writer.add_configuration(self._name, self.value(), self.source())
 
     def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
@@ -248,16 +248,6 @@ class _ConfigItem:
             return "env_var"
         return "default"
 
-    def _telemetry_value(self) -> str:
-        val = self.value()
-        if val is None:
-            return ""
-        elif isinstance(val, (bool, int, float)):
-            return str(val).lower()
-        elif isinstance(val, dict):
-            return ",".join(":".join((k, str(v))) for k, v in val.items())
-        return str(val)
-
     def __repr__(self):
         return "<{} name={} default={} env_value={} user_value={} remote_config_value={}>".format(
             self.__class__.__name__,
@@ -277,52 +267,42 @@ def _parse_global_tags(s):
 def _default_config() -> Dict[str, _ConfigItem]:
     return {
         "_trace_sample_rate": _ConfigItem(
-            name="trace_sample_rate",
             default=1.0,
             envs=[("DD_TRACE_SAMPLE_RATE", float)],
         ),
         "_trace_sampling_rules": _ConfigItem(
-            name="trace_sampling_rules",
             default=lambda: "",
             envs=[("DD_TRACE_SAMPLING_RULES", str)],
         ),
         "_logs_injection": _ConfigItem(
-            name="logs_injection_enabled",
             default=False,
             envs=[("DD_LOGS_INJECTION", asbool)],
         ),
         "_trace_http_header_tags": _ConfigItem(
-            name="trace_header_tags",
             default=lambda: {},
             envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
         ),
         "tags": _ConfigItem(
-            name="trace_tags",
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
         ),
         "_tracing_enabled": _ConfigItem(
-            name="trace_enabled",
             default=True,
             envs=[("DD_TRACE_ENABLED", asbool)],
         ),
         "_profiling_enabled": _ConfigItem(
-            name="profiling_enabled",
             default=False,
             envs=[("DD_PROFILING_ENABLED", asbool)],
         ),
         "_asm_enabled": _ConfigItem(
-            name="appsec_enabled",
             default=False,
             envs=[("DD_APPSEC_ENABLED", asbool)],
         ),
         "_sca_enabled": _ConfigItem(
-            name="DD_APPSEC_SCA_ENABLED",
             default=None,
             envs=[("DD_APPSEC_SCA_ENABLED", asbool)],
         ),
         "_dsm_enabled": _ConfigItem(
-            name="data_streams_enabled",
             default=False,
             envs=[("DD_DATA_STREAMS_ENABLED", asbool)],
         ),
@@ -404,12 +384,6 @@ class Config(object):
         _otel_remapping()
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
-
-        # Remove the SCA configuration from instrumentation telemetry if it is not set
-        # this behavior is validated by system tests
-        # FIXME(munir): Is this really needed? Should report the default value (None) instead?
-        if self._config["_sca_enabled"].value() is None:
-            telemetry_writer.remove_configuration("DD_APPSEC_SCA_ENABLED")
 
         sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
         if sample_rate is not None:
@@ -815,7 +789,7 @@ class Config(object):
             item = self._config[key]
             item.set_value_source(value, origin)
             if self._telemetry_enabled:
-                telemetry_writer.add_configuration(item._name, item._telemetry_value(), item.source())
+                telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
 
     def _reset(self):

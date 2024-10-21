@@ -139,6 +139,17 @@ Configuration
 
     Default: ``{}``
 
+
+.. py:data:: ddtrace.config.botocore['add_span_pointers']
+
+    This enables the addition of span pointers to spans associated with
+    successful AWS API calls.
+
+    Alternatively, you can set this option with the
+    ``DD_BOTOCORE_ADD_SPAN_POINTERS`` environment variable.
+
+    Default: ``True``
+
 """
 
 
