@@ -71,7 +71,7 @@ telemetry_writer.join(3)
     _, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events(subprocess=True)
     # app-started, app-closing, app-client-configuration-change, app-dependencies-loaded
     assert len(events) == 4
 
@@ -127,7 +127,7 @@ telemetry_writer.join(3)
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events(subprocess=True)
     # app-started, app-closing, app-client-configuration-change, app-integrations-change, app-dependencies-loaded
     assert len(events) == 5
 
