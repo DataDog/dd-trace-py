@@ -15,12 +15,15 @@ sudo echo "sudo OK"
 
 function profile_with_load {
     name=${1}
+    scenario=${2}
+
+    echo "- profiling for ${name}"
 
     sleep 3
-    ${PREFIX}/k6*/k6 run --quiet scripts/profiles/django-simple/k6-load.js &
+    ${PREFIX}/k6*/k6 run --quiet scripts/profiles/django-simple/k6-${scenario}.js &
         sleep 2
-        sudo `which austin` -bsCi ${AUSTIN_INTERVAL} -o ${PREFIX}/artifacts/${name}.mojo -p `cat ${PREFIX}/gunicorn.pid` -x ${AUSTIN_EXPOSURE}
-        LC_ALL=C sed -i 's|/home/runner/work/dd-trace-py/dd-trace-py/ddtrace/||g' ${PREFIX}/artifacts/${name}.mojo
+        sudo `which austin` -bsCi ${AUSTIN_INTERVAL} -o ${PREFIX}/artifacts/${scenario}_${name}.mojo -p `cat ${PREFIX}/gunicorn.pid` -x ${AUSTIN_EXPOSURE}
+        LC_ALL=C sed -i 's|/home/runner/work/dd-trace-py/dd-trace-py/ddtrace/||g' ${PREFIX}/artifacts/${scenario}_${name}.mojo
     pkill k6
 }
 
@@ -34,34 +37,45 @@ export DATABASE_URL="sqlite:///django.db"
 # Tag traces with HTTP headers to benchmark the related code
 export DD_TRACE_HEADER_TAGS="User-Agent:http.user_agent,Referer:http.referer,Content-Type:http.content_type,Etag:http.etag"
 
-# Baseline
-pushd ${PREFIX}/trace-examples/python/django/django-simple
-    gunicorn config.wsgi --pid ${PREFIX}/gunicorn.pid > /dev/null &
-    echo "Done"
-popd
-profile_with_load "baseline"
-kill $(cat ${PREFIX}/gunicorn.pid)
 
-pushd ${PREFIX}/trace-examples/python/django/django-simple
-    ddtrace-run gunicorn config.wsgi --pid ${PREFIX}/gunicorn.pid > /dev/null &
-popd
-profile_with_load "head"
-kill $(cat ${PREFIX}/gunicorn.pid)
+function run_scenario {
+    scenario=${1}
 
-sudo chown -R $(id -u):$(id -g) ${PREFIX}/artifacts/*
+    echo "Running scenario ${scenario}"
 
-echo -n "Converting MOJO to Austin ... "
-mojo2austin ${PREFIX}/artifacts/head.mojo     ${PREFIX}/artifacts/head.austin.tmp
-mojo2austin ${PREFIX}/artifacts/baseline.mojo ${PREFIX}/artifacts/baseline.austin.tmp
-echo "[done]"
+    # Baseline
+    pushd ${PREFIX}/trace-examples/python/django/django-simple
+        gunicorn config.wsgi --pid ${PREFIX}/gunicorn.pid > /dev/null &
+        echo "Done"
+    popd
+    profile_with_load "baseline" ${scenario}
+    kill $(cat ${PREFIX}/gunicorn.pid)
 
-echo -n "Diffing ... "
-python scripts/diff.py \
-    ${PREFIX}/artifacts/head.austin.tmp \
-    ${PREFIX}/artifacts/baseline.austin.tmp \
-    ${PREFIX}/artifacts/baseline_head.diff
-echo "[done]"
+    pushd ${PREFIX}/trace-examples/python/django/django-simple
+        ddtrace-run gunicorn config.wsgi --pid ${PREFIX}/gunicorn.pid > /dev/null &
+    popd
+    profile_with_load "head" ${scenario}
+    kill $(cat ${PREFIX}/gunicorn.pid)
 
-rm ${PREFIX}/artifacts/*.austin.tmp
+    sudo chown -R $(id -u):$(id -g) ${PREFIX}/artifacts/*
 
-head -n 25 ${PREFIX}/artifacts/baseline_head.diff.top
+    echo -n "Converting MOJO to Austin ... "
+    mojo2austin ${PREFIX}/artifacts/${scenario}_head.mojo     ${PREFIX}/artifacts/${scenario}_head.austin.tmp
+    mojo2austin ${PREFIX}/artifacts/${scenario}_baseline.mojo ${PREFIX}/artifacts/${scenario}_baseline.austin.tmp
+    echo "[done]"
+
+    echo -n "Diffing ... "
+    python scripts/diff.py \
+        ${PREFIX}/artifacts/${scenario}_head.austin.tmp \
+        ${PREFIX}/artifacts/${scenario}_baseline.austin.tmp \
+        ${PREFIX}/artifacts/${scenario}_baseline_head.diff
+    echo "[done]"
+
+    rm ${PREFIX}/artifacts/*.austin.tmp
+
+    head -n 25 ${PREFIX}/artifacts/${scenario}_baseline_head.diff.top
+}
+
+
+run_scenario "load"
+run_scenario "exc"
