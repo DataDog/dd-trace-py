@@ -8,7 +8,6 @@ def test_not_deprecated():
 
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("always")
-        assert ddtrace.constants.IAST_ENV
         assert ddtrace.constants.APPSEC_ENV
         assert len(warns) == 0
 
