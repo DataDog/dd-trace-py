@@ -900,11 +900,11 @@ class _BaggageHeader:
 
     @staticmethod
     def _encode_key(key: str) -> str:
-        return urllib.parse.quote(str(key).strip(), safe=_BaggageHeader.safe_characters_key)
+        return urllib.parse.quote(str(key).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_KEY)
 
     @staticmethod
     def _encode_value(value: str) -> str:
-        return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.safe_characters_value)
+        return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE)
 
     @staticmethod
     def _inject(span_context: Context, headers: Dict[str, str]) -> None:
@@ -913,17 +913,24 @@ class _BaggageHeader:
             return
 
         if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
+            log.warning("Baggage item limit exceeded")
             return
 
-        header_value = ",".join(
-            f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}" for key, value in baggage_items
-        )
+        try:
+            header_value = ",".join(
+                f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
+                for key, value in baggage_items
+            )
 
-        buf = bytes(header_value, "utf-8")
-        if len(buf) > DD_TRACE_BAGGAGE_MAX_BYTES:
-            return
+            buf = bytes(header_value, "utf-8")
+            if len(buf) > DD_TRACE_BAGGAGE_MAX_BYTES:
+                log.warning("Baggage header size exceeded")
+                return
 
-        headers[_HTTP_HEADER_BAGGAGE] = header_value
+            headers[_HTTP_HEADER_BAGGAGE] = header_value
+
+        except Exception:
+            log.warning("Failed to encode and inject baggage header")
 
     @staticmethod
     def _extract(headers: Dict[str, str]) -> Context:
