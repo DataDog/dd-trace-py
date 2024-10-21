@@ -180,7 +180,8 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
-    "django{matrix:django}"
+    "django{matrix:django}",
+    "virtualenv<20.27.0", # python 3.7 support dropped in 20.27.0
 ]
 
 [envs.appsec_threats_django.scripts]
@@ -225,7 +226,8 @@ dependencies = [
     "hypothesis",
     "MarkupSafe{matrix:markupsafe:}",
     "Werkzeug{matrix:werkzeug:}",
-    "flask{matrix:flask}"
+    "flask{matrix:flask}",
+    "virtualenv<20.27.0", # python 3.7 support dropped in 20.27.0
 ]
 
 [envs.appsec_threats_flask.scripts]
@@ -267,7 +269,8 @@ dependencies = [
     "hypothesis",
     "httpx",
     "anyio{matrix:anyio:}",
-    "fastapi{matrix:fastapi}"
+    "fastapi{matrix:fastapi}",
+    "virtualenv<20.27.0", # python 3.7 support dropped in 20.27.0
 ]
 
 [envs.appsec_threats_fastapi.scripts]
@@ -301,6 +304,7 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
+    "virtualenv<20.27.0", # python 3.7 support dropped in 20.27.0
 ]
 
 [envs.ddtrace_unit_tests.env-vars]
