@@ -3,7 +3,7 @@
   tags: [ "arch:arm64" ]
   before_script:
     - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
-    - pip install riot~=0.19.1
+    - pip install riot==0.20.0
 
 build_base_venvs:
   extends: .testrunner
@@ -15,6 +15,7 @@ build_base_venvs:
     CMAKE_BUILD_PARALLEL_LEVEL: 24
     PIP_VERBOSE: 1
   script:
+    - pip install riot==0.20.0
     - riot -P -v generate --python=$PYTHON_VERSION
   artifacts:
     name: venv_$PYTHON_VERSION
