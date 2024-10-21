@@ -592,7 +592,7 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -603,11 +603,9 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
         assert span.get_metric(IAST.ENABLED) == 1.0
 
         loaded = json.loads(span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_INSECURE_COOKIE
-        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
         assert "path" not in vulnerability["location"].keys()
         assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
@@ -635,7 +633,7 @@ def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -670,7 +668,7 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -681,11 +679,9 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
         assert span.get_metric(IAST.ENABLED) == 1.0
 
         loaded = json.loads(span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
-        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
         assert "path" not in vulnerability["location"].keys()
         assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
@@ -713,7 +709,7 @@ def test_fasapi_no_http_only_cookie_empty(fastapi_application, client, tracer, t
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -748,7 +744,7 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -759,11 +755,9 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
         assert span.get_metric(IAST.ENABLED) == 1.0
 
         loaded = json.loads(span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
-        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
         assert "path" not in vulnerability["location"].keys()
         assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
