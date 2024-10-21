@@ -141,6 +141,14 @@ class BaseLLMObsWriter(PeriodicService):
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
 
+    def recreate(self) -> "BaseLLMObsWriter":
+        return self.__class__(
+            site=self._site,
+            api_key=self._api_key,
+            interval=self._interval,
+            timeout=self._timeout,
+        )
+
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     """Writer to the Datadog LLMObs Custom Eval Metrics Endpoint."""
