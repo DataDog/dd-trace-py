@@ -88,7 +88,7 @@ def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sam
         if sampling_rate == 0.0:
             assert result is None
             assert span.get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
-            assert span.get_metric(IAST.ENABLED) is None
+            assert span.get_metric(IAST.ENABLED) == 0.0
         else:
             assert len(json.loads(result)["vulnerabilities"]) == 1
             assert span.get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
