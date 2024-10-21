@@ -55,7 +55,7 @@ STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.20.0"
+LIBDDWAF_VERSION = "1.20.1"
 
 RUST_MINIMUM_VERSION = "1.71"  # Safe guess:  1.71 is about a year old as of 2024-07-03
 
