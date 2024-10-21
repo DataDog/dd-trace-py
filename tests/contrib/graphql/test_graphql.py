@@ -25,6 +25,12 @@ def enable_graphql_resolvers():
 
 
 @pytest.fixture
+def enable_simplify_resource_names():
+    with override_config("graphql", dict(simplify_resource_name=True)):
+        yield
+
+
+@pytest.fixture
 def test_schema():
     return graphql.GraphQLSchema(
         query=graphql.GraphQLObjectType(
@@ -187,3 +193,20 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
+
+
+@pytest.mark.snapshot
+@pytest.mark.usefixtures("enable_simplify_resource_names")
+@pytest.mark.parametrize(
+    "source_str",
+    [
+        pytest.param("query { hello }", id="no-name"),
+        pytest.param("query Name { hello }", id="query-name"),
+        pytest.param("query Name($arg: String) { hello }", id="query-name-with-arg"),
+    ],
+)
+def test_simple_resource_names(source_str, test_schema):
+    source = graphql.language.source.Source(source_str, "GraphQL request")
+    document_ast = graphql.language.parser.parse(source)
+    result = graphql.execute(test_schema, document_ast)
+    assert result.data == {"hello": "friend"}
