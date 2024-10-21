@@ -216,7 +216,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         resource=utils.resource_from_cache_prefix(func_name(func), instance),
         tags=tags,
         pin=pin,
-    ) as ctx, ctx["call"]:
+    ) as ctx, ctx.span:
         result = func(*args, **kwargs)
         rowcount = 0
         if func.__name__ == "get_many":
@@ -316,7 +316,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
         tags = {COMPONENT: config.django.integration_name}
         with core.context_with_data(
             "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx["call"]:
+        ) as ctx, ctx.span:
             core.dispatch(
                 "django.func.wrapped",
                 (
@@ -337,7 +337,7 @@ def traced_process_exception(django, name, resource=None):
         tags = {COMPONENT: config.django.integration_name}
         with core.context_with_data(
             "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx["call"]:
+        ) as ctx, ctx.span:
             resp = func(*args, **kwargs)
             core.dispatch(
                 "django.process_exception", (ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
@@ -479,7 +479,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         distributed_headers_config=config.django,
         distributed_headers=request_headers,
         pin=pin,
-    ) as ctx, ctx.get_item("call"):
+    ) as ctx, ctx.span:
         core.dispatch(
             "django.traced_get_response.pre",
             (
@@ -509,7 +509,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
                 response["Content-Length"] = len(content.encode())
-            utils._after_request_tags(pin, ctx["call"], request, response)
+            utils._after_request_tags(pin, ctx.span, request, response)
             return response
 
         try:
@@ -585,7 +585,7 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
         span_type=http.TEMPLATE,
         tags=tags,
         pin=pin,
-    ) as ctx, ctx["call"]:
+    ) as ctx, ctx.span:
         return wrapped(*args, **kwargs)
 
 

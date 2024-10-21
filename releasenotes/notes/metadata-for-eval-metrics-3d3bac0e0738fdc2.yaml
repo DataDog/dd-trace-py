@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: This introduces the ability to add metadata for evaluation metrics via the `submit_evaluation` method.
+    For more information, see [submitting evaluations with the SDK.](https://docs.datadoghq.com/llm_observability/submit_evaluations/#submitting-evaluations-with-the-sdk)

@@ -1,4 +1,5 @@
 import os
+from re import Match
 import sys
 
 from _io import BytesIO
@@ -114,7 +115,9 @@ class IAST(metaclass=Constant_Class):
     """Specific constants for IAST"""
 
     ENV: Literal["DD_IAST_ENABLED"] = "DD_IAST_ENABLED"
-    ENV_DEBUG: Literal["_DD_IAST_DEBUG"] = "_DD_IAST_DEBUG"
+    ENV_DEBUG: Literal["DD_IAST_DEBUG"] = "DD_IAST_DEBUG"
+    ENV_PROPAGATION_DEBUG: Literal["DD_IAST_PROPAGATION_DEBUG"] = "DD_IAST_PROPAGATION_DEBUG"
+    ENV_REQUEST_SAMPLING: Literal["DD_IAST_REQUEST_SAMPLING"] = "DD_IAST_REQUEST_SAMPLING"
     TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
     LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
@@ -123,8 +126,7 @@ class IAST(metaclass=Constant_Class):
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
     TEXT_TYPES = (str, bytes, bytearray)
-    # TODO(avara1986): `Match` contains errors. APPSEC-55239
-    TAINTEABLE_TYPES = (str, bytes, bytearray, BytesIO, StringIO)
+    TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
