@@ -588,7 +588,7 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
-        response.set_cookie(key="insecure", value=query_params, secure=False, httponly=True, samesite="strict")
+        response.set_cookie(key="insecure", value="query_params", secure=False, httponly=True, samesite="strict")
 
         return response
 
