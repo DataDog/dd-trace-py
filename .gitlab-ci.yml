@@ -43,7 +43,14 @@ onboarding_tests_installer:
 onboarding_tests_k8s_injection:
   parallel:
     matrix:
-      - WEBLOG_VARIANT: [dd-lib-python-init-test-django, dd-lib-python-init-test-django-gunicorn, dd-lib-python-init-test-django-uvicorn, dd-lib-python-init-test-protobuf-old]
+      - WEBLOG_VARIANT:
+          - dd-lib-python-init-test-django
+          - dd-lib-python-init-test-django-gunicorn
+          - dd-lib-python-init-test-django-gunicorn-alpine
+          - dd-lib-python-init-test-django-preinstalled
+          - dd-lib-python-init-test-django-unsupported-package-force
+          - dd-lib-python-init-test-django-uvicorn
+          - dd-lib-python-init-test-protobuf-old
 
 deploy_to_di_backend:manual:
   stage: shared-pipeline
