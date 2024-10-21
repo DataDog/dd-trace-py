@@ -2,7 +2,7 @@
   {
     "name": "langchain.request",
     "service": "",
-    "resource": "PineconeVectorStore.similarity_search_with_score",
+    "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search_with_score",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66f317ad00000000",
+      "_dd.p.tid": "671640ef00000000",
       "langchain.request.api_key": "",
       "langchain.request.k": "1",
       "langchain.request.provider": "pineconevectorstore",
@@ -20,7 +20,7 @@
       "langchain.response.document.0.page_content": "\\n**Title: The Evolution of Communication Technologies**\\n\\n---\\n\\n**Introduction**\\n\\nCommunication technologies have undergone...",
       "langchain.response.document.0.score": "0.0",
       "language": "python",
-      "runtime-id": "cd63c522c62d444d8084e7fc1cdc3e77"
+      "runtime-id": "e8c451c278024e8284fb672747fb9d69"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -28,10 +28,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.response.document_count": 1,
-      "process_id": 55676
+      "process_id": 27117
     },
-    "duration": 4022000,
-    "start": 1727207341338562000
+    "duration": 4066000,
+    "start": 1729511663387040000
   },
      {
        "name": "langchain.request",
@@ -52,39 +52,15 @@
        "metrics": {
          "_dd.measured": 1,
          "langchain.request.input_count": 1,
-         "langchain.response.outputs.embedding_length": 1536
+         "langchain.response.outputs.0.embedding_length": 1536
        },
-       "duration": 372000,
-       "start": 1727207341338777000
+       "duration": 65000,
+       "start": 1729511663387198000
      },
-        {
-          "name": "langchain.request",
-          "service": "",
-          "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
-          "trace_id": 0,
-          "span_id": 4,
-          "parent_id": 2,
-          "type": "",
-          "error": 0,
-          "meta": {
-            "langchain.request.api_key": "...key>",
-            "langchain.request.inputs.0.text": "Evolution",
-            "langchain.request.model": "text-embedding-ada-002",
-            "langchain.request.provider": "openai",
-            "langchain.request.type": "embedding"
-          },
-          "metrics": {
-            "_dd.measured": 1,
-            "langchain.request.input_count": 1,
-            "langchain.response.outputs.0.embedding_length": 1536
-          },
-          "duration": 54000,
-          "start": 1727207341338868000
-        },
      {
        "name": "langchain.request",
        "service": "",
-       "resource": "PineconeVectorStore.similarity_search_by_vector_with_score",
+       "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search_by_vector_with_score",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
@@ -106,6 +82,6 @@
          "_dd.measured": 1,
          "langchain.response.document_count": 1
        },
-       "duration": 3307000,
-       "start": 1727207341339239000
+       "duration": 3682000,
+       "start": 1729511663387377000
      }]]

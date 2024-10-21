@@ -2,7 +2,7 @@
   {
     "name": "langchain.request",
     "service": "",
-    "resource": "PineconeVectorStore.similarity_search",
+    "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66f4058400000000",
+      "_dd.p.tid": "671640b300000000",
       "langchain.request.api_key": "",
       "langchain.request.k": "1",
       "langchain.request.provider": "pineconevectorstore",
@@ -19,7 +19,7 @@
       "langchain.response.document.0.metadata.name": "The Evolution of Communication Technologies",
       "langchain.response.document.0.page_content": "\\n**Title: The Evolution of Communication Technologies**\\n\\n---\\n\\n**Introduction**\\n\\nCommunication technologies have undergone...",
       "language": "python",
-      "runtime-id": "2384bad2c0924558b44064f8508b0f26"
+      "runtime-id": "75c6f4fa986d452f86e37a3e9623b51e"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -27,15 +27,15 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.response.document_count": 1,
-      "process_id": 15026
+      "process_id": 26479
     },
-    "duration": 3959000,
-    "start": 1727268228851840000
+    "duration": 3906000,
+    "start": 1729511603739046000
   },
      {
        "name": "langchain.request",
        "service": "",
-       "resource": "PineconeVectorStore.similarity_search_with_score",
+       "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search_with_score",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -57,8 +57,8 @@
          "_dd.measured": 1,
          "langchain.response.document_count": 1
        },
-       "duration": 3771000,
-       "start": 1727268228851957000
+       "duration": 3725000,
+       "start": 1729511603739157000
      },
         {
           "name": "langchain.request",
@@ -79,39 +79,15 @@
           "metrics": {
             "_dd.measured": 1,
             "langchain.request.input_count": 1,
-            "langchain.response.outputs.embedding_length": 1536
+            "langchain.response.outputs.0.embedding_length": 1536
           },
-          "duration": 212000,
-          "start": 1727268228852063000
+          "duration": 59000,
+          "start": 1729511603739263000
         },
-           {
-             "name": "langchain.request",
-             "service": "",
-             "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
-             "trace_id": 0,
-             "span_id": 5,
-             "parent_id": 3,
-             "type": "",
-             "error": 0,
-             "meta": {
-               "langchain.request.api_key": "...key>",
-               "langchain.request.inputs.0.text": "Evolution",
-               "langchain.request.model": "text-embedding-ada-002",
-               "langchain.request.provider": "openai",
-               "langchain.request.type": "embedding"
-             },
-             "metrics": {
-               "_dd.measured": 1,
-               "langchain.request.input_count": 1,
-               "langchain.response.outputs.0.embedding_length": 1536
-             },
-             "duration": 57000,
-             "start": 1727268228852148000
-           },
         {
           "name": "langchain.request",
           "service": "",
-          "resource": "PineconeVectorStore.similarity_search_by_vector_with_score",
+          "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search_by_vector_with_score",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
@@ -133,6 +109,6 @@
             "_dd.measured": 1,
             "langchain.response.document_count": 1
           },
-          "duration": 3333000,
-          "start": 1727268228852358000
+          "duration": 3404000,
+          "start": 1729511603739434000
         }]]

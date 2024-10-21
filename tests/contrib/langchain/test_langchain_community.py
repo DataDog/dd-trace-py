@@ -385,7 +385,7 @@ def test_chat_model_logs(
 
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain_openai, request_vcr):
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         embeddings = langchain_openai.OpenAIEmbeddings()
         with request_vcr.use_cassette("openai_embedding_query.yaml"):
             embeddings.embed_query("this is a test query.")
@@ -931,10 +931,8 @@ def test_qdrant_vectorstore_similarity_search_by_vector(langchain_openai, langch
             vectorstore.similarity_search_by_vector(embedding=vector, k=1)
 
 
-@pytest.mark.snapshot
-def test_milvus_vectorstore_similarity_search(
-    langchain_core, langchain_openai, langchain_milvus, request_vcr_with_localhost
-):
+@pytest.mark.snapshot(ignores=["meta.langchain.response.document.0.metadata.pk"])
+def test_milvus_vectorstore_similarity_search(langchain_core, langchain_openai, langchain_milvus):
     """
     Test that calling a similarity search on a Qdrant vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
@@ -954,10 +952,8 @@ def test_milvus_vectorstore_similarity_search(
         vectorstore.similarity_search("weather", k=1)
 
 
-@pytest.mark.snapshot
-def test_milvus_vectorstore_similarity_search_by_vector(
-    langchain_core, langchain_openai, langchain_milvus, request_vcr_with_localhost
-):
+@pytest.mark.snapshot(ignores=["meta.langchain.response.document.0.metadata.pk"])
+def test_milvus_vectorstore_similarity_search_by_vector(langchain_core, langchain_openai, langchain_milvus):
     """
     Test that calling a similarity search on a Qdrant vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
@@ -984,7 +980,7 @@ def test_vectorstore_similarity_search_metrics(
     import pinecone
 
     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
-        with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
+        with request_vcr.use_cassette("langchain_pinecone_similarity_search.yaml"):
             pc = pinecone.Pinecone(
                 api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
                 environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
@@ -992,7 +988,7 @@ def test_vectorstore_similarity_search_metrics(
             embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
             index = pc.Index("langchain-retrieval")
             vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
-            vectorstore.similarity_search("Who was Alan Turing?", 1)
+            vectorstore.similarity_search("Evolution", 1)
     expected_tags = [
         "version:",
         "env:",
@@ -1000,10 +996,12 @@ def test_vectorstore_similarity_search_metrics(
         "langchain.request.provider:pineconevectorstore",
         "langchain.request.model:",
         "langchain.request.type:similarity_search",
-        "langchain.request.api_key:...key>",
+        "langchain.request.api_key:",
         "error:0",
     ]
-    mock_metrics.assert_any_call(mock.call.distribution("request.duration", mock.ANY, tags=expected_tags))
+    mock_metrics.assert_has_calls(
+        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)], any_order=True
+    )
     mock_logs.assert_not_called()
 
 
@@ -1029,9 +1027,10 @@ def test_vectorstore_logs(
             vectorstore.similarity_search("Who was Alan Turing?", 1)
     traces = mock_tracer.pop_traces()
     vectorstore_span = traces[0][0]
-    embeddings_span = traces[0][1]
+    embeddings_span = traces[0][2]
 
-    assert mock_logs.enqueue.call_count == 2  # This operation includes 1 vectorstore call and 1 embeddings call
+    assert mock_logs.enqueue.call_count == 3  # This operation includes 2 vectorstore call and 1 embeddings call
+
     mock_logs.assert_has_calls(
         [
             mock.call.enqueue(
@@ -1051,7 +1050,7 @@ def test_vectorstore_logs(
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
-                    "message": "sampled langchain_pinecone.vectorstores.PineconeVectorStore",
+                    "message": "sampled langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
                     "service": "",
@@ -1064,7 +1063,8 @@ def test_vectorstore_logs(
                     "documents": mock.ANY,
                 }
             ),
-        ]
+        ],
+        any_order=True,
     )
     mock_metrics.increment.assert_not_called()
     mock_metrics.distribution.assert_not_called()

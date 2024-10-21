@@ -901,9 +901,9 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
         vectorstore.similarity_search("Who was Alan Turing?", 1)
     traces = mock_tracer.pop_traces()
     vectorstore_span = traces[0][0]
-    embeddings_span = traces[0][1]
+    embeddings_span = traces[0][-1]
 
-    assert mock_logs.enqueue.call_count == 2  # This operation includes 1 vectorstore call and 1 embeddings call
+    assert mock_logs.enqueue.call_count == 3  # This operation includes 2 vectorstore call and 1 embeddings call
     mock_logs.assert_has_calls(
         [
             mock.call.enqueue(
@@ -923,7 +923,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
-                    "message": "sampled langchain.vectorstores.pinecone.Pinecone",
+                    "message": "sampled langchain.vectorstores.pinecone.Pinecone.similarity_search",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
                     "service": "",
@@ -937,7 +937,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                 }
             ),
         ],
-        any_order=True
+        any_order=True,
     )
     mock_metrics.increment.assert_not_called()
     mock_metrics.distribution.assert_not_called()
@@ -1147,11 +1147,11 @@ def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, 
         assert str(exc_info.value) == "Mocked Error"
     traces = mock_tracer.pop_traces()
     vectorstore_span = traces[0][0]
-    assert mock_logs.enqueue.call_count == 3  # This operation includes 2 vectorstore call and 1 embeddings call
+    assert mock_logs.enqueue.call_count == 3  # This operation includes 2 vectorstore call and 2 embeddings call
     mock_logs.enqueue.assert_called_with(
         {
             "timestamp": mock.ANY,
-            "message": "sampled langchain.vectorstores.pinecone.Pinecone",
+            "message": "sampled langchain.vectorstores.pinecone.Pinecone.similarity_search",
             "hostname": mock.ANY,
             "ddsource": "langchain",
             "service": "",

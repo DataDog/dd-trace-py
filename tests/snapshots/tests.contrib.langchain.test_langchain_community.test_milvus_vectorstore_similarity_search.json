@@ -10,14 +10,14 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66fee7dc00000000",
+      "_dd.p.tid": "6716405a00000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.inputs.0.text": "I had chocalate chip pancakes and scrambled eggs for breakfast this morning.",
       "langchain.request.model": "text-embedding-3-large",
       "langchain.request.provider": "openai",
       "langchain.request.type": "embedding",
       "language": "python",
-      "runtime-id": "8709659346a849c6b54c1cf68b95e522"
+      "runtime-id": "3d2d7ebb90684ca9b13aab095772579a"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -26,16 +26,16 @@
       "_sampling_priority_v1": 1,
       "langchain.request.input_count": 1,
       "langchain.response.outputs.0.embedding_length": 1536,
-      "process_id": 6236
+      "process_id": 25407
     },
-    "duration": 357000,
-    "start": 1727981532884393000
+    "duration": 380000,
+    "start": 1729511514543586000
   }],
 [
   {
     "name": "langchain.request",
     "service": "",
-    "resource": "Milvus.similarity_search",
+    "resource": "langchain_milvus.vectorstores.milvus.Milvus.similarity_search",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -43,17 +43,17 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66fee7dd00000000",
+      "_dd.p.tid": "6716405a00000000",
       "langchain.request.api_key": "",
       "langchain.request.k": "1",
       "langchain.request.provider": "milvus",
       "langchain.request.query": "weather",
       "langchain.request.type": "similarity_search",
-      "langchain.response.document.0.metadata.pk": "452979991117037568",
+      "langchain.response.document.0.metadata.pk": "453160697983664128",
       "langchain.response.document.0.metadata.source": "tweet",
       "langchain.response.document.0.page_content": "I had chocalate chip pancakes and scrambled eggs for breakfast this morning.",
       "language": "python",
-      "runtime-id": "8709659346a849c6b54c1cf68b95e522"
+      "runtime-id": "3d2d7ebb90684ca9b13aab095772579a"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -61,15 +61,15 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.response.document_count": 1,
-      "process_id": 6236
+      "process_id": 25407
     },
-    "duration": 13490000,
-    "start": 1727981533526178000
+    "duration": 2638000,
+    "start": 1729511514547246000
   },
      {
        "name": "langchain.request",
        "service": "",
-       "resource": "Milvus.similarity_search_with_score",
+       "resource": "langchain_milvus.vectorstores.milvus.Milvus.similarity_search_with_score",
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
@@ -84,7 +84,7 @@
          "langchain.request.query": "weather",
          "langchain.request.timeout": "None",
          "langchain.request.type": "similarity_search",
-         "langchain.response.document.0.metadata.pk": "452979991117037568",
+         "langchain.response.document.0.metadata.pk": "453160697983664128",
          "langchain.response.document.0.metadata.source": "tweet",
          "langchain.response.document.0.page_content": "I had chocalate chip pancakes and scrambled eggs for breakfast this morning.",
          "langchain.response.document.0.score": "0.0"
@@ -93,8 +93,8 @@
          "_dd.measured": 1,
          "langchain.response.document_count": 1
        },
-       "duration": 13246000,
-       "start": 1727981533526326000
+       "duration": 2387000,
+       "start": 1729511514547376000
      },
         {
           "name": "langchain.request",
@@ -115,39 +115,15 @@
           "metrics": {
             "_dd.measured": 1,
             "langchain.request.input_count": 1,
-            "langchain.response.outputs.embedding_length": 1536
+            "langchain.response.outputs.0.embedding_length": 1536
           },
-          "duration": 234000,
-          "start": 1727981533526453000
+          "duration": 56000,
+          "start": 1729511514547484000
         },
-           {
-             "name": "langchain.request",
-             "service": "",
-             "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
-             "trace_id": 1,
-             "span_id": 5,
-             "parent_id": 3,
-             "type": "",
-             "error": 0,
-             "meta": {
-               "langchain.request.api_key": "...key>",
-               "langchain.request.inputs.0.text": "weather",
-               "langchain.request.model": "text-embedding-3-large",
-               "langchain.request.provider": "openai",
-               "langchain.request.type": "embedding"
-             },
-             "metrics": {
-               "_dd.measured": 1,
-               "langchain.request.input_count": 1,
-               "langchain.response.outputs.0.embedding_length": 1536
-             },
-             "duration": 64000,
-             "start": 1727981533526548000
-           },
         {
           "name": "langchain.request",
           "service": "",
-          "resource": "Milvus.similarity_search_with_score_by_vector",
+          "resource": "langchain_milvus.vectorstores.milvus.Milvus.similarity_search_with_score_by_vector",
           "trace_id": 1,
           "span_id": 4,
           "parent_id": 2,
@@ -162,7 +138,7 @@
             "langchain.request.provider": "milvus",
             "langchain.request.timeout": "None",
             "langchain.request.type": "similarity_search",
-            "langchain.response.document.0.metadata.pk": "452979991117037568",
+            "langchain.response.document.0.metadata.pk": "453160697983664128",
             "langchain.response.document.0.metadata.source": "tweet",
             "langchain.response.document.0.page_content": "I had chocalate chip pancakes and scrambled eggs for breakfast this morning.",
             "langchain.response.document.0.score": "0.0"
@@ -171,6 +147,6 @@
             "_dd.measured": 1,
             "langchain.response.document_count": 1
           },
-          "duration": 12714000,
-          "start": 1727981533526783000
+          "duration": 2074000,
+          "start": 1729511514547647000
         }]]

@@ -553,6 +553,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             mock_tracer=mock_tracer,
             cassette_name="lcel_openai_chain_call.yaml",
         )
+        # TODO : test gives 1 span instead of 2
         assert mock_llmobs_span_writer.enqueue.call_count == 2
         _assert_expected_llmobs_chain_span(
             trace[0],
@@ -577,6 +578,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             mock_tracer=mock_tracer,
             cassette_name="lcel_openai_chain_nested.yaml",
         )
+        # TODO : figure out why it's 2 not 4
         assert mock_llmobs_span_writer.enqueue.call_count == 4
         _assert_expected_llmobs_chain_span(
             trace[0],
@@ -669,7 +671,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         if langchain_openai is None:
             pytest.skip("langchain_openai not installed which is required for this test.")
         embedding_model = langchain_openai.embeddings.OpenAIEmbeddings()
-        with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+        with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
             trace = self._embed_query(
                 embedding_model=embedding_model,
                 query="hello world",
@@ -733,7 +735,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 mock_tracer=mock_tracer,
                 cassette_name=cassette_name,
             )
-        assert mock_llmobs_span_writer.enqueue.call_count == 5
+        assert mock_llmobs_span_writer.enqueue.call_count == 4  # 3 similarity search and 1 embedding
         expected_span = _expected_llmobs_non_llm_span_event(
             trace[0],
             "workflow",
