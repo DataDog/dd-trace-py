@@ -236,9 +236,20 @@ class TraceMiddleware:
                     response_headers = None
 
                 if span and message.get("type") == "http.response.start" and "status" in message:
+                    cookies = {}
+                    try:
+                        cookie_key, cookie_value = response_headers.get("set-cookie", "").split("=", maxsplit=1)
+                        cookies[cookie_key] = cookie_value
+                    except Exception:
+                        log.debug("failed to extract response cookies", exc_info=True)
+
                     status_code = message["status"]
                     trace_utils.set_http_meta(
-                        span, self.integration_config, status_code=status_code, response_headers=response_headers
+                        span,
+                        self.integration_config,
+                        status_code=status_code,
+                        response_headers=response_headers,
+                        response_cookies=cookies,
                     )
                     core.dispatch("asgi.start_response", ("asgi",))
                 core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
