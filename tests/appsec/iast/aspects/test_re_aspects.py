@@ -23,10 +23,6 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
 
-
-pytest.skip(reason="TAINTEABLE_TYPES Match contains errors. APPSEC-55239", allow_module_level=True)
-
-
 def test_re_findall_aspect_tainted_string():
     tainted_foobarbaz = taint_pyobject(
         pyobject="/foo/bar/baaz.jpeg",
