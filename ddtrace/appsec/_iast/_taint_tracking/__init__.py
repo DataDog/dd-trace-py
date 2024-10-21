@@ -13,6 +13,7 @@ from .._iast_request_context import is_iast_request_enabled
 from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_iast_debug_enabled
+from .._utils import _is_iast_propagation_debug_enabled
 from .._utils import _is_python_version_supported
 
 
@@ -211,7 +212,7 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
     return tuple()
 
 
-if _is_iast_debug_enabled():
+if _is_iast_propagation_debug_enabled():
     TAINTED_FRAMES = []
 
     def trace_calls_and_returns(frame, event, arg):

@@ -9,7 +9,6 @@ import clonevirtualenv
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_env
 
@@ -1031,7 +1030,7 @@ def test_packages_patched_import(package, venv):
         "True" if package.expect_no_change else "False",
     ]
 
-    with override_env({IAST_ENV: "true"}):
+    with override_env({IAST.ENV: "true"}):
         # 1. Try with the specified version
         package.install(venv)
         result = subprocess.run(
