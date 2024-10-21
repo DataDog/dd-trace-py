@@ -112,10 +112,11 @@ def _parse_propagation_styles(styles_str):
     - "b3" (formerly 'b3 single header')
     - "b3 single header (deprecated for 'b3')"
     - "tracecontext"
+    - "baggage"
     - "none"
 
 
-    The default value is ``"datadog,tracecontext"``.
+    The default value is ``"datadog,tracecontext,baggage"``.
 
 
     Examples::
