@@ -80,7 +80,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install riot==0.19.1
+      - run: pip3 install riot==0.20.0
 
   setup_rust:
     description: "Install rust toolchain"
@@ -91,7 +91,7 @@ commands:
   setup_hatch:
     description: "Install hatch"
     steps:
-      - run: pip3 install hatch~=1.8.0 hatch-containers==0.7.0
+      - run: pip3 install hatch~=1.8.0 hatch-containers==0.7.0 virtualenv==20.26.6
 
   start_docker_services:
     description: "Start Docker services"
