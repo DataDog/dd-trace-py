@@ -1334,17 +1334,17 @@ def _unpatch_embeddings_and_vectorstores():
         return
 
     for text_embedding_model in text_embedding_models:
-        if isinstance(
-            deep_getattr(base_langchain_module.embeddings, "%s.embed_query" % text_embedding_model),
-            wrapt.ObjectProxy,
-        ):
-            unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_query")
-        if isinstance(
-            deep_getattr(base_langchain_module.embeddings, "%s.embed_documents" % text_embedding_model),
-            wrapt.ObjectProxy,
-        ):
-            unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_documents")
-
+        if hasattr(base_langchain_module.embeddings, text_embedding_model):
+            if isinstance(
+                deep_getattr(base_langchain_module.embeddings, "%s.embed_query" % text_embedding_model),
+                wrapt.ObjectProxy,
+            ):
+                unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_query")
+            if isinstance(
+                deep_getattr(base_langchain_module.embeddings, "%s.embed_documents" % text_embedding_model),
+                wrapt.ObjectProxy,
+            ):
+                unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_documents")
     for vectorstore in vectorstore_classes:
         if hasattr(base_langchain_module.vectorstores, vectorstore):
             vectorstore_module = getattr(base_langchain_module.vectorstores, vectorstore)
@@ -1459,8 +1459,8 @@ def unpatch():
         unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
         unwrap(langchain.chains.base.Chain, "__call__")
         unwrap(langchain.chains.base.Chain, "acall")
-        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_documents")
         unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_query")
+        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_documents")
     else:
         unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
         unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
