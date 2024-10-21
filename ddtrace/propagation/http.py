@@ -78,6 +78,7 @@ _HTTP_HEADER_B3_FLAGS: Literal["x-b3-flags"] = "x-b3-flags"
 _HTTP_HEADER_TAGS: Literal["x-datadog-tags"] = "x-datadog-tags"
 _HTTP_HEADER_TRACEPARENT: Literal["traceparent"] = "traceparent"
 _HTTP_HEADER_TRACESTATE: Literal["tracestate"] = "tracestate"
+_HTTP_HEADER_BAGGAGE: Literal["baggage"] = "baggage"
 
 
 def _possible_header(header):
@@ -922,11 +923,11 @@ class _BaggageHeader:
         if len(buf) > DD_TRACE_BAGGAGE_MAX_BYTES:
             return
 
-        headers["baggage"] = header_value
+        headers[_HTTP_HEADER_BAGGAGE] = header_value
 
     @staticmethod
     def _extract(headers: Dict[str, str]) -> Context:
-        header_value = headers.get("baggage")
+        header_value = headers.get(_HTTP_HEADER_BAGGAGE)
 
         if not header_value:
             return Context(baggage={})

@@ -29,6 +29,7 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_SAMPLED
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SPAN_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
+from ddtrace.propagation.http import _HTTP_HEADER_BAGGAGE
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 from ddtrace.propagation.http import _HTTP_HEADER_TRACEPARENT
 from ddtrace.propagation.http import _HTTP_HEADER_TRACESTATE
@@ -2865,7 +2866,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
             _HTTP_HEADER_TRACESTATE: "dd=s:1;o:synthetics",
-            "baggage": "foo=bar",
+            _HTTP_HEADER_BAGGAGE: "foo=bar",
         },
     ),
     (
@@ -2941,7 +2942,7 @@ INJECT_FIXTURES = [
             "baggage": {"foo": "bar"},
         },
         {
-            "baggage": "foo=bar",
+            _HTTP_HEADER_BAGGAGE: "foo=bar",
         },
     ),
     (
@@ -2958,7 +2959,7 @@ INJECT_FIXTURES = [
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
-            "baggage": "foo=bar",
+            _HTTP_HEADER_BAGGAGE: "foo=bar",
         },
     ),
     (
@@ -2976,7 +2977,7 @@ INJECT_FIXTURES = [
             "span_id": VALID_DATADOG_CONTEXT["span_id"],
         },
         {
-            "baggage": "foo=bar",
+            _HTTP_HEADER_BAGGAGE: "foo=bar",
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             _HTTP_HEADER_B3_TRACE_ID: "b5a2814f70060771",
