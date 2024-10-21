@@ -175,7 +175,7 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
 
     events = test_agent_session.get_events(subprocess=True)
     events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLE_RATE")
-    assert {"name": "DD_TRACE_SAMPLE_RATE", "value": "1.0", "origin": "default"} in events_trace_sample_rate
+    assert {"name": "DD_TRACE_SAMPLE_RATE", "value": 1.0, "origin": "default"} in events_trace_sample_rate
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
