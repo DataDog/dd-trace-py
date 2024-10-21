@@ -344,7 +344,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             root_span = self.pop_spans()[0]
 
-            assert root_span.get_metric(IAST.ENABLED) is None
+            assert root_span.get_metric(IAST.ENABLED) == 0.0
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
