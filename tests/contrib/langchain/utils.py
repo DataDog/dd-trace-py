@@ -35,3 +35,37 @@ def get_request_vcr(subdirectory_name=""):
         # Ignore requests to the agent
         ignore_localhost=True,
     )
+
+
+def create_milvus_vectorstore(langchain_openai, langchain_core, langchain_milvus, pymilvus):
+    embeddings = langchain_openai.OpenAIEmbeddings(
+        api_key=os.environ.get("OPENAI_API_KEY"), model="text-embedding-3-large", dimensions=1536
+    )
+
+    client = pymilvus.MilvusClient("milvus_demo.db")
+
+    if client.has_collection(collection_name="demo_collection"):
+        client.drop_collection(collection_name="demo_collection")
+    client.create_collection(
+        collection_name="demo_collection",
+        dimension=1536,
+    )
+
+    document_1 = langchain_core.documents.Document(
+        page_content="I had chocalate chip pancakes and scrambled eggs for breakfast this morning.",
+        metadata={"source": "tweet"},
+    )
+
+    documents = [
+        document_1,
+    ]
+
+    vectorstore = langchain_milvus.Milvus.from_documents(
+        documents=documents,
+        embedding=embeddings,
+        connection_args={
+            "uri": "./milvus_demo.db",
+        },
+    )
+
+    return vectorstore
