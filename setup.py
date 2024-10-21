@@ -377,6 +377,10 @@ class CMakeBuild(build_ext):
             # DEV: -j is supported in CMake 3.12+ only.
             if hasattr(self, "parallel") and self.parallel:
                 build_args += ["-j{}".format(self.parallel)]
+            else:
+                nprocs = len(os.sched_getaffinity(0))
+                if nprocs:
+                    build_args += ["-j{}".format(nprocs)]
 
         # Arguments to cmake --install command
         install_args = ext.install_args or []
