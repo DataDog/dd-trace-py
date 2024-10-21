@@ -43,11 +43,7 @@ def test_encode_traces_civisibility_v0():
     test_trace[1].set_tag_str("type", "test")
 
     encoder = CIVisibilityEncoderV01(0, 0)
-    encoder.set_metadata(
-        {
-            "language": "python",
-        }
-    )
+    encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
     payload, num_traces = encoder.encode()
@@ -91,11 +87,7 @@ def test_encode_traces_civisibility_v0():
 
 def test_encode_traces_civisibility_v0_no_traces():
     encoder = CIVisibilityEncoderV01(0, 0)
-    encoder.set_metadata(
-        {
-            "language": "python",
-        }
-    )
+    encoder.set_metadata("*", {"language": "python"})
     payload, _ = encoder.encode()
     assert payload is None
 
@@ -104,11 +96,7 @@ def test_encode_traces_civisibility_v0_empty_traces():
     traces = [[], []]
 
     encoder = CIVisibilityEncoderV01(0, 0)
-    encoder.set_metadata(
-        {
-            "language": "python",
-        }
-    )
+    encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
     payload, size = encoder.encode()

@@ -246,7 +246,7 @@ def test_metrics():
 
     assert t._partial_flush_min_spans == 300
 
-    with override_global_config(dict(health_metrics_enabled=True)):
+    with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -296,7 +296,7 @@ def test_metrics_partial_flush_disabled():
         partial_flush_enabled=False,
     )
 
-    with override_global_config(dict(health_metrics_enabled=True)):
+    with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
         with mock.patch("ddtrace.internal.writer.writer.log") as log:

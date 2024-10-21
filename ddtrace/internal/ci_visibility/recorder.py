@@ -65,6 +65,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.compat import parse
@@ -765,6 +766,32 @@ class CIVisibility(Service):
 
         return instance._tags.get(ci.PROVIDER_NAME) is None
 
+    def _get_ci_visibility_event_client(self) -> Optional[CIVisibilityEventClient]:
+        writer = self.tracer._writer
+        if isinstance(writer, CIVisibilityWriter):
+            for client in writer._clients:
+                if isinstance(client, CIVisibilityEventClient):
+                    return client
+
+        return None
+
+    @classmethod
+    def set_test_session_name(cls, test_command: str) -> None:
+        instance = cls.get_instance()
+        client = instance._get_ci_visibility_event_client()
+        if not client:
+            log.debug("Not setting test session name because no CIVisibilityEventClient is active")
+            return
+
+        if ddconfig._test_session_name:
+            test_session_name = ddconfig._test_session_name
+        else:
+            job_name = instance._tags.get(ci.JOB_NAME)
+            test_session_name = f"{job_name}-{test_command}" if job_name else test_command
+
+        log.debug("Setting test session name: %s", test_session_name)
+        client.set_test_session_name(test_session_name)
+
     @classmethod
     def is_unique_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
         instance = cls.get_instance()
@@ -834,6 +861,7 @@ def _on_discover_session(
     )
 
     CIVisibility.add_session(session)
+    CIVisibility.set_test_session_name(test_command=discover_args.test_command)
 
 
 @_requires_civisibility_enabled

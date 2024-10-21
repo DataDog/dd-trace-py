@@ -1,3 +1,4 @@
+import atexit
 import os
 import sys
 from types import ModuleType
@@ -236,6 +237,10 @@ class ExplorationDebugger(Debugger):
         super(ExplorationDebugger, cls).enable()
 
         cls._instance.__uploader__.get_collector().on_snapshot = cls.on_snapshot
+
+        # Register the debugger to be disabled at exit manually because we are
+        # not being managed by the product manager.
+        atexit.register(cls.disable)
 
     @classmethod
     def disable(cls, join: bool = True) -> None:

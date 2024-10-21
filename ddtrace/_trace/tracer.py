@@ -300,7 +300,7 @@ class Tracer(object):
 
         self._new_process = False
         config._subscribe(["_trace_sample_rate", "_trace_sampling_rules"], self._on_global_config_update)
-        config._subscribe(["logs_injection"], self._on_global_config_update)
+        config._subscribe(["_logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
@@ -826,7 +826,7 @@ class Tracer(object):
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
             )
-            if config.report_hostname:
+            if config._report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
@@ -1181,8 +1181,8 @@ class Tracer(object):
                 if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
                     self.enabled = True
 
-        if "logs_injection" in items:
-            if config.logs_injection:
+        if "_logs_injection" in items:
+            if config._logs_injection:
                 from ddtrace.contrib.logging import patch
 
                 patch()

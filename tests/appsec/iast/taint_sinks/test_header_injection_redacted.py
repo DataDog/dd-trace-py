@@ -1,7 +1,6 @@
 from mock.mock import ANY
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -14,9 +13,9 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.taint_sinks.header_injection import HeaderInjection
-from ddtrace.internal import core
-from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import _taint_pyobject_multiranges
-from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
+from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
 
 
 @pytest.mark.parametrize(
@@ -26,7 +25,7 @@ from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
         ("test2", "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"),
     ],
 )
-def test_header_injection_redact_excluded(header_name, header_value):
+def test_header_injection_redact_excluded(header_name, header_value, iast_context_defaults):
     header_value_tainted = taint_pyobject(pyobject=header_value, source_name="SomeName", source_value=header_value)
     ev = Evidence(value=add_aspect(header_name, add_aspect(": ", header_value_tainted)))
     loc = Location(path="foobar.py", line=35, spanId=123)
@@ -70,7 +69,7 @@ def test_header_injection_redact_excluded(header_name, header_value):
         ),
     ],
 )
-def test_common_django_header_injection_redact(header_name, header_value, value_part):
+def test_common_django_header_injection_redact(header_name, header_value, value_part, iast_context_defaults):
     header_value_tainted = taint_pyobject(pyobject=header_value, source_name="SomeName", source_value=header_value)
     ev = Evidence(value=add_aspect(header_name, add_aspect(": ", header_value_tainted)))
     loc = Location(path="foobar.py", line=35, spanId=123)
@@ -97,7 +96,7 @@ def test_common_django_header_injection_redact(header_name, header_value, value_
     list(get_parametrize(VULN_HEADER_INJECTION)),
 )
 def test_header_injection_redaction_suite(
-    evidence_input, sources_expected, vulnerabilities_expected, iast_span_defaults
+    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults
 ):
     tainted_object = _taint_pyobject_multiranges(
         evidence_input["value"],
@@ -117,13 +116,10 @@ def test_header_injection_redaction_suite(
 
     HeaderInjection.report(tainted_object)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert span_report
+    data = _get_iast_data()
 
-    span_report.build_and_scrub_value_parts()
-    result = span_report._to_dict()
-    vulnerability = list(result["vulnerabilities"])[0]
-    source = list(result["sources"])[0]
+    vulnerability = list(data["vulnerabilities"])[0]
+    source = list(data["sources"])[0]
     source["origin"] = origin_to_str(source["origin"])
 
     assert vulnerability["type"] == VULN_HEADER_INJECTION

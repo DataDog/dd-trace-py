@@ -3,14 +3,14 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-from tests.utils import override_env
+from tests.utils import flaky
+from tests.utils import override_global_config
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
@@ -114,13 +114,14 @@ def test_propagate_ranges_with_no_context(caplog):
     assert get_tainted_ranges(string_input)
 
     reset_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_index(string_input, 3)
         assert result == "d"
     log_messages = [record.message for record in caplog.get_records("call")]
     assert not any("[IAST] " in message for message in log_messages), log_messages
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_re_match_index_indexerror():
     regexp = r"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
@@ -138,6 +139,7 @@ def test_re_match_index_indexerror():
         mod.do_re_match_index(string_input, regexp, "doesntexist")
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.parametrize(
     "input_str, index, tainted, expected_result, ",
     [
@@ -174,6 +176,7 @@ def test_re_match_index(input_str, index, tainted, expected_result):
     assert len(get_tainted_ranges(result)) == int(tainted)
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_re_match_index_indexerror_bytes():
     regexp = rb"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
@@ -191,6 +194,7 @@ def test_re_match_index_indexerror_bytes():
         mod.do_re_match_index(string_input, regexp, b"doesntexist")
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.parametrize(
     "input_str, index, tainted, expected_result, ",
     [

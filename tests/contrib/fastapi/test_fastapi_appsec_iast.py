@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import re
@@ -8,22 +9,23 @@ from fastapi import Cookie
 from fastapi import Form
 from fastapi import Header
 from fastapi import Request
+from fastapi import UploadFile
 from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
 import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
+from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
+from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.utils import override_env
 from tests.utils import override_global_config
 
-
-IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
 
 TEST_FILE_PATH = "tests/contrib/fastapi/test_fastapi_appsec_iast.py"
 
@@ -55,7 +57,7 @@ def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_
         yield
     else:
         caplog.set_level(logging.DEBUG)
-        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
             yield
 
         log_messages = [record.msg for record in caplog.get_records("call")]
@@ -85,7 +87,7 @@ def test_query_param_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -120,7 +122,7 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -156,7 +158,7 @@ def test_header_value_source_typing_param(fastapi_application, client, tracer, t
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         _aux_appsec_prepare_tracer(tracer)
 
         resp = client.get(
@@ -190,7 +192,7 @@ def test_cookies_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -226,7 +228,7 @@ def test_cookies_source_typing_param(fastapi_application, client, tracer, test_s
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -260,7 +262,7 @@ def test_path_param_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -294,7 +296,7 @@ def test_path_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -329,7 +331,7 @@ def test_path_body_receive_source(fastapi_application, client, tracer, test_span
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post(
@@ -365,7 +367,7 @@ def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post(
@@ -402,7 +404,7 @@ def test_path_body_body_source_formdata_latest(fastapi_application, client, trac
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post("/index.html", data={"path": "/var/log"})
@@ -433,7 +435,7 @@ def test_path_body_body_source_formdata_90(fastapi_application, client, tracer, 
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post("/index.html", data={"path": "/var/log"})
@@ -473,7 +475,7 @@ def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spa
             }
         )
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post(
@@ -486,6 +488,37 @@ def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spa
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 8
         assert result["ranges_origin"] == "http.request.body"
+
+
+@pytest.mark.skipif(fastapi_version < (0, 65, 0), reason="UploadFile not supported")
+def test_path_body_body_upload(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/uploadfile/")
+    async def create_upload_file(files: typing.List[UploadFile]):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+
+        ranges_result = get_tainted_ranges(files[0])
+        return JSONResponse(
+            {
+                "filenames": [file.filename for file in files],
+                "is_tainted": len(ranges_result),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        tmp = io.BytesIO(b"upload this")
+        resp = client.post(
+            "/uploadfile/",
+            files=(
+                ("files", ("test.txt", tmp)),
+                ("files", ("test2.txt", tmp)),
+            ),
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["filenames"] == ["test.txt", "test2.txt"]
+        assert result["is_tainted"] == 0
 
 
 def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans):
@@ -503,7 +536,7 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         # label test_fastapi_sqli_path_parameter
         cur.execute(add_aspect("SELECT 1 FROM ", param_str))
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(IAST_ENV):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -536,3 +569,196 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
         assert vulnerability["hash"] == hash_value
+
+
+def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value=query_params, secure=False, httponly=True, samesite="strict")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = json.loads(span.get_tag(IAST.JSON))
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_INSECURE_COOKIE
+        assert "path" not in vulnerability["location"].keys()
+        assert "line" not in vulnerability["location"].keys()
+        assert vulnerability["location"]["spanId"]
+        assert vulnerability["hash"]
+
+
+def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value="", secure=False, httponly=True, samesite="strict")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = span.get_tag(IAST.JSON)
+        assert loaded is None
+
+
+def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value=query_params, secure=True, httponly=False, samesite="strict")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = json.loads(span.get_tag(IAST.JSON))
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
+        assert "path" not in vulnerability["location"].keys()
+        assert "line" not in vulnerability["location"].keys()
+        assert vulnerability["location"]["spanId"]
+        assert vulnerability["hash"]
+
+
+def test_fasapi_no_http_only_cookie_empty(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value="", secure=True, httponly=False, samesite="strict")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = span.get_tag(IAST.JSON)
+        assert loaded is None
+
+
+def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    def insecure_cookie(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
+        query_params = request.query_params.get("iast_queryparam")
+        ranges_result = get_tainted_ranges(query_params)
+        response = JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+        response.set_cookie(key="insecure", value=query_params, secure=True, httponly=True, samesite="none")
+
+        return response
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/insecure_cookie/?iast_queryparam=insecure",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = json.loads(span.get_tag(IAST.JSON))
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
+        assert "path" not in vulnerability["location"].keys()
+        assert "line" not in vulnerability["location"].keys()
+        assert vulnerability["location"]["spanId"]
+        assert vulnerability["hash"]

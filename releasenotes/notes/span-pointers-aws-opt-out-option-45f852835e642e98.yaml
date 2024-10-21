@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: Add ``ddtrace.config.botocore.add_span_pointers`` option or the ``DD_BOTOCORE_ADD_SPAN_POINTERS`` environment variable to control adding span pointers to some successful AWS API requests. This option is enabled by default.

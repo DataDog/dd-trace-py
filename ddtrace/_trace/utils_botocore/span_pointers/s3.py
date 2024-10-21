@@ -13,18 +13,6 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def extract_span_pointers_from_successful_botocore_response(
-    endpoint_name: str,
-    operation_name: str,
-    request_parameters: Dict[str, Any],
-    response: Dict[str, Any],
-) -> List[_SpanPointerDescription]:
-    if endpoint_name == "s3":
-        return _extract_span_pointers_for_s3_response(operation_name, request_parameters, response)
-
-    return []
-
-
 def _extract_span_pointers_for_s3_response(
     operation_name: str,
     request_parameters: Dict[str, Any],

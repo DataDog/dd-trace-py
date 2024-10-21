@@ -23,7 +23,7 @@ This example shows how ``core.context_with_data`` might be used to create a node
             pin=pin,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
-        ) as ctx, ctx.get_item("flask_request_call"):
+        ) as ctx, ctx.span:
             return wrapped(*args, **kwargs)
 
 
@@ -101,16 +101,16 @@ like this::
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
 
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 import logging
 import sys
-from typing import TYPE_CHECKING  # noqa:F401
+import types
+import typing
 from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -125,13 +125,10 @@ from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from ddtrace._trace.span import Span  # noqa:F401
 
-try:
-    import contextvars
-except ImportError:
-    import ddtrace.vendor.contextvars as contextvars  # type: ignore
+import contextvars
 
 
 log = logging.getLogger(__name__)
@@ -163,40 +160,47 @@ def _deprecate_span_kwarg(span):
         )
 
 
-class ExecutionContext:
-    __slots__ = ["identifier", "_data", "_parents", "_span", "_token"]
-
-    def __init__(self, identifier, parent=None, span=None, **kwargs):
+class ExecutionContext(AbstractContextManager):
+    def __init__(
+        self, identifier: str, parent: Optional["ExecutionContext"] = None, span: Optional["Span"] = None, **kwargs
+    ) -> None:
         _deprecate_span_kwarg(span)
-        self.identifier = identifier
-        self._data = {}
-        self._parents = []
-        self._span = span
-        if parent is not None:
-            self.addParent(parent)
+        self.identifier: str = identifier
+        self._data: Dict[str, Any] = {}
+        self._span: Optional["Span"] = span
+        self._suppress_exceptions: List[type] = []
         self._data.update(kwargs)
+        self._parent: Optional["ExecutionContext"] = parent
+        self._inner_span: Optional["Span"] = None
 
+    def __enter__(self) -> "ExecutionContext":
         if self._span is None and "_CURRENT_CONTEXT" in globals():
-            self._token = _CURRENT_CONTEXT.set(self)
+            self._token: contextvars.Token["ExecutionContext"] = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
         dispatch("context.started.start_span.%s" % self.identifier, (self,))
+        return self
 
-    def __repr__(self):
-        return self.__class__.__name__ + " '" + self.identifier + "' @ " + str(id(self))
-
-    @property
-    def parents(self):
-        return self._parents
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__} '{self.identifier}' @ {id(self)}"
 
     @property
-    def parent(self):
-        return self._parents[0] if self._parents else None
+    def parent(self) -> Optional["ExecutionContext"]:
+        return self._parent
 
-    def end(self):
-        dispatch_result = dispatch_with_results("context.ended.%s" % self.identifier, (self,))
+    @parent.setter
+    def parent(self, value: "ExecutionContext") -> None:
+        if self._parent is not None:
+            raise ValueError("Cannot overwrite ExecutionContext parent")
+        self._parent = value
+
+    def __exit__(
+        self, exc_type: Optional[type], exc_value: Optional[BaseException], traceback: Optional[types.TracebackType]
+    ) -> bool:
+        dispatch("context.ended.%s" % self.identifier, (self,))
         if self._span is None:
             try:
-                _CURRENT_CONTEXT.reset(self._token)
+                if hasattr(self, "_token"):
+                    _CURRENT_CONTEXT.reset(self._token)
             except ValueError:
                 log.debug(
                     "Encountered ValueError during core contextvar reset() call. "
@@ -209,24 +213,16 @@ class ExecutionContext:
                 )
         if id(self) in DEPRECATION_MEMO:
             DEPRECATION_MEMO.remove(id(self))
-        return dispatch_result
 
-    def addParent(self, context):
-        if self.identifier == ROOT_CONTEXT_ID:
-            raise ValueError("Cannot add parent to root context")
-        self._parents.append(context)
+        return (
+            True
+            if exc_type is None
+            else any(issubclass(exc_type, exc_type_) for exc_type_ in self._suppress_exceptions)
+        )
 
-    @classmethod
-    @contextmanager
-    def context_with_data(cls, identifier, parent=None, span=None, **kwargs):
-        new_context = cls(identifier, parent=parent, span=span, **kwargs)
-        try:
-            yield new_context
-        finally:
-            new_context.end()
-
-    def get_item(current, data_key: str, default: Optional[Any] = None) -> Any:
+    def get_item(self, data_key: str, default: Optional[Any] = None) -> Any:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
+        current: Optional[ExecutionContext] = self
         while current is not None:
             if data_key in current._data:
                 return current._data.get(data_key)
@@ -257,8 +253,9 @@ class ExecutionContext:
         for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
 
-    def discard_item(current, data_key: str) -> None:
+    def discard_item(self, data_key: str) -> None:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
+        current: Optional[ExecutionContext] = self
         while current is not None:
             if data_key in current._data:
                 del current._data[data_key]
@@ -276,10 +273,24 @@ class ExecutionContext:
             current = current.parent
         return current
 
+    @property
+    def span(self) -> "Span":
+        if self._inner_span is None:
+            raise ValueError("No span set on ExecutionContext")
+        return self._inner_span
+
+    @span.setter
+    def span(self, value: "Span") -> None:
+        self._inner_span = value
+        if "span_key" in self._data:
+            self._data[self._data["span_key"]] = value
+
 
 def __getattr__(name):
     if name == "root":
         return _CURRENT_CONTEXT.get().root()
+    if name == "current":
+        return _CURRENT_CONTEXT.get()
     raise AttributeError
 
 
@@ -294,15 +305,18 @@ def _reset_context():
 
 
 def context_with_data(identifier, parent=None, **kwargs):
-    return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+    return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+
+
+def add_suppress_exception(exc_type: type) -> None:
+    _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
 
 
 def get_item(data_key: str, span: Optional["Span"] = None) -> Any:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
-    else:
-        return _CURRENT_CONTEXT.get().get_item(data_key)
+    return _CURRENT_CONTEXT.get().get_item(data_key)
 
 
 def get_local_item(data_key: str, span: Optional["Span"] = None) -> Any:
@@ -313,8 +327,7 @@ def get_items(data_keys: List[str], span: Optional["Span"] = None) -> List[Optio
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return [span._local_root._get_ctx_item(key) for key in data_keys]
-    else:
-        return _CURRENT_CONTEXT.get().get_items(data_keys)
+    return _CURRENT_CONTEXT.get().get_items(data_keys)
 
 
 def set_safe(data_key: str, data_value: Optional[Any]) -> None:
@@ -344,3 +357,20 @@ def discard_item(data_key: str) -> None:
 
 def discard_local_item(data_key: str) -> None:
     _CURRENT_CONTEXT.get().discard_local_item(data_key)
+
+
+def get_span() -> Optional["Span"]:
+    current: Optional[ExecutionContext] = _CURRENT_CONTEXT.get()
+    while current is not None:
+        try:
+            return current.span
+        except ValueError:
+            current = current.parent
+    return None
+
+
+def get_root_span() -> Optional["Span"]:
+    span = _CURRENT_CONTEXT.get().span
+    if span is None:
+        return None
+    return span._local_root or span

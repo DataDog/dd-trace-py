@@ -10,9 +10,11 @@ from typing import Tuple
 from typing import Type
 
 from ddtrace._trace.span import Span
+from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -20,7 +22,7 @@ log = get_logger(__name__)
 
 def get_request_sampling_value() -> float:
     # Percentage of requests analyzed by IAST (default: 30%)
-    return float(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30.0))
+    return float(asm_config._iast_request_sampling)
 
 
 MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
@@ -96,7 +98,12 @@ class OverheadControl(object):
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
-        if self._request_quota <= 0 or not self._sampler.sample(span):
+        if self._request_quota <= 0:
+            return False
+
+        if span and not self._sampler.sample(span):
+            if _is_iast_debug_enabled():
+                log.debug("[IAST] Skip request by sampling rate")
             return False
 
         with self._lock:

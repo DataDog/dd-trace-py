@@ -6,8 +6,7 @@ Add all monkey-patching that needs to run by default here
 import os  # noqa:I001
 
 from ddtrace import config  # noqa:F401
-from ddtrace.debugging._config import di_config  # noqa:F401
-from ddtrace.debugging._config import er_config  # noqa:F401
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
@@ -17,9 +16,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
-from ddtrace.settings.code_origin import config as co_config  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
-from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
 
 
@@ -72,30 +69,10 @@ if profiling_config.enabled:
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
 
-if symdb_config.enabled:
-    from ddtrace.internal import symbol_db
-
-    symbol_db.bootstrap()
-
-if di_config.enabled:  # Dynamic Instrumentation
-    from ddtrace.debugging import DynamicInstrumentation
-
-    DynamicInstrumentation.enable()
-
-if co_config.span.enabled:
-    from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
-
-    SpanCodeOriginProcessor.enable()
-
-if er_config.enabled:  # Exception Replay
-    from ddtrace.debugging._exception.replay import SpanExceptionHandler
-
-    SpanExceptionHandler.enable()
-
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
-if asbool(os.getenv("DD_IAST_ENABLED", False)):
+if _is_iast_enabled():
     """
     This is the entry point for the IAST instrumentation. `enable_iast_propagation` is called on patch_all function
     too but patch_all depends of DD_TRACE_ENABLED environment variable. This is the reason why we need to call it
@@ -139,8 +116,8 @@ if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         patch_all(**modules_to_bool)
 
-    if config.trace_methods:
-        _install_trace_methods(config.trace_methods)
+    if config._trace_methods:
+        _install_trace_methods(config._trace_methods)
 
 if "DD_TRACE_GLOBAL_TAGS" in os.environ:
     env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
