@@ -91,12 +91,13 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
         if ruleset.get(feature) is None:
             ruleset[feature] = rules
         else:
-            if isinstance(rules, list) and isinstance(ruleset[feature], list):
-                ruleset[feature] = ruleset[feature] + rules
-            elif isinstance(rules, dict) and isinstance(ruleset[feature], dict):
-                ruleset[feature] = {**ruleset[feature], **rules}
+            current_rules = ruleset[feature]
+            if isinstance(rules, list) and isinstance(current_rules, list):
+                ruleset[feature] = current_rules + rules
+            elif isinstance(rules, dict) and isinstance(current_rules, dict):
+                ruleset[feature] = {**current_rules, **rules}
             else:
-                log.debug("Invalid type for %s: %s with %s", message, str(type(ruleset[feature])), str(type(rules)))
+                log.debug("Invalid type for %s: %s with %s", message, str(type(current_rules)), str(type(rules)))
         log.debug("Reloading Appsec %s: %s", message, str(rules)[:20])
 
 
