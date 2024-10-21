@@ -621,6 +621,7 @@ class Config(object):
         self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False
         self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
+        self._span_links_enabled = _get_config("DD_TRACE_SPAN_LINKS_ENABLED", True, asbool)
 
     def __getattr__(self, name) -> Any:
         if name in self._DEPRECATED_ATTRS:
