@@ -119,6 +119,8 @@ class LLMObs(Service):
                     self.annotate(span, **annotation_kwargs)
 
     def _child_after_fork(self):
+        if not self.enabled:
+            return
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
