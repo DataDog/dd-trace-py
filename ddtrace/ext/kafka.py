@@ -7,6 +7,7 @@ MESSAGE_OFFSET = "kafka.message_offset"
 GROUP_ID = "kafka.group_id"
 TOMBSTONE = "kafka.tombstone"
 RECEIVED_MESSAGE = "kafka.received_message"
+CLUSTER_ID = "kafka.cluster_id"
 
 HOST_LIST = "messaging.kafka.bootstrap.servers"
 
