@@ -35,7 +35,7 @@ In addition, you will need `riot <https://ddriot.readthedocs.io/en/latest/>`_ an
 
 .. code-block:: bash
 
-    $ pip install riot==0.19.1
+    $ pip install riot==0.20.0
     $ pip install hatch~=1.8.0 hatch-containers==0.7.0
 
 Some of our test environments are managed with Riot, others with Hatch.
