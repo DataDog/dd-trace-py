@@ -87,7 +87,7 @@ def patch():
         _w("starlette.routing", "Mount.handle", traced_handler)
 
     if _is_iast_enabled():
-        from ddtrace.appsec._iast._patch import _on_iast_fastapi_patch
+        from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 
         _on_iast_fastapi_patch()
 
