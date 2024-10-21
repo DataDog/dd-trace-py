@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Code security: This fix resolves an issue where partial matches on function names we aimed to patch were being patched instead of full matches on them.
