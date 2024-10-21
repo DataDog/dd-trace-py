@@ -180,7 +180,7 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
-    "django{matrix:django}",
+    "django{matrix:django}"
 ]
 
 [envs.appsec_threats_django.scripts]
@@ -225,7 +225,7 @@ dependencies = [
     "hypothesis",
     "MarkupSafe{matrix:markupsafe:}",
     "Werkzeug{matrix:werkzeug:}",
-    "flask{matrix:flask}",
+    "flask{matrix:flask}"
 ]
 
 [envs.appsec_threats_flask.scripts]
@@ -267,7 +267,7 @@ dependencies = [
     "hypothesis",
     "httpx",
     "anyio{matrix:anyio:}",
-    "fastapi{matrix:fastapi}",
+    "fastapi{matrix:fastapi}"
 ]
 
 [envs.appsec_threats_fastapi.scripts]
