@@ -2962,7 +2962,7 @@ INJECT_FIXTURES = [
         },
     ),
     (
-        "baggage_order",
+        "baggage_order_first",
         [
             _PROPAGATION_STYLE_BAGGAGE,
             PROPAGATION_STYLE_DATADOG,
