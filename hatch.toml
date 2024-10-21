@@ -182,7 +182,6 @@ dependencies = [
     "hypothesis",
     "django{matrix:django}",
     "virtualenv<20.27.0", # python 3.7 support dropped in 20.27.0
-    "typing-extensions==3.7.4"
 ]
 
 [envs.appsec_threats_django.scripts]
@@ -229,7 +228,6 @@ dependencies = [
     "Werkzeug{matrix:werkzeug:}",
     "flask{matrix:flask}",
     "virtualenv<20.27.0", # python 3.7 support dropped in 20.27.0
-    "typing-extensions==3.7.4"
 ]
 
 [envs.appsec_threats_flask.scripts]
@@ -273,7 +271,6 @@ dependencies = [
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}",
     "virtualenv<20.27.0", # python 3.7 support dropped in 20.27.0
-    "typing-extensions==3.7.4"
 ]
 
 [envs.appsec_threats_fastapi.scripts]
@@ -308,8 +305,6 @@ dependencies = [
     "requests",
     "hypothesis",
     "virtualenv<20.27.0", # python 3.7 support dropped in 20.27.0
-    "typing-extensions==3.7.4"
-
 ]
 
 [envs.ddtrace_unit_tests.env-vars]

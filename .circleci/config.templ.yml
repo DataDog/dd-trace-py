@@ -91,7 +91,7 @@ commands:
   setup_hatch:
     description: "Install hatch"
     steps:
-      - run: pip3 install hatch~=1.8.0 hatch-containers==0.7.0
+      - run: pip3 install hatch~=1.8.0 hatch-containers==0.7.0 virtualenv==20.26.6
 
   start_docker_services:
     description: "Start Docker services"
