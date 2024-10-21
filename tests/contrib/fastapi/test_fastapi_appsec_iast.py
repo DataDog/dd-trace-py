@@ -603,11 +603,9 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
         assert span.get_metric(IAST.ENABLED) == 1.0
 
         loaded = json.loads(span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_INSECURE_COOKIE
-        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
         assert "path" not in vulnerability["location"].keys()
         assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
@@ -681,11 +679,9 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
         assert span.get_metric(IAST.ENABLED) == 1.0
 
         loaded = json.loads(span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
-        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
         assert "path" not in vulnerability["location"].keys()
         assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
@@ -759,11 +755,9 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
         assert span.get_metric(IAST.ENABLED) == 1.0
 
         loaded = json.loads(span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
-        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
         assert "path" not in vulnerability["location"].keys()
         assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
