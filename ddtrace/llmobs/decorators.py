@@ -15,7 +15,8 @@ log = get_logger(__name__)
 
 def _model_decorator(operation_kind):
     def decorator(
-        model_name: str,
+        original_func: Optional[Callable] = None,
+        model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -31,8 +32,7 @@ def _model_decorator(operation_kind):
                         return await func(*args, **kwargs)
                     traced_model_name = model_name
                     if traced_model_name is None:
-                        log.warning("model_name missing for LLMObs.%s() - default to 'unknown'", operation_kind)
-                        traced_model_name = "unknown"
+                        traced_model_name = "custom"
                     span_name = name
                     if span_name is None:
                         span_name = func.__name__
@@ -55,8 +55,7 @@ def _model_decorator(operation_kind):
                         return func(*args, **kwargs)
                     traced_model_name = model_name
                     if traced_model_name is None:
-                        log.warning("model_name missing for LLMObs.%s() - default to 'unknown'", operation_kind)
-                        traced_model_name = "unknown"
+                        traced_model_name = "custom"
                     span_name = name
                     if span_name is None:
                         span_name = func.__name__
@@ -72,6 +71,8 @@ def _model_decorator(operation_kind):
 
             return wrapper
 
+        if original_func and callable(original_func):
+            return inner(original_func)
         return inner
 
     return decorator
