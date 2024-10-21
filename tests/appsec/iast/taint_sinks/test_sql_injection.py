@@ -1,14 +1,13 @@
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
 
 
 DDBBS = [
@@ -28,7 +27,7 @@ DDBBS = [
 
 
 @pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
-def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
+def test_sql_injection(fixture_path, fixture_module, iast_context_defaults):
     mod = _iast_patched_module(fixture_module)
     table = taint_pyobject(
         pyobject="students",
@@ -39,9 +38,7 @@ def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
     assert is_pyobject_tainted(table)
 
     mod.sqli_simple(table)
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert span_report
-    data = span_report.build_and_scrub_value_parts()
+    data = _get_iast_data()
     vulnerability = data["vulnerabilities"][0]
     source = data["sources"][0]
     assert vulnerability["type"] == VULN_SQL_INJECTION
@@ -63,7 +60,7 @@ def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
 
 
 @pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
-def test_sql_injection_deduplication(fixture_path, fixture_module, iast_span_deduplication_enabled):
+def test_sql_injection_deduplication(fixture_path, fixture_module, iast_context_deduplication_enabled):
     mod = _iast_patched_module(fixture_module)
 
     table = taint_pyobject(
@@ -76,9 +73,6 @@ def test_sql_injection_deduplication(fixture_path, fixture_module, iast_span_ded
     for _ in range(0, 5):
         mod.sqli_simple(table)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
-
-    assert span_report
-    data = span_report.build_and_scrub_value_parts()
+    data = _get_iast_data()
     assert len(data["vulnerabilities"]) == 1
     VulnerabilityBase._prepare_report._reset_cache()

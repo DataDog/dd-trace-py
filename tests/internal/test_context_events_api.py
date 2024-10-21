@@ -33,9 +33,9 @@ class TestContextEventsApi(unittest.TestCase):
 
     def test_core_get_execution_context(self):
         context = core.ExecutionContext("foo")
-        assert context.parents == []
-        context.addParent(core.ExecutionContext("bar"))
-        assert len(context.parents) == 1
+        assert context.parent is None
+        context.parent = core.ExecutionContext("bar")
+        assert context.parent is not None
 
     def test_core_has_listeners(self):
         event_name = "my.cool.event"
@@ -332,7 +332,7 @@ class TestContextEventsApi(unittest.TestCase):
     def test_core_root_context(self):
         root_context = core._CURRENT_CONTEXT.get()
         assert isinstance(root_context, core.ExecutionContext)
-        assert len(root_context.parents) == 0
+        assert root_context.parent is None
 
     def test_core_current_context(self):
         assert core._CURRENT_CONTEXT.get().identifier == core.ROOT_CONTEXT_ID

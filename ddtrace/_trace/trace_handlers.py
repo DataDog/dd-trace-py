@@ -1,6 +1,6 @@
 import functools
-import re
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -9,8 +9,8 @@ from typing import Optional
 
 import wrapt
 
+from ddtrace import config
 from ddtrace._trace._span_pointer import _SpanPointerDescription
-from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
 from ddtrace._trace.utils_botocore.span_tags import (
@@ -22,24 +22,23 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
-from ddtrace.contrib.trace_utils import _get_request_header_user_agent
 from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
-from ddtrace.internal.compat import nullcontext
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
-from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.utils import http as http_utils
 from ddtrace.propagation.http import HTTPPropagator
+
+
+if TYPE_CHECKING:
+    from ddtrace import Span
 
 
 log = get_logger(__name__)
@@ -106,7 +105,7 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
     return span_kwargs
 
 
-def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> Span:
+def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
     tracer = (ctx.get_item("middleware") or ctx["pin"]).tracer
@@ -122,21 +121,16 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
-    call_keys = ctx.get_item("call_key", "call")
-    if isinstance(call_keys, str):
-        call_keys = [call_keys]
-    for call_key in call_keys:
-        ctx.set_item(call_key, span)
+    ctx.span = span
     return span
 
 
 def _on_traced_request_context_started_flask(ctx):
     current_span = ctx["pin"].tracer.current_span()
     if not ctx["pin"].enabled or not current_span:
-        ctx.set_item(ctx["call_key"], nullcontext())
         return
 
-    ctx.set_item("current_span", current_span)
+    ctx.span = current_span
     flask_config = ctx["flask_config"]
     _set_flask_request_tags(ctx["flask_request"], current_span, flask_config)
     request_span = _start_span(ctx)
@@ -158,126 +152,6 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
             child_of=ctx["parent_call"],
             activate=True,
         )
-
-
-def _use_html(headers) -> bool:
-    """decide if the response should be html or json.
-
-    Add support for quality values in the Accept header.
-    """
-    ctype = headers.get("Accept", headers.get("accept", ""))
-    if not ctype:
-        return False
-    html_score = 0.0
-    json_score = 0.0
-    ctypes = ctype.split(",")
-    for ct in ctypes:
-        if len(ct) > 128:
-            # ignore long (and probably malicious) headers to avoid performances issues
-            continue
-        m = re.match(r"([^/;]+/[^/;]+)(?:;q=([01](?:\.\d*)?))?", ct.strip())
-        if m:
-            if m.group(1) == "text/html":
-                html_score = max(html_score, min(1.0, float(1.0 if m.group(2) is None else m.group(2))))
-            elif m.group(1) == "text/*":
-                html_score = max(html_score, min(1.0, float(0.2 if m.group(2) is None else m.group(2))))
-            elif m.group(1) == "application/json":
-                json_score = max(json_score, min(1.0, float(1.0 if m.group(2) is None else m.group(2))))
-            elif m.group(1) == "application/*":
-                json_score = max(json_score, min(1.0, float(0.2 if m.group(2) is None else m.group(2))))
-    return html_score > json_score
-
-
-def _ctype_from_headers(block_config, headers) -> str:
-    """compute MIME type of the blocked response."""
-    desired_type = block_config.get("type", "auto")
-    if desired_type == "auto":
-        return "text/html" if _use_html(headers) else "application/json"
-    else:
-        return "text/html" if block_config["type"] == "html" else "application/json"
-
-
-def _wsgi_make_block_content(ctx, construct_url):
-    middleware = ctx.get_item("middleware")
-    req_span = ctx.get_item("req_span")
-    headers = ctx.get_item("headers")
-    environ = ctx.get_item("environ")
-    if req_span is None:
-        raise ValueError("request span not found")
-    block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
-    desired_type = block_config.get("type", "auto")
-    ctype = None
-    if desired_type == "none":
-        content = ""
-        resp_headers = [("content-type", "text/plain; charset=utf-8"), ("location", block_config.get("location", ""))]
-    else:
-        ctype = _ctype_from_headers(block_config, headers)
-        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
-        resp_headers = [("content-type", ctype)]
-    status = block_config.get("status_code", 403)
-    try:
-        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        if ctype is not None:
-            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span.set_tag_str(http.STATUS_CODE, str(status))
-        url = construct_url(environ)
-        query_string = environ.get("QUERY_STRING")
-        _set_url_tag(middleware._config, req_span, url, query_string)
-        if query_string and middleware._config.trace_query_string:
-            req_span.set_tag_str(http.QUERY_STRING, query_string)
-        method = environ.get("REQUEST_METHOD")
-        if method:
-            req_span.set_tag_str(http.METHOD, method)
-        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-        if user_agent:
-            req_span.set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-    resp_headers.append(("Content-Length", str(len(content))))
-    return status, resp_headers, content
-
-
-def _asgi_make_block_content(ctx, url):
-    middleware = ctx.get_item("middleware")
-    req_span = ctx.get_item("req_span")
-    headers = ctx.get_item("headers")
-    environ = ctx.get_item("environ")
-    if req_span is None:
-        raise ValueError("request span not found")
-    block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
-    desired_type = block_config.get("type", "auto")
-    ctype = None
-    if desired_type == "none":
-        content = ""
-        resp_headers = [
-            (b"content-type", b"text/plain; charset=utf-8"),
-            (b"location", block_config.get("location", "").encode()),
-        ]
-    else:
-        ctype = _ctype_from_headers(block_config, headers)
-        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
-        # ctype = f"{ctype}; charset=utf-8" can be considered at some point
-        resp_headers = [(b"content-type", ctype.encode())]
-    status = block_config.get("status_code", 403)
-    try:
-        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        if ctype is not None:
-            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span.set_tag_str(http.STATUS_CODE, str(status))
-        query_string = environ.get("QUERY_STRING")
-        _set_url_tag(middleware.integration_config, req_span, url, query_string)
-        if query_string and middleware._config.trace_query_string:
-            req_span.set_tag_str(http.QUERY_STRING, query_string)
-        method = environ.get("REQUEST_METHOD")
-        if method:
-            req_span.set_tag_str(http.METHOD, method)
-        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-        if user_agent:
-            req_span.set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-    resp_headers.append((b"Content-Length", str(len(content)).encode()))
-    return status, resp_headers, content
 
 
 def _on_request_prepare(ctx, start_response):
@@ -438,27 +312,8 @@ def _cookies_from_response_headers(response_headers):
     return cookies
 
 
-def _on_flask_blocked_request(span):
-    span.set_tag_str(http.STATUS_CODE, "403")
-    request = core.get_item("flask_request")
-    try:
-        base_url = getattr(request, "base_url", None)
-        query_string = getattr(request, "query_string", None)
-        if base_url and query_string:
-            _set_url_tag(core.get_item("flask_config"), span, base_url, query_string)
-        if query_string and core.get_item("flask_config").trace_query_string:
-            span.set_tag_str(http.QUERY_STRING, query_string)
-        if request.method is not None:
-            span.set_tag_str(http.METHOD, request.method)
-        user_agent = _get_request_header_user_agent(request.headers)
-        if user_agent:
-            span.set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
-
 def _on_flask_render(template, flask_config):
-    span = core.get_item("current_span")
+    span = core.get_span()
     if not span:
         return
     name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
@@ -508,18 +363,14 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
     )
 
 
-def _on_start_response_blocked(ctx, flask_config, response_headers, status):
-    trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
-
-
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
-    before_request_tags(ctx["pin"], ctx["call"], request)
-    ctx["call"]._metrics[SPAN_MEASURED_KEY] = 1
+    before_request_tags(ctx["pin"], ctx.span, request)
+    ctx.span._metrics[SPAN_MEASURED_KEY] = 1
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
-    span = ctx["call"]
+    span = ctx.span
     after_request_tags(ctx["pin"], span, request, response)
     trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
 
@@ -532,7 +383,7 @@ def _on_django_start_response(
     remake_body(request)
 
     trace_utils.set_http_meta(
-        ctx["call"],
+        ctx.span,
         ctx["distributed_headers_config"],
         method=request.method,
         query=query,
@@ -545,30 +396,30 @@ def _on_django_start_response(
 
 
 def _on_django_cache(ctx: core.ExecutionContext, rowcount: int):
-    ctx["call"].set_metric(db.ROWCOUNT, rowcount)
+    ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
-            ctx["call"]._ignore_exception(exc)
+            ctx.span._ignore_exception(exc)
 
 
 def _on_django_process_exception(ctx: core.ExecutionContext, should_set_traceback: bool):
     if should_set_traceback:
-        ctx["call"].set_traceback()
+        ctx.span.set_traceback()
 
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
-        ctx["call"].set_tag_str(tk, tv)
-    _set_url_tag(django_config, ctx["call"], url, query)
+        ctx.span.set_tag_str(tk, tv)
+    _set_url_tag(django_config, ctx.span, url, query)
 
 
 def _on_django_after_request_headers_post(
     request_headers,
     response_headers,
-    span: Span,
+    span: "Span",
     django_config,
     request,
     url,
@@ -596,7 +447,7 @@ def _on_django_after_request_headers_post(
 
 
 def _on_botocore_patched_api_call_started(ctx):
-    span = ctx.get_item(ctx.get_item("call_key"))
+    span = ctx.span
     set_patched_api_call_span_tags(
         span,
         ctx.get_item("instance"),
@@ -614,7 +465,7 @@ def _on_botocore_patched_api_call_started(ctx):
 
 
 def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_error_code_fn):
-    span = ctx.get_item(ctx.get_item("call_key"))
+    span = ctx.span
     # `ClientError.response` contains the result, so we can still grab response metadata
     set_botocore_response_metadata_tags(span, response, is_error_code_fn=is_error_code_fn)
 
@@ -626,17 +477,19 @@ def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_er
 
 
 def _on_botocore_patched_api_call_success(ctx, response):
-    span = ctx.get_item(ctx.get_item("call_key"))
+    span = ctx.span
 
     set_botocore_response_metadata_tags(span, response)
 
-    for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
-        endpoint_name=ctx.get_item("endpoint_name"),
-        operation_name=ctx.get_item("operation"),
-        request_parameters=ctx.get_item("params"),
-        response=response,
-    ):
-        _set_span_pointer(span, span_pointer_description)
+    if config.botocore.add_span_pointers:
+        for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
+            dynamodb_primary_key_names_for_tables=config.botocore.dynamodb_primary_key_names_for_tables,
+            endpoint_name=ctx.get_item("endpoint_name"),
+            operation_name=ctx.get_item("operation"),
+            request_parameters=ctx.get_item("params"),
+            response=response,
+        ):
+            _set_span_pointer(span, span_pointer_description)
 
 
 def _on_botocore_trace_context_injection_prepared(
@@ -644,7 +497,7 @@ def _on_botocore_trace_context_injection_prepared(
 ):
     endpoint_name = ctx.get_item("endpoint_name")
     if cloud_service is not None:
-        span = ctx.get_item(ctx["call_key"])
+        span = ctx.span
         inject_kwargs = dict(endpoint_service=endpoint_name) if cloud_service == "sns" else dict()
         schematize_kwargs = dict(cloud_provider="aws", cloud_service=cloud_service)
         if endpoint_name != "lambda":
@@ -660,22 +513,22 @@ def _on_botocore_kinesis_update_record(ctx, stream, data_obj: Dict, record, inje
     if inject_trace_context:
         if "_datadog" not in data_obj:
             data_obj["_datadog"] = {}
-        HTTPPropagator.inject(ctx[ctx["call_key"]].context, data_obj["_datadog"])
+        HTTPPropagator.inject(ctx.span.context, data_obj["_datadog"])
 
 
 def _on_botocore_update_messages(ctx, span, _, trace_data, __, message=None):
-    context = span.context if span else ctx[ctx["call_key"]].context
+    context = span.context if span else ctx.span.context
     HTTPPropagator.inject(context, trace_data)
 
 
 def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __):
-    context = span.context if span else ctx[ctx["call_key"]].context
+    context = span.context if span else ctx.span.context
     HTTPPropagator.inject(context, trace_data["_datadog"])
     ctx.set_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY, trace_data)
 
 
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
-    span = ctx[ctx["call_key"]]
+    span = ctx.span
     integration = ctx["bedrock_integration"]
     span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
     span.set_tag_str("bedrock.request.model", ctx["model_name"])
@@ -689,7 +542,7 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
 
 
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
-    span = ctx[ctx["call_key"]]
+    span = ctx.span
     span.set_exc_info(*exc_info)
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
@@ -699,7 +552,7 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
 
 
 def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_token_count, output_token_count):
-    span = ctx[ctx["call_key"]]
+    span = ctx.span
     span.set_tag_str("bedrock.response.id", reqid)
     span.set_tag_str("bedrock.response.duration", latency)
     span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
@@ -708,20 +561,15 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
 
 def _propagate_context(ctx, headers):
     distributed_tracing_enabled = ctx["integration_config"].distributed_tracing_enabled
-    call_key = ctx.get_item("call_key")
-    if call_key is None:
-        log.warning("call_key not found in ctx")
-    if distributed_tracing_enabled and call_key:
-        span = ctx[ctx["call_key"]]
+    span = ctx.span
+    if distributed_tracing_enabled and span:
         HTTPPropagator.inject(span.context, headers)
 
 
 def _after_job_execution(ctx, job_failed, span_tags):
     """sets job.status and job.origin span tags after job is performed"""
     # get_status() returns None when ttl=0
-    call_key = ctx.get_item("call_key")
-    if call_key:
-        span = ctx[ctx["call_key"]]
+    span = ctx.span
     if span:
         if job_failed:
             span.error = 1
@@ -744,7 +592,7 @@ def _on_botocore_bedrock_process_response(
     should_set_choice_ids: bool,
 ) -> None:
     text = formatted_response["text"]
-    span = ctx[ctx["call_key"]]
+    span = ctx.span
     model_name = ctx["model_name"]
     if should_set_choice_ids:
         for i in range(len(text)):
@@ -797,7 +645,7 @@ def _on_botocore_kinesis_getrecords_post(
 
 def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
-        ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
+        ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
 def _on_test_visibility_enable(config) -> None:
@@ -818,7 +666,7 @@ def _on_test_visibility_is_enabled() -> bool:
     return CIVisibility.enabled
 
 
-def _set_span_pointer(span: Span, span_pointer_description: _SpanPointerDescription) -> None:
+def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescription) -> None:
     span._add_span_pointer(
         pointer_kind=span_pointer_description.pointer_kind,
         pointer_direction=span_pointer_description.pointer_direction,
@@ -828,8 +676,6 @@ def _set_span_pointer(span: Span, span_pointer_description: _SpanPointerDescript
 
 
 def listen():
-    core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
-    core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)
@@ -837,11 +683,9 @@ def listen():
     core.on("wsgi.request.complete", _on_request_complete, "traced_iterable")
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.start_response.pre", _on_start_response_pre)
-    core.on("flask.blocked_request_callable", _on_flask_blocked_request)
     core.on("flask.request_call_modifier", _on_request_span_modifier)
     core.on("flask.request_call_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
-    core.on("flask.start_response.blocked", _on_start_response_blocked)
     core.on("context.started.wsgi.response", _maybe_start_http_response_span)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
@@ -891,6 +735,7 @@ def listen():
         "flask.call",
         "flask.jsonify",
         "flask.render_template",
+        "asgi.__call__",
         "wsgi.__call__",
         "django.traced_get_response",
         "django.cache",

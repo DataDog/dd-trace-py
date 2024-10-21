@@ -155,9 +155,8 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             endpoint_name=endpoint_name,
             operation=operation,
             call_trace=False,
-            call_key="instrumented_sqs_call",
             pin=pin,
-        ) as ctx, ctx.get_item(ctx.get_item("call_key")):
+        ) as ctx, ctx.span:
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
 
             if should_update_messages:
@@ -181,7 +180,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                         ctx,
                         e.response,
                         botocore.exceptions.ClientError,
-                        config.botocore.operations[ctx[ctx["call_key"]].resource].is_error_code,
+                        config.botocore.operations[ctx.span.resource].is_error_code,
                     ],
                 )
                 raise

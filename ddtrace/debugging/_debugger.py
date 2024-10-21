@@ -281,7 +281,7 @@ class Debugger(Service):
     __logger__ = ProbeStatusLogger
 
     @classmethod
-    def enable(cls, run_module: bool = False) -> None:
+    def enable(cls) -> None:
         """Enable dynamic instrumentation
 
         This class method is idempotent. Dynamic instrumentation will be

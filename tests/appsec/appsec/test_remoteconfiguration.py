@@ -8,7 +8,6 @@ import mock
 from mock.mock import ANY
 import pytest
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_capabilities
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -21,7 +20,6 @@ from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.trace_utils import set_http_meta
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
@@ -32,12 +30,13 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import Either
+from tests.appsec.utils import asm_context
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 def _set_and_get_appsec_tags(tracer):
-    with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+    with asm_context(tracer) as span:
         set_http_meta(
             span,
             {},
@@ -923,14 +922,13 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         _appsec_callback(rc_config, tracer)
-        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
-            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-                set_http_meta(
-                    span,
-                    rules.Config(),
-                )
-            assert get_triggers(span)
-            assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
+        with asm_context(tracer, ip_addr="8.8.4.4") as span:
+            set_http_meta(
+                span,
+                rules.Config(),
+            )
+        assert get_triggers(span)
+        assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
@@ -954,13 +952,12 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
 
         _appsec_callback(rc_config, tracer)
 
-        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
-            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-                set_http_meta(
-                    span,
-                    rules.Config(),
-                )
-            assert get_triggers(span) is None
+        with asm_context(tracer, ip_addr="8.8.4.4") as span:
+            set_http_meta(
+                span,
+                rules.Config(),
+            )
+        assert get_triggers(span) is None
 
 
 def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
@@ -984,43 +981,62 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
 
         _appsec_callback(rc_config, tracer)
 
-        with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
-            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-                set_http_meta(
-                    span,
-                    rules.Config(),
-                )
-            assert get_triggers(span)
-            assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
+        with asm_context(tracer, ip_addr="8.8.4.4") as span:
+            set_http_meta(
+                span,
+                rules.Config(),
+            )
+        assert get_triggers(span)
+        assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_rules_data(tracer):
-    RULES_PATH = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(rules.ROOT_DIR))), "ddtrace/appsec/rules.json"
-    )
-    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)), open(
-        RULES_PATH, "r"
-    ) as dd_rules:
-        tracer.configure(appsec_enabled=True, api_version="v0.4")
-        config = {
-            "rules_data": [],
-            "custom_rules": [],
-            "actions": [],
-            "rules": json.load(dd_rules)["rules"],
-            "rules_override": [],
-            "scanners": [],
-            "processors": [],
-            "ignore": [],
-        }
-        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
-            mock_update.reset_mock()
-            _appsec_rules_data(config, tracer)
-            calls = mock_update.mock_calls
-            for v in config:
-                if v == "ignore":
-                    assert v not in calls[-1][1][1]
-                else:
-                    assert v in calls[-1][1][1]
+    import tempfile
+
+    STATIC_RULE_FILE = {
+        "custom_rules": [],
+        "actions": ["action1"],
+        "metadata": {"version": "0.4", "tmp": "test"},
+        "scanners": {"test": "test"},
+        "rules": [],
+    }
+
+    with tempfile.NamedTemporaryFile() as f:
+        f.write(json.dumps(STATIC_RULE_FILE).encode())
+        f.flush()
+        with override_env({APPSEC.ENV: "true"}), override_global_config(
+            dict(_asm_enabled=True, _asm_static_rule_file=f.name)
+        ):
+            tracer.configure(appsec_enabled=True, api_version="v0.4")
+            config = {
+                "rules_data": [],
+                "custom_rules": [],
+                "actions": ["action2"],
+                "rules_override": [],
+                "scanners": ["test"],
+                "processors": [],
+                "metadata": {"id": "0.3", "tmp": "new"},
+                "ignore": [],
+                "rules": [],  # rules are empty, so we should merge the static rules
+            }
+            with mock.patch(
+                "ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True
+            ) as mock_update:
+                mock_update.reset_mock()
+                _appsec_rules_data(config, tracer)
+                calls = mock_update.mock_calls
+                struct_sent = calls[-1][1][1]
+                for v in config:
+                    if v == "ignore":
+                        assert v not in struct_sent
+                    else:
+                        assert v in struct_sent
+                # test if merged dict
+                assert struct_sent["metadata"] == {"version": "0.4", "id": "0.3", "tmp": "new"}
+                # test if merged list
+                assert struct_sent["actions"] == ["action1", "action2"]
+                # test if ignoring list after dict
+                assert struct_sent["scanners"] == {"test": "test"}
 
 
 def test_rc_rules_data_error_empty(tracer):
