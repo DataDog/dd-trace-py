@@ -4,6 +4,35 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.11.7
+
+### Bug Fixes
+
+- LLM Observability
+  - Fixes an issue where the OpenAI and LangChain integrations would still submit integration metrics even in agentless mode. Integration metrics are now disabled if using agentless mode via `LLMObs.enable(agentless_enabled=True)` or setting `DD_LLMOBS_AGENTLESS_ENABLED=1`.
+- Code Security
+  - Resolves an issue where exploit prevention was not properly blocking requests with custom redirection actions.
+  - Resolves an issue where partial matches on function names we aimed to patch were being patched instead of full matches on them.
+  - Ensures the `Initializer` object is always reset and freed before the Python runtime.
+- Profiling
+  - Improves the error message when the native exporter fails to load and stops profiling from starting if ddtrace is also being injected.
+  - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+
+---
+
+## 2.14.3
+
+### Bug Fixes
+
+- Code Security (IAST)
+  - Ensures that only the IAST propagation context is cleared instead of all contexts, which could otherwise cause propagation loss in multithreaded applications. Additionally, it improves validations in both the Processor and Vulnerability Reporter, depending on whether IAST is active or not.
+- Profiling
+  - Fixes endpoint profiling for stack v2, when ``DD_PROFILING_STACK_V2_ENABLED`` is set.
+- Tracing
+  - Ensures `DD_TRACE_RATE_LIMIT` environment variable is only applied to spans for which tracer sampling is configured. For spans not matching sampling rules default rate limits should be applied by the Datadog Agent.
+
+---
+
 ## 2.12.3
 
 ### Bug Fixes

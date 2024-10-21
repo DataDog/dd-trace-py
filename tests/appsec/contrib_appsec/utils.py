@@ -311,7 +311,7 @@ class Contrib_TestClass_For_Threats:
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled, client_ip_header=env_var)):
+        with override_global_config(dict(_asm_enabled=asm_enabled, _client_ip_header=env_var)):
             self.update_tracer(interface)
             response = interface.client.get("/", headers=headers)
             assert self.status(response) == 200
@@ -1491,6 +1491,7 @@ class Contrib_TestClass_For_Threats:
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
             raise pytest.xfail("fastapi does not fully support IAST for now")
+
         from ddtrace.ext import http
 
         url = "/rasp/command_injection/?cmd=ls"

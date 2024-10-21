@@ -1,10 +1,13 @@
+import logging
 from time import sleep
 
-from ddtrace.appsec._constants import IAST
+import pytest
+
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
 from ddtrace.appsec._iast._overhead_control_engine import MAX_VULNERABILITIES_PER_REQUEST
-from ddtrace.internal import core
+from tests.utils import override_global_config
 
 
 def function_with_vulnerabilities_3(tracer):
@@ -40,7 +43,8 @@ def function_with_vulnerabilities_1(tracer):
     return 1
 
 
-def test_oce_max_vulnerabilities_per_request(iast_span_defaults):
+@pytest.mark.skip_iast_check_logs
+def test_oce_max_vulnerabilities_per_request(iast_context_defaults):
     import hashlib
 
     m = hashlib.md5()
@@ -49,12 +53,13 @@ def test_oce_max_vulnerabilities_per_request(iast_span_defaults):
     m.digest()
     m.digest()
     m.digest()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = get_iast_reporter()
 
     assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST
 
 
-def test_oce_reset_vulnerabilities_report(iast_span_defaults):
+@pytest.mark.skip_iast_check_logs
+def test_oce_reset_vulnerabilities_report(iast_context_defaults):
     import hashlib
 
     m = hashlib.md5()
@@ -65,12 +70,13 @@ def test_oce_reset_vulnerabilities_report(iast_span_defaults):
     oce.vulnerabilities_reset_quota()
     m.digest()
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = get_iast_reporter()
 
     assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST + 1
 
 
-def test_oce_no_race_conditions(tracer, iast_span_defaults):
+@pytest.mark.skip_iast_check_logs
+def test_oce_no_race_conditions_in_span(iast_span_defaults):
     from ddtrace.appsec._iast._overhead_control_engine import OverheadControl
 
     oc = OverheadControl()
@@ -120,7 +126,7 @@ def test_oce_no_race_conditions(tracer, iast_span_defaults):
     assert oc._request_quota == 0
 
 
-def acquire_and_release_quota(oc, iast_span_defaults):
+def acquire_and_release_quota_in_spans(oc, iast_span_defaults):
     """
     Just acquires the request quota and releases it with some
     random sleeps
@@ -135,7 +141,8 @@ def acquire_and_release_quota(oc, iast_span_defaults):
         oc.release_request()
 
 
-def test_oce_concurrent_requests(tracer, iast_span_defaults):
+@pytest.mark.skip_iast_check_logs
+def test_oce_concurrent_requests_in_spans(iast_span_defaults):
     """
     Ensures quota is always within bounds after multithreading scenario
     """
@@ -151,7 +158,7 @@ def test_oce_concurrent_requests(tracer, iast_span_defaults):
     num_requests = 5000
 
     threads = [
-        threading.Thread(target=acquire_and_release_quota, args=(oc, iast_span_defaults))
+        threading.Thread(target=acquire_and_release_quota_in_spans, args=(oc, iast_span_defaults))
         for _ in range(0, num_requests)
     ]
     for thread in threads:
@@ -161,3 +168,29 @@ def test_oce_concurrent_requests(tracer, iast_span_defaults):
 
     # Ensures quota is always within bounds after multithreading scenario
     assert 0 <= oc._request_quota <= MAX_REQUESTS
+
+
+@pytest.mark.skip_iast_check_logs
+def test_oce_concurrent_requests_futures_in_spans(tracer, iast_span_defaults, caplog):
+    import concurrent.futures
+
+    results = []
+    num_requests = 5
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(
+        logging.DEBUG
+    ), concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = []
+        for _ in range(0, num_requests):
+            futures.append(executor.submit(function_with_vulnerabilities_1, tracer))
+            futures.append(executor.submit(function_with_vulnerabilities_2, tracer))
+            futures.append(executor.submit(function_with_vulnerabilities_3, tracer))
+
+        for future in concurrent.futures.as_completed(futures):
+            results.append(future.result())
+
+    span_report = get_iast_reporter()
+
+    assert len(span_report.vulnerabilities)
+
+    assert len(results) == num_requests * 3
+    assert len(span_report.vulnerabilities) >= 1

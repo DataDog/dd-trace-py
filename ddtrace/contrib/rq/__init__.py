@@ -76,6 +76,7 @@ Global Configuration
 .. __: https://python-rq.org/
 
 """
+
 import os
 
 from ddtrace import Pin
@@ -148,7 +149,6 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         service=trace_utils.int_service(pin, config.rq),
         resource=resource,
         span_type=SpanTypes.WORKER,
-        call_key="queue.enqueue_job",
         integration_config=config.rq_worker,
         tags={
             COMPONENT: config.rq.integration_name,
@@ -157,7 +157,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
             JOB_ID: job.get_id(),
             JOB_FUNC_NAME: job.func_name,
         },
-    ) as ctx, ctx[ctx["call_key"]]:
+    ) as ctx, ctx.span:
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async:
             core.dispatch("rq.queue.enqueue_job", [ctx, job.meta])
@@ -174,9 +174,8 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
         ),
         pin=pin,
         service=trace_utils.int_service(pin, config.rq),
-        call_key="traced_queue_fetch_job",
         tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
-    ) as ctx, ctx[ctx["call_key"]]:
+    ) as ctx, ctx.span:
         return func(*args, **kwargs)
 
 
@@ -194,11 +193,10 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             pin=pin,
             span_type=SpanTypes.WORKER,
             resource=job.func_name,
-            call_key="worker.perform_job",
             distributed_headers_config=config.rq_worker,
             distributed_headers=job.meta,
             tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
-        ) as ctx, ctx[ctx["call_key"]]:
+        ) as ctx, ctx.span:
             try:
                 return func(*args, **kwargs)
             finally:
@@ -225,10 +223,9 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
         "rq.job.perform",
         span_name="rq.job.perform",
         resource=job.func_name,
-        call_key="job.perform",
         pin=pin,
         tags={COMPONENT: config.rq.integration_name, JOB_ID: job.get_id()},
-    ) as ctx, ctx[ctx["call_key"]]:
+    ) as ctx, ctx.span:
         return func(*args, **kwargs)
 
 
@@ -242,10 +239,9 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
             "rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING
         ),
         service=trace_utils.ext_service(pin, config.rq_worker),
-        call_key="job.fetch_many",
         pin=pin,
         tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
-    ) as ctx, ctx[ctx["call_key"]]:
+    ) as ctx, ctx.span:
         return func(*args, **kwargs)
 
 

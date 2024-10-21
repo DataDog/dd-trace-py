@@ -55,7 +55,7 @@ STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.19.1"
+LIBDDWAF_VERSION = "1.20.1"
 
 RUST_MINIMUM_VERSION = "1.71"  # Safe guess:  1.71 is about a year old as of 2024-07-03
 
@@ -343,6 +343,7 @@ class CMakeBuild(build_ext):
             "-S{}".format(ext.source_dir),  # cmake>=3.13
             "-B{}".format(cmake_build_dir),  # cmake>=3.13
             "-DPython3_ROOT_DIR={}".format(sysconfig.get_config_var("prefix")),
+            "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),

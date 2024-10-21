@@ -152,6 +152,7 @@ def test_headers_collection(tracer):
         "meta." + FINGERPRINTING.NETWORK,
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
+        "meta." + FINGERPRINTING.SESSION,
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -179,6 +180,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "meta." + FINGERPRINTING.NETWORK,
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
+        "meta." + FINGERPRINTING.SESSION,
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -277,6 +279,7 @@ def test_ip_update_rules_expired_no_block(tracer):
         "meta." + FINGERPRINTING.NETWORK,
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
+        "meta." + FINGERPRINTING.SESSION,
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
