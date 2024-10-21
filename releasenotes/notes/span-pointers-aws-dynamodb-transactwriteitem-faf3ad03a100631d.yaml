@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: Adds span pointers for successful DynamoDB ``TransactWriteItems`` spans. Table Primary Keys will need to be provided with the ``ddtrace.config.botocore.dynamodb_primary_key_names_for_tables`` option or the ``DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS`` environment variable to correctly handle the ``Put`` items.

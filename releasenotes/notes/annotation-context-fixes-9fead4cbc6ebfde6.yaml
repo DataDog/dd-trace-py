@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves two issues with annotation contexts:
+            - annotations registered via annotation contexts were being applied globally. Annotations are now only
+            applied to the current trace context and do not pollute to other threads & processes.
+            - annotations from nested annotation contexts were applied in a non-deterministic order. Annotations are
+            now applied in the order they were registered.
+other:
+  - |
+    LLM Observability: Updates the merging behavior for tags when `LLMObs.annotate` is called multiple times on the
+    same span so that the latest value for a tag key overrides the previous value.
