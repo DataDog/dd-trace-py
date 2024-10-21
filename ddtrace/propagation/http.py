@@ -893,8 +893,8 @@ class _NOP_Propagator:
 class _BaggageHeader:
     """Helper class to inject/extract Baggage Headers"""
 
-    safe_characters_key = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'*+-.^_`|~"
-    safe_characters_value = (
+    SAFE_CHARACTERS_KEY = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'*+-.^_`|~"
+    SAFE_CHARACTERS_VALUE = (
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'()*+-./:<>?@[]^_`{|}~"
     )
 
