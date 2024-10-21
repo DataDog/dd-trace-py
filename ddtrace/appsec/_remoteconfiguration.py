@@ -7,6 +7,7 @@ from typing import Optional
 
 from ddtrace import Tracer
 from ddtrace.appsec._capabilities import _asm_feature_is_required
+from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
@@ -22,7 +23,7 @@ from ddtrace.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
-APPSEC_PRODUCTS = [PRODUCTS.ASM_FEATURES, PRODUCTS.ASM, PRODUCTS.ASM_DATA, PRODUCTS.ASM_DD]
+APPSEC_PRODUCTS = [PRODUCTS.ASM_FEATURES, PRODUCTS.ASM, PRODUCTS.ASM_DATA, PRODUCTS.ASM_DD, PRODUCTS.DEBUG]
 
 
 class AppSecRC(PubSub):
@@ -64,6 +65,8 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
         or remoteconfig_poller.get_registered(PRODUCTS.ASM)
         or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
     )
+
+    remoteconfig_poller.register(PRODUCTS.DEBUG, asm_callback)  # DEBUG
 
     if _asm_feature_is_required():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
@@ -171,6 +174,7 @@ def _preprocess_results_appsec_1click_activation(
                 )
 
             if rc_asm_enabled and asm_config._asm_static_rule_file is None:
+                remoteconfig_poller.register(PRODUCTS.DEBUG, pubsub_instance)  # DEBUG
                 remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
                 remoteconfig_poller.register(PRODUCTS.ASM, pubsub_instance)  # Exclusion Filters & Custom Rules
                 remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance)  # DD Rules
@@ -230,6 +234,11 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
                     tracer.configure(appsec_enabled=False)
                 else:
                     asm_config._asm_enabled = False
+    # WAF_LIMITS
+    waf_limits = features.get("waf", {}).get("limits", {})
+    asm_config._waf_max_container_size = waf_limits.get("max_container_size", DEFAULT.WAF_MAX_CONTAINER_SIZE)
+    asm_config._waf_max_container_depth = waf_limits.get("max_container_depth", DEFAULT.WAF_MAX_CONTAINER_DEPTH)
+    asm_config._waf_max_string_length = waf_limits.get("max_string_length", DEFAULT.WAF_MAX_STRING_LENGTH)
 
 
 def _appsec_auto_user_mode(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:

@@ -79,6 +79,8 @@ class Contrib_TestClass_For_Threats:
 
     def check_rules_triggered(self, rule_id: List[str], root_span):
         triggers = get_triggers(root_span())
+        if triggers is None and not rule_id:
+            return
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
@@ -1487,6 +1489,21 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    def test_truncating_headers(self, interface, root_span, get_tag, asm_enabled):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _asm_static_rule_file=rules.RULES_TRUNCATION, _waf_max_container_size=80)
+        ):
+            self.update_tracer(interface)
+            HEADERS = {str(i): f"content_{i}" for i in range(100)}
+            response = interface.client.post("/asm/324/huj/?x=1&y=2", headers=HEADERS, data={"test": "attack"})
+            assert self.status(response) == (403 if asm_enabled else 200)
+            assert get_tag("http.status_code") == ("403" if asm_enabled else "200")
+            if asm_enabled:
+                self.check_rules_triggered(["trc-001-001"], root_span)
+            else:
+                self.check_rules_triggered([], root_span)
 
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
