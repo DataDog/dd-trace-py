@@ -297,7 +297,9 @@ async def test_doit():
     string8_5 = format_variants(string8_4, string1)
     await anyio.to_thread.run_sync(modulo_exceptions, string8_5)
 
-    string9 = "notainted#{}".format(string8_5)
+    string8_6 = string8_5[25:150]
+
+    string9 = "notainted#{}".format(string8_6)
     string9_2 = f"{string9}_notainted"
     string9_3 = f"{string9_2:=^30}_notainted"
     string10 = "nottainted\n" + string9_3
