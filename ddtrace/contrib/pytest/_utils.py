@@ -111,7 +111,13 @@ def _get_test_parameters_json(item) -> t.Optional[str]:
 
 
 def _get_module_path_from_item(item: pytest.Item) -> Path:
-    return Path(item.nodeid.rpartition("/")[0]).absolute()
+    try:
+        item_path = getattr(item, "path", None)
+        if item_path is not None:
+            return item.path.absolute().parent
+        return Path(item.module.__file__).absolute().parent
+    except Exception:  # noqa: E722
+        return Path.cwd()
 
 
 def _get_session_command(session: pytest.Session):

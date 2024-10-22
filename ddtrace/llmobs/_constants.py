@@ -44,3 +44,5 @@ AGENTLESS_ENDPOINT = "api/v2/llmobs"
 
 DROPPED_IO_COLLECTION_ERROR = "dropped_io"
 DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 1MB size limit.]"
+
+ANNOTATIONS_CONTEXT_ID = "annotations_context_id"

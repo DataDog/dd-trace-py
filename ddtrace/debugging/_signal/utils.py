@@ -1,3 +1,4 @@
+from collections import deque
 from itertools import islice
 from itertools import takewhile
 from types import FrameType
@@ -73,19 +74,7 @@ def serialize(
     if not level:
         return repr(type(value))
 
-    if type(value) not in BUILTIN_CONTAINER_TYPES:
-        return "%s(%s)" % (
-            type(value).__name__,
-            ", ".join(
-                (
-                    "=".join((k, serialize(v, level - 1, maxsize, maxlen, maxfields)))
-                    for k, v in islice(get_fields(value).items(), maxfields)
-                    if not redact(k)
-                )
-            ),
-        )
-
-    if type(value) is dict:
+    if type(value) in BUILTIN_MAPPING_TYPES:
         return "{%s}" % ", ".join(
             (
                 ": ".join(
@@ -97,15 +86,23 @@ def serialize(
                 for k, v in islice(value.items(), maxsize)
             )
         )
-    elif type(value) is list:
+    elif type(value) in {list, deque}:
         return _serialize_collection(value, "[]", level, maxsize, maxlen, maxfields)
     elif type(value) is tuple:
         return _serialize_collection(value, "()", level, maxsize, maxlen, maxfields)
-    elif type(value) is set:
+    elif type(value) in {set, frozenset}:
         return _serialize_collection(value, r"{}", level, maxsize, maxlen, maxfields) if value else "set()"
 
-    msg = f"Unhandled type: {type(value)}"
-    raise TypeError(msg)
+    return "%s(%s)" % (
+        type(value).__name__,
+        ", ".join(
+            (
+                "=".join((k, serialize(v, level - 1, maxsize, maxlen, maxfields)))
+                for k, v in islice(get_fields(value).items(), maxfields)
+                if not redact(k)
+            )
+        ),
+    )
 
 
 def capture_stack(top_frame: FrameType, max_height: int = 4096) -> List[dict]:

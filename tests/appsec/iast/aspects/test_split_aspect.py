@@ -3,7 +3,6 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -16,7 +15,7 @@ from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.test_aspect_helpers import _build_sample_range
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 def wrap_somesplit(func, *args, **kwargs):
@@ -175,7 +174,7 @@ def test_propagate_ranges_with_no_context(caplog):
     assert get_ranges(string_input)
 
     reset_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = wrap_somesplit(_aspect_split, string_input, "|")
         assert result == ["abc", "def"]
     log_messages = [record.getMessage() for record in caplog.get_records("call")]

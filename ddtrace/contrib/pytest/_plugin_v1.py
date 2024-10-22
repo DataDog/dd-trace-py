@@ -472,13 +472,17 @@ def pytest_sessionstart(session):
             service=_CIVisibility._instance._service,
             span_type=SpanTypes.TEST,
         )
+        test_command = _get_pytest_command(session.config)
         test_session_span.set_tag_str(COMPONENT, "pytest")
         test_session_span.set_tag_str(SPAN_KIND, KIND)
         test_session_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         test_session_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
         test_session_span.set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
-        test_session_span.set_tag_str(test.COMMAND, _get_pytest_command(session.config))
+        test_session_span.set_tag_str(test.COMMAND, test_command)
         test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+
+        _CIVisibility.set_test_session_name(test_command=test_command)
+
         if _CIVisibility.test_skipping_enabled():
             test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
             test_session_span.set_tag(

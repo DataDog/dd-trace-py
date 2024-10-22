@@ -12,25 +12,27 @@ from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.appsec.trace_utils import track_user_signup_event
 from ddtrace.contrib.trace_utils import set_user
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
-from ddtrace.internal import core
-from tests.appsec.appsec.test_processor import tracer_appsec  # noqa: F401
 import tests.appsec.rules as rules
+from tests.appsec.utils import asm_context
+from tests.appsec.utils import is_blocked
 from tests.utils import TracerTestCase
-from tests.utils import override_global_config
+
+
+config_asm = {"_asm_enabled": True}
+config_good_rules = {"_asm_static_rule_file": rules.RULES_GOOD_PATH, "_asm_enabled": True}
 
 
 class EventsSDKTestCase(TracerTestCase):
     _BLOCKED_USER = "123456"
 
     @pytest.fixture(autouse=True)
-    def inject_fixtures(self, tracer_appsec, caplog):  # noqa: F811
+    def inject_fixtures(self, tracer, caplog):  # noqa: F811
         self._caplog = caplog
-        self._tracer_appsec = tracer_appsec
+        self.tracer = tracer
 
     def test_track_user_login_event_success_without_metadata(self):
-        with self.trace("test_success1"):
+        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm):
             track_user_login_success_event(
                 self.tracer,
                 "1234",
@@ -59,7 +61,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag(user.SESSION_ID) == "test_session_id"
 
     def test_track_user_login_event_success_in_span_without_metadata(self):
-        with self.trace("test_success1") as parent_span:
+        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm) as parent_span:
             user_span = self.trace("user_span")
             user_span.parent_id = parent_span.span_id
             track_user_login_success_event(
@@ -93,7 +95,7 @@ class EventsSDKTestCase(TracerTestCase):
             )
 
     def test_track_user_login_event_success_auto_mode_safe(self):
-        with self.trace("test_success1"):
+        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm):
             track_user_login_success_event(
                 self.tracer,
                 "1234",
@@ -113,7 +115,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.ANON)
 
     def test_track_user_login_event_success_auto_mode_extended(self):
-        with self.trace("test_success1"):
+        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm):
             track_user_login_success_event(
                 self.tracer,
                 "1234",
@@ -133,7 +135,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.IDENT)
 
     def test_track_user_login_event_success_with_metadata(self):
-        with self.trace("test_success2"):
+        with asm_context(tracer=self.tracer, span_name="test_success2", config=config_asm):
             track_user_login_success_event(self.tracer, "1234", metadata={"foo": "bar"})
             root_span = self.tracer.current_root_span()
             assert root_span.get_tag("appsec.events.users.login.success.track") == "true"
@@ -150,7 +152,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert not root_span.get_tag(user.SESSION_ID)
 
     def test_track_user_login_event_failure_user_exists(self):
-        with self.trace("test_failure"):
+        with asm_context(tracer=self.tracer, span_name="test_failure", config=config_asm):
             track_user_login_failure_event(
                 self.tracer,
                 "1234",
@@ -216,27 +218,24 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "true"
 
     def test_set_user_blocked(self):
-        tracer = self._tracer_appsec
-        with override_global_config(dict(_asm_enabled="true", _asm_static_rule_file=rules.RULES_GOOD_PATH)):
-            tracer.configure(api_version="v0.4")
-            with tracer.trace("fake_span", span_type=SpanTypes.WEB) as span:
-                set_user(
-                    self.tracer,
-                    user_id=self._BLOCKED_USER,
-                    email="usr.email",
-                    name="usr.name",
-                    session_id="usr.session_id",
-                    role="usr.role",
-                    scope="usr.scope",
-                )
-                assert span.get_tag(user.ID)
-                assert span.get_tag(user.EMAIL)
-                assert span.get_tag(user.SESSION_ID)
-                assert span.get_tag(user.NAME)
-                assert span.get_tag(user.ROLE)
-                assert span.get_tag(user.SCOPE)
-                assert span.get_tag(user.SESSION_ID)
-                assert core.get_item("http.request.blocked", span=span)
+        with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
+            set_user(
+                self.tracer,
+                user_id=self._BLOCKED_USER,
+                email="usr.email",
+                name="usr.name",
+                session_id="usr.session_id",
+                role="usr.role",
+                scope="usr.scope",
+            )
+            assert span.get_tag(user.ID)
+            assert span.get_tag(user.EMAIL)
+            assert span.get_tag(user.SESSION_ID)
+            assert span.get_tag(user.NAME)
+            assert span.get_tag(user.ROLE)
+            assert span.get_tag(user.SCOPE)
+            assert span.get_tag(user.SESSION_ID)
+            assert is_blocked(span)
 
     def test_no_span_doesnt_raise(self):
         from ddtrace import tracer

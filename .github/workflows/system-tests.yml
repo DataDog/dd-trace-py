@@ -4,13 +4,11 @@ on:
   push:
     branches:
       - main
+      - 'mq-working-branch**'
   pull_request:
   workflow_dispatch: {}
   schedule:
     - cron: '00 04 * * 2-6'
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
 
 jobs:
   system-tests-build-agent:
