@@ -67,7 +67,7 @@ def efd_handle_retries(
         log.debug("Test item %s failed during teardown, will not be retried for Early Flake Detection")
         return
 
-    efd_outcome = _efd_handle_retries(item, test_outcome)
+    efd_outcome = _efd_handle_retries(item)
 
     final_report = pytest.TestReport(
         nodeid=item.nodeid,
@@ -84,14 +84,14 @@ def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) 
     return terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED)
 
 
-def _efd_handle_retries(item, original_outcome: _TestOutcome, force_teardown: bool = False) -> EFDTestStatus:
+def _efd_handle_retries(item) -> EFDTestStatus:
     test_id = _get_test_id_from_item(item)
 
     while InternalTest.efd_should_retry(test_id):
         retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
 
         with set_retry_num(item.nodeid, retry_num):
-            retry_outcome = _efd_get_outcome_from_item(item, None, force_teardown)
+            retry_outcome = _efd_get_outcome_from_item(item)
 
         InternalTest.efd_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
@@ -101,26 +101,11 @@ def _efd_handle_retries(item, original_outcome: _TestOutcome, force_teardown: bo
 
 
 def _efd_get_outcome_from_item(
-    item: pytest.Item, nextitem: t.Optional[pytest.Item], force_teardown: bool = False
+    item: pytest.Item,
 ) -> _TestOutcome:
     _outcome_status: t.Optional[TestStatus] = None
     _outcome_skip_reason: t.Optional[str] = None
     _outcome_exc_info: t.Optional[TestExcInfo] = None
-
-    if force_teardown:
-        # Clear any previous fixtures:
-        t_call = pytest.CallInfo.from_call(
-            lambda: item.ihook.pytest_runtest_teardown(
-                item=item, nextitem=pytest.Class.from_parent(item.session, name="Fakeboi")
-            ),
-            when="teardown",
-        )
-        if t_call.excinfo is not None:
-            log.debug("Error during initial EFD teardoown", exc_info=True)
-            return _TestOutcome(
-                status=TestStatus.FAIL,
-                exc_info=TestExcInfo(t_call.excinfo.type, t_call.excinfo.value, t_call.excinfo.tb),
-            )
 
     # _initrequest() needs to be called first because the test has already executed once
     item._initrequest()
