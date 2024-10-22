@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import typing as t
 
 from _pytest.logging import caplog_handler_key
@@ -21,8 +20,7 @@ from ddtrace.internal.test_visibility.api import InternalTest
 log = get_logger(__name__)
 
 
-@dataclass(frozen=True)
-class __EFD_RETRY_OUTCOMES:
+class _EFD_RETRY_OUTCOMES:
     EFD_ATTEMPT_PASSED = "dd_efd_attempt_passed"
     EFD_ATTEMPT_FAILED = "dd_efd_attempt_failed"
     EFD_ATTEMPT_SKIPPED = "dd_efd_attempt_skipped"
@@ -32,7 +30,6 @@ class __EFD_RETRY_OUTCOMES:
     EFD_FINAL_FLAKY = "dd_efd_final_flaky"
 
 
-_EFD_RETRY_OUTCOMES = __EFD_RETRY_OUTCOMES()
 _EFD_FLAKY_OUTCOME = "Flaky"
 
 _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {

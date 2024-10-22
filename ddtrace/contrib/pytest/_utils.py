@@ -30,7 +30,6 @@ _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?
 _USE_PLUGIN_V2 = asbool(os.environ.get("_DD_CIVISIBILITY_USE_PYTEST_V2", "false"))
 
 
-@dataclass(frozen=True)
 class _PYTEST_STATUS:
     ERROR = "error"
     FAILED = "failed"
