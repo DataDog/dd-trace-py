@@ -64,7 +64,7 @@ class ASMConfig(Env):
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
-    _iast_enabled = Env.var(bool, IAST.ENV, default=False)
+    _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", Env.var(bool, IAST.ENV, default=False))
     _iast_request_sampling = Env.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)

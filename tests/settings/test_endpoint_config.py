@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import mock
-from test.utils import override_env
+from tests.utils import override_env
 from ddtrace.settings.endpoint_config import fetch_config_from_endpoint
 
 
