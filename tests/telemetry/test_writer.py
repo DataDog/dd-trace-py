@@ -204,16 +204,12 @@ def test_app_started_event_configuration_override(test_agent_session, run_python
     which is then sent by periodic()
     """
     code = """
-import logging
-logging.basicConfig()
-
+# most configurations are reported when ddtrace.auto is imported
 import ddtrace.auto
-
-# By default telemetry collection is enabled after 10 seconds, so we either need to
-# to sleep for 10 seconds or manually call _app_started() to generate the app started event.
-# This delay allows us to collect start up errors and dynamic configurations
-import ddtrace
-ddtrace.internal.telemetry.telemetry_writer._app_started()
+# report configurations not used by ddtrace.auto
+import ddtrace.settings.symbol_db
+import ddtrace.settings.dynamic_instrumentation
+import ddtrace.settings.exception_replay
     """
 
     env = os.environ.copy()
@@ -271,6 +267,10 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
     env["DD_SITE"] = "datadoghq.com"
+    # By default telemetry collection is enabled after 10 seconds, so we either need to
+    # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
+    # This delay allows us to collect start up errors and dynamic configurations
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -407,7 +407,6 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_PROFILING__FORCE_LEGACY_EXPORTER", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
-        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
         {"name": "DD_SERVICE", "origin": "default", "value": "unnamed-python-service"},
         {"name": "DD_SERVICE_MAPPING", "origin": "env_var", "value": "default_dd_service:remapped_dd_service"},
@@ -506,8 +505,8 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict")
-    events = test_agent_session.get_events("app-dependencies-loaded")
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
+    events = test_agent_session.get_events("app-dependencies-loaded", subprocess=True)
     assert len(events) == 0, events
 
 
@@ -658,7 +657,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     # Assert next flush contains app-heartbeat event
     for _ in range(telemetry_writer._periodic_threshold):
         telemetry_writer.periodic()
-        assert test_agent_session.get_events("app-heartbeat") == []
+        assert test_agent_session.get_events("app-heartbeat", filter_heartbeats=False) == []
 
     telemetry_writer.periodic()
     heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
