@@ -250,11 +250,9 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
         markedup_attempts_strings.append(terminalreporter._tw.markup(skipped_attempts_text, yellow=True))
         del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED]
 
-    raw_summary_string = "Summary: " + ". ".join(raw_summary_strings)
+    raw_summary_string = ". ".join(raw_summary_strings)
     # NOTE: find out why bold=False seems to apply to the following string, rather than the current one...
-    markedup_summary_string = terminalreporter._tw.markup("Summary: ", purple=True, bold=False) + ", ".join(
-        markedup_summary_strings
-    )
+    markedup_summary_string = ", ".join(markedup_summary_strings)
 
     if markedup_attempts_strings:
         markedup_summary_string += (
@@ -269,13 +267,16 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
         markedup_summary_string = markedup_summary_string[:-4]
 
     # Print summary counts
+    terminalreporter.write_sep("_", "Datadog Early Flake Detection summary", purple=True, bold=True)
+
     terminalreporter.write_sep(
-        "=",
+        " ",
         markedup_summary_string,
         fullwidth=terminalreporter._tw.fullwidth + (len(markedup_summary_string) - len(raw_summary_string)),
         purple=True,
         bold=True,
     )
+    terminalreporter.write_sep("=", purple=True, bold=True)
 
 
 def efd_get_teststatus(report: pytest.TestReport) -> t.Optional[pytest.TestShortLogReport]:
