@@ -11,6 +11,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
 from tests.utils import DummyTracer
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 def traced_function(tracer):
@@ -64,13 +65,19 @@ def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults,
 
 
 @pytest.mark.skip_iast_check_logs
-@pytest.mark.parametrize("sampling_rate", ["0.0", "100"])
+@pytest.mark.parametrize("sampling_rate", [0.0, "100"])
 def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sampling_rate):
     """
     test_appsec_iast_processor_ensure_span_is_manual_keep.
     This test throws  'finished span not connected to a trace' log error
     """
-    with override_env(dict(DD_IAST_REQUEST_SAMPLING=sampling_rate)):
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _deduplication_enabled=False,
+            _iast_request_sampling=sampling_rate,
+        )
+    ):
         oce.reconfigure()
         tracer = DummyTracer(iast_enabled=True)
 
@@ -78,7 +85,7 @@ def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sam
         tracer._on_span_finish(span)
 
         result = span.get_tag(IAST.JSON)
-        if sampling_rate == "0.0":
+        if sampling_rate == 0.0:
             assert result is None
             assert span.get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
             assert span.get_metric(IAST.ENABLED) == 0.0

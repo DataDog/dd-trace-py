@@ -3,12 +3,11 @@ from time import sleep
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
 from ddtrace.appsec._iast._overhead_control_engine import MAX_VULNERABILITIES_PER_REQUEST
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 def function_with_vulnerabilities_3(tracer):
@@ -177,9 +176,9 @@ def test_oce_concurrent_requests_futures_in_spans(tracer, iast_span_defaults, ca
 
     results = []
     num_requests = 5
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG), concurrent.futures.ThreadPoolExecutor(
-        max_workers=5
-    ) as executor:
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(
+        logging.DEBUG
+    ), concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = []
         for _ in range(0, num_requests):
             futures.append(executor.submit(function_with_vulnerabilities_1, tracer))
