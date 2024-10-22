@@ -974,7 +974,7 @@ jobs:
           git clone -b 4.12.3 https://git.launchpad.net/beautifulsoup
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install ddtrace
+        run: pip3 install ../ddtrace
       - name: Pytest fix
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install pytest==8.2.1
