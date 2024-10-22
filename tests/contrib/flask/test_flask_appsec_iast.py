@@ -30,7 +30,8 @@ flask_version = tuple([int(v) for v in version("flask").split(".")])
 
 class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)
-    def inject_fixtures(self, caplog):
+    def inject_fixtures(self, caplog, telemetry_writer):  # noqa: F811
+        self._telemetry_writer = telemetry_writer
         self._caplog = caplog
 
     def setUp(self):
@@ -925,6 +926,59 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_request_body_iast_and_appsec(self):
+        """Verify IAST, Appsec and API security work correctly running at the same time"""
+
+        @self.app.route("/sqli/body/", methods=("POST",))
+        def sqli_10():
+            import json
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+            if flask_version > (2, 0):
+                json_data = request.json
+            else:
+                json_data = json.loads(request.data)
+            value = json_data.get("json_body")
+            assert value == "master"
+
+            assert is_pyobject_tainted(value)
+            query = add_aspect(add_aspect("SELECT tbl_name FROM sqlite_", value), " WHERE tbl_name LIKE 'password'")
+            # label test_flask_request_body
+            cur.execute(query)
+
+            return {"Response": value}, 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.post(
+                "/sqli/body/", data=json.dumps(dict(json_body="master")), content_type="application/json"
+            )
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [{"name": "json_body", "origin": "http.request.body", "value": "master"}]
+
+            list_metrics_logs = list(self._telemetry_writer._logs)
+            assert len(list_metrics_logs) == 0
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_values_scrubbed(self):
