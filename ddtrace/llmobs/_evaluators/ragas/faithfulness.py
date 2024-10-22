@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 
@@ -11,7 +12,7 @@ from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 logger = get_logger(__name__)
 
 RAGAS_DEPENDENCIES_PRESENT = False
-
+_ragas_import_error_telemetry_log = ""
 try:
     import ragas
 
@@ -30,6 +31,7 @@ try:
 
     RAGAS_DEPENDENCIES_PRESENT = True
 except Exception as e:
+    _ragas_import_error_telemetry_log = str(e)
     logger.warning("Failed to import Ragas dependencies, not enabling ragas_faithfulness evaluator", exc_info=e)
 
 
@@ -89,6 +91,11 @@ class RagasFaithfulnessEvaluator:
                                       submitting evaluation metrics.
         """
         self.ragas_dependencies_present = RAGAS_DEPENDENCIES_PRESENT
+        telemetry_writer.add_integration(
+            "ragas_faithfulness",
+            patched=self.ragas_dependencies_present,
+            error_msg=_ragas_import_error_telemetry_log if not self.ragas_dependencies_present else None,
+        )
         if not self.ragas_dependencies_present:
             return
 
@@ -107,6 +114,12 @@ class RagasFaithfulnessEvaluator:
         if not span_event:
             return
         score_result = self.evaluate(span_event)
+        telemetry_writer.add_count_metric(
+            "llmobs",
+            "evaluators.ragas_faithfulness_run",
+            1,
+            tags=(("success", "true" if score_result is not None else "false"),),
+        )
         if score_result is not None:
             self.llmobs_service.submit_evaluation(
                 span_context={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
