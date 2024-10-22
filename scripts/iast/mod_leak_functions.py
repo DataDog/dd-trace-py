@@ -321,9 +321,7 @@ async def test_doit():
     string18 = os.path.splitext(string17 + ".jpg")[0]
     string19 = os.path.normcase(string18)
     string20 = os.path.splitdrive(string19)[1]
-    # TODO(avara1986): Re.Match contains errors. APPSEC-55239
-    # string21 = re_module(string20)
-    string21 = string20
+    string21 = re_module(string20)
     tmp_str2 = "_extend"
     string21 += tmp_str2
 
