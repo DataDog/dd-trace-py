@@ -41,11 +41,14 @@ def main():
         if "noaspect" in aspect:
             continue
 
-        print(
-            "{}: \n\t{}: {}\n\t{}: {}".format(
-                aspect, versions[0], data_dict[aspect][versions[0]], versions[1], data_dict[aspect][versions[1]]
+        try:
+            print(
+                "{}: \n\t{}: {}\n\t{}: {}".format(
+                    aspect, versions[0], data_dict[aspect][versions[0]], versions[1], data_dict[aspect][versions[1]]
+                )
             )
-        )
+        except KeyError:
+            pass
 
 
 if __name__ == "__main__":
