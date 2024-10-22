@@ -1,5 +1,6 @@
 import typing as t
 
+import _pytest
 from _pytest.logging import caplog_handler_key
 from _pytest.logging import caplog_records_key
 import pytest
@@ -8,12 +9,14 @@ from ddtrace.contrib.pytest._retry_utils import RetryOutcomes
 from ddtrace.contrib.pytest._retry_utils import _efd_get_attempt_string
 from ddtrace.contrib.pytest._retry_utils import _retry_run_when
 from ddtrace.contrib.pytest._retry_utils import set_retry_num
+from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
+from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 
 
@@ -40,11 +43,21 @@ _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
 }
 
 
-def efd_handle_retries(test_id, item, when, original_result, test_outcome):
-    # Don't mark the original test's call as failed if it will be EFD-retried to avoid failing the session
-    # pytest_terminal_summary will then update the counts according to the test's final status
-    if when == "call" and test_outcome.status == TestStatus.FAIL:
-        original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED
+def efd_handle_retries(
+    test_id: InternalTestId,
+    item: pytest.Item,
+    when: str,
+    original_result: _pytest.reports.TestReport,
+    test_outcome: _TestOutcome,
+):
+    # Overwrite the original result to avoid double-counting when displaying totals in final summary
+    if when == "call":
+        if test_outcome.status == TestStatus.FAIL:
+            original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED
+        elif test_outcome.status == TestStatus.PASS:
+            original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED
+        elif test_outcome.status == TestStatus.SKIP:
+            original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
         return
     if InternalTest.get_tag(test_id, "_dd.ci.efd_setup_failed"):
         log.debug("Test item %s failed during setup, will not be retried for Early Flake Detection")
@@ -54,7 +67,6 @@ def efd_handle_retries(test_id, item, when, original_result, test_outcome):
         log.debug("Test item %s failed during teardown, will not be retried for Early Flake Detection")
         return
 
-    original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED
     efd_outcome = _efd_handle_retries(item, test_outcome)
 
     final_report = pytest.TestReport(
@@ -68,7 +80,7 @@ def efd_handle_retries(test_id, item, when, original_result, test_outcome):
     item.ihook.pytest_runtest_logreport(report=final_report)
 
 
-def efd_get_failed_reports(terminalreporter):
+def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest.TestReport]:
     return terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED)
 
 
@@ -161,45 +173,109 @@ def _efd_get_outcome_from_item(
     return _TestOutcome(status=_outcome_status, skip_reason=_outcome_skip_reason, exc_info=_outcome_exc_info)
 
 
-def efd_pytest_terminal_summary(terminalreporter):
+def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.TerminalReporter):
     terminalreporter.write_sep("=", "Datadog Early Flake Detection", purple=True, bold=True)
     # Print summary info
-    passed_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED)
-    if passed_reports:
-        terminalreporter.write_sep("_", "PASSED", green=True, bold=True)
-        for passed_report in passed_reports:
-            line = f"{terminalreporter._tw.markup('PASSED', green=True)} {passed_report.nodeid}"
-            terminalreporter.write_line(line)
-        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED]
+    raw_summary_strings = []
+    markedup_summary_strings = []
+
     failed_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED)
     if failed_reports:
+        failed_text = f"{len(failed_reports)} failed"
+        raw_summary_strings.append(failed_text)
+        markedup_summary_strings.append(terminalreporter._tw.markup(failed_text, red=True, bold=True))
         terminalreporter.write_sep("_", "FAILED", red=True, bold=True)
         for failed_report in failed_reports:
             line = f"{terminalreporter._tw.markup('FAILED', red=True)} {failed_report.nodeid}"
             terminalreporter.write_line(line)
+            failed_report.outcome = PYTEST_STATUS.FAILED
+            terminalreporter.stats.setdefault(PYTEST_STATUS.FAILED, []).append(failed_report)
+
         del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED]
+
+    passed_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED)
+    if passed_reports:
+        passed_text = f"{len(passed_reports)} passed"
+        raw_summary_strings.append(passed_text)
+        markedup_summary_strings.append(terminalreporter._tw.markup(passed_text, green=True, bold=False))
+        terminalreporter.write_sep("_", "PASSED", green=True, bold=True)
+        for passed_report in passed_reports:
+            line = f"{terminalreporter._tw.markup('PASSED', green=True)} {passed_report.nodeid}"
+            terminalreporter.write_line(line)
+            passed_report.outcome = PYTEST_STATUS.PASSED
+            terminalreporter.stats.setdefault(PYTEST_STATUS.PASSED, []).append(passed_report)
+        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED]
+
     skipped_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED)
     if skipped_reports:
+        skipped_text = f"{len(skipped_reports)} skipped"
+        raw_summary_strings.append(skipped_text)
+        markedup_summary_strings.append(terminalreporter._tw.markup(skipped_text, yellow=True))
         terminalreporter.write_sep("_", "SKIPPED", yellow=True, bold=True)
         for skipped_report in skipped_reports:
             line = f"{terminalreporter._tw.markup('SKIPPED', yellow=True)} {skipped_report.nodeid}"
             terminalreporter.write_line(line)
+            skipped_report.outcome = PYTEST_STATUS.SKIPPED
+            terminalreporter.stats.setdefault(PYTEST_STATUS.SKIPPED, []).append(skipped_report)
         del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED]
+
     flaky_reports = terminalreporter.getreports(_EFD_FLAKY_OUTCOME)
     if flaky_reports:
+        flaky_text = f"{len(flaky_reports)} flaky"
+        raw_summary_strings.append(flaky_text)
+        markedup_summary_strings.append(terminalreporter._tw.markup(flaky_text, yellow=True))
         terminalreporter.write_sep("_", "FLAKY", yellow=True, bold=True)
         for flaky_report in flaky_reports:
             line = f"{terminalreporter._tw.markup('FLAKY', yellow=True)} {flaky_report.nodeid}"
             terminalreporter.write_line(line)
-    # Re-categorize failed, passed, and skipped into their final counts so they show up in the correct summary
-    for efd_status, pytest_status in [
-        (_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED, "failed"),
-        (_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED, "passed"),
-        (_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED, "skipped"),
-    ]:
-        reports = terminalreporter.stats.pop(efd_status, [])
-        if reports:
-            terminalreporter.stats.setdefault(pytest_status, []).extend(reports)
+
+    raw_attempt_strings = []
+    markedup_attempts_strings = []
+    failed_attempts_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED)
+    if failed_attempts_reports:
+        failed_attempts_text = f"{len(failed_attempts_reports)} failed"
+        raw_attempt_strings.append(failed_attempts_text)
+        markedup_attempts_strings.append(terminalreporter._tw.markup(failed_attempts_text, red=True, bold=True))
+        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED]
+    passed_attempts_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED)
+    if passed_attempts_reports:
+        passed_attempts_text = f"{len(passed_attempts_reports)} passed"
+        raw_attempt_strings.append(passed_attempts_text)
+        markedup_attempts_strings.append(terminalreporter._tw.markup(passed_attempts_text, green=True, bold=False))
+        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED]
+    skipped_attempts_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED)
+    if skipped_attempts_reports:
+        skipped_attempts_text = f"{len(skipped_attempts_reports)} skipped"
+        raw_attempt_strings.append(skipped_attempts_text)
+        markedup_attempts_strings.append(terminalreporter._tw.markup(skipped_attempts_text, yellow=True))
+        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED]
+
+    raw_summary_string = "Summary: " + ". ".join(raw_summary_strings)
+    # NOTE: find out why bold=False seems to apply to the following string, rather than the current one...
+    markedup_summary_string = terminalreporter._tw.markup("Summary: ", purple=True, bold=False) + ", ".join(
+        markedup_summary_strings
+    )
+
+    if markedup_attempts_strings:
+        markedup_summary_string += (
+            terminalreporter._tw.markup(" (total attempts: ", purple=True)
+            + ", ".join(markedup_attempts_strings)
+            + terminalreporter._tw.markup(")", purple=True)
+        )
+        raw_summary_string += f" (total attempts: {', '.join(raw_attempt_strings)})"
+
+    markedup_summary_string += terminalreporter._tw.markup("", purple=True, bold=True)
+    if markedup_summary_string.endswith("\x1b[0m"):
+        markedup_summary_string = markedup_summary_string[:-4]
+
+    # Print summary counts
+    terminalreporter.write_sep(
+        "=",
+        markedup_summary_string,
+        fullwidth=terminalreporter._tw.fullwidth + (len(markedup_summary_string) - len(raw_summary_string)),
+        purple=True,
+        bold=True,
+    )
 
 
 def efd_get_teststatus(report: pytest.TestReport) -> t.Optional[pytest.TestShortLogReport]:

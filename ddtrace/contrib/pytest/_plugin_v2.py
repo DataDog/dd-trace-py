@@ -14,7 +14,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._efd_utils import efd_get_failed_reports
 from ddtrace.contrib.pytest._efd_utils import efd_get_teststatus
 from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
-from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary
+from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._retry_utils import get_retry_num
@@ -444,8 +444,10 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report flaky or failed tests"""
-    # Before yield gives us a chance to show failure reports:
-    initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
+    # Before yield gives us a chance to show failure reports, but they have to be in terminalreporter.stats["failed"] to
+    # be shown. That, however, would make them count towards the final summary, so we add them temporarily, then restore
+    # terminalreporter.stats["failed"] to its original size after the yield.
+    failed_reports_initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
 
     for failed_report in efd_get_failed_reports(terminalreporter):
         failed_report.outcome = PYTEST_STATUS.FAILED
@@ -457,15 +459,17 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     # - print our flaky test status summary
     # - modify the total counts
 
-    # Reset the failed attempts so they don't count towards the final total
-    if initial_size == 0:
+    # Restore terminalreporter.stats["failed"] to its original size so the final summary remains correct
+    if failed_reports_initial_size == 0:
         terminalreporter.stats.pop("failed", None)
     else:
-        terminalreporter.stats[PYTEST_STATUS.FAILED] = terminalreporter.stats[PYTEST_STATUS.FAILED][:initial_size]
+        terminalreporter.stats[PYTEST_STATUS.FAILED] = terminalreporter.stats[PYTEST_STATUS.FAILED][
+            :failed_reports_initial_size
+        ]
 
     # IMPORTANT: terminal summary functions mutate terminalreporter.stats
     if InternalTestSession.efd_enabled():
-        efd_pytest_terminal_summary(terminalreporter)
+        efd_pytest_terminal_summary_post_yield(terminalreporter)
 
     return
 

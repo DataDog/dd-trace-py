@@ -310,6 +310,8 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                                                 "TestFails::test_class_succeed_all",
                                                 "test_class_pass_1",
                                                 "test_class_pass_2",
+                                                "test_fails_0",
+                                                "test_fails_1",
                                                 "test_func_0",
                                                 "test_func_1",
                                                 "test_func_2",
