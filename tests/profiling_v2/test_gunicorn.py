@@ -9,6 +9,7 @@ import pytest
 
 from tests.profiling.collector import pprof_utils
 
+
 # gunicorn is not available on Windows
 if sys.platform == "win32":
     pytestmark = pytest.mark.skip
