@@ -128,6 +128,10 @@ class LLMObs(Service):
             self._start_service()
 
     def _start_service(self) -> None:
+        tracer_filters = self.tracer._filters
+        if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
+            tracer_filters += [self._trace_processor]
+            self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
             self._llmobs_eval_metric_writer.start()
@@ -232,11 +236,6 @@ class LLMObs(Service):
 
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=_tracer)
-        if _tracer:
-            tracer_filters = _tracer._filters
-            if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-                tracer_filters += [cls._instance._trace_processor]
-                _tracer.configure(settings={"FILTERS": tracer_filters})
         cls.enabled = True
         cls._instance.start()
 
