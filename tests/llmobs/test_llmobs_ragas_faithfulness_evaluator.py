@@ -162,6 +162,7 @@ def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_log
             "DD_API_KEY": os.getenv("DD_API_KEY", "dummy-api-key"),
             "DD_SITE": "datad0g.com",
             "PYTHONPATH": ":".join(pypath),
+            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "dummy-openai-api-key"),
             "DD_LLMOBS_ML_APP": "unnamed-ml-app",
             "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
             "_DD_LLMOBS_EVALUATORS": "ragas_faithfulness",
@@ -180,7 +181,7 @@ from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import logs_vcr
 
 ctx = logs_vcr.use_cassette(
-    "tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit"
+    "tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit.yaml"
 )
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())

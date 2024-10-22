@@ -70,8 +70,11 @@ class EvaluatorRunner(PeriodicService):
         Ensures all spans are evaluated & evaluation metrics are submitted when evaluator runner
         is stopped by the LLM Obs instance
         """
-        self.periodic(_wait_syncronously=False)
+        self.periodic(_wait_sync=True)
         self.executor.shutdown(wait=True)
+        # flush remaining evaluation spans & evaluations
+        self.llmobs_service._instance._llmobs_span_writer.periodic()
+        self.llmobs_service._instance._llmobs_eval_metric_writer.periodic()
 
     def recreate(self) -> "EvaluatorRunner":
         return self.__class__(
@@ -89,9 +92,9 @@ class EvaluatorRunner(PeriodicService):
                 return
             self._buffer.append((span_event, span))
 
-    def periodic(self, _wait_syncronously=False) -> None:
+    def periodic(self, _wait_sync=False) -> None:
         """
-        :param bool _wait_syncronously: if `True`, each evaluator is run for each span in the buffer
+        :param bool _wait_sync: if `True`, each evaluator is run for each span in the buffer
         synchronously. This param is only set to `True` for when the evaluator runner is stopped by the LLM Obs
         instance on process exit and we want to block until all spans are evaluated and metrics are submitted.
         """
@@ -102,7 +105,7 @@ class EvaluatorRunner(PeriodicService):
             self._buffer = []
 
         try:
-            if not _wait_syncronously:
+            if not _wait_sync:
                 for evaluator in self.evaluators:
                     self.executor.map(
                         lambda span_event: evaluator.run_and_submit_evaluation(span_event),
