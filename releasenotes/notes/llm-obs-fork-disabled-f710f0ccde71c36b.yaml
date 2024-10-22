@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    llmobs: fix disabled setting being ignored when forking.
+    LLM Observability: Resolves errors where the disabled setting was being ignored when forking.

@@ -11,7 +11,6 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.service import ServiceStatus
-import ddtrace.llmobs
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -1575,7 +1574,7 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluato
 
 def test_llmobs_fork_create_span(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
-    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
+    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", "5.0")
     with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
         pid = os.fork()
@@ -1688,12 +1687,37 @@ def test_llmobs_fork_custom_filter(monkeypatch):
 def test_llmobs_fork_disabled(monkeypatch):
     """Test that after being disabled the service remains disabled when forking"""
     monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
-    svc = ddtrace.llmobs.LLMObs(tracer=DummyTracer())
+    svc = llmobs_service(tracer=DummyTracer())
     pid = os.fork()
     assert not svc.enabled, "both the parent and child should be disabled"
     assert svc._llmobs_span_writer.status == ServiceStatus.STOPPED
     assert svc._llmobs_eval_metric_writer.status == ServiceStatus.STOPPED
     if not pid:
+        svc.disable()
+        os._exit(12)
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+    svc.disable()
+
+
+def test_llmobs_fork_disabled_then_enabled(monkeypatch):
+    """Test that after being initially disabled, the service can be enabled in a fork"""
+    monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
+    svc = llmobs_service._instance
+    pid = os.fork()
+    assert not svc.enabled, "both the parent and child should be disabled"
+    assert svc._llmobs_span_writer.status == ServiceStatus.STOPPED
+    assert svc._llmobs_eval_metric_writer.status == ServiceStatus.STOPPED
+    if not pid:
+        # Enable the service in the child
+        with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+            monkeypatch.setenv("DD_LLMOBS_ENABLED", "1")
+            llmobs_service.enable(_tracer=DummyTracer())
+        svc = llmobs_service._instance
+        assert svc._llmobs_span_writer.status == ServiceStatus.RUNNING
+        assert svc._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
         svc.disable()
         os._exit(12)
 
