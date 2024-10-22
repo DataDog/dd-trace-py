@@ -6,6 +6,13 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
+from ddtrace.appsec._iast._handlers import _on_django_patch
+from ddtrace.appsec._iast._handlers import _on_flask_patch
+from ddtrace.appsec._iast._handlers import _on_grpc_response
+from ddtrace.appsec._iast._handlers import _on_request_init
+from ddtrace.appsec._iast._handlers import _on_set_http_meta_iast
+from ddtrace.appsec._iast._handlers import _on_wsgi_environ
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
@@ -36,8 +43,7 @@ class IASTEnvironment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        if span is None:
-            self.span: Span = core.get_item(core.get_item("call_key"))
+        self.span = span or core.get_span()
 
         self.request_enabled: bool = False
         self.iast_reporter: Optional[IastSpanReporter] = None
@@ -104,13 +110,14 @@ def is_iast_request_enabled():
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
+        if span:
+            req_span = span
+        else:
+            req_span = ctx.get_item("req_span")
+
         if _is_iast_enabled():
-            if span:
-                req_span = span
-            else:
-                req_span = ctx.get_item("req_span")
             exist_data = req_span.get_tag(IAST.JSON)
-            if not exist_data:
+            if exist_data is None and req_span.get_metric(IAST.ENABLED) is None:
                 if not is_iast_request_enabled():
                     req_span.set_metric(IAST.ENABLED, 0.0)
                     end_iast_context(req_span)
@@ -135,6 +142,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                     req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
                 oce.release_request()
+
     except Exception:
         log.debug("[IAST] Error finishing IAST context", exc_info=True)
 
@@ -151,6 +159,20 @@ def _iast_start_request(span=None, *args, **kwargs):
         log.debug("[IAST] Error starting IAST context", exc_info=True)
 
 
+def _on_grpc_server_response(message):
+    _on_grpc_response(message)
+
+
 def iast_listen():
+    core.on("grpc.client.response.message", _on_grpc_response)
+    core.on("grpc.server.response.message", _on_grpc_server_response)
+
+    core.on("set_http_meta_for_asm", _on_set_http_meta_iast)
+    core.on("django.patch", _on_django_patch)
+    core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
+    core.on("django.func.wrapped", _on_django_func_wrapped)
+    core.on("flask.patch", _on_flask_patch)
+    core.on("flask.request_init", _on_request_init)
+
     core.on("context.ended.wsgi.__call__", _iast_end_request)
     core.on("context.ended.asgi.__call__", _iast_end_request)

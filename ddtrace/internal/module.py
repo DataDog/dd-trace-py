@@ -453,16 +453,19 @@ class ModuleWatchdog(BaseModuleWatchdog):
         super().__init__()
 
         self._hook_map: t.DefaultDict[str, t.List[ModuleHookType]] = defaultdict(list)
-        self._om: t.Optional[t.Dict[str, ModuleType]] = None
+        # DEV: It would make more sense to make this a mapping of Path to ModuleType
+        # but the WeakValueDictionary causes an ignored exception on shutdown
+        # because the pathlib module is being garbage collected.
+        self._om: t.Optional[t.MutableMapping[str, ModuleType]] = None
         # _pre_exec_module_hooks is a set of tuples (condition, hook) instead
         # of a list to ensure that no hook is duplicated
         self._pre_exec_module_hooks: t.Set[t.Tuple[PreExecHookCond, PreExecHookType]] = set()
         self._import_exception_hooks: t.Set[t.Tuple[ImportExceptionHookCond, ImportExceptionHookType]] = set()
 
     @property
-    def _origin_map(self) -> t.Dict[str, ModuleType]:
-        def modules_with_origin(modules: t.Iterable[ModuleType]) -> t.Dict[str, t.Any]:
-            result: wvdict = wvdict()
+    def _origin_map(self) -> t.MutableMapping[str, ModuleType]:
+        def modules_with_origin(modules: t.Iterable[ModuleType]) -> t.MutableMapping[str, ModuleType]:
+            result: t.MutableMapping[str, ModuleType] = wvdict()
 
             for m in modules:
                 module_origin = origin(m)
@@ -479,7 +482,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
                     # information that can be used at the Python runtime level.
                     pass
 
-            return t.cast(t.Dict[str, t.Any], result)
+            return result
 
         if self._om is None:
             try:
@@ -526,7 +529,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
             # Check if this is the __main__ module
             main_module = sys.modules.get("__main__")
-            if main_module is not None and origin(main_module) == path:
+            if main_module is not None and origin(main_module) == resolved_path:
                 # Register for future lookups
                 instance._origin_map[path] = main_module
 
@@ -557,7 +560,11 @@ class ModuleWatchdog(BaseModuleWatchdog):
         instance = t.cast(ModuleWatchdog, cls._instance)
         instance._hook_map[path].append(hook)
         try:
-            module = instance._origin_map[path]
+            module = instance.get_by_origin(resolved_path)
+            if module is None:
+                # The path was resolved but we still haven't seen any module
+                # that has it as origin. Nothing more we can do for now.
+                return
             # Sanity check: the module might have been removed from sys.modules
             # but not yet garbage collected.
             try:

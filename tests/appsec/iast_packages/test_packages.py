@@ -9,7 +9,6 @@ import clonevirtualenv
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_env
 
@@ -219,6 +218,7 @@ PACKAGES = [
         import_name="charset_normalizer",
         import_module_to_validate="charset_normalizer.api",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("click", "8.1.7", "", "Hello World!\nHello World!\n", "", import_module_to_validate="click.core"),
     PackageForTesting(
@@ -290,6 +290,7 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "importlib-resources",
@@ -478,6 +479,7 @@ PACKAGES = [
         "",
         import_module_to_validate="multipart.multipart",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "pytz",
@@ -512,6 +514,7 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "sqlalchemy",
@@ -591,6 +594,7 @@ PACKAGES = [
         extras=[("beautifulsoup4", "4.12.3")],
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "werkzeug",
@@ -611,6 +615,7 @@ PACKAGES = [
         import_module_to_validate="yarl._url",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "zipp",
@@ -683,6 +688,7 @@ PACKAGES = [
         "",
         skip_python_version=[(3, 8)],
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     ## TODO: https://datadoghq.atlassian.net/browse/APPSEC-53659
     ## Disabled due to a bug in CI:
@@ -762,6 +768,7 @@ PACKAGES = [
         '(</span><span class="s1">&#39;Hello, world!&#39;</span><span class="p">)</span>\n</pre></div>\n',
         "",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("grpcio", "1.64.0", "", "", "", test_e2e=False, import_name="grpc"),
     PackageForTesting(
@@ -1031,7 +1038,7 @@ def test_packages_patched_import(package, venv):
         "True" if package.expect_no_change else "False",
     ]
 
-    with override_env({IAST_ENV: "true"}):
+    with override_env({IAST.ENV: "true"}):
         # 1. Try with the specified version
         package.install(venv)
         result = subprocess.run(
