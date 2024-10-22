@@ -192,6 +192,7 @@ def create_span_decoration_function_probe(**kwargs):
 
 
 @create_probe_defaults
+@probe_conditional_defaults
 @function_location_defaults
 @trigger_probe_defaults
 def create_trigger_function_probe(**kwargs):

@@ -304,12 +304,12 @@ class SessionMixin:
 
 
 @dataclass
-class TriggerLineProbe(Probe, LineLocationMixin, SessionMixin):
+class TriggerLineProbe(Probe, LineLocationMixin, SessionMixin, ProbeConditionMixin):
     pass
 
 
 @dataclass
-class TriggerFunctionProbe(Probe, FunctionLocationMixin, SessionMixin):
+class TriggerFunctionProbe(Probe, FunctionLocationMixin, SessionMixin, ProbeConditionMixin):
     pass
 
 

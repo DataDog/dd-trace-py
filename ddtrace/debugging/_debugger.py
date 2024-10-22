@@ -36,7 +36,6 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanFunctionProbe
@@ -54,6 +53,7 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._signal.tracing import SpanDecoration
+from ddtrace.debugging._signal.trigger import Trigger
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import compat
@@ -223,10 +223,13 @@ class DebuggerWrappingContext(WrappingContext):
                     frame=frame,
                     thread=thread,
                 )
-            elif isinstance(probe, TriggerFunctionProbe) and probe.evaluate_at is ProbeEvaluateTimingForMethod.ENTER:
-                Session(probe.session_id, probe.level).link_to_trace(trace_context)
-                # This probe does not emit any signals
-                continue
+            elif isinstance(probe, TriggerFunctionProbe):
+                signal = Trigger(
+                    probe=probe,
+                    frame=frame,
+                    thread=thread,
+                    trace_context=trace_context,
+                )
             else:
                 log.error("Unsupported probe type: %s", type(probe))
                 continue

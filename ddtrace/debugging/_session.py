@@ -32,34 +32,25 @@ class SessionManager:
 
     @classmethod
     def link_session_to_trace(cls, session, trace_context: t.Optional[t.Any] = None) -> None:
-        if trace_context is None:
-            # Get the current root
-            trace_context = tracer.current_root_span()
-
-        if trace_context is None:
-            # We don't have a context to link to
+        context = trace_context or tracer.current_trace_context()
+        if context is None:
+            # Nothing to link to
             return
 
-        # If the root has a parent context, use that
-        try:
-            trace_context = trace_context.context or trace_context
-        except AttributeError:
-            pass
-
-        cls._sessions_trace_map.setdefault(trace_context, {})[session.ident] = session
+        cls._sessions_trace_map.setdefault(context, {})[session.ident] = session
 
     @classmethod
     def get_sessions_for_trace(cls) -> t.Iterable[Session]:
-        root = tracer.current_root_span()
-        if root is None:
+        context = tracer.current_trace_context()
+        if context is None:
             return []
 
-        return cls._sessions_trace_map.get(root.context or root, {}).values()
+        return cls._sessions_trace_map.get(context, {}).values()
 
     @classmethod
     def lookup_session(cls, ident: SessionId) -> t.Optional[Session]:
-        root = tracer.current_root_span()
-        if root is None:
+        context = tracer.current_trace_context()
+        if context is None:
             return None
 
-        return cls._sessions_trace_map.get(root.context or root, {}).get(ident)  # type: ignore[call-overload]
+        return cls._sessions_trace_map.get(context, {}).get(ident)
