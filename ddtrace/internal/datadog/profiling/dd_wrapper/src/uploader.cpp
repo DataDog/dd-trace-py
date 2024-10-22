@@ -5,6 +5,8 @@
 
 #include <errno.h> // errno
 #include <fstream> // ofstream
+#include <fstream>
+#include <iostream>
 #include <optional>
 #include <sstream>  // ostringstream
 #include <string.h> // strerror
@@ -36,19 +38,29 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
 {
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
+
+    std::ofstream file("/tmp/uploader.log", std::ios::app);
+    file << "Calling export_to_file from " << getpid() << std::endl;
+
     std::ostringstream oss;
     oss << output_filename << "." << getpid() << "." << upload_seq;
     std::string filename = oss.str();
+    file << "Writing profile to " << filename << std::endl;
     std::ofstream out(filename, std::ios::binary);
     if (!out.is_open()) {
-        std::cerr << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
+        file << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
+        file.close();
         return false;
     }
     out.write(reinterpret_cast<const char*>(encoded->buffer.ptr), encoded->buffer.len);
     if (out.fail()) {
-        std::cerr << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
+        file << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
+        file.close();
         return false;
     }
+
+    file.close();
+
     return true;
 }
 

@@ -1,6 +1,9 @@
 #include "uploader_builder.hpp"
+
 #include "libdatadog_helpers.hpp"
 
+#include <fstream>
+#include <iostream>
 #include <mutex>
 #include <numeric>
 #include <string>
@@ -68,7 +71,10 @@ void
 Datadog::UploaderBuilder::set_url(std::string_view _url)
 {
     if (!_url.empty()) {
+        std::ofstream file("/tmp/uploader_builder.log", std::ios::app);
         url = _url;
+        file << "Setting url to " << url << std::endl;
+        file.close();
     }
 }
 
@@ -151,12 +157,16 @@ Datadog::UploaderBuilder::build()
         return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
     }
 
+    std::ofstream file("/tmp/uploader_builder.log", std::ios::app);
+    file << "Before calling Exporter:new url: " << url << std::endl;
+    file.close();
+
     // If we're here, the tags are good, so we can initialize the exporter
     ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
                                                               to_slice(profiler_version),
                                                               to_slice(family),
                                                               &tags,
-                                                              ddog_prof_Endpoint_agent(to_slice(url)));
+                                                              ddog_prof_Endpoint_agent(to_slice("localhost:9126")));
     ddog_Vec_Tag_drop(tags);
 
     auto ddog_exporter_result = Datadog::get_newexporter_result(res);
@@ -166,6 +176,9 @@ Datadog::UploaderBuilder::build()
     } else {
         auto& err = std::get<ddog_Error>(ddog_exporter_result);
         std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
+        errmsg.append(" (url: ");
+        errmsg.append(url);
+        errmsg.append(")");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
         return errmsg;
     }

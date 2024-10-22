@@ -232,6 +232,9 @@ class _ProfilerInstance(service.Service):
         # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
         if self._export_libdd_enabled:
             try:
+                with open("/tmp/ddup.log", "a") as f:
+                    f.write("ddup.config(endpoint=%s)\n" % endpoint)
+                    f.write("ddup.config with pid=%s\n" % os.getpid())
                 ddup.config(
                     env=self.env,
                     service=self.service,

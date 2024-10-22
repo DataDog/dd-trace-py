@@ -156,6 +156,8 @@ def config(
     if version:
         call_ddup_config_version(ensure_binary_or_empty(version))
     if url:
+        with open("/tmp/ddup.pyx.log", "a") as f:
+            f.write(f"config url: {url}\n")
         call_ddup_config_url(ensure_binary_or_empty(url))
     if output_filename:
         call_ddup_config_output_filename(ensure_binary_or_empty(output_filename))
