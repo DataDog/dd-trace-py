@@ -684,7 +684,7 @@ def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcoun
 
 
 @pytest.mark.parametrize(
-    "origstr,formatted,tainted",
+    "origstr,formatted",
     [
         ("/", ""),
         ("", ""),
@@ -698,7 +698,7 @@ def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcoun
         # ("a/:+-/", ":+-<joiner>a<joiner>-+::+-<joiner>a/<joiner>-+:"),
     ],
 )
-def test_replace_tainted_results_in_no_tainted_django(origstr, formatted, tainted):
+def test_replace_tainted_results_in_no_tainted_django(origstr, formatted):
     path_info = origstr.encode("iso-8859-1").decode()
     sep = taint_pyobject(pyobject="/", source_name="d", source_value="/", source_origin=OriginType.PARAMETER)
     replaced = ddtrace_aspects.replace_aspect(path_info.replace, 1, path_info, sep, "", 1)
