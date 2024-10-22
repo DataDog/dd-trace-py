@@ -29,7 +29,7 @@
     name: registry.ddbuild.io/redis:7.0.7
     alias: redis
   kafka:
-    name: registry.ddbuild.io/images/mirror/apache/kafka-native:3.8.0-rc2
+    name: registry.ddbuild.io/images/mirror/apache/kafka:3.8.0
     alias: kafka
     variables:
       ALLOW_PLAINTEXT_LISTENER: yes
