@@ -29,6 +29,10 @@ def _end_iast_context_and_oce():
     # oce.release_request()
 
 
+with override_env({"DD_IAST_ENABLED": "True"}):
+    import functions
+
+
 class IAST_Aspects(bm.Scenario):
     iast_enabled: bool
     function_name: str
@@ -37,8 +41,6 @@ class IAST_Aspects(bm.Scenario):
         if self.iast_enabled:
             with override_env({"DD_IAST_ENABLED": "True"}):
                 _start_iast_context_and_oce()
-
-        import functions
 
         def _(loops):
             for _ in range(loops):
