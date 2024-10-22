@@ -434,7 +434,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     ctx = DataStreamsCtx(MockedTracer().data_streams_processor, 0, 0, 0)
     parent_hash = ctx._compute_hash(
         sorted(
-            ["direction:out", "kafka_cluster_id:l2CkTNt1R_yAKe8I5S1f-w", "type:kafka", "topic:{}".format(kafka_topic)]
+            ["direction:out", "kafka_cluster_id:5L6g3nShT-eMCtK--X86sw", "type:kafka", "topic:{}".format(kafka_topic)]
         ),
         0,
     )
@@ -442,7 +442,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
         sorted(
             [
                 "direction:in",
-                "kafka_cluster_id:l2CkTNt1R_yAKe8I5S1f-w",
+                "kafka_cluster_id:5L6g3nShT-eMCtK--X86sw",
                 "type:kafka",
                 "group:test_group",
                 "topic:{}".format(kafka_topic),
@@ -453,7 +453,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     assert (
         first[
             (
-                "direction:out,kafka_cluster_id:l2CkTNt1R_yAKe8I5S1f-w,topic:{},type:kafka".format(kafka_topic),
+                "direction:out,kafka_cluster_id:5L6g3nShT-eMCtK--X86sw,topic:{},type:kafka".format(kafka_topic),
                 parent_hash,
                 0,
             )
@@ -463,7 +463,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     assert (
         first[
             (
-                "direction:out,kafka_cluster_id:l2CkTNt1R_yAKe8I5S1f-w,topic:{},type:kafka".format(kafka_topic),
+                "direction:out,kafka_cluster_id:5L6g3nShT-eMCtK--X86sw,topic:{},type:kafka".format(kafka_topic),
                 parent_hash,
                 0,
             )
@@ -473,7 +473,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     assert (
         first[
             (
-                "direction:in,group:test_group,kafka_cluster_id:l2CkTNt1R_yAKe8I5S1f-w,topic:{},type:kafka".format(
+                "direction:in,group:test_group,kafka_cluster_id:5L6g3nShT-eMCtK--X86sw,topic:{},type:kafka".format(
                     kafka_topic
                 ),
                 child_hash,
@@ -485,7 +485,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     assert (
         first[
             (
-                "direction:in,group:test_group,kafka_cluster_id:l2CkTNt1R_yAKe8I5S1f-w,topic:{},type:kafka".format(
+                "direction:in,group:test_group,kafka_cluster_id:5L6g3nShT-eMCtK--X86sw,topic:{},type:kafka".format(
                     kafka_topic
                 ),
                 child_hash,
