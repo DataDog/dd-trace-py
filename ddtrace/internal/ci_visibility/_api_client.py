@@ -294,6 +294,70 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         response_bytes: t.Optional[int] = None
         try:
             try:
+                if endpoint == UNIQUE_TESTS_ENDPOINT:
+                    return json.loads(
+                        """
+                        {
+                            "data": {
+                                "id": "imtFua1D_58",
+                                "type": "ci_app_libraries_tests",
+                                "attributes": {
+                                    "tests": {
+                                        "tests": {
+                                            "test_all_pass.py": [
+                                                "TestAllPass::test_class_pass_1",
+                                                "TestAllPass::test_class_pass_2",
+                                                "TestFails::test_class_succeed_all",
+                                                "test_class_pass_1",
+                                                "test_class_pass_2",
+                                                "test_func_0",
+                                                "test_func_1",
+                                                "test_func_2",
+                                                "test_func_3",
+                                                "test_func_4",
+                                                "test_func_5",
+                                                "test_func_6",
+                                                "test_func_7",
+                                                "test_func_8",
+                                                "test_func_9",
+                                                "test_succeeds_0",
+                                                "test_succeeds_1",
+                                                "test_succeeds_10",
+                                                "test_succeeds_11",
+                                                "test_succeeds_12",
+                                                "test_succeeds_13",
+                                                "test_succeeds_14",
+                                                "test_succeeds_15",
+                                                "test_succeeds_16",
+                                                "test_succeeds_17",
+                                                "test_succeeds_18",
+                                                "test_succeeds_19",
+                                                "test_succeeds_2",
+                                                "test_succeeds_20",
+                                                "test_succeeds_21",
+                                                "test_succeeds_22",
+                                                "test_succeeds_23",
+                                                "test_succeeds_24",
+                                                "test_succeeds_25",
+                                                "test_succeeds_26",
+                                                "test_succeeds_27",
+                                                "test_succeeds_28",
+                                                "test_succeeds_29",
+                                                "test_succeeds_3",
+                                                "test_succeeds_4",
+                                                "test_succeeds_5",
+                                                "test_succeeds_6",
+                                                "test_succeeds_7",
+                                                "test_succeeds_8",
+                                                "test_succeeds_9"
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        """
+                    )
                 response = self._do_request(method, endpoint, payload, timeout=timeout)
             except _NETWORK_ERRORS:
                 error_type = ERROR_TYPES.TIMEOUT

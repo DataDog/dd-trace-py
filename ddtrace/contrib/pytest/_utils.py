@@ -8,8 +8,10 @@ import typing as t
 import pytest
 
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
+from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
@@ -26,6 +28,17 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
 _USE_PLUGIN_V2 = asbool(os.environ.get("_DD_CIVISIBILITY_USE_PYTEST_V2", "false"))
+
+
+@dataclass(frozen=True)
+class _PYTEST_STATUS:
+    ERROR = "error"
+    FAILED = "failed"
+    PASSED = "passed"
+    SKIPPED = "skipped"
+
+
+PYTEST_STATUS = _PYTEST_STATUS()
 
 
 @dataclass
@@ -186,3 +199,9 @@ def _is_enabled_early(early_config):
         return False
 
     return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")
+
+
+class _TestOutcome(t.NamedTuple):
+    status: t.Optional[TestStatus] = None
+    skip_reason: t.Optional[str] = None
+    exc_info: t.Optional[TestExcInfo] = None

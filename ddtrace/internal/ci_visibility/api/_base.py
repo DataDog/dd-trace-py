@@ -383,7 +383,6 @@ class TestVisibilityItemBase(abc.ABC):
 
     def set_status(self, status: TestStatus) -> None:
         if self.is_finished():
-            breakpoint()
             error_msg = f"Status {self._status} already set for item {self}, not setting to {status}"
             log.warning(error_msg)
             return
