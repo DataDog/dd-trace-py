@@ -39,6 +39,7 @@ from ._core import get_config as _get_config
 from ._otel_remapper import otel_remapping as _otel_remapping
 from .http import HttpConfig
 from .integration import IntegrationConfig
+from endpoint_config import fetch_config_from_endpoint
 
 
 if sys.version_info >= (3, 8):
@@ -48,6 +49,8 @@ else:
 
 
 log = get_logger(__name__)
+
+endpoint_fetch_config = fetch_config_from_endpoint()
 
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
