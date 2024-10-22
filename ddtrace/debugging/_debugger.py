@@ -487,7 +487,7 @@ class Debugger(Service):
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
-            resolved_source = probe.resolved_source_file
+            resolved_source = probe.resolved_source_file  # boo
             if resolved_source is None:
                 log.error(
                     "Cannot inject probe %s: source file %s cannot be resolved", probe.probe_id, probe.source_file
