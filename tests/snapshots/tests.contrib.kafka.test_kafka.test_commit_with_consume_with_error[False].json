@@ -16,7 +16,6 @@
       "error.message": "'invalid_args' is an invalid keyword argument for this function",
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/kafka/patch.py\", line 222, in traced_poll_or_consume\n    raise err\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/kafka/patch.py\", line 218, in traced_poll_or_consume\n    result = func(*args, **kwargs)\nTypeError: 'invalid_args' is an invalid keyword argument for this function\n",
       "error.type": "builtins.TypeError",
-      "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.group_id": "test_group",
       "kafka.received_message": "False",
       "language": "python",
