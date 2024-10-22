@@ -107,7 +107,7 @@ class RagasFaithfulnessEvaluator:
         if not span_event:
             return
         score_result = self.evaluate(span_event)
-        if score_result:
+        if score_result is not None:
             self.llmobs_service.submit_evaluation(
                 span_context={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
                 label=RagasFaithfulnessEvaluator.LABEL,
