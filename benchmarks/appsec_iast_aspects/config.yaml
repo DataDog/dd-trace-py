@@ -1,7 +1,7 @@
 add_aspect: &add_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_add_aspect"
 
@@ -12,7 +12,7 @@ add_noaspect:
 add_inplace_aspect: &add_inplace_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_add_inplace_aspect"
 
@@ -23,7 +23,7 @@ add_inplace_noaspect:
 bytearray_aspect: &bytearray_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_bytearray_aspect"
 
@@ -34,7 +34,7 @@ bytearray_noaspect:
 bytearray_extend_aspect: &bytearray_extend_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_bytearray_extend_aspect"
 
@@ -45,7 +45,7 @@ bytearray_extend_noaspect:
 bytes_aspect: &bytes_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_bytes_aspect"
 
@@ -56,7 +56,7 @@ bytes_noaspect:
 bytesio_aspect: &bytesio_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_bytesio_aspect"
 
@@ -67,7 +67,7 @@ bytesio_noaspect:
 capitalize_aspect: &capitalize_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_capitalize_aspect"
 
@@ -78,7 +78,7 @@ capitalize_noaspect:
 casefold_aspect: &casefold_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_casefold_aspect"
 
@@ -89,7 +89,7 @@ casefold_noaspect:
 decode_aspect: &decode_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_decode_aspect"
 
@@ -100,7 +100,7 @@ decode_noaspect:
 encode_aspect: &encode_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_encode_aspect"
 
@@ -111,7 +111,7 @@ encode_noaspect:
 format_aspect: &format_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_format_aspect"
 
@@ -122,7 +122,7 @@ format_noaspect:
 format_map_aspect: &format_map_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_format_map_aspect"
 
@@ -133,7 +133,7 @@ format_map_noaspect:
 index_aspect: &index_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_index_aspect"
 
@@ -144,7 +144,7 @@ index_noaspect:
 join_aspect: &join_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_join_aspect"
 
@@ -155,7 +155,7 @@ join_noaspect:
 lower_aspect: &lower_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_lower_aspect"
 
@@ -166,7 +166,7 @@ lower_noaspect:
 ljust_aspect: &ljust_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_ljust_aspect"
 
@@ -177,7 +177,7 @@ ljust_noaspect:
 modulo_aspect: &modulo_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_modulo_aspect"
 
@@ -188,7 +188,7 @@ modulo_noaspect:
 ospathbasename_aspect: &ospathbasename_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_ospathbasename_aspect"
 
@@ -199,7 +199,7 @@ ospathbasename_noaspect:
 ospathdirname_aspect: &ospathdirname_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_ospathdirname_aspect"
 
@@ -210,7 +210,7 @@ ospathdirname_noaspect:
 ospathjoin_aspect: &ospathjoin_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_ospathjoin_aspect"
 
@@ -221,7 +221,7 @@ ospathjoin_noaspect:
 ospathnormcase_aspect: &ospathnormcase_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_ospathnormcase_aspect"
 
@@ -232,7 +232,7 @@ ospathnormcase_noaspect:
 ospathsplit_aspect: &ospathsplit_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_ospathsplit_aspect"
 
@@ -243,7 +243,7 @@ ospathsplit_noaspect:
 ospathsplitdrive_aspect: &ospathsplitdrive_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_ospathsplitdrive_aspect"
 
@@ -254,7 +254,7 @@ ospathsplitdrive_noaspect:
 ospathsplitext_aspect: &ospathsplitext_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_ospathsplitext_aspect"
 
@@ -265,7 +265,7 @@ ospathsplitext_noaspect:
 re_expand_aspect: &re_expand_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_expand_aspect"
 
@@ -276,7 +276,7 @@ re_expand_noaspect:
 re_findall_aspect: &re_findall_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_findall_aspect"
 
@@ -287,7 +287,7 @@ re_findall_noaspect:
 re_finditer_aspect: &re_finditer_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_finditer_aspect"
 
@@ -298,7 +298,7 @@ re_finditer_noaspect:
 re_fullmatch_aspect: &re_fullmatch_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_fullmatch_aspect"
 
@@ -309,7 +309,7 @@ re_fullmatch_noaspect:
 re_group_aspect: &re_group_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_group_aspect"
 
@@ -320,7 +320,7 @@ re_group_noaspect:
 re_groups_aspect: &re_groups_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_groups_aspect"
 
@@ -331,7 +331,7 @@ re_groups_noaspect:
 re_match_aspect: &re_match_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_match_aspect"
 
@@ -342,7 +342,7 @@ re_match_noaspect:
 re_search_aspect: &re_search_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_search_aspect"
 
@@ -353,7 +353,7 @@ re_search_noaspect:
 re_sub_aspect: &re_sub_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_sub_aspect"
 
@@ -364,7 +364,7 @@ re_sub_noaspect:
 re_subn_aspect: &re_subn_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_re_subn_aspect"
 
@@ -375,7 +375,7 @@ re_subn_noaspect:
 replace_aspect: &replace_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_replace_aspect"
 
@@ -386,7 +386,7 @@ replace_noaspect:
 repr_aspect: &repr_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_repr_aspect"
 
@@ -397,7 +397,7 @@ repr_noaspect:
 rsplit_aspect: &rsplit_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_rsplit_aspect"
 
@@ -408,7 +408,7 @@ rsplit_noaspect:
 slice_aspect: &slice_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_slice_aspect"
 
@@ -419,7 +419,7 @@ slice_noaspect:
 split_aspect: &split_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_split_aspect"
 
@@ -430,7 +430,7 @@ split_noaspect:
 splitlines_aspect: &splitlines_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_splitlines_aspect"
 
@@ -441,7 +441,7 @@ splitlines_noaspect:
 stringio_aspect: &stringio_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_stringio_aspect"
 
@@ -452,7 +452,7 @@ stringio_noaspect:
 swapcase_aspect: &swapcase_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_swapcase_aspect"
 
@@ -463,7 +463,7 @@ swapcase_noaspect:
 title_aspect: &title_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_title_aspect"
 
@@ -474,7 +474,7 @@ title_noaspect:
 translate_aspect: &translate_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_translate_aspect"
 
@@ -485,7 +485,7 @@ translate_noaspect:
 upper_aspect: &upper_aspect
   processes: 10
   loops: 5
-  values: 10
+  values: 100
   warmups: 1
   function_name: "iast_upper_aspect"
 
