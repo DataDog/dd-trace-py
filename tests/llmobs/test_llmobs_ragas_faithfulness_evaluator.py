@@ -1,3 +1,5 @@
+import os
+
 import mock
 import pytest
 
@@ -148,3 +150,53 @@ def test_ragas_faithfulness_emits_traces(ragas, LLMObs):
 
     assert spans[3]["parent_id"] == spans[2]["span_id"]  # create statements prompt (task)
     assert spans[5]["parent_id"] == spans[4]["span_id"]  # create verdicts prompt (task)
+
+
+def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_logs, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "DD_API_KEY": os.getenv("DD_API_KEY", "dummy-api-key"),
+            "DD_SITE": "datad0g.com",
+            "PYTHONPATH": ":".join(pypath),
+            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "dummy-openai-api-key"),
+            "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+            "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
+            "_DD_LLMOBS_EVALUATORS": "ragas_faithfulness",
+            "DD_LLMOBS_AGENTLESS_ENABLED": "true",
+        }
+    )
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+import os
+import time
+import atexit
+import mock
+from ddtrace.llmobs import LLMObs
+from ddtrace.internal.utils.http import Response
+from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
+from tests.llmobs._utils import logs_vcr
+
+ctx = logs_vcr.use_cassette(
+    "tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit.yaml"
+)
+ctx.__enter__()
+atexit.register(lambda: ctx.__exit__())
+with mock.patch(
+    "ddtrace.internal.writer.HTTPWriter._send_payload",
+    return_value=Response(
+        status=200,
+        body="{}",
+    ),
+):
+    LLMObs.enable()
+    LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
+""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == b""
+    assert err == b""
