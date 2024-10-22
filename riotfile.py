@@ -201,7 +201,6 @@ venv = Venv(
                 "tortoise-orm": latest,
                 "peewee": latest,
                 "requests": latest,
-                "envier": "==0.5.2",
                 "cattrs": "<23.1.1",
                 "protobuf": ">=3",
                 "typing_extensions": latest,
