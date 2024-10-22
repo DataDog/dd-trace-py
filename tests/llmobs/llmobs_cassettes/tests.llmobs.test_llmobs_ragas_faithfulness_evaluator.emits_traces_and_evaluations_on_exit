@@ -1,0 +1,315 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "Given a question, an answer, and sentences from
+      the answer analyze the complexity of each sentence given under ''sentences''
+      and break down each sentence into one or more fully understandable statements
+      while also ensuring no pronouns are used in each statement. Format the outputs
+      in JSON.\n\nThe output should be a well-formatted JSON instance that conforms
+      to the JSON schema below.\n\nAs an example, for the schema {\"properties\":
+      {\"foo\": {\"title\": \"Foo\", \"description\": \"a list of strings\", \"type\":
+      \"array\", \"items\": {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\nthe
+      object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted instance of the schema.
+      The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n\nHere
+      is the output JSON schema:\n```\n{\"type\": \"array\", \"items\": {\"$ref\":
+      \"#/definitions/Statements\"}, \"definitions\": {\"Statements\": {\"title\":
+      \"Statements\", \"type\": \"object\", \"properties\": {\"sentence_index\": {\"title\":
+      \"Sentence Index\", \"description\": \"Index of the sentence from the statement
+      list\", \"type\": \"integer\"}, \"simpler_statements\": {\"title\": \"Simpler
+      Statements\", \"description\": \"the simpler statements\", \"type\": \"array\",
+      \"items\": {\"type\": \"string\"}}}, \"required\": [\"sentence_index\", \"simpler_statements\"]}}}\n```\n\nDo
+      not return any preamble or explanations, return only a pure JSON string surrounded
+      by triple backticks (```).\n\nExamples:\n\nquestion: \"Who was Albert Einstein
+      and what is he best known for?\"\nanswer: \"He was a German-born theoretical
+      physicist, widely acknowledged to be one of the greatest and most influential
+      physicists of all time. He was best known for developing the theory of relativity,
+      he also made important contributions to the development of the theory of quantum
+      mechanics.\"\nsentences: \"\\n        0:He was a German-born theoretical physicist,
+      widely acknowledged to be one of the greatest and most influential physicists
+      of all time. \\n        1:He was best known for developing the theory of relativity,
+      he also made important contributions to the development of the theory of quantum
+      mechanics.\\n        \"\nanalysis: ```[{\"sentence_index\": 0, \"simpler_statements\":
+      [\"Albert Einstein was a German-born theoretical physicist.\", \"Albert Einstein
+      is recognized as one of the greatest and most influential physicists of all
+      time.\"]}, {\"sentence_index\": 1, \"simpler_statements\": [\"Albert Einstein
+      was best known for developing the theory of relativity.\", \"Albert Einstein
+      also made important contributions to the development of the theory of quantum
+      mechanics.\"]}]```\n\nYour actual task:\n\nquestion: \"What is the capital of
+      France?\"\nanswer: \"The capital of France is Paris\"\nsentences: \"\"\nanalysis:
+      \n", "role": "user"}], "model": "gpt-4o-mini", "n": 1, "stream": false, "temperature":
+      1e-08}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '2919'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.52.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.52.0
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA2yRwW7bMBBE7/oKYs9WICuOlfjWS9oAbdCiRS+WIdHUSmJCkSx33TYw/O8FZcV2
+        kVx4mOE87iz3iRCgG1gJUL1kNXiTfvic6edf+ePL9T09fXn4k30qvt1+/P7z4XHxG2EWE277hIpf
+        U1fKDd4ga2ePtgooGSN1XuR3N8U8y/PRGFyDJsY6z+nCpYO2Os2zfJFmRTq/ndK90woJVmKdCCHE
+        fjzjnLbBv7AS2exVGZBIdgir0yUhIDgTFZBEmlhahtnZVM4y2nH0uq7X+xIIo6KwGvHlyBclkI6d
+        QkUsGQe0TNFal/CjR6Gk1yyNcK24D9IqFJrEVxk0XZWwOWzqur58NGC7IxmL250xk344tTCu88Ft
+        afJPequtpr4KKMnZODGx8zC6h0SIzbit3X8LAB/c4Lli94w2ApfZ/MiD8yed3Xw5mexYmotUXsze
+        4VUNstSGLvYNSqoem3M0Sy7KvX30PcSxoLbdG0oykYBeiHGoWm07DD7o4w+2vsJ82+DNNS4RkkPy
+        DwAA//8DAOKY+kfPAgAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8d66b6a96ad219e3-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 22 Oct 2024 04:23:42 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=TwJWv0VlFgYhSrHloW8LdJ6JUNJWbQ9nkeRO3_WDNVU-1729571022-1.0.1.1-NvYdRul3AN.8E0RonkQqN1EYZ63N75lmFZwCtTThtEFA7TlZd4qTQuFWhhY1nqk2gCPiNUiLS7VGYB1sUpkHsg;
+        path=/; expires=Tue, 22-Oct-24 04:53:42 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=byA2EoT_oWDpk4tFKSXrkcOdDKdykmZORW7YjDB4dhg-1729571022845-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '438'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999323'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_827abd219d27dfb125b0af8ee2cb37da
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"content": "Your task is to judge the faithfulness of a
+      series of statements based on a given context. For each statement you must return
+      verdict as 1 if the statement can be directly inferred based on the context
+      or 0 if the statement can not be directly inferred based on the context.\n\nThe
+      output should be a well-formatted JSON instance that conforms to the JSON schema
+      below.\n\nAs an example, for the schema {\"properties\": {\"foo\": {\"title\":
+      \"Foo\", \"description\": \"a list of strings\", \"type\": \"array\", \"items\":
+      {\"type\": \"string\"}}}, \"required\": [\"foo\"]}\nthe object {\"foo\": [\"bar\",
+      \"baz\"]} is a well-formatted instance of the schema. The object {\"properties\":
+      {\"foo\": [\"bar\", \"baz\"]}} is not well-formatted.\n\nHere is the output
+      JSON schema:\n```\n{\"type\": \"array\", \"items\": {\"$ref\": \"#/definitions/StatementFaithfulnessAnswer\"},
+      \"definitions\": {\"StatementFaithfulnessAnswer\": {\"title\": \"StatementFaithfulnessAnswer\",
+      \"type\": \"object\", \"properties\": {\"statement\": {\"title\": \"Statement\",
+      \"description\": \"the original statement, word-by-word\", \"type\": \"string\"},
+      \"reason\": {\"title\": \"Reason\", \"description\": \"the reason of the verdict\",
+      \"type\": \"string\"}, \"verdict\": {\"title\": \"Verdict\", \"description\":
+      \"the verdict(0/1) of the faithfulness.\", \"type\": \"integer\"}}, \"required\":
+      [\"statement\", \"reason\", \"verdict\"]}}}\n```\n\nDo not return any preamble
+      or explanations, return only a pure JSON string surrounded by triple backticks
+      (```).\n\nExamples:\n\ncontext: \"John is a student at XYZ University. He is
+      pursuing a degree in Computer Science. He is enrolled in several courses this
+      semester, including Data Structures, Algorithms, and Database Management. John
+      is a diligent student and spends a significant amount of time studying and completing
+      assignments. He often stays late in the library to work on his projects.\"\nstatements:
+      ```[\"John is majoring in Biology.\", \"John is taking a course on Artificial
+      Intelligence.\", \"John is a dedicated student.\", \"John has a part-time job.\"]```\nanswer:
+      ```[{\"statement\": \"John is majoring in Biology.\", \"reason\": \"John''s
+      major is explicitly mentioned as Computer Science. There is no information suggesting
+      he is majoring in Biology.\", \"verdict\": 0}, {\"statement\": \"John is taking
+      a course on Artificial Intelligence.\", \"reason\": \"The context mentions the
+      courses John is currently enrolled in, and Artificial Intelligence is not mentioned.
+      Therefore, it cannot be deduced that John is taking a course on AI.\", \"verdict\":
+      0}, {\"statement\": \"John is a dedicated student.\", \"reason\": \"The context
+      states that he spends a significant amount of time studying and completing assignments.
+      Additionally, it mentions that he often stays late in the library to work on
+      his projects, which implies dedication.\", \"verdict\": 1}, {\"statement\":
+      \"John has a part-time job.\", \"reason\": \"There is no information given in
+      the context about John having a part-time job.\", \"verdict\": 0}]```\n\ncontext:
+      \"Photosynthesis is a process used by plants, algae, and certain bacteria to
+      convert light energy into chemical energy.\"\nstatements: ```[\"Albert Einstein
+      was a genius.\"]```\nanswer: ```[{\"statement\": \"Albert Einstein was a genius.\",
+      \"reason\": \"The context and statement are unrelated\", \"verdict\": 0}]```\n\nYour
+      actual task:\n\ncontext: \"The capital of France is Paris.\"\nstatements: \"[\\\"The
+      capital of France is Paris.\\\"]\"\nanswer: \n", "role": "user"}], "model":
+      "gpt-4o-mini", "n": 1, "stream": false, "temperature": 1e-08}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3661'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=TwJWv0VlFgYhSrHloW8LdJ6JUNJWbQ9nkeRO3_WDNVU-1729571022-1.0.1.1-NvYdRul3AN.8E0RonkQqN1EYZ63N75lmFZwCtTThtEFA7TlZd4qTQuFWhhY1nqk2gCPiNUiLS7VGYB1sUpkHsg;
+        _cfuvid=byA2EoT_oWDpk4tFKSXrkcOdDKdykmZORW7YjDB4dhg-1729571022845-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.52.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.52.0
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA2xSwY7TMBC95ytGc25WaVpItzcQAiEhgRAcYLtqXGfSDDi2ZU9Xu6r678hptina
+        vfjw3rznN88+ZgDIDa4BdadE997k774UbL6vrK/eLj//9Px++ZV/uw+fnorq1wJnSeF2f0jLs+pG
+        u94bEnb2TOtASii5zqvy9k01L8rFQPSuIZNkey/50uU9W87LolzmRZXPV6O6c6wp4hruMgCA43Cm
+        nLahR1xDMXtGeopR7QnXlyEADM4kBFWMHEVZwdlEameF7BC9ruu74wajKKGerGxwDRv80RFo5VmU
+        AdfCx6CsJuAI31TgeLPBGWwwkIrOToKLRxpU0HAgLRDIk3CqJTlJR8C2daFXA+SDe+CGGmA7cEOy
+        RxlveKDQsB4yzU/3dV1fLxGoPUSVirQHY0b8dGnFuL0PbhdH/oK3bDl223P41EAU53FgTxnA/dD+
+        4b9C0QfXe9mK+0s2GVbV6uyH06NP7OJ2JMWJMhO+mlezV/y2DYliE6/eD7XSHTWTtMiulnt56WsW
+        5wXZ7l+4ZKMTxqco1G9btnsKPvD5R7R+u1yVuixVtdOYnbJ/AAAA//8DACNMKfQfAwAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8d66b6ad2c5b19e3-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 22 Oct 2024 04:23:43 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '657'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999151'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_3d0cc9525b0b534b946cedb75b3904b7
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"span_id":
+      "2937446749154480568", "trace_id": "671728ce0000000026b8700bb23f78e1", "label":
+      "ragas_faithfulness", "metric_type": "score", "timestamp_ms": 1729571023600,
+      "score_value": 1.0, "ml_app": "unnamed-ml-app", "tags": ["ddtrace.version:2.15.0.dev219+ge047e25bb.d20241022",
+      "ml_app:unnamed-ml-app"]}]}}}'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric
+  response:
+    body:
+      string: '{"data":{"id":"777f52ef-c83e-4be9-930f-ea63b8bd5080","type":"evaluation_metric","attributes":{"metrics":[{"id":"2x42DOBhXP","trace_id":"671728ce0000000026b8700bb23f78e1","span_id":"2937446749154480568","timestamp_ms":1729571023600,"ml_app":"unnamed-ml-app","metric_type":"score","label":"ragas_faithfulness","score_value":1,"tags":["ddtrace.version:2.15.0.dev219+ge047e25bb.d20241022","ml_app:unnamed-ml-app"]}]}}}'
+    headers:
+      content-length:
+      - '414'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Tue, 22 Oct 2024 04:23:44 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+version: 1
