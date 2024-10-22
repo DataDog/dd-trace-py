@@ -158,6 +158,9 @@ class LLMObs(Service):
     def _stop_service(self) -> None:
         try:
             self._evaluator_runner.stop()
+            # flush remaining evaluation spans & evaluations
+            self._instance._llmobs_span_writer.periodic()
+            self._instance._llmobs_eval_metric_writer.periodic()
         except ServiceStatusError:
             log.debug("Error stopping evaluator runner")
 

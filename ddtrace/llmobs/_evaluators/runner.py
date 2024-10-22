@@ -72,9 +72,6 @@ class EvaluatorRunner(PeriodicService):
         """
         self.periodic(_wait_sync=True)
         self.executor.shutdown(wait=True)
-        # flush remaining evaluation spans & evaluations
-        self.llmobs_service._instance._llmobs_span_writer.periodic()
-        self.llmobs_service._instance._llmobs_eval_metric_writer.periodic()
 
     def recreate(self) -> "EvaluatorRunner":
         return self.__class__(
