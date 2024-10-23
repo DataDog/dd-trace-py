@@ -48,6 +48,8 @@ class EndpointCallCounterProcessor(SpanProcessor):
                 self.endpoint_to_span_ids[resource].append(span_id)
 
     def reset(self) -> typing.Tuple[EndpointCountsType, typing.Dict[str, typing.List[int]]]:
+        if not self._enabled:
+            return {}, {}
         with self._endpoint_counts_lock:
             counts = self.endpoint_counts
             self.endpoint_counts = {}

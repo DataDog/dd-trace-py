@@ -179,6 +179,7 @@ def endpoint_test_unknown_server():
 
 def _get_span_processor():
     endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
+    endpoint_call_counter_span_processor.enable()
     endpoint_call_counter_span_processor.endpoint_counts = _ENDPOINT_COUNTS
     return endpoint_call_counter_span_processor
 
