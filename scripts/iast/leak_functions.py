@@ -47,7 +47,7 @@ def _pre_checks(module, aspect_to_check="add_aspect"):
 
 @pytest.mark.asyncio
 async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
-    mem_reference_iterations = 45000
+    mem_reference_iterations = 50000
     if iterations < mem_reference_iterations:
         print(
             "Error: not running with %d iterations. At least 60.000 are needed to stabilize the RSS info" % iterations
