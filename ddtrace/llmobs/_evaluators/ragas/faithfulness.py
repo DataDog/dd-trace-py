@@ -100,9 +100,12 @@ class RagasFaithfulnessEvaluator:
 
         telemetry_writer.add_count_metric(
             namespace="llmobs",
-            name="evaluators.{}.init".format(self.LABEL),
+            name="evaluators.init",
             value=1,
-            tags=(("state", "ok" if self.ragas_dependencies_present else "error"),),
+            tags=(
+                ("evaluator_label", self.LABEL),
+                ("state", "ok" if self.ragas_dependencies_present else "error"),
+            ),
         )
         if not self.ragas_dependencies_present:
             return
