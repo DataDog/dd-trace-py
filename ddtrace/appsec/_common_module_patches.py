@@ -52,10 +52,10 @@ def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs
     """
     result = original_read_callable(*args, **kwargs)
     if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-        from ddtrace.appsec._iast._taint_tracking import Source
         from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import Source
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
         ranges = get_tainted_ranges(instance)
         if len(ranges) > 0:
