@@ -1117,14 +1117,10 @@ def snapshot_context(
             # "received unmatched traces" can sometimes happen
             else:
                 pytest.xfail(result)
-    except Exception as e:
-        # Even though it's unlikely any traces have been sent, make the
-        # final request to the test agent so that the test case is finished.
+    finally:
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         conn.getresponse()
-        pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
-    finally:
         conn.close()
 
 

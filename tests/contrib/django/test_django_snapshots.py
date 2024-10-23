@@ -49,25 +49,36 @@ def daphne_client(django_asgi, additional_env=None):
         str(SERVER_PORT),
         "tests.contrib.django.asgi:%s" % django_asgi,
     ]
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=True,
-        env=env,
-    )
 
+    subprocess_kwargs = {
+        "env": env,
+        "start_new_session": True,
+        "stdout": sys.stdout,
+        "stderr": sys.stderr,
+    }
+
+    server_process = subprocess.Popen(cmd, **subprocess_kwargs)
     client = Client("http://localhost:%d" % SERVER_PORT)
 
     # Wait for the server to start up
-    client.wait()
+    try:
+        print("Waiting for server to start")
+        client.wait(max_tries=120, delay=0.1, initial_wait=1.0)
+        print("Server started")
+    except Exception:
+        raise AssertionError(
+            "Server failed to start, see stdout and stderr logs"
+            "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+            "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+            % (server_process.stdout, server_process.stderr)
+        )
 
     try:
-        yield (client, proc)
+        yield (client, server_process)
     finally:
         resp = client.get_ignored("/shutdown-tracer")
         assert resp.status_code == 200
-        proc.terminate()
+        server_process.terminate()
 
 
 @flaky(1735812000)
