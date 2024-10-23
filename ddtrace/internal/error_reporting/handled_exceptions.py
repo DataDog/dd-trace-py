@@ -1,4 +1,5 @@
 import sys
+import types
 import traceback
 import ddtrace
 
@@ -12,7 +13,8 @@ if sys.version_info >= (3, 11):  # and sys.version_info < (3, 12):
     from ddtrace.internal.error_reporting.handled_exceptions_py3_11 import _inject_handled_exception_reporting  # noqa
     inject_handled_exception_reporting = _inject_handled_exception_reporting
 
-ENABLED_PACKAGES = ['mypack', 'django', 'saleor']
+ENABLED_PACKAGES = ['mypack', 'django', 'saleor', 'polls']
+INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, type)
 
 
 class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
@@ -30,33 +32,27 @@ def instrument_module(module_name: str):
 
     mod = sys.modules[module_name]
     names = dir(mod)
+
     for name in names:
         obj = mod.__dict__[name]
-        if hasattr(obj, '__code__'):
-            # simple functions
-            inject_handled_exception_reporting(obj)
-        elif isinstance(obj, type):
-            _instrument_class(obj)
+        if type(obj) in INSTRUMENTABLE_TYPES \
+                and obj.__module__ == module_name \
+                and not name.startswith('__'):
+            _instrument_obj(obj)
 
 
-def _instrument_class(cls: type):
-    if inject_handled_exception_reporting is None:
-        return
-
-    # methods in classes
-    for potential_method_name in dir(cls):
-        try:
-            potential_method = getattr(cls, potential_method_name)
-            if type(potential_method) is type:
-                _instrument_class(potential_method)
-            elif hasattr(potential_method, '__code__'):
-                inject_handled_exception_reporting(potential_method)
-        except:
-            pass
+def _instrument_obj(obj):
+    if type(obj) in (types.FunctionType, types.MethodType):
+        # simple functions
+        inject_handled_exception_reporting(obj)  # type: ignore
+    elif type(obj) is type:
+        # classes
+        for candidate in dir(obj):
+            if type(obj) in (types.FunctionType, types.MethodType, type):
+                _instrument_obj(candidate)
 
 
 def _default_datadog_exc_callback():
-    print('exception....')
     exc = sys.exception()
     if not exc:
         return
