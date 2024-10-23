@@ -221,9 +221,8 @@ def finalize_asm_env(env: ASM_Environment) -> None:
         info = env.waf_info()
         try:
             if info.errors:
-                errors = json.dumps(info.errors)
-                env.span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, errors)
-                log.debug("Error in ASM In-App WAF: %s", errors)
+                env.span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                log.debug("Error in ASM In-App WAF: %s", info.errors)
             env.span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
             env.span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
             env.span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)

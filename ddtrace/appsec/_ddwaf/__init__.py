@@ -1,4 +1,5 @@
 import ctypes
+import json
 import time
 from typing import Any
 from typing import Dict
@@ -77,7 +78,7 @@ class DDWaf_result(object):
 class DDWaf_info(object):
     __slots__ = ["loaded", "failed", "errors", "version"]
 
-    def __init__(self, loaded: int, failed: int, errors: Dict[str, Any], version: str):
+    def __init__(self, loaded: int, failed: int, errors: str, version: str):
         self.loaded = loaded
         self.failed = failed
         self.errors = errors
@@ -87,7 +88,7 @@ class DDWaf_info(object):
         return "{loaded: %d, failed: %d, errors: %s, version: %s}" % (
             self.loaded,
             self.failed,
-            str(self.errors),
+            self.errors,
             self.version,
         )
 
@@ -126,12 +127,17 @@ if _DDWAF_LOADED:
             return py_ddwaf_known_addresses(self._handle) if self._handle else []
 
         def _set_info(self, diagnostics: ddwaf_object) -> None:
-            info_struct = diagnostics.struct
-            rules = info_struct.get("rules", {}) if info_struct else {}  # type: ignore
+            info_struct: dict[str, Any] = diagnostics.struct or {}  # type: ignore
+            rules = info_struct.get("rules", {})
             errors_result = rules.get("errors", {})
-            version = info_struct.get("ruleset_version", self._cached_version) if info_struct else self._cached_version  # type: ignore
+            version = info_struct.get("ruleset_version", self._cached_version)
             self._cached_version = version
-            self._info = DDWaf_info(len(rules.get("loaded", [])), len(rules.get("failed", [])), errors_result, version)
+            self._info = DDWaf_info(
+                len(rules.get("loaded", [])),
+                len(rules.get("failed", [])),
+                json.dumps(errors_result, separators=(",", ":")) if errors_result else "",
+                version,
+            )
             ddwaf_object_free(diagnostics)
 
         @property
@@ -204,7 +210,7 @@ else:
     # Mockup of the DDWaf class doing nothing
     class DDWaf(object):  # type: ignore
         required_data: List[str] = []
-        info: DDWaf_info = DDWaf_info(0, 0, {}, "")
+        info: DDWaf_info = DDWaf_info(0, 0, "", "")
 
         def __init__(
             self,

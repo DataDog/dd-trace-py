@@ -533,41 +533,6 @@ def test_ddwaf_info_with_3_errors():
         assert info.errors == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
 
 
-def test_ddwaf_info_with_json_decode_errors(tracer, caplog):
-    config = rules.Config()
-    config.http_tag_query_string = True
-
-    with caplog.at_level(logging.WARNING), mock.patch(
-        "ddtrace.appsec._processor.json.dumps", side_effect=JSONDecodeError("error", "error", 0)
-    ), mock.patch.object(DDWaf, "info"):
-        with asm_context(tracer=tracer, config=config_asm) as span:
-            set_http_meta(
-                span,
-                config,
-                method="PATCH",
-                url="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
-                status_code="200",
-                raw_uri="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
-                request_headers={
-                    "host": "localhost",
-                    "user-agent": "aa",
-                    "content-length": "73",
-                },
-                response_headers={
-                    "content-length": "501",
-                    "x-ratelimit-remaining": "363",
-                    "x-ratelimit-name": "role_api",
-                    "x-ratelimit-limit": "500",
-                    "x-ratelimit-period": "60",
-                    "content-type": "application/json",
-                    "x-ratelimit-reset": "16",
-                },
-                request_body={"_authentication_token": "2b0297348221f294de3a047e2ecf1235abb866b6"},
-            )
-
-    assert "Error parsing data ASM In-App WAF metrics report" in caplog.text
-
-
 def test_ddwaf_run_contained_typeerror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
