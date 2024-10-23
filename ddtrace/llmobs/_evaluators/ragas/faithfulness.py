@@ -94,7 +94,6 @@ class RagasFaithfulnessEvaluator:
         on this instance, it will be set to the default `llm_factory()` which uses openai.
 
         :param llmobs_service: An instance of the LLM Observability service used for tracing the evaluation and
-                          cccccbgfdveevingkfhkkbevjvchlltguucbbjvtrgbk
                                       submitting evaluation metrics.
         """
         self.ragas_dependencies_present = RAGAS_DEPENDENCIES_PRESENT
