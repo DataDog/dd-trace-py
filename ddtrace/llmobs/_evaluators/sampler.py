@@ -104,7 +104,7 @@ class EvaluatorRunnerSampler:
             evaluator_label = rule.get(EvaluatorRunnerSamplingRule.EVALUATOR_LABEL_KEY, SamplingRule.NO_RULE)
             telemetry_writer.add_distribution_metric(
                 "llmobs",
-                "evaluator_sampler.rule_sample_rate",
+                "evaluators.rule_sample_rate",
                 sample_rate,
                 tags=(("evaluator_label", evaluator_label), ("span_name", span_name)),
             )
