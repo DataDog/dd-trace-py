@@ -1,17 +1,24 @@
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import sys
-from typing import Dict
+
 
 IAST_ENABLED = {"iast_enabled": True}
 IAST_DISABLED = {"iast_enabled": False}
-IAST_UNSET = {}  # type: Dict[str, bool]
+IAST_UNSET = {}
 
 
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         # Define the response payload (fixed JSON response)
-        response = self.server.canned_response
+        path = self.path[:-1] if self.path.endswith("/") else self.path
+        if path.endswith("IAST_ENABLED"):
+            response = IAST_ENABLED
+        elif path.endswith("IAST_DISABLED"):
+            response = IAST_DISABLED
+        else:
+            response = IAST_UNSET
 
         # Send response status code
         self.send_response(200)
@@ -24,25 +31,12 @@ class SimpleHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(response).encode("utf-8"))
 
 
-class CustomHTTPServer(HTTPServer):
-    def __init__(self, server_address, RequestHandlerClass, canned_response):
-        super().__init__(server_address, RequestHandlerClass)
-        self.canned_response = canned_response
-
-
 # Start the server
 if __name__ == "__main__":
-    # Get mode from CLI args
-    last_arg = sys.argv[-1]
-    if last_arg == "IAST_ENABLED":
-        MODE = IAST_ENABLED
-    elif last_arg == "IAST_DISABLED":
-        MODE = IAST_DISABLED
-    elif last_arg == "IAST_UNSET":
-        MODE = IAST_UNSET
-    else:
-        raise ValueError(f"Unknown mode: {last_arg}")
-
-    server_address = ("", 9090)  # Listen on port 9090
-    httpd = CustomHTTPServer(server_address, SimpleHandler, canned_response=MODE)
+    try:
+        SERVER_PORT = int(sys.argv[-1])
+    except Exception:
+        SERVER_PORT = 9596
+    server_address = ("", SERVER_PORT)
+    httpd = HTTPServer(server_address, SimpleHandler)
     httpd.serve_forever()

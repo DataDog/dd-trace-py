@@ -5,16 +5,16 @@ It takes precedence over environment variables and configuration files.
 """
 import json
 import os
-
-import urllib3
+from urllib import parse
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.http import connector
+
 
 log = get_logger(__name__)
 
 
 def fetch_config_from_endpoint() -> dict:
-    # return {"iast_enabled": True}
     """
     Fetch the configuration from the configuration endpoint.
     """
@@ -25,12 +25,20 @@ def fetch_config_from_endpoint() -> dict:
         return {}
 
     try:
-        http = urllib3.PoolManager()
-        response = http.request("GET", config_endpoint)
-        log.debug("Fetched configuration from endpoint: %s", response.data)
-        return json.loads(response.data)
+        parsed_url = parse.urlparse(config_endpoint)
+        connect = connector(config_endpoint)
+        with connect() as conn:
+            conn.request("GET", parsed_url.path or "/")
+            response = conn.getresponse()
+            if not (200 <= response.status < 300):
+                log.error("Failed to fetch configuration from endpoint: %s", response.read())
+                return {}
 
-    except (urllib3.exceptions.HTTPError, json.JSONDecodeError, Exception) as exc:
+            data = response.read().decode("utf-8")
+            log.debug("Fetched configuration from endpoint: %s", data)
+            return json.loads(data)
+
+    except (json.JSONDecodeError, Exception) as exc:
         log.error("Failed to fetch configuration from endpoint: %s", exc)
 
     return {}

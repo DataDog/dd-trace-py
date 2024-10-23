@@ -5,17 +5,6 @@ import subprocess
 import pytest
 
 
-def _run_http_config_server(iast_value):
-    current_dir = os.path.dirname(__file__)
-    cmd = [
-        "python",
-        os.path.join(current_dir, "fixtures", "integration", "http_config_server.py"),
-        iast_value,
-    ]
-    process = subprocess.Popen(cmd, cwd=current_dir)
-    return process
-
-
 def _run_python_file(*args, **kwargs):
     current_dir = os.path.dirname(__file__)
     cmd = []
@@ -61,57 +50,44 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     assert "IAST enabled" not in captured.err
 
 
-def test_env_var_iast_unset__endpoint_enabled(monkeypatch, capfd):
-    # type: (...) -> None
+@pytest.mark.parametrize(
+    "env_vars",
+    [
+        {"DD_IAST_ENABLED": "true"},
+        {"DD_IAST_ENABLED": "true", "DD_CONFIG_ENDPOINT": "http://localhost:9596/"},
+        {"DD_IAST_ENABLED": "false", "DD_CONFIG_ENDPOINT": "http://localhost:9596/IAST_ENABLED"},
+        {"DD_CONFIG_ENDPOINT": "http://localhost:9596/IAST_ENABLED"},
+    ],
+)
+def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_vars):
     env = os.environ.copy()
-    env["DD_CONFIG_ENDPOINT"] = "http://localhost:9090/"
-    endpoint_process = _run_http_config_server("IAST_ENABLED")
+    for k, v in env_vars.items():
+        env[k] = v
     _run_python_file(env=env)
-    endpoint_process.kill()
     captured = capfd.readouterr()
-    assert "IAST enabled" in captured.err
     assert "hi" in captured.out
-
-
-def test_env_var_iast_enabled__endpoint_unset(capfd):
-    # type: (...) -> None
-    env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = "true"
-    env["DD_CONFIG_ENDPOINT"] = "http://localhost:9090/"
-    endpoint_process = _run_http_config_server("IAST_UNSET")
-    _run_python_file(env=env)
-    endpoint_process.kill()
-
-    captured = capfd.readouterr()
     assert "IAST enabled" in captured.err
-    assert "hi" in captured.out
 
 
-def test_env_var_iast_enabled__endpoint_disabled(capfd):
-    # type: (...) -> None
+@pytest.mark.parametrize(
+    "env_vars",
+    [
+        {},
+        {"DD_IAST_ENABLED": "false"},
+        {"DD_IAST_ENABLED": "true", "DD_CONFIG_ENDPOINT": "http://localhost:9596/IAST_DISABLED"},
+        {"DD_IAST_ENABLED": "false", "DD_CONFIG_ENDPOINT": "http://localhost:9596/"},
+        {"DD_CONFIG_ENDPOINT": "http://localhost:9596/IAST_DISABLED"},
+        {"DD_CONFIG_ENDPOINT": "http://localhost:9596/"},
+    ],
+)
+def test_env_var_iast_disabled_parametrized(capfd, configuration_endpoint, env_vars):
     env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = "true"
-    env["DD_CONFIG_ENDPOINT"] = "http://localhost:9090/"
-    endpoint_process = _run_http_config_server("IAST_DISABLED")
+    for k, v in env_vars.items():
+        env[k] = v
     _run_python_file(env=env)
-    endpoint_process.kill()
-
     captured = capfd.readouterr()
     assert "hi" in captured.out
     assert "IAST enabled" not in captured.err
-
-
-def test_env_var_iast_disabled__endpoint_enabled(monkeypatch, capfd):
-    # type: (...) -> None
-    env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = "false"
-    env["DD_CONFIG_ENDPOINT"] = "http://localhost:9090/"
-    endpoint_process = _run_http_config_server("IAST_ENABLED")
-    _run_python_file(env=env)
-    endpoint_process.kill()
-    captured = capfd.readouterr()
-    assert "IAST enabled" in captured.err
-    assert "hi" in captured.out
 
 
 @pytest.mark.subprocess(

@@ -37,9 +37,9 @@ from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from ._core import get_config as _get_config
 from ._otel_remapper import otel_remapping as _otel_remapping
+from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
-from .endpoint_config import fetch_config_from_endpoint
 
 
 if sys.version_info >= (3, 8):

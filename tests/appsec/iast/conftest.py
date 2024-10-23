@@ -1,5 +1,7 @@
 import logging
+import os
 import re
+import subprocess
 
 import pytest
 
@@ -148,3 +150,16 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
         # TODO(avara1986): iast tests throw a timeout in gitlab
         #   list_metrics_logs = list(telemetry_writer._logs)
         #   assert len(list_metrics_logs) == 0
+
+
+@pytest.fixture(scope="session")
+def configuration_endpoint():
+    current_dir = os.path.dirname(__file__)
+    cmd = [
+        "python",
+        os.path.join(current_dir, "fixtures", "integration", "http_config_server.py"),
+        "9596",
+    ]
+    process = subprocess.Popen(cmd, cwd=current_dir)
+    yield
+    process.kill()
