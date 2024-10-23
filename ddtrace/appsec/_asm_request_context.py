@@ -26,6 +26,7 @@ from ddtrace.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:
+    from ddtrace.appsec._ddwaf import DDWaf_info
     from ddtrace.appsec._ddwaf import DDWaf_result
 
 log = get_logger(__name__)
@@ -69,6 +70,7 @@ class ASM_Environment:
             log.debug("ASM context created without an available span")
             context_span = tracer.trace("asm.context")
         self.span: Span = context_span
+        self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
         self.waf_addresses: Dict[str, Any] = {}
         self.callbacks: Dict[str, Any] = {_CONTEXT_CALL: []}
         self.telemetry: Dict[str, Any] = {
@@ -215,6 +217,19 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     for function in callbacks:
         function(env)
     flush_waf_triggers(env)
+    if env.waf_info:
+        info = env.waf_info()
+        try:
+            if info.errors:
+                errors = json.dumps(info.errors)
+                env.span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, errors)
+                log.debug("Error in ASM In-App WAF: %s", errors)
+            env.span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+            env.span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
+            env.span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
+        except Exception:
+            log.debug("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
+
     core.discard_local_item(_ASM_CONTEXT)
 
 
@@ -297,6 +312,14 @@ def remove_context_callback(function, global_callback: bool = False) -> None:
 
 def set_waf_callback(value) -> None:
     set_value(_CALLBACKS, _WAF_CALL, value)
+
+
+def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
+    env = _get_asm_context()
+    if env is None:
+        log.debug("setting waf info with no active asm context")
+        return
+    env.waf_info = info
 
 
 def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional["DDWaf_result"]:
