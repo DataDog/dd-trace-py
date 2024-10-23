@@ -16,7 +16,6 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -58,13 +57,17 @@ class ASM_Environment:
     """
 
     def __init__(self, span: Optional[Span] = None):
+        from ddtrace import tracer
+
         self.root = not in_asm_context()
         if self.root:
             core.add_suppress_exception(BlockingException)
-        if span is None:
-            self.span: Span = core.get_item(core.get_item("call_key"))
-        else:
-            self.span = span
+        # add several layers of fallbacks to get a span, but normal span should be the first or the second one
+        context_span = span or core.get_span() or tracer.current_span()
+        if context_span is None:
+            log.debug("ASM context created without an available span")
+            context_span = tracer.trace("asm.context")
+        self.span: Span = context_span
         self.waf_addresses: Dict[str, Any] = {}
         self.callbacks: Dict[str, Any] = {_CONTEXT_CALL: []}
         self.telemetry: Dict[str, Any] = {
@@ -157,8 +160,6 @@ def set_blocked(blocked: Dict[str, Any]) -> None:
         return
     _ctype_from_headers(blocked, get_headers())
     env.blocked = blocked
-    # DEV: legacy code, to be removed
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, True, span=env.span)
 
 
 def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None:
@@ -506,9 +507,9 @@ def _on_set_request_tags(request, span, flask_config):
 
 
 def _on_pre_tracedrequest(ctx):
-    _on_set_request_tags(ctx.get_item("flask_request"), ctx["call"], ctx.get_item("flask_config"))
+    current_span = ctx.span
+    _on_set_request_tags(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
-    current_span = ctx["call"]
     if asm_config._asm_enabled:
         set_block_request_callable(functools.partial(block_request_callable, current_span))
         if get_blocked():
