@@ -1,10 +1,13 @@
 import json
 import math
+import traceback
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 
@@ -12,7 +15,7 @@ from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 logger = get_logger(__name__)
 
 RAGAS_DEPENDENCIES_PRESENT = False
-_ragas_import_error_telemetry_log = ""
+
 try:
     import ragas
 
@@ -31,7 +34,11 @@ try:
 
     RAGAS_DEPENDENCIES_PRESENT = True
 except Exception as e:
-    _ragas_import_error_telemetry_log = str(e)
+    telemetry_writer.add_log(
+        level=TELEMETRY_LOG_LEVEL.ERROR,
+        message="Failed to import Ragas dependencies",
+        stack_trace=traceback.format_exc(),
+    )
     logger.warning("Failed to import Ragas dependencies, not enabling ragas_faithfulness evaluator", exc_info=e)
 
 
@@ -91,10 +98,12 @@ class RagasFaithfulnessEvaluator:
                                       submitting evaluation metrics.
         """
         self.ragas_dependencies_present = RAGAS_DEPENDENCIES_PRESENT
-        telemetry_writer.add_integration(
-            "ragas_faithfulness",
-            patched=self.ragas_dependencies_present,
-            error_msg=_ragas_import_error_telemetry_log if not self.ragas_dependencies_present else None,
+
+        telemetry_writer.add_count_metric(
+            namespace="llmobs",
+            name="evaluators.{}.init".format(self.LABEL),
+            value=1,
+            tags=(("state", "ok" if self.ragas_dependencies_present else "error"),),
         )
         if not self.ragas_dependencies_present:
             return
@@ -113,29 +122,31 @@ class RagasFaithfulnessEvaluator:
     def run_and_submit_evaluation(self, span_event: dict):
         if not span_event:
             return
-        score_result = self.evaluate(span_event)
+        score_result_or_failure = self.evaluate(span_event)
         telemetry_writer.add_count_metric(
             "llmobs",
-            "evaluators.ragas_faithfulness_run",
+            "evaluators.{}.run".format(self.LABEL),
             1,
-            tags=(("success", "true" if score_result is not None else "false"),),
+            tags=(("state", score_result_or_failure if isinstance(score_result_or_failure, str) else "success"),),
         )
-        if score_result is not None:
+        if isinstance(score_result_or_failure, float):
             self.llmobs_service.submit_evaluation(
                 span_context={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
                 label=RagasFaithfulnessEvaluator.LABEL,
                 metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
-                value=score_result,
+                value=score_result_or_failure,
             )
 
-    def evaluate(self, span_event: dict) -> Optional[float]:
+    def evaluate(self, span_event: dict) -> Union[float, str]:
         """
-        Performs a faithfulness evaluation on a span event, returning the faithfulness score.
+        Performs a faithfulness evaluation on a span event, returning either
+            - faithfulness score (float) OR
+            - failure reason (str)
         If the ragas faithfulness instance does not have `llm` set, we set `llm` using the `llm_factory()`
         method from ragas which defaults to openai's gpt-4o-turbo.
         """
         if not self.ragas_dependencies_present:
-            return None
+            return "fail_dependencies_not_present"
 
         self.ragas_faithfulness_instance = _get_faithfulness_instance()
 
@@ -150,7 +161,7 @@ class RagasFaithfulnessEvaluator:
                     logger.debug(
                         "Failed to extract question and context from span sampled for ragas_faithfulness evaluation"
                     )
-                    return None
+                    return "fail_extract_faithfulness_inputs"
 
                 question = faithfulness_inputs["question"]
                 answer = faithfulness_inputs["answer"]
@@ -159,17 +170,17 @@ class RagasFaithfulnessEvaluator:
                 statements = self._create_statements(question, answer)
                 if statements is None:
                     logger.debug("Failed to create statements from answer for `ragas_faithfulness` evaluator")
-                    return None
+                    return "statements_is_none"
 
                 faithfulness_list = self._create_verdicts(context, statements)
                 if faithfulness_list is None:
                     logger.debug("Failed to create faithfulness list `ragas_faithfulness` evaluator")
-                    return None
+                    return "statements_create_faithfulness_list"
 
                 score = self._compute_score(faithfulness_list)
                 if math.isnan(score):
                     logger.debug("Score computation returned NaN for `ragas_faithfulness` evaluator")
-                    return None
+                    return "statements_compute_score"
 
                 return score
             finally:
