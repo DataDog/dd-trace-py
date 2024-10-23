@@ -197,11 +197,7 @@ class RagasFaithfulnessEvaluator:
             if len(raw_nli_results.generations) == 0:
                 return None
 
-            reproducibility = (
-                self.ragas_faithfulness_instance._reproducibility
-                if hasattr(self.ragas_faithfulness_instance, "_reproducibility")
-                else 1
-            )
+            reproducibility = getattr(self.ragas_faithfulness_instance, "_reproducibility", 1)
 
             raw_nli_results_texts = [raw_nli_results.generations[0][i].text for i in range(reproducibility)]
 
@@ -217,10 +213,7 @@ class RagasFaithfulnessEvaluator:
                 return None
 
             # collapse multiple generations into a single faithfulness list
-            faithfulness_list = ensembler.from_discrete(
-                raw_faithfulness_list,
-                "verdict",
-            )
+            faithfulness_list = ensembler.from_discrete(raw_faithfulness_list, "verdict")
             try:
                 return StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
             except Exception as e:
