@@ -27,7 +27,9 @@ from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility.api import TestExcInfo
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
@@ -53,6 +55,12 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
 
+class _TestOutcome(t.NamedTuple):
+    status: t.Optional[TestStatus] = None
+    skip_reason: t.Optional[str] = None
+    exc_info: t.Optional[TestExcInfo] = None
+
+
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
@@ -70,11 +78,11 @@ def _handle_itr_should_skip(item, test_id) -> bool:
             # Marking the test as forced run also applies to its hierarchy
             InternalTest.mark_itr_forced_run(test_id)
             return False
-        else:
-            InternalTest.mark_itr_skipped(test_id)
-            # Marking the test as skipped by ITR so that it appears in pytest's output
-            item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
-            return True
+
+        InternalTest.mark_itr_skipped(test_id)
+        # Marking the test as skipped by ITR so that it appears in pytest's output
+        item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
+        return True
 
     return False
 
@@ -119,7 +127,7 @@ def _handle_coverage_dependencies(suite_id) -> None:
 def _disable_ci_visibility():
     try:
         disable_test_visibility()
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during disable_ci_visibility", exc_info=True)
 
 
@@ -134,7 +142,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
-        dd_config.test_visibility.itr_skipping_level = "suite"
+        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()
@@ -142,7 +150,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
                 workspace_path = Path.cwd().absolute()
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -159,7 +167,7 @@ def pytest_configure(config: pytest.Config) -> None:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
             _disable_ci_visibility()
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -185,7 +193,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.start()
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -231,7 +239,7 @@ def pytest_collection_finish(session) -> None:
 
     try:
         return _pytest_collection_finish(session)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during collection finish, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -297,7 +305,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
     try:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
 
     # Yield control back to pytest to run the test
@@ -305,12 +313,12 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
     try:
         return _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during post-test", exc_info=True)
         return
 
 
-def _pytest_runtest_makereport(item, call, outcome):
+def _process_outcome(item, call, outcome) -> _TestOutcome:
     result = outcome.get_result()
 
     test_id = _get_test_id_from_item(item)
@@ -321,7 +329,7 @@ def _pytest_runtest_makereport(item, call, outcome):
     # - it was skipped by ITR
     # - it was marked with skipif
     if InternalTest.is_finished(test_id):
-        return
+        return _TestOutcome()
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
@@ -338,7 +346,7 @@ def _pytest_runtest_makereport(item, call, outcome):
     # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
 
     if call.when != "teardown" and not (has_exception or result.failed):
-        return
+        return _TestOutcome()
 
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
     xfail_reason_tag = InternalTest.get_tag(test_id, XFAIL_REASON) if xfail else None
@@ -348,8 +356,8 @@ def _pytest_runtest_makereport(item, call, outcome):
     # that's why no XFAIL_REASON or test.RESULT tags will be added.
     if result.skipped:
         if InternalTest.was_skipped_by_itr(test_id):
-            # Items that were skipped by ITR already have their status set
-            return
+            # Items that were skipped by ITR already have their status and reason set
+            return _TestOutcome()
 
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
@@ -357,11 +365,9 @@ def _pytest_runtest_makereport(item, call, outcome):
                 InternalTest.set_tag(test_id, test.RESULT, test.Status.XFAIL.value)
                 if xfail_reason_tag is None:
                     InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
-                InternalTest.mark_pass(test_id)
-                return
+                return _TestOutcome(TestStatus.PASS)
 
-        InternalTest.mark_skip(test_id, _extract_reason(call))
-        return
+        return _TestOutcome(TestStatus.SKIP, _extract_reason(call))
 
     if result.passed:
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
@@ -370,24 +376,33 @@ def _pytest_runtest_makereport(item, call, outcome):
                 InternalTest.set_tag(test_id, XFAIL_REASON, "XFail")
             InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
 
-        InternalTest.mark_pass(test_id)
-        return
+        return _TestOutcome(TestStatus.PASS)
 
     if xfail and not has_skip_keyword and not item.config.option.runxfail:
         # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
         if xfail_reason_tag is None:
             InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
         InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
-        InternalTest.mark_fail(test_id)
-        return
+        return _TestOutcome(TestStatus.FAIL)
 
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 
-    InternalTest.mark_fail(test_id, exc_info)
+    return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
+
+
+def _pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo, outcome: pytest.TestReport) -> None:
+    test_id = _get_test_id_from_item(item)
+
+    test_outcome = _process_outcome(item, call, outcome)
+
+    if test_outcome.status is None and call.when != "teardown":
+        return
+
+    InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call) -> None:
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
     """Store outcome for tracing."""
     outcome: pytest.TestReport
     outcome = yield
@@ -430,7 +445,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     try:
         _pytest_sessionfinish(session, exitstatus)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during session finish", exc_info=True)
         # Try, again, to disable CI Visibility just in case
         _disable_ci_visibility()

@@ -53,7 +53,7 @@ sh scripts/iast/run_memory.sh"
 docker run --rm -it -v ${PWD}:/ddtrace python_311_debug /bin/bash -c "cd /ddtrace && source scripts/iast/.env && \
 valgrind --tool=memcheck --leak-check=full  --log-file=scripts/iast/valgrind_bench_overload.out --track-origins=yes \
 --suppressions=scripts/iast/valgrind-python.supp  --show-leak-kinds=all \
-python3.11 scripts/iast/test_leak_functions.py 100"
+python3.11 scripts/iast/leak_functions.py  --iterations 100"
 
 ##### Understanding results of memcheck
 
@@ -122,7 +122,7 @@ Pray to Linus Torvalds to understand the error ¯\_(ツ)_/¯
 Linux users have restriction with ptrace:
 
 ```
-Starting program: /home/alberto.vara/.pyenv/versions/3.8.13/envs/dd-trace-py-38/bin/python -m pytest tests/appsec
+Starting program: python -m pytest tests/appsec
 warning: Could not trace the inferior process.
 warning: ptrace: Operation not permitted
 During startup program exited with code 127.

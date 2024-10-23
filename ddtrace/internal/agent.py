@@ -4,8 +4,8 @@ import socket
 from typing import TypeVar
 from typing import Union
 
+from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings import _config as ddconfig
 
 from .http import HTTPConnection
 from .http import HTTPSConnection
@@ -44,15 +44,15 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    user_supplied_host = ddconfig._trace_agent_hostname is not None
-    user_supplied_port = ddconfig._trace_agent_port is not None
+    user_supplied_host = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
+    user_supplied_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
 
-    url = ddconfig._trace_agent_url
+    url = os.environ.get("DD_TRACE_AGENT_URL")
 
     if not url:
-        if user_supplied_host or user_supplied_port:
-            host = ddconfig._trace_agent_hostname or DEFAULT_HOSTNAME
-            port = ddconfig._trace_agent_port or DEFAULT_TRACE_PORT
+        if user_supplied_host is not None or user_supplied_port is not None:
+            host = user_supplied_host or DEFAULT_HOSTNAME
+            port = user_supplied_port or DEFAULT_TRACE_PORT
             if is_ipv6_hostname(host):
                 host = "[{}]".format(host)
             url = "http://%s:%s" % (host, port)
@@ -66,15 +66,14 @@ def get_trace_url():
 
 def get_stats_url():
     # type: () -> str
-    user_supplied_host = ddconfig._stats_agent_hostname is not None
-    user_supplied_port = ddconfig._stats_agent_port is not None
-
-    url = ddconfig._stats_agent_url
+    user_supplied_host = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
+    user_supplied_port = os.getenv("DD_DOGSTATSD_PORT")
+    url = os.getenv("DD_DOGSTATSD_URL")
 
     if not url:
-        if user_supplied_host or user_supplied_port:
-            port = ddconfig._stats_agent_port or DEFAULT_STATS_PORT
-            host = ddconfig._stats_agent_hostname or DEFAULT_HOSTNAME
+        if user_supplied_host is not None or user_supplied_port is not None:
+            port = user_supplied_port or DEFAULT_STATS_PORT
+            host = user_supplied_host or DEFAULT_HOSTNAME
             if is_ipv6_hostname(host):
                 host = "[{}]".format(host)
             url = "udp://{}:{}".format(host, port)
@@ -85,9 +84,10 @@ def get_stats_url():
     return url
 
 
-def info():
-    agent_url = get_trace_url()
-    _conn = get_connection(agent_url, timeout=ddconfig._agent_timeout_seconds)
+def info(url=None):
+    agent_url = get_trace_url() if url is None else url
+    timeout = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
+    _conn = get_connection(agent_url, timeout=timeout)
     try:
         _conn.request("GET", "info", headers={"content-type": "application/json"})
         resp = _conn.getresponse()

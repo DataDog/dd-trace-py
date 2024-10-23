@@ -51,26 +51,31 @@ tests/runtime                       @DataDog/apm-core-python
 tests/tracer                        @DataDog/apm-core-python
 
 # CI App and related
-ddtrace/contrib/coverage            @DataDog/ci-app-libraries
-ddtrace/contrib/pytest              @DataDog/ci-app-libraries
-ddtrace/contrib/pytest_bdd          @DataDog/ci-app-libraries
-ddtrace/contrib/unittest            @DataDog/ci-app-libraries
-tests/contrib/pytest                @DataDog/ci-app-libraries
-tests/contrib/pytest_bdd            @DataDog/ci-app-libraries
-tests/contrib/unittest_plugin       @DataDog/ci-app-libraries
-ddtrace/ext/ci.py                   @DataDog/ci-app-libraries
-ddtrace/ext/test_visibility         @DataDog/ci-app-libraries
-ddtrace/ext/test.py                 @DataDog/ci-app-libraries
-ddtrace/internal/ci_visibility      @DataDog/ci-app-libraries
-ddtrace/internal/test_visibility    @DataDog/ci-app-libraries
-ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
-ddtrace/internal/coverage           @DataDog/apm-core-python @datadog/ci-app-libraries
-tests/internal/test_codeowners.py   @datadog/ci-app-libraries
-tests/ci_visibility                 @DataDog/ci-app-libraries
-tests/coverage                      @DataDog/apm-core-python @DataDog/ci-app-libraries
-tests/tracer/test_ci.py             @DataDog/ci-app-libraries
-ddtrace/ext/git.py                  @DataDog/ci-app-libraries @DataDog/apm-core-python
-scripts/ci_visibility/*             @DataDog/ci-app-libraries
+ddtrace/contrib/asynctest                             @DataDog/ci-app-libraries
+ddtrace/contrib/coverage                              @DataDog/ci-app-libraries
+ddtrace/contrib/pytest                                @DataDog/ci-app-libraries
+ddtrace/contrib/pytest_bdd                            @DataDog/ci-app-libraries
+ddtrace/contrib/pytest_benchmark                      @DataDog/ci-app-libraries
+ddtrace/contrib/unittest                              @DataDog/ci-app-libraries
+tests/contrib/asynctest                               @DataDog/ci-app-libraries
+tests/contrib/pytest                                  @DataDog/ci-app-libraries
+tests/contrib/pytest_bdd                              @DataDog/ci-app-libraries
+tests/contrib/pytest_benchmark                        @DataDog/ci-app-libraries
+tests/contrib/unittest                                @DataDog/ci-app-libraries
+tests/integration/test_integration_civisibility.py    @DataDog/ci-app-libraries
+ddtrace/ext/ci.py                                     @DataDog/ci-app-libraries
+ddtrace/ext/test_visibility                           @DataDog/ci-app-libraries
+ddtrace/ext/test.py                                   @DataDog/ci-app-libraries
+ddtrace/internal/ci_visibility                        @DataDog/ci-app-libraries
+ddtrace/internal/test_visibility                      @DataDog/ci-app-libraries
+ddtrace/internal/codeowners.py                        @DataDog/apm-core-python @datadog/ci-app-libraries
+ddtrace/internal/coverage                             @DataDog/apm-core-python @datadog/ci-app-libraries
+tests/internal/test_codeowners.py                     @datadog/ci-app-libraries
+tests/ci_visibility                                   @DataDog/ci-app-libraries
+tests/coverage                                        @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
+ddtrace/ext/git.py                                    @DataDog/ci-app-libraries @DataDog/apm-core-python
+scripts/ci_visibility/*                               @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
@@ -114,7 +119,7 @@ ddtrace/profiling                   @DataDog/profiling-python
 ddtrace/settings/profiling.py       @DataDog/profiling-python
 ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
-tests/profiling-v2                  @DataDog/profiling-python
+tests/profiling_v2                  @DataDog/profiling-python
 .gitlab/tests/profiling.yml         @DataDog/profiling-python
 
 # MLObs

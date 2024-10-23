@@ -1,0 +1,4 @@
+line_width = 120
+autosort = True
+max_subargs_per_line: 3
+tab_size = 4

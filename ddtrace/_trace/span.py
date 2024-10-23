@@ -15,6 +15,9 @@ from typing import cast
 
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace._span_link import SpanLinkKind
+from ddtrace._trace._span_pointer import _SpanPointer
+from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
@@ -110,7 +113,7 @@ class Span(object):
         "duration_ns",
         # Internal attributes
         "_context",
-        "_local_root",
+        "_local_root_value",
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
@@ -195,15 +198,15 @@ class Span(object):
 
         self._context: Optional[Context] = context._with_span(self) if context else None
 
-        self._links: List[SpanLink] = []
+        self._links: List[Union[SpanLink, _SpanPointer]] = []
         if links:
             for new_link in links:
-                self._set_link_object(new_link)
+                self._set_link_or_append_pointer(new_link)
 
         self._events: List[SpanEvent] = []
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
-        self._local_root: Optional["Span"] = None
+        self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._store: Optional[Dict[str, Any]] = None
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
@@ -416,7 +419,7 @@ class Span(object):
     def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct
-        Currently it will only be exported with V3/V4 encoding
+        Currently it will only be exported with V4 encoding
         """
         self._meta_struct[key] = value
 
@@ -592,6 +595,23 @@ class Span(object):
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
         return self._context
 
+    @property
+    def _local_root(self) -> "Span":
+        if self._local_root_value is None:
+            return self
+        return self._local_root_value
+
+    @_local_root.setter
+    def _local_root(self, value: "Span") -> None:
+        if value is not self:
+            self._local_root_value = value
+        else:
+            self._local_root_value = None
+
+    @_local_root.deleter
+    def _local_root(self) -> None:
+        del self._local_root_value
+
     def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
@@ -621,7 +641,7 @@ class Span(object):
         if attributes is None:
             attributes = dict()
 
-        self._set_link_object(
+        self._set_link_or_append_pointer(
             SpanLink(
                 trace_id=trace_id,
                 span_id=span_id,
@@ -631,11 +651,28 @@ class Span(object):
             )
         )
 
-    def _set_link_object(self, link: SpanLink) -> None:
-        # We will be changing this behavior to allow certain kinds of span
-        # links to coexist in the _links list even if they have the same
-        # span_id. For now, we are basically reimplementing the old
-        # dictionary-like behavior.
+    def _add_span_pointer(
+        self,
+        pointer_kind: str,
+        pointer_direction: _SpanPointerDirection,
+        pointer_hash: str,
+        extra_attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        # This is a Private API for now.
+
+        self._set_link_or_append_pointer(
+            _SpanPointer(
+                pointer_kind=pointer_kind,
+                pointer_direction=pointer_direction,
+                pointer_hash=pointer_hash,
+                extra_attributes=extra_attributes,
+            )
+        )
+
+    def _set_link_or_append_pointer(self, link: Union[SpanLink, _SpanPointer]) -> None:
+        if link.kind == SpanLinkKind.SPAN_POINTER.value:
+            self._links.append(link)
+            return
 
         try:
             existing_link_idx_with_same_span_id = [link.span_id for link in self._links].index(link.span_id)

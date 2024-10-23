@@ -6,6 +6,7 @@ import sys
 
 from requests.exceptions import ConnectionError
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.vendor import psutil
@@ -31,6 +32,7 @@ def _build_env(env=None):
 @contextmanager
 def gunicorn_server(
     appsec_enabled="true",
+    iast_enabled="false",
     remote_configuration_enabled="true",
     tracer_enabled="true",
     appsec_standalone_enabled=None,
@@ -41,6 +43,7 @@ def gunicorn_server(
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
+        iast_enabled=iast_enabled,
         appsec_standalone_enabled=appsec_standalone_enabled,
         remote_configuration_enabled=remote_configuration_enabled,
         tracer_enabled=tracer_enabled,
@@ -102,11 +105,12 @@ def appsec_application_server(
         # being equivalent to `appsec_enabled and apm_tracing_enabled`
         env["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = appsec_standalone_enabled
     if iast_enabled is not None and iast_enabled != "false":
-        env["DD_IAST_ENABLED"] = iast_enabled
-        env["DD_IAST_REQUEST_SAMPLING"] = "100"
+        env[IAST.ENV] = iast_enabled
+        env[IAST.ENV_REQUEST_SAMPLING] = "100"
         env["_DD_APPSEC_DEDUPLICATION_ENABLED"] = "false"
         if assert_debug:
-            env["_DD_IAST_DEBUG"] = iast_enabled
+            env["_" + IAST.ENV_DEBUG] = iast_enabled
+            env["_" + IAST.ENV_PROPAGATION_DEBUG] = iast_enabled
             env["DD_TRACE_DEBUG"] = iast_enabled
     if tracer_enabled is not None:
         env["DD_TRACE_ENABLED"] = tracer_enabled

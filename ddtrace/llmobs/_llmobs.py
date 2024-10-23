@@ -10,9 +10,11 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
+from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal._rand import rand64bits
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -21,9 +23,11 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -39,12 +43,15 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
+from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
-from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
@@ -61,6 +68,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "bedrock": "botocore",
     "openai": "openai",
     "langchain": "langchain",
+    "google_generativeai": "google_generativeai",
 }
 
 
@@ -85,20 +93,51 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
-        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer)
+
+        self._evaluator_runner = EvaluatorRunner(
+            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
+            llmobs_service=self,
+        )
+
+        self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluator_runner)
         forksafe.register(self._child_after_fork)
+
+        self._annotations = []
+        self._annotation_context_lock = forksafe.RLock()
+        self.tracer.on_start_span(self._do_annotations)
+
+    def _do_annotations(self, span):
+        # get the current span context
+        # only do the annotations if it matches the context
+        if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
+            return
+        current_context = self._instance.tracer.current_trace_context()
+        current_context_id = current_context._get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+        with self._annotation_context_lock:
+            for _, context_id, annotation_kwargs in self._instance._annotations:
+                if current_context_id == context_id:
+                    self.annotate(span, **annotation_kwargs)
 
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
+        self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
+        self._evaluator_runner = self._evaluator_runner.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
+        self._trace_processor._evaluator_runner = self._evaluator_runner
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
             tracer_filters += [self._trace_processor]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
+            self._llmobs_eval_metric_writer.start()
         except ServiceStatusError:
-            log.debug("Error starting LLMObs span writer after fork")
+            log.debug("Error starting LLMObs writers after fork")
+
+        try:
+            self._evaluator_runner.start()
+        except ServiceStatusError:
+            log.debug("Error starting evaluator runner after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
@@ -111,12 +150,22 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
 
+        try:
+            self._evaluator_runner.start()
+        except ServiceStatusError:
+            log.debug("Error starting evaluator runner")
+
     def _stop_service(self) -> None:
         try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
+
+        try:
+            self._evaluator_runner.stop()
+        except ServiceStatusError:
+            log.debug("Error stopping evaluator runner")
 
         try:
             forksafe.unregister(self._child_after_fork)
@@ -222,9 +271,61 @@ class LLMObs(Service):
 
         cls.enabled = False
         cls._instance.stop()
+        cls._instance.tracer.deregister_on_start_span(cls._instance._do_annotations)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    def annotation_context(
+        cls, tags: Optional[Dict[str, Any]] = None, prompt: Optional[dict] = None, name: Optional[str] = None
+    ) -> AnnotationContext:
+        """
+        Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
+        Annotations are applied in the order in which annotation contexts are entered.
+
+        :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
+                     regarding the span's context.
+        :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
+                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
+                        This argument is only applicable to LLM spans.
+        :param name: Set to override the span name for any spans annotated within the returned context.
+        """
+        # id to track an annotation for registering / de-registering
+        annotation_id = rand64bits()
+
+        def get_annotations_context_id():
+            current_ctx = cls._instance.tracer.current_trace_context()
+            # default the context id to the annotation id
+            ctx_id = annotation_id
+            if current_ctx is None:
+                current_ctx = Context(is_remote=False)
+                current_ctx._set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+                cls._instance.tracer.context_provider.activate(current_ctx)
+            elif not current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID):
+                current_ctx._set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+            else:
+                ctx_id = current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+            return ctx_id
+
+        def register_annotation():
+            with cls._instance._annotation_context_lock:
+                ctx_id = get_annotations_context_id()
+                cls._instance._annotations.append(
+                    (annotation_id, ctx_id, {"tags": tags, "prompt": prompt, "_name": name})
+                )
+
+        def deregister_annotation():
+            with cls._instance._annotation_context_lock:
+                for i, (key, _, _) in enumerate(cls._instance._annotations):
+                    if key == annotation_id:
+                        cls._instance._annotations.pop(i)
+                        return
+                else:
+                    log.debug("Failed to pop annotation context")
+
+        return AnnotationContext(register_annotation, deregister_annotation)
 
     @classmethod
     def flush(cls) -> None:
@@ -303,7 +404,7 @@ class LLMObs(Service):
     @classmethod
     def llm(
         cls,
-        model_name: str,
+        model_name: Optional[str] = None,
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -312,7 +413,7 @@ class LLMObs(Service):
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
-        :param str model_name: The name of the invoked LLM.
+        :param str model_name: The name of the invoked LLM. If not provided, a default value of "custom" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -324,12 +425,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if not model_name:
-            log.warning("LLMObs.llm() missing model_name")
+        if model_name is None:
+            model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
-        if model_name is None:
-            model_name = "unknown"
         return cls._instance._start_span(
             "llm", name, model_name=model_name, model_provider=model_provider, session_id=session_id, ml_app=ml_app
         )
@@ -403,7 +502,7 @@ class LLMObs(Service):
     @classmethod
     def embedding(
         cls,
-        model_name: str,
+        model_name: Optional[str] = None,
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -413,6 +512,7 @@ class LLMObs(Service):
         Trace a call to an embedding model or function to create an embedding.
 
         :param str model_name: The name of the invoked embedding model.
+                               If not provided, a default value of "custom" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "embedding" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -424,12 +524,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if not model_name:
-            log.warning("LLMObs.embedding() missing model_name")
+        if model_name is None:
+            model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
-        if model_name is None:
-            model_name = "unknown"
         return cls._instance._start_span(
             "embedding",
             name,
@@ -462,11 +560,13 @@ class LLMObs(Service):
         cls,
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
+        prompt: Optional[dict] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
         tags: Optional[Dict[str, Any]] = None,
+        _name: Optional[str] = None,
     ) -> None:
         """
         Sets parameters, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
@@ -474,6 +574,10 @@ class LLMObs(Service):
 
         :param Span span: Span to annotate. If no span is provided, the current active span will be used.
                           Must be an LLMObs-type span, i.e. generated by the LLMObs SDK.
+        :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
+                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
+                        This argument is only applicable to LLM spans.
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
@@ -506,14 +610,24 @@ class LLMObs(Service):
         if span.finished:
             log.warning("Cannot annotate a finished span.")
             return
+        if metadata is not None:
+            cls._tag_metadata(span, metadata)
+        if metrics is not None:
+            cls._tag_metrics(span, metrics)
+        if tags is not None:
+            cls._tag_span_tags(span, tags)
         span_kind = span.get_tag(SPAN_KIND)
-        if not span_kind:
-            log.warning("LLMObs span must have a span kind specified.")
-            return
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
-        if input_data or output_data:
+        if _name is not None:
+            span.name = _name
+        if prompt is not None:
+            cls._tag_prompt(span, prompt)
+        if not span_kind:
+            log.debug("Span kind not specified, skipping annotation for input/output data")
+            return
+        if input_data is not None or output_data is not None:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
             elif span_kind == "embedding":
@@ -522,12 +636,16 @@ class LLMObs(Service):
                 cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
-        if metadata is not None:
-            cls._tag_metadata(span, metadata)
-        if metrics is not None:
-            cls._tag_metrics(span, metrics)
-        if tags is not None:
-            cls._tag_span_tags(span, tags)
+
+    @staticmethod
+    def _tag_prompt(span, prompt: dict) -> None:
+        """Tags a given LLMObs span with a prompt"""
+        try:
+            validated_prompt = validate_prompt(prompt)
+            span.set_tag_str(INPUT_PROMPT, safe_json(validated_prompt))
+        except TypeError:
+            log.warning("Failed to validate prompt with error: ", exc_info=True)
+            return
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
@@ -537,10 +655,7 @@ class LLMObs(Service):
         if not isinstance(params, dict):
             log.warning("parameters must be a dictionary of key-value pairs.")
             return
-        try:
-            span.set_tag_str(INPUT_PARAMETERS, json.dumps(params))
-        except TypeError:
-            log.warning("Failed to parse input parameters. Parameters must be JSON serializable.")
+        span.set_tag_str(INPUT_PARAMETERS, safe_json(params))
 
     @classmethod
     def _tag_llm_io(cls, span, input_messages=None, output_messages=None):
@@ -552,17 +667,19 @@ class LLMObs(Service):
                 if not isinstance(input_messages, Messages):
                     input_messages = Messages(input_messages)
                 if input_messages.messages:
-                    span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages.messages))
-            except (TypeError, AttributeError):
+                    span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages.messages))
+            except TypeError:
                 log.warning("Failed to parse input messages.", exc_info=True)
-        if output_messages is not None:
-            try:
-                if not isinstance(output_messages, Messages):
-                    output_messages = Messages(output_messages)
-                if output_messages.messages:
-                    span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages.messages))
-            except (TypeError, AttributeError):
-                log.warning("Failed to parse output messages.", exc_info=True)
+        if output_messages is None:
+            return
+        try:
+            if not isinstance(output_messages, Messages):
+                output_messages = Messages(output_messages)
+            if not output_messages.messages:
+                return
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages.messages))
+        except TypeError:
+            log.warning("Failed to parse output messages.", exc_info=True)
 
     @classmethod
     def _tag_embedding_io(cls, span, input_documents=None, output_text=None):
@@ -574,17 +691,12 @@ class LLMObs(Service):
                 if not isinstance(input_documents, Documents):
                     input_documents = Documents(input_documents)
                 if input_documents.documents:
-                    span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents.documents))
-            except (TypeError, AttributeError):
+                    span.set_tag_str(INPUT_DOCUMENTS, safe_json(input_documents.documents))
+            except TypeError:
                 log.warning("Failed to parse input documents.", exc_info=True)
-        if output_text is not None:
-            if isinstance(output_text, str):
-                span.set_tag_str(OUTPUT_VALUE, output_text)
-            else:
-                try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text, default=_unserializable_default_repr))
-                except TypeError:
-                    log.warning("Failed to parse output text. Output text must be JSON serializable.")
+        if output_text is None:
+            return
+        span.set_tag_str(OUTPUT_VALUE, safe_json(output_text))
 
     @classmethod
     def _tag_retrieval_io(cls, span, input_text=None, output_documents=None):
@@ -592,21 +704,17 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
         if input_text is not None:
-            if isinstance(input_text, str):
-                span.set_tag_str(INPUT_VALUE, input_text)
-            else:
-                try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text, default=_unserializable_default_repr))
-                except TypeError:
-                    log.warning("Failed to parse input text. Input text must be JSON serializable.")
-        if output_documents is not None:
-            try:
-                if not isinstance(output_documents, Documents):
-                    output_documents = Documents(output_documents)
-                if output_documents.documents:
-                    span.set_tag_str(OUTPUT_DOCUMENTS, json.dumps(output_documents.documents))
-            except (TypeError, AttributeError):
-                log.warning("Failed to parse output documents.", exc_info=True)
+            span.set_tag_str(INPUT_VALUE, safe_json(input_text))
+        if output_documents is None:
+            return
+        try:
+            if not isinstance(output_documents, Documents):
+                output_documents = Documents(output_documents)
+            if not output_documents.documents:
+                return
+            span.set_tag_str(OUTPUT_DOCUMENTS, safe_json(output_documents.documents))
+        except TypeError:
+            log.warning("Failed to parse output documents.", exc_info=True)
 
     @classmethod
     def _tag_text_io(cls, span, input_value=None, output_value=None):
@@ -614,59 +722,49 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
         if input_value is not None:
-            if isinstance(input_value, str):
-                span.set_tag_str(INPUT_VALUE, input_value)
-            else:
-                try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value, default=_unserializable_default_repr))
-                except TypeError:
-                    log.warning("Failed to parse input value. Input value must be JSON serializable.")
+            span.set_tag_str(INPUT_VALUE, safe_json(input_value))
         if output_value is not None:
-            if isinstance(output_value, str):
-                span.set_tag_str(OUTPUT_VALUE, output_value)
-            else:
-                try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value, default=_unserializable_default_repr))
-                except TypeError:
-                    log.warning("Failed to parse output value. Output value must be JSON serializable.")
+            span.set_tag_str(OUTPUT_VALUE, safe_json(output_value))
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
         """Tags a given LLMObs span with a dictionary of key-value tag pairs.
         If tags are already set on the span, the new tags will be merged with the existing tags.
         """
+        if not span_tags:
+            return
         if not isinstance(span_tags, dict):
             log.warning("span_tags must be a dictionary of string key - primitive value pairs.")
             return
         try:
-            current_tags = span.get_tag(TAGS)
-            if current_tags:
-                span_tags.update(json.loads(current_tags))
-            span.set_tag_str(TAGS, json.dumps(span_tags, default=_unserializable_default_repr))
-        except TypeError:
-            log.warning("Failed to parse span tags. Tag key-value pairs must be JSON serializable.")
+            current_tags_str = span.get_tag(TAGS)
+            if current_tags_str:
+                current_tags = json.loads(current_tags_str)
+                current_tags.update(span_tags)
+                span_tags = current_tags
+            span.set_tag_str(TAGS, safe_json(span_tags))
+        except Exception:
+            log.warning("Failed to parse tags.", exc_info=True)
 
     @staticmethod
     def _tag_metadata(span: Span, metadata: Dict[str, Any]) -> None:
         """Tags a given LLMObs span with a dictionary of key-value metadata pairs."""
+        if not metadata:
+            return
         if not isinstance(metadata, dict):
             log.warning("metadata must be a dictionary of string key-value pairs.")
             return
-        try:
-            span.set_tag_str(METADATA, json.dumps(metadata, default=_unserializable_default_repr))
-        except TypeError:
-            log.warning("Failed to parse span metadata. Metadata key-value pairs must be JSON serializable.")
+        span.set_tag_str(METADATA, safe_json(metadata))
 
     @staticmethod
     def _tag_metrics(span: Span, metrics: Dict[str, Any]) -> None:
         """Tags a given LLMObs span with a dictionary of key-value metric pairs."""
+        if not metrics:
+            return
         if not isinstance(metrics, dict):
             log.warning("metrics must be a dictionary of string key - numeric value pairs.")
             return
-        try:
-            span.set_tag_str(METRICS, json.dumps(metrics))
-        except TypeError:
-            log.warning("Failed to parse span metrics. Metric key-value pairs must be JSON serializable.")
+        span.set_tag_str(METRICS, safe_json(metrics))
 
     @classmethod
     def submit_evaluation(
@@ -678,6 +776,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
+        metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -690,6 +789,8 @@ class LLMObs(Service):
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
+        :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
+                                evaluation metric.
         """
         if cls.enabled is False:
             log.warning(
@@ -767,18 +868,26 @@ class LLMObs(Service):
                 except TypeError:
                     log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
 
-        cls._instance._llmobs_eval_metric_writer.enqueue(
-            {
-                "span_id": span_id,
-                "trace_id": trace_id,
-                "label": str(label),
-                "metric_type": metric_type.lower(),
-                "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,
-                "ml_app": ml_app,
-                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
-            }
-        )
+        evaluation_metric = {
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "label": str(label),
+            "metric_type": metric_type.lower(),
+            "timestamp_ms": timestamp_ms,
+            "{}_value".format(metric_type): value,
+            "ml_app": ml_app,
+            "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
+        }
+
+        if metadata:
+            if not isinstance(metadata, dict):
+                log.warning("metadata must be json serializable dictionary.")
+            else:
+                metadata = safe_json(metadata)
+                if metadata and isinstance(metadata, str):
+                    evaluation_metric["metadata"] = json.loads(metadata)
+
+        cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:

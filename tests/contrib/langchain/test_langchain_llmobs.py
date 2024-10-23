@@ -69,7 +69,6 @@ def _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role=N
             metadata=metadata,
             token_metrics={},
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
     )
 
@@ -81,7 +80,6 @@ def _assert_expected_llmobs_chain_span(span, mock_llmobs_span_writer, input_valu
         input_value=input_value if input_value is not None else mock.ANY,
         output_value=output_value if output_value is not None else mock.ANY,
         tags={"ml_app": "langchain_test"},
-        integration="langchain",
     )
     mock_llmobs_span_writer.enqueue.assert_any_call(expected_chain_span_event)
 
@@ -93,39 +91,52 @@ class BaseTestLLMObsLangchain:
     @classmethod
     def _invoke_llm(cls, llm, prompt, mock_tracer, cassette_name):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
-        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
-            if LANGCHAIN_VERSION < (0, 1):
-                llm(prompt)
-            else:
-                llm.invoke(prompt)
+        if cassette_name is not None:
+            with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+                if LANGCHAIN_VERSION < (0, 1):
+                    llm(prompt)
+                else:
+                    llm.invoke(prompt)
+        else:  # streams do not use casettes
+            for _ in llm.stream(prompt):
+                pass
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
     @classmethod
     def _invoke_chat(cls, chat_model, prompt, mock_tracer, cassette_name, role="user"):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
-        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
-            if role == "user":
-                messages = [HumanMessage(content=prompt)]
-            else:
-                messages = [ChatMessage(content=prompt, role="custom")]
-            if LANGCHAIN_VERSION < (0, 1):
-                chat_model(messages)
-            else:
-                chat_model.invoke(messages)
+        if cassette_name is not None:
+            with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+                if role == "user":
+                    messages = [HumanMessage(content=prompt)]
+                else:
+                    messages = [ChatMessage(content=prompt, role="custom")]
+                if LANGCHAIN_VERSION < (0, 1):
+                    chat_model(messages)
+                else:
+                    chat_model.invoke(messages)
+        else:  # streams do not use casettes
+            for _ in chat_model.stream(prompt):
+                pass
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
     @classmethod
     def _invoke_chain(cls, chain, prompt, mock_tracer, cassette_name, batch=False):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
-        with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
-            if batch:
-                chain.batch(inputs=prompt)
-            elif LANGCHAIN_VERSION < (0, 1):
-                chain.run(prompt)
-            else:
-                chain.invoke(prompt)
+        if cassette_name is not None:
+            with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
+                if batch:
+                    chain.batch(inputs=prompt)
+                elif LANGCHAIN_VERSION < (0, 1):
+                    chain.run(prompt)
+                else:
+                    chain.invoke(prompt)
+
+        else:  # streams do not use casettes
+            for _ in chain.stream(prompt):
+                pass
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
 
@@ -388,7 +399,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -414,7 +424,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -442,7 +451,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
             output_value="[1 document(s) retrieved]",
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
         assert mock_llmobs_span_writer.enqueue.call_count == 2
@@ -653,7 +661,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -680,7 +687,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -711,7 +717,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             ],
             output_value="[1 document(s) retrieved]",
             tags={"ml_app": "langchain_test"},
-            integration="langchain",
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
 
@@ -759,7 +764,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 metadata={"temperature": 0.7},
                 token_metrics={},
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
             )
         )
 
@@ -803,7 +807,91 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                     },
                 },
                 tags={"ml_app": "langchain_test"},
-                integration="langchain",
+            )
+        )
+
+    def test_llmobs_streamed_chain(
+        self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer, streamed_response_responder
+    ):
+        client = streamed_response_responder(
+            module="openai",
+            client_class_key="OpenAI",
+            http_client_key="http_client",
+            endpoint_path=["chat", "completions"],
+            file="lcel_openai_chat_streamed_response.txt",
+        )
+
+        prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+            [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
+        )
+        llm = langchain_openai.ChatOpenAI(model="gpt-4o", client=client)
+        parser = langchain_core.output_parsers.StrOutputParser()
+
+        chain = prompt | llm | parser
+
+        trace = self._invoke_chain(
+            chain=chain,
+            prompt={"input": "how can langsmith help with testing?"},
+            mock_tracer=mock_tracer,
+            cassette_name=None,  # do not use cassette,
+        )
+
+        assert mock_llmobs_span_writer.enqueue.call_count == 2
+        _assert_expected_llmobs_chain_span(
+            trace[0],
+            mock_llmobs_span_writer,
+            input_value=json.dumps({"input": "how can langsmith help with testing?"}),
+            output_value="Python is\n\nthe best!",
+        )
+        mock_llmobs_span_writer.enqueue.assert_any_call(
+            _expected_llmobs_llm_span_event(
+                trace[1],
+                model_name=trace[1].get_tag("langchain.request.model"),
+                model_provider=trace[1].get_tag("langchain.request.provider"),
+                input_messages=[
+                    {"content": "You are a world class technical documentation writer.", "role": "SystemMessage"},
+                    {"content": "how can langsmith help with testing?", "role": "HumanMessage"},
+                ],
+                output_messages=[{"content": "Python is\n\nthe best!", "role": "assistant"}],
+                metadata={"temperature": 0.7},
+                token_metrics={},
+                tags={"ml_app": "langchain_test"},
+            )
+        )
+
+    def test_llmobs_streamed_llm(
+        self, langchain_openai, mock_llmobs_span_writer, mock_tracer, streamed_response_responder
+    ):
+        client = streamed_response_responder(
+            module="openai",
+            client_class_key="OpenAI",
+            http_client_key="http_client",
+            endpoint_path=["completions"],
+            file="lcel_openai_llm_streamed_response.txt",
+        )
+
+        llm = langchain_openai.OpenAI(client=client)
+
+        span = self._invoke_llm(
+            cassette_name=None,  # do not use cassette
+            llm=llm,
+            mock_tracer=mock_tracer,
+            prompt="Hello!",
+        )
+
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.enqueue.assert_any_call(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=span.get_tag("langchain.request.model"),
+                model_provider=span.get_tag("langchain.request.provider"),
+                input_messages=[
+                    {"content": "Hello!"},
+                ],
+                output_messages=[{"content": "\n\nPython is cool!"}],
+                metadata={"temperature": 0.7, "max_tokens": 256},
+                token_metrics={},
+                tags={"ml_app": "langchain_test"},
             )
         )
 

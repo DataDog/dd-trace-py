@@ -9,7 +9,6 @@ import clonevirtualenv
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_env
 
@@ -54,7 +53,7 @@ class PackageForTesting:
         import_name=None,
         import_module_to_validate=None,
         test_propagation=False,
-        fixme_propagation_fails=False,
+        fixme_propagation_fails=None,
         expect_no_change=False,
     ):
         self.name = name
@@ -219,6 +218,7 @@ PACKAGES = [
         import_name="charset_normalizer",
         import_module_to_validate="charset_normalizer.api",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("click", "8.1.7", "", "Hello World!\nHello World!\n", "", import_module_to_validate="click.core"),
     PackageForTesting(
@@ -290,6 +290,7 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "importlib-resources",
@@ -471,6 +472,16 @@ PACKAGES = [
         import_module_to_validate="dateutil.relativedelta",
     ),
     PackageForTesting(
+        "python-multipart",
+        "0.0.5",  # this version validates APPSEC-55240 issue, don't upgrade it
+        "multipart/form-data; boundary=d8b5635eb590e078a608e083351288a0",
+        "d8b5635eb590e078a608e083351288a0",
+        "",
+        import_module_to_validate="multipart.multipart",
+        test_propagation=True,
+        fixme_propagation_fails=True,
+    ),
+    PackageForTesting(
         "pytz",
         "2024.1",
         "America/New_York",
@@ -503,6 +514,7 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "sqlalchemy",
@@ -582,6 +594,7 @@ PACKAGES = [
         extras=[("beautifulsoup4", "4.12.3")],
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "werkzeug",
@@ -602,6 +615,7 @@ PACKAGES = [
         import_module_to_validate="yarl._url",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "zipp",
@@ -674,6 +688,7 @@ PACKAGES = [
         "",
         skip_python_version=[(3, 8)],
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     ## TODO: https://datadoghq.atlassian.net/browse/APPSEC-53659
     ## Disabled due to a bug in CI:
@@ -753,6 +768,7 @@ PACKAGES = [
         '(</span><span class="s1">&#39;Hello, world!&#39;</span><span class="p">)</span>\n</pre></div>\n',
         "",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("grpcio", "1.64.0", "", "", "", test_e2e=False, import_name="grpc"),
     PackageForTesting(
@@ -954,7 +970,7 @@ def test_flask_packages_patched(package, venv):
 
 @pytest.mark.parametrize(
     "package",
-    [package for package in PACKAGES if package.test_propagation],
+    [package for package in PACKAGES if package.test_propagation and SKIP_FUNCTION(package)],
     ids=lambda package: package.name,
 )
 def test_flask_packages_propagation(package, venv, printer):
@@ -986,7 +1002,7 @@ def test_packages_not_patched_import(package, venv):
         pytest.skip(reason)
         return
 
-    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_name]
+    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_module_to_validate]
 
     # 1. Try with the specified version
     package.install(venv)
@@ -1022,7 +1038,7 @@ def test_packages_patched_import(package, venv):
         "True" if package.expect_no_change else "False",
     ]
 
-    with override_env({IAST_ENV: "true"}):
+    with override_env({IAST.ENV: "true"}):
         # 1. Try with the specified version
         package.install(venv)
         result = subprocess.run(

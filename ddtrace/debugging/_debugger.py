@@ -54,7 +54,6 @@ from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._signal.tracing import SpanDecoration
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
@@ -115,29 +114,29 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
         return super().unregister_origin_hook(origin, hook)
 
     @classmethod
-    def register_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
-        if module_name in cls._locations:
+    def register_module_hook(cls, module: str, hook: ModuleHookType) -> None:
+        if module in cls._locations:
             # We already have a hook for this origin, don't register a new one
             # but invoke it directly instead, if the module was already loaded.
-            module = sys.modules.get(module_name)
-            if module is not None:
-                hook(module)
+            mod = sys.modules.get(module)
+            if mod is not None:
+                hook(mod)
 
             return
 
-        cls._locations.add(module_name)
+        cls._locations.add(module)
 
-        super().register_module_hook(module_name, hook)
+        super().register_module_hook(module, hook)
 
     @classmethod
-    def unregister_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
+    def unregister_module_hook(cls, module: str, hook: ModuleHookType) -> None:
         try:
-            cls._locations.remove(module_name)
+            cls._locations.remove(module)
         except KeyError:
             # Nothing to unregister.
             return
 
-        return super().unregister_module_hook(module_name, hook)
+        return super().unregister_module_hook(module, hook)
 
     @classmethod
     def on_run_module(cls, module: ModuleType) -> None:
@@ -282,7 +281,7 @@ class Debugger(Service):
     __logger__ = ProbeStatusLogger
 
     @classmethod
-    def enable(cls, run_module: bool = False) -> None:
+    def enable(cls) -> None:
         """Enable dynamic instrumentation
 
         This class method is idempotent. Dynamic instrumentation will be
@@ -305,7 +304,6 @@ class Debugger(Service):
 
         debugger.start()
 
-        atexit.register(cls.disable)
         register_post_run_module_hook(cls._on_run_module)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
 
@@ -326,7 +324,6 @@ class Debugger(Service):
 
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
 
-        atexit.unregister(cls.disable)
         unregister_post_run_module_hook(cls._on_run_module)
 
         cls._instance.stop(join=join)
@@ -373,11 +370,6 @@ class Debugger(Service):
             remoteconfig_poller.register("LIVE_DEBUGGING", di_callback, restart_on_fork=True)
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
-
-    def _on_encoder_buffer_full(self, item, encoded):
-        # type (Any, bytes) -> None
-        # Send upload request
-        self._uploader.upload()
 
     def _dd_debugger_hook(self, probe: Probe) -> None:
         """Debugger probe hook.
@@ -562,7 +554,7 @@ class Debugger(Service):
                     self.__watchdog__.unregister_origin_hook(resolved_source, self._probe_injection_hook)
                     log.debug("Unregistered injection hook on source '%s'", resolved_source)
                 except ValueError:
-                    log.error("Cannot unregister injection hook for %r", probe, exc_info=True)
+                    log.error("Cannot unregister injection hook on %r", resolved_source, exc_info=True)
 
     def _probe_wrapping_hook(self, module: ModuleType) -> None:
         probes = self._probe_registry.get_pending(module.__name__)

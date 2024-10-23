@@ -8,7 +8,7 @@ import pytest
     "env_var_name,env_var_value,expected_obfuscation_config,expected_global_query_string_obfuscation_disabled,"
     "expected_http_tag_query_string",
     [
-        ("DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "", None, True, True),
+        ("DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "", 're.compile(b"")', True, True),
         (
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
             "(?i)(?:p(?:ass)?w(?:or))",
@@ -52,8 +52,8 @@ def test_obfuscation_querystring_pattern_env_var(
                 """import re;from ddtrace import config;
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT;
 assert config._obfuscation_query_string_pattern == %s;
-assert config.global_query_string_obfuscation_disabled == %s;
-assert config.http_tag_query_string == %s
+assert config._global_query_string_obfuscation_disabled == %s;
+assert config._http_tag_query_string == %s
 """
                 % (
                     expected_obfuscation_config,
@@ -64,7 +64,7 @@ assert config.http_tag_query_string == %s
         ],
         env=env,
     )
-    assert b"AssertionError" not in out
+    assert b"AssertionError" not in out, out
 
 
 @pytest.mark.parametrize(
@@ -98,7 +98,7 @@ def test_tag_querystring_env_var(
     if server_tag_query_string is not None:
         env["DD_HTTP_SERVER_TAG_QUERY_STRING"] = server_tag_query_string
     if client_tag_query_string is not None:
-        env["DD_HTTP_CLIENT_TAG_QUERY_STRING"] = client_tag_query_string
+        env["DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING"] = client_tag_query_string
     out = subprocess.check_output(
         [
             "python",
@@ -110,7 +110,7 @@ from ddtrace import config;
 config._add(
     "requests",
     {
-        "default_http_tag_query_string": os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
+        "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 );
 assert config.django.http_tag_query_string == %s;
