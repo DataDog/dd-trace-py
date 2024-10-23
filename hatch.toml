@@ -9,6 +9,7 @@ dependencies = [
     "bandit==1.7.5",
     "mypy==0.991",
     "coverage==7.3.0",
+    "envier==0.6.1",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
     "types-PyYAML==6.0.12.2",
