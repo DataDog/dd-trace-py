@@ -27,12 +27,12 @@ def test_ragas_evaluator_init(ragas, LLMObs):
 def test_ragas_faithfulness_disabled_if_dependencies_not_present(LLMObs, ragas, mock_ragas_dependencies_not_present):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
     assert not rf_evaluator.ragas_dependencies_present
-    assert rf_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt()) is None
+    assert rf_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt()) == "fail_dependencies_not_present"
 
 
 def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, LLMObs):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    assert rf_evaluator.evaluate(_llm_span_without_io()) is None
+    assert rf_evaluator.evaluate(_llm_span_without_io()) == "fail_extract_faithfulness_inputs"
     assert rf_evaluator.llmobs_service.submit_evaluation.call_count == 0
 
 
