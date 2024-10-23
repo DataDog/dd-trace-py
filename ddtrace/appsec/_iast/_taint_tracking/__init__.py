@@ -261,8 +261,10 @@ if _is_iast_propagation_debug_enabled():
 
 
 def copy_ranges_to_string(s: str, ranges: Sequence[TaintRange]) -> str:
+    if not isinstance(s, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+        return s
     for r in ranges:
-        if s in r.source.value:
+        if r.source.value and s in r.source.value:
             s = _taint_pyobject_base(
                 pyobject=s, source_name=r.source.name, source_value=r.source.value, source_origin=r.source.origin
             )

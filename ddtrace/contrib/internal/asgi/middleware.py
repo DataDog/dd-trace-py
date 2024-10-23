@@ -19,11 +19,11 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
+from ddtrace.internal.utils import set_blocked
 
 
 log = get_logger(__name__)
@@ -301,7 +301,7 @@ class TraceMiddleware:
                 # Do not block right here. Wait for route to be resolved in starlette/patch.py
                 return await self.app(scope, receive, wrapped_send)
             except BlockingException as e:
-                core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
+                set_blocked(e.args[0])
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
             except Exception as exc:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
