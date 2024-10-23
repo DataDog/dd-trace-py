@@ -36,7 +36,7 @@ if __name__ == "__main__":
     try:
         SERVER_PORT = int(sys.argv[-1])
     except Exception:
-        SERVER_PORT = 9596
+        SERVER_PORT = 9090
     server_address = ("", SERVER_PORT)
     httpd = HTTPServer(server_address, SimpleHandler)
     httpd.serve_forever()

@@ -29,6 +29,9 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
+CONFIG_SERVER_PORT = "9596"
+
+
 @pytest.fixture
 def no_request_sampling(tracer):
     with override_env(
@@ -158,7 +161,7 @@ def configuration_endpoint():
     cmd = [
         "python",
         os.path.join(current_dir, "fixtures", "integration", "http_config_server.py"),
-        "9596",
+        CONFIG_SERVER_PORT,
     ]
     process = subprocess.Popen(cmd, cwd=current_dir)
     yield
