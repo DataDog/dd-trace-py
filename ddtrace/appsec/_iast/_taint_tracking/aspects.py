@@ -785,6 +785,8 @@ def aspect_replace_api(
             len(old_value),
             candidate_text_ranges,
         )
+    else:
+        new_elements = [element for element in new_elements if element is not None]
 
     result_formatted = as_formatted_evidence(new_value, tag_mapping_function=TagMappingMode.Mapper).join(new_elements)
 
