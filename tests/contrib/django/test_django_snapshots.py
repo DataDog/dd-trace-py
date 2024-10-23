@@ -41,6 +41,8 @@ def daphne_client(django_asgi, additional_env=None):
     # ddtrace-run uses execl which replaces the process but the webserver process itself might spawn new processes.
     # Right now it doesn't but it's possible that it might in the future (ex. uwsgi).
     cmd = [
+        "python",
+        "-m",
         "ddtrace.commands.ddtrace_run",
         "daphne",
         "-p",
