@@ -8,6 +8,8 @@
 #include <numeric>
 #include <string>
 #include <string_view>
+#include <thread>
+#include <unistd.h> // getpid
 #include <utility>
 #include <vector>
 
@@ -72,8 +74,11 @@ Datadog::UploaderBuilder::set_url(std::string_view _url)
 {
     if (!_url.empty()) {
         std::ofstream file("/tmp/uploader_builder.log", std::ios::app);
-        url = _url;
-        file << "Setting url to " << url << std::endl;
+        url = std::string(_url);
+        file << getpid() << " setting url to " << url << std::endl;
+        file << getpid() << " addr of url " << &url << std::endl;
+        file << getpid() << " addr of url.data() " << static_cast<void*>(url.data()) << std::endl;
+        file << getpid() << " " << std::this_thread::get_id() << std::endl;
         file.close();
     }
 }
@@ -158,7 +163,10 @@ Datadog::UploaderBuilder::build()
     }
 
     std::ofstream file("/tmp/uploader_builder.log", std::ios::app);
-    file << "Before calling Exporter:new url: " << url << std::endl;
+    file << getpid() << " before calling Exporter:new url: " << url << std::endl;
+    file << getpid() << " addr of url " << &url << std::endl;
+    file << getpid() << " addr of url.data() " << static_cast<void*>(url.data()) << std::endl;
+    file << getpid() << " " << std::this_thread::get_id() << std::endl;
     file.close();
 
     // If we're here, the tags are good, so we can initialize the exporter

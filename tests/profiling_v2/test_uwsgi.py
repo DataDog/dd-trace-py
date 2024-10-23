@@ -135,6 +135,7 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps")
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
     # Give some time to child to actually startup
+    print(worker_pids)
     time.sleep(3)
     proc.terminate()
     outs, _ = proc.communicate()
