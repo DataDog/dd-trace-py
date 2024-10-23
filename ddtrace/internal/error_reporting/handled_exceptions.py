@@ -10,7 +10,7 @@ inject_handled_exception_reporting = None
 
 # Import are noqa'd otherwise some formatters will helpfully remove them
 if sys.version_info >= (3, 11):  # and sys.version_info < (3, 12):
-    from ddtrace.internal.error_reporting.handled_exceptions_py3_11 import _inject_handled_exception_reporting  # noqa
+    from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inject_handled_exception_reporting  # noqa
     inject_handled_exception_reporting = _inject_handled_exception_reporting
 
 ENABLED_PACKAGES = ['mypack', 'django', 'saleor', 'polls']
@@ -43,7 +43,7 @@ def instrument_module(module_name: str):
 
 def _instrument_obj(obj):
     if type(obj) in (types.FunctionType, types.MethodType):
-        # simple functions
+        # functions/methods
         inject_handled_exception_reporting(obj)  # type: ignore
     elif type(obj) is type:
         # classes
