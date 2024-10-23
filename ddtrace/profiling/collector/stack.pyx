@@ -355,7 +355,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                         )
                     )
 
-        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
+        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes) # comment
 
         if nframes:
             if use_libdd:
