@@ -124,9 +124,12 @@ class RagasFaithfulnessEvaluator:
         score_result_or_failure = self.evaluate(span_event)
         telemetry_writer.add_count_metric(
             "llmobs",
-            "evaluators.{}.run".format(self.LABEL),
+            "evaluators.run",
             1,
-            tags=(("state", score_result_or_failure if isinstance(score_result_or_failure, str) else "success"),),
+            tags=(
+                ("evaluator_label", self.LABEL),
+                ("state", score_result_or_failure if isinstance(score_result_or_failure, str) else "success"),
+            ),
         )
         if isinstance(score_result_or_failure, float):
             self.llmobs_service.submit_evaluation(

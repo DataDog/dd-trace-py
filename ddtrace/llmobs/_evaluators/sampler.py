@@ -66,7 +66,10 @@ class EvaluatorRunnerSampler:
                 TELEMETRY_LOG_LEVEL.ERROR, message="Evaluator sampling parsing failure because: {}".format(msg)
             )
             telemetry_writer.add_count_metric(
-                namespace="llmobs", name="evaluators.sampling_rule_parsing_failure", value=1
+                namespace="llmobs",
+                name="evaluators.error",
+                value=1,
+                tags=(("reason", "sampling_rule_parsing_failure"),),
             )
             if config._raise:
                 raise maybe_throw_this(msg)
