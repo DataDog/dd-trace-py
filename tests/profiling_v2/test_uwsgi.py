@@ -34,7 +34,6 @@ def uwsgi(monkeypatch):
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = tempfile.mktemp()
     import os
-    os.environ["LC_ALL"] = "C.UTF-8"
     cmd = [
         "uwsgi",
         "--need-app",

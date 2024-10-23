@@ -166,7 +166,7 @@ Datadog::UploaderBuilder::build()
                                                               to_slice(profiler_version),
                                                               to_slice(family),
                                                               &tags,
-                                                              ddog_prof_Endpoint_agent(to_slice("localhost:9126")));
+                                                              ddog_prof_Endpoint_agent(to_slice(url)));
     ddog_Vec_Tag_drop(tags);
 
     auto ddog_exporter_result = Datadog::get_newexporter_result(res);
