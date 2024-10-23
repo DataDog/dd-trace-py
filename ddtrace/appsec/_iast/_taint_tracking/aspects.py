@@ -116,7 +116,9 @@ def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
 
     if args and is_pyobject_tainted(args[0]) and isinstance(result, _io.StringIO):
         try:
+            # JJJ
             copy_and_shift_ranges_from_strings(args[0], result, 0)
+            # copy_ranges_from_strings(args[0], result)
         except Exception as e:
             iast_taint_log_error("IAST propagation error. stringio_aspect. {}".format(e))
     return result
