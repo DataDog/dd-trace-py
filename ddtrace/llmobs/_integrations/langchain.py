@@ -85,7 +85,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
 
-        if kwargs.get("is_workflow") is not None:
+        if isinstance(kwargs, dict) and kwargs.get("is_workflow") is not None:
             # when the traced function forces an is_workflow state
             is_workflow = bool(kwargs.get("is_workflow"))
 
