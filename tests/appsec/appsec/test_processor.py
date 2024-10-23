@@ -502,7 +502,7 @@ def test_ddwaf_info():
         info = _ddwaf.info
         assert info.loaded == len(rules_json["rules"])
         assert info.failed == 0
-        assert info.errors == {}
+        assert info.errors == ""
         assert info.version == "rules_good"
 
 
@@ -518,7 +518,7 @@ def test_ddwaf_info_with_2_errors():
         expected_dict = sorted(
             {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}.items()
         )
-        assert sorted(info.errors.items()) == expected_dict
+        assert sorted(json.loads(info.errors).items()) == expected_dict
         assert info.version == "5.5.5"
 
 
@@ -530,7 +530,7 @@ def test_ddwaf_info_with_3_errors():
         info = _ddwaf.info
         assert info.loaded == 1
         assert info.failed == 2
-        assert info.errors == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
+        assert json.loads(info.errors) == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
 
 
 def test_ddwaf_run_contained_typeerror(tracer, caplog):
