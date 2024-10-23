@@ -19,8 +19,8 @@ from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
-from ddtrace.debugging._signal.collector import SignalContext
+from ddtrace.debugging._probe.model import ProbeEvalTiming
+from ddtrace.debugging._signal.context import SignalContext
 
 # from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.ext import EXIT_SPAN_TYPES
@@ -63,7 +63,7 @@ class EntrySpanProbe(LogFunctionProbe):
             tags={},
             module=module,
             func_qname=function,
-            evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+            evaluate_at=ProbeEvalTiming.ENTRY,
             template=message,
             segments=[LiteralTemplateSegment(message)],
             take_snapshot=True,
