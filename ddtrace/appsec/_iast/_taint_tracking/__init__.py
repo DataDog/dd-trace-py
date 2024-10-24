@@ -116,7 +116,6 @@ __all__ = [
     "shift_taint_ranges",
     "str_to_origin",
     "taint_pyobject",
-    "ddprof",
 ]
 
 
