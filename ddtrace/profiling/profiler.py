@@ -360,6 +360,9 @@ class _ProfilerInstance(service.Service):
                 recorder=r,
                 exporters=exporters,
                 before_flush=self._collectors_snapshot,
+                endpoint_call_counter_processor=self.tracer._endpoint_call_counter_span_processor
+                if self.endpoint_collection_enabled
+                else None,
             )
 
     def _collectors_snapshot(self):

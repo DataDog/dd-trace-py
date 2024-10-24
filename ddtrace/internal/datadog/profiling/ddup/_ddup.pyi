@@ -1,8 +1,10 @@
 from typing import Dict
 from typing import Optional
 from typing import Union
+
 from .._types import StringType
 from ddtrace._trace.span import Span
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 
 def config(
     env: StringType,
@@ -17,7 +19,7 @@ def config(
     enable_code_provenance: Optional[bool],
 ) -> None: ...
 def start() -> None: ...
-def upload() -> None: ...
+def upload(span_call_counter_processor: Optional[EndpointCallCounterProcessor] = ...) -> None: ...
 
 class SampleHandle:
     def push_cputime(self, value: int, count: int) -> None: ...

@@ -96,7 +96,7 @@ def test_push_span():
             local_root_span_id = span._local_root.span_id
             for _ in range(5):
                 time.sleep(0.01)
-    ddup.upload()
+    ddup.upload(tracer._endpoint_call_counter_span_processor)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
@@ -133,7 +133,7 @@ def test_push_span_v2():
 
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
+    ddup.start(tracer._endpoint_call_counter_span_processor)
 
     tracer._endpoint_call_counter_span_processor.enable()
 
@@ -205,7 +205,7 @@ def test_push_non_web_span():
             local_root_span_id = span._local_root.span_id
             for _ in range(5):
                 time.sleep(0.01)
-    ddup.upload()
+    ddup.upload(tracer._endpoint_call_counter_span_processor)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")

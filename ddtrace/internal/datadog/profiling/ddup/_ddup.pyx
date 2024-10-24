@@ -17,6 +17,7 @@ from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 
@@ -209,12 +210,9 @@ def start() -> None:
     ddup_start()
 
 
-def upload() -> None:
+def upload(span_call_counter_processor: Optional[EndpointCallCounterProcessor] = None) -> None:
     runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
-
-    processor = ddtrace.tracer._endpoint_call_counter_span_processor
-    endpoint_counts, endpoint_to_span_ids = processor.reset()
 
     # We want to make sure that the endpoint_bytes strings outlive the for loops
     # below and prevent them to be GC'ed. We do this by storing them in a list.
@@ -222,28 +220,32 @@ def upload() -> None:
     # a view into the original string. If the original string is GC'ed, the view
     # will point to garbage.
     endpoint_bytes_list = []
+    # cdef's are not allowed in if blocks, so we have to do this here
     cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
-    for endpoint, span_ids in endpoint_to_span_ids.items():
-        endpoint_bytes = ensure_binary_or_empty(endpoint)
-        endpoint_bytes_list.append(endpoint_bytes)
-        for span_id in span_ids:
-            span_ids_to_endpoints.insert(
-                pair[int64_t, string_view](
-                    clamp_to_uint64_unsigned(span_id),
-                    string_view(<const char*>endpoint_bytes, len(endpoint_bytes))
-                )
-            )
-    ddup_profile_set_endpoints(span_ids_to_endpoints)
-
     cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
-    for endpoint, cnt in endpoint_counts.items():
-        endpoint_bytes = ensure_binary_or_empty(endpoint)
-        endpoint_bytes_list.append(endpoint_bytes)
-        trace_endpoints_to_counts.insert(pair[string_view, int64_t](
-            string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
-            clamp_to_int64_unsigned(cnt)
-        ))
-    ddup_profile_add_endpoint_counts(trace_endpoints_to_counts)
+
+    if span_call_counter_processor:
+        endpoint_counts, endpoint_to_span_ids = span_call_counter_processor.reset()
+        for endpoint, span_ids in endpoint_to_span_ids.items():
+            endpoint_bytes = ensure_binary_or_empty(endpoint)
+            endpoint_bytes_list.append(endpoint_bytes)
+            for span_id in span_ids:
+                span_ids_to_endpoints.insert(
+                    pair[int64_t, string_view](
+                        clamp_to_uint64_unsigned(span_id),
+                        string_view(<const char*>endpoint_bytes, len(endpoint_bytes))
+                    )
+                )
+        ddup_profile_set_endpoints(span_ids_to_endpoints)
+
+        for endpoint, cnt in endpoint_counts.items():
+            endpoint_bytes = ensure_binary_or_empty(endpoint)
+            endpoint_bytes_list.append(endpoint_bytes)
+            trace_endpoints_to_counts.insert(pair[string_view, int64_t](
+                string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
+                clamp_to_int64_unsigned(cnt)
+            ))
+        ddup_profile_add_endpoint_counts(trace_endpoints_to_counts)
 
     with nogil:
         ddup_upload()
