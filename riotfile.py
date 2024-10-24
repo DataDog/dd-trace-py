@@ -2668,7 +2668,7 @@ venv = Venv(
                         "langchain-anthropic": latest,
                         "langchain-aws": latest,
                         "langchain-cohere": latest,
-                        "openai": latest,
+                        "openai": "==1.44.1",
                         "pinecone-client": latest,
                         "qdrant-client": latest,
                         "pymilvus": latest,
