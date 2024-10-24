@@ -24,7 +24,9 @@ def test_doit():
 
     string3 = string1 + string2  # 2 propagation ranges: hiroot1234
     string4 = "-".join([string3, string3, string3])  # 6 propagation ranges: hiroot1234-hiroot1234-hiroot1234
-    string5 = string4[0:20]  # 1 propagation range: hiroot1234-hiroot123
+    string4_2 = string1
+    string4_2 += " " + " ".join(string_ for string_ in [string4, string4, string4])
+    string5 = string4_2[0:20]  # 1 propagation range: hiroot1234-hiroot123
     string6 = string5.title()  # 1 propagation range: Hiroot1234-Hiroot123
     string7 = string6.upper()  # 1 propagation range: HIROOT1234-HIROOT123
     string8 = "%s_notainted" % string7  # 1 propagation range: HIROOT1234-HIROOT123_notainted

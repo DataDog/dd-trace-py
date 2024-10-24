@@ -659,6 +659,18 @@ def test_sampling_rule_sample_rate_0():
     ), "SamplingRule with rate=0 should never keep samples"
 
 
+@pytest.mark.subprocess(
+    env={"DD_TRACE_RATE_LIMIT": "2", "DD_TRACE_SAMPLING_RULES": ""},
+    err=b"DD_TRACE_RATE_LIMIT is set to 2 and DD_TRACE_SAMPLING_RULES is not set. "
+    b"Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+    b"All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.\n",
+)
+def test_rate_limit_without_sampling_rules_warning():
+    from ddtrace import config
+
+    assert config._trace_rate_limit == 2
+
+
 def test_datadog_sampler_init():
     sampler = DatadogSampler()
     assert sampler.rules == [], "DatadogSampler initialized with no arguments should hold no rules"
