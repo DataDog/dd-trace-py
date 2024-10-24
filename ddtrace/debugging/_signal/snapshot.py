@@ -1,4 +1,3 @@
-from collections import ChainMap
 from dataclasses import dataclass
 from dataclasses import field
 from itertools import chain
@@ -18,10 +17,7 @@ from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
-from ddtrace.debugging._probe.model import LogFunctionProbe
-from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import LogProbeMixin
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._redaction import DDRedactedExpressionError
@@ -31,10 +27,8 @@ from ddtrace.debugging._safety import get_locals
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import LogSignal
-from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
-from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.utils.time import HourGlass
 
 
@@ -126,92 +120,25 @@ class Snapshot(LogSignal):
         probe = cast(LogProbeMixin, self.probe)
         self._message = "".join([self._eval_segment(s, _locals) for s in probe.segments])
 
-    def enter(self):
-        if not isinstance(self.probe, LogFunctionProbe):
-            return
-
-        probe = self.probe
+    def _do(self, retval, exc_info, scope):
+        probe = cast(LogProbeMixin, self.probe)
         frame = self.frame
 
-        if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
-            return
+        self._eval_message(scope)
 
-        scope = ChainMap(self.args, frame.f_globals)
+        self._stack = utils.capture_stack(self.frame)
 
-        if not self._eval_condition(scope):
-            return
+        return _capture_context(frame, exc_info, retval=retval, limits=probe.limits) if probe.take_snapshot else None
 
-        if probe.limiter.limit() is RateLimitExceeded:
-            self.state = SignalState.SKIP_RATE
-            return
+    def enter(self, scope: Mapping[str, Any]) -> None:
+        self.entry_capture = self._do(_NOTSET, (None, None, None), scope)
 
-        if probe.take_snapshot:
-            self.entry_capture = _capture_context(frame, (None, None, None), limits=probe.limits)
-
-        if probe.evaluate_at == ProbeEvaluateTimingForMethod.ENTER:
-            self._eval_message(scope)
-            self.state = SignalState.DONE
-
-    def exit(self, retval, exc_info, duration):
-        if not isinstance(self.probe, LogFunctionProbe):
-            return
-
-        probe = self.probe
-        full_scope = self.get_full_scope(retval, exc_info, duration)
-
-        if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
-            if not self._eval_condition(full_scope):
-                return
-            if probe.limiter.limit() is RateLimitExceeded:
-                self.state = SignalState.SKIP_RATE
-                return
-        elif self.state not in {SignalState.NONE, SignalState.DONE}:
-            return
-
-        if probe.take_snapshot:
-            self.return_capture = _capture_context(self.frame, exc_info, retval=retval, limits=probe.limits)
-
+    def exit(self, retval, exc_info, duration, scope) -> None:
         self.duration = duration
-        self.state = SignalState.DONE
-        if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
-            self._eval_message(full_scope)
+        self.return_capture = self._do(retval, exc_info, scope)
 
-        stack = utils.capture_stack(self.frame)
-
-        # Fix the line number of the top frame. This might have been mangled by
-        # the instrumented exception handling of function probes.
-        tb = exc_info[2]
-        while tb is not None:
-            frame = tb.tb_frame
-            if frame == self.frame:
-                stack[0]["lineNumber"] = tb.tb_lineno
-                break
-            tb = tb.tb_next
-
-        self._stack = stack
-
-    def line(self):
-        if not isinstance(self.probe, LogLineProbe):
-            return
-
-        frame = self.frame
-        probe = self.probe
-
-        if not self._eval_condition(frame.f_locals):
-            return
-
-        if probe.take_snapshot:
-            if probe.limiter.limit() is RateLimitExceeded:
-                self.state = SignalState.SKIP_RATE
-                return
-
-            self.line_capture = _capture_context(frame, sys.exc_info(), limits=probe.limits)
-
-        self._eval_message(ChainMap(frame.f_locals, frame.f_globals))
-
-        self._stack = utils.capture_stack(frame)
-
-        self.state = SignalState.DONE
+    def line(self, scope) -> None:
+        self.line_capture = self._do(_NOTSET, sys.exc_info(), scope)
 
     @property
     def message(self) -> Optional[str]:

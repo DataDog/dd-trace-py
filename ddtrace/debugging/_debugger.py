@@ -1,3 +1,4 @@
+from collections import ChainMap
 from collections import defaultdict
 from collections import deque
 from itertools import chain
@@ -36,6 +37,8 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeConditionMixin
+from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanFunctionProbe
@@ -45,7 +48,7 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
-from ddtrace.debugging._signal.collector import SignalContext
+from ddtrace.debugging._signal.context import SignalContext
 from ddtrace.debugging._signal.metric_sample import MetricSample
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
@@ -225,7 +228,13 @@ class DebuggerWrappingContext(WrappingContext):
                 log.error("Unsupported probe type: %s", type(probe))
                 continue
 
-            contexts.append(self._collector.attach(signal))
+            context = SignalContext(signal)
+            try:
+                context.enter()
+            except Exception:
+                log.exception("Failed to enter context for signal %r", signal)
+                continue
+            contexts.append(context)
 
         # Save state on the wrapping context
         self.set("start_time", compat.monotonic_ns())
@@ -233,14 +242,19 @@ class DebuggerWrappingContext(WrappingContext):
 
     def _close_contexts(self, retval=None, exc_info=(None, None, None)) -> None:
         end_time = compat.monotonic_ns()
-        contexts = self.get("contexts")
+        contexts = cast(Deque[SignalContext], self.get("contexts"))
         while contexts:
             # Open probe signal contexts are ordered, with those that have
             # created new tracing context first. We need to finalise them in
             # reverse order, so we pop them from the end of the queue (LIFO).
             context = contexts.pop()
-            context.exit(retval, exc_info, end_time - self.get("start_time"))
-            signal = context.signal
+            try:
+                signal = context.exit(retval, exc_info, end_time - self.get("start_time"))
+            except Exception:
+                log.exception("Failed to exit signal context %r", context)
+                continue
+
+            self._collector.push(signal)
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(signal.probe)
 
@@ -412,13 +426,28 @@ class Debugger(Service):
                 log.error("Unsupported probe type: %r", type(probe))
                 return
 
-            signal.line()
+            scope = ChainMap(actual_frame.f_locals, actual_frame.f_globals)
 
-            log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
-            self.__uploader__.get_collector().push(signal)
+            try:
+                if isinstance(probe, ProbeConditionMixin) and not signal._eval_condition(scope):
+                    return
 
-            if signal.state is SignalState.DONE:
+                if isinstance(probe, RateLimitMixin) and probe.limiter.limit() is RateLimitExceeded:
+                    signal.state = SignalState.SKIP_RATE
+                    return
+
+                try:
+                    signal.line(scope)
+                except Exception:
+                    log.exception("Failed to execute line probe %r", probe)
+                    return
+
+                signal.state = SignalState.DONE
+
                 self._probe_registry.set_emitting(probe)
+            finally:
+                log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
+                self.__uploader__.get_collector().push(signal)
 
         except Exception:
             log.error("Failed to execute probe hook", exc_info=True)

@@ -1,3 +1,4 @@
+from collections import ChainMap
 from collections import deque
 from dataclasses import dataclass
 from itertools import count
@@ -11,6 +12,7 @@ import uuid
 from ddtrace._trace.span import Span
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
@@ -188,7 +190,9 @@ class SpanExceptionHandler:
                         )
 
                         # Capture
-                        snapshot.line()
+                        snapshot.line(ChainMap(frame.f_locals, frame.f_globals))
+
+                        snapshot.state = SignalState.DONE
 
                         # Collect
                         self.__uploader__.get_collector().push(snapshot)

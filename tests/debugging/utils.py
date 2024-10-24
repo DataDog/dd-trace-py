@@ -10,7 +10,7 @@ from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
@@ -60,9 +60,9 @@ def probe_conditional_defaults(f):
     return _wrapper
 
 
-def function_location_defaults(f):
+def timing_defaults(f):
     def _wrapper(*args, **kwargs):
-        kwargs.setdefault("evaluate_at", ProbeEvaluateTimingForMethod.DEFAULT)
+        kwargs.setdefault("evaluate_at", ProbeEvalTiming.DEFAULT)
         return f(*args, **kwargs)
 
     return _wrapper
@@ -123,7 +123,7 @@ def create_snapshot_line_probe(**kwargs):
 
 @create_probe_defaults
 @probe_conditional_defaults
-@function_location_defaults
+@timing_defaults
 @snapshot_probe_defaults
 def create_snapshot_function_probe(**kwargs):
     return LogFunctionProbe(**kwargs)
@@ -138,7 +138,7 @@ def create_log_line_probe(**kwargs):
 
 @create_probe_defaults
 @probe_conditional_defaults
-@function_location_defaults
+@timing_defaults
 @log_probe_defaults
 def create_log_function_probe(**kwargs):
     return LogFunctionProbe(**kwargs)
@@ -153,7 +153,7 @@ def create_metric_line_probe(**kwargs):
 
 @create_probe_defaults
 @probe_conditional_defaults
-@function_location_defaults
+@timing_defaults
 @metric_probe_defaults
 def create_metric_function_probe(**kwargs):
     return MetricFunctionProbe(**kwargs)
@@ -161,7 +161,6 @@ def create_metric_function_probe(**kwargs):
 
 @create_probe_defaults
 @probe_conditional_defaults
-@function_location_defaults
 @span_probe_defaults
 def create_span_function_probe(**kwargs):
     return SpanFunctionProbe(**kwargs)
@@ -174,7 +173,7 @@ def create_span_decoration_line_probe(**kwargs):
 
 
 @create_probe_defaults
-@function_location_defaults
+@timing_defaults
 @span_decoration_probe_defaults
 def create_span_decoration_function_probe(**kwargs):
     return SpanDecorationFunctionProbe(**kwargs)

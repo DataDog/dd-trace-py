@@ -24,7 +24,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
@@ -33,6 +33,7 @@ from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
 from ddtrace.debugging._probe.model import TemplateSegment
+from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.logger import get_logger
@@ -103,7 +104,8 @@ class ProbeFactory(object):
 
         args["module"] = where.get("type") or where["typeName"]
         args["func_qname"] = where.get("method") or where["methodName"]
-        args["evaluate_at"] = ProbeEvaluateTimingForMethod[attribs.get("evaluateAt", "DEFAULT")]
+        if isinstance(cls.__function_class__, TimingMixin):
+            args["evaluate_at"] = ProbeEvalTiming[attribs.get("evaluateAt", "DEFAULT")]
 
         return cls.__function_class__(**args)
 

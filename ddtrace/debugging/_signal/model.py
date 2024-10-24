@@ -1,5 +1,4 @@
 import abc
-from collections import ChainMap
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
@@ -7,6 +6,7 @@ from threading import Thread
 import time
 from types import FrameType
 from typing import Any
+from typing import ClassVar
 from typing import Dict
 from typing import List
 from typing import Mapping
@@ -22,6 +22,7 @@ from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._safety import get_args
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.rate_limiter import RateLimitExceeded
@@ -50,6 +51,8 @@ class Signal(abc.ABC):
     triggered.
     """
 
+    __default_timing__: ClassVar[ProbeEvalTiming] = ProbeEvalTiming.EXIT
+
     probe: Probe
     frame: FrameType
     thread: Thread
@@ -59,7 +62,7 @@ class Signal(abc.ABC):
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
 
-    def _eval_condition(self, scope: Optional[Mapping[str, Any]] = None) -> bool:
+    def _eval_condition(self, scope: Mapping[str, Any]) -> bool:
         """Evaluate the probe condition against the collected frame."""
         probe = cast(ProbeConditionMixin, self.probe)
         condition = probe.condition
@@ -81,33 +84,20 @@ class Signal(abc.ABC):
 
         return False
 
-    def get_full_scope(self, retval: Any, exc_info: ExcInfoType, duration: float) -> Mapping[str, Any]:
-        frame = self.frame
-        extra: Dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
-
-        exc = exc_info[1]
-        if exc is not None:
-            extra["@exception"] = exc
-        else:
-            extra["@return"] = retval
-
-        # Include the frame locals and globals.
-        return ChainMap(extra, frame.f_locals, frame.f_globals)
-
     @property
     def args(self):
         return dict(get_args(self.frame))
 
     @abc.abstractmethod
-    def enter(self):
+    def enter(self, scope: Mapping[str, Any]) -> None:
         pass
 
     @abc.abstractmethod
-    def exit(self, retval, exc_info, duration):
+    def exit(self, retval: Any, exc_info: ExcInfoType, duration: int, scope: Mapping[str, Any]) -> None:
         pass
 
     @abc.abstractmethod
-    def line(self):
+    def line(self, scope: Mapping[str, Any]) -> None:
         pass
 
 

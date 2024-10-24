@@ -156,7 +156,7 @@ def test_poller_remove_probe():
     di_config.diagnostics_interval = 0.5
     try:
         adapter = SyncProbeRCAdapter(None, cb)
-        # Wait to allow the next call to the adapter to generate a status event
+
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish(
             {
