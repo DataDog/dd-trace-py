@@ -47,7 +47,7 @@ except ImportError:
     import importlib_metadata
 
 NO_CHILDREN = object()
-DDTRACE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DDTRACE_PATH = Path(__file__).resolve().parents[-2]
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
