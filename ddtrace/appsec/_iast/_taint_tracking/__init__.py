@@ -132,7 +132,7 @@ def iast_taint_log_error(msg):
 def is_pyobject_tainted(pyobject: Any) -> bool:
     if not is_iast_request_enabled():
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
 
     try:
@@ -146,7 +146,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
     if not is_iast_request_enabled():
         return pyobject
 
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
     # We need this validation in different contition if pyobject is not a text type and creates a side-effect such as
     # __len__ magic method call.
@@ -190,7 +190,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
     if not is_iast_request_enabled():
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
     try:
         set_ranges(pyobject, ranges)
@@ -203,7 +203,7 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
 def get_tainted_ranges(pyobject: Any) -> Tuple:
     if not is_iast_request_enabled():
         return tuple()
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return tuple()
     try:
         return get_ranges(pyobject)
@@ -261,8 +261,10 @@ if _is_iast_propagation_debug_enabled():
 
 
 def copy_ranges_to_string(s: str, ranges: Sequence[TaintRange]) -> str:
+    if not isinstance(s, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+        return s
     for r in ranges:
-        if s in r.source.value:
+        if r.source.value and s in r.source.value:
             s = _taint_pyobject_base(
                 pyobject=s, source_name=r.source.name, source_value=r.source.value, source_origin=r.source.origin
             )
