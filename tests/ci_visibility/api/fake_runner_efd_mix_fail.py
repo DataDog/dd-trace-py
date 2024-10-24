@@ -15,13 +15,14 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.test_visibility import api
+from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 
 
 def _hack_test_duration(test_id: api.InternalTestId, duration: float):
     from ddtrace.internal.ci_visibility import CIVisibility
 
     test = CIVisibility.get_test_by_id(test_id)
-    test._efd_initial_finish_time_ns = test._span.start_ns + duration * 1e9
+    test._span.start_ns = test._span.start_ns - int(duration * 1e9)
 
 
 def _make_test_ids():
@@ -156,7 +157,7 @@ def run_tests():
 
     # START TESTS
 
-    assert not api.InternalTestSession.is_faulty_session(), "Session is faulty but should not be"
+    assert not api.InternalTestSession.efd_is_faulty_session(), "Session is faulty but should not be"
 
     # START M1
 
@@ -168,9 +169,9 @@ def run_tests():
 
     # m1_s1_t1 test expect 10 EFD retries
     api.InternalTest.start(m1_s1_t1_id)
-    api.InternalTest.efd_record_initial(m1_s1_t1_id, TestStatus.FAIL)
-    # Hack duration:
     _hack_test_duration(m1_s1_t1_id, 1.23456)
+    api.InternalTest.finish(m1_s1_t1_id, TestStatus.FAIL)
+    # Hack duration:
 
     m1_s1_t1_retry_count = 0
     while api.InternalTest.efd_should_retry(m1_s1_t1_id):
@@ -179,15 +180,14 @@ def run_tests():
         api.InternalTest.efd_finish_retry(m1_s1_t1_id, m1_s1_t1_retry_number, TestStatus.FAIL)
     assert m1_s1_t1_retry_count == 10, "Expected 10 EFD retries, got %s" % m1_s1_t1_retry_count
     m1_s1_t1_final_status = api.InternalTest.efd_get_final_status(m1_s1_t1_id)
-    assert m1_s1_t1_final_status == TestStatus.FAIL, "Expected final status to be FAIL, got %s" % m1_s1_t1_final_status
-    api.InternalTest.efd_finish_test(
-        m1_s1_t1_id,
+    assert m1_s1_t1_final_status == EFDTestStatus.ALL_FAIL, (
+        "Expected final status to be FAIL, got %s" % m1_s1_t1_final_status
     )
 
     # m1_s1_t2 test: expect 5 EFD retries
     api.InternalTest.start(m1_s1_t2_id)
-    api.InternalTest.efd_record_initial(m1_s1_t2_id, TestStatus.FAIL)
     _hack_test_duration(m1_s1_t2_id, 6.54321)
+    api.InternalTest.finish(m1_s1_t2_id, TestStatus.FAIL)
 
     m1_s1_t2_retry_count = 0
     while api.InternalTest.efd_should_retry(m1_s1_t2_id):
@@ -196,8 +196,9 @@ def run_tests():
         api.InternalTest.efd_finish_retry(m1_s1_t2_id, m1_s1_t2_retry_number, TestStatus.FAIL)
     assert m1_s1_t2_retry_count == 5, "Expected 5 EFD retries, got %s" % m1_s1_t2_retry_count
     m1_s1_t2_final_status = api.InternalTest.efd_get_final_status(m1_s1_t2_id)
-    assert m1_s1_t2_final_status == TestStatus.FAIL, "Expected final status to be FAIL, got %s" % m1_s1_t2_final_status
-    api.InternalTest.efd_finish_test(m1_s1_t2_id)
+    assert m1_s1_t2_final_status == EFDTestStatus.ALL_FAIL, (
+        "Expected final status to be FAIL, got %s" % m1_s1_t2_final_status
+    )
 
     # m1_s1_t3 test: expect no retries (is a known test)
     api.InternalTest.start(m1_s1_t3_id)
@@ -248,10 +249,9 @@ def run_tests():
 
     # should not be retried (over max duration)
     api.InternalTest.start(m2_s2_t2_id)
-    api.InternalTest.efd_record_initial(m2_s2_t2_id, TestStatus.PASS)
     _hack_test_duration(m2_s2_t2_id, 301.0)
+    api.InternalTest.finish(m2_s2_t2_id, TestStatus.PASS)
     assert not api.InternalTest.efd_should_retry(m2_s2_t2_id), "Should not retry: over max duration"
-    api.InternalTest.mark_pass(m2_s2_t2_id)
 
     # should not be retried (duration not recorded)
     api.InternalTest.start(m2_s2_t3_id)

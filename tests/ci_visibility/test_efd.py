@@ -14,6 +14,7 @@ from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from tests.utils import DummyTracer
 
@@ -67,11 +68,9 @@ class TestCIVisibilityTestEFD:
         mock_session.efd_is_faulty_session.return_value = False
         with mock.patch.multiple(efd_test, get_session=lambda *args: mock_session):
             efd_test.start()
-
-            efd_test.efd_record_initial(TestStatus.PASS)
-
             # Overwrite the test duration
-            efd_test._efd_initial_finish_time_ns = efd_test._span.start_ns + (efd_test_duration_s * 1e9)
+            efd_test._span.start_ns -= efd_test_duration_s * 1e9
+            efd_test.finish_test(TestStatus.PASS)
 
             retry_count = 0
             while efd_test.efd_should_retry():
@@ -84,27 +83,72 @@ class TestCIVisibilityTestEFD:
             assert retry_count == expected_max_retries
 
     @pytest.mark.parametrize(
-        "test_result,retry_results,expected_status",
+        "test_result,retry_results,expected_statuses",
         (
             # All pass
-            (TestStatus.PASS, (TestStatus.PASS, TestStatus.PASS, TestStatus.PASS), TestStatus.PASS),
+            (
+                TestStatus.PASS,
+                (TestStatus.PASS, TestStatus.PASS, TestStatus.PASS),
+                (EFDTestStatus.ALL_PASS, TestStatus.PASS),
+            ),
             # Only original test passed
-            (TestStatus.PASS, (TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL), TestStatus.PASS),
+            (
+                TestStatus.PASS,
+                (TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL),
+                (EFDTestStatus.FLAKY, TestStatus.PASS),
+            ),
             # Only one retry passed
-            (TestStatus.FAIL, (TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL, TestStatus.PASS), TestStatus.PASS),
+            (
+                TestStatus.FAIL,
+                (TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL, TestStatus.PASS),
+                (EFDTestStatus.FLAKY, TestStatus.PASS),
+            ),
             # Kitchen sink scenarios:
-            (TestStatus.FAIL, (TestStatus.PASS, TestStatus.PASS, TestStatus.PASS), TestStatus.PASS),
-            (TestStatus.PASS, (TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL, TestStatus.PASS), TestStatus.PASS),
-            (TestStatus.PASS, (TestStatus.PASS, TestStatus.SKIP, TestStatus.PASS, TestStatus.FAIL), TestStatus.PASS),
-            (TestStatus.FAIL, (TestStatus.PASS, TestStatus.SKIP, TestStatus.PASS, TestStatus.FAIL), TestStatus.PASS),
-            (TestStatus.FAIL, (TestStatus.FAIL,), TestStatus.FAIL),
-            (TestStatus.FAIL, (TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL), TestStatus.FAIL),
+            (
+                TestStatus.FAIL,
+                (TestStatus.PASS, TestStatus.PASS, TestStatus.PASS),
+                (EFDTestStatus.FLAKY, TestStatus.PASS),
+            ),
+            (
+                TestStatus.PASS,
+                (TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL, TestStatus.PASS),
+                (EFDTestStatus.FLAKY, TestStatus.PASS),
+            ),
+            (
+                TestStatus.PASS,
+                (TestStatus.PASS, TestStatus.SKIP, TestStatus.PASS, TestStatus.FAIL),
+                (EFDTestStatus.FLAKY, TestStatus.PASS),
+            ),
+            (
+                TestStatus.FAIL,
+                (TestStatus.PASS, TestStatus.SKIP, TestStatus.PASS, TestStatus.FAIL),
+                (EFDTestStatus.FLAKY, TestStatus.PASS),
+            ),
+            (
+                TestStatus.FAIL,
+                (TestStatus.PASS, TestStatus.SKIP, TestStatus.PASS, TestStatus.SKIP),
+                (EFDTestStatus.FLAKY, TestStatus.PASS),
+            ),
+            (TestStatus.FAIL, (TestStatus.FAIL,), (EFDTestStatus.ALL_FAIL, TestStatus.FAIL)),
+            (
+                TestStatus.FAIL,
+                (TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL, TestStatus.FAIL),
+                (EFDTestStatus.ALL_FAIL, TestStatus.FAIL),
+            ),
+            # All skipped
+            (
+                TestStatus.SKIP,
+                (TestStatus.SKIP, TestStatus.SKIP, TestStatus.SKIP),
+                (EFDTestStatus.ALL_SKIP, TestStatus.SKIP),
+            ),
             # No retries happened
-            (TestStatus.FAIL, tuple(), TestStatus.FAIL),
+            (TestStatus.FAIL, tuple(), (EFDTestStatus.ALL_FAIL, TestStatus.FAIL)),
+            (TestStatus.PASS, tuple(), (EFDTestStatus.ALL_PASS, TestStatus.PASS)),
+            (TestStatus.SKIP, tuple(), (EFDTestStatus.ALL_SKIP, TestStatus.SKIP)),
         ),
     )
-    def test_efd_final_status(self, test_result, retry_results: t.Iterable[TestStatus], expected_status):
-        """Tests that the EFD API correctly reports the final status of a test"""
+    def test_efd_final_status(self, test_result, retry_results: t.Iterable[TestStatus], expected_statuses):
+        """Tests that the EFD API correctly reports the final statuses of a test"""
         efd_test = TestVisibilityTest(
             name="efd_test",
             session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(True)),
@@ -114,14 +158,15 @@ class TestCIVisibilityTestEFD:
         mock_session.efd_is_faulty_session.return_value = False
         with mock.patch.multiple(efd_test, get_session=lambda *args: mock_session):
             efd_test.start()
-            efd_test.efd_record_initial(test_result)
+            efd_test.finish_test(test_result)
             expected_num_retry = 0
             for test_result in retry_results:
                 expected_num_retry += 1
                 added_retry_number = efd_test.efd_add_retry(start_immediately=True)
                 assert added_retry_number
                 efd_test.efd_finish_retry(added_retry_number, test_result)
-            assert efd_test.efd_get_final_status() == expected_status
+            assert efd_test.efd_get_final_status() == expected_statuses[0]
+            assert efd_test.get_status() == expected_statuses[1]
 
     def test_efd_does_not_retry_if_disabled(self):
         efd_test = TestVisibilityTest(

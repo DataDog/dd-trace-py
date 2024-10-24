@@ -11,7 +11,6 @@ from pathlib import Path
 from unittest import mock
 
 from ddtrace.ext.test_visibility import api as ext_api
-from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.test_visibility import api
@@ -136,7 +135,7 @@ def run_tests():
 
     # START TESTS
 
-    assert api.InternalTestSession.is_faulty_session(), "Session should be faulty"
+    assert api.InternalTestSession.efd_is_faulty_session(), "Session should be faulty"
 
     # START M1
 
@@ -147,12 +146,12 @@ def run_tests():
     api.InternalTestSuite.start(m1_s1_id)
 
     api.InternalTest.start(m1_s1_t1_id)
-    api.InternalTest.efd_record_initial(m1_s1_t1_id, TestStatus.PASS)
+    api.InternalTest.mark_pass(m1_s1_t1_id)
     assert not api.InternalTest.efd_should_retry(m1_s1_t1_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m1_s1_t1_id)
 
     api.InternalTest.start(m1_s1_t2_id)
-    api.InternalTest.efd_record_initial(m1_s1_t2_id, TestStatus.PASS)
+    api.InternalTest.mark_pass(m1_s1_t2_id)
     assert not api.InternalTest.efd_should_retry(m1_s1_t2_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m1_s1_t2_id)
 
@@ -201,7 +200,7 @@ def run_tests():
     api.InternalTest.mark_skip(m2_s2_t1_id)
 
     api.InternalTest.start(m2_s2_t2_id)
-    api.InternalTest.efd_record_initial(m2_s2_t2_id, TestStatus.PASS)
+    api.InternalTest.mark_pass(m2_s2_t2_id)
     assert not api.InternalTest.efd_should_retry(m2_s2_t2_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m2_s2_t2_id)
 
