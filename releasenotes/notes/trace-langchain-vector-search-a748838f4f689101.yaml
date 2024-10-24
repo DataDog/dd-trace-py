@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    langchain : Adds support for similarity search with vector and with scoring.
+    langchain : Renames resources for similarity search to showcase the function name.
+    LLM Observability: The LangChain integration now submits similarity search as a workflow to LLM Observability.
+    LLM Observability: The LangChain integration now submits similarity search with vector and with scoring to LLM Observability.
