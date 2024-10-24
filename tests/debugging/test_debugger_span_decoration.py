@@ -122,7 +122,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                 create_span_decoration_line_probe(
                     probe_id="span-decoration",
                     source_file="tests/submod/traced_stuff.py",
-                    line=3,
+                    line=6,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
@@ -175,7 +175,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                 create_span_decoration_line_probe(
                     probe_id="span-decoration",
                     source_file="tests/submod/traced_stuff.py",
-                    line=7,
+                    line=10,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
@@ -201,7 +201,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                 create_span_decoration_line_probe(
                     probe_id="span-decoration",
                     source_file="tests/submod/traced_stuff.py",
-                    line=8,
+                    line=11,
                     target_span=SpanDecorationTargetSpan.ROOT,
                     decorations=[
                         SpanDecoration(

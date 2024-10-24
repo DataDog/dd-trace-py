@@ -39,11 +39,13 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanFunctionProbe
+from ddtrace.debugging._probe.model import TriggerFunctionProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
+from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.debugging._signal.metric_sample import MetricSample
@@ -52,6 +54,7 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._signal.tracing import SpanDecoration
+from ddtrace.debugging._signal.trigger import Trigger
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import compat
@@ -220,6 +223,13 @@ class DebuggerWrappingContext(WrappingContext):
                     probe=probe,
                     frame=frame,
                     thread=thread,
+                )
+            elif isinstance(probe, TriggerFunctionProbe):
+                signal = Trigger(
+                    probe=probe,
+                    frame=frame,
+                    thread=thread,
+                    trace_context=trace_context,
                 )
             else:
                 log.error("Unsupported probe type: %s", type(probe))
@@ -391,7 +401,9 @@ class Debugger(Service):
                     meter=self._probe_meter,
                 )
             elif isinstance(probe, LogLineProbe):
-                if probe.take_snapshot:
+                session_id = probe.tags.get("sessionId")
+                session = Session.lookup(session_id) if session_id is not None else None
+                if session is None and probe.take_snapshot:
                     # TODO: Global limit evaluated before probe conditions
                     if self._global_rate_limiter.limit() is RateLimitExceeded:
                         return
