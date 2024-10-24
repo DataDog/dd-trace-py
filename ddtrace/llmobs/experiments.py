@@ -117,11 +117,11 @@ class Experiment:
         return table
 
     def _validate_tasks(self) -> None:
-        # TODO: Implement this
+        # TODO: Design and implement this
         pass
 
     def _validate_evaluators(self) -> None:
-        # TODO: Implement this
+        # TODO: Design and implement this
         pass
 
     def run(self) -> 'ExperimentResults':
