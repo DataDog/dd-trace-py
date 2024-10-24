@@ -1,5 +1,7 @@
 import logging
+import os
 import re
+import subprocess
 
 import pytest
 
@@ -25,6 +27,9 @@ from ddtrace.contrib.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+CONFIG_SERVER_PORT = "9596"
 
 
 @pytest.fixture
@@ -148,3 +153,16 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
         # TODO(avara1986): iast tests throw a timeout in gitlab
         #   list_metrics_logs = list(telemetry_writer._logs)
         #   assert len(list_metrics_logs) == 0
+
+
+@pytest.fixture(scope="session")
+def configuration_endpoint():
+    current_dir = os.path.dirname(__file__)
+    cmd = [
+        "python",
+        os.path.join(current_dir, "fixtures", "integration", "http_config_server.py"),
+        CONFIG_SERVER_PORT,
+    ]
+    process = subprocess.Popen(cmd, cwd=current_dir)
+    yield
+    process.kill()
