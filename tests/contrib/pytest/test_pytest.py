@@ -112,7 +112,7 @@ class PytestTestCaseBase(TracerTestCase):
 
             @staticmethod
             def pytest_unconfigure(config):
-                if is_enabled(config) and CIVisibility.enabled:
+                if CIVisibility.enabled:
                     CIVisibility.disable()
 
         if project_dir is None:
