@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes an issue that prevented dynamic span tags
+    probes from adding the requested tags to the requested span.
