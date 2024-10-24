@@ -24,6 +24,7 @@ from ddtrace.ext.git import _unshallow_repository_with_details
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_remote_url
+from ddtrace.ext.git import extract_workspace_path
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
@@ -103,8 +104,20 @@ class CIVisibilityGitClient(object):
                 GIT_API_BASE_PATH,
             )
 
+    def _get_git_dir(self, cwd=None):
+        # type: (Optional[str]) -> Optional[str]
+        try:
+            return extract_workspace_path(cwd=cwd)
+        except ValueError:
+            return None
+
     def upload_git_metadata(self, cwd=None):
         # type: (Optional[str]) -> None
+        if not self._get_git_dir(cwd=cwd):
+            log.debug("Missing .git directory; skipping git metadata upload")
+            self._metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
+            return
+
         self._tags = ci.tags(cwd=cwd)
         if self._worker is None:
             self._worker = Process(
