@@ -18,16 +18,14 @@ def _llm_span_without_io():
 
 def test_ragas_evaluator_init(ragas, LLMObs):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    assert rf_evaluator.ragas_dependencies_present
     assert rf_evaluator.llmobs_service == LLMObs
     assert rf_evaluator.ragas_faithfulness_instance == ragas.metrics.faithfulness
     assert rf_evaluator.ragas_faithfulness_instance.llm == ragas.llms.llm_factory()
 
 
-def test_ragas_faithfulness_disabled_if_dependencies_not_present(LLMObs, ragas, mock_ragas_dependencies_not_present):
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    assert not rf_evaluator.ragas_dependencies_present
-    assert rf_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt()) == "fail_dependencies_not_present"
+def test_ragas_faithfulness_throws_if_dependencies_not_present(LLMObs, mock_ragas_dependencies_not_present, ragas):
+    with pytest.raises(NotImplementedError, match="Failed to load dependencies for `ragas_faithfulness` evaluator"):
+        RagasFaithfulnessEvaluator(LLMObs)
 
 
 def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, LLMObs):

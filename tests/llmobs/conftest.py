@@ -3,9 +3,7 @@ import os
 import mock
 import pytest
 
-import ddtrace
 from ddtrace.internal.utils.http import Response
-import ddtrace.llmobs
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import logs_vcr
@@ -165,10 +163,13 @@ def mock_llmobs_evaluator_runner():
 
 @pytest.fixture
 def mock_ragas_dependencies_not_present():
-    previous = ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT
-    ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT = False
+    import ragas
+
+    previous = ragas.__version__
+    ## unsupported version
+    ragas.__version__ = "0.0.0"
     yield
-    ddtrace.llmobs._evaluators.ragas.faithfulness.RAGAS_DEPENDENCIES_PRESENT = previous
+    ragas.__version__ = previous
 
 
 @pytest.fixture

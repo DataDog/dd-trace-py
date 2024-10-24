@@ -14,32 +14,20 @@ from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 
 logger = get_logger(__name__)
 
-RAGAS_DEPENDENCIES_PRESENT = False
 
-try:
-    import ragas
+class MiniRagas:
+    """
+    A helper class to store instances of ragas classes and functions
+    that may or may not exist in a user's environment.
+    """
 
-    if parse_version(ragas.__version__) >= (0, 2, 0):
-        logger.warning("Ragas version: {} is not supported for ragas_faithfulness", ragas.__version__)
-        raise ValueError
-
-    from ragas.llms import llm_factory
-    from ragas.llms.output_parser import RagasoutputParser
-    from ragas.metrics import faithfulness
-    from ragas.metrics.base import ensembler
-    from ragas.metrics.base import get_segmenter
-
-    from ddtrace.llmobs._evaluators.ragas.models import StatementFaithfulnessAnswers
-    from ddtrace.llmobs._evaluators.ragas.models import StatementsAnswers
-
-    RAGAS_DEPENDENCIES_PRESENT = True
-except Exception as e:
-    telemetry_writer.add_log(
-        level=TELEMETRY_LOG_LEVEL.ERROR,
-        message="Failed to import Ragas dependencies",
-        stack_trace=traceback.format_exc(),
-    )
-    logger.warning("Failed to import Ragas dependencies, not enabling ragas_faithfulness evaluator", exc_info=e)
+    llm_factory = None
+    RagasoutputParser = None
+    faithfulness = None
+    ensembler = None
+    get_segmenter = None
+    StatementFaithfulnessAnswers = None
+    StatementsAnswers = None
 
 
 def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
@@ -58,15 +46,17 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
 
 
-def _get_faithfulness_instance():
+def _get_faithfulness_instance() -> Optional[object]:
     """
     This helper function ensures the faithfulness instance used in
     ragas evaluator is updated with the latest ragas faithfulness
     instance AND has an non-null llm
     """
-    ragas_faithfulness_instance = faithfulness
+    if MiniRagas.faithfulness is None:
+        return None
+    ragas_faithfulness_instance = MiniRagas.faithfulness
     if not ragas_faithfulness_instance.llm:
-        ragas_faithfulness_instance.llm = llm_factory()
+        ragas_faithfulness_instance.llm = MiniRagas.llm_factory()
     return ragas_faithfulness_instance
 
 
@@ -96,28 +86,74 @@ class RagasFaithfulnessEvaluator:
         :param llmobs_service: An instance of the LLM Observability service used for tracing the evaluation and
                                       submitting evaluation metrics.
         """
-        self.ragas_dependencies_present = RAGAS_DEPENDENCIES_PRESENT
-
-        telemetry_writer.add_count_metric(
-            namespace="llmobs",
-            name="evaluators.init",
-            value=1,
-            tags=(
-                ("evaluator_label", self.LABEL),
-                ("state", "ok" if self.ragas_dependencies_present else "error"),
-            ),
-        )
-        if not self.ragas_dependencies_present:
-            return
-
         self.llmobs_service = llmobs_service
+        self.ragas_version = "unknown"
+        telemetry_state = "ok"
+        try:
+            import ragas
+
+            self.ragas_version = parse_version(ragas.__version__)
+            if self.ragas_version >= (0, 2, 0) or self.ragas_version < (0, 1, 10):
+                raise NotImplementedError(
+                    "Ragas version: {} is not supported for `ragas_faithfulness` evaluator".format(self.ragas_version),
+                )
+
+            from ragas.llms import llm_factory
+
+            MiniRagas.llm_factory = llm_factory
+
+            from ragas.llms.output_parser import RagasoutputParser
+
+            MiniRagas.RagasoutputParser = RagasoutputParser
+
+            from ragas.metrics import faithfulness
+
+            MiniRagas.faithfulness = faithfulness
+
+            from ragas.metrics.base import ensembler
+
+            MiniRagas.ensembler = ensembler
+
+            from ragas.metrics.base import get_segmenter
+
+            MiniRagas.get_segmenter = get_segmenter
+
+            from ddtrace.llmobs._evaluators.ragas.models import StatementFaithfulnessAnswers
+
+            MiniRagas.StatementFaithfulnessAnswers = StatementFaithfulnessAnswers
+
+            from ddtrace.llmobs._evaluators.ragas.models import StatementsAnswers
+
+            MiniRagas.StatementsAnswers = StatementsAnswers
+        except Exception as e:
+            telemetry_state = "fail"
+            telemetry_writer.add_log(
+                level=TELEMETRY_LOG_LEVEL.ERROR,
+                message="Failed to import Ragas dependencies",
+                stack_trace=traceback.format_exc(),
+                tags={"ragas_version": self.ragas_version},
+            )
+            raise NotImplementedError("Failed to load dependencies for `ragas_faithfulness` evaluator") from e
+        finally:
+            telemetry_writer.add_count_metric(
+                namespace="llmobs",
+                name="evaluators.init",
+                value=1,
+                tags=(
+                    ("evaluator_label", self.LABEL),
+                    ("state", telemetry_state),
+                    ("ragas_version", self.ragas_version),
+                ),
+            )
+
         self.ragas_faithfulness_instance = _get_faithfulness_instance()
-
-        self.llm_output_parser_for_generated_statements = RagasoutputParser(pydantic_object=StatementsAnswers)
-
-        self.llm_output_parser_for_faithfulness_score = RagasoutputParser(pydantic_object=StatementFaithfulnessAnswers)
-
-        self.split_answer_into_sentences = get_segmenter(
+        self.llm_output_parser_for_generated_statements = MiniRagas.RagasoutputParser(
+            pydantic_object=MiniRagas.StatementsAnswers
+        )
+        self.llm_output_parser_for_faithfulness_score = MiniRagas.RagasoutputParser(
+            pydantic_object=MiniRagas.StatementFaithfulnessAnswers
+        )
+        self.split_answer_into_sentences = MiniRagas.get_segmenter(
             language=self.ragas_faithfulness_instance.nli_statements_message.language, clean=False
         )
 
@@ -150,15 +186,14 @@ class RagasFaithfulnessEvaluator:
         If the ragas faithfulness instance does not have `llm` set, we set `llm` using the `llm_factory()`
         method from ragas which defaults to openai's gpt-4o-turbo.
         """
-        if not self.ragas_dependencies_present:
-            return "fail_dependencies_not_present"
-
         self.ragas_faithfulness_instance = _get_faithfulness_instance()
+        if not self.ragas_faithfulness_instance:
+            return "fail_faithfulness_is_none"
 
         score, question, answer, context, statements, faithfulness_list = math.nan, None, None, None, None, None
 
         with self.llmobs_service.workflow(
-            "ragas.faithfulness", ml_app=_get_ml_app_for_ragas_trace(span_event)
+            "dd-ragas.faithfulness", ml_app=_get_ml_app_for_ragas_trace(span_event)
         ) as ragas_faithfulness_workflow:
             try:
                 faithfulness_inputs = self._extract_faithfulness_inputs(span_event)
@@ -195,12 +230,12 @@ class RagasFaithfulnessEvaluator:
                     output_data=score,
                     metadata={
                         "statements": statements,
-                        "faithfulness_list": faithfulness_list.dicts() if faithfulness_list else None,
+                        "faithfulness_list": faithfulness_list.dicts() if faithfulness_list is not None else None,
                     },
                 )
 
     def _create_statements(self, question: str, answer: str) -> Optional[List[str]]:
-        with self.llmobs_service.workflow("ragas.create_statements"):
+        with self.llmobs_service.workflow("dd-ragas.create_statements"):
             statements_prompt = self._create_statements_prompt(answer=answer, question=question)
 
             """LLM step to break down the answer into simpler statements"""
@@ -217,8 +252,8 @@ class RagasFaithfulnessEvaluator:
                 return None
             return statements
 
-    def _create_verdicts(self, context: str, statements: List[str]) -> Optional["StatementFaithfulnessAnswers"]:
-        with self.llmobs_service.workflow("ragas.create_verdicts"):
+    def _create_verdicts(self, context: str, statements: List[str]):
+        with self.llmobs_service.workflow("dd-ragas.create_verdicts"):
             """Check which statements contradict the conntext"""
             raw_nli_results = self.ragas_faithfulness_instance.llm.generate_text(
                 self._create_natural_language_inference_prompt(statements, context)
@@ -242,14 +277,14 @@ class RagasFaithfulnessEvaluator:
                 return None
 
             # collapse multiple generations into a single faithfulness list
-            faithfulness_list = ensembler.from_discrete(raw_faithfulness_list, "verdict")
+            faithfulness_list = MiniRagas.ensembler.from_discrete(raw_faithfulness_list, "verdict")  # type: ignore
             try:
-                return StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
+                return MiniRagas.StatementFaithfulnessAnswers.parse_obj(faithfulness_list)  # type: ignore
             except Exception as e:
                 logger.debug("Failed to parse faithfulness_list", exc_info=e)
                 return None
 
-    def _extract_faithfulness_inputs(self, span_event: dict) -> Optional[dict]:
+    def _extract_faithfulness_inputs(self, span_event: dict):
         """
         Extracts the question, answer, and context used as inputs to faithfulness
         evaluation from a span event.
@@ -258,7 +293,7 @@ class RagasFaithfulnessEvaluator:
         context - input.prompt.variables.context
         answer - output.messages[-1].content
         """
-        with self.llmobs_service.workflow("ragas.extract_faithfulness_inputs") as extract_inputs_workflow:
+        with self.llmobs_service.workflow("dd-ragas.extract_faithfulness_inputs") as extract_inputs_workflow:
             self.llmobs_service.annotate(span=extract_inputs_workflow, input_data=span_event)
             question, answer, context = None, None, None
 
@@ -274,6 +309,7 @@ class RagasFaithfulnessEvaluator:
 
             prompt = meta_input.get("prompt")
             if prompt is None:
+                logger.debug("Failed to extract `prompt` from span for `ragas_faithfulness` evaluation")
                 return None
             prompt_variables = prompt.get("variables")
 
@@ -300,7 +336,7 @@ class RagasFaithfulnessEvaluator:
             return {"question": question, "context": context, "answer": answer}
 
     def _create_statements_prompt(self, answer, question):
-        with self.llmobs_service.task("ragas.create_statements_prompt"):
+        with self.llmobs_service.task("dd-ragas.create_statements_prompt"):
             sentences = self.split_answer_into_sentences.segment(answer)
             sentences = [sentence for sentence in sentences if sentence.strip().endswith(".")]
             sentences = "\n".join([f"{i}:{x}" for i, x in enumerate(sentences)])
@@ -309,15 +345,15 @@ class RagasFaithfulnessEvaluator:
             )
 
     def _create_natural_language_inference_prompt(self, statements, context_str):
-        with self.llmobs_service.task("ragas.create_natural_language_inference_prompt"):
+        with self.llmobs_service.task("dd-ragas.create_natural_language_inference_prompt"):
             statements_str: str = json.dumps(statements)
             prompt_value = self.ragas_faithfulness_instance.nli_statements_message.format(
                 context=context_str, statements=statements_str
             )
             return prompt_value
 
-    def _compute_score(self, faithfulness_list: "StatementFaithfulnessAnswers") -> float:
-        with self.llmobs_service.task("ragas.compute_score"):
+    def _compute_score(self, faithfulness_list) -> float:
+        with self.llmobs_service.task("dd-ragas.compute_score"):
             faithful_statements = sum(1 if answer.verdict else 0 for answer in faithfulness_list.__root__)
             num_statements = len(faithfulness_list.__root__)
             if num_statements:

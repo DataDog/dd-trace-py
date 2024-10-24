@@ -6,24 +6,16 @@ from ddtrace import Span
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 
 
 logger = get_logger(__name__)
 
 
-def load_ragas_faithfulness():
-    """
-    Lazy load ragas faithfulness evaluator so ragas dependencies are not required unless
-    the evaluator is enabled.
-    """
-    from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
-
-    return RagasFaithfulnessEvaluator
-
-
 SUPPORTED_EVALUATORS = {
-    "ragas_faithfulness": load_ragas_faithfulness,
+    RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,
 }
 
 
@@ -55,8 +47,22 @@ class EvaluatorRunner(PeriodicService):
         evaluators = evaluator_str.split(",")
         for evaluator in evaluators:
             if evaluator in SUPPORTED_EVALUATORS:
-                evaluator_instance = SUPPORTED_EVALUATORS[evaluator]()
-                self.evaluators.append(evaluator_instance(llmobs_service=llmobs_service))
+                evaluator_init_state = "ok"
+                try:
+                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator](llmobs_service=llmobs_service))
+                except NotImplementedError as e:
+                    evaluator_init_state = "error"
+                    raise e
+                finally:
+                    telemetry_writer.add_count_metric(
+                        namespace="llmobs",
+                        name="evaluators.init",
+                        value=1,
+                        tags=(
+                            ("evaluator_label", evaluator),
+                            ("state", evaluator_init_state),
+                        ),
+                    )
 
     def start(self, *args, **kwargs):
         if not self.evaluators:
