@@ -6,6 +6,7 @@ import sys
 import django
 import pytest
 
+from tests.utils import _build_env
 from tests.utils import flaky
 from tests.utils import package_installed
 from tests.utils import snapshot
@@ -16,6 +17,8 @@ SERVER_PORT = 8000
 # these tests behave nondeterministically with respect to rate limiting, which can cause the sampling decision to flap
 # FIXME: db.name behaves unreliably for some of these tests
 SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1", "meta.db.name"]
+
+FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
 @contextmanager
@@ -29,7 +32,7 @@ def daphne_client(django_asgi, additional_env=None):
 
     # Make sure to copy the environment as we need the PYTHONPATH and _DD_TRACE_WRITER_ADDITIONAL_HEADERS (for the test
     # token) propagated to the new process.
-    env = os.environ.copy()
+    env = _build_env(os.environ.copy(), file_path=FILE_PATH)
     env.update(additional_env or {})
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
     env.update(
@@ -37,19 +40,17 @@ def daphne_client(django_asgi, additional_env=None):
             "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
         }
     )
-
     # ddtrace-run uses execl which replaces the process but the webserver process itself might spawn new processes.
     # Right now it doesn't but it's possible that it might in the future (ex. uwsgi).
-    # cmd = [
-    #     "python",
-    #     "-m",
-    #     "ddtrace.commands.ddtrace_run",
-    #     "daphne",
-    #     "-p",
-    #     str(SERVER_PORT),
-    #     "tests.contrib.django.asgi:%s" % django_asgi,
-    # ]
-    cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:%s" % django_asgi]
+    cmd = [
+        "python",
+        "-m",
+        "ddtrace.commands.ddtrace_run",
+        "daphne",
+        "-p",
+        str(SERVER_PORT),
+        "tests.contrib.django.asgi:%s" % django_asgi,
+    ]
     subprocess_kwargs = {
         "env": env,
         "start_new_session": True,

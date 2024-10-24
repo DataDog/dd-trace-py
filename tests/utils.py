@@ -47,6 +47,8 @@ except ImportError:
     import importlib_metadata
 
 NO_CHILDREN = object()
+DDTRACE_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
 def assert_is_measured(span):
@@ -1354,3 +1356,20 @@ def skip_if_until(until: int, condition=None, reason=None):
         return _get_skipped_item(function_or_class, full_reason)
 
     return decorator
+
+
+def _build_env(env=None, file_path=FILE_PATH):
+    """When a script runs in a subprocess, there are times in the CI or locally when it's assigned a different
+    path than expected. Even worse, we've seen scripts that worked for months suddenly stop working because of this.
+    With this function, we always set the path to ensure consistent results both locally and across different
+    CI environments
+    """
+    environ = dict(PATH="%s:%s" % (DDTRACE_PATH, file_path), PYTHONPATH="%s:%s" % (DDTRACE_PATH, file_path))
+    if os.environ.get("PATH"):
+        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
+    if os.environ.get("PYTHONPATH"):
+        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    if env:
+        for k, v in env.items():
+            environ[k] = v
+    return environ
