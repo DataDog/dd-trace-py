@@ -19,6 +19,7 @@ ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 *.so
+!ddtrace/appsec/ddprof_lib/lib/libdd_profiling.so
 *.dylib
 *.a
 

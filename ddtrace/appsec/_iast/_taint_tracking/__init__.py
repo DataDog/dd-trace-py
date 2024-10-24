@@ -16,6 +16,7 @@ from .._utils import _is_iast_debug_enabled
 from .._utils import _is_iast_propagation_debug_enabled
 from .._utils import _is_python_version_supported
 
+import ddprof
 
 log = get_logger(__name__)
 
@@ -116,6 +117,7 @@ __all__ = [
     "shift_taint_ranges",
     "str_to_origin",
     "taint_pyobject",
+    "ddprof",
 ]
 
 
