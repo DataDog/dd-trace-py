@@ -36,7 +36,7 @@ from tests.utils import override_env
 
 def _get_spans_from_list(
     spans: t.List[ddtrace.Span],
-    span_type: t.Optional[t.Literal["session", "module", "suite", "test"]],
+    span_type: str,
     name: str = None,
     status: t.Optional[str] = None,
 ) -> t.List[ddtrace.Span]:
