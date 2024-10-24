@@ -24,6 +24,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
@@ -102,7 +103,7 @@ class ProbeFactory(object):
 
         args["module"] = where.get("type") or where["typeName"]
         args["func_qname"] = where.get("method") or where["methodName"]
-        args["evaluate_at"] = attribs.get("evaluateAt")
+        args["evaluate_at"] = ProbeEvaluateTimingForMethod[attribs.get("evaluateAt", "DEFAULT")]
 
         return cls.__function_class__(**args)
 
