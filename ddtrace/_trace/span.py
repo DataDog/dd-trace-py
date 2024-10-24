@@ -1,6 +1,7 @@
 import math
 import pprint
 import sys
+from time import time_ns
 import traceback
 from types import TracebackType
 from typing import Any
@@ -46,7 +47,6 @@ from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
