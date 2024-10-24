@@ -144,6 +144,10 @@ jobs:
       - name: Run INTEGRATIONS
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh INTEGRATIONS
+    
+      - name: Run INTEGRATIONS_AWS
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: ./run.sh INTEGRATIONS_AWS
 
       - name: Run CROSSED_TRACING_LIBRARIES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
