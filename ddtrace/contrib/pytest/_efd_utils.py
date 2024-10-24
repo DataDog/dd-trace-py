@@ -18,6 +18,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
+from ddtrace.internal.test_visibility.api import InternalTestSession
 
 
 log = get_logger(__name__)
@@ -33,7 +34,7 @@ class _EFD_RETRY_OUTCOMES:
     EFD_FINAL_FLAKY = "dd_efd_final_flaky"
 
 
-_EFD_FLAKY_OUTCOME = "Flaky"
+_EFD_FLAKY_OUTCOME = "flaky"
 
 _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
     EFDTestStatus.ALL_PASS: _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
@@ -67,6 +68,23 @@ def efd_handle_retries(
         log.debug("Test item %s failed during teardown, will not be retried for Early Flake Detection")
         return
 
+    # If the test skipped (can happen either in setup or call depending on mark vs calling .skip()), we set the original
+    # status as skipped and then continue handling retries because we may not return
+    if test_outcome.status == TestStatus.SKIP and when in ["setup", "call"]:
+        original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
+        # We don't return for when == call when skip happens during setup, so we need to log it and make sure the status
+        # of the test is set
+        if when == "setup":
+            item.ihook.pytest_runtest_logreport(
+                nodeid=item.nodeid,
+                locationm=item.location,
+                keywords=item.keywords,
+                when="setup",
+                longrepr=None,
+                outcome=_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED,
+            )
+            InternalTest.mark_skip(test_id)
+
     efd_outcome = _efd_handle_retries(item)
 
     final_report = pytest.TestReport(
@@ -84,7 +102,7 @@ def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) 
     return terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED)
 
 
-def _efd_handle_retries(item) -> EFDTestStatus:
+def _efd_handle_retries(item: pytest.Item) -> EFDTestStatus:
     test_id = _get_test_id_from_item(item)
 
     while InternalTest.efd_should_retry(test_id):
@@ -126,6 +144,9 @@ def _efd_get_outcome_from_item(
             _outcome_exc_info = TestExcInfo(setup_call.excinfo.type, setup_call.excinfo.value, setup_call.excinfo.tb)
             item.stash[caplog_records_key] = {}
             item.stash[caplog_handler_key] = {}
+    if setup_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED:
+        _outcome_status = TestStatus.SKIP
+
     # Call
     if setup_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED:
         call_call, call_report = _retry_run_when(item, "call", outcomes)
@@ -135,27 +156,78 @@ def _efd_get_outcome_from_item(
                 _outcome_exc_info = TestExcInfo(call_call.excinfo.type, call_call.excinfo.value, call_call.excinfo.tb)
                 item.stash[caplog_records_key] = {}
                 item.stash[caplog_handler_key] = {}
-        elif call_report.skipped:
-            # A test that skips during retries is considered a failure
-            _outcome_status = TestStatus.FAIL
+        elif call_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED:
+            _outcome_status = TestStatus.SKIP
         elif call_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED:
             _outcome_status = TestStatus.PASS
 
-    # Teardown
-    teardown_call, teardown_report = _retry_run_when(item, "teardown", outcomes)
-    # Only override the outcome if the teardown failed, otherwise defer to either setup or call outcome
-    if teardown_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED:
-        _outcome_status = TestStatus.FAIL
-        if teardown_call.excinfo is not None:
-            _outcome_exc_info = TestExcInfo(
-                teardown_call.excinfo.type, teardown_call.excinfo.value, teardown_call.excinfo.tb
-            )
-            item.stash[caplog_records_key] = {}
-            item.stash[caplog_handler_key] = {}
+    # Teardown does not happen if setup skipped
+    if not setup_report.skipped:
+        teardown_call, teardown_report = _retry_run_when(item, "teardown", outcomes)
+        # Only override the outcome if the teardown failed, otherwise defer to either setup or call outcome
+        if teardown_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED:
+            _outcome_status = TestStatus.FAIL
+            if teardown_call.excinfo is not None:
+                _outcome_exc_info = TestExcInfo(
+                    teardown_call.excinfo.type, teardown_call.excinfo.value, teardown_call.excinfo.tb
+                )
+                item.stash[caplog_records_key] = {}
+                item.stash[caplog_handler_key] = {}
 
     item._initrequest()
 
     return _TestOutcome(status=_outcome_status, skip_reason=_outcome_skip_reason, exc_info=_outcome_exc_info)
+
+
+def _efd_write_report_for_status(
+    terminalreporter: _pytest.terminal.TerminalReporter,
+    status_key: str,
+    status_text: str,
+    report_outcome: str,
+    raw_strings: t.List[str],
+    markedup_strings: t.List[str],
+    color: str,
+    delete_reports: bool = True,
+):
+    reports = terminalreporter.getreports(status_key)
+    markup_kwargs = {color: True}
+    if reports:
+        text = f"{len(reports)} {status_text}"
+        raw_strings.append(text)
+        markedup_strings.append(terminalreporter._tw.markup(text, **markup_kwargs, bold=True))
+        terminalreporter.write_sep("_", status_text.upper(), **markup_kwargs, bold=True)
+        for report in reports:
+            line = f"{terminalreporter._tw.markup(status_text.upper(), **markup_kwargs)} {report.nodeid}"
+            terminalreporter.write_line(line)
+            report.outcome = report_outcome
+            # Do not re-append a report if a report already exists for the item in the reports
+            for existing_reports in terminalreporter.stats.get(report_outcome, []):
+                if existing_reports.nodeid == report.nodeid:
+                    break
+            else:
+                terminalreporter.stats.setdefault(report_outcome, []).append(report)
+        if delete_reports:
+            del terminalreporter.stats[status_key]
+
+
+def _efd_prepare_attempts_strings(
+    terminalreporter: _pytest.terminal.TerminalReporter,
+    reports_key: str,
+    reports_text: str,
+    raw_strings: t.List[str],
+    markedup_strings: t.List[str],
+    color: str,
+    bold: bool = False,
+):
+    reports = terminalreporter.getreports(reports_key)
+    markup_kwargs = {color: True}
+    if bold:
+        markup_kwargs["bold"] = True
+    if reports:
+        failed_attempts_text = f"{len(reports)} {reports_text}"
+        raw_strings.append(failed_attempts_text)
+        markedup_strings.append(terminalreporter._tw.markup(failed_attempts_text, **markup_kwargs))
+        del terminalreporter.stats[reports_key]
 
 
 def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.TerminalReporter):
@@ -164,76 +236,82 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     raw_summary_strings = []
     markedup_summary_strings = []
 
-    failed_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED)
-    if failed_reports:
-        failed_text = f"{len(failed_reports)} failed"
-        raw_summary_strings.append(failed_text)
-        markedup_summary_strings.append(terminalreporter._tw.markup(failed_text, red=True, bold=True))
-        terminalreporter.write_sep("_", "FAILED", red=True, bold=True)
-        for failed_report in failed_reports:
-            line = f"{terminalreporter._tw.markup('FAILED', red=True)} {failed_report.nodeid}"
-            terminalreporter.write_line(line)
-            failed_report.outcome = PYTEST_STATUS.FAILED
-            terminalreporter.stats.setdefault(PYTEST_STATUS.FAILED, []).append(failed_report)
+    _efd_write_report_for_status(
+        terminalreporter,
+        _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED,
+        "failed",
+        PYTEST_STATUS.FAILED,
+        raw_summary_strings,
+        markedup_summary_strings,
+        color="red",
+    )
 
-        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED]
+    _efd_write_report_for_status(
+        terminalreporter,
+        _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
+        "passed",
+        PYTEST_STATUS.PASSED,
+        raw_summary_strings,
+        markedup_summary_strings,
+        color="green",
+    )
 
-    passed_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED)
+    _efd_write_report_for_status(
+        terminalreporter,
+        _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED,
+        "skipped",
+        PYTEST_STATUS.SKIPPED,
+        raw_summary_strings,
+        markedup_summary_strings,
+        color="yellow",
+    )
+
+    _efd_write_report_for_status(
+        terminalreporter,
+        _EFD_FLAKY_OUTCOME,
+        _EFD_FLAKY_OUTCOME,
+        _EFD_FLAKY_OUTCOME,
+        raw_summary_strings,
+        markedup_summary_strings,
+        color="yellow",
+        delete_reports=False,
+    )
+
+    # Flaky tests could have passed their initial attempt, so they need to be removed from the passed stats to avoid
+    # overcounting:
+    flaky_node_ids = {report.nodeid for report in terminalreporter.stats.get(_EFD_FLAKY_OUTCOME, [])}
+    passed_reports = terminalreporter.stats.get("passed", [])
     if passed_reports:
-        passed_text = f"{len(passed_reports)} passed"
-        raw_summary_strings.append(passed_text)
-        markedup_summary_strings.append(terminalreporter._tw.markup(passed_text, green=True, bold=False))
-        terminalreporter.write_sep("_", "PASSED", green=True, bold=True)
-        for passed_report in passed_reports:
-            line = f"{terminalreporter._tw.markup('PASSED', green=True)} {passed_report.nodeid}"
-            terminalreporter.write_line(line)
-            passed_report.outcome = PYTEST_STATUS.PASSED
-            terminalreporter.stats.setdefault(PYTEST_STATUS.PASSED, []).append(passed_report)
-        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED]
-
-    skipped_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED)
-    if skipped_reports:
-        skipped_text = f"{len(skipped_reports)} skipped"
-        raw_summary_strings.append(skipped_text)
-        markedup_summary_strings.append(terminalreporter._tw.markup(skipped_text, yellow=True))
-        terminalreporter.write_sep("_", "SKIPPED", yellow=True, bold=True)
-        for skipped_report in skipped_reports:
-            line = f"{terminalreporter._tw.markup('SKIPPED', yellow=True)} {skipped_report.nodeid}"
-            terminalreporter.write_line(line)
-            skipped_report.outcome = PYTEST_STATUS.SKIPPED
-            terminalreporter.stats.setdefault(PYTEST_STATUS.SKIPPED, []).append(skipped_report)
-        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED]
-
-    flaky_reports = terminalreporter.getreports(_EFD_FLAKY_OUTCOME)
-    if flaky_reports:
-        flaky_text = f"{len(flaky_reports)} flaky"
-        raw_summary_strings.append(flaky_text)
-        markedup_summary_strings.append(terminalreporter._tw.markup(flaky_text, yellow=True))
-        terminalreporter.write_sep("_", "FLAKY", yellow=True, bold=True)
-        for flaky_report in flaky_reports:
-            line = f"{terminalreporter._tw.markup('FLAKY', yellow=True)} {flaky_report.nodeid}"
-            terminalreporter.write_line(line)
+        terminalreporter.stats["passed"] = [report for report in passed_reports if report.nodeid not in flaky_node_ids]
 
     raw_attempt_strings = []
     markedup_attempts_strings = []
-    failed_attempts_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED)
-    if failed_attempts_reports:
-        failed_attempts_text = f"{len(failed_attempts_reports)} failed"
-        raw_attempt_strings.append(failed_attempts_text)
-        markedup_attempts_strings.append(terminalreporter._tw.markup(failed_attempts_text, red=True, bold=True))
-        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED]
-    passed_attempts_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED)
-    if passed_attempts_reports:
-        passed_attempts_text = f"{len(passed_attempts_reports)} passed"
-        raw_attempt_strings.append(passed_attempts_text)
-        markedup_attempts_strings.append(terminalreporter._tw.markup(passed_attempts_text, green=True, bold=False))
-        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED]
-    skipped_attempts_reports = terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED)
-    if skipped_attempts_reports:
-        skipped_attempts_text = f"{len(skipped_attempts_reports)} skipped"
-        raw_attempt_strings.append(skipped_attempts_text)
-        markedup_attempts_strings.append(terminalreporter._tw.markup(skipped_attempts_text, yellow=True))
-        del terminalreporter.stats[_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED]
+
+    _efd_prepare_attempts_strings(
+        terminalreporter,
+        _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED,
+        "failed",
+        raw_attempt_strings,
+        markedup_attempts_strings,
+        "red",
+        bold=True,
+    )
+    _efd_prepare_attempts_strings(
+        terminalreporter,
+        _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED,
+        "passed",
+        raw_attempt_strings,
+        markedup_attempts_strings,
+        "green",
+    )
+    _efd_prepare_attempts_strings(
+        terminalreporter,
+        _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED,
+        "skipped",
+        raw_attempt_strings,
+        markedup_attempts_strings,
+        "yellow",
+    )
 
     raw_summary_string = ". ".join(raw_summary_strings)
     # NOTE: find out why bold=False seems to apply to the following string, rather than the current one...
@@ -254,13 +332,29 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     # Print summary counts
     terminalreporter.write_sep("_", "Datadog Early Flake Detection summary", purple=True, bold=True)
 
-    terminalreporter.write_sep(
-        " ",
-        markedup_summary_string,
-        fullwidth=terminalreporter._tw.fullwidth + (len(markedup_summary_string) - len(raw_summary_string)),
-        purple=True,
-        bold=True,
-    )
+    if raw_summary_string:
+        terminalreporter.write_sep(
+            " ",
+            markedup_summary_string,
+            fullwidth=terminalreporter._tw.fullwidth + (len(markedup_summary_string) - len(raw_summary_string)),
+            purple=True,
+            bold=True,
+        )
+    else:
+        if InternalTestSession.efd_is_faulty_session():
+            terminalreporter.write_sep(
+                " ",
+                "Too many new tests detected (session considered faulty).",
+                red=True,
+                bold=True,
+            )
+        else:
+            terminalreporter.write_sep(
+                " ",
+                "No Early Flake Detection results.",
+                purple=True,
+                bold=True,
+            )
     terminalreporter.write_sep("=", purple=True, bold=True)
 
 

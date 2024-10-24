@@ -69,6 +69,16 @@ def test_new_flaky_01():
     assert last_flake
 """
 
+_TEST_NEW_SKIP_CONTENT = """
+import pytest
+@pytest.mark.skip
+def test_new_skips_01():
+    assert False
+
+def test_new_skips_02():
+    pytest.skip()
+"""
+
 _TEST_NEW_FAILS_SETUP = """
 import pytest
 
@@ -166,10 +176,12 @@ class PytestEFDTestCase(PytestTestCaseBase):
     def test_pytest_efd_spans(self):
         """Tests that an EFD session properly does the correct number of retries and sets the correct tags"""
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_skip=_TEST_NEW_SKIP_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
-        rec = self.inline_run("--ddtrace")
+        rec = self.inline_run("--ddtrace", "-v")
         assert rec.ret == 1
         spans = self.pop_spans()
         session_span = _get_spans_from_list(spans, "session")[0]
@@ -179,10 +191,15 @@ class PytestEFDTestCase(PytestTestCaseBase):
         assert module_span.get_tag("test.status") == "fail"
 
         suite_spans = _get_spans_from_list(spans, "suite")
+        assert len(suite_spans) == 6
         for suite_span in suite_spans:
-            assert suite_span.get_tag("test.status") == (
-                "fail" if suite_span.get_tag("test.suite") == "test_new_fail.py" else "pass"
-            )
+            suite_name = suite_span.get_tag("test.suite")
+            if suite_name in ("test_new_fail.py", "test_known_fail.py"):
+                assert suite_span.get_tag("test.status") == "fail"
+            elif suite_name == "test_new_skip.py":
+                assert suite_span.get_tag("test.status") == "skip"
+            else:
+                assert suite_span.get_tag("test.status") == "pass"
 
         new_fail_spans = _get_spans_from_list(spans, "test", "test_new_fails_01")
         assert len(new_fail_spans) == 11
@@ -211,7 +228,26 @@ class PytestEFDTestCase(PytestTestCaseBase):
                 new_passes_retries += 1
         assert new_passes_retries == 10
 
-        assert len(spans) == 41
+        # Skips are tested twice: once with a skip mark (skips during setup) and once using pytest.skip() in the
+        # test body (skips during call)
+        new_skips_01_spans = _get_spans_from_list(spans, "test", "test_new_skips_01")
+        assert len(new_skips_01_spans) == 11
+        new_skips_01_retries = 0
+        for new_skips_span in new_skips_01_spans:
+            assert new_skips_span.get_tag("test.is_new") == "true"
+            if new_skips_span.get_tag("test.is_retry") == "true":
+                new_skips_01_retries += 1
+        assert new_skips_01_retries == 10
+        new_skips_02_spans = _get_spans_from_list(spans, "test", "test_new_skips_02")
+        assert len(new_skips_02_spans) == 11
+        new_skips_02_retries = 0
+        for new_skips_span in new_skips_02_spans:
+            assert new_skips_span.get_tag("test.is_new") == "true"
+            if new_skips_span.get_tag("test.is_retry") == "true":
+                new_skips_02_retries += 1
+        assert new_skips_02_retries == 10
+
+        assert len(spans) == 67
 
     def test_pytest_efd_fails_session_when_test_fails(self):
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)

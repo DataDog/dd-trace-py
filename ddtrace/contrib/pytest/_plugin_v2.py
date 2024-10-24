@@ -440,7 +440,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
 
     # EFD retries tests only if their teardown succeeded to ensure the best chance they will succeed
     # NOTE: this mutates the original result's outcome
-    if InternalTest.efd_should_retry(test_id):
+    if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
 
 
