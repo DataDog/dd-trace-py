@@ -17,6 +17,7 @@ SUPPORTED_PYTHON_VERSIONS = [
     (3, 10),
     (3, 11),
     (3, 12),
+    (3, 13),
 ]  # type: List[Tuple[int, int]]
 
 
@@ -73,9 +74,9 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
-    ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+    ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
     >>> select_pys(min_version='3')
-    ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+    ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
     >>> select_pys(max_version='3')
     []
     >>> select_pys(min_version='3.7', max_version='3.9')
@@ -594,7 +595,7 @@ venv = Venv(
         Venv(
             name="falcon",
             command="pytest {cmdargs} tests/contrib/falcon",
-            pys=select_pys(min_version="3.7"),
+            pys=select_pys(min_version="3.7", max_version="3.12"),
             pkgs={
                 "falcon": [
                     "~=3.0.0",
@@ -2310,7 +2311,7 @@ venv = Venv(
                 # sqlite3 is tied to the Python version and is not installable via pip
                 # To test a range of versions without updating Python, we use Linux only pysqlite3-binary package
                 # Remove pysqlite3-binary on Python 3.9+ locally on non-linux machines
-                Venv(pys=select_pys(min_version="3.9"), pkgs={"pysqlite3-binary": [latest]}),
+                Venv(pys=select_pys(min_version="3.9", max_version="3.12"), pkgs={"pysqlite3-binary": [latest]}),
                 Venv(pys=select_pys(max_version="3.8"), pkgs={"importlib-metadata": latest}),
             ],
         ),
@@ -2492,7 +2493,7 @@ venv = Venv(
                             pkgs={"gevent": "~=22.8.0"},
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12"),
+                            pys="3.12",
                             pkgs={"gevent": "~=23.9.0"},
                         ),
                     ],
@@ -2598,7 +2599,7 @@ venv = Venv(
                 ),
                 Venv(
                     # mysqlclient added support for Python 3.9/3.10 in 2.1
-                    pys=select_pys(min_version="3.9"),
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
                     pkgs={"mysqlclient": ["~=2.1", latest]},
                 ),
             ],
@@ -2667,7 +2668,7 @@ venv = Venv(
                         "cohere": latest,
                         "anthropic": "==0.26.0",
                     },
-                    pys=select_pys(min_version="3.9"),
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
                 Venv(
                     pkgs={
@@ -2685,7 +2686,7 @@ venv = Venv(
                         "botocore": latest,
                         "cohere": latest,
                     },
-                    pys=select_pys(min_version="3.9"),
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
             ],
         ),
@@ -2943,7 +2944,7 @@ venv = Venv(
                 ),
                 # Python 3.12
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys="3.12",
                     venvs=[
                         Venv(
                             pkgs={
@@ -3089,7 +3090,7 @@ venv = Venv(
                 ),
                 # Python 3.12
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys="3.12",
                     venvs=[
                         Venv(
                             pkgs={

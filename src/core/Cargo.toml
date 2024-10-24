@@ -9,7 +9,7 @@ strip = "debuginfo"
 opt-level = 3
 
 [dependencies]
-pyo3 = { version = "0.21.2", features = ["extension-module"] }
+pyo3 = { version = "0.22.3", features = ["extension-module"] }
 
 # TODO: Use latest version tag instead of a specific commit
 datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "bfeef6d3f079c4f3f191176068353f82d5702b1d" }

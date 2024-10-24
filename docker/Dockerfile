@@ -1,7 +1,7 @@
 # DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
-FROM debian:buster-20221219-slim
+FROM debian:bookworm-slim
 
 ARG TARGETARCH
 ARG HATCH_VERSION=1.12.0
@@ -35,7 +35,6 @@ RUN \
       gnupg \
       jq \
       libbz2-dev \
-      libenchant-dev \
       libffi-dev \
       liblzma-dev \
       libmemcached-dev \
@@ -50,7 +49,6 @@ RUN \
       libssh-dev \
       libssl-dev \
       patch \
-      python-openssl\
       unixodbc-dev \
       wget \
       zlib1g-dev \
@@ -72,7 +70,7 @@ RUN curl https://sh.rustup.rs -sSf | \
     sh -s -- --default-toolchain stable -y
 
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch v2.4.2 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch v2.4.14 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
