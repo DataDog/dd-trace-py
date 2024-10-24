@@ -7,8 +7,8 @@ from typing import Optional
 from typing import Union
 
 import langchain
-
 from pydantic import SecretStr
+
 
 try:
     import langchain_core
