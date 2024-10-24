@@ -2972,10 +2972,15 @@ venv = Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
-            env={"DD_PROFILING_ENABLE_ASSERTS": "1", "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1"},
+            env={
+                "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
+                "DD_PROFILInG_NATIVE_TESTS": "1",
+            },
             pkgs={
                 "gunicorn": latest,
                 "lz4": latest,
+                "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
