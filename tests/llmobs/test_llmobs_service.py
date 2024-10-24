@@ -473,6 +473,17 @@ def test_annotate_input_string(LLMObs):
         assert retrieval_span.get_tag(INPUT_VALUE) == "test_input"
 
 
+def test_annotate_numeric_io(LLMObs):
+    with LLMObs.task() as task_span:
+        LLMObs.annotate(span=task_span, input_data=0, output_data=0)
+        assert task_span.get_tag(INPUT_VALUE) == "0"
+        assert task_span.get_tag(OUTPUT_VALUE) == "0"
+    with LLMObs.task() as task_span:
+        LLMObs.annotate(span=task_span, input_data=1.23, output_data=1.23)
+        assert task_span.get_tag(INPUT_VALUE) == "1.23"
+        assert task_span.get_tag(OUTPUT_VALUE) == "1.23"
+
+
 def test_annotate_input_serializable_value(LLMObs):
     with LLMObs.task() as task_span:
         LLMObs.annotate(span=task_span, input_data=["test_input"])
