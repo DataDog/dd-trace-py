@@ -1,4 +1,3 @@
-import os
 import sys
 import traceback
 from typing import Dict
@@ -6,40 +5,26 @@ from typing import Text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
+from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
-
-TELEMETRY_OFF_NAME = "OFF"
-TELEMETRY_DEBUG_NAME = "DEBUG"
-TELEMETRY_MANDATORY_NAME = "MANDATORY"
-TELEMETRY_INFORMATION_NAME = "INFORMATION"
-
-TELEMETRY_DEBUG_VERBOSITY = 10
-TELEMETRY_INFORMATION_VERBOSITY = 20
-TELEMETRY_MANDATORY_VERBOSITY = 30
-TELEMETRY_OFF_VERBOSITY = 40
-
-METRICS_REPORT_LVLS = (
-    (TELEMETRY_DEBUG_VERBOSITY, TELEMETRY_DEBUG_NAME),
-    (TELEMETRY_INFORMATION_VERBOSITY, TELEMETRY_INFORMATION_NAME),
-    (TELEMETRY_MANDATORY_VERBOSITY, TELEMETRY_MANDATORY_NAME),
-    (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
-)
 
 _IAST_SPAN_METRICS: Dict[str, int] = {}
 
 
 def get_iast_metrics_report_lvl(*args, **kwargs):
-    report_lvl_name = os.environ.get(IAST.TELEMETRY_REPORT_LVL, TELEMETRY_INFORMATION_NAME).upper()
+    report_lvl_name = asm_config._iast_telemetry_report_lvl.upper()
     report_lvl = 3
-    for lvl, lvl_name in METRICS_REPORT_LVLS:
+    for lvl, lvl_name in IAST.METRICS_REPORT_LVLS:
         if report_lvl_name == lvl_name:
             return lvl
     return report_lvl
@@ -51,7 +36,7 @@ def metric_verbosity(lvl):
             try:
                 return f
             except Exception:
-                log.warning("Error reporting IAST metrics", exc_info=True)
+                log.warning("[IAST] Error reporting metrics", exc_info=True)
         return lambda: None  # noqa: E731
 
     return wrapper
@@ -80,7 +65,7 @@ def _set_iast_error_metric(msg: Text) -> None:
         }
         telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace, tags=tags)
     except Exception:
-        log.warning("Error reporting ASM logs metrics", exc_info=True)
+        log.warning("[IAST] Error reporting logs metrics", exc_info=True)
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
