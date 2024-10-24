@@ -834,6 +834,9 @@ def _on_discover_session(
     test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
 
     efd_api_settings = CIVisibility.get_efd_api_settings()
+    if efd_api_settings is None:
+        log.debug("Could not get Early Flake Detection settings, using defaults")
+        efd_api_settings = EarlyFlakeDetectionSettings()
 
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
@@ -1286,20 +1289,8 @@ def _on_efd_finish_retry(efd_finish_args: EFDTestMixin.EFDRetryFinishArgs):
 
 
 @_requires_civisibility_enabled
-def _on_efd_record_initial(efd_record_initial_args: EFDTestMixin.EFDRecordInitialArgs):
-    CIVisibility.get_test_by_id(efd_record_initial_args.test_id).efd_record_initial(
-        efd_record_initial_args.status, efd_record_initial_args.skip_reason, efd_record_initial_args.exc_info
-    )
-
-
-@_requires_civisibility_enabled
 def _on_efd_get_final_status(test_id: InternalTestId) -> EFDTestStatus:
     return CIVisibility.get_test_by_id(test_id).efd_get_final_status()
-
-
-@_requires_civisibility_enabled
-def _on_efd_finish_test(test_id: InternalTestId):
-    CIVisibility.get_test_by_id(test_id).efd_finish_test()
 
 
 def _register_efd_handlers():
@@ -1311,8 +1302,6 @@ def _register_efd_handlers():
     core.on("test_visibility.efd.add_retry", _on_efd_add_retry, "retry_number")
     core.on("test_visibility.efd.start_retry", _on_efd_start_retry)
     core.on("test_visibility.efd.finish_retry", _on_efd_finish_retry)
-    core.on("test_visibility.efd.finish_test", _on_efd_finish_test)
-    core.on("test_visibility.efd.record_initial", _on_efd_record_initial)
     core.on("test_visibility.efd.get_final_status", _on_efd_get_final_status, "efd_final_status")
 
 

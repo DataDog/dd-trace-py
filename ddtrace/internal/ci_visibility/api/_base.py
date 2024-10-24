@@ -68,7 +68,7 @@ class TestVisibilitySessionSettings:
     itr_test_skipping_level: Optional[ITR_SKIPPING_LEVEL] = None
     itr_correlation_id: str = ""
     coverage_enabled: bool = False
-    efd_settings: Optional[EarlyFlakeDetectionSettings] = None
+    efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):

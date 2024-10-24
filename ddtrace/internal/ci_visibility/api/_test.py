@@ -92,6 +92,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
             self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
+
         if self._efd_abort_reason is not None:
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
 
@@ -140,6 +141,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(test.SKIP_REASON, reason)
         if exc_info is not None:
             self._exc_info = exc_info
+
+        # When EFD is enabled, we want to track whether the test is too slow to retry
+        if (
+            self._session_settings.efd_settings.enabled
+            and self.is_new()
+            and not self._efd_is_retry
+            and self._efd_should_abort()
+        ):
+            self._efd_abort_reason = "slow"
+
         super().finish(override_finish_time=override_finish_time)
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
@@ -200,6 +211,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def _efd_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
         return self._efd_retries[retry_number - 1]
 
+    def _efd_should_abort(self) -> bool:
+        # We have to use current time since the span is not yet finished
+        if self._span is None or self._span.start_ns is None:
+            raise ValueError("Test span has not started")
+        duration_s = (time_ns() - self._span.start_ns) / 1e9
+        return duration_s > 300
+
     def efd_should_retry(self):
         efd_settings = self._session_settings.efd_settings
         if not efd_settings.enabled:
@@ -231,7 +249,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if duration_s <= 300:
             return num_retries < efd_settings.slow_test_retries_5m
 
-        self._efd_abort_reason = "slow"
         return False
 
     def efd_has_retries(self) -> bool:
@@ -300,7 +317,3 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
     def set_efd_abort_reason(self, reason: str) -> None:
         self._efd_abort_reason = reason
-
-    def efd_finish_test(self):
-        self.set_status(self.efd_get_final_status())
-        self.finish(override_finish_time=(self._efd_initial_finish_time_ns / 1e9))  # Finish expects time in seconds

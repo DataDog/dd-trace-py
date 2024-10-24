@@ -3,7 +3,6 @@ import typing as t
 
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 import ddtrace.ext.test_visibility.api as ext_api
-from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -62,34 +61,6 @@ class EFDTestMixin:
         ).should_retry_test.value
         return should_retry_test
 
-    class EFDRecordInitialArgs(t.NamedTuple):
-        """InternalTest allows recording an initial duration (for EFD purposes)"""
-
-        test_id: InternalTestId
-        status: ext_api.TestStatus
-        skip_reason: t.Optional[str] = None
-        exc_info: t.Optional[ext_api.TestExcInfo] = None
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def efd_record_initial(
-        item_id: InternalTestId,
-        status: TestStatus,
-        skip_reason: t.Optional[str] = None,
-        exc_info: t.Optional[ext_api.TestExcInfo] = None,
-    ):
-        log.debug(
-            "Recording initial Early Flake Detection result for item %s: status: %s, skip_reason: %s, exc_info: %s ",
-            item_id,
-            status,
-            skip_reason,
-            exc_info,
-        )
-        core.dispatch(
-            "test_visibility.efd.record_initial",
-            (EFDTestMixin.EFDRecordInitialArgs(item_id, status, skip_reason, exc_info),),
-        )
-
     @staticmethod
     @_catch_and_log_exceptions
     def efd_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
@@ -147,9 +118,3 @@ class EFDTestMixin:
             "test_visibility.efd.get_final_status", (item_id,)
         ).efd_final_status.value
         return final_status
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def efd_finish_test(item_id):
-        log.debug("Finishing item %s in Early Flake Detection", item_id)
-        core.dispatch("test_visibility.efd.finish_test", (item_id,))
