@@ -1,14 +1,12 @@
 import re
 import typing as t
 
-from envier import En
-
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import _config as ddconfig
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._core import Config as En
 from ddtrace.version import get_version
 
 
@@ -132,4 +130,3 @@ class DynamicInstrumentationConfig(En):
 
 
 config = DynamicInstrumentationConfig()
-_report_telemetry(config)
