@@ -40,5 +40,8 @@ jobs:
       - name: Install hatch
         run: pip install hatch
 
+      - name: Install virtualenv
+        run: pip install virtualenv==20.26.6
+
       - name: Run tests
         run: hatch run ddtrace_unit_tests:test
