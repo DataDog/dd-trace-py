@@ -6,6 +6,7 @@ from http.client import RemoteDisconnected
 import inspect
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -48,7 +49,7 @@ except ImportError:
 
 NO_CHILDREN = object()
 DDTRACE_PATH = Path(__file__).resolve().parents[-2]
-FILE_PATH = os.path.dirname(os.path.abspath(__file__))
+FILE_PATH = Path(__file__).resolve().parent
 
 
 def assert_is_measured(span):

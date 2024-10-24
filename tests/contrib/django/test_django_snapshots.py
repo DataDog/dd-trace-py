@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import os
+from pathlib import Path
 import subprocess
 import sys
 
@@ -18,7 +19,7 @@ SERVER_PORT = 8000
 # FIXME: db.name behaves unreliably for some of these tests
 SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1", "meta.db.name"]
 
-FILE_PATH = os.path.dirname(os.path.abspath(__file__))
+FILE_PATH = Path(__file__).resolve().parent
 
 
 @contextmanager

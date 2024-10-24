@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 
@@ -9,7 +10,7 @@ from tests.utils import _build_env
 from tests.webclient import Client
 
 
-FILE_PATH = os.path.dirname(os.path.abspath(__file__))
+FILE_PATH = Path(__file__).resolve().parent
 
 
 @contextmanager
