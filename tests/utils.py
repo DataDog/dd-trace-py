@@ -6,6 +6,7 @@ from http.client import RemoteDisconnected
 import inspect
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -47,6 +48,8 @@ except ImportError:
     import importlib_metadata
 
 NO_CHILDREN = object()
+DDTRACE_PATH = Path(__file__).resolve().parents[1]
+FILE_PATH = Path(__file__).resolve().parent
 
 
 def assert_is_measured(span):
@@ -1117,14 +1120,10 @@ def snapshot_context(
             # "received unmatched traces" can sometimes happen
             else:
                 pytest.xfail(result)
-    except Exception as e:
-        # Even though it's unlikely any traces have been sent, make the
-        # final request to the test agent so that the test case is finished.
+    finally:
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         conn.getresponse()
-        pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
-    finally:
         conn.close()
 
 
@@ -1358,3 +1357,20 @@ def skip_if_until(until: int, condition=None, reason=None):
         return _get_skipped_item(function_or_class, full_reason)
 
     return decorator
+
+
+def _build_env(env=None, file_path=FILE_PATH):
+    """When a script runs in a subprocess, there are times in the CI or locally when it's assigned a different
+    path than expected. Even worse, we've seen scripts that worked for months suddenly stop working because of this.
+    With this function, we always set the path to ensure consistent results both locally and across different
+    CI environments
+    """
+    environ = dict(PATH="%s:%s" % (DDTRACE_PATH, file_path), PYTHONPATH="%s:%s" % (DDTRACE_PATH, file_path))
+    if os.environ.get("PATH"):
+        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
+    if os.environ.get("PYTHONPATH"):
+        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    if env:
+        for k, v in env.items():
+            environ[k] = v
+    return environ
