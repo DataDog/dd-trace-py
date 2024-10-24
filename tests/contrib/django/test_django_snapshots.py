@@ -72,7 +72,7 @@ def daphne_client(django_asgi, additional_env=None):
             "Server failed to start, see stdout and stderr logs"
             "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
             "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-            % (server_process.stdout, server_process.stderr)
+            % (server_process.stdout.read(), server_process.stderr.read())
         )
 
     try:

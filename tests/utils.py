@@ -47,7 +47,7 @@ except ImportError:
     import importlib_metadata
 
 NO_CHILDREN = object()
-DDTRACE_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+DDTRACE_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -1364,6 +1364,8 @@ def _build_env(env=None, file_path=FILE_PATH):
     With this function, we always set the path to ensure consistent results both locally and across different
     CI environments
     """
+    print("DDTRACE_PATH!!!!!!!!!!!!!!!")
+    print(DDTRACE_PATH)
     environ = dict(PATH="%s:%s" % (DDTRACE_PATH, file_path), PYTHONPATH="%s:%s" % (DDTRACE_PATH, file_path))
     if os.environ.get("PATH"):
         environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
