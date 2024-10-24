@@ -329,6 +329,9 @@ class AppSecSpanProcessor(SpanProcessor):
         waf_results = self._ddwaf.run(
             ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
         )
+
+        _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
+
         blocked = {}
         for action, parameters in waf_results.actions.items():
             if action == WAF_ACTIONS.BLOCK_ACTION:
@@ -363,20 +366,6 @@ class AppSecSpanProcessor(SpanProcessor):
         )
         if blocked:
             _asm_request_context.set_blocked(blocked)
-
-        try:
-            info = self._ddwaf.info
-            if info.errors:
-                errors = json.dumps(info.errors)
-                span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, errors)
-                log.debug("Error in ASM In-App WAF: %s", errors)
-            span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-            span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-            span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-        except (JSONDecodeError, ValueError):
-            log.warning("Error parsing data ASM In-App WAF metrics report %s", info.errors)
-        except Exception:
-            log.warning("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
 
         if waf_results.data or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
