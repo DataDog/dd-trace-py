@@ -10,6 +10,7 @@ from typing import Sequence  # noqa F401
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
@@ -30,12 +31,14 @@ class Scheduler(periodic.PeriodicService):
         recorder: Optional[Recorder] = None,
         exporters: Optional[List[Exporter]] = None,
         before_flush: Optional[Callable] = None,
+        endpoint_call_counter_processor: Optional[EndpointCallCounterProcessor] = None,
         interval: float = config.upload_interval,
     ):
         super(Scheduler, self).__init__(interval=interval)
         self.recorder: Optional[Recorder] = recorder
         self.exporters: Optional[List[Exporter]] = exporters
         self.before_flush: Optional[Callable] = before_flush
+        self.endpoint_call_counter_processor: Optional[EndpointCallCounterProcessor] = endpoint_call_counter_processor
         self._configured_interval: float = self.interval
         self._last_export: int = 0  # Overridden in _start_service
         self._export_libdd_enabled: bool = config.export.libdd_enabled
@@ -53,7 +56,7 @@ class Scheduler(periodic.PeriodicService):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
         if self._export_libdd_enabled:
-            ddup.upload()
+            ddup.upload(self.endpoint_call_counter_processor)
 
             # These are only used by the Python uploader, but set them here to keep logs/etc
             # consistent for now
