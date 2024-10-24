@@ -21,6 +21,21 @@ from ._base import VulnerabilityBase
 
 log = get_logger(__name__)
 
+HEADER_INJECTION_EXCLUSIONS = {
+    "location",
+    "pragma",
+    "content-type",
+    "content-length",
+    "content-encoding",
+    "transfer-encoding",
+    "set-cookie",
+    "vary",
+    "access-control-allow-",
+    "sec-websocket-location",
+    "sec-websocket-accept",
+    "connection",
+}
+
 
 def get_version() -> Text:
     return ""
@@ -82,20 +97,12 @@ class HeaderInjection(VulnerabilityBase):
 
 
 def _iast_report_header_injection(headers_args) -> None:
-    headers_exclusion = {
-        "content-type",
-        "content-length",
-        "content-encoding",
-        "transfer-encoding",
-        "set-cookie",
-        "vary",
-    }
     from .._metrics import _set_metric_iast_executed_sink
     from .._taint_tracking import is_pyobject_tainted
     from .._taint_tracking.aspects import add_aspect
 
     header_name, header_value = headers_args
-    for header_to_exclude in headers_exclusion:
+    for header_to_exclude in HEADER_INJECTION_EXCLUSIONS:
         header_name_lower = header_name.lower()
         if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
             return
