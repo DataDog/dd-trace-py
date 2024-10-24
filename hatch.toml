@@ -433,7 +433,7 @@ pytest = ["~=6.0", "~=7.0"]
 
 
 [[envs.pytest_plugin_v2.matrix]]
-python = ["3.9", "3.10", "3.13"]
+python = ["3.9", "3.10", "3.12"]
 pytest = ["~=6.0", "~=7.0", "~=8.0"]
 
 [envs.snapshot_viewer]
