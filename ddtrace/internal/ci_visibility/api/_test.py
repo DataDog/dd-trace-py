@@ -274,24 +274,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def efd_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
         self._efd_get_retry_test(retry_number).finish_test(status, exc_info=exc_info)
 
-    def efd_record_initial(
-        self, status: TestStatus, reason: Optional[str] = None, exc_info: Optional[TestExcInfo] = None
-    ) -> None:
-        if self._efd_initial_finish_time_ns is not None:
-            log.debug("Early Flake Detection: initial result already recorded")
-            return
-        if not self.is_started():
-            log.debug("Test needs to have started in order to record initial result")
-            return
-
-        if reason is not None:
-            self.set_tag(test.SKIP_REASON, reason)
-        if exc_info is not None:
-            self._exc_info = exc_info
-
-        self._efd_initial_finish_time_ns = time_ns()
-        self._status = status
-
     def efd_get_final_status(self) -> EFDTestStatus:
         status_counts: Dict[TestStatus, int] = {
             TestStatus.PASS: 0,
