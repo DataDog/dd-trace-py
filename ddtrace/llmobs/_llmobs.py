@@ -511,7 +511,7 @@ class LLMObs(Service):
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
-        if input_data or output_data:
+        if input_data is not None or output_data is not None:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
             elif span_kind == "embedding":
@@ -601,9 +601,9 @@ class LLMObs(Service):
         """Tags input/output values for non-LLM kind spans.
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
-        if input_value:
+        if input_value is not None:
             span.set_tag_str(INPUT_VALUE, safe_json(input_value))
-        if output_value:
+        if output_value is not None:
             span.set_tag_str(OUTPUT_VALUE, safe_json(output_value))
 
     @staticmethod
