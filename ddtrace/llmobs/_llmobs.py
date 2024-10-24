@@ -112,7 +112,7 @@ class LLMObs(Service):
         if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
             return
         current_context = self._instance.tracer.current_trace_context()
-        current_context_id = current_context._get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+        current_context_id = current_context.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
         with self._annotation_context_lock:
             for _, context_id, annotation_kwargs in self._instance._annotations:
                 if current_context_id == context_id:
@@ -301,12 +301,12 @@ class LLMObs(Service):
             ctx_id = annotation_id
             if current_ctx is None:
                 current_ctx = Context(is_remote=False)
-                current_ctx._set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+                current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
                 cls._instance.tracer.context_provider.activate(current_ctx)
-            elif not current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID):
-                current_ctx._set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+            elif not current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID):
+                current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
             else:
-                ctx_id = current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+                ctx_id = current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
             return ctx_id
 
         def register_annotation():
