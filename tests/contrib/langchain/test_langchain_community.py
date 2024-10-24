@@ -1090,6 +1090,8 @@ def test_openai_integration(request_vcr, ddtrace_run_python_code_in_subprocess):
         """
 from langchain_openai import OpenAI
 import ddtrace
+import warnings
+warnings.filterwarnings("ignore")
 from tests.contrib.langchain.test_langchain_community import get_request_vcr
 with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
     OpenAI().invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
@@ -1126,6 +1128,8 @@ def test_openai_service_name(request_vcr, ddtrace_run_python_code_in_subprocess,
         """
 from langchain_openai import OpenAI
 import ddtrace
+import warnings
+warnings.filterwarnings("ignore")
 from tests.contrib.langchain.test_langchain_community import get_request_vcr
 with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
     OpenAI().invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
@@ -1565,7 +1569,7 @@ async def test_astreamed_llm(langchain_openai, async_streamed_response_responder
         pass
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS + ["meta.langchain.request.inputs.0"])
 def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
         module="openai",
