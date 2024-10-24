@@ -80,7 +80,7 @@ def efd_handle_retries(
     item.ihook.pytest_runtest_logreport(report=final_report)
 
 
-def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest.TestReport]:
+def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[_pytest.reports.TestReport]:
     return terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED)
 
 
@@ -264,7 +264,7 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     terminalreporter.write_sep("=", purple=True, bold=True)
 
 
-def efd_get_teststatus(report: pytest.TestReport) -> t.Optional[pytest.TestShortLogReport]:
+def efd_get_teststatus(report: _pytest.reports.TestReport) -> t.Optional[pytest.TestShortLogReport]:
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED:
         return pytest.TestShortLogReport(
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED,

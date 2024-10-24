@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import typing as t
 
+import _pytest
 from _pytest.runner import CallInfo
 import pytest
 
@@ -34,7 +35,7 @@ def _efd_get_attempt_string(nodeid) -> str:
     return "ATTEMPT {} ".format(retry_number) if retry_number is not None else "INITIAL ATTEMPT "
 
 
-def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, pytest.TestReport]:
+def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _pytest.reports.TestReport]:
     hooks = {
         "setup": item.ihook.pytest_runtest_setup,
         "call": item.ihook.pytest_runtest_call,

@@ -274,7 +274,7 @@ class CIVisibility(Service):
             self._api_settings.skipping_enabled,
         )
         log.info(
-            "API-provided settings: early flake detection enabled: %s",
+            "API-provided settings: Early Flake Detection enabled: %s",
             self._api_settings.early_flake_detection.enabled,
         )
         log.info("Detected configurations: %s", str(self._configurations))
@@ -505,7 +505,7 @@ class CIVisibility(Service):
 
         log.debug("%s enabled", cls.__name__)
         log.info(
-            "Final settings: coverage collection: %s, test skipping: %s, early flake detection: %s",
+            "Final settings: coverage collection: %s, test skipping: %s, Early Flake Detection: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
             CIVisibility.is_efd_enabled(),

@@ -122,7 +122,7 @@ def set_up_mock_civisibility(
         side_effect=_fake_fetch_tests_to_skip,
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
-        side_effect=_fetch_unique_tests_side_effect(unique_test_ids),
+        return_value=_fetch_unique_tests_side_effect(unique_test_ids),
     ), mock.patch.multiple(
         CIVisibilityGitClient,
         _get_repository_url=classmethod(lambda *args, **kwargs: "git@github.com:TestDog/dd-test-py.git"),

@@ -11,6 +11,7 @@ from ddtrace.ext.test_visibility._item_ids import TestId
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.internal.ci_visibility.api._base import SPECIAL_STATUS
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
@@ -141,6 +142,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self._exc_info = exc_info
         super().finish(override_finish_time=override_finish_time)
 
+    def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
+        if self.efd_has_retries():
+            efd_status = self.efd_get_final_status()
+            if efd_status in (EFDTestStatus.ALL_PASS, EFDTestStatus.FLAKY):
+                return TestStatus.PASS
+            if efd_status == EFDTestStatus.ALL_SKIP:
+                return TestStatus.SKIP
+            return TestStatus.FAIL
+        return super().get_status()
+
     def count_itr_skipped(self) -> None:
         """Tests do not count skipping on themselves, so only count on the parent.
 
@@ -154,22 +165,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish_test(TestStatus.SKIP)
-
-    def make_early_flake_retry_from_test(self) -> "TestVisibilityTest":
-        if self._parameters is not None:
-            raise ValueError("Cannot create an early flake retry from a test with parameters")
-        retry_test = self.__class__(
-            self.name,
-            self._session_settings,
-            codeowners=self._codeowners,
-            source_file_info=self._source_file_info,
-            initial_tags=self._tags,
-            is_efd_retry=True,
-            is_new=self._is_new,
-        )
-        retry_test.parent = self.parent
-
-        return retry_test
 
     def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
         self._coverage_data.add_covered_files(coverage_data)
@@ -186,6 +181,22 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     #
     # EFD (Early Flake Detection) functionality
     #
+    def make_early_flake_retry_from_test(self) -> "TestVisibilityTest":
+        if self._parameters is not None:
+            raise ValueError("Cannot create an early flake retry from a test with parameters")
+        retry_test = self.__class__(
+            self.name,
+            self._session_settings,
+            codeowners=self._codeowners,
+            source_file_info=self._source_file_info,
+            initial_tags=self._tags,
+            is_efd_retry=True,
+            is_new=self._is_new,
+        )
+        retry_test.parent = self.parent
+
+        return retry_test
+
     def _efd_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
         return self._efd_retries[retry_number - 1]
 

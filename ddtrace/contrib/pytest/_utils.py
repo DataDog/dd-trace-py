@@ -7,7 +7,9 @@ import typing as t
 
 import pytest
 
+from ddtrace.contrib.pytest.constants import EFD_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
+from ddtrace.contrib.pytest.constants import RETRIES_MIN_SUPPORTED_VERSION
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
@@ -157,6 +159,14 @@ def _is_pytest_8_or_later() -> bool:
 
 def _pytest_version_supports_itr() -> bool:
     return _get_pytest_version_tuple() >= ITR_MIN_SUPPORTED_VERSION
+
+
+def _pytest_version_supports_retries() -> bool:
+    return _get_pytest_version_tuple() >= RETRIES_MIN_SUPPORTED_VERSION
+
+
+def _pytest_version_supports_efd():
+    return _get_pytest_version_tuple() >= EFD_MIN_SUPPORTED_VERSION
 
 
 def _pytest_marked_to_skip(item: pytest.Item) -> bool:

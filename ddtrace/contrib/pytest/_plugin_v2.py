@@ -11,16 +11,13 @@ from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
-from ddtrace.contrib.pytest._efd_utils import efd_get_failed_reports
-from ddtrace.contrib.pytest._efd_utils import efd_get_teststatus
-from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
-from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._retry_utils import get_retry_num
 from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
+from ddtrace.contrib.pytest._utils import _get_pytest_version_tuple
 from ddtrace.contrib.pytest._utils import _get_session_command
 from ddtrace.contrib.pytest._utils import _get_source_file_info
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
@@ -28,6 +25,7 @@ from ddtrace.contrib.pytest._utils import _get_test_parameters_json
 from ddtrace.contrib.pytest._utils import _is_enabled_early
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.pytest._utils import _TestOutcome
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
@@ -55,6 +53,23 @@ from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
+
+if _pytest_version_supports_efd():
+    from ddtrace.contrib.pytest._efd_utils import efd_get_failed_reports
+    from ddtrace.contrib.pytest._efd_utils import efd_get_teststatus
+    from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
+    from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
+
+if _get_pytest_version_tuple() >= (7, 0, 0):
+    from pytest import CallInfo as pytest_CallInfo
+    from pytest import Config as pytest_Config  # noqa: F401
+    from pytest import TestReport as pytest_TestReport
+    from pytest import TestShortLogReport as pytest_TestShortLogReport
+else:
+    from _pytest.config import Config as pytest_Config
+    from _pytest.reports import TestReport as pytest_TestReport
+    from _pytest.reports import TestReport as pytest_TestShortLogReport
+    from _pytest.runner import CallInfo as pytest_CallInfo
 
 log = get_logger(__name__)
 
@@ -156,7 +171,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
         _disable_ci_visibility()
 
 
-def pytest_configure(config: pytest.Config) -> None:
+def pytest_configure(config: pytest_Config) -> None:
     try:
         if is_enabled(config):
             take_over_logger_stream_handler()
@@ -173,7 +188,7 @@ def pytest_configure(config: pytest.Config) -> None:
         _disable_ci_visibility()
 
 
-def pytest_unconfigure(config: pytest.Config) -> None:
+def pytest_unconfigure(config: pytest_Config) -> None:
     if not is_test_visibility_enabled():
         return
 
@@ -201,6 +216,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.start()
+        if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
+            log.warning("Early Flake Detection disabled: pytest version is not supported")
+
     except Exception:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
@@ -240,9 +258,9 @@ def _pytest_collection_finish(session) -> None:
             InternalTest.mark_itr_unskippable(test_id)
             InternalTestSuite.mark_itr_unskippable(suite_id)
 
-        # NOTE: EFD enablement status is already specified during service enablement
-        if InternalTestSession.efd_is_faulty_session():
-            log.warning("Early Flake Detection disabled: too many new tests detected")
+    # NOTE: EFD enablement status is already specified during service enablement
+    if InternalTestSession.efd_enabled() and InternalTestSession.efd_is_faulty_session():
+        log.warning("Early Flake Detection disabled: too many new tests detected")
 
 
 def pytest_collection_finish(session) -> None:
@@ -399,7 +417,7 @@ def _process_result(item, call, result) -> _TestOutcome:
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
 
-def _pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo, outcome: pytest.TestReport) -> None:
+def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
     # When EFD retries are active, we do not want makereport to generate results, but we want to record exceptions
     # since they are not available in the output of runtest_protocol
     if get_retry_num(item.nodeid) is not None:
@@ -427,9 +445,9 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo, outcome
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
+def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
-    outcome: pytest.TestReport
+    outcome: pytest_TestReport
     outcome = yield
 
     if not is_test_visibility_enabled():
@@ -449,9 +467,10 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     # terminalreporter.stats["failed"] to its original size after the yield.
     failed_reports_initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
 
-    for failed_report in efd_get_failed_reports(terminalreporter):
-        failed_report.outcome = PYTEST_STATUS.FAILED
-        terminalreporter.stats.setdefault("failed", []).append(failed_report)
+    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+        for failed_report in efd_get_failed_reports(terminalreporter):
+            failed_report.outcome = PYTEST_STATUS.FAILED
+            terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
     yield
 
@@ -468,7 +487,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         ]
 
     # IMPORTANT: terminal summary functions mutate terminalreporter.stats
-    if InternalTestSession.efd_enabled():
+    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
         efd_pytest_terminal_summary_post_yield(terminalreporter)
 
     return
@@ -510,9 +529,10 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 
 def pytest_report_teststatus(
-    report: pytest.TestReport,
-) -> t.Optional[pytest.TestShortLogReport]:
-    return efd_get_teststatus(report)
+    report: pytest_TestReport,
+) -> t.Optional[pytest_TestShortLogReport]:
+    if _pytest_version_supports_efd():
+        return efd_get_teststatus(report)
 
 
 @pytest.hookimpl(trylast=True)
