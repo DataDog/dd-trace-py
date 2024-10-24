@@ -14,7 +14,7 @@ from tests.utils import DDTRACE_PATH
 from tests.utils import _build_env
 
 
-FILE_PATH = os.path.dirname(os.path.abspath(__file__))
+FILE_PATH = Path(__file__).resolve().parent
 
 
 @pytest.fixture(autouse=True, scope="module")
