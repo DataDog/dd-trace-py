@@ -24,15 +24,18 @@ for required_env in {"DD_ENV", "DD_SERVICE", "DD_API_KEY"}:
 ddprof = ctypes.CDLL(ddprof_lib_path)
 
 ddprof.ddprof_start_profiling.argtypes = []
-ddprof.ddprof_start_profiling.restype = None
+ddprof.ddprof_start_profiling.restype = c_int
 
 ddprof.ddprof_stop_profiling.argtypes = [c_int]
 ddprof.ddprof_stop_profiling.restype = None
 
 
 def start_profiling():
-    ddprof.ddprof_start_profiling()
+    result = ddprof.ddprof_start_profiling()
+    if result == -1:
+        raise PyDDProfException(f"Failed to start profiling: error code -1")
+    return result
 
 
 def stop_profiling(timeout: int):
-    ddprof.ddprof_stop_profiling(timeout)
+    return ddprof.ddprof_stop_profiling(timeout)
