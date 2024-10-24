@@ -46,6 +46,8 @@ VERSION_COMPAT_FILE_LOCATIONS = (
 )
 EXECUTABLE_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_executables.txt"))
 
+PACKAGES_DENY_LIST = ["uwsgi"]
+
 
 def build_installed_pkgs():
     installed_packages = {}
@@ -134,6 +136,8 @@ def send_telemetry(event):
     )
     p.stdin.write(event_json)
     p.stdin.close()
+    _log("writing telemetry %s" % event_json, level="debug")
+
     _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
 
 
@@ -204,6 +208,7 @@ def _inject():
     telemetry_data = []
     integration_incomp = False
     runtime_incomp = False
+    denylist_package = False
     os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     try:
         import ddtrace
@@ -234,33 +239,42 @@ def _inject():
                 )
 
         # check installed packages against allow list
-        incompatible_packages = {}
+        incompat_pkgs = {}
         for package_name, package_version in INSTALLED_PACKAGES.items():
             if not package_is_compatible(package_name, package_version):
-                incompatible_packages[package_name] = package_version
+                incompat_pkgs[package_name] = package_version
 
-        if incompatible_packages:
-            _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
-            integration_incomp = True
-            if not FORCE_INJECT:
-                _log("Aborting dd-trace-py instrumentation.", level="debug")
-
-                for key, value in incompatible_packages.items():
-                    telemetry_data.append(
-                        create_count_metric(
-                            "library_entrypoint.abort.integration",
-                            [
-                                "integration:" + key,
-                                "integration_version:" + value,
-                            ],
-                        )
+        for package_name in PACKAGES_DENY_LIST:
+            if package_name in INSTALLED_PACKAGES.keys():
+                incompat_pkgs[package_name] = INSTALLED_PACKAGES[package_name]
+                if not FORCE_INJECT:
+                    denylist_package = True
+                    _log(
+                        "Deny list integration detected %s" % package_name,
+                        level="debug",
                     )
 
-            else:
-                _log(
-                    "DD_INJECT_FORCE set to True, allowing unsupported integrations and continuing.",
-                    level="debug",
+        if incompat_pkgs:
+            integration_incomp = True
+            _log("Found incompatible packages: %s." % incompat_pkgs, level="debug")
+        if not FORCE_INJECT:
+            for key, value in incompat_pkgs.items():
+                telemetry_data.append(
+                    create_count_metric(
+                        "library_entrypoint.abort.integration",
+                        [
+                            "integration:" + key,
+                            "integration_version:" + value,
+                        ],
+                    )
                 )
+
+        else:
+            _log(
+                "DD_INJECT_FORCE set to True, instrumenting unsupported integrations, and ignoring deny list.",
+                level="debug",
+            )
+
         if not runtime_version_is_supported(PYTHON_RUNTIME, PYTHON_VERSION):
             _log(
                 "Found incompatible runtime: %s %s. Supported runtimes: %s"
@@ -277,17 +291,18 @@ def _inject():
                     "DD_INJECT_FORCE set to True, allowing unsupported runtimes and continuing.",
                     level="debug",
                 )
-        if telemetry_data:
+        if runtime_incomp or denylist_package:
             telemetry_data.append(
                 create_count_metric(
                     "library_entrypoint.abort",
                     [
-                        "reason:integration" if integration_incomp else "reason:incompatible_runtime",
+                        "reason:integration" if denylist_package else "reason:incompatible_runtime",
                     ],
                 )
             )
-            telemetry_event = gen_telemetry_payload(telemetry_data)
-            send_telemetry(telemetry_event)
+            event = gen_telemetry_payload(telemetry_data)
+            send_telemetry(event)
+
             return
 
         site_pkgs_path = os.path.join(
@@ -296,6 +311,11 @@ def _inject():
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
+            telemetry_data.append(
+                create_count_metric("library_entrypoint.error", ["error_type:" + "site-packages-not-found"])
+            )
+            event = gen_telemetry_payload(telemetry_data)
+            send_telemetry(event)
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
@@ -306,8 +326,21 @@ def _inject():
 
         except BaseException as e:
             _log("failed to load ddtrace module: %s" % e, level="error")
+            telemetry_data.append(
+                create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])
+            )
+            event = gen_telemetry_payload(telemetry_data)
+            send_telemetry(event)
             return
         else:
+            if not FORCE_INJECT:
+                for module in incompat_pkgs.keys():
+                    ddtrace._monkey.PATCH_MODULES[module] = False
+            # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
+            os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
+            ddtrace.settings.config._lib_was_injected = True
+            # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
+
             try:
                 import ddtrace.bootstrap.sitecustomize
 
@@ -328,21 +361,21 @@ def _inject():
                 # Also insert the bootstrap dir in the path of the current python process.
                 sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
-                event = gen_telemetry_payload(
-                    [
-                        create_count_metric(
-                            "library_entrypoint.complete",
-                            [
-                                "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
-                            ],
-                        )
-                    ]
+                telemetry_data.append(
+                    create_count_metric(
+                        "library_entrypoint.complete",
+                        [
+                            "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
+                        ],
+                    )
                 )
+                event = gen_telemetry_payload(telemetry_data)
                 send_telemetry(event)
             except Exception as e:
-                event = gen_telemetry_payload(
-                    [create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])]
+                telemetry_data.append(
+                    create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])
                 )
+                event = gen_telemetry_payload(telemetry_data)
                 send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
