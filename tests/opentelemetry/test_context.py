@@ -158,22 +158,6 @@ def test_otel_baggage_set(oteltracer):
         assert ddcontext.get_baggage_item("key1") == "value1"
 
 
-def test_otel_baggage_get(oteltracer):
-    with oteltracer.start_as_current_span("otel-baggage-get") as span:  # noqa: F841
-        with ddtrace.tracer.trace("otel-baggage-get-ddtrace") as ddspan:  # noqa: F841
-            import pdb
-
-            pdb.set_trace()
-            ddcontext = tracer.current_trace_context()
-            ddcontext.set_baggage_item("key1", "value1")
-            assert (
-                get_baggage(
-                    "key1",
-                )
-                == "value1"
-            )
-
-
 def test_otel_baggage_remove(oteltracer):
     with oteltracer.start_as_current_span("otel-baggage-remove") as span:  # noqa: F841
         context = set_baggage("key1", "value1")
