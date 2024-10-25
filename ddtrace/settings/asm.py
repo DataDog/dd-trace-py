@@ -104,7 +104,7 @@ class ASMConfig(Env):
     _auto_user_instrumentation_local_mode = Env.var(
         str,
         APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
-        default="",
+        default=LOGIN_EVENTS_MODE.IDENT,
         parser=_parse_options([LOGIN_EVENTS_MODE.DISABLED, LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON]),
     )
     _auto_user_instrumentation_rc_mode: Optional[str] = None
@@ -219,8 +219,8 @@ class ASMConfig(Env):
         # Is one click available?
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
         # Only for deprecation phase
-        if self._auto_user_instrumentation_local_mode == "":
-            self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode or LOGIN_EVENTS_MODE.IDENT
+        if self._automatic_login_events_mode and APPSEC.AUTO_USER_INSTRUMENTATION_MODE not in os.environ:
+            self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode
         if not self._asm_libddwaf_available:
             self._asm_enabled = False
             self._asm_can_be_enabled = False
