@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: resolves an issue where endpoint profiling for stack v2 throws
+    ``TypeError`` exception when it is given a ``Span`` with ``None`` span_type.
