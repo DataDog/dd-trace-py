@@ -38,6 +38,7 @@ class ThreadSpanLinks
 
     void link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
     const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
+    void reset();
 
     static void postfork_child();
 
@@ -48,8 +49,6 @@ class ThreadSpanLinks
     // Private Constructor/Destructor
     ThreadSpanLinks() = default;
     ~ThreadSpanLinks() = default;
-
-    void reset();
 };
 
 }
