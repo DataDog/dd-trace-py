@@ -159,20 +159,14 @@ def test_push_non_web_span(stack_v2_enabled, tmp_path):
         )
 
 
-@pytest.mark.subprocess()
-def test_push_span_none_span_type():
+@pytest.mark.parametrize("stack_v2_enabled", [True, False])
+def test_push_span_none_span_type(stack_v2_enabled, tmp_path):
     # Test for https://github.com/DataDog/dd-trace-py/issues/11141
-    import os
-    import time
-    import uuid
-
-    from ddtrace import tracer
-    from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.profiling.collector import stack
-    from tests.profiling.collector import pprof_utils
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
 
     test_name = "test_push_span_none_span_type"
-    pprof_prefix = "/tmp/" + test_name
+    pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
@@ -188,6 +182,7 @@ def test_push_span_none_span_type():
         tracer=tracer,
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
+        _stack_collector_v2_enabled=stack_v2_enabled,
     ):
         # Explicitly set None span_type as the default could change in the
         # future.
