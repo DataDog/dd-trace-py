@@ -927,7 +927,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             )
             if score is not None:
                 span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(score)))
-            for kwarg_key, v in document.metadata.items():
+            for kwarg_key, v in getattr(document, "metadata", {}).items():
                 span.set_tag_str(
                     "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
                 )
@@ -1018,6 +1018,7 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
             if document[1] is not None:
                 span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(document[1])))
             for kwarg_key, v in document[0].metadata.items():
+            for kwarg_key, v in getattr(document, "metadata", {}).items():
                 span.set_tag_str(
                     "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
                 )
