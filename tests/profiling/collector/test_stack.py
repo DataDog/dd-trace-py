@@ -27,7 +27,7 @@ from . import test_collector
 # The fix was not backported to 3.11. The fix was first released in 3.12.5 for
 # Python 3.12. Tested with Python 3.11.8 and 3.12.5 to confirm the issue.
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
-    sys.version_info[:2] < (3, 10) or sys.version_info[:2] < (3, 11, 9) or sys.version_info >= (3, 12, 5)
+    sys.version_info[:2] < (3, 11) or sys.version_info[:2] < (3, 11, 9) or sys.version_info >= (3, 12, 5)
 )
 
 
