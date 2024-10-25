@@ -223,7 +223,7 @@ def test_push_non_web_span():
         )
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env=dict(DD_PROFILING_STACK_V2_ENABLED="true"))
 def test_push_span_none_span_type():
     # Test for https://github.com/DataDog/dd-trace-py/issues/11141
     import os
