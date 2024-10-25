@@ -937,7 +937,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         raise
     finally:
         integration.llmobs_set_tags(
-            span, args=args, kwargs=kwargs, response=documents, operation="retrieval", is_workflow_override=False
+            span, args=args, kwargs=kwargs, response=documents, operation="retrieval", is_workflow_override=True
         )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
