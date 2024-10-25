@@ -54,15 +54,8 @@ SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    def _llmobs_set_tags(
-        self,
-        span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
-        response: Optional[Any] = None,
-        operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
-    ) -> None:
-        """Sets meta tags and metrics for span events to be sent to LLMObs."""
+    def _llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None,
+                         operation: str = "", is_workflow_override: Optional[bool] = None) -> None:
         if not self.llmobs_enabled:
             return
         if operation not in SUPPORTED_OPERATIONS:
@@ -85,9 +78,9 @@ class LangChainIntegration(BaseLLMIntegration):
 
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
 
-        if isinstance(kwargs, dict) and kwargs.get("is_workflow") is not None:
+        if is_workflow_override:
             # when the traced function forces an is_workflow state
-            is_workflow = bool(kwargs.get("is_workflow"))
+            is_workflow = is_workflow_override
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)

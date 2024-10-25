@@ -28,10 +28,8 @@ log = get_logger(__name__)
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
-    def _llmobs_set_tags(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None, operation: str = ""
-    ) -> None:
-        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
+    def _llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None,
+                         operation: str = "", is_workflow_override: Optional[bool] = None) -> None:
         if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
             parent_id = _get_llmobs_parent_id(span) or "undefined"
             span.set_tag(PARENT_ID_KEY, parent_id)

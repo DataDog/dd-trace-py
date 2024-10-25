@@ -32,14 +32,8 @@ class GeminiIntegration(BaseLLMIntegration):
         if model is not None:
             span.set_tag_str("google_generativeai.request.model", str(model))
 
-    def _llmobs_set_tags(
-        self,
-        span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
-        response: Optional[Any] = None,
-        operation: str = "",
-    ) -> None:
+    def _llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None,
+                         operation: str = "", is_workflow_override: Optional[bool] = None) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("google_generativeai.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("google_generativeai.request.provider") or "")

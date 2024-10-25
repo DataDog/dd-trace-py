@@ -138,15 +138,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
             self.metric(span, "dist", "tokens.%s" % token_type, num_tokens, tags=tags)
 
-    def _llmobs_set_tags(
-        self,
-        span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
-        response: Optional[Any] = None,
-        operation: str = "",  # oneof "completion", "chat", "embedding"
-    ) -> None:
-        """Sets meta tags and metrics for span events to be sent to LLMObs."""
+    def _llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None,
+                         operation: str = "", is_workflow_override: Optional[bool] = None) -> None:
         span_kind = "embedding" if operation == "embedding" else "llm"
         span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")

@@ -48,15 +48,8 @@ class AnthropicIntegration(BaseLLMIntegration):
             else:
                 span.set_tag_str(API_KEY, api_key)
 
-    def _llmobs_set_tags(
-        self,
-        span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
-        response: Optional[Any] = None,
-        operation: str = "",
-    ) -> None:
-        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
+    def _llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None,
+                         operation: str = "", is_workflow_override: Optional[bool] = None) -> None:
         parameters = {}
         if kwargs.get("temperature"):
             parameters["temperature"] = kwargs.get("temperature")
