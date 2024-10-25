@@ -26,10 +26,7 @@ class SignalCollector(object):
     This is used to collect and encode signals emitted by probes as soon as
     requested. The ``push`` method is intended to be called after a line-level
     signal is fully emitted, and information is available and ready to be
-    encoded, or the signal status indicate it should be skipped. For function
-    instrumentation (e.g. function probes), we use the ``attach`` method to
-    create a ``SignalContext`` instance that can be used to capture additional
-    data, such as the return value of the wrapped function.
+    encoded, or the signal status indicate it should be skipped.
     """
 
     def __init__(self, encoder: BufferedEncoder) -> None:

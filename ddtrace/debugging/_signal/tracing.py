@@ -32,6 +32,8 @@ class DynamicSpan(Signal):
     _span_cm: t.Optional[Span] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
+        super().__post_init__()
+
         self._span_cm = None
 
     def enter(self, scope: t.Mapping[str, t.Any]) -> None:

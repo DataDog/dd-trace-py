@@ -6,7 +6,6 @@ from uuid import uuid4
 import mock
 
 from ddtrace.debugging._signal.collector import SignalCollector
-from ddtrace.debugging._signal.context import SignalContext
 from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
@@ -47,14 +46,13 @@ def test_collector_collect_enqueue_only_commit_state():
     c = 0
     for i in range(10):
         mocked_signal = MockLogSignal(mock.Mock(), sys._getframe(), threading.current_thread())
-        context = SignalContext(mocked_signal)
-        context.enter()
+        mocked_signal.do_enter()
 
         assert mocked_signal.enter_call_count == 1
         done = 1 - (i % 2)
         mocked_signal.state = SignalState.DONE if done else SignalState.SKIP_COND
 
-        context.exit(None, sys.exc_info(), 0)
+        mocked_signal.do_exit(None, sys.exc_info(), 0)
 
         assert mocked_signal.exit_call_count == 0
         c += done
