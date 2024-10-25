@@ -1,6 +1,7 @@
 import ctypes
 from enum import Enum
 import glob
+import os
 import re
 import typing
 
@@ -273,20 +274,24 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
 
 
 # helper function to check whether the expected stack event is present in the samples
-def has_sample_with_locations(
-    profile, samples: typing.List[pprof_pb2.Sample], expected_locations: typing.List[StackLocation]
-) -> bool:
-    for sample in samples:
-        for location_id, expected_location in zip(sample.location_id, expected_locations):
+def has_sample_with_locations(profile, expected_locations: typing.List[StackLocation]) -> bool:
+    for sample_idx, sample in enumerate(profile.sample):
+        # in a sample there can be multiple locations, we need to check
+        # whether there's a consecutive subsequence of locations that match
+        # the expected locations
+        expected_location_idx = 0
+        for location_id in sample.location_id:
             location = get_location_with_id(profile, location_id)
             function = get_function_with_id(profile, location.line[0].function_id)
-            if profile.string_table[function.name] != expected_location.function_name:
-                continue
-            if not profile.string_table[function.filename].endswith(expected_location.filename):
-                continue
-
-            return True
-
+            function_name = profile.string_table[function.name]
+            filename = os.path.basename(profile.string_table[function.filename])
+            if (
+                function_name.endswith(expected_locations[expected_location_idx].function_name)
+                and filename == expected_locations[expected_location_idx].filename
+            ):
+                expected_location_idx += 1
+                if expected_location_idx == len(expected_locations):
+                    return True
     return False
 
 
