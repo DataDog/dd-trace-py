@@ -263,32 +263,32 @@ if _is_iast_propagation_debug_enabled():
 def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
-    if len(ranges) > 0:
-        _is_string_in_source_value = False
-        for r in ranges:
-            if r.source.value:
-                if isinstance(pyobject, (bytes, bytearray)):
-                    pyobject_str = str(pyobject, encoding="utf8", errors="ignore")
-                else:
-                    pyobject_str = pyobject
-                _is_string_in_source_value = pyobject_str in r.source.value
 
-            if _is_string_in_source_value:
-                pyobject = _taint_pyobject_base(
-                    pyobject=pyobject,
-                    source_name=r.source.name,
-                    source_value=r.source.value,
-                    source_origin=r.source.origin,
-                )
-                break
-        if not _is_string_in_source_value:
-            # no total match found, maybe partial match, just take the first one
+    for r in ranges:
+        _is_string_in_source_value = False
+        if r.source.value:
+            if isinstance(pyobject, (bytes, bytearray)):
+                pyobject_str = str(pyobject, encoding="utf8", errors="ignore")
+            else:
+                pyobject_str = pyobject
+            _is_string_in_source_value = pyobject_str in r.source.value
+
+        if _is_string_in_source_value:
             pyobject = _taint_pyobject_base(
                 pyobject=pyobject,
-                source_name=ranges[0].source.name,
-                source_value=ranges[0].source.value,
-                source_origin=ranges[0].source.origin,
+                source_name=r.source.name,
+                source_value=r.source.value,
+                source_origin=r.source.origin,
             )
+            break
+    else:
+        # no total match found, maybe partial match, just take the first one
+        pyobject = _taint_pyobject_base(
+            pyobject=pyobject,
+            source_name=ranges[0].source.name,
+            source_value=ranges[0].source.value,
+            source_origin=ranges[0].source.origin,
+        )
     return pyobject
 
 
