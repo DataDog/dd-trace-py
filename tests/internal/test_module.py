@@ -10,19 +10,11 @@ import pytest
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
+from tests.utils import DDTRACE_PATH
+from tests.utils import _build_env
 
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-
-def _build_env():
-    environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
-    if os.environ.get("PATH"):
-        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
-    if os.environ.get("PYTHONPATH"):
-        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
-    return environ
+FILE_PATH = Path(__file__).resolve().parent
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -303,7 +295,7 @@ def test_module_import_hierarchy():
 
 @pytest.mark.subprocess(
     out="post_run_module_hook OK\n",
-    env=_build_env(),
+    env=_build_env(file_path=FILE_PATH),
     run_module=True,
 )
 def test_post_run_module_hook():
@@ -554,7 +546,7 @@ def __getattr__(name):
     raise AttributeError("%s has no attribute %s", __name__, name)
 """
 
-    contrib_dir = Path(ROOT_PROJECT_DIR) / "ddtrace" / "contrib"
+    contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
 
     missing_deprecations = set()
     for directory, _, file_names in os.walk(contrib_dir):
