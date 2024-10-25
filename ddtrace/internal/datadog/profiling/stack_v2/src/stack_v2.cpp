@@ -109,7 +109,7 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     }
 
     // From Python, span_type is a string or None, and when given None, it is passed as a nullptr.
-    static std::string empty_string = "";
+    static const std::string empty_string = "";
     if (span_type == nullptr) {
         span_type = empty_string.c_str();
     }
