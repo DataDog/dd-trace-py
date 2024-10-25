@@ -344,7 +344,7 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
         if InternalTestSession.efd_is_faulty_session():
             terminalreporter.write_sep(
                 " ",
-                "Too many new tests detected (session considered faulty).",
+                "No tests were retried because too many were considered new.",
                 red=True,
                 bold=True,
             )
