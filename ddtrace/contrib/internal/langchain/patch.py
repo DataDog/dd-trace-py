@@ -875,13 +875,19 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     query = get_argument_value(args, kwargs, 0, "query")
     k = kwargs.get("k", args[1] if len(args) >= 2 else None)
     provider = instance.__class__.__name__.lower()
+
+    if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
+        api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
+    else:
+        api_key = _extract_api_key(instance)
+
     span = integration.trace(
         pin,
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__),
         submit_to_llmobs=True,
         interface_type="similarity_search",
         provider=provider,
-        api_key=_extract_api_key(instance),
+        api_key=api_key,
     )
     documents = []
     documents_with_maybe_score = []
@@ -905,8 +911,6 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                 "langchain.request.pinecone.project_name",
                 instance._index.configuration.server_variables.get("project_name", ""),
             )
-            api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
-            span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document_and_maybe_score in enumerate(documents):
@@ -967,13 +971,19 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
         vector = get_argument_value(args, kwargs, 0, "vector")
     k = kwargs.get("k", args[1] if len(args) >= 2 else None)
     provider = instance.__class__.__name__.lower()
+
+    if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
+        api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
+    else:
+        api_key = _extract_api_key(instance)
+
     span = integration.trace(
         pin,
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__),
         submit_to_llmobs=True,
         interface_type="similarity_search",
         provider=provider,
-        api_key=_extract_api_key(instance),
+        api_key=api_key,
     )
     documents = []
     try:
@@ -996,8 +1006,6 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
                 "langchain.request.pinecone.project_name",
                 instance._index.configuration.server_variables.get("project_name", ""),
             )
-            api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
-            span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document in enumerate(documents):
