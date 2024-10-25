@@ -12,7 +12,7 @@ log = get_logger(__name__)
 
 
 class EFDTestStatus(Enum):
-    ALL_PASS = "passed"
+    ALL_PASS = "passed"  # nosec B105
     ALL_FAIL = "failed"
     ALL_SKIP = "skipped"
     FLAKY = "flaky"
