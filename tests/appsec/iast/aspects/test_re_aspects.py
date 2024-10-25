@@ -449,6 +449,32 @@ def test_re_search_aspect_tainted_string_re_module():
             assert not is_pyobject_tainted(res_str)
 
 
+def test_re_search_aspect_tainted_bytes_re_module():
+    tainted_isaac_newton = taint_pyobject(
+        pyobject=b"Isaac Newton, physicist",
+        source_name="test_re_search_group_aspect_tainted_string",
+        source_value="Isaac Newton, physicist",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    re_search = re_search_aspect(None, 1, re, rb"(\w+) (\w+)", tainted_isaac_newton)
+    result = re_groups_aspect(None, 1, re_search)
+    assert result == (b"Isaac", b"Newton")
+    for res_str in result:
+        if len(res_str):
+            assert get_tainted_ranges(res_str) == [
+                TaintRange(
+                    0,
+                    len(res_str),
+                    Source(
+                        "test_re_search_group_aspect_tainted_string", "Isaac Newton, physicist", OriginType.PARAMETER
+                    ),
+                ),
+            ]
+        else:
+            assert not is_pyobject_tainted(res_str)
+
+
 def test_re_search_aspect_not_tainted_re_module():
     not_tainted_isaac_newton = "Isaac Newton, physicist"
 
@@ -566,7 +592,7 @@ def test_re_finditer_aspect_tainted_bytes():
     tainted_multipart = taint_pyobject(
         pyobject=b' name="files"; filename="test.txt"\r\nContent-Type: text/plain',
         source_name="test_re_finditer_aspect_tainted_string",
-        source_value=b"/foo/bar/baaz.jpeg",
+        source_value="/foo/bar/baaz.jpeg",
         source_origin=OriginType.PARAMETER,
     )
     SPECIAL_CHARS = re.escape(b'()<>@,;:\\"/[]?={} \t')

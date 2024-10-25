@@ -175,18 +175,22 @@ def override_global_config(values):
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
     # rebuild asm config from env vars and global config
-    ddtrace.settings.asm.config.reset()
     for key, value in values.items():
         if key in asm_config_keys:
             setattr(ddtrace.settings.asm.config, key, value)
+    # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
+    ddtrace.settings.asm.config._eval_asm_can_be_enabled()
     try:
         yield
     finally:
         # Reset all to their original values
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
+
+        ddtrace.settings.asm.config.reset()
         for key, value in asm_originals.items():
             setattr(ddtrace.settings.asm.config, key, value)
+
         ddtrace.config._reset()
         ddtrace.config._subscriptions = subscriptions
 

@@ -99,19 +99,19 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
     ],
 )
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_env({APPSEC.ENV: appsec_enabled}), override_global_config(dict(_asm_enabled=True)):
+    with override_env({APPSEC.ENV: appsec_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
-        else:
+        with override_global_config(dict(_asm_enabled=True)):
             tracer.configure(appsec_enabled=asbool(appsec_enabled))
 
-        rc_config = {"config": {"asm": {"enabled": True}}}
-        if rc_value is False:
-            rc_config = {}
+            rc_config = {"config": {"asm": {"enabled": True}}}
+            if rc_value is False:
+                rc_config = {}
 
-        _appsec_callback(rc_config, tracer)
-        result = _set_and_get_appsec_tags(tracer)
-        assert result is None
+            _appsec_callback(rc_config, tracer)
+            result = _set_and_get_appsec_tags(tracer)
+            assert result is None
 
 
 @pytest.mark.parametrize(
