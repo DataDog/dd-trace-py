@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <stdint.h>
 #include <string>
 
@@ -19,15 +20,17 @@ ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_
     thread_id_to_span[thread_id]->span_type = span_type;
 }
 
-const Span*
+const std::optional<Span>
 ThreadSpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
-    if (thread_id_to_span.find(thread_id) == thread_id_to_span.end()) {
-        return nullptr;
+    std::optional<Span> span;
+    auto it = thread_id_to_span.find(thread_id);
+    if (it != thread_id_to_span.end()) {
+        span = *(it->second);
     }
-    return thread_id_to_span[thread_id].get();
+    return span;
 }
 
 void
