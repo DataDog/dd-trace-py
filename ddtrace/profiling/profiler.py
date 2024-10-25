@@ -239,7 +239,10 @@ class _ProfilerInstance(service.Service):
 
                 return []
             except Exception as e:
-                LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
+                try:
+                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ddup.failure_msg)
+                except Exception as ee:
+                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ee)
                 self._export_libdd_enabled = False
                 config.export.libdd_enabled = False
 
@@ -248,6 +251,12 @@ class _ProfilerInstance(service.Service):
                     LOG.error("Disabling stack_v2 as libdd collector failed to initialize")
                     self._stack_v2_enabled = False
                     config.stack.v2_enabled = False
+
+                # If this instance of ddtrace was injected, then do not enable profiling, since that will load
+                # protobuf, breaking some environments.
+                if config._injected:
+                    LOG.error("Profiling failures occurred in an injected instance of ddtrace, disabling profiling")
+                    return []
 
         # DEV: Import this only if needed to avoid importing protobuf
         # unnecessarily
