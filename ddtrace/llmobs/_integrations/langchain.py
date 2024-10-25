@@ -54,8 +54,15 @@ SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    def _llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None,
-                         operation: str = "", is_workflow_override: Optional[bool] = None) -> None:
+    def _llmobs_set_tags(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+        is_workflow_override: Optional[bool] = None,
+    ) -> None:
         if not self.llmobs_enabled:
             return
         if operation not in SUPPORTED_OPERATIONS:
