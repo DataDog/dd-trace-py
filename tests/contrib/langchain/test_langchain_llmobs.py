@@ -34,7 +34,9 @@ else:
     from langchain_core.messages import HumanMessage
 
 
-def _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role=None, mock_io=False):
+def _assert_expected_llmobs_llm_span(
+    span, mock_llmobs_span_writer, input_role=None, mock_io=False, mock_token_metrics=False
+):
     provider = span.get_tag("langchain.request.provider")
 
     metadata = {}
@@ -59,6 +61,10 @@ def _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role=N
         input_messages[0]["role"] = input_role
         output_messages[0]["role"] = "assistant"
 
+    metrics = (
+        {"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY} if mock_token_metrics else {}
+    )
+
     mock_llmobs_span_writer.enqueue.assert_any_call(
         _expected_llmobs_llm_span_event(
             span,
@@ -67,7 +73,7 @@ def _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role=N
             input_messages=input_messages if not mock_io else mock.ANY,
             output_messages=output_messages if not mock_io else mock.ANY,
             metadata=metadata,
-            token_metrics={},
+            token_metrics=metrics,
             tags={"ml_app": "langchain_test"},
         )
     )
@@ -205,7 +211,11 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             cassette_name="openai_completion_sync.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
-        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
+        _assert_expected_llmobs_llm_span(
+            span,
+            mock_llmobs_span_writer,
+            mock_token_metrics=True,
+        )
 
     def test_llmobs_cohere_llm(self, langchain, mock_llmobs_span_writer, mock_tracer):
         span = self._invoke_llm(
@@ -289,7 +299,11 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 }
             ),
         )
-        _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer)
+        _assert_expected_llmobs_llm_span(
+            trace[2],
+            mock_llmobs_span_writer,
+            mock_token_metrics=True,
+        )
 
     @pytest.mark.skipif(PY39, reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_chain_nested(self, langchain, mock_llmobs_span_writer, mock_tracer):
@@ -326,9 +340,17 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             mock_llmobs_span_writer,
             input_value=json.dumps({"input_text": input_text}),
         )
-        _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer)
+        _assert_expected_llmobs_llm_span(
+            trace[2],
+            mock_llmobs_span_writer,
+            mock_token_metrics=True,
+        )
         _assert_expected_llmobs_chain_span(trace[3], mock_llmobs_span_writer)
-        _assert_expected_llmobs_llm_span(trace[4], mock_llmobs_span_writer)
+        _assert_expected_llmobs_llm_span(
+            trace[4],
+            mock_llmobs_span_writer,
+            mock_token_metrics=True,
+        )
 
     @pytest.mark.skipif(PY39, reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_chain_schema_io(self, langchain, mock_llmobs_span_writer, mock_tracer):
@@ -468,7 +490,11 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             cassette_name="openai_completion_sync.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
-        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
+        _assert_expected_llmobs_llm_span(
+            span,
+            mock_llmobs_span_writer,
+            mock_token_metrics=True,
+        )
 
     def test_llmobs_cohere_llm(self, langchain_community, mock_llmobs_span_writer, mock_tracer):
         if langchain_community is None:
@@ -504,7 +530,12 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             role="user",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
-        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
+        _assert_expected_llmobs_llm_span(
+            span,
+            mock_llmobs_span_writer,
+            input_role="user",
+            mock_token_metrics=True,
+        )
 
     def test_llmobs_chain(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
@@ -534,7 +565,11 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             input_value=json.dumps([{"input": "Can you explain what an LLM chain is?"}]),
             output_value=expected_output,
         )
-        _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer)
+        _assert_expected_llmobs_llm_span(
+            trace[1],
+            mock_llmobs_span_writer,
+            mock_token_metrics=True,
+        )
 
     def test_llmobs_chain_nested(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
@@ -564,8 +599,18 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
             output_value=mock.ANY,
         )
-        _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer, input_role="user")
-        _assert_expected_llmobs_llm_span(trace[3], mock_llmobs_span_writer, input_role="user")
+        _assert_expected_llmobs_llm_span(
+            trace[2],
+            mock_llmobs_span_writer,
+            input_role="user",
+            mock_token_metrics=True,
+        )
+        _assert_expected_llmobs_llm_span(
+            trace[3],
+            mock_llmobs_span_writer,
+            input_role="user",
+            mock_token_metrics=True,
+        )
 
     @flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
     @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
@@ -589,8 +634,18 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             input_value=json.dumps(["chickens", "pigs"]),
             output_value=mock.ANY,
         )
-        _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, input_role="user")
-        _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer, input_role="user")
+        _assert_expected_llmobs_llm_span(
+            trace[1],
+            mock_llmobs_span_writer,
+            input_role="user",
+            mock_token_metrics=True,
+        )
+        _assert_expected_llmobs_llm_span(
+            trace[2],
+            mock_llmobs_span_writer,
+            input_role="user",
+            mock_token_metrics=True,
+        )
 
     def test_llmobs_chain_schema_io(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
@@ -626,7 +681,12 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             ),
             output_value=json.dumps(["assistant", "Mitochondria."]),
         )
-        _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
+        _assert_expected_llmobs_llm_span(
+            trace[1],
+            mock_llmobs_span_writer,
+            mock_io=True,
+            mock_token_metrics=True,
+        )
 
     def test_llmobs_anthropic_chat_model(self, langchain_anthropic, mock_llmobs_span_writer, mock_tracer):
         chat = langchain_anthropic.ChatAnthropic(temperature=0, model="claude-3-opus-20240229", max_tokens=15)
@@ -637,7 +697,12 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             cassette_name="anthropic_chat_completion_sync.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
-        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
+        _assert_expected_llmobs_llm_span(
+            span,
+            mock_llmobs_span_writer,
+            input_role="user",
+            mock_token_metrics=True,
+        )
 
     def test_llmobs_embedding_query(self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         if langchain_openai is None:
@@ -762,7 +827,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                     }
                 ],
                 metadata={"temperature": 0.7},
-                token_metrics={},
+                token_metrics={"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY},
                 tags={"ml_app": "langchain_test"},
             )
         )

@@ -14,6 +14,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -21,8 +22,10 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Document
@@ -73,8 +76,8 @@ class LangChainIntegration(BaseLLMIntegration):
 
         is_workflow = False
 
+        llmobs_integration = "custom"
         if model_provider:
-            llmobs_integration = "custom"
             if model_provider.startswith(BEDROCK_PROVIDER_NAME):
                 llmobs_integration = "bedrock"
             elif model_provider.startswith(OPENAI_PROVIDER_NAME):
@@ -85,9 +88,10 @@ class LangChainIntegration(BaseLLMIntegration):
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
 
         if operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
+            self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chat":
-            self._llmobs_set_meta_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
+            is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
+            self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
         elif operation == "embedding":
@@ -97,7 +101,8 @@ class LangChainIntegration(BaseLLMIntegration):
         elif operation == "tool":
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
 
-        span.set_tag_str(METRICS, safe_json({}))
+        if span.get_tag(METRICS) is None:
+            span.set_tag_str(METRICS, safe_json({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
@@ -120,7 +125,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if metadata:
             span.set_tag_str(METADATA, safe_json(metadata))
 
-    def _llmobs_set_meta_tags_from_llm(
+    def _llmobs_set_tags_from_llm(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
@@ -148,9 +153,31 @@ class LangChainIntegration(BaseLLMIntegration):
             message_content = [{"content": completions}]  # single completion for streams
         else:
             message_content = [{"content": completion[0].text} for completion in completions.generations]
+
+            # grabbing "or {}" in case "llm_output" does exist but is explicitly set to "None"
+            # same condition follows for most token usage logic
+            llm_output = getattr(completions, "llm_output", None) or {}
+            token_usage = (
+                llm_output.get("token_usage", {})
+                or llm_output.get("usage_metadata", {})
+                or llm_output.get("usage", {})
+                or {}  # in case one is explicitly set to None
+            )
+
+            # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
+            input_tokens = token_usage.get("prompt_tokens", 0) or token_usage.get("input_tokens", 0)
+            output_tokens = token_usage.get("completion_tokens", 0) or token_usage.get("output_tokens", 0)
+            total_tokens = token_usage.get("total_tokens", input_tokens + output_tokens)
+            if not is_workflow and total_tokens > 0:
+                metrics = {
+                    INPUT_TOKENS_METRIC_KEY: input_tokens,
+                    OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                    TOTAL_TOKENS_METRIC_KEY: total_tokens,
+                }
+                span.set_tag_str(METRICS, safe_json(metrics))
         span.set_tag_str(output_tag_key, safe_json(message_content))
 
-    def _llmobs_set_meta_tags_from_chat_model(
+    def _llmobs_set_tags_from_chat_model(
         self,
         span: Span,
         args: List[Any],
@@ -194,6 +221,8 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(output_tag_key, safe_json([{"content": content, "role": ROLE_MAPPING.get(role, "")}]))
             return
 
+        input_tokens = output_tokens = total_tokens = 0
+
         for message_set in chat_completions.generations:
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
@@ -203,7 +232,28 @@ class LangChainIntegration(BaseLLMIntegration):
                 if tool_calls_info:
                     output_message["tool_calls"] = tool_calls_info
                 output_messages.append(output_message)
+
+                if not is_workflow:
+                    # depending on the provider + langchain-core version, the usage metadata can be in different places
+                    # either chat_completion_msg.usage_metadata or chat_completion_msg.response_metadata.{token}_usage
+                    usage = getattr(chat_completion_msg, "usage_metadata", None) or {}
+
+                    response_metadata = getattr(chat_completion_msg, "response_metadata", {}) or {}
+                    usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
+
+                    # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
+                    input_tokens += usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
+                    output_tokens += usage.get("output_tokens", 0) or usage.get("completion_tokens", 0)
+                    total_tokens += usage.get("total_tokens", input_tokens + output_tokens)
         span.set_tag_str(output_tag_key, safe_json(output_messages))
+
+        if not is_workflow and total_tokens > 0:
+            metrics = {
+                INPUT_TOKENS_METRIC_KEY: input_tokens,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                TOTAL_TOKENS_METRIC_KEY: total_tokens,
+            }
+            span.set_tag_str(METRICS, safe_json(metrics))
 
     def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
         """Extracts tool calls from a langchain chat completion."""
