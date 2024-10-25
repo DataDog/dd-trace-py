@@ -43,8 +43,7 @@ class IASTEnvironment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        if span is None:
-            self.span: Span = core.get_item(core.get_item("call_key"))
+        self.span = span or core.get_span()
 
         self.request_enabled: bool = False
         self.iast_reporter: Optional[IastSpanReporter] = None
@@ -111,13 +110,14 @@ def is_iast_request_enabled():
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
+        if span:
+            req_span = span
+        else:
+            req_span = ctx.get_item("req_span")
+
         if _is_iast_enabled():
-            if span:
-                req_span = span
-            else:
-                req_span = ctx.get_item("req_span")
             exist_data = req_span.get_tag(IAST.JSON)
-            if not exist_data:
+            if exist_data is None and req_span.get_metric(IAST.ENABLED) is None:
                 if not is_iast_request_enabled():
                     req_span.set_metric(IAST.ENABLED, 0.0)
                     end_iast_context(req_span)
@@ -142,6 +142,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                     req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
                 oce.release_request()
+
     except Exception:
         log.debug("[IAST] Error finishing IAST context", exc_info=True)
 

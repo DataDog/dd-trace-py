@@ -24,9 +24,6 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
 
 
-pytest.skip(reason="TAINTEABLE_TYPES Match contains errors. APPSEC-55239", allow_module_level=True)
-
-
 def test_re_findall_aspect_tainted_string():
     tainted_foobarbaz = taint_pyobject(
         pyobject="/foo/bar/baaz.jpeg",
@@ -581,8 +578,9 @@ def test_re_finditer_aspect_tainted_bytes():
     res_iterator = re_finditer_aspect(None, 1, OPTION_RE, tainted_multipart)
     assert isinstance(res_iterator, typing.Iterator), f"res_iterator is of type {type(res_iterator)}"
 
-    for i in res_no_tainted:
-        assert i.group(0) == b'; filename="test.txt"'
+    res_list = list(res_no_tainted)
+    assert res_list[0].group(0) == b' name="files"'
+    assert res_list[1].group(0) == b'; filename="test.txt"'
 
     try:
         tainted_item = next(res_iterator)
