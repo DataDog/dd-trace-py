@@ -155,27 +155,15 @@ class LangChainIntegration(BaseLLMIntegration):
         else:
             message_content = [{"content": completion[0].text} for completion in completions.generations]
 
-            # grabbing "or {}" in case "llm_output" does exist but is explicitly set to "None"
-            # same condition follows for most token usage logic
-            llm_output = getattr(completions, "llm_output", None) or {}
-            token_usage = (
-                llm_output.get("token_usage", {})
-                or llm_output.get("usage_metadata", {})
-                or llm_output.get("usage", {})
-                or {}  # in case one is explicitly set to None
-            )
-
-            # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
-            input_tokens = token_usage.get("prompt_tokens", 0) or token_usage.get("input_tokens", 0)
-            output_tokens = token_usage.get("completion_tokens", 0) or token_usage.get("output_tokens", 0)
-            total_tokens = token_usage.get("total_tokens", input_tokens + output_tokens)
-            if not is_workflow and total_tokens > 0:
-                metrics = {
-                    INPUT_TOKENS_METRIC_KEY: input_tokens,
-                    OUTPUT_TOKENS_METRIC_KEY: output_tokens,
-                    TOTAL_TOKENS_METRIC_KEY: total_tokens,
-                }
-                span.set_tag_str(METRICS, safe_json(metrics))
+            if not is_workflow:
+                input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(completions)
+                if total_tokens > 0:
+                    metrics = {
+                        INPUT_TOKENS_METRIC_KEY: input_tokens,
+                        OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                        TOTAL_TOKENS_METRIC_KEY: total_tokens,
+                    }
+                    span.set_tag_str(METRICS, safe_json(metrics))
         span.set_tag_str(output_tag_key, safe_json(message_content))
 
     def _llmobs_set_tags_from_chat_model(
@@ -222,8 +210,11 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(output_tag_key, safe_json([{"content": content, "role": ROLE_MAPPING.get(role, "")}]))
             return
 
-        input_tokens = output_tokens = total_tokens = 0
-
+        input_tokens, output_tokens, total_tokens = 0, 0, 0
+        if not is_workflow:
+            # tokens are usually set at the top-level ChatResult or LLMResult object
+            input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(chat_completions)
+   
         for message_set in chat_completions.generations:
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
@@ -234,18 +225,14 @@ class LangChainIntegration(BaseLLMIntegration):
                     output_message["tool_calls"] = tool_calls_info
                 output_messages.append(output_message)
 
-                if not is_workflow:
-                    # depending on the provider + langchain-core version, the usage metadata can be in different places
-                    # either chat_completion_msg.usage_metadata or chat_completion_msg.response_metadata.{token}_usage
-                    usage = getattr(chat_completion_msg, "usage_metadata", None) or {}
-
-                    response_metadata = getattr(chat_completion_msg, "response_metadata", {}) or {}
-                    usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
-
-                    # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
-                    input_tokens += usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
-                    output_tokens += usage.get("output_tokens", 0) or usage.get("completion_tokens", 0)
-                    total_tokens += usage.get("total_tokens", input_tokens + output_tokens)
+                # if it wasn't set above, check for token usage on the AI message object level
+                # from experience, it looks like these blocks contain the same count as what would be set
+                # at the top leve. do not append to the count, just set it once
+                if not is_workflow and total_tokens == 0:
+                    tokens = self.check_token_usage_ai_message(chat_completion_msg)
+                    input_tokens = tokens[0]
+                    output_tokens = tokens[1]
+                    total_tokens = tokens[2]
         span.set_tag_str(output_tag_key, safe_json(output_messages))
 
         if not is_workflow and total_tokens > 0:
@@ -491,6 +478,39 @@ class LangChainIntegration(BaseLLMIntegration):
         total_cost = span.get_metric(TOTAL_COST)
         if total_cost:
             self.metric(span, "incr", "tokens.total_cost", total_cost)
+
+    def check_token_usage_chat_or_llm_result(self, result):
+        """Checks for token usage on the top-level ChatResult or LLMResult object"""
+        llm_output = getattr(result, "llm_output", None) or {}  # in case it is explicitly set to None
+        token_usage = (
+            llm_output.get("token_usage", {})
+            or llm_output.get("usage_metadata", {})
+            or llm_output.get("usage", {})
+            or {}  # in case one is explicitly set to None
+        )
+
+        # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
+        input_tokens = token_usage.get("prompt_tokens", 0) or token_usage.get("input_tokens", 0) or 0
+        output_tokens = token_usage.get("completion_tokens", 0) or token_usage.get("output_tokens", 0) or 0
+        total_tokens = token_usage.get("total_tokens", input_tokens + output_tokens) or 0
+
+        return input_tokens, output_tokens, total_tokens
+
+    def check_token_usage_ai_message(self, ai_message):
+        """Checks for token usage on an AI message object"""
+        # depending on the provider + langchain-core version, the usage metadata can be in different places
+        # either chat_completion_msg.usage_metadata or chat_completion_msg.response_metadata.{token}_usage
+        usage = getattr(ai_message, "usage_metadata", None)
+
+        response_metadata = getattr(ai_message, "response_metadata", {}) or {}
+        usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
+
+        # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
+        input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0) or usage.get("completion_tokens", 0)
+        total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
+
+        return input_tokens, output_tokens, total_tokens
 
     def format_io(
         self,

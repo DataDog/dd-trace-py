@@ -264,7 +264,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             cassette_name="openai_chat_completion_sync_call.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
-        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
+        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user", mock_token_metrics=True)
 
     @pytest.mark.skipif(PY39, reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_chain(self, langchain, mock_llmobs_span_writer, mock_tracer):
@@ -399,7 +399,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 }
             ),
         )
-        _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
+        _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True, mock_token_metrics=True)
 
     def test_llmobs_embedding_query(self, langchain, mock_llmobs_span_writer, mock_tracer):
         embedding_model = langchain.embeddings.OpenAIEmbeddings()
