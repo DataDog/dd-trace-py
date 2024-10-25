@@ -175,7 +175,6 @@ def override_global_config(values):
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
     # rebuild asm config from env vars and global config
-
     for key, value in values.items():
         if key in asm_config_keys:
             setattr(ddtrace.settings.asm.config, key, value)
