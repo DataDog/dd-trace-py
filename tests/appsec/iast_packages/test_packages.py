@@ -826,6 +826,7 @@ PACKAGES = [
     ),
 ]
 
+
 @pytest.fixture(scope="module")
 def template_venv():
     """
