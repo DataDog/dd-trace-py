@@ -350,7 +350,9 @@ exec(
     try:
       raise ValueError('test')
     except Exception:
-      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
+      time.sleep(2)""".format(
+        MAX_FN_NUM=MAX_FN_NUM
+    )
 )
 
 
