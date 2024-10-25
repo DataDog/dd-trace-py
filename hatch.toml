@@ -79,7 +79,7 @@ template = "docs"
 dev-mode = false
 python = "3.10"
 features = ["opentracing"]
-dependencies = [  # copied from library dependencies
+dependencies = [# copied from library dependencies
     "protobuf>=3",
     "typing_extensions",
     "xmltodict>=0.12",
@@ -124,7 +124,7 @@ extra-dependencies = [
 
 [envs.slotscheck.scripts]
 _ = [
-    "python -m slotscheck --exclude-modules '_ddprof' -v ddtrace/",
+    "python -m slotscheck --exclude-modules '(^|\\.)_ddprof' -v ddtrace/",
 ]
 
 
@@ -149,7 +149,7 @@ extra-dependencies = [
 ]
 [envs.meta-testing.scripts]
 meta-testing = [
-  "pytest {args} tests/meta"
+    "pytest {args} tests/meta"
 ]
 
 [envs.integration_test]
@@ -374,7 +374,7 @@ dependencies = [
 [envs.ddtrace_unit_tests.env-vars]
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
-CMAKE_BUILD_PARALLEL_LEVEL="6"
+CMAKE_BUILD_PARALLEL_LEVEL = "6"
 
 [envs.ddtrace_unit_tests.scripts]
 test = [
@@ -411,7 +411,7 @@ dependencies = [
     "httpx",
     "msgpack",
     "pytest",
-    "pytest-cov",  # only used so --no-cov can be passed (conflicts with setup.cfg otherwise)
+    "pytest-cov", # only used so --no-cov can be passed (conflicts with setup.cfg otherwise)
     "requests",
     "hypothesis",
 ]
