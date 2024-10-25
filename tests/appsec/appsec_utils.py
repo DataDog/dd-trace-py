@@ -113,8 +113,6 @@ def appsec_application_server(
         "stderr": sys.stderr,
     }
     if assert_debug:
-        subprocess_kwargs["stdout"] = subprocess.PIPE
-        subprocess_kwargs["stderr"] = subprocess.PIPE
         subprocess_kwargs["text"] = True
 
     server_process = subprocess.Popen(cmd, **subprocess_kwargs)
