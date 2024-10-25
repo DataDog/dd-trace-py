@@ -18,7 +18,6 @@ from . import utils
 if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 THREADS_MSG = (
     b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
     b"number of threads must be set"
@@ -113,9 +112,6 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
-# This test fails with greenlet 2: the uwsgi.atexit function that is being called and run the profiler stop procedure is
-# interrupted randomly in the middle and has no time to flush out the profile.
-# @pytest.mark.skipif(TESTING_GEVENT, reason="Test fails with greenlet 2")
 def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
@@ -129,9 +125,6 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
-# This test fails with greenlet 2: the uwsgi.atexit function that is being called and run the profiler stop procedure is
-# interrupted randomly in the middle and has no time to flush out the profile.
-# @pytest.mark.skipif(TESTING_GEVENT, reason="Test fails with greenlet 2")
 def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
