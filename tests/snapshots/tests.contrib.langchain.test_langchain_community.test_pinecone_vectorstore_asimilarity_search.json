@@ -1,0 +1,139 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.asimilarity_search",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "671ba90f00000000",
+      "langchain.request.api_key": "",
+      "langchain.request.k": "1",
+      "langchain.request.provider": "pineconevectorstore",
+      "langchain.request.query": "Evolution",
+      "langchain.request.type": "similarity_search",
+      "langchain.response.document.0.metadata.name": "The Evolution of Communication Technologies",
+      "langchain.response.document.0.page_content": "\\n**Title: The Evolution of Communication Technologies**\\n\\n---\\n\\n**Introduction**\\n\\nCommunication technologies have undergone...",
+      "language": "python",
+      "runtime-id": "9f445cd7708e4813a7b8ce5e58c9c92d"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.response.document_count": 1,
+      "process_id": 50421
+    },
+    "duration": 5435000,
+    "start": 1729865999150038000
+  },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.api_key": "",
+         "langchain.request.k": "1",
+         "langchain.request.provider": "pineconevectorstore",
+         "langchain.request.query": "Evolution",
+         "langchain.request.type": "similarity_search",
+         "langchain.response.document.0.metadata.name": "The Evolution of Communication Technologies",
+         "langchain.response.document.0.page_content": "\\n**Title: The Evolution of Communication Technologies**\\n\\n---\\n\\n**Introduction**\\n\\nCommunication technologies have undergone..."
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.response.document_count": 1
+       },
+       "duration": 4691000,
+       "start": 1729865999150587000
+     },
+        {
+          "name": "langchain.request",
+          "service": "",
+          "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search_with_score",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "langchain.request.api_key": "",
+            "langchain.request.filter": "None",
+            "langchain.request.k": "1",
+            "langchain.request.namespace": "None",
+            "langchain.request.provider": "pineconevectorstore",
+            "langchain.request.query": "Evolution",
+            "langchain.request.type": "similarity_search",
+            "langchain.response.document.0.metadata.name": "The Evolution of Communication Technologies",
+            "langchain.response.document.0.page_content": "\\n**Title: The Evolution of Communication Technologies**\\n\\n---\\n\\n**Introduction**\\n\\nCommunication technologies have undergone...",
+            "langchain.response.document.0.score": "0.0"
+          },
+          "metrics": {
+            "_dd.measured": 1,
+            "langchain.response.document_count": 1
+          },
+          "duration": 4499000,
+          "start": 1729865999150703000
+        },
+           {
+             "name": "langchain.request",
+             "service": "",
+             "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
+             "trace_id": 0,
+             "span_id": 4,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "langchain.request.api_key": "...key>",
+               "langchain.request.inputs.0.text": "Evolution",
+               "langchain.request.model": "text-embedding-ada-002",
+               "langchain.request.provider": "openai",
+               "langchain.request.type": "embedding"
+             },
+             "metrics": {
+               "_dd.measured": 1,
+               "langchain.request.input_count": 1,
+               "langchain.response.outputs.0.embedding_length": 1536
+             },
+             "duration": 68000,
+             "start": 1729865999150846000
+           },
+           {
+             "name": "langchain.request",
+             "service": "",
+             "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search_by_vector_with_score",
+             "trace_id": 0,
+             "span_id": 5,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "langchain.request.api_key": "",
+               "langchain.request.embedding": "[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0....",
+               "langchain.request.filter": "None",
+               "langchain.request.k": "1",
+               "langchain.request.namespace": "None",
+               "langchain.request.provider": "pineconevectorstore",
+               "langchain.request.type": "similarity_search",
+               "langchain.response.document.0.metadata.name": "The Evolution of Communication Technologies",
+               "langchain.response.document.0.page_content": "\\n**Title: The Evolution of Communication Technologies**\\n\\n---\\n\\n**Introduction**\\n\\nCommunication technologies have undergone...",
+               "langchain.response.document.0.score": "0.0"
+             },
+             "metrics": {
+               "_dd.measured": 1,
+               "langchain.response.document_count": 1
+             },
+             "duration": 4113000,
+             "start": 1729865999151039000
+           }]]

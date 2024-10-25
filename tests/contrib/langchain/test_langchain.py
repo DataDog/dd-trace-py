@@ -783,6 +783,29 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
+@pytest.mark.asyncio
+@pytest.mark.snapshot(
+    ignores=["meta.langchain.response.document.0.score"],
+)
+async def test_pinecone_vectorstore_asimilarity_search(langchain, request_vcr):
+    """
+    Test that calling a similarity search on a Pinecone vectorstore with langchain will
+    result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
+    """
+    import pinecone
+
+    cassette_name = "openai_pinecone_similarity_search_39.yaml" if PY39 else "openai_pinecone_similarity_search.yaml"
+    with request_vcr.use_cassette(cassette_name):
+        pinecone.init(
+            api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+            environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
+        index = pinecone.Index(index_name="langchain-retrieval")
+        vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
+        await vectorstore.asimilarity_search("Who was Alan Turing?", 1)
+
+
 @pytest.mark.snapshot(ignores=["meta.langchain.response.document.0.score"])
 def test_pinecone_vectorstore_similarity_search_with_score(langchain, request_vcr):
     """

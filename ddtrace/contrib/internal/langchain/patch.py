@@ -961,6 +961,100 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
+async def traced_asimilarity_search(langchain, pin, func, instance, args, kwargs):
+    """
+    Traces similarity_search and similarity_search_with_score
+    """
+    integration = langchain._datadog_integration
+    query = get_argument_value(args, kwargs, 0, "query")
+    k = kwargs.get("k", args[1] if len(args) >= 2 else None)
+    provider = instance.__class__.__name__.lower()
+
+    if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
+        api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
+    else:
+        api_key = _extract_api_key(instance)
+
+    span = integration.trace(
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__),
+        submit_to_llmobs=True,
+        interface_type="similarity_search",
+        provider=provider,
+        api_key=api_key,
+    )
+    documents = []
+    documents_with_maybe_score = []
+    try:
+        if integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.query", integration.trunc(query))
+        if k is not None:
+            span.set_tag_str("langchain.request.k", str(k))
+        for kwarg_key, v in kwargs.items():
+            span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
+        if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
+            span.set_tag_str(
+                "langchain.request.pinecone.environment",
+                instance._index.configuration.server_variables.get("environment", ""),
+            )
+            span.set_tag_str(
+                "langchain.request.pinecone.index_name",
+                instance._index.configuration.server_variables.get("index_name", ""),
+            )
+            span.set_tag_str(
+                "langchain.request.pinecone.project_name",
+                instance._index.configuration.server_variables.get("project_name", ""),
+            )
+        documents = await func(*args, **kwargs)
+        span.set_metric("langchain.response.document_count", len(documents))
+        for idx, document_and_maybe_score in enumerate(documents):
+            if isinstance(document_and_maybe_score, tuple):
+                document, score = document_and_maybe_score
+            else:
+                # if not with score add None to tuple
+                document, score = document_and_maybe_score, None
+
+            # stored to be used in log
+            documents_with_maybe_score.append((document, score))
+
+            span.set_tag_str(
+                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
+            )
+            if score is not None:
+                span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(score)))
+            for kwarg_key, v in getattr(document, "metadata", {}).items():
+                span.set_tag_str(
+                    "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
+                )
+
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.metric(span, "incr", "request.error", 1)
+        raise
+    finally:
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=documents, operation="retrieval", is_workflow_override=True
+        )
+        span.finish()
+        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        if integration.is_pc_sampled_log(span):
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__),
+                attrs={
+                    "query": query,
+                    "k": k or "",
+                    "documents": [
+                        {"page_content": document.page_content, "metadata": document.metadata}
+                        for document, _ in documents_with_maybe_score
+                    ],
+                },
+            )
+    return documents
+
+
+@with_traced_module
 def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwargs):
     """
     Traces similarity_search_by_vector, similarity_search_by_vector_with_score,
@@ -1010,6 +1104,85 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
                 instance._index.configuration.server_variables.get("project_name", ""),
             )
         documents = func(*args, **kwargs)
+        span.set_metric("langchain.response.document_count", len(documents))
+        for idx, document_and_maybe_score in enumerate(documents):
+            if isinstance(document_and_maybe_score, tuple):
+                document, score = document_and_maybe_score
+            else:
+                # if not with score add None to tuple
+                document, score = document_and_maybe_score, None
+
+            # stored to be used in log
+            documents_with_maybe_score.append((document, score))
+
+            span.set_tag_str(
+                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
+            )
+            if score is not None:
+                span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(score)))
+            for kwarg_key, v in getattr(document, "metadata", {}).items():
+                span.set_tag_str(
+                    "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
+                )
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=documents, operation="retrieval")
+        span.finish()
+    return documents
+
+
+@with_traced_module
+async def traced_asimilarity_search_by_vector(langchain, pin, func, instance, args, kwargs):
+    """
+    Traces similarity_search_by_vector, similarity_search_by_vector_with_score,
+    and similarity_search_with_score_by_vector
+    """
+    integration = langchain._datadog_integration
+    vector = get_argument_value(args, kwargs, 0, "embedding")
+    if vector is None:
+        # if named vector instead of embedding
+        vector = get_argument_value(args, kwargs, 0, "vector")
+    k = kwargs.get("k", args[1] if len(args) >= 2 else None)
+    provider = instance.__class__.__name__.lower()
+
+    if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
+        api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
+    else:
+        api_key = _extract_api_key(instance)
+
+    span = integration.trace(
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, func.__name__),
+        submit_to_llmobs=True,
+        interface_type="similarity_search",
+        provider=provider,
+        api_key=api_key,
+    )
+    documents = []
+    documents_with_maybe_score = []
+    try:
+        if integration.is_pc_sampled_span(span):
+            span.set_tag_str("langchain.request.embedding", integration.trunc(str(vector)))
+        if k is not None:
+            span.set_tag_str("langchain.request.k", str(k))
+        for kwarg_key, v in kwargs.items():
+            span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
+        if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
+            span.set_tag_str(
+                "langchain.request.pinecone.environment",
+                instance._index.configuration.server_variables.get("environment", ""),
+            )
+            span.set_tag_str(
+                "langchain.request.pinecone.index_name",
+                instance._index.configuration.server_variables.get("index_name", ""),
+            )
+            span.set_tag_str(
+                "langchain.request.pinecone.project_name",
+                instance._index.configuration.server_variables.get("project_name", ""),
+            )
+        documents = await func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document_and_maybe_score in enumerate(documents):
             if isinstance(document_and_maybe_score, tuple):
@@ -1626,8 +1799,20 @@ def wrap_vector_retrieval(vectorstore_module, fixture):
     )
     safe_wrap(
         vectorstore_module,
+        "asimilarity_search",
+        traced_asimilarity_search,
+        fixture,
+    )
+    safe_wrap(
+        vectorstore_module,
         "similarity_search_with_score",
         traced_similarity_search,
+        fixture,
+    )
+    safe_wrap(
+        vectorstore_module,
+        "asimilarity_search_with_score",
+        traced_asimilarity_search,
         fixture,
     )
     safe_wrap(
@@ -1638,8 +1823,20 @@ def wrap_vector_retrieval(vectorstore_module, fixture):
     )
     safe_wrap(
         vectorstore_module,
+        "asimilarity_search_with_score_by_vector",
+        traced_asimilarity_search_by_vector,
+        fixture,
+    )
+    safe_wrap(
+        vectorstore_module,
         "similarity_search_by_vector_with_score",
         traced_similarity_search_by_vector,
+        fixture,
+    )
+    safe_wrap(
+        vectorstore_module,
+        "asimilarity_search_by_vector_with_score",
+        traced_asimilarity_search_by_vector,
         fixture,
     )
     safe_wrap(
@@ -1648,12 +1845,23 @@ def wrap_vector_retrieval(vectorstore_module, fixture):
         traced_similarity_search_by_vector,
         fixture,
     )
+    safe_wrap(
+        vectorstore_module,
+        "asimilarity_search_by_vector",
+        traced_asimilarity_search_by_vector,
+        fixture,
+    )
 
 
 def unwrap_vector_retrieval(vectorstore_module):
     # Unwrap all similarity search methods in vectorstore module
     safe_unwrap(vectorstore_module, "similarity_search")
+    safe_unwrap(vectorstore_module, "asimilarity_search")
     safe_unwrap(vectorstore_module, "similarity_search_with_score")
+    safe_unwrap(vectorstore_module, "asimilarity_search_with_score")
     safe_unwrap(vectorstore_module, "similarity_search_by_vector")
+    safe_unwrap(vectorstore_module, "asimilarity_search_by_vector")
     safe_unwrap(vectorstore_module, "similarity_search_with_score_by_vector")
+    safe_unwrap(vectorstore_module, "asimilarity_search_with_score_by_vector")
     safe_unwrap(vectorstore_module, "similarity_search_by_vector_with_score")
+    safe_unwrap(vectorstore_module, "asimilarity_search_by_vector_with_score")
