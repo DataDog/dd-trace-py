@@ -238,6 +238,9 @@ class RagasFaithfulnessEvaluator:
 
     def _create_statements(self, question: str, answer: str) -> Optional[List[str]]:
         with self.llmobs_service.workflow("dd-ragas.create_statements"):
+            self.llmobs_service.annotate(
+                input_data={"question": question, "answer": answer},
+            )
             statements_prompt = self._create_statements_prompt(answer=answer, question=question)
 
             """LLM step to break down the answer into simpler statements"""
@@ -250,6 +253,9 @@ class RagasFaithfulnessEvaluator:
             statements = [item["simpler_statements"] for item in statements.dicts()]
             statements = [item for sublist in statements for item in sublist]
 
+            self.llmobs_service.annotate(
+                output_data=statements,
+            )
             if not isinstance(statements, List):
                 return None
             return statements
@@ -258,7 +264,11 @@ class RagasFaithfulnessEvaluator:
         """
         Returns: `StatementFaithfulnessAnswers` model detailing which statements are faithful to the context
         """
-        with self.llmobs_service.workflow("dd-ragas.create_verdicts"):
+        with self.llmobs_service.workflow("dd-ragas.create_verdicts") as create_verdicts_workflow:
+            self.llmobs_service.annotate(
+                span=create_verdicts_workflow,
+                input_data=statements,
+            )
             """Check which statements contradict the conntext"""
             raw_nli_results = self.ragas_faithfulness_instance.llm.generate_text(
                 self._create_natural_language_inference_prompt(context, statements)
@@ -288,6 +298,11 @@ class RagasFaithfulnessEvaluator:
             except Exception as e:
                 logger.debug("Failed to parse faithfulness_list", exc_info=e)
                 return None
+            finally:
+                self.llmobs_service.annotate(
+                    span=create_verdicts_workflow,
+                    output_data=faithfulness_list,
+                )
 
     def _extract_faithfulness_inputs(self, span_event: dict) -> Optional[dict]:
         """
