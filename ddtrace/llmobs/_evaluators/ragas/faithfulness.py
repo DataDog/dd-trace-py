@@ -85,6 +85,8 @@ class RagasFaithfulnessEvaluator:
 
         :param llmobs_service: An instance of the LLM Observability service used for tracing the evaluation and
                                       submitting evaluation metrics.
+
+        Raises: NotImplementedError if the ragas library is not found or if ragas version is not supported.
         """
         self.llmobs_service = llmobs_service
         self.ragas_version = "unknown"
@@ -253,10 +255,13 @@ class RagasFaithfulnessEvaluator:
             return statements
 
     def _create_verdicts(self, context: str, statements: List[str]):
+        """
+        Returns: `StatementFaithfulnessAnswers` model detailing which statements are faithful to the context
+        """
         with self.llmobs_service.workflow("dd-ragas.create_verdicts"):
             """Check which statements contradict the conntext"""
             raw_nli_results = self.ragas_faithfulness_instance.llm.generate_text(
-                self._create_natural_language_inference_prompt(statements, context)
+                self._create_natural_language_inference_prompt(context, statements)
             )
             if len(raw_nli_results.generations) == 0:
                 return None
@@ -284,7 +289,7 @@ class RagasFaithfulnessEvaluator:
                 logger.debug("Failed to parse faithfulness_list", exc_info=e)
                 return None
 
-    def _extract_faithfulness_inputs(self, span_event: dict):
+    def _extract_faithfulness_inputs(self, span_event: dict) -> Optional[dict]:
         """
         Extracts the question, answer, and context used as inputs to faithfulness
         evaluation from a span event.
@@ -336,6 +341,7 @@ class RagasFaithfulnessEvaluator:
             return {"question": question, "context": context, "answer": answer}
 
     def _create_statements_prompt(self, answer, question):
+        # Returns: `ragas.llms.PromptValue` object
         with self.llmobs_service.task("dd-ragas.create_statements_prompt"):
             sentences = self.split_answer_into_sentences.segment(answer)
             sentences = [sentence for sentence in sentences if sentence.strip().endswith(".")]
@@ -344,15 +350,19 @@ class RagasFaithfulnessEvaluator:
                 question=question, answer=answer, sentences=sentences
             )
 
-    def _create_natural_language_inference_prompt(self, statements, context_str):
+    def _create_natural_language_inference_prompt(self, context_str: str, statements: List[str]):
+        # Returns: `ragas.llms.PromptValue` object
         with self.llmobs_service.task("dd-ragas.create_natural_language_inference_prompt"):
-            statements_str: str = json.dumps(statements)
             prompt_value = self.ragas_faithfulness_instance.nli_statements_message.format(
-                context=context_str, statements=statements_str
+                context=context_str, statements=json.dumps(statements)
             )
             return prompt_value
 
     def _compute_score(self, faithfulness_list) -> float:
+        """
+        Args:
+            faithfulness_list (StatementFaithfulnessAnswers): a list of statements and their faithfulness verdicts
+        """
         with self.llmobs_service.task("dd-ragas.compute_score"):
             faithful_statements = sum(1 if answer.verdict else 0 for answer in faithfulness_list.__root__)
             num_statements = len(faithfulness_list.__root__)
