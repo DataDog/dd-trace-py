@@ -578,7 +578,6 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             mock_tracer=mock_tracer,
             cassette_name="lcel_openai_chain_nested.yaml",
         )
-        # TODO : figure out why it's 2 not 4
         assert mock_llmobs_span_writer.enqueue.call_count == 4
         _assert_expected_llmobs_chain_span(
             trace[0],
