@@ -178,6 +178,8 @@ def override_global_config(values):
     for key, value in values.items():
         if key in asm_config_keys:
             setattr(ddtrace.settings.asm.config, key, value)
+    # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
+    ddtrace.settings.asm.config._eval_asm_can_be_enabled()
     try:
         yield
     finally:
