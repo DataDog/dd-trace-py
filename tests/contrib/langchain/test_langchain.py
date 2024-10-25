@@ -964,6 +964,8 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
         """
 from langchain.llms import OpenAI
 import ddtrace
+import warnings
+warnings.filterwarnings("ignore")
 from tests.contrib.langchain.test_langchain import get_request_vcr
 llm = OpenAI()
 with get_request_vcr(subdirectory_name="langchain").use_cassette("openai_completion_sync.yaml"):
@@ -1006,6 +1008,8 @@ def test_openai_service_name(
 from langchain.llms import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain import get_request_vcr
+import warnings
+warnings.filterwarnings("ignore")
 llm = OpenAI()
 with get_request_vcr(subdirectory_name="langchain").use_cassette("openai_completion_sync.yaml"):
     llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
