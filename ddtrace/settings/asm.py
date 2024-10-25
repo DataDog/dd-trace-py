@@ -214,7 +214,7 @@ class ASMConfig(Env):
     def __init__(self):
         super().__init__()
         # Is one click available?
-        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._eval_asm_can_be_enabled()
         # Only for deprecation phase
         if self._automatic_login_events_mode and APPSEC.AUTO_USER_INSTRUMENTATION_MODE not in os.environ:
             self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode
@@ -227,6 +227,9 @@ class ASMConfig(Env):
     def reset(self):
         """For testing puposes, reset the configuration to its default values given current environment variables."""
         self.__init__()
+
+    def _eval_asm_can_be_enabled(self):
+        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
 
     @property
     def _api_security_feature_active(self) -> bool:
