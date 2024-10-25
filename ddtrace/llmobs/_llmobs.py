@@ -124,26 +124,14 @@ class LLMObs(Service):
         self._evaluator_runner = self._evaluator_runner.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
         self._trace_processor._evaluator_runner = self._evaluator_runner
-        tracer_filters = self.tracer._filters
-        if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [self._trace_processor]
-        self.tracer.configure(settings={"FILTERS": tracer_filters})
-        try:
-            self._llmobs_span_writer.start()
-            self._llmobs_eval_metric_writer.start()
-        except ServiceStatusError:
-            log.debug("Error starting LLMObs writers after fork")
-
-        try:
-            self._evaluator_runner.start()
-        except ServiceStatusError:
-            log.debug("Error starting evaluator runner after fork")
+        if self.enabled:
+            self._start_service()
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
             tracer_filters += [self._trace_processor]
-        self.tracer.configure(settings={"FILTERS": tracer_filters})
+            self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
             self._llmobs_eval_metric_writer.start()
@@ -245,6 +233,7 @@ class LLMObs(Service):
 
         if integrations_enabled:
             cls._patch_integrations()
+
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=_tracer)
         cls.enabled = True
