@@ -932,7 +932,9 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=documents, operation="retrieval", is_workflow_override=False)
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=documents, operation="retrieval", is_workflow_override=False
+        )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
