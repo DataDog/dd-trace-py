@@ -138,9 +138,9 @@ if _DDWAF_LOADED:
             self._cached_version = version
             for key, value in info_struct.items():
                 if isinstance(value, dict):
-                    if "error" in value:
+                    if value.get("error", False):
                         self.report_error(f"appsec.waf.error::{action}::{key}::{value['error']}", self._cached_version)
-                    elif "errors" in value:
+                    elif value.get("errors", False):
                         self.report_error(
                             f"appsec.waf.error::{action}::{key}::{str(value['errors'])}", self._cached_version, False
                         )
