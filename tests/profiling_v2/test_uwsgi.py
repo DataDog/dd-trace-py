@@ -34,6 +34,7 @@ def uwsgi(monkeypatch):
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = tempfile.mktemp()
     import os
+
     cmd = [
         "uwsgi",
         "--need-app",
@@ -78,7 +79,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     assert proc.wait() == 30
     for pid in worker_pids:
         profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
 
@@ -145,7 +146,7 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     for pid in worker_pids:
         print("Check profile for child pid: %d" % pid)
         profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
 
@@ -175,5 +176,5 @@ def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatc
                 break
     for pid in worker_pids:
         profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
