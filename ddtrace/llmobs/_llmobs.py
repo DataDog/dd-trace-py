@@ -90,6 +90,7 @@ class LLMObs(Service):
 
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
+        self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
@@ -97,8 +98,9 @@ class LLMObs(Service):
         self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
+            self._llmobs_eval_metric_writer.start()
         except ServiceStatusError:
-            log.debug("Error starting LLMObs span writer after fork")
+            log.debug("Error starting LLMObs writers after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
