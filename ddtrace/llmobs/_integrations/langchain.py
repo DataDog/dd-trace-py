@@ -214,7 +214,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if not is_workflow:
             # tokens are usually set at the top-level ChatResult or LLMResult object
             input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(chat_completions)
-   
+
         for message_set in chat_completions.generations:
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
