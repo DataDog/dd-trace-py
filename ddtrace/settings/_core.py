@@ -40,7 +40,7 @@ class Config(Env):
 
 
 def report_telemetry(env: Env) -> None:
-    return Config._report_telemetry(env)
+    Config._report_telemetry(env)
 
 
 def get_config(
