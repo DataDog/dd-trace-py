@@ -22,11 +22,13 @@ from tests.utils import flaky
 from . import test_collector
 
 
-# FIXME: remove version limitation when gevent segfaults are fixed on Python 3.12
-# Python 3.11.9 is not compatible with gevent, https://github.com/python/cpython/issues/117983
-# The fix was not backported to 3.11. 3.12 got the fix but was not released yet.
-# Revisit this when 3.12.5 is released to check whether tests can be enabled.
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and sys.version[:2] != (3, 11)
+# Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
+# https://github.com/python/cpython/issues/117983
+# The fix was not backported to 3.11. The fix was first released in 3.12.5 for
+# Python 3.12. Tested with Python 3.11.8 and 3.12.5 to confirm the issue.
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
+    sys.version_info[:2] < (3, 10) or sys.version_info[:2] < (3, 11, 9) or sys.version_info >= (3, 12, 5)
+)
 
 
 def func1():
@@ -348,9 +350,7 @@ exec(
     try:
       raise ValueError('test')
     except Exception:
-      time.sleep(2)""".format(
-        MAX_FN_NUM=MAX_FN_NUM
-    )
+      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
 )
 
 
