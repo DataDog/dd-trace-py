@@ -42,7 +42,6 @@ import wrapt
 
 from ddtrace import Span
 from ddtrace import config
-from ddtrace.contrib.internal.langchain.constants import API_KEY
 from ddtrace.contrib.internal.langchain.constants import COMPLETION_TOKENS
 from ddtrace.contrib.internal.langchain.constants import MODEL
 from ddtrace.contrib.internal.langchain.constants import PROMPT_TOKENS
