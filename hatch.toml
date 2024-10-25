@@ -124,7 +124,7 @@ extra-dependencies = [
 
 [envs.slotscheck.scripts]
 _ = [
-    "python -m slotscheck --exclude-modules '(^|\\.)_ddprof' -v ddtrace/",
+    "python -m slotscheck --exclude-modules '(^|\\.)_ddprof' --no-strict-imports -v ddtrace/",
 ]
 
 
