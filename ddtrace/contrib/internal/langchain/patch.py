@@ -919,9 +919,10 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             else:
                 # if not with score add None to tuple
                 document, score = document_and_maybe_score, None
+
+            # stored to be used in log
             documents_with_maybe_score.append((document, score))
 
-        for idx, (document, score) in enumerate(documents_with_maybe_score):
             span.set_tag_str(
                 "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
             )
@@ -931,6 +932,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str(
                     "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
                 )
+
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -1015,9 +1017,10 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
             else:
                 # if not with score add None to tuple
                 document, score = document_and_maybe_score, None
+
+            # stored to be used in log
             documents_with_maybe_score.append((document, score))
 
-        for idx, (document, score) in enumerate(documents_with_maybe_score):
             span.set_tag_str(
                 "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
             )
