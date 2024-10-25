@@ -986,6 +986,7 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
         api_key=api_key,
     )
     documents = []
+    documents_with_maybe_score = []
     try:
         if integration.is_pc_sampled_span(span):
             span.set_tag_str("langchain.request.embedding", integration.trunc(str(vector)))
@@ -1008,16 +1009,20 @@ def traced_similarity_search_by_vector(langchain, pin, func, instance, args, kwa
             )
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
-        for idx, document in enumerate(documents):
-            if not isinstance(document, tuple):
+        for idx, document_and_maybe_score in enumerate(documents):
+            if isinstance(document_and_maybe_score, tuple):
+                document, score = document_and_maybe_score
+            else:
                 # if not with score add None to tuple
-                document = (document, None)
+                document, score = document_and_maybe_score, None
+            documents_with_maybe_score.append((document, score))
+
+        for idx, (document, score) in enumerate(documents_with_maybe_score):
             span.set_tag_str(
-                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document[0].page_content))
+                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
             )
-            if document[1] is not None:
-                span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(document[1])))
-            for kwarg_key, v in document[0].metadata.items():
+            if score is not None:
+                span.set_tag_str("langchain.response.document.%d.score" % idx, integration.trunc(str(score)))
             for kwarg_key, v in getattr(document, "metadata", {}).items():
                 span.set_tag_str(
                     "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
