@@ -136,7 +136,6 @@ def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_glob
         dummy_tracer = DummyTracer()
         llmobs_service.enable(_tracer=dummy_tracer)
         yield llmobs_service
-        print("disabling llmobs service")
         llmobs_service.disable()
 
 
