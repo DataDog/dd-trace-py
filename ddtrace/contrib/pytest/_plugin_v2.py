@@ -13,8 +13,11 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_cove
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.pytest._retry_utils import get_retry_num
+from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
+from ddtrace.contrib.pytest._utils import _get_pytest_version_tuple
 from ddtrace.contrib.pytest._utils import _get_session_command
 from ddtrace.contrib.pytest._utils import _get_source_file_info
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
@@ -22,6 +25,8 @@ from ddtrace.contrib.pytest._utils import _get_test_parameters_json
 from ddtrace.contrib.pytest._utils import _is_enabled_early
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.pytest._utils import _TestOutcome
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
@@ -49,16 +54,27 @@ from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
+if _pytest_version_supports_efd():
+    from ddtrace.contrib.pytest._efd_utils import efd_get_failed_reports
+    from ddtrace.contrib.pytest._efd_utils import efd_get_teststatus
+    from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
+    from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
+
+if _get_pytest_version_tuple() >= (7, 0, 0):
+    from pytest import CallInfo as pytest_CallInfo
+    from pytest import Config as pytest_Config  # noqa: F401
+    from pytest import TestReport as pytest_TestReport
+    from pytest import TestShortLogReport as pytest_TestShortLogReport
+else:
+    from _pytest.config import Config as pytest_Config
+    from _pytest.reports import TestReport as pytest_TestReport
+    from _pytest.reports import TestReport as pytest_TestShortLogReport
+    from _pytest.runner import CallInfo as pytest_CallInfo
+
 log = get_logger(__name__)
 
 
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
-
-
-class _TestOutcome(t.NamedTuple):
-    status: t.Optional[TestStatus] = None
-    skip_reason: t.Optional[str] = None
-    exc_info: t.Optional[TestExcInfo] = None
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -155,7 +171,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
         _disable_ci_visibility()
 
 
-def pytest_configure(config: pytest.Config) -> None:
+def pytest_configure(config: pytest_Config) -> None:
     try:
         if is_enabled(config):
             take_over_logger_stream_handler()
@@ -170,6 +186,13 @@ def pytest_configure(config: pytest.Config) -> None:
     except Exception:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
+
+
+def pytest_unconfigure(config: pytest_Config) -> None:
+    if not is_test_visibility_enabled():
+        return
+
+    _disable_ci_visibility()
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -193,6 +216,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.start()
+        if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
+            log.warning("Early Flake Detection disabled: pytest version is not supported")
+
     except Exception:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
@@ -231,6 +257,10 @@ def _pytest_collection_finish(session) -> None:
         if InternalTestSession.is_test_skipping_enabled() and _is_test_unskippable(item):
             InternalTest.mark_itr_unskippable(test_id)
             InternalTestSuite.mark_itr_unskippable(suite_id)
+
+    # NOTE: EFD enablement status is already specified during service enablement
+    if InternalTestSession.efd_enabled() and InternalTestSession.efd_is_faulty_session():
+        log.warning("Early Flake Detection disabled: too many new tests detected")
 
 
 def pytest_collection_finish(session) -> None:
@@ -318,18 +348,10 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         return
 
 
-def _process_outcome(item, call, outcome) -> _TestOutcome:
-    result = outcome.get_result()
-
+def _process_result(item, call, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 
     has_exception = call.excinfo is not None
-
-    # There are scenarios in which we may have already finished this item in setup or call, eg:
-    # - it was skipped by ITR
-    # - it was marked with skipif
-    if InternalTest.is_finished(test_id):
-        return _TestOutcome()
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
@@ -344,7 +366,6 @@ def _process_outcome(item, call, outcome) -> _TestOutcome:
     # - the test passed with xfail
     # - we are tearing down the test
     # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
-
     if call.when != "teardown" and not (has_exception or result.failed):
         return _TestOutcome()
 
@@ -385,26 +406,48 @@ def _process_outcome(item, call, outcome) -> _TestOutcome:
         InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
         return _TestOutcome(TestStatus.FAIL)
 
+    # NOTE: for EFD purposes, we need to know if the test failed during setup or teardown.
+    if call.when == "setup" and result.failed:
+        InternalTest.set_tag(test_id, "_dd.ci.efd_setup_failed", True)
+    elif call.when == "teardown" and result.failed:
+        InternalTest.set_tag(test_id, "_dd.ci.efd_teardown_failed", True)
+
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
 
-def _pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo, outcome: pytest.TestReport) -> None:
+def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
+    # When EFD retries are active, we do not want makereport to generate results, but we want to record exceptions
+    # since they are not available in the output of runtest_protocol
+    if get_retry_num(item.nodeid) is not None:
+        return
+
+    original_result = outcome.get_result()
+
     test_id = _get_test_id_from_item(item)
 
-    test_outcome = _process_outcome(item, call, outcome)
+    test_outcome = _process_result(item, call, original_result)
 
+    # A None value for test_outcome.status implies the test has not finished yet
+    # Only continue to finishing the test if the test has finished, or if tearing down the test
     if test_outcome.status is None and call.when != "teardown":
         return
 
-    InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+    # Record a result if we haven't already recorded it:
+    if not InternalTest.is_finished(test_id):
+        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+
+    # EFD retries tests only if their teardown succeeded to ensure the best chance they will succeed
+    # NOTE: this mutates the original result's outcome
+    if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+        return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
+def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
-    outcome: pytest.TestReport
+    outcome: pytest_TestReport
     outcome = yield
 
     if not is_test_visibility_enabled():
@@ -416,9 +459,46 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
         log.debug("encountered error during makereport", exc_info=True)
 
 
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Report flaky or failed tests"""
+    # Before yield gives us a chance to show failure reports, but they have to be in terminalreporter.stats["failed"] to
+    # be shown. That, however, would make them count towards the final summary, so we add them temporarily, then restore
+    # terminalreporter.stats["failed"] to its original size after the yield.
+    failed_reports_initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
+
+    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+        for failed_report in efd_get_failed_reports(terminalreporter):
+            failed_report.outcome = PYTEST_STATUS.FAILED
+            terminalreporter.stats.setdefault("failed", []).append(failed_report)
+
+    yield
+
+    # After yield gives us a chance to:
+    # - print our flaky test status summary
+    # - modify the total counts
+
+    # Restore terminalreporter.stats["failed"] to its original size so the final summary remains correct
+    if failed_reports_initial_size == 0:
+        terminalreporter.stats.pop("failed", None)
+    else:
+        terminalreporter.stats[PYTEST_STATUS.FAILED] = terminalreporter.stats[PYTEST_STATUS.FAILED][
+            :failed_reports_initial_size
+        ]
+
+    # IMPORTANT: terminal summary functions mutate terminalreporter.stats
+    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+        efd_pytest_terminal_summary_post_yield(terminalreporter)
+
+    return
+
+
 def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
+
+    if InternalTestSession.efd_has_failed_tests():
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
@@ -429,14 +509,13 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
         if not isinstance(lines_pct_value, float):
             log.warning("Tried to add total covered percentage to session span but the format was unexpected")
-            return
-        InternalTestSession.set_covered_lines_pct(lines_pct_value)
+        else:
+            InternalTestSession.set_covered_lines_pct(lines_pct_value)
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
 
     InternalTestSession.finish(force_finish_children=True)
-    disable_test_visibility()
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -447,8 +526,13 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         _pytest_sessionfinish(session, exitstatus)
     except Exception:  # noqa: E722
         log.debug("encountered error during session finish", exc_info=True)
-        # Try, again, to disable CI Visibility just in case
-        _disable_ci_visibility()
+
+
+def pytest_report_teststatus(
+    report: pytest_TestReport,
+) -> t.Optional[pytest_TestShortLogReport]:
+    if _pytest_version_supports_efd():
+        return efd_get_teststatus(report)
 
 
 @pytest.hookimpl(trylast=True)
