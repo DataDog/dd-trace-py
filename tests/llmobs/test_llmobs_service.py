@@ -232,15 +232,13 @@ def test_llm_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
     )
 
 
-def test_llm_span_no_model_raises_error(LLMObs, mock_logs):
-    with pytest.raises(TypeError):
-        with LLMObs.llm(name="test_llm_call", model_provider="test_provider"):
-            pass
+def test_llm_span_no_model_sets_default(LLMObs, mock_llmobs_span_writer):
+    with LLMObs.llm(name="test_llm_call", model_provider="test_provider") as span:
+        assert span.get_tag(MODEL_NAME) == "custom"
 
-
-def test_llm_span_empty_model_name_logs_warning(LLMObs, mock_logs):
-    _ = LLMObs.llm(model_name="", name="test_llm_call", model_provider="test_provider")
-    mock_logs.warning.assert_called_once_with("LLMObs.llm() missing model_name")
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "llm", model_name="custom", model_provider="test_provider")
+    )
 
 
 def test_default_model_provider_set_to_custom(LLMObs):
@@ -325,15 +323,12 @@ def test_agent_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
-def test_embedding_span_no_model_raises_error(LLMObs):
-    with pytest.raises(TypeError):
-        with LLMObs.embedding(name="test_embedding", model_provider="test_provider"):
-            pass
-
-
-def test_embedding_span_empty_model_name_logs_warning(LLMObs, mock_logs):
-    _ = LLMObs.embedding(model_name="", name="test_embedding", model_provider="test_provider")
-    mock_logs.warning.assert_called_once_with("LLMObs.embedding() missing model_name")
+def test_embedding_span_no_model_sets_default(LLMObs, mock_llmobs_span_writer):
+    with LLMObs.embedding(name="test_embedding", model_provider="test_provider") as span:
+        assert span.get_tag(MODEL_NAME) == "custom"
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "embedding", model_name="custom", model_provider="test_provider")
+    )
 
 
 def test_embedding_default_model_provider_set_to_custom(LLMObs):
@@ -1579,7 +1574,7 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluato
 
 def test_llmobs_fork_create_span(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
-    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
+    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", "5.0")
     with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
         pid = os.fork()
@@ -1687,6 +1682,49 @@ def test_llmobs_fork_custom_filter(monkeypatch):
         exit_code = os.WEXITSTATUS(status)
         assert exit_code == 12
         llmobs_service.disable()
+
+
+def test_llmobs_fork_disabled(monkeypatch):
+    """Test that after being disabled the service remains disabled when forking"""
+    monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
+    svc = llmobs_service(tracer=DummyTracer())
+    pid = os.fork()
+    assert not svc.enabled, "both the parent and child should be disabled"
+    assert svc._llmobs_span_writer.status == ServiceStatus.STOPPED
+    assert svc._llmobs_eval_metric_writer.status == ServiceStatus.STOPPED
+    if not pid:
+        svc.disable()
+        os._exit(12)
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+    svc.disable()
+
+
+def test_llmobs_fork_disabled_then_enabled(monkeypatch):
+    """Test that after being initially disabled, the service can be enabled in a fork"""
+    monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
+    svc = llmobs_service._instance
+    pid = os.fork()
+    assert not svc.enabled, "both the parent and child should be disabled"
+    assert svc._llmobs_span_writer.status == ServiceStatus.STOPPED
+    assert svc._llmobs_eval_metric_writer.status == ServiceStatus.STOPPED
+    if not pid:
+        # Enable the service in the child
+        with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+            monkeypatch.setenv("DD_LLMOBS_ENABLED", "1")
+            llmobs_service.enable(_tracer=DummyTracer())
+        svc = llmobs_service._instance
+        assert svc._llmobs_span_writer.status == ServiceStatus.RUNNING
+        assert svc._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
+        svc.disable()
+        os._exit(12)
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+    svc.disable()
 
 
 def test_annotation_context_modifies_span_tags(LLMObs):

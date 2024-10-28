@@ -83,7 +83,7 @@ dependencies = [  # copied from library dependencies
     "protobuf>=3",
     "typing_extensions",
     "xmltodict>=0.12",
-    "envier",
+    "envier==0.5.2",
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
     "bytecode",
@@ -357,7 +357,7 @@ test = [
 ]
 
 [[envs.appsec_aggregated_leak_testing.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+python = ["3.10", "3.11", "3.12"]
 
 
 

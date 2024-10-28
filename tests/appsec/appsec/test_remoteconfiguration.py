@@ -99,19 +99,19 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
     ],
 )
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_env({APPSEC.ENV: appsec_enabled}), override_global_config(dict(_asm_enabled=True)):
+    with override_env({APPSEC.ENV: appsec_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
-        else:
+        with override_global_config(dict(_asm_enabled=True)):
             tracer.configure(appsec_enabled=asbool(appsec_enabled))
 
-        rc_config = {"config": {"asm": {"enabled": True}}}
-        if rc_value is False:
-            rc_config = {}
+            rc_config = {"config": {"asm": {"enabled": True}}}
+            if rc_value is False:
+                rc_config = {}
 
-        _appsec_callback(rc_config, tracer)
-        result = _set_and_get_appsec_tags(tracer)
-        assert result is None
+            _appsec_callback(rc_config, tracer)
+            result = _set_and_get_appsec_tags(tracer)
+            assert result is None
 
 
 @pytest.mark.parametrize(
@@ -991,32 +991,52 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
 
 
 def test_rc_rules_data(tracer):
-    RULES_PATH = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(rules.ROOT_DIR))), "ddtrace/appsec/rules.json"
-    )
-    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)), open(
-        RULES_PATH, "r"
-    ) as dd_rules:
-        tracer.configure(appsec_enabled=True, api_version="v0.4")
-        config = {
-            "rules_data": [],
-            "custom_rules": [],
-            "actions": [],
-            "rules": json.load(dd_rules)["rules"],
-            "rules_override": [],
-            "scanners": [],
-            "processors": [],
-            "ignore": [],
-        }
-        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
-            mock_update.reset_mock()
-            _appsec_rules_data(config, tracer)
-            calls = mock_update.mock_calls
-            for v in config:
-                if v == "ignore":
-                    assert v not in calls[-1][1][1]
-                else:
-                    assert v in calls[-1][1][1]
+    import tempfile
+
+    STATIC_RULE_FILE = {
+        "custom_rules": [],
+        "actions": ["action1"],
+        "metadata": {"version": "0.4", "tmp": "test"},
+        "scanners": {"test": "test"},
+        "rules": [],
+    }
+
+    with tempfile.NamedTemporaryFile() as f:
+        f.write(json.dumps(STATIC_RULE_FILE).encode())
+        f.flush()
+        with override_env({APPSEC.ENV: "true"}), override_global_config(
+            dict(_asm_enabled=True, _asm_static_rule_file=f.name)
+        ):
+            tracer.configure(appsec_enabled=True, api_version="v0.4")
+            config = {
+                "rules_data": [],
+                "custom_rules": [],
+                "actions": ["action2"],
+                "rules_override": [],
+                "scanners": ["test"],
+                "processors": [],
+                "metadata": {"id": "0.3", "tmp": "new"},
+                "ignore": [],
+                "rules": [],  # rules are empty, so we should merge the static rules
+            }
+            with mock.patch(
+                "ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True
+            ) as mock_update:
+                mock_update.reset_mock()
+                _appsec_rules_data(config, tracer)
+                calls = mock_update.mock_calls
+                struct_sent = calls[-1][1][1]
+                for v in config:
+                    if v == "ignore":
+                        assert v not in struct_sent
+                    else:
+                        assert v in struct_sent
+                # test if merged dict
+                assert struct_sent["metadata"] == {"version": "0.4", "id": "0.3", "tmp": "new"}
+                # test if merged list
+                assert struct_sent["actions"] == ["action1", "action2"]
+                # test if ignoring list after dict
+                assert struct_sent["scanners"] == {"test": "test"}
 
 
 def test_rc_rules_data_error_empty(tracer):

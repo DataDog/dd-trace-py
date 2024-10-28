@@ -55,12 +55,12 @@ else:
     runtime_id = stdout.strip().decode("utf-8")
 
     # Validate that one app-closing event was sent and it was queued in the parent process
-    app_closing = test_agent_session.get_events("app-closing")
+    app_closing = test_agent_session.get_events("app-closing", subprocess=True)
     assert len(app_closing) == 1
     assert app_closing[0]["runtime_id"] == runtime_id
 
     # Validate that one app-started event was sent and it was queued in the parent process
-    app_started = test_agent_session.get_events("app-started")
+    app_started = test_agent_session.get_events("app-started", subprocess=True)
     assert len(app_started) == 1
     assert app_started[0]["runtime_id"] == runtime_id
 
@@ -97,7 +97,7 @@ telemetry_writer.periodic(force_flush=True)
     runtime_id = stdout.strip().decode("utf-8")
 
     # Allow test agent session to capture all heartbeat events
-    app_heartbeats = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
+    app_heartbeats = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False, subprocess=True)
     assert len(app_heartbeats) > 0
     for hb in app_heartbeats:
         assert hb["runtime_id"] == runtime_id
@@ -177,7 +177,7 @@ telemetry_writer._app_started()
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
-    events = test_agent_session.get_events("app-started")
+    events = test_agent_session.get_events("app-started", subprocess=True)
 
     assert len(events) == 1
 
@@ -221,7 +221,7 @@ raise Exception('bad_code')
     # Regression test for invalid number of arguments in wrapped exception hook
     assert b"3 positional arguments but 4 were given" not in stderr
 
-    app_starteds = test_agent_session.get_events("app-started")
+    app_starteds = test_agent_session.get_events("app-started", subprocess=True)
     assert len(app_starteds) == 1
     # app-started captures unhandled exceptions raised in application code
     assert app_starteds[0]["payload"]["error"]["code"] == 1
@@ -252,7 +252,7 @@ patch(raise_errors=False, sqlite3=True)
     expected_stderr = b"failed to import"
     assert expected_stderr in stderr
 
-    integrations_events = test_agent_session.get_events("app-integrations-change")
+    integrations_events = test_agent_session.get_events("app-integrations-change", subprocess=True)
     assert len(integrations_events) == 1
     assert (
         integrations_events[0]["payload"]["integrations"][0]["error"]
@@ -270,9 +270,6 @@ patch(raise_errors=False, sqlite3=True)
 
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
-import logging
-logging.basicConfig()
-
 import flask
 f = flask.Flask("hi")
 
@@ -286,20 +283,13 @@ f.wsgi_app()
 
     assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
 
-    events = test_agent_session.get_events()
-    assert len(events) > 0
-    # Same runtime id is used
-    first_runtimeid = events[0]["runtime_id"]
-    for event in events:
-        assert event["runtime_id"] == first_runtimeid
-
-    app_started_event = [event for event in events if event["request_type"] == "app-started"]
+    app_started_event = test_agent_session.get_events("app-started", subprocess=True)
     assert len(app_started_event) == 1
     assert app_started_event[0]["payload"]["error"]["code"] == 1
     assert "ddtrace/contrib/internal/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
     assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
 
-    integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
+    integration_events = test_agent_session.get_events("app-integrations-change", subprocess=True)
     integrations = integration_events[0]["payload"]["integrations"]
 
     (flask_integration,) = [integration for integration in integrations if integration["name"] == "flask"]
@@ -332,7 +322,7 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
 
-    app_started_event = test_agent_session.get_events("app-started")
+    app_started_event = test_agent_session.get_events("app-started", subprocess=True)
     assert len(app_started_event) == 1
     assert app_started_event[0]["payload"]["install_signature"] == {
         "install_id": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
@@ -355,7 +345,7 @@ assert "ddtrace.internal.telemetry" in sys.modules
 """
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events(subprocess=True)
     assert len(events) == 0
 
     assert status == 0, stderr

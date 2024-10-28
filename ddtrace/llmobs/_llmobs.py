@@ -112,7 +112,7 @@ class LLMObs(Service):
         if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
             return
         current_context = self._instance.tracer.current_trace_context()
-        current_context_id = current_context._get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+        current_context_id = current_context.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
         with self._annotation_context_lock:
             for _, context_id, annotation_kwargs in self._instance._annotations:
                 if current_context_id == context_id:
@@ -124,26 +124,14 @@ class LLMObs(Service):
         self._evaluator_runner = self._evaluator_runner.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
         self._trace_processor._evaluator_runner = self._evaluator_runner
-        tracer_filters = self.tracer._filters
-        if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [self._trace_processor]
-        self.tracer.configure(settings={"FILTERS": tracer_filters})
-        try:
-            self._llmobs_span_writer.start()
-            self._llmobs_eval_metric_writer.start()
-        except ServiceStatusError:
-            log.debug("Error starting LLMObs writers after fork")
-
-        try:
-            self._evaluator_runner.start()
-        except ServiceStatusError:
-            log.debug("Error starting evaluator runner after fork")
+        if self.enabled:
+            self._start_service()
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
             tracer_filters += [self._trace_processor]
-        self.tracer.configure(settings={"FILTERS": tracer_filters})
+            self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
             self._llmobs_eval_metric_writer.start()
@@ -245,6 +233,7 @@ class LLMObs(Service):
 
         if integrations_enabled:
             cls._patch_integrations()
+
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=_tracer)
         cls.enabled = True
@@ -301,12 +290,12 @@ class LLMObs(Service):
             ctx_id = annotation_id
             if current_ctx is None:
                 current_ctx = Context(is_remote=False)
-                current_ctx._set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+                current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
                 cls._instance.tracer.context_provider.activate(current_ctx)
-            elif not current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID):
-                current_ctx._set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+            elif not current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID):
+                current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
             else:
-                ctx_id = current_ctx._get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+                ctx_id = current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
             return ctx_id
 
         def register_annotation():
@@ -404,7 +393,7 @@ class LLMObs(Service):
     @classmethod
     def llm(
         cls,
-        model_name: str,
+        model_name: Optional[str] = None,
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -413,7 +402,7 @@ class LLMObs(Service):
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
-        :param str model_name: The name of the invoked LLM.
+        :param str model_name: The name of the invoked LLM. If not provided, a default value of "custom" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -425,12 +414,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if not model_name:
-            log.warning("LLMObs.llm() missing model_name")
+        if model_name is None:
+            model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
-        if model_name is None:
-            model_name = "unknown"
         return cls._instance._start_span(
             "llm", name, model_name=model_name, model_provider=model_provider, session_id=session_id, ml_app=ml_app
         )
@@ -504,7 +491,7 @@ class LLMObs(Service):
     @classmethod
     def embedding(
         cls,
-        model_name: str,
+        model_name: Optional[str] = None,
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -514,6 +501,7 @@ class LLMObs(Service):
         Trace a call to an embedding model or function to create an embedding.
 
         :param str model_name: The name of the invoked embedding model.
+                               If not provided, a default value of "custom" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "embedding" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -525,12 +513,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if not model_name:
-            log.warning("LLMObs.embedding() missing model_name")
+        if model_name is None:
+            model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
-        if model_name is None:
-            model_name = "unknown"
         return cls._instance._start_span(
             "embedding",
             name,
