@@ -66,14 +66,15 @@ def daphne_client(django_asgi, additional_env=None):
     # Wait for the server to start up
     try:
         print("Waiting for server to start")
-        client.wait(max_tries=120, delay=0.2, initial_wait=2.0)
+        client.wait(max_tries=120, delay=0.2, initial_wait=2)
         print("Server started")
     except Exception:
+        stdout, stderr = server_process.communicate()
         raise AssertionError(
             "Server failed to start, see stdout and stderr logs"
             "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-            "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-            % (server_process.stdout.read(), server_process.stderr.read())
+            "\n=== Captured STDERR ===\n%s=== End of captured STDERR ===" % (stdout),
+            (stderr),
         )
 
     try:
