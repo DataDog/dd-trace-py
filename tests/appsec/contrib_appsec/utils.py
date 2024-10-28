@@ -1483,10 +1483,12 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION)
             else:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
 
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
