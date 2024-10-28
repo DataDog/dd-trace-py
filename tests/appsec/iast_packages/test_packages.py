@@ -127,7 +127,7 @@ class PackageForTesting:
         else:
             package_fullversion = package_name
 
-        cmd = [python_cmd, "-m", "pip", "install", " --force-reinstall", "-U", package_fullversion]
+        cmd = [python_cmd, "-m", "pip", "install", "--force-reinstall", "-U", package_fullversion]
         env = {}
         env.update(os.environ)
         # CAVEAT: we use subprocess instead of `pip.main(["install", package_fullversion])` due to pip package
