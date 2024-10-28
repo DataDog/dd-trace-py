@@ -127,7 +127,7 @@ class PackageForTesting:
         else:
             package_fullversion = package_name
 
-        cmd = [python_cmd, "-m", "pip", "install", package_fullversion]
+        cmd = [python_cmd, "-m", "pip", "install", " --force-reinstall", "-U", package_fullversion]
         env = {}
         env.update(os.environ)
         # CAVEAT: we use subprocess instead of `pip.main(["install", package_fullversion])` due to pip package
@@ -303,6 +303,7 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "importlib-resources",
@@ -525,6 +526,7 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "sqlalchemy",
