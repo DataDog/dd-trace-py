@@ -6,6 +6,8 @@ import sys
 from types import CodeType
 import typing as t
 
+from ddtrace.internal.instrumentation.opcodes import *
+from ddtrace.internal.instrumentation import Jump, JumpDirection, RJump, Instruction, Branch, NO_OFFSET, EXTENDED_ARG, instr_with_arg
 from ddtrace.internal.injection import HookType
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
@@ -13,65 +15,6 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
 assert sys.version_info >= (3, 11) and sys.version_info < (3, 12)  # nosec
-
-
-class JumpDirection(int, Enum):
-    FORWARD = 1
-    BACKWARD = -1
-
-    @classmethod
-    def from_opcode(cls, opcode: int) -> "JumpDirection":
-        return cls.BACKWARD if "BACKWARD" in dis.opname[opcode] else cls.FORWARD
-
-
-class Jump(ABC):
-    def __init__(self, start: int, arg: int) -> None:
-        self.start = start
-        self.end: t.Optional[int] = None
-        self.arg = arg
-
-
-class RJump(Jump):
-    __opcodes__ = set(dis.hasjrel)
-
-    def __init__(self, start: int, arg: int, direction: JumpDirection) -> None:
-        super().__init__(start, arg)
-
-        self.direction = direction
-        self.end = start + (self.arg << 1) * self.direction + 2
-
-
-class Instruction:
-    __slots__ = ("offset", "opcode", "arg", "targets")
-
-    def __init__(self, offset: int, opcode: int, arg: int) -> None:
-        self.offset = offset
-        self.opcode = opcode
-        self.arg = arg
-        self.targets: t.List["Branch"] = []
-
-
-class Branch:
-    def __init__(self, start: Instruction, end: Instruction) -> None:
-        self.start = start
-        self.end = end
-
-    @property
-    def arg(self) -> int:
-        return abs(self.end.offset - self.start.offset - 2) >> 1
-
-
-EXTENDED_ARG = dis.EXTENDED_ARG
-NO_OFFSET = -1
-
-
-def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
-    instructions = [Instruction(NO_OFFSET, opcode, arg & 0xFF)]
-    arg >>= 8
-    while arg:
-        instructions.insert(0, Instruction(NO_OFFSET, EXTENDED_ARG, arg & 0xFF))
-        arg >>= 8
-    return instructions
 
 
 def from_varint(iterator: t.Iterator[int]) -> int:
@@ -214,17 +157,6 @@ def compile_exception_table(exc_table: t.List[ExceptionTableEntry]) -> bytes:
         table.extend(to_varint(entry.depth_lasti))
     return bytes(table)
 
-
-PUSH_NULL = dis.opmap["PUSH_NULL"]
-LOAD_CONST = dis.opmap["LOAD_CONST"]
-PRECALL = dis.opmap["PRECALL"]
-CACHE = dis.opmap["CACHE"]
-CALL = dis.opmap["CALL"]
-POP_TOP = dis.opmap["POP_TOP"]
-RESUME = dis.opmap["RESUME"]
-RETURN_VALUE = dis.opmap["RETURN_VALUE"]
-IMPORT_NAME = dis.opmap["IMPORT_NAME"]
-IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 
 EMPTY_BYTECODE = bytes([RESUME, 0, LOAD_CONST, 0, RETURN_VALUE, 0])
 
@@ -445,7 +377,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
                 exts.append((ext_instr, c))
                 # Update the instruction offset from the point of insertion
                 # of the EXTENDED_ARGs
-                for instr_index, instr in enumerate(instructions[index + 1 :], index + 1):
+                for instr_index, instr in enumerate(instructions[index + 1:], index + 1):
                     instr.offset = instr_index << 1
 
                 process_branches = True
