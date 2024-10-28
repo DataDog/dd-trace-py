@@ -1,30 +1,22 @@
 from contextlib import contextmanager
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 
 from ddtrace.internal.utils.retry import RetryError
+from tests.utils import _build_env
 from tests.webclient import Client
 
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-
-def _build_env():
-    environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
-    if os.environ.get("PATH"):
-        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
-    if os.environ.get("PYTHONPATH"):
-        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
-    return environ
+FILE_PATH = Path(__file__).resolve().parent
 
 
 @contextmanager
 def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     cmd = ["ddtrace-run", "gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "tests.telemetry.app:app"]
-    env = _build_env()
+    env = _build_env(file_path=FILE_PATH)
     env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["DD_TRACE_DEBUG"] = "true"
