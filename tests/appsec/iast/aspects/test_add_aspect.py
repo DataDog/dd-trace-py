@@ -4,7 +4,6 @@ import logging
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
@@ -16,7 +15,7 @@ import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 @pytest.mark.parametrize(
@@ -262,7 +261,7 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, caplog):
     assert len(ranges_result) == 1
 
     _end_iast_context_and_oce()
-    with override_env({IAST.ENV_DEBUG: iast_debug}), caplog.at_level(log_level):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(log_level):
         result = taint_pyobject(
             pyobject=string_to_taint,
             source_name="test_add_aspect_tainting_left_hand",
@@ -270,24 +269,24 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, caplog):
             source_origin=OriginType.PARAMETER,
         )
 
-    ranges_result = get_tainted_ranges(result)
-    assert len(ranges_result) == 0
+        ranges_result = get_tainted_ranges(result)
+        assert len(ranges_result) == 0
 
-    assert not any(record.message.startswith("Tainting object error") for record in caplog.records), [
-        record.message for record in caplog.records
-    ]
-    assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
+        assert not any(record.message.startswith("Tainting object error") for record in caplog.records), [
+            record.message for record in caplog.records
+        ]
+        assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
 
-    _start_iast_context_and_oce()
-    result = taint_pyobject(
-        pyobject=string_to_taint,
-        source_name="test_add_aspect_tainting_left_hand",
-        source_value=string_to_taint,
-        source_origin=OriginType.PARAMETER,
-    )
+        _start_iast_context_and_oce()
+        result = taint_pyobject(
+            pyobject=string_to_taint,
+            source_name="test_add_aspect_tainting_left_hand",
+            source_value=string_to_taint,
+            source_origin=OriginType.PARAMETER,
+        )
 
-    ranges_result = get_tainted_ranges(result)
-    assert len(ranges_result) == 1
+        ranges_result = get_tainted_ranges(result)
+        assert len(ranges_result) == 1
 
 
 @pytest.mark.skip_iast_check_logs
@@ -320,7 +319,7 @@ def test_propagate_ranges_with_no_context(caplog):
     )
 
     reset_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result_2 = add_aspect(result, "another_string")
 
     create_context()

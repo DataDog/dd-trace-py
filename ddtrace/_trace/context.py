@@ -218,7 +218,7 @@ class Context(object):
         else:
             return _MAX_UINT_64BITS & self.trace_id
 
-    def _set_baggage_item(self, key: str, value: Any) -> None:
+    def set_baggage_item(self, key: str, value: Any) -> None:
         """Sets a baggage item in this span context.
         Note that this operation mutates the baggage of this span context
         """
@@ -237,9 +237,22 @@ class Context(object):
         ctx._baggage = new_baggage
         return ctx
 
-    def _get_baggage_item(self, key: str) -> Optional[Any]:
+    def get_baggage_item(self, key: str) -> Optional[Any]:
         """Gets a baggage item in this span context."""
         return self._baggage.get(key, None)
+
+    def get_all_baggage_items(self) -> Dict[str, Any]:
+        """Returns all baggage items in this span context."""
+        return self._baggage
+
+    def remove_baggage_item(self, key: str) -> None:
+        """Remove a baggage item from this span context."""
+        if key in self._baggage:
+            del self._baggage[key]
+
+    def remove_all_baggage_items(self) -> None:
+        """Removes all baggage items from this span context."""
+        self._baggage.clear()
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Context):

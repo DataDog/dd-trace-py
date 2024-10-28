@@ -4,7 +4,6 @@ import json
 from json.decoder import JSONDecodeError
 import os
 import os.path
-import traceback
 from typing import Any
 from typing import Dict
 from typing import List
@@ -26,7 +25,6 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
-from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
@@ -173,14 +171,6 @@ class AppSecSpanProcessor(SpanProcessor):
             self._ddwaf = DDWaf(
                 self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
             )
-            if not self._ddwaf._handle or self._ddwaf.info.failed:
-                stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
-                    self._rules,
-                    self._ddwaf.info.loaded,
-                    self._ddwaf.info.errors,
-                )
-                _set_waf_error_metric("WAF init error. Invalid rules", stack_trace, self._ddwaf.info)
-
             _set_waf_init_metric(self._ddwaf.info)
         except ValueError:
             # Partial of DDAS-0005-00
@@ -201,17 +191,8 @@ class AppSecSpanProcessor(SpanProcessor):
         result = False
         if asm_config._asm_static_rule_file is not None:
             return result
-        try:
-            result = self._ddwaf.update_rules(new_rules)
-            _set_waf_updates_metric(self._ddwaf.info)
-        except TypeError:
-            error_msg = "Error updating ASM rules. TypeError exception "
-            log.debug(error_msg, exc_info=True)
-            _set_waf_error_metric(error_msg, traceback.format_exc(), self._ddwaf.info)
-        if not result:
-            error_msg = "Error updating ASM rules. Invalid rules"
-            log.debug(error_msg)
-            _set_waf_error_metric(error_msg, "", self._ddwaf.info)
+        result = self._ddwaf.update_rules(new_rules)
+        _set_waf_updates_metric(self._ddwaf.info)
         self._update_required()
         return result
 
@@ -329,6 +310,9 @@ class AppSecSpanProcessor(SpanProcessor):
         waf_results = self._ddwaf.run(
             ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
         )
+
+        _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
+
         blocked = {}
         for action, parameters in waf_results.actions.items():
             if action == WAF_ACTIONS.BLOCK_ACTION:
@@ -363,20 +347,6 @@ class AppSecSpanProcessor(SpanProcessor):
         )
         if blocked:
             _asm_request_context.set_blocked(blocked)
-
-        try:
-            info = self._ddwaf.info
-            if info.errors:
-                errors = json.dumps(info.errors)
-                span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, errors)
-                log.debug("Error in ASM In-App WAF: %s", errors)
-            span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-            span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-            span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-        except (JSONDecodeError, ValueError):
-            log.warning("Error parsing data ASM In-App WAF metrics report %s", info.errors)
-        except Exception:
-            log.warning("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
 
         if waf_results.data or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm

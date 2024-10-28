@@ -13,6 +13,7 @@ from .._iast_request_context import is_iast_request_enabled
 from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_iast_debug_enabled
+from .._utils import _is_iast_propagation_debug_enabled
 from .._utils import _is_python_version_supported
 
 
@@ -131,7 +132,7 @@ def iast_taint_log_error(msg):
 def is_pyobject_tainted(pyobject: Any) -> bool:
     if not is_iast_request_enabled():
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
 
     try:
@@ -145,7 +146,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
     if not is_iast_request_enabled():
         return pyobject
 
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
     # We need this validation in different contition if pyobject is not a text type and creates a side-effect such as
     # __len__ magic method call.
@@ -189,7 +190,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
     if not is_iast_request_enabled():
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
     try:
         set_ranges(pyobject, ranges)
@@ -202,7 +203,7 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
 def get_tainted_ranges(pyobject: Any) -> Tuple:
     if not is_iast_request_enabled():
         return tuple()
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return tuple()
     try:
         return get_ranges(pyobject)
@@ -211,7 +212,7 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
     return tuple()
 
 
-if _is_iast_debug_enabled():
+if _is_iast_propagation_debug_enabled():
     TAINTED_FRAMES = []
 
     def trace_calls_and_returns(frame, event, arg):
@@ -259,22 +260,36 @@ if _is_iast_debug_enabled():
     threading.settrace(trace_calls_and_returns)
 
 
-def copy_ranges_to_string(s: str, ranges: Sequence[TaintRange]) -> str:
+def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+        return pyobject
+
     for r in ranges:
-        if s in r.source.value:
-            s = _taint_pyobject_base(
-                pyobject=s, source_name=r.source.name, source_value=r.source.value, source_origin=r.source.origin
+        _is_string_in_source_value = False
+        if r.source.value:
+            if isinstance(pyobject, (bytes, bytearray)):
+                pyobject_str = str(pyobject, encoding="utf8", errors="ignore")
+            else:
+                pyobject_str = pyobject
+            _is_string_in_source_value = pyobject_str in r.source.value
+
+        if _is_string_in_source_value:
+            pyobject = _taint_pyobject_base(
+                pyobject=pyobject,
+                source_name=r.source.name,
+                source_value=r.source.value,
+                source_origin=r.source.origin,
             )
             break
-        else:
-            # no total match found, maybe partial match, just take the first one
-            s = _taint_pyobject_base(
-                pyobject=s,
-                source_name=ranges[0].source.name,
-                source_value=ranges[0].source.value,
-                source_origin=ranges[0].source.origin,
-            )
-    return s
+    else:
+        # no total match found, maybe partial match, just take the first one
+        pyobject = _taint_pyobject_base(
+            pyobject=pyobject,
+            source_name=ranges[0].source.name,
+            source_value=ranges[0].source.value,
+            source_origin=ranges[0].source.origin,
+        )
+    return pyobject
 
 
 # Given a list of ranges, try to match them with the iterable and return a new iterable with a new range applied that

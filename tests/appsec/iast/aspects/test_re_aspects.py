@@ -24,9 +24,6 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
 
 
-pytest.skip(reason="TAINTEABLE_TYPES Match contains errors. APPSEC-55239", allow_module_level=True)
-
-
 def test_re_findall_aspect_tainted_string():
     tainted_foobarbaz = taint_pyobject(
         pyobject="/foo/bar/baaz.jpeg",
@@ -452,6 +449,32 @@ def test_re_search_aspect_tainted_string_re_module():
             assert not is_pyobject_tainted(res_str)
 
 
+def test_re_search_aspect_tainted_bytes_re_module():
+    tainted_isaac_newton = taint_pyobject(
+        pyobject=b"Isaac Newton, physicist",
+        source_name="test_re_search_group_aspect_tainted_string",
+        source_value="Isaac Newton, physicist",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    re_search = re_search_aspect(None, 1, re, rb"(\w+) (\w+)", tainted_isaac_newton)
+    result = re_groups_aspect(None, 1, re_search)
+    assert result == (b"Isaac", b"Newton")
+    for res_str in result:
+        if len(res_str):
+            assert get_tainted_ranges(res_str) == [
+                TaintRange(
+                    0,
+                    len(res_str),
+                    Source(
+                        "test_re_search_group_aspect_tainted_string", "Isaac Newton, physicist", OriginType.PARAMETER
+                    ),
+                ),
+            ]
+        else:
+            assert not is_pyobject_tainted(res_str)
+
+
 def test_re_search_aspect_not_tainted_re_module():
     not_tainted_isaac_newton = "Isaac Newton, physicist"
 
@@ -569,7 +592,7 @@ def test_re_finditer_aspect_tainted_bytes():
     tainted_multipart = taint_pyobject(
         pyobject=b' name="files"; filename="test.txt"\r\nContent-Type: text/plain',
         source_name="test_re_finditer_aspect_tainted_string",
-        source_value=b"/foo/bar/baaz.jpeg",
+        source_value="/foo/bar/baaz.jpeg",
         source_origin=OriginType.PARAMETER,
     )
     SPECIAL_CHARS = re.escape(b'()<>@,;:\\"/[]?={} \t')
@@ -581,8 +604,9 @@ def test_re_finditer_aspect_tainted_bytes():
     res_iterator = re_finditer_aspect(None, 1, OPTION_RE, tainted_multipart)
     assert isinstance(res_iterator, typing.Iterator), f"res_iterator is of type {type(res_iterator)}"
 
-    for i in res_no_tainted:
-        assert i.group(0) == b'; filename="test.txt"'
+    res_list = list(res_no_tainted)
+    assert res_list[0].group(0) == b' name="files"'
+    assert res_list[1].group(0) == b'; filename="test.txt"'
 
     try:
         tainted_item = next(res_iterator)

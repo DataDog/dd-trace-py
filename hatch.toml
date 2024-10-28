@@ -83,7 +83,7 @@ dependencies = [  # copied from library dependencies
     "protobuf>=3",
     "typing_extensions",
     "xmltodict>=0.12",
-    "envier",
+    "envier==0.5.2",
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
     "bytecode",
@@ -357,7 +357,7 @@ test = [
 ]
 
 [[envs.appsec_aggregated_leak_testing.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+python = ["3.10", "3.11", "3.12"]
 
 
 
@@ -410,10 +410,10 @@ template = "pytest_plugin_v2"
 dependencies = [
     "httpx",
     "msgpack",
-    "pytest",
-    "pytest-cov",  # only used so --no-cov can be passed (conflicts with setup.cfg otherwise)
     "requests",
     "hypothesis",
+    "pytest{matrix:pytest}",
+    "pytest-cov"
 ]
 
 [envs.pytest_plugin_v2.env-vars]
@@ -428,13 +428,13 @@ test = [
 ]
 
 [[envs.pytest_plugin_v2.matrix]]
-python = ["3.7", "3.9"]
-pytest = ["~=6.0", "latest"]
+python = ["3.7"]
+pytest = ["~=6.0", "~=7.0"]
 
 
 [[envs.pytest_plugin_v2.matrix]]
-python = ["3.10", "3.12"]
-pytest = ["~=6.0", "~=7.0", "latest"]
+python = ["3.9", "3.10", "3.12"]
+pytest = ["~=6.0", "~=7.0", "~=8.0"]
 
 [envs.snapshot_viewer]
 dev-mode = false

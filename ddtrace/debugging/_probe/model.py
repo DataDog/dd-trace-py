@@ -156,9 +156,9 @@ class LineLocationMixin(ProbeLocationMixin):
         return (maybe_stringify(self.resolved_source_file), self.line)
 
 
-class ProbeEvaluateTimingForMethod(str, Enum):
+class ProbeEvalTiming(str, Enum):
     DEFAULT = "DEFAULT"
-    ENTER = "ENTER"
+    ENTRY = "ENTRY"
     EXIT = "EXIT"
 
 
@@ -166,10 +166,14 @@ class ProbeEvaluateTimingForMethod(str, Enum):
 class FunctionLocationMixin(ProbeLocationMixin):
     module: str = field(compare=False)
     func_qname: str = field(compare=False)
-    evaluate_at: ProbeEvaluateTimingForMethod
 
     def location(self):
         return (self.module, self.func_qname)
+
+
+@dataclass
+class TimingMixin(AbstractProbeMixIn):
+    evaluate_at: ProbeEvalTiming
 
 
 class MetricProbeKind(str, Enum):
@@ -192,7 +196,7 @@ class MetricLineProbe(Probe, LineLocationMixin, MetricProbeMixin, ProbeCondition
 
 
 @dataclass
-class MetricFunctionProbe(Probe, FunctionLocationMixin, MetricProbeMixin, ProbeConditionMixin):
+class MetricFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, MetricProbeMixin, ProbeConditionMixin):
     pass
 
 
@@ -245,7 +249,7 @@ class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin,
 
 
 @dataclass
-class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
+class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     pass
 
 
@@ -288,7 +292,7 @@ class SpanDecorationLineProbe(Probe, LineLocationMixin, SpanDecorationMixin):
 
 
 @dataclass
-class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, SpanDecorationMixin):
+class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, SpanDecorationMixin):
     pass
 
 

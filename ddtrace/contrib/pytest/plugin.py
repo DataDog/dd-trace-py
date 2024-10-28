@@ -81,10 +81,12 @@ if _USE_PLUGIN_V2:
     from ddtrace.contrib.pytest._plugin_v2 import pytest_ddtrace_get_item_suite_name  # noqa: F401
     from ddtrace.contrib.pytest._plugin_v2 import pytest_ddtrace_get_item_test_name  # noqa: F401
     from ddtrace.contrib.pytest._plugin_v2 import pytest_load_initial_conftests  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_report_teststatus  # noqa: F401
     from ddtrace.contrib.pytest._plugin_v2 import pytest_runtest_makereport  # noqa: F401
     from ddtrace.contrib.pytest._plugin_v2 import pytest_runtest_protocol  # noqa: F401
     from ddtrace.contrib.pytest._plugin_v2 import pytest_sessionfinish  # noqa: F401
     from ddtrace.contrib.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
+    from ddtrace.contrib.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401
 else:
     from ddtrace.contrib.pytest._plugin_v1 import pytest_collection_modifyitems  # noqa: F401
     from ddtrace.contrib.pytest._plugin_v1 import pytest_configure as _versioned_pytest_configure
