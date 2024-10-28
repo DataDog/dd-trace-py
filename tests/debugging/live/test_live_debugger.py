@@ -3,7 +3,7 @@ import typing as t
 
 import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.internal import core
 from tests.debugging.mocking import MockLogsIntakeUploaderV1
 from tests.debugging.mocking import debugger
@@ -45,7 +45,6 @@ class SpanProbeTestCase(TracerTestCase):
                     probe_id="trigger-probe",
                     module="tests.submod.traced_stuff",
                     func_qname="entrypoint",
-                    evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
                     session_id="test-session-id",
                     level=2,
                 ),
@@ -53,7 +52,7 @@ class SpanProbeTestCase(TracerTestCase):
                     probe_id="snapshot-probe",
                     module="tests.submod.traced_stuff",
                     func_qname="middle",
-                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    evaluate_at=ProbeEvalTiming.EXIT,
                     tags={"sessionId": "test-session-id"},
                     rate=0.0,
                 ),

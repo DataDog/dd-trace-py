@@ -16,6 +16,9 @@ class Session:
     def link_to_trace(self, trace_context: t.Optional[t.Any] = None):
         SessionManager.link_session_to_trace(self, trace_context)
 
+    def unlink_from_trace(self, trace_context: t.Optional[t.Any] = None):
+        SessionManager.unlink_session_to_trace(self, trace_context)
+
     @classmethod
     def from_trace(cls) -> t.Iterable["Session"]:
         return SessionManager.get_sessions_for_trace()
@@ -38,6 +41,15 @@ class SessionManager:
             return
 
         cls._sessions_trace_map.setdefault(context, {})[session.ident] = session
+
+    @classmethod
+    def unlink_session_to_trace(cls, session, trace_context: t.Optional[t.Any] = None) -> None:
+        context = trace_context or tracer.current_trace_context()
+        if context is None:
+            # Nothing to unlink from
+            return
+
+        cls._sessions_trace_map.get(context, {}).pop(session.ident, None)
 
     @classmethod
     def get_sessions_for_trace(cls) -> t.Iterable[Session]:

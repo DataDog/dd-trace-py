@@ -184,6 +184,8 @@ class EntrySpanWrappingContext(WrappingContext):
 
         snapshot.do_exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
 
+        self.collector.push(snapshot)
+
     def __return__(self, retval):
         self._close_signal(retval=retval)
         return super().__return__(retval)
