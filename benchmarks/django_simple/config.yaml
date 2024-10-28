@@ -3,7 +3,8 @@ baseline: &baseline
   profiler_enabled: false
   appsec_enabled: false
   iast_enabled: false
-tracer:
+  path: ""
+tracer: &tracer
   <<: *baseline
   tracer_enabled: true
 profiler:
@@ -20,3 +21,10 @@ appsec: &appsec
 iast:
   <<: *appsec
   iast_enabled: true
+span-code-origin:
+  <<: *tracer
+  span_code_origin_enabled: true
+exception-replay-enabled:
+  <<: *tracer
+  exception_replay_enabled: true
+  path: "exc/"

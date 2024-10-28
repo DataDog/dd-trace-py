@@ -224,6 +224,7 @@ def _expected_llmobs_eval_metric_event(
     score_value=None,
     numerical_value=None,
     tags=None,
+    metadata=None,
 ):
     eval_metric_event = {
         "span_id": span_id,
@@ -250,7 +251,8 @@ def _expected_llmobs_eval_metric_event(
 
     if ml_app is not None:
         eval_metric_event["ml_app"] = ml_app
-
+    if metadata is not None:
+        eval_metric_event["metadata"] = metadata
     return eval_metric_event
 
 
@@ -438,3 +440,18 @@ def _oversized_retrieval_event():
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
+
+
+class DummyEvaluator:
+    LABEL = "dummy"
+
+    def __init__(self, llmobs_service):
+        self.llmobs_service = llmobs_service
+
+    def run_and_submit_evaluation(self, span):
+        self.llmobs_service.submit_evaluation(
+            span_context=span,
+            label=DummyEvaluator.LABEL,
+            value=1.0,
+            metric_type="score",
+        )

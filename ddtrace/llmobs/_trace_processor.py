@@ -44,8 +44,9 @@ class LLMObsTraceProcessor(TraceProcessor):
     Processor that extracts LLM-type spans in a trace to submit as separate LLMObs span events to LLM Observability.
     """
 
-    def __init__(self, llmobs_span_writer):
+    def __init__(self, llmobs_span_writer, evaluator_runner=None):
         self._span_writer = llmobs_span_writer
+        self._evaluator_runner = evaluator_runner
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -57,11 +58,17 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
+        span_event = None
         try:
             span_event = self._llmobs_span_event(span)
             self._span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
+        finally:
+            if not span_event:
+                return
+            if self._evaluator_runner:
+                self._evaluator_runner.enqueue(span_event, span)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
@@ -86,8 +93,14 @@ class LLMObsTraceProcessor(TraceProcessor):
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
         if span_kind == "retrieval" and span.get_tag(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = json.loads(span._meta.pop(OUTPUT_DOCUMENTS))
-        if span_kind == "llm" and span.get_tag(INPUT_PROMPT) is not None:
-            meta["input"]["prompt"] = json.loads(span._meta.pop(INPUT_PROMPT))
+        if span.get_tag(INPUT_PROMPT) is not None:
+            prompt_json_str = span._meta.pop(INPUT_PROMPT)
+            if span_kind != "llm":
+                log.warning(
+                    "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
+                )
+            else:
+                meta["input"]["prompt"] = json.loads(prompt_json_str)
         if span.error:
             meta[ERROR_MSG] = span.get_tag(ERROR_MSG)
             meta[ERROR_STACK] = span.get_tag(ERROR_STACK)

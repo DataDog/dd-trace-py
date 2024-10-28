@@ -1,4 +1,5 @@
 import ctypes
+import json
 import time
 from typing import Any
 from typing import Dict
@@ -35,12 +36,19 @@ if asm_config._asm_libddwaf_available:
 else:
     _DDWAF_LOADED = False
 
+DDWAF_ERR_INTERNAL = -3
+DDWAF_ERR_INVALID_OBJECT = -2
+DDWAF_ERR_INVALID_ARGUMENT = -1
+DDWAF_OK = 0
+DDWAF_MATCH = 1
+
 
 class DDWaf_result(object):
-    __slots__ = ["data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
+    __slots__ = ["return_code", "data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
 
     def __init__(
         self,
+        return_code: int,
         data: List[Dict[str, Any]],
         actions: Dict[str, Any],
         runtime: float,
@@ -49,6 +57,7 @@ class DDWaf_result(object):
         truncation: int,
         derivatives: Dict[str, Any],
     ):
+        self.return_code = return_code
         self.data = data
         self.actions = actions
         self.runtime = runtime
@@ -59,7 +68,8 @@ class DDWaf_result(object):
 
     def __repr__(self):
         return (
-            f"DDWaf_result(data: {self.data}, actions: {self.actions}, runtime: {self.runtime},"
+            f"DDWaf_result(return_code: {self.return_code} data: {self.data},"
+            f" actions: {self.actions}, runtime: {self.runtime},"
             f" total_runtime: {self.total_runtime}, timeout: {self.timeout},"
             f" truncation: {self.truncation}, derivatives: {self.derivatives})"
         )
@@ -68,7 +78,7 @@ class DDWaf_result(object):
 class DDWaf_info(object):
     __slots__ = ["loaded", "failed", "errors", "version"]
 
-    def __init__(self, loaded: int, failed: int, errors: Dict[str, Any], version: str):
+    def __init__(self, loaded: int, failed: int, errors: str, version: str):
         self.loaded = loaded
         self.failed = failed
         self.errors = errors
@@ -78,7 +88,7 @@ class DDWaf_info(object):
         return "{loaded: %d, failed: %d, errors: %s, version: %s}" % (
             self.loaded,
             self.failed,
-            str(self.errors),
+            self.errors,
             self.version,
         )
 
@@ -92,13 +102,18 @@ if _DDWAF_LOADED:
             obfuscation_parameter_key_regexp: bytes,
             obfuscation_parameter_value_regexp: bytes,
         ):
+            # avoid circular import
+            from ddtrace.appsec._metrics import _set_waf_error_log
+
+            self.report_error = _set_waf_error_log
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
             diagnostics = ddwaf_object()
             ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
             self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(diagnostics))
-            self._set_info(diagnostics)
+            self._cached_version = ""
+            self._set_info(diagnostics, "init")
             info = self.info
             if not self._handle or info.failed:
                 # We keep the handle alive in case of errors, as some valid rules can be loaded
@@ -115,12 +130,26 @@ if _DDWAF_LOADED:
         def required_data(self) -> List[str]:
             return py_ddwaf_known_addresses(self._handle) if self._handle else []
 
-        def _set_info(self, diagnostics: ddwaf_object) -> None:
-            info_struct = diagnostics.struct
-            rules = info_struct.get("rules", {}) if info_struct else {}  # type: ignore
+        def _set_info(self, diagnostics: ddwaf_object, action: str) -> None:
+            info_struct: dict[str, Any] = diagnostics.struct or {}  # type: ignore
+            rules = info_struct.get("rules", {})
             errors_result = rules.get("errors", {})
-            version = info_struct.get("ruleset_version", "") if info_struct else ""  # type: ignore
-            self._info = DDWaf_info(len(rules.get("loaded", [])), len(rules.get("failed", [])), errors_result, version)
+            version = info_struct.get("ruleset_version", self._cached_version)
+            self._cached_version = version
+            for key, value in info_struct.items():
+                if isinstance(value, dict):
+                    if value.get("error", False):
+                        self.report_error(f"appsec.waf.error::{action}::{key}::{value['error']}", self._cached_version)
+                    elif value.get("errors", False):
+                        self.report_error(
+                            f"appsec.waf.error::{action}::{key}::{str(value['errors'])}", self._cached_version, False
+                        )
+            self._info = DDWaf_info(
+                len(rules.get("loaded", [])),
+                len(rules.get("failed", [])),
+                json.dumps(errors_result, separators=(",", ":")) if errors_result else "",
+                version,
+            )
             ddwaf_object_free(diagnostics)
 
         @property
@@ -132,7 +161,7 @@ if _DDWAF_LOADED:
             rules = ddwaf_object.create_without_limits(new_rules)
             diagnostics = ddwaf_object()
             result = py_ddwaf_update(self._handle, rules, diagnostics)
-            self._set_info(diagnostics)
+            self._set_info(diagnostics, "update")
             ddwaf_object_free(rules)
             if result:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
@@ -163,7 +192,7 @@ if _DDWAF_LOADED:
             start = time.time()
             if not ctx:
                 LOGGER.debug("DDWaf.run: dry run. no context created.")
-                return DDWaf_result([], {}, 0, (time.time() - start) * 1e6, False, 0, {})
+                return DDWaf_result(0, [], {}, 0, (time.time() - start) * 1e6, False, 0, {})
 
             result = ddwaf_result()
             observator = _observator()
@@ -172,7 +201,12 @@ if _DDWAF_LOADED:
             error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result), int(timeout_ms * 1000))
             if error < 0:
                 LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
+                self.report_error(f"appsec.waf.request::error::{error}", self._cached_version)
+            if error == DDWAF_ERR_INTERNAL:
+                # result is not valid
+                return DDWaf_result(error, [], {}, 0, 0, False, 0, {})
             return DDWaf_result(
+                error,
                 result.events.struct,
                 result.actions.struct,
                 result.total_runtime / 1e3,
@@ -189,7 +223,7 @@ else:
     # Mockup of the DDWaf class doing nothing
     class DDWaf(object):  # type: ignore
         required_data: List[str] = []
-        info: DDWaf_info = DDWaf_info(0, 0, {}, "")
+        info: DDWaf_info = DDWaf_info(0, 0, "", "")
 
         def __init__(
             self,
@@ -207,7 +241,7 @@ else:
             timeout_ms: float = DEFAULT.WAF_TIMEOUT,
         ) -> DDWaf_result:
             LOGGER.debug("DDWaf features disabled. dry run")
-            return DDWaf_result([], {}, 0.0, 0.0, False, 0, {})
+            return DDWaf_result(0, [], {}, 0.0, 0.0, False, 0, {})
 
         def update_rules(self, _: Dict[str, Any]) -> bool:
             LOGGER.debug("DDWaf features disabled. dry update")

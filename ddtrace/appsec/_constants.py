@@ -13,6 +13,7 @@ else:
 
 from typing import Any
 from typing import Iterator
+from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -32,7 +33,7 @@ class Constant_Class(type):
     def __setattr__(self, __name: str, __value: Any) -> None:
         raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
 
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[Tuple[str, Any]]:
         def aux():
             for t in self.__dict__.items():
                 if not t[0].startswith("_"):
@@ -110,20 +111,39 @@ class APPSEC(metaclass=Constant_Class):
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
 
 
+TELEMETRY_OFF_NAME = "OFF"
+TELEMETRY_DEBUG_NAME = "DEBUG"
+TELEMETRY_MANDATORY_NAME = "MANDATORY"
+TELEMETRY_INFORMATION_NAME = "INFORMATION"
+
+TELEMETRY_DEBUG_VERBOSITY = 10
+TELEMETRY_INFORMATION_VERBOSITY = 20
+TELEMETRY_MANDATORY_VERBOSITY = 30
+TELEMETRY_OFF_VERBOSITY = 40
+
+
 class IAST(metaclass=Constant_Class):
     """Specific constants for IAST"""
 
     ENV: Literal["DD_IAST_ENABLED"] = "DD_IAST_ENABLED"
-    ENV_DEBUG: Literal["_DD_IAST_DEBUG"] = "_DD_IAST_DEBUG"
-    TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
+    ENV_DEBUG: Literal["DD_IAST_DEBUG"] = "DD_IAST_DEBUG"
+    ENV_PROPAGATION_DEBUG: Literal["DD_IAST_PROPAGATION_DEBUG"] = "DD_IAST_PROPAGATION_DEBUG"
+    ENV_REQUEST_SAMPLING: Literal["DD_IAST_REQUEST_SAMPLING"] = "DD_IAST_REQUEST_SAMPLING"
+    ENV_TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
     LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
-    CONTEXT_KEY: Literal["_iast_data"] = "_iast_data"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
-    REQUEST_IAST_ENABLED: Literal["_dd.iast.request_enabled"] = "_dd.iast.request_enabled"
+
+    METRICS_REPORT_LVLS = (
+        (TELEMETRY_DEBUG_VERBOSITY, TELEMETRY_DEBUG_NAME),
+        (TELEMETRY_INFORMATION_VERBOSITY, TELEMETRY_INFORMATION_NAME),
+        (TELEMETRY_MANDATORY_VERBOSITY, TELEMETRY_MANDATORY_NAME),
+        (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
+    )
+
     TEXT_TYPES = (str, bytes, bytearray)
     TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
 

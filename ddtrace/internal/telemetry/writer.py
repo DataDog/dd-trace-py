@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
+import http.client as httplib  # noqa: E402
 import itertools
+from logging import getLogger
 import os
 import sys
 import time
@@ -11,26 +13,14 @@ from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
+import urllib.parse as parse
 
 from ...internal import atexit
 from ...internal import forksafe
-from ...internal.compat import parse
-from ...internal.core import crashtracking
-from ...internal.schema import SCHEMA_VERSION
-from ...internal.schema import _remove_client_service_names
-from ...settings import _config as config
-from ...settings.config import _ConfigSource
-from ...settings.crashtracker import config as crashtracker_config
-from ...settings.dynamic_instrumentation import config as di_config
-from ...settings.exception_replay import config as er_config
-from ...settings.peer_service import _ps_config
-from ...settings.profiling import config as prof_config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
-from ..compat import httplib
 from ..encoding import JSONEncoderV2
-from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..runtime import container
 from ..runtime import get_runtime_id
@@ -39,65 +29,8 @@ from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from . import modules
-from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
-from .constants import TELEMETRY_AGENT_HOST
-from .constants import TELEMETRY_AGENT_PORT
-from .constants import TELEMETRY_AGENT_URL
-from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_APM_PRODUCT
-from .constants import TELEMETRY_CLIENT_IP_ENABLED
-from .constants import TELEMETRY_CRASHTRACKING_ALT_STACK
-from .constants import TELEMETRY_CRASHTRACKING_AVAILABLE
-from .constants import TELEMETRY_CRASHTRACKING_DEBUG_URL
-from .constants import TELEMETRY_CRASHTRACKING_ENABLED
-from .constants import TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER
-from .constants import TELEMETRY_CRASHTRACKING_STARTED
-from .constants import TELEMETRY_CRASHTRACKING_STDERR_FILENAME
-from .constants import TELEMETRY_CRASHTRACKING_STDOUT_FILENAME
-from .constants import TELEMETRY_DOGSTATSD_PORT
-from .constants import TELEMETRY_DOGSTATSD_URL
-from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
-from .constants import TELEMETRY_ENABLED
-from .constants import TELEMETRY_EXCEPTION_REPLAY_ENABLED
-from .constants import TELEMETRY_INJECT_WAS_ATTEMPTED
-from .constants import TELEMETRY_LIB_INJECTION_FORCED
-from .constants import TELEMETRY_LIB_WAS_INJECTED
 from .constants import TELEMETRY_LOG_LEVEL  # noqa:F401
-from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
-from .constants import TELEMETRY_OTEL_ENABLED
-from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
-from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
-from .constants import TELEMETRY_PROFILING_CAPTURE_PCT
-from .constants import TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED
-from .constants import TELEMETRY_PROFILING_HEAP_ENABLED
-from .constants import TELEMETRY_PROFILING_LOCK_ENABLED
-from .constants import TELEMETRY_PROFILING_MAX_FRAMES
-from .constants import TELEMETRY_PROFILING_MEMORY_ENABLED
-from .constants import TELEMETRY_PROFILING_STACK_ENABLED
-from .constants import TELEMETRY_PROFILING_UPLOAD_INTERVAL
-from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
-from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
-from .constants import TELEMETRY_REMOTE_CONFIGURATION_ENABLED
-from .constants import TELEMETRY_REMOTE_CONFIGURATION_INTERVAL
-from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
-from .constants import TELEMETRY_SERVICE_MAPPING
-from .constants import TELEMETRY_SPAN_SAMPLING_RULES
-from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
-from .constants import TELEMETRY_STARTUP_LOGS_ENABLED
-from .constants import TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS
-from .constants import TELEMETRY_TRACE_API_VERSION
-from .constants import TELEMETRY_TRACE_COMPUTE_STATS
-from .constants import TELEMETRY_TRACE_DEBUG
-from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
-from .constants import TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED
-from .constants import TELEMETRY_TRACE_PEER_SERVICE_MAPPING
-from .constants import TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
-from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
-from .constants import TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA
-from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
-from .constants import TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS
-from .constants import TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES
-from .constants import TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
@@ -114,7 +47,23 @@ from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 
-log = get_logger(__name__)
+log = getLogger(__name__)
+
+
+class _TelemetryConfig:
+    API_KEY = os.environ.get("DD_API_KEY", None)
+    SITE = os.environ.get("DD_SITE", "datadoghq.com")
+    ENV = os.environ.get("DD_ENV", "")
+    SERVICE = os.environ.get("DD_SERVICE", "unnamed-python-service")
+    VERSION = os.environ.get("DD_VERSION", "")
+    AGENTLESS_MODE = asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
+    HEARTBEAT_INTERVAL = float(os.environ.get("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
+    TELEMETRY_ENABLED = asbool(os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower())
+    DEPENDENCY_COLLECTION = asbool(os.environ.get("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "true"))
+    INSTALL_ID = os.environ.get("DD_INSTRUMENTATION_INSTALL_ID", None)
+    INSTALL_TYPE = os.environ.get("DD_INSTRUMENTATION_INSTALL_TYPE", None)
+    INSTALL_TIME = os.environ.get("DD_INSTRUMENTATION_INSTALL_TIME", None)
+    FORCE_START = asbool(os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false"))
 
 
 class LogData(dict):
@@ -136,7 +85,7 @@ class _TelemetryClient:
 
     def __init__(self, agentless):
         # type: (bool) -> None
-        self._telemetry_url = self.get_host(config._dd_site, agentless)
+        self._telemetry_url = self.get_host(_TelemetryConfig.SITE, agentless)
         self._endpoint = self.get_endpoint(agentless)
         self._encoder = JSONEncoderV2()
         self._agentless = agentless
@@ -147,8 +96,8 @@ class _TelemetryClient:
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
 
-        if agentless and config._dd_api_key:
-            self._headers["dd-api-key"] = config._dd_api_key
+        if agentless and _TelemetryConfig.API_KEY:
+            self._headers["dd-api-key"] = _TelemetryConfig.API_KEY
 
     @property
     def url(self):
@@ -213,11 +162,11 @@ class TelemetryWriter(PeriodicService):
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
-        super(TelemetryWriter, self).__init__(interval=min(config._telemetry_heartbeat_interval, 10))
+        super(TelemetryWriter, self).__init__(interval=min(_TelemetryConfig.HEARTBEAT_INTERVAL, 10))
         # Decouples the aggregation and sending of the telemetry events
         # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
         # By default this will occur at 10 second intervals.
-        self._periodic_threshold = int(config._telemetry_heartbeat_interval // self.interval) - 1
+        self._periodic_threshold = int(_TelemetryConfig.HEARTBEAT_INTERVAL // self.interval) - 1
         self._periodic_count = 0
         self._is_periodic = is_periodic
         self._integrations_queue = dict()  # type: Dict[str, Dict]
@@ -238,14 +187,14 @@ class TelemetryWriter(PeriodicService):
         self.started = False
 
         # Debug flag that enables payload debug mode.
-        self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
+        self._debug = os.environ.get("DD_TELEMETRY_DEBUG", "false").lower() in ("true", "1")
 
-        self._enabled = config._telemetry_enabled
+        self._enabled = _TelemetryConfig.TELEMETRY_ENABLED
 
         if agentless is None:
-            agentless = config._ci_visibility_agentless_enabled or config._dd_api_key is not None
+            agentless = _TelemetryConfig.AGENTLESS_MODE or _TelemetryConfig.API_KEY not in (None, "")
 
-        if agentless and not config._dd_api_key:
+        if agentless and not _TelemetryConfig.API_KEY:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
             self._enabled = False
         self._client = _TelemetryClient(agentless)
@@ -263,7 +212,7 @@ class TelemetryWriter(PeriodicService):
             # This will occur when the agent writer starts.
             self.enable()
             # Force app started for unit tests
-            if asbool(os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false")):
+            if _TelemetryConfig.FORCE_START:
                 self._app_started()
 
     def enable(self):
@@ -283,7 +232,7 @@ class TelemetryWriter(PeriodicService):
             return True
 
         self.status = ServiceStatus.RUNNING
-        if config._telemetry_dependency_collection:
+        if _TelemetryConfig.DEPENDENCY_COLLECTION:
             modules.install_import_hook()
         return True
 
@@ -330,7 +279,9 @@ class TelemetryWriter(PeriodicService):
                 "api_version": "v2",
                 "seq_id": next(self._sequence),
                 "debug": self._debug,
-                "application": get_application(config.service, config.version, config.env),
+                "application": get_application(
+                    _TelemetryConfig.SERVICE, _TelemetryConfig.VERSION, _TelemetryConfig.ENV
+                ),
                 "host": get_host_info(),
                 "payload": payload,
                 "request_type": payload_type,
@@ -369,49 +320,6 @@ class TelemetryWriter(PeriodicService):
             msg = "%s:%s: %s" % (filename, line_number, msg)
         self._error = (code, msg)
 
-    def add_configs_changed(self, cfg_names):
-        cs = [{"name": n, "value": v, "origin": o} for n, v, o in [self._telemetry_entry(n) for n in cfg_names]]
-        self._app_client_configuration_changed_event(cs)
-
-    def _telemetry_entry(self, cfg_name: str) -> Tuple[str, str, _ConfigSource]:
-        item = config._config[cfg_name]
-        if cfg_name == "_profiling_enabled":
-            name = "profiling_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_asm_enabled":
-            name = "appsec_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_dsm_enabled":
-            name = "data_streams_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_trace_sample_rate":
-            name = "trace_sample_rate"
-            value = str(item.value())
-        elif cfg_name == "_trace_sampling_rules":
-            name = "trace_sampling_rules"
-            value = str(item.value())
-        elif cfg_name == "logs_injection":
-            name = "logs_injection_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "trace_http_header_tags":
-            name = "trace_header_tags"
-            value = ",".join(":".join(x) for x in item.value().items())
-        elif cfg_name == "tags":
-            name = "trace_tags"
-            value = ",".join(":".join(x) for x in item.value().items())
-        elif cfg_name == "_tracing_enabled":
-            name = "trace_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_sca_enabled":
-            name = "DD_APPSEC_SCA_ENABLED"
-            if item.value() is None:
-                value = ""
-            else:
-                value = "true" if item.value() else "false"
-        else:
-            raise ValueError("Unknown configuration item: %s" % cfg_name)
-        return name, value, item.source()
-
     def _app_started(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
@@ -422,107 +330,13 @@ class TelemetryWriter(PeriodicService):
 
         self.started = True
 
-        inst_config_id_entry = ("instrumentation_config_id", "", "default")
-        if "DD_INSTRUMENTATION_CONFIG_ID" in os.environ:
-            inst_config_id_entry = (
-                "instrumentation_config_id",
-                os.environ["DD_INSTRUMENTATION_CONFIG_ID"],
-                "env_var",
-            )
-
-        self.add_configurations(
-            [
-                self._telemetry_entry("_profiling_enabled"),
-                self._telemetry_entry("_asm_enabled"),
-                self._telemetry_entry("_sca_enabled"),
-                self._telemetry_entry("_dsm_enabled"),
-                self._telemetry_entry("_trace_sample_rate"),
-                self._telemetry_entry("_trace_sampling_rules"),
-                self._telemetry_entry("logs_injection"),
-                self._telemetry_entry("trace_http_header_tags"),
-                self._telemetry_entry("tags"),
-                self._telemetry_entry("_tracing_enabled"),
-                inst_config_id_entry,
-                (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
-                (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
-                (TELEMETRY_EXCEPTION_REPLAY_ENABLED, er_config.enabled, "unknown"),
-                (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
-                (TELEMETRY_PROPAGATION_STYLE_EXTRACT, ",".join(config._propagation_style_extract), "unknown"),
-                ("ddtrace_bootstrapped", config._ddtrace_bootstrapped, "unknown"),
-                ("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown"),
-                (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
-                (TELEMETRY_TRACE_DEBUG, config._debug_mode, "unknown"),
-                (TELEMETRY_ENABLED, config._telemetry_enabled, "unknown"),
-                (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
-                (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
-                (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
-                (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
-                (
-                    TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN,
-                    (
-                        config._obfuscation_query_string_pattern.pattern.decode("ascii")
-                        if config._obfuscation_query_string_pattern
-                        else ""
-                    ),
-                    "unknown",
-                ),
-                (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),
-                (TELEMETRY_TRACE_HEALTH_METRICS_ENABLED, config.health_metrics_enabled, "unknown"),
-                (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
-                (TELEMETRY_REMOTE_CONFIGURATION_ENABLED, config._remote_config_enabled, "unknown"),
-                (TELEMETRY_REMOTE_CONFIGURATION_INTERVAL, config._remote_config_poll_interval, "unknown"),
-                (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
-                (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
-                (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
-                (TELEMETRY_PARTIAL_FLUSH_ENABLED, config._partial_flush_enabled, "unknown"),
-                (TELEMETRY_PARTIAL_FLUSH_MIN_SPANS, config._partial_flush_min_spans, "unknown"),
-                (TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA, SCHEMA_VERSION, "unknown"),
-                (TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED, _remove_client_service_names, "unknown"),
-                (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled, "unknown"),
-                (TELEMETRY_TRACE_PEER_SERVICE_MAPPING, _ps_config._unparsed_peer_service_mapping, "unknown"),
-                (TELEMETRY_SERVICE_MAPPING, config._unparsed_service_mapping, "unknown"),
-                (TELEMETRY_TRACE_API_VERSION, config._trace_api, "unknown"),
-                (TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES, config._trace_writer_buffer_size, "unknown"),
-                (TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES, config._trace_writer_payload_size, "unknown"),
-                (TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS, config._trace_writer_interval_seconds, "unknown"),
-                (TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS, config._trace_writer_connection_reuse, "unknown"),
-                (TELEMETRY_DOGSTATSD_PORT, config._stats_agent_port, "unknown"),
-                (TELEMETRY_DOGSTATSD_URL, config._stats_agent_url, "unknown"),
-                (TELEMETRY_AGENT_HOST, config._trace_agent_hostname, "unknown"),
-                (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
-                (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
-                (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
-                (TELEMETRY_PROFILING_STACK_ENABLED, prof_config.stack.enabled, "unknown"),
-                (TELEMETRY_PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
-                (TELEMETRY_PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
-                (TELEMETRY_PROFILING_LOCK_ENABLED, prof_config.lock.enabled, "unknown"),
-                (TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED, prof_config.export.libdd_enabled, "unknown"),
-                (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
-                (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
-                (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
-                (TELEMETRY_INJECT_WAS_ATTEMPTED, config._inject_was_attempted, "unknown"),
-                (TELEMETRY_LIB_WAS_INJECTED, config._lib_was_injected, "unknown"),
-                (TELEMETRY_LIB_INJECTION_FORCED, config._inject_force, "unknown"),
-                # Crashtracker
-                (TELEMETRY_CRASHTRACKING_ENABLED, crashtracker_config.enabled, "unknown"),
-                (TELEMETRY_CRASHTRACKING_STARTED, crashtracking.is_started(), "unknown"),
-                (TELEMETRY_CRASHTRACKING_AVAILABLE, crashtracking.is_available, "unknown"),
-                (TELEMETRY_CRASHTRACKING_STACKTRACE_RESOLVER, str(crashtracker_config.stacktrace_resolver), "unknown"),
-                (TELEMETRY_CRASHTRACKING_STDOUT_FILENAME, str(crashtracker_config.stdout_filename), "unknown"),
-                (TELEMETRY_CRASHTRACKING_STDERR_FILENAME, str(crashtracker_config.stderr_filename), "unknown"),
-                (TELEMETRY_CRASHTRACKING_DEBUG_URL, str(crashtracker_config.debug_url), "unknown"),
-                (TELEMETRY_CRASHTRACKING_ALT_STACK, crashtracker_config.alt_stack, "unknown"),
-            ]
-            + get_python_config_vars()
-        )
-
-        if config._config["_sca_enabled"].value() is None:
-            self.remove_configuration("DD_APPSEC_SCA_ENABLED")
-
         products = {
             product: {"version": _pep440_to_semver(), "enabled": status}
             for product, status in self._product_enablement.items()
         }
+
+        # SOABI should help us identify which wheels people are getting from PyPI
+        self.add_configurations(get_python_config_vars())  # type: ignore
 
         payload = {
             "configuration": self._flush_configuration_queue(),
@@ -533,11 +347,11 @@ class TelemetryWriter(PeriodicService):
             "products": products,
         }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
         # Add time to value telemetry metrics for single step instrumentation
-        if config._telemetry_install_id or config._telemetry_install_type or config._telemetry_install_time:
+        if _TelemetryConfig.INSTALL_ID or _TelemetryConfig.INSTALL_TYPE or _TelemetryConfig.INSTALL_TIME:
             payload["install_signature"] = {
-                "install_id": config._telemetry_install_id,
-                "install_type": config._telemetry_install_type,
-                "install_time": config._telemetry_install_time,
+                "install_id": _TelemetryConfig.INSTALL_ID,
+                "install_type": _TelemetryConfig.INSTALL_TYPE,
+                "install_time": _TelemetryConfig.INSTALL_TIME,
             }
 
         # Reset the error after it has been reported.
@@ -605,7 +419,7 @@ class TelemetryWriter(PeriodicService):
     def _app_dependencies_loaded_event(self, newly_imported_deps: List[str]):
         """Adds events to report imports done since the last periodic run"""
 
-        if not config._telemetry_dependency_collection or not self._enabled:
+        if not _TelemetryConfig.DEPENDENCY_COLLECTION or not self._enabled:
             return
 
         with self._lock:
@@ -649,8 +463,16 @@ class TelemetryWriter(PeriodicService):
             del self._configuration_queue[configuration_name]
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
-        # type: (str, Union[bool, float, str], str) -> None
+        # type: (str, Any, str) -> None
         """Creates and queues the name, origin, value of a configuration"""
+        if isinstance(configuration_value, dict):
+            configuration_value = ",".join(":".join((k, str(v))) for k, v in configuration_value.items())
+        elif isinstance(configuration_value, (list, tuple)):
+            configuration_value = ",".join(str(v) for v in configuration_value)
+        elif not isinstance(configuration_value, (bool, str, int, float, type(None))):
+            # convert unsupported types to strings
+            configuration_value = str(configuration_value)
+
         with self._lock:
             self._configuration_queue[configuration_name] = {
                 "name": configuration_name,
@@ -806,7 +628,7 @@ class TelemetryWriter(PeriodicService):
         if configurations:
             self._app_client_configuration_changed_event(configurations)
 
-        if config._telemetry_dependency_collection:
+        if _TelemetryConfig.DEPENDENCY_COLLECTION:
             newly_imported_deps = self._flush_new_imported_dependencies()
             if newly_imported_deps:
                 self._app_dependencies_loaded_event(newly_imported_deps)

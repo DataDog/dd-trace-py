@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from collections import defaultdict
 import inspect
 import json
 import sys
@@ -209,7 +210,7 @@ def test_batch_json_encoder():
     buffer_size = 30 * (1 << 20)
     queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
 
-    s.line()
+    s.line({})
 
     snapshot_size = queue.put(s)
 
@@ -240,7 +241,7 @@ def test_batch_flush_reencode():
         thread=threading.current_thread(),
     )
 
-    s.line()
+    s.line({})
 
     queue = SignalQueue(LogSignalJsonEncoder(None))
 
@@ -663,3 +664,14 @@ def test_capture_value_sequence_type(_type):
         ],
         "size": 1,
     }
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (defaultdict(int, {"bar": 42}), "{'bar': 42}"),
+        (frozenset({"foo"}), "{'foo'}"),
+    ],
+)
+def test_serialize_builtins(value, expected):
+    assert utils.serialize(value) == expected

@@ -227,23 +227,15 @@ The following environment variables for the tracer are supported:
      default: False
      description: Enable or disable start up diagnostic logging.
 
-   DD_TRACE_SAMPLE_RATE:
-     type: Float
-     description: |
-        A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled. By default, this configuration is unset
-        and sampling is controlled by other configuration options and/or the Datadog Agent. See
-        `this page <https://docs.datadoghq.com/tracing/trace_pipeline/ingestion_mechanisms/?tab=python#in-the-agent>`_
-        for more details about Agent-based sampling.
-
-
    DD_TRACE_RATE_LIMIT:
      type: int
      default: 100
      description: |
-        Maximum number of traces per second to sample. Set a rate limit to avoid the ingestion volume overages in the case of traffic spikes.
-
+        Maximum number of traces per second to sample. Set a rate limit to avoid the ingestion volume overages in the case of traffic spikes. This configuration
+        is only applied when client based sampling is configured, otherwise agent based rate limits are used.
      version_added:
         v0.33.0:
+        v2.15.0: Only applied when DD_TRACE_SAMPLE_RATE, DD_TRACE_SAMPLING_RULES, or DD_SPAN_SAMPLING_RULE are set.
 
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
@@ -462,6 +454,14 @@ The following environment variables for the tracer are supported:
      default: True
      description: Send query strings in http.url tag in http server integrations.
 
+   DD_TRACE_HTTP_SERVER_ERROR_STATUSES:
+     type: String
+     default: "500-599"
+     description: |
+        Comma-separated list of HTTP status codes that should be considered errors when returned by an HTTP request.
+        Multiple comma separated error ranges can be set (ex:  ``200,400-404,500-599``).
+        The status codes are used to set the ``error`` field on the span.
+
    DD_TRACE_METHODS:
      type: String
      default: ""
@@ -536,6 +536,16 @@ The following environment variables for the tracer are supported:
         is accessible from the application's runtime.
      version_added:
         v1.9.0:
+
+   DD_TEST_SESSION_NAME:
+     type: String
+     default: (autodetected)
+     description: |
+        Configures the ``CIVisibility`` service to use the given string as the value of the ``test_session.name`` tag in
+        test events. If not specified, this string will be constructed from the CI job id (if available) and the test
+        command used to start the test session.
+     version_added:
+        v2.16.0:
 
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean

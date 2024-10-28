@@ -17,14 +17,18 @@ dependencies = [
     "ddapm-test-agent>=1.2.0",
     "packaging==23.1",
     "pygments==2.16.1",
-    "riot==0.19.1",
+    "riot==0.20.0",
     "ruff==0.1.3",
     "clang-format==18.1.5",
+    "cmake-format==0.6.13",
 ]
 
 [envs.lint.scripts]
 black_check = [
     "black --check {args:.}",
+]
+cmakeformat_check = [
+    "bash scripts/cmake-format.sh"
 ]
 cformat_check = [
     "bash scripts/cformat.sh"
@@ -34,6 +38,7 @@ style = [
     "ruff check {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
+    "cmakeformat_check",
 ]
 fmt = [
     "black {args:.}",
@@ -78,7 +83,7 @@ dependencies = [  # copied from library dependencies
     "protobuf>=3",
     "typing_extensions",
     "xmltodict>=0.12",
-    "envier",
+    "envier==0.5.2",
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
     "bytecode",
@@ -334,10 +339,15 @@ dependencies = [
     "pytest-cov",
     "hypothesis",
     "requests",
+    "pytest-asyncio",
+    "anyio",
+    "pydantic",
+    "pydantic-settings",
 ]
 
 [envs.appsec_aggregated_leak_testing.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+DD_IAST_ENABLED = "true"
 
 [envs.appsec_aggregated_leak_testing.scripts]
 test = [
@@ -347,7 +357,7 @@ test = [
 ]
 
 [[envs.appsec_aggregated_leak_testing.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ["3.10", "3.11", "3.12", "3.13"]
 
 
 
@@ -364,6 +374,7 @@ dependencies = [
 [envs.ddtrace_unit_tests.env-vars]
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
+CMAKE_BUILD_PARALLEL_LEVEL="6"
 
 [envs.ddtrace_unit_tests.scripts]
 test = [
@@ -399,10 +410,10 @@ template = "pytest_plugin_v2"
 dependencies = [
     "httpx",
     "msgpack",
-    "pytest",
-    "pytest-cov",  # only used so --no-cov can be passed (conflicts with setup.cfg otherwise)
     "requests",
     "hypothesis",
+    "pytest{matrix:pytest}",
+    "pytest-cov"
 ]
 
 [envs.pytest_plugin_v2.env-vars]
@@ -417,13 +428,13 @@ test = [
 ]
 
 [[envs.pytest_plugin_v2.matrix]]
-python = ["3.7", "3.9"]
-pytest = ["~=6.0", "latest"]
+python = ["3.7"]
+pytest = ["~=6.0", "~=7.0"]
 
 
 [[envs.pytest_plugin_v2.matrix]]
-python = ["3.10", "3.12", "3.13"]
-pytest = ["~=6.0", "~=7.0", "latest"]
+python = ["3.9", "3.10", "3.12", "3.13"]
+pytest = ["~=6.0", "~=7.0", "~=8.0"]
 
 [envs.snapshot_viewer]
 dev-mode = false

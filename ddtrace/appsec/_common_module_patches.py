@@ -12,8 +12,8 @@ from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
 import ddtrace
+from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal import core
@@ -52,11 +52,20 @@ def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs
     """
     result = original_read_callable(*args, **kwargs)
     if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._taint_tracking import copy_and_shift_ranges_from_strings
-        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import Source
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
-        if is_pyobject_tainted(instance):
-            copy_and_shift_ranges_from_strings(instance, result, 0)
+        ranges = get_tainted_ranges(instance)
+        if len(ranges) > 0:
+            source = ranges[0].source if ranges[0].source else Source(name="_io", value=result, origin=OriginType.EMPTY)
+            result = taint_pyobject(
+                pyobject=result,
+                source_name=source.name,
+                source_value=source.value,
+                source_origin=source.origin,
+            )
     return result
 
 
@@ -81,7 +90,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._asm_request_context import in_asm_context
             from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
@@ -93,14 +102,14 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
             filename = os.fspath(filename_arg)
         except Exception:
             filename = ""
-        if filename and in_context():
+        if filename and in_asm_context():
             res = call_waf_callback(
                 {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
                 crop_trace="wrapped_open_CFDDB7ABBA9081B6",
                 rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
             )
             if res and _must_block(res.actions):
-                raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "lfi", filename)
+                raise BlockingException(get_blocked(), "exploit_prevention", "lfi", filename)
     try:
         return original_open_callable(*args, **kwargs)
     except Exception as e:
@@ -126,7 +135,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._asm_request_context import in_asm_context
             from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
@@ -134,7 +143,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
             return original_open_callable(*args, **kwargs)
 
         url = args[0] if args else kwargs.get("fullurl", None)
-        if url and in_context():
+        if url and in_asm_context():
             if url.__class__.__name__ == "Request":
                 url = url.get_full_url()
             if isinstance(url, str):
@@ -144,7 +153,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
                 if res and _must_block(res.actions):
-                    raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
+                    raise BlockingException(get_blocked(), "exploit_prevention", "ssrf", url)
     return original_open_callable(*args, **kwargs)
 
 
@@ -166,7 +175,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._asm_request_context import in_asm_context
             from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
@@ -174,7 +183,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
             return original_request_callable(*args, **kwargs)
 
         url = args[1] if len(args) > 1 else kwargs.get("url", None)
-        if url and in_context():
+        if url and in_asm_context():
             if isinstance(url, str):
                 res = call_waf_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
@@ -182,7 +191,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
                 if res and _must_block(res.actions):
-                    raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
+                    raise BlockingException(get_blocked(), "exploit_prevention", "ssrf", url)
 
     return original_request_callable(*args, **kwargs)
 
@@ -206,21 +215,19 @@ def wrapped_system_5542593D237084A7(original_command_callable, instance, args, k
         ):
             try:
                 from ddtrace.appsec._asm_request_context import call_waf_callback
-                from ddtrace.appsec._asm_request_context import in_context
+                from ddtrace.appsec._asm_request_context import in_asm_context
                 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
             except ImportError:
                 return original_command_callable(*args, **kwargs)
 
-            if in_context():
+            if in_asm_context():
                 res = call_waf_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.CMDI: command},
                     crop_trace="wrapped_system_5542593D237084A7",
                     rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
                 )
                 if res and _must_block(res.actions):
-                    raise BlockingException(
-                        core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "cmdi", command
-                    )
+                    raise BlockingException(get_blocked(), "exploit_prevention", "cmdi", command)
     try:
         return original_command_callable(*args, **kwargs)
     except Exception as e:
@@ -256,14 +263,14 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._asm_request_context import in_asm_context
             from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # execute is used during module initialization
             # and shouldn't be changed at that time
             return
 
-        if instrument_self and query and in_context():
+        if instrument_self and query and in_asm_context():
             db_type = _DB_DIALECTS.get(
                 getattr(instrument_self, "_self_config", {}).get("_dbapi_span_name_prefix", ""), ""
             )
@@ -274,9 +281,7 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
                     rule_type=EXPLOIT_PREVENTION.TYPE.SQLI,
                 )
                 if res and _must_block(res.actions):
-                    raise BlockingException(
-                        core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "sqli", query
-                    )
+                    raise BlockingException(get_blocked(), "exploit_prevention", "sqli", query)
 
 
 def try_unwrap(module, name):

@@ -66,14 +66,14 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
         span_name=call_name,
         service=schematize_service_name("{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)),
         span_type=SpanTypes.HTTP,
-        call_key="patched_stepfunctions_api_call",
+        span_key="patched_stepfunctions_api_call",
         instance=instance,
         args=args,
         params=params,
         endpoint_name=endpoint_name,
         operation=operation,
         pin=pin,
-    ) as ctx, ctx.get_item(ctx["call_key"]):
+    ) as ctx, ctx.span:
         core.dispatch("botocore.patched_stepfunctions_api_call.started", [ctx])
 
         if should_update_input:
@@ -88,7 +88,7 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
-                    config.botocore.operations[ctx[ctx["call_key"]].resource].is_error_code,
+                    config.botocore.operations[ctx.span.resource].is_error_code,
                 ],
             )
             raise

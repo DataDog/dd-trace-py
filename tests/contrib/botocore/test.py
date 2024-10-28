@@ -266,6 +266,127 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.dynamodb"
         assert span.resource == "botocore.parsers.parse"
 
+        span = spans[2]
+        assert span.get_tag("aws.operation") == "PutItem"
+        # Since the dynamodb_primary_key_names_for_tables isn't configured, we
+        # cannot create span pointers for this item.
+        assert not span._links
+
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 8),
+        reason="Skipping for older py versions whose latest supported moto versions don't have the right dynamodb api",
+    )
+    @mock_dynamodb
+    def test_dynamodb_put_get_with_table_primary_key_mapping(self):
+        ddb = self.session.create_client("dynamodb", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ddb)
+
+        with self.override_config(
+            "botocore",
+            dict(
+                instrument_internals=True,
+                dynamodb_primary_key_names_for_tables={
+                    "foobar": {"myattr"},
+                },
+            ),
+        ):
+            ddb.create_table(
+                TableName="foobar",
+                AttributeDefinitions=[{"AttributeName": "myattr", "AttributeType": "S"}],
+                KeySchema=[{"AttributeName": "myattr", "KeyType": "HASH"}],
+                BillingMode="PAY_PER_REQUEST",
+            )
+            ddb.put_item(TableName="foobar", Item={"myattr": {"S": "baz"}})
+            ddb.get_item(TableName="foobar", Key={"myattr": {"S": "baz"}})
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 6
+        assert_is_measured(span)
+        assert span.get_tag("aws.operation") == "CreateTable"
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.resource == "dynamodb.createtable"
+
+        span = spans[1]
+        assert span.name == "botocore.parsers.parse"
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.resource == "botocore.parsers.parse"
+
+        span = spans[2]
+        assert span.get_tag("aws.operation") == "PutItem"
+        # This span pointer is only available if the
+        # dynamodb_primary_key_names_for_tables is properly configured with the
+        # table and its primary key field names.
+        assert span._links == [
+            _SpanPointer(
+                pointer_kind="aws.dynamodb.item",
+                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                # We have more detailed tests for the hashing behavior
+                # elsewhere. Here we just want to make sure that the pointer is
+                # correctly attached to the span.
+                pointer_hash="de960284e8cba01c46f87b102ab1c9cb",
+            ),
+        ]
+
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 8),
+        reason="Skipping for older py versions whose latest supported moto versions don't have the right dynamodb api",
+    )
+    @mock_dynamodb
+    def test_dynamodb_put_get_with_broken_table_primary_key_mapping(self):
+        ddb = self.session.create_client("dynamodb", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ddb)
+
+        with self.override_config(
+            "botocore",
+            dict(
+                instrument_internals=True,
+                dynamodb_primary_key_names_for_tables={
+                    "foobar": {"myattr", "other_attr", "impossible_third_attr"},
+                },
+            ),
+        ):
+            ddb.create_table(
+                TableName="foobar",
+                AttributeDefinitions=[{"AttributeName": "myattr", "AttributeType": "S"}],
+                KeySchema=[{"AttributeName": "myattr", "KeyType": "HASH"}],
+                BillingMode="PAY_PER_REQUEST",
+            )
+            ddb.put_item(TableName="foobar", Item={"myattr": {"S": "baz"}})
+            ddb.get_item(TableName="foobar", Key={"myattr": {"S": "baz"}})
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 6
+        assert_is_measured(span)
+        assert span.get_tag("aws.operation") == "CreateTable"
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.resource == "dynamodb.createtable"
+
+        span = spans[1]
+        assert span.name == "botocore.parsers.parse"
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.resource == "botocore.parsers.parse"
+
+        span = spans[2]
+        assert span.get_tag("aws.operation") == "PutItem"
+        # The rest of the logic should have worked but since the config is
+        # malformed with unexpectedly three key attributes, we cannot actually
+        # create the span pointers.
+        assert not span._links
+
     @mock_s3
     def test_s3_client(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
@@ -406,6 +527,15 @@ class BotocoreTest(TracerTestCase):
                 pointer_hash="def44fdefcd83bc907515567dc742be1",
             ),
         ]
+
+    @mock_s3
+    def test_s3_put_with_add_span_pointers_false(self):
+        with self.override_config("botocore", dict(add_span_pointers=False)):
+            span = self._test_s3_put()
+            assert span.get_tag("aws.s3.bucket_name") == "mybucket"
+            assert span.get_tag("bucketname") == "mybucket"
+
+            assert span._links == []
 
     @mock_s3
     def test_s3_put_no_params(self):

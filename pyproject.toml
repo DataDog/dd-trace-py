@@ -58,6 +58,13 @@ ddtrace = "ddtrace.contrib.pytest.plugin"
 "ddtrace.pytest_bdd" = "ddtrace.contrib.pytest_bdd.plugin"
 "ddtrace.pytest_benchmark" = "ddtrace.contrib.pytest_benchmark.plugin"
 
+[project.entry-points.'ddtrace.products']
+"code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
+"dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
+"exception-replay" = "ddtrace.debugging._products.exception_replay"
+"remote-configuration" = "ddtrace.internal.remoteconfig.product"
+"symbol-database" = "ddtrace.internal.symbol_db.product"
+
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
 Changelog = "https://github.com/DataDog/dd-trace-py/releases"
@@ -76,6 +83,7 @@ exclude = '''
   .venv*
   | \.riot
   | ddtrace/profiling/
+  | test_ci_visibility_api_client_skippable_real_world_responses\.py
 )
 '''
 
@@ -101,6 +109,7 @@ exclude = '''
   | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
   | ddtrace/vendor/
   | ddtrace/appsec/_iast/_taint_tracking/_vendor/
+  | ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/
   | ddtrace/_version.py
   | \.eggs
   | \.git

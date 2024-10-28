@@ -1,8 +1,11 @@
 """
 Trace queries to aws api done via botocore client
 """
+
 import collections
+import json
 import os
+from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
@@ -59,6 +62,32 @@ PATCHING_FUNCTIONS = {
 log = get_logger(__name__)
 
 
+def _load_dynamodb_primary_key_names_for_tables() -> Dict[str, Set[str]]:
+    try:
+        encoded_table_primary_keys = os.getenv("DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", "{}")
+        raw_table_primary_keys = json.loads(encoded_table_primary_keys)
+
+        table_primary_keys = {}
+        for table, primary_keys in raw_table_primary_keys.items():
+            if not isinstance(table, str):
+                raise ValueError(f"expected string table name: {table}")
+
+            if not isinstance(primary_keys, list):
+                raise ValueError(f"expected list of primary keys: {primary_keys}")
+
+            unique_primary_keys = set(primary_keys)
+            if not len(unique_primary_keys) == len(primary_keys):
+                raise ValueError(f"expected unique primary keys: {primary_keys}")
+
+            table_primary_keys[table] = unique_primary_keys
+
+        return table_primary_keys
+
+    except Exception as e:
+        log.warning("failed to load DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS: %s", e)
+        return {}
+
+
 # Botocore default settings
 config._add(
     "botocore",
@@ -73,6 +102,8 @@ config._add(
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
         "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
+        "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
+        "add_span_pointers": asbool(os.getenv("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),
     },
 )
 
@@ -120,7 +151,7 @@ def patched_lib_fn(original_func, instance, args, kwargs):
         "botocore.instrumented_lib_function",
         span_name="{}.{}".format(original_func.__module__, original_func.__name__),
         tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
-    ) as ctx, ctx.get_item(ctx.get_item("call_key")):
+    ) as ctx, ctx.span:
         return original_func(*args, **kwargs)
 
 
@@ -208,8 +239,8 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         pin=pin,
         span_name=function_vars.get("trace_operation"),
         span_type=SpanTypes.HTTP,
-        call_key="instrumented_api_call",
-    ) as ctx, ctx.get_item("instrumented_api_call"):
+        span_key="instrumented_api_call",
+    ) as ctx, ctx.span:
         core.dispatch("botocore.patched_api_call.started", [ctx])
         if args and config.botocore["distributed_tracing"]:
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
@@ -223,7 +254,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
-                    config.botocore.operations[ctx["instrumented_api_call"].resource].is_error_code,
+                    config.botocore.operations[ctx.span.resource].is_error_code,
                 ],
             )
             raise

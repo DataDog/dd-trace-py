@@ -7,15 +7,19 @@ import typing as t
 
 import pytest
 
+from ddtrace.contrib.pytest.constants import EFD_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
+from ddtrace.contrib.pytest.constants import RETRIES_MIN_SUPPORTED_VERSION
+from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
-from ddtrace.internal.test_visibility.api import InternalTestId
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
@@ -26,6 +30,16 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
 _USE_PLUGIN_V2 = asbool(os.environ.get("_DD_CIVISIBILITY_USE_PYTEST_V2", "false"))
+
+
+class _PYTEST_STATUS:
+    ERROR = "error"
+    FAILED = "failed"
+    PASSED = "passed"
+    SKIPPED = "skipped"
+
+
+PYTEST_STATUS = _PYTEST_STATUS()
 
 
 @dataclass
@@ -99,7 +113,13 @@ def _get_test_parameters_json(item) -> t.Optional[str]:
 
 
 def _get_module_path_from_item(item: pytest.Item) -> Path:
-    return Path(item.nodeid.rpartition("/")[0]).absolute()
+    try:
+        item_path = getattr(item, "path", None)
+        if item_path is not None:
+            return item.path.absolute().parent
+        return Path(item.module.__file__).absolute().parent
+    except Exception:  # noqa: E722
+        return Path.cwd()
 
 
 def _get_session_command(session: pytest.Session):
@@ -139,6 +159,14 @@ def _is_pytest_8_or_later() -> bool:
 
 def _pytest_version_supports_itr() -> bool:
     return _get_pytest_version_tuple() >= ITR_MIN_SUPPORTED_VERSION
+
+
+def _pytest_version_supports_retries() -> bool:
+    return _get_pytest_version_tuple() >= RETRIES_MIN_SUPPORTED_VERSION
+
+
+def _pytest_version_supports_efd():
+    return _get_pytest_version_tuple() >= EFD_MIN_SUPPORTED_VERSION
 
 
 def _pytest_marked_to_skip(item: pytest.Item) -> bool:
@@ -186,3 +214,9 @@ def _is_enabled_early(early_config):
         return False
 
     return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")
+
+
+class _TestOutcome(t.NamedTuple):
+    status: t.Optional[TestStatus] = None
+    skip_reason: t.Optional[str] = None
+    exc_info: t.Optional[TestExcInfo] = None
