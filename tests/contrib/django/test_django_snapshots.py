@@ -73,8 +73,7 @@ def daphne_client(django_asgi, additional_env=None):
         raise AssertionError(
             "Server failed to start, see stdout and stderr logs"
             "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-            "\n=== Captured STDERR ===\n%s=== End of captured STDERR ===" % (stdout),
-            (stderr),
+            "\n=== Captured STDERR ===\n%s=== End of captured STDERR ===" % (stdout, stderr)
         )
 
     try:
