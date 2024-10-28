@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 from typing import Any
 from typing import Dict
@@ -211,10 +212,13 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         input_tokens, output_tokens, total_tokens = 0, 0, 0
+        tokens_set_top_level = False
         if not is_workflow:
             # tokens are usually set at the top-level ChatResult or LLMResult object
             input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(chat_completions)
+            tokens_set_top_level = total_tokens > 0
 
+        tokens_per_choice_run_id = defaultdict(lambda: defaultdict(int))
         for message_set in chat_completions.generations:
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
@@ -226,13 +230,20 @@ class LangChainIntegration(BaseLLMIntegration):
                 output_messages.append(output_message)
 
                 # if it wasn't set above, check for token usage on the AI message object level
-                # from experience, it looks like these blocks contain the same count as what would be set
-                # at the top leve. do not append to the count, just set it once
-                if not is_workflow and total_tokens == 0:
-                    tokens = self.check_token_usage_ai_message(chat_completion_msg)
-                    input_tokens = tokens[0]
-                    output_tokens = tokens[1]
-                    total_tokens = tokens[2]
+                # these blocks contain the same count as what would be set at the top level.
+                # do not append to the count, just set it once
+                if not is_workflow and not tokens_set_top_level:
+                    tokens, run_id = self.check_token_usage_ai_message(chat_completion_msg)
+                    input_tokens, output_tokens, total_tokens = tokens
+                    tokens_per_choice_run_id[run_id]["input_tokens"] = input_tokens
+                    tokens_per_choice_run_id[run_id]["output_tokens"] = output_tokens
+                    tokens_per_choice_run_id[run_id]["total_tokens"] = total_tokens
+
+        if not is_workflow and not tokens_set_top_level:
+            input_tokens = sum(v["input_tokens"] for v in tokens_per_choice_run_id.values())
+            output_tokens = sum(v["output_tokens"] for v in tokens_per_choice_run_id.values())
+            total_tokens = sum(v["total_tokens"] for v in tokens_per_choice_run_id.values())
+
         span.set_tag_str(output_tag_key, safe_json(output_messages))
 
         if not is_workflow and total_tokens > 0:
@@ -502,6 +513,9 @@ class LangChainIntegration(BaseLLMIntegration):
         # either chat_completion_msg.usage_metadata or chat_completion_msg.response_metadata.{token}_usage
         usage = getattr(ai_message, "usage_metadata", None)
 
+        run_id = getattr(ai_message, "id", None) or getattr(ai_message, "run_id", "")
+        run_id_base = "-".join(run_id.split("-")[:-1]) if run_id else None
+
         response_metadata = getattr(ai_message, "response_metadata", {}) or {}
         usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
 
@@ -510,7 +524,7 @@ class LangChainIntegration(BaseLLMIntegration):
         output_tokens = usage.get("output_tokens", 0) or usage.get("completion_tokens", 0)
         total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
 
-        return input_tokens, output_tokens, total_tokens
+        return (input_tokens, output_tokens, total_tokens), run_id_base
 
     def format_io(
         self,
