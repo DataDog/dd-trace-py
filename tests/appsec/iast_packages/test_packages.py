@@ -987,6 +987,7 @@ def test_flask_packages_propagation(package, venv, printer):
         token=None,
         port=_TEST_PORT,
         # assert_debug=True,  # DEV: uncomment to debug propagation
+        # manual_propagation=True,  # DEV: uncomment to debug propagation
     ) as context:
         _, client, pid = context
         response = client.get(package.url_propagation)
