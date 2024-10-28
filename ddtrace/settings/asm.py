@@ -14,6 +14,7 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
+from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._core import report_telemetry as _report_telemetry
@@ -68,6 +69,7 @@ class ASMConfig(Env):
     _iast_request_sampling = Env.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
+    _iast_telemetry_report_lvl = Env.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
@@ -180,6 +182,7 @@ class ASMConfig(Env):
         "_iast_request_sampling",
         "_iast_debug",
         "_iast_propagation_debug",
+        "_iast_telemetry_report_lvl",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",
@@ -214,7 +217,7 @@ class ASMConfig(Env):
     def __init__(self):
         super().__init__()
         # Is one click available?
-        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._eval_asm_can_be_enabled()
         # Only for deprecation phase
         if self._automatic_login_events_mode and APPSEC.AUTO_USER_INSTRUMENTATION_MODE not in os.environ:
             self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode
@@ -227,6 +230,9 @@ class ASMConfig(Env):
     def reset(self):
         """For testing puposes, reset the configuration to its default values given current environment variables."""
         self.__init__()
+
+    def _eval_asm_can_be_enabled(self):
+        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
 
     @property
     def _api_security_feature_active(self) -> bool:
