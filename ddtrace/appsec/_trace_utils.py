@@ -4,7 +4,9 @@ from ddtrace import Tracer
 from ddtrace import constants
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._utils import _hash_user_id
@@ -124,6 +126,9 @@ def track_user_login_success_event(
     if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
 
+    if in_asm_context():
+        call_waf_callback(custom_data={"USER_ID": str(user_id), "LOGIN_SUCCESS": None})
+
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
 
@@ -166,6 +171,8 @@ def track_user_login_failure_event(
             span.set_tag_str("%s.failure.email" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, email)
         if name:
             span.set_tag_str("%s.failure.username" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, name)
+    if in_asm_context():
+        call_waf_callback(custom_data={"LOGIN_FAILURE": None})
 
 
 def track_user_signup_event(
