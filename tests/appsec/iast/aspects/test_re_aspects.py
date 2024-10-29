@@ -700,7 +700,12 @@ def test_re_match_getitem_aspect_not_tainted_string_re_object():
 )
 def test_match_group_complex(input_str, expected_result, tainted):
     regex = re.compile(
-        r"(?<!\.)(__import__|a(?:bs|iter|ll|ny)|b(?:in|ool|reakpoint|yte(?:array|s))|c(?:allable|hr|lassmethod|omp(?:ile|lex))|d(?:elattr|i(?:ct|r|vmod))|e(?:numerate|val)|f(?:ilter|(?:loa|orma|rozense)t)|g(?:etattr|lobals)|h(?:as(?:attr|h)|ex)|i(?:d|n(?:(?:(?:pu)?)t)|s(?:instance|subclass)|ter)|l(?:en|ist|ocals)|m(?:a(?:[px])|emoryview|in)|next|o(?:bject|ct|pen|rd)|p(?:ow|r(?:int|operty))|r(?:ange|e(?:pr|versed)|ound)|s(?:et(?:(?:attr)?)|lice|orted|t(?:aticmethod|r)|u(?:m|per))|t(?:(?:upl|yp)e)|vars|zip)\b",
+        r"(?<!\.)(__import__|a(?:bs|iter|ll|ny)|b(?:in|ool|reakpoint|yte(?:array|s))|c(?:allable|hr|lassmethod|"
+        r"omp(?:ile|lex))|d(?:elattr|i(?:ct|r|vmod))|e(?:numerate|val)|f(?:ilter|(?:loa|orma|rozense)t)|"
+        r"g(?:etattr|lobals)|h(?:as(?:attr|h)|ex)|i(?:d|n(?:(?:(?:pu)?)t)|s(?:instance|subclass)|ter)|"
+        r"l(?:en|ist|ocals)|m(?:a(?:[px])|emoryview|in)|next|o(?:bject|ct|pen|rd)|p(?:ow|r(?:int|"  # codespell:ignore
+        r"operty))|r(?:ange|e(?:pr|versed)|ound)|s(?:et(?:(?:attr)?)|lice|orted|t(?:aticmethod|r)|"
+        r"u(?:m|per))|t(?:(?:upl|yp)e)|vars|zip)\b",
         re.MULTILINE,
     )
 
