@@ -218,7 +218,7 @@ class LangChainIntegration(BaseLLMIntegration):
             input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(chat_completions)
             tokens_set_top_level = total_tokens > 0
 
-        tokens_per_choice_run_id = defaultdict(lambda: defaultdict(int))
+        tokens_per_choice_run_id: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for message_set in chat_completions.generations:
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
@@ -514,7 +514,7 @@ class LangChainIntegration(BaseLLMIntegration):
         usage = getattr(ai_message, "usage_metadata", None)
 
         run_id = getattr(ai_message, "id", None) or getattr(ai_message, "run_id", "")
-        run_id_base = "-".join(run_id.split("-")[:-1]) if run_id else None
+        run_id_base = "-".join(run_id.split("-")[:-1]) if run_id else ""
 
         response_metadata = getattr(ai_message, "response_metadata", {}) or {}
         usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
