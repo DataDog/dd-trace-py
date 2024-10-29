@@ -45,7 +45,6 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
-from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.debugging._signal.metric_sample import MetricSample
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
@@ -170,7 +169,7 @@ class DebuggerWrappingContext(WrappingContext):
     def has_probes(self) -> bool:
         return bool(self.probes)
 
-    def _open_contexts(self) -> None:
+    def _open_signals(self) -> None:
         frame = self.__frame__
         assert frame is not None  # nosec
 
@@ -184,7 +183,7 @@ class DebuggerWrappingContext(WrappingContext):
         for p in self.probes.values():
             (context_creators if p.__context_creator__ else context_consumers).append(p)
 
-        contexts: Deque[SignalContext] = deque()
+        signals: Deque[Signal] = deque()
 
         # Trigger the context creators first, so that the new context can be
         # consumed by the consumers.
@@ -225,22 +224,32 @@ class DebuggerWrappingContext(WrappingContext):
                 log.error("Unsupported probe type: %s", type(probe))
                 continue
 
-            contexts.append(self._collector.attach(signal))
+            try:
+                signal.do_enter()
+            except Exception:
+                log.exception("Failed to enter signal %r", signal)
+                continue
+            signals.append(signal)
 
         # Save state on the wrapping context
         self.set("start_time", compat.monotonic_ns())
-        self.set("contexts", contexts)
+        self.set("signals", signals)
 
-    def _close_contexts(self, retval=None, exc_info=(None, None, None)) -> None:
+    def _close_signals(self, retval=None, exc_info=(None, None, None)) -> None:
         end_time = compat.monotonic_ns()
-        contexts = self.get("contexts")
-        while contexts:
-            # Open probe signal contexts are ordered, with those that have
-            # created new tracing context first. We need to finalise them in
-            # reverse order, so we pop them from the end of the queue (LIFO).
-            context = contexts.pop()
-            context.exit(retval, exc_info, end_time - self.get("start_time"))
-            signal = context.signal
+        signals = cast(Deque[Signal], self.get("signals"))
+        while signals:
+            # Open probe signals are ordered, with those that have created new
+            # tracing context first. We need to finalize them in reverse order,
+            # so we pop them from the end of the queue (LIFO).
+            signal = signals.pop()
+            try:
+                signal.do_exit(retval, exc_info, end_time - self.get("start_time"))
+            except Exception:
+                log.exception("Failed to exit signal %r", signal)
+                continue
+
+            self._collector.push(signal)
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(signal.probe)
 
@@ -248,7 +257,7 @@ class DebuggerWrappingContext(WrappingContext):
         super().__enter__()
 
         try:
-            self._open_contexts()
+            self._open_signals()
         except Exception:
             log.exception("Failed to open debugging contexts")
 
@@ -256,7 +265,7 @@ class DebuggerWrappingContext(WrappingContext):
 
     def __return__(self, value: T) -> T:
         try:
-            self._close_contexts(retval=value)
+            self._close_signals(retval=value)
         except Exception:
             log.exception("Failed to close debugging contexts from return")
         return super().__return__(value)
@@ -265,7 +274,7 @@ class DebuggerWrappingContext(WrappingContext):
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
         try:
-            self._close_contexts(exc_info=(exc_type, exc_val, exc_tb))
+            self._close_signals(exc_info=(exc_type, exc_val, exc_tb))
         except Exception:
             log.exception("Failed to close debugging contexts from exception block")
         super().__exit__(exc_type, exc_val, exc_tb)
@@ -412,13 +421,13 @@ class Debugger(Service):
                 log.error("Unsupported probe type: %r", type(probe))
                 return
 
-            signal.line()
-
-            log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
-            self.__uploader__.get_collector().push(signal)
+            signal.do_line()
 
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(probe)
+
+            log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
+            self.__uploader__.get_collector().push(signal)
 
         except Exception:
             log.error("Failed to execute probe hook", exc_info=True)
