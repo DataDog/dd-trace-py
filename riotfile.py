@@ -2944,6 +2944,7 @@ venv = Venv(
                 # Python 3.12
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
@@ -3090,6 +3091,7 @@ venv = Venv(
                 # Python 3.12
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
