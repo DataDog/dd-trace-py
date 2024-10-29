@@ -458,7 +458,7 @@ class Experiment:
 
                 # Update progress
                 progress = int(50 * completed / total_rows)
-                bar = "=" * progress + " " * (50 - progress)
+                bar = f"{'=' * progress}{' ' * (50 - progress)}"
                 percent = int(100 * completed / total_rows)
                 sys.stdout.write(
                     f"\rRunning {self.name}: [{bar}] {percent}% ({completed}/{total_rows})"
