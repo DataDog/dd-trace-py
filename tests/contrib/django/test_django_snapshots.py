@@ -6,6 +6,7 @@ import sys
 
 import django
 import pytest
+import logging
 
 from tests.utils import _build_env
 from tests.utils import flaky
@@ -68,7 +69,8 @@ def daphne_client(django_asgi, additional_env=None):
         print("Waiting for server to start")
         client.wait(max_tries=120, delay=0.2, initial_wait=5)
         print("Server started")
-    except Exception:
+    except Exception as e:
+        logging.warning(f"Exception: {e}")
         raise AssertionError(
             "Server failed to start, see stdout and stderr logs"
             "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
