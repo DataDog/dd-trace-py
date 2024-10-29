@@ -279,6 +279,8 @@ cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # will point to garbage.
     endpoint_list = []
     cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
     for endpoint, span_ids in endpoint_to_span_ids.items():
         if not endpoint:
             continue
@@ -292,8 +294,6 @@ cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
                     )
                 )
             continue
-        cdef const char* utf8_data
-        cdef Py_ssize_t utf8_size
         utf8_data = PyUnicode_AsUTF8AndSize(endpoint, &utf8_size)
         if utf8_data != NULL:
             for span_id in span_ids:
@@ -313,6 +313,8 @@ cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
     # will point to garbage.
     endpoint_list = []
     cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
     for endpoint, count in endpoint_counts.items():
         if not endpoint:
             continue
@@ -325,8 +327,6 @@ cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
                 )
             )
             continue
-        cdef const char* utf8_data
-        cdef Py_ssize_t utf8_size
         utf8_data = PyUnicode_AsUTF8AndSize(endpoint, &utf8_size)
         if utf8_data != NULL:
             trace_endpoints_to_counts.insert(
@@ -602,7 +602,7 @@ cdef class SampleHandle:
         if span._local_root.span_id:
             ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
         if span._local_root.span_type:
-            call_ddup_push_trace_type(span._local_root.span_type)
+            call_ddup_push_trace_type(self.ptr, span._local_root.span_type)
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
