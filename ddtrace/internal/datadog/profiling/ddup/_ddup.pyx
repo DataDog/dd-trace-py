@@ -362,6 +362,12 @@ cdef call_ddup_push_frame(Sample* sample, name: StringType, filename: StringType
     cdef Py_ssize_t name_utf8_size
     cdef const char* filename_utf8_data
     cdef Py_ssize_t filename_utf8_size
+    name_utf8_data = PyUnicode_AsUTF8AndSize(name, &name_utf8_size)
+    filename_utf8_data = PyUnicode_AsUTF8AndSize(filename, &filename_utf8_size)
+    if name_utf8_data != NULL and filename_utf8_data != NULL:
+        ddup_push_frame(sample, string_view(name_utf8_data, name_utf8_size),
+                        string_view(filename_utf8_data, filename_utf8_size),
+                        address, line)
 
 cdef call_ddup_push_threadinfo(Sample* sample, int64_t thread_id, int64_t thread_native_id, thread_name: StringType):
     if not thread_name:
