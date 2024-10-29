@@ -115,7 +115,6 @@ def track_user_login_success_event(
     :param user_id: a string with the UserId
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
-
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
@@ -127,7 +126,7 @@ def track_user_login_success_event(
         user_id = _hash_user_id(user_id)
 
     if in_asm_context():
-        call_waf_callback(custom_data={"USER_ID": str(user_id), "LOGIN_SUCCESS": None})
+        call_waf_callback(custom_data={"REQUEST_USER_ID": str(user_id), "LOGIN_SUCCESS": real_mode})
 
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
