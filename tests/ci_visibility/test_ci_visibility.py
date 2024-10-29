@@ -1071,7 +1071,11 @@ class TestUploadGitMetadata:
     def test_upload_git_metadata_upload_unnecessary(self, api_key, requests_mode):
         with mock.patch.object(
             CIVisibilityGitClient, "_get_latest_commits", mock.Mock(side_effect=[["latest1", "latest2"]])
-        ), mock.patch.object(CIVisibilityGitClient, "_search_commits", mock.Mock(side_effect=[["latest1", "latest2"]])):
+        ), mock.patch.object(
+            CIVisibilityGitClient, "_search_commits", mock.Mock(side_effect=[["latest1", "latest2"]])
+        ), mock.patch.object(
+            CIVisibilityGitClient, "_get_git_dir", lambda *args, **kwargs: "does not matter"
+        ):
             git_client = CIVisibilityGitClient(api_key, requests_mode)
             git_client.upload_git_metadata()
             assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.UNNECESSARY
