@@ -460,7 +460,7 @@ venv = Venv(
                         Venv(
                             pys="3.9",
                             pkgs={
-                                "gevent": ["~=21.1.0", "~=24.2.1"],
+                                "gevent": ["~=21.1.0", latest],
                                 "greenlet": "~=1.0",
                             },
                         ),
