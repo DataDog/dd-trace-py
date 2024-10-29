@@ -15,24 +15,6 @@ import uuid
 BASE_URL = "api.datadoghq.com"
 
 
-def _validate_api_keys() -> None:
-    """Validate that required Datadog API keys are set in environment variables.
-
-    Raises:
-        ValueError: If any required API keys are missing from environment variables
-    """
-    missing_keys = []
-    for key in ["DD_API_KEY", "DD_APPLICATION_KEY"]:
-        if not os.getenv(key):
-            missing_keys.append(key)
-
-    if missing_keys:
-        raise ValueError(
-            f"Missing required Datadog API keys in environment variables: {', '.join(missing_keys)}. "
-            "Please set these environment variables before pushing to Datadog."
-        )
-
-
 class Dataset:
     """A container for LLM experiment data that can be pushed to and retrieved from Datadog.
 
@@ -68,7 +50,7 @@ class Dataset:
 
     def __repr__(self) -> str:
         header = f"Dataset: {self.name}\nDescription: {self.description}\nLength: {len(self)}\nDatadog ID: {self.datadog_dataset_id}\n"
-        separator = "+" + "-" * 10 + "+" + "-" * 38 + "+" + "-" * 38 + "+"
+        separator = f"+{'-' * 10}+{'-' * 38}+{'-' * 38}+"
 
         def format_dict(d: Dict[str, Any]) -> List[str]:
             def truncate(value: str) -> str:
@@ -347,7 +329,7 @@ class Experiment:
         self.results = None
 
     def __repr__(self) -> str:
-        separator = "+" + "-" * 20 + "+" + "-" * 50 + "+"
+        separator = f"+{'-' * 20}+{'-' * 50}+"
 
         def format_evaluator(evaluator: Callable) -> str:
             return f"{evaluator.__name__}"
@@ -517,19 +499,7 @@ class ExperimentResults:
         self.experiment_rows = []
 
     def __repr__(self) -> str:
-        separator = (
-            "+"
-            + "-" * 10
-            + "+"
-            + "-" * 38
-            + "+"
-            + "-" * 38
-            + "+"
-            + "-" * 38
-            + "+"
-            + "-" * 38
-            + "+"
-        )
+        separator = f"+{'-' * 10}+{'-' * 38}+{'-' * 38}+{'-' * 38}+{'-' * 38}+"
 
         def format_dict(d: Union[Dict[str, Any], List[Any]]) -> List[str]:
             if isinstance(d, dict):
@@ -591,9 +561,7 @@ class ExperimentResults:
             f"{separator}\n"
             f"{entries}"
         )
-        return (
-            f"Experiment Results:\n{table if entries else 'No results available.'}\n\n"
-        )
+        return f"Experiment Results:\n{table if entries else 'No results available.'}\n\n"
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
         return iter(self.experiment_rows)
@@ -811,66 +779,6 @@ class ExperimentResults:
             conn.close()
 
 
-def _make_request(
-    conn: HTTPSConnection,
-    headers: Dict[str, Any],
-    method: str,
-    url: str,
-    body: Optional[Any] = None,
-    context: str = "",
-) -> Dict[str, Any]:
-    """Make an HTTP request to the Datadog API.
-
-    Handles making HTTP requests to Datadog's API with proper error handling
-    and response parsing.
-
-    Args:
-        conn: The HTTP connection to use
-        headers: Request headers
-        method: HTTP method (GET, POST, etc.)
-        url: Request URL
-        body: Request body (optional)
-        context: Context string for error messages (optional)
-
-    Returns:
-        Dict[str, Any]: Parsed JSON response
-
-    Raises:
-        Exception: If the request fails, returns an error status, or returns invalid JSON
-    """
-    if method == "GET":
-        conn.request(method, url, headers=headers)
-    else:
-        if body is not None and isinstance(body, str):
-            body = body.encode("utf-8")
-        conn.request(method, url, body=body, headers=headers)
-
-    response = conn.getresponse()
-    response_body = response.read()
-
-    if response.status >= 400:
-        error_message = f"HTTP {response.status} Error during {context}: {response.reason}\nResponse body: {response_body.decode('utf-8')}"
-        raise Exception(error_message)
-
-    if not response_body:
-        return {}
-
-    try:
-        return json.loads(response_body)
-    except json.JSONDecodeError:
-        error_message = f"Invalid JSON response during {context}. Status: {response.status}\nResponse body: {response_body.decode('utf-8')}"
-        raise Exception(error_message)
-
-
-def _make_id() -> str:
-    """Generate a unique identifier.
-
-    Returns:
-        str: A random UUID as a hexadecimal string
-    """
-    return uuid.uuid4().hex
-
-
 def parametrize(**param_dict: Dict[str, Union[Any, List[Any]]]) -> Callable:
     """Decorator that creates multiple versions of a function with different parameter combinations.
 
@@ -919,3 +827,86 @@ def parametrize(**param_dict: Dict[str, Union[Any, List[Any]]]) -> Callable:
         return [create_parameterized_func(combo) for combo in param_combinations]
 
     return decorator
+
+
+
+def _make_request(
+    conn: HTTPSConnection,
+    headers: Dict[str, Any],
+    method: str,
+    url: str,
+    body: Optional[Any] = None,
+    context: str = "",
+) -> Dict[str, Any]:
+    """Make an HTTP request to the Datadog API.
+
+    Raises:
+        DatadogAPIError: If the request fails or returns an error status
+        DatadogResponseError: If the response contains invalid JSON
+    """
+    if method == "GET":
+        conn.request(method, url, headers=headers)
+    else:
+        if body is not None and isinstance(body, str):
+            body = body.encode("utf-8")
+        conn.request(method, url, body=body, headers=headers)
+
+    response = conn.getresponse()
+    response_body = response.read()
+    response_text = response_body.decode('utf-8')
+
+    if response.status >= 400:
+        error_message = f"HTTP {response.status} Error during {context}: {response.reason}"
+        raise DatadogAPIError(error_message, status_code=response.status, response=response_text)
+
+    if not response_body:
+        return {}
+
+    try:
+        return json.loads(response_body)
+    except json.JSONDecodeError:
+        error_message = f"Invalid JSON response during {context}. Status: {response.status}"
+        raise DatadogResponseError(error_message, raw_response=response_text)
+
+
+def _make_id() -> str:
+    """Generate a unique identifier.
+
+    Returns:
+        str: A random UUID as a hexadecimal string
+    """
+    return uuid.uuid4().hex
+
+
+class DatadogAPIError(Exception):
+    """Raised when there is an error interacting with the Datadog API."""
+    def __init__(self, message: str, status_code: Optional[int] = None, response: Optional[str] = None):
+        self.status_code = status_code
+        self.response = response
+        super().__init__(message)
+
+class DatadogResponseError(Exception):
+    """Raised when there is an error parsing the response from Datadog."""
+    def __init__(self, message: str, raw_response: Optional[str] = None):
+        self.raw_response = raw_response
+        super().__init__(message)
+
+
+def _validate_api_keys() -> None:
+    """Validate that required Datadog API keys are set in environment variables.
+
+    Raises:
+        ValueError: If any required API keys are missing from environment variables
+    """
+    missing_keys = []
+    for key in ["DD_API_KEY", "DD_APPLICATION_KEY"]:
+        if not os.getenv(key):
+            missing_keys.append(key)
+
+    if missing_keys:
+        raise ValueError(
+            f"Missing required Datadog API keys in environment variables: {', '.join(missing_keys)}. "
+            "Please set these environment variables before pushing to Datadog."
+        )
+
+
