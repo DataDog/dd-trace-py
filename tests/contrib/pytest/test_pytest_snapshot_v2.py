@@ -1,3 +1,4 @@
+import os
 import subprocess
 from unittest import mock
 
@@ -37,6 +38,20 @@ SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.sour
 
 
 class PytestSnapshotTestCase(TracerTestCase):
+    def _get_default_env(self):
+        os_env = os.environ.copy()
+        os_env.update(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_ITR_ENABLED="false",
+                DD_PATCH_MODULES="sqlite3:false",
+                CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                _DD_CIVISIBILITY_USE_PYTEST_V2="true",
+            )
+        )
+        return os_env
+
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch, git_repo):
         self.testdir = testdir
@@ -81,7 +96,10 @@ class PytestSnapshotTestCase(TracerTestCase):
                 "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
                 return_value=_CIVisibilitySettings(False, False, False, False),
             ):
-                subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"])
+                subprocess.run(
+                    ["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"],
+                    env=self._get_default_env(),
+                )
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_pytest_wont_include_lines_pct_if_report_empty(self):
@@ -121,7 +139,10 @@ class PytestSnapshotTestCase(TracerTestCase):
                 "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
                 return_value=_CIVisibilitySettings(False, False, False, False),
             ):
-                subprocess.run(["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"])
+                subprocess.run(
+                    ["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"],
+                    env=self._get_default_env(),
+                )
 
     @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL)
     def test_pytest_with_ddtrace_patch_all(self):
@@ -146,4 +167,4 @@ class PytestSnapshotTestCase(TracerTestCase):
                 "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
                 return_value=_CIVisibilitySettings(False, False, False, False),
             ):
-                subprocess.run(["pytest", "--ddtrace", "--ddtrace-patch-all"])
+                subprocess.run(["pytest", "--ddtrace", "--ddtrace-patch-all"], env=self._get_default_env())
