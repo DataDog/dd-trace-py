@@ -152,11 +152,14 @@ class Codeowners(object):
             patterns = []
             for line in f.readlines():
                 line = line.strip()
+
+                if "#" in line:
+                    # Strip out the comment from the line
+                    line = line.split("#", 1)[0].strip()
+
                 if line == "":
                     continue
-                # Lines starting with '#' are comments.
-                if line.startswith("#"):
-                    continue
+
                 if line.startswith("[") and line.endswith("]"):
                     # found a code owners section
                     continue
