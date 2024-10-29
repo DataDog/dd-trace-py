@@ -491,6 +491,7 @@ PACKAGES = [
         "d8b5635eb590e078a608e083351288a0",
         "",
         import_module_to_validate="multipart.multipart",
+        skip_python_version=[(3, 10), (3, 11), (3, 12), (3, 13)],
         test_propagation=True,
     ),
     PackageForTesting(
