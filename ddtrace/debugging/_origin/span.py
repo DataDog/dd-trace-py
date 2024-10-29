@@ -19,10 +19,10 @@ from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
-from ddtrace.debugging._signal.collector import SignalContext
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 
 # from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.debugging._signal.model import Signal
 from ddtrace.ext import EXIT_SPAN_TYPES
 from ddtrace.internal import compat
 from ddtrace.internal import core
@@ -63,7 +63,7 @@ class EntrySpanProbe(LogFunctionProbe):
             tags={},
             module=module,
             func_qname=function,
-            evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+            evaluate_at=ProbeEvalTiming.ENTRY,
             template=message,
             segments=[LiteralTemplateSegment(message)],
             take_snapshot=True,
@@ -174,21 +174,21 @@ class EntrySpanWrappingContext(WrappingContext):
 
         return self
 
-    def _close_context(self, retval=None, exc_info=(None, None, None)):
+    def _close_signal(self, retval=None, exc_info=(None, None, None)):
         try:
-            context: SignalContext = self.get("context")
+            signal: Signal = t.cast(Signal, self.get("signal"))
         except KeyError:
             # No snapshot was created
             return
 
-        context.exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
+        signal.do_exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
 
     def __return__(self, retval):
-        self._close_context(retval=retval)
+        self._close_signal(retval=retval)
         return super().__return__(retval)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._close_context(exc_info=(exc_type, exc_value, traceback))
+        self._close_signal(exc_info=(exc_type, exc_value, traceback))
         super().__exit__(exc_type, exc_value, traceback)
 
 
