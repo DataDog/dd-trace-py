@@ -289,3 +289,9 @@ hotspot
 CMake
 libdatadog
 importlib
+oce
+assertIn
+# tests/contrib/openai/test_openai_v1.py
+Nam
+# docs/configuration.rst
+uest

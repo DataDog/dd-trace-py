@@ -228,7 +228,7 @@ class ASMConfig(Env):
             self._api_security_enabled = False
 
     def reset(self):
-        """For testing puposes, reset the configuration to its default values given current environment variables."""
+        """For testing purposes, reset the configuration to its default values given current environment variables."""
         self.__init__()
 
     def _eval_asm_can_be_enabled(self):

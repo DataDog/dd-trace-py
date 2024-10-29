@@ -42,7 +42,7 @@ This is very similar to the lock profiler, except for allocations.
 
 Samplers might interrupt each other on a single thread.
 Since the v1 stack sampler is written in Python, it may request allocations.
-In turn, those alocations may trigger the memory sampler.
+In turn, those allocations may trigger the memory sampler.
 This requires the caller of the library to specify what kind of sample they are taking.
 
 

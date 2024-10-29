@@ -407,7 +407,7 @@ class Config(object):
             # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
-                "Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+                "Tracer rate limiting is only applied to spans that match tracer sampling rules. "
                 "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
                 rate_limit,
             )

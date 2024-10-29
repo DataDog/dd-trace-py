@@ -46,7 +46,7 @@ class TestVisibilityModule(
         module_path: str
         if self._module_path:
             if self._module_path == self._session_settings.workspace_path:
-                # '.' is not the desired relative path when the worspace and module path are the same
+                # '.' is not the desired relative path when the workspace and module path are the same
                 module_path = ""
             elif self._module_path.is_relative_to(self._session_settings.workspace_path):
                 module_path = str(self._module_path.relative_to(self._session_settings.workspace_path))

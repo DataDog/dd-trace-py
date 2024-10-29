@@ -117,7 +117,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                 elif isinstance(command.obj, abc.Mapping):
                     res = {}
                     stack.append(command.post(res))
-                    # use dict fondamental enumeration if possible to bypass any override of custom classes
+                    # use dict fundamental enumeration if possible to bypass any override of custom classes
                     iterable = dict.items(command.obj) if isinstance(command.obj, dict) else command.obj.items()
                     todo = []
                     for k, v in list(iterable):

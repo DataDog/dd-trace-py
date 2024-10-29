@@ -88,7 +88,7 @@ def cleanup_loaded_modules():
 
         drop(m)
 
-    # TODO: The better strategy is to identify the core modues in LOADED_MODULES
+    # TODO: The better strategy is to identify the core modules in LOADED_MODULES
     # that should not be unloaded, and then unload as much as possible.
     UNLOAD_MODULES = frozenset(
         [

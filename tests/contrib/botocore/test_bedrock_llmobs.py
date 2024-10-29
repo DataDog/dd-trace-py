@@ -129,7 +129,7 @@ class TestLLMObsBedrock:
         with get_request_vcr().use_cassette(cassette_name):
             body, model = json.dumps(body), _MODELS[provider]
             if provider == "anthropic_message":
-                # we do this to re-use a cassette which tests
+                # we do this to reuse a cassette which tests
                 # cross-region inference
                 model = "us." + model
             response = bedrock_client.invoke_model(body=body, modelId=model)

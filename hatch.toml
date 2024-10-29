@@ -5,7 +5,7 @@ dependencies = [
     "black==23.10.1",
     "click==8.1.7",
     "cython-lint==0.15.0",
-    "codespell==2.1.0",
+    "codespell==2.3.0",
     "bandit==1.7.5",
     "mypy==0.991",
     "coverage==7.3.0",
@@ -56,7 +56,7 @@ checks = [
     "suitespec-check",
 ]
 spelling = [
-    "codespell --skip='ddwaf.h,*cassettes*' {args:ddtrace/ tests/ releasenotes/ docs/}",
+    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
     "mypy {args}",
