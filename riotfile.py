@@ -460,7 +460,7 @@ venv = Venv(
                         Venv(
                             pys="3.9",
                             pkgs={
-                                "gevent": ["~=21.1.0", latest],
+                                "gevent": ["~=21.1.0", "~=24.2.1"],
                                 "greenlet": "~=1.0",
                             },
                         ),
@@ -468,19 +468,19 @@ venv = Venv(
                             # gevent added support for Python 3.10 in 21.8.0
                             pys="3.10",
                             pkgs={
-                                "gevent": ["~=21.12.0", latest],
+                                "gevent": ["~=21.12.0", "~=24.2.1"],
                             },
                         ),
                         Venv(
                             pys="3.11",
                             pkgs={
-                                "gevent": ["~=22.10.0", latest],
+                                "gevent": ["~=22.10.0", "~=24.2.1"],
                             },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.12"),
                             pkgs={
-                                "gevent": [latest],
+                                "gevent": ["~=24.2.1"],
                             },
                         ),
                     ],
