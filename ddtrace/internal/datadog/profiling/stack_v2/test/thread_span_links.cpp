@@ -5,7 +5,9 @@
 
 #include "thread_span_links.hpp"
 
-static void get() {
+static void
+get()
+{
     for (int i = 0; i < 100; i++) {
         std::string span_type;
         for (int j = 0; j < i; j++) {
@@ -15,7 +17,9 @@ static void get() {
     }
 }
 
-static std::string set() {
+static std::string
+set()
+{
     std::string s;
     for (int i = 0; i < 100; i++) {
         auto thing = Datadog::ThreadSpanLinks::get_instance().get_active_span_from_thread_id(42);
