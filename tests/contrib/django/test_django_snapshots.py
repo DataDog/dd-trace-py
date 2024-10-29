@@ -66,7 +66,7 @@ def daphne_client(django_asgi, additional_env=None):
     # Wait for the server to start up
     try:
         print("Waiting for server to start")
-        client.wait(max_tries=120, delay=0.2, initial_wait=2.0)
+        client.wait(max_tries=120, delay=1.0, initial_wait=2.0)
         print("Server started")
     except Exception:
         raise AssertionError(
