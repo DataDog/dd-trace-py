@@ -3,7 +3,6 @@ import re
 import signal
 from subprocess import TimeoutExpired
 import sys
-import tempfile
 import time
 
 import pytest
@@ -27,12 +26,12 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "..", "profiling", "uwsgi-ap
 
 
 @pytest.fixture
-def uwsgi(monkeypatch):
+def uwsgi(monkeypatch, tmp_path):
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
-    socket_name = tempfile.mktemp()
+    socket_name = str(tmp_path / "uwsgi.sock")
     import os
 
     cmd = [
