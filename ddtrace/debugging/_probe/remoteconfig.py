@@ -14,6 +14,7 @@ from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
+from ddtrace.debugging._probe.model import DEFAULT_TRIGGER_PROBE_RATE
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import FunctionProbe
@@ -211,6 +212,7 @@ class TriggerProbeFactory(ProbeFactory):
     @classmethod
     def update_args(cls, args, attribs):
         args.update(
+            rate=attribs.get("sampling", {}).get("cooldownInSeconds", DEFAULT_TRIGGER_PROBE_RATE),
             session_id=attribs["sessionId"],
             level=attribs["level"],
         )

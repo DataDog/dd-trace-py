@@ -20,7 +20,14 @@ class Trigger(LogSignal):
 
     def _link_session(self) -> None:
         probe = t.cast(SessionMixin, self.probe)
-        Session(probe.session_id, probe.level).link_to_trace(self.trace_context)
+        session = Session(probe.session_id, probe.level)
+
+        # Link the session to the running trace
+        session.link_to_trace(self.trace_context)
+
+        # Ensure that the new session information is included in the debug
+        # propagation tag for distributed debugging
+        session.propagate(self.trace_context)
 
     def enter(self, scope: t.Mapping[str, t.Any]) -> None:
         self._link_session()
