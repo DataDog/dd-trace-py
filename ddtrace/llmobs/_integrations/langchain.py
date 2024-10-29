@@ -103,9 +103,6 @@ class LangChainIntegration(BaseLLMIntegration):
         elif operation == "tool":
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
 
-        if span.get_tag(METRICS) is None:
-            span.set_tag_str(METRICS, safe_json({}))
-
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
             return
@@ -492,13 +489,13 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""
-        llm_output = getattr(result, "llm_output", None) or {}  # in case it is explicitly set to None
-        token_usage = (
-            llm_output.get("token_usage", {})
-            or llm_output.get("usage_metadata", {})
-            or llm_output.get("usage", {})
-            or {}  # in case one is explicitly set to None
-        )
+        llm_output = getattr(result, "llm_output", {})
+        if llm_output is None:  # in case it is explicitly set to None
+            return 0, 0, 0
+
+        token_usage = llm_output.get("token_usage", llm_output.get("usage_metadata", llm_output.get("usage", {})))
+        if token_usage is None or not isinstance(token_usage, dict):  # in case it is explicitly set to None
+            return 0, 0, 0
 
         # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
         input_tokens = token_usage.get("prompt_tokens", 0) or token_usage.get("input_tokens", 0) or 0
