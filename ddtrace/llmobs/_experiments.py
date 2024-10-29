@@ -306,7 +306,9 @@ class Experiment:
         tags (List[str]): Tags for organizing experiments
         project_name (str): Name of the project this experiment belongs to
         has_run (bool): Whether the experiment has been executed
-        results (ExperimentResults): Results after running the experiment
+        has_evaluated (bool): Whether the evaluations have been performed
+        outputs (List[Dict]): Outputs after running the task
+        results (ExperimentResults): Results after running evaluations
     """
 
     def __init__(
@@ -322,10 +324,12 @@ class Experiment:
         self.task = task
         self.dataset = dataset
         self.evaluators = evaluators
-        self.tags = []
+        self.tags = tags
         self.project_name = project_name
         # Post-run attributes
         self.has_run = False
+        self.has_evaluated = False
+        self.outputs = []
         self.results = None
 
     def __repr__(self) -> str:
@@ -370,18 +374,15 @@ class Experiment:
                     f"Invalid tag format: {tag}. Tags should be in the format 'key:value'."
                 )
 
-    def run(self, _jobs: int = 10) -> "ExperimentResults":
-        """Execute the experiment on the dataset.
+    def run(self, _jobs: int = 10) -> None:
+        """Execute the experiment tasks on the dataset without performing evaluations.
 
-        Runs the task function on each dataset record in parallel and collects
-        results and evaluations.
+        Runs the task function on each dataset record in parallel and stores
+        the outputs and metadata.
 
         Args:
             _jobs (int, optional): Number of parallel workers. Defaults to 10.
                 Must be between 1 and 20.
-
-        Returns:
-            ExperimentResults: Object containing the experiment results
 
         Raises:
             ValueError: If _jobs is not between 1 and 20
@@ -389,7 +390,7 @@ class Experiment:
         if not 1 <= _jobs <= 20:
             raise ValueError("Number of jobs must be between 1 and 20")
 
-        results = ExperimentResults(self.dataset, self)
+        self.outputs = []
         total_rows = len(self.dataset)
 
         def process_row(idx_row):
@@ -401,42 +402,117 @@ class Experiment:
                 end_time = time.time()
                 duration = end_time - start_time
 
+                return {
+                    "idx": idx,
+                    "output": output,
+                    "metadata": {
+                        "timestamp": start_time,
+                        "duration": duration,
+                        "dataset_record_idx": idx,
+                        "project_name": self.project_name,
+                        "experiment_name": self.name,
+                        "dataset_name": self.dataset.name,
+                    },
+                    "error": None,
+                }
+            except Exception as e:
+                return {
+                    "idx": idx,
+                    "output": None,
+                    "metadata": {
+                        "timestamp": time.time(),
+                        "duration": 0,
+                        "dataset_record_idx": idx,
+                        "project_name": self.project_name,
+                        "experiment_name": self.name,
+                        "dataset_name": self.dataset.name,
+                    },
+                    "error": str(e),
+                }
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
+            future_to_idx = {
+                executor.submit(process_row, (idx, row)): idx
+                for idx, row in enumerate(self.dataset)
+            }
+
+            # Process as they complete while maintaining order
+            completed = 0
+            outputs_buffer = [None] * total_rows
+            for future in concurrent.futures.as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                outputs_buffer[idx] = future.result()
+                completed += 1
+
+                # Update progress
+                progress = int(50 * completed / total_rows)
+                bar = f"{'=' * progress}{' ' * (50 - progress)}"
+                percent = int(100 * completed / total_rows)
+                sys.stdout.write(
+                    f"\rRunning {self.name}: [{bar}] {percent}% ({completed}/{total_rows})"
+                )
+                sys.stdout.flush()
+
+            self.outputs = outputs_buffer
+
+        sys.stdout.write("\n")
+
+        self.has_run = True
+
+        return self
+
+    def eval(self, _jobs: int = 10) -> "ExperimentResults":
+        """Evaluate the outputs using the provided evaluators.
+
+        Runs the evaluators on each output in parallel and collects evaluations.
+
+        Args:
+            _jobs (int, optional): Number of parallel workers. Defaults to 10.
+                Must be between 1 and 20.
+
+        Returns:
+            ExperimentResults: Object containing the experiment results
+
+        Raises:
+            ValueError: If _jobs is not between 1 and 20
+            ValueError: If the experiment has not been run yet
+        """
+        if not 1 <= _jobs <= 20:
+            raise ValueError("Number of jobs must be between 1 and 20")
+
+        if not self.has_run:
+            raise ValueError("Experiment has not been run yet. Please call run() before eval().")
+
+        results = ExperimentResults(self.dataset, self)
+        total_rows = len(self.outputs)
+
+        def evaluate_output(idx_output):
+            idx, output_data = idx_output
+            try:
+                idx_in_dataset = output_data["metadata"]["dataset_record_idx"]
+                row = self.dataset[idx_in_dataset]
+                output = output_data["output"]
                 evaluations = {
                     evaluator.__name__: evaluator(row, output)
                     for evaluator in self.evaluators
                 }
 
-                return {
-                    "idx": idx,
-                    "result": {
-                        "output": output,
-                        "evaluations": evaluations,
-                        "metadata": {
-                            "timestamp": start_time,
-                            "duration": duration,
-                            "dataset_record_idx": idx,
-                            "project_name": self.project_name,
-                            "experiment_name": self.name,
-                            "dataset_name": self.dataset.name,
-                        },
-                        "tags": self.tags,
-                        "error": None,
-                    },
+                result = {
+                    "output": output,
+                    "evaluations": evaluations,
+                    "metadata": output_data["metadata"],
+                    "tags": self.tags,
+                    "error": output_data["error"],
                 }
+
+                return {"idx": idx, "result": result}
             except Exception as e:
                 return {
                     "idx": idx,
                     "result": {
-                        "output": None,
+                        "output": output_data["output"],
                         "evaluations": {},
-                        "metadata": {
-                            "timestamp": time.time(),
-                            "duration": 0,
-                            "dataset_record_idx": idx,
-                            "project_name": self.project_name,
-                            "experiment_name": self.name,
-                            "dataset_name": self.dataset.name,
-                        },
+                        "metadata": output_data["metadata"],
                         "tags": self.tags,
                         "error": str(e),
                     },
@@ -444,8 +520,8 @@ class Experiment:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
             future_to_idx = {
-                executor.submit(process_row, (idx, row)): idx
-                for idx, row in enumerate(self.dataset)
+                executor.submit(evaluate_output, (idx, output_data)): idx
+                for idx, output_data in enumerate(self.outputs)
             }
 
             # Process as they complete while maintaining order
@@ -461,23 +537,21 @@ class Experiment:
                 bar = f"{'=' * progress}{' ' * (50 - progress)}"
                 percent = int(100 * completed / total_rows)
                 sys.stdout.write(
-                    f"\rRunning {self.name}: [{bar}] {percent}% ({completed}/{total_rows})"
+                    f"\rEvaluating {self.name}: [{bar}] {percent}% ({completed}/{total_rows})"
                 )
                 sys.stdout.flush()
 
-            # Add results in correct order
             results.experiment_rows = results_buffer
 
-        # Print a new line after completion
         sys.stdout.write("\n")
 
-        self.has_run = True
+        self.has_evaluated = True
         self.results = results
         return results
 
-    def get_results(self) -> Union["ExperimentResults", List["ExperimentResults"]]:
-        if not self.has_run:
-            raise ValueError("Experiment has not been run yet")
+    def get_results(self) -> 'ExperimentResults':
+        if not self.has_evaluated:
+            raise ValueError("Evaluations have not been performed yet. Please call eval() after run().")
         return self.results
 
 
