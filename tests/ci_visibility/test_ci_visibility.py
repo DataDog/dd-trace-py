@@ -999,6 +999,7 @@ class TestUploadGitMetadata:
             _get_filtered_revisions=mock.Mock(return_value="latest3\nlatest4"),
             _upload_packfiles=mock.Mock(side_effec=NotImplementedError),
             _do_request=mock.Mock(side_effect=NotImplementedError),
+            _get_git_dir=mock.Mock(return_value="does_not_matter"),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
         ) as mock_build_packfiles:
@@ -1077,11 +1078,7 @@ class TestUploadGitMetadata:
     def test_upload_git_metadata_upload_unnecessary(self, api_key, requests_mode):
         with mock.patch.object(
             CIVisibilityGitClient, "_get_latest_commits", mock.Mock(side_effect=[["latest1", "latest2"]])
-        ), mock.patch.object(
-            CIVisibilityGitClient, "_search_commits", mock.Mock(side_effect=[["latest1", "latest2"]])
-        ), mock.patch.object(
-            CIVisibilityGitClient, "_get_git_dir", lambda *args, **kwargs: "does not matter"
-        ):
+        ), mock.patch.object(CIVisibilityGitClient, "_search_commits", mock.Mock(side_effect=[["latest1", "latest2"]])):
             git_client = CIVisibilityGitClient(api_key, requests_mode)
             git_client.upload_git_metadata()
             assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.UNNECESSARY
