@@ -3927,9 +3927,11 @@ class PytestTestCase(TracerTestCase):
             )
 
         self.testdir.chdir()
+        test_ddconfig = ddtrace.settings.config.Config()
+        test_ddconfig._ci_visibility_agentless_enabled = True
         with mock.patch("ddtrace.ext.git._get_executable_path", return_value=None), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(),
+            test_ddconfig,
         ) as mock_ddconfig:
             mock_ddconfig._ci_visibility_agentless_enabled = True
             self.inline_run("--ddtrace")
