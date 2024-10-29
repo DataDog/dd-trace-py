@@ -13,7 +13,6 @@ from libcpp.utility cimport pair
 import ddtrace
 import platform
 from .._types import StringType
-from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
@@ -131,6 +130,14 @@ cdef int64_t clamp_to_int64_unsigned(value):
     if value > INT64_MAX:
         return INT64_MAX
     return value
+
+
+cdef ensure_binary_or_empty(s: StringType):
+    if not s:
+        return b""
+    if isinstance(s, bytes):
+        return s
+    return s.encode(encoding="utf-8", errors="ignore")
 
 
 # Public API
