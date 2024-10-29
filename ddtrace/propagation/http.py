@@ -8,6 +8,7 @@ from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
+import urllib.parse
 
 import ddtrace
 from ddtrace._trace.span import Span  # noqa:F401
@@ -38,8 +39,11 @@ from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
+from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -74,6 +78,7 @@ _HTTP_HEADER_B3_FLAGS: Literal["x-b3-flags"] = "x-b3-flags"
 _HTTP_HEADER_TAGS: Literal["x-datadog-tags"] = "x-datadog-tags"
 _HTTP_HEADER_TRACEPARENT: Literal["traceparent"] = "traceparent"
 _HTTP_HEADER_TRACESTATE: Literal["tracestate"] = "tracestate"
+_HTTP_HEADER_BAGGAGE: Literal["baggage"] = "baggage"
 
 
 def _possible_header(header):
@@ -127,7 +132,7 @@ def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
     if context is not None:
         for key, value in headers.items():
             if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
-                context._set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
+                context.set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
 
 
 def _hex_id_to_dd_id(hex_id):
@@ -885,12 +890,77 @@ class _NOP_Propagator:
         return headers
 
 
+class _BaggageHeader:
+    """Helper class to inject/extract Baggage Headers"""
+
+    SAFE_CHARACTERS_KEY = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'*+-.^_`|~"
+    SAFE_CHARACTERS_VALUE = (
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'()*+-./:<>?@[]^_`{|}~"
+    )
+
+    @staticmethod
+    def _encode_key(key: str) -> str:
+        return urllib.parse.quote(str(key).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_KEY)
+
+    @staticmethod
+    def _encode_value(value: str) -> str:
+        return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE)
+
+    @staticmethod
+    def _inject(span_context: Context, headers: Dict[str, str]) -> None:
+        baggage_items = span_context._baggage.items()
+        if not baggage_items:
+            return
+
+        if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
+            log.warning("Baggage item limit exceeded")
+            return
+
+        try:
+            header_value = ",".join(
+                f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
+                for key, value in baggage_items
+            )
+
+            buf = bytes(header_value, "utf-8")
+            if len(buf) > DD_TRACE_BAGGAGE_MAX_BYTES:
+                log.warning("Baggage header size exceeded")
+                return
+
+            headers[_HTTP_HEADER_BAGGAGE] = header_value
+
+        except Exception:
+            log.warning("Failed to encode and inject baggage header")
+
+    @staticmethod
+    def _extract(headers: Dict[str, str]) -> Context:
+        header_value = headers.get(_HTTP_HEADER_BAGGAGE)
+
+        if not header_value:
+            return Context(baggage={})
+
+        baggage = {}
+        baggages = header_value.split(",")
+        for key_value in baggages:
+            if "=" not in key_value:
+                return Context(baggage={})
+            key, value = key_value.split("=", 1)
+            key = urllib.parse.unquote(key.strip())
+            value = urllib.parse.unquote(value.strip())
+            if not key or not value:
+                return Context(baggage={})
+            baggage[key] = value
+
+        return Context(baggage=baggage)
+
+
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
     PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
     _PROPAGATION_STYLE_NONE: _NOP_Propagator,
+    _PROPAGATION_STYLE_BAGGAGE: _BaggageHeader,
 }
 
 
@@ -906,6 +976,9 @@ class HTTPPropagator(object):
         for prop_style in config._propagation_style_extract:
             propagator = _PROP_STYLES[prop_style]
             context = propagator._extract(normalized_headers)
+            # baggage is handled separately
+            if prop_style == _PROPAGATION_STYLE_BAGGAGE:
+                continue
             if context:
                 contexts.append(context)
                 styles_w_ctx.append(prop_style)
@@ -915,6 +988,7 @@ class HTTPPropagator(object):
     def _resolve_contexts(contexts, styles_w_ctx, normalized_headers):
         primary_context = contexts[0]
         links = []
+
         for context in contexts[1:]:
             style_w_ctx = styles_w_ctx[contexts.index(context)]
             # encoding expects at least trace_id and span_id
@@ -924,9 +998,11 @@ class HTTPPropagator(object):
                         context.trace_id,
                         context.span_id,
                         flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
-                        tracestate=context._meta.get(W3C_TRACESTATE_KEY, "")
-                        if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
-                        else None,
+                        tracestate=(
+                            context._meta.get(W3C_TRACESTATE_KEY, "")
+                            if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
+                            else None
+                        ),
                         attributes={
                             "reason": "terminated_context",
                             "context_headers": style_w_ctx,
@@ -952,6 +1028,7 @@ class HTTPPropagator(object):
                         primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(dd_context.span_id)
                     # the span_id in tracecontext takes precedence over the first extracted propagation style
                     primary_context.span_id = context.span_id
+
         primary_context._span_links = links
         return primary_context
 
@@ -999,12 +1076,16 @@ class HTTPPropagator(object):
         else:
             log.error("ddtrace.tracer.sample is not available, unable to sample span.")
 
+        # baggage should be injected regardless of existing span or trace id
+        if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
+            _BaggageHeader._inject(span_context, headers)
+
         # Not a valid context to propagate
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
+        if config._propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
@@ -1024,7 +1105,6 @@ class HTTPPropagator(object):
 
     @staticmethod
     def extract(headers):
-        # type: (Dict[str,str]) -> Context
         """Extract a Context from HTTP headers into a new Context.
         For tracecontext propagation we extract tracestate headers for
         propagation even if another propagation style is specified before tracecontext,
@@ -1050,25 +1130,36 @@ class HTTPPropagator(object):
             return Context()
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-
+            context = Context()
             # tracer configured to extract first only
             if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
-                    context = propagator._extract(normalized_headers)  # type: ignore
+                    context = propagator._extract(normalized_headers)
                     if config.propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
-                    return context
+                    break
+
             # loop through all extract propagation styles
             else:
                 contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
 
                 if contexts:
                     context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
-                    if config.propagation_http_baggage_enabled is True:
+                    if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
-                    return context
+
+            # baggage headers are handled separately from the other propagation styles
+            if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
+                baggage_context = _BaggageHeader._extract(normalized_headers)
+                if baggage_context._baggage != {}:
+                    if context:
+                        context._baggage = baggage_context._baggage
+                    else:
+                        context = baggage_context
+
+            return context
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)

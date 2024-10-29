@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves errors where the disabled setting was being ignored when forking.

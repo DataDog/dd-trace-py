@@ -105,7 +105,7 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
         log.debug("CIVisibility not taking over ddtrace logger handler because debug mode is enabled")
         return
 
-    level = ddconfig.ci_visibility_log_level
+    level = ddconfig._ci_visibility_log_level
 
     if level.upper() == "NONE":
         log.debug("CIVisibility not taking over ddtrace logger because level is set to: %s", level)

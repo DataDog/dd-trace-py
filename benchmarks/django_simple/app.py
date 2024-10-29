@@ -79,7 +79,12 @@ def index(request):
     return django.http.HttpResponse(index.render(Context({})))
 
 
-urlpatterns = [path("", index)]
+def exception(request):
+    request.no_such_attr
+    return index(request)
+
+
+urlpatterns = [path("", index), path("exc/", exception)]
 
 if __name__ == "__main__":
     from django.core import management

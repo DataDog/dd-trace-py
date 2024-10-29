@@ -19,6 +19,7 @@ ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 *.so
+*.dylib
 *.a
 
 # Cython annotate HTML files
@@ -156,6 +157,9 @@ ddtrace/appsec/_iast/_taint_tracking/tests/native_tests*
 ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/Makefile
 ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/CMakeFiles/*
 ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/cmake_install.cmake
+# Those folders are required for tests/appsec/iast_packages/test_packages.py
+template_venv/
+cloned_venvs/
 # CircleCI generated config
 .circleci/config.gen.yml
 

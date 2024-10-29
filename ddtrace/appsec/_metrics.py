@@ -1,5 +1,4 @@
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec._ddwaf import DDWaf_info
 from ddtrace.appsec._ddwaf import version as _version
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.internal import telemetry
@@ -14,17 +13,15 @@ DDWAF_VERSION = _version()
 
 
 @deduplication
-def _set_waf_error_metric(msg: str, stack_trace: str, info: DDWaf_info) -> None:
-    try:
-        tags = {
-            "waf_version": DDWAF_VERSION,
-            "lib_language": "python",
-        }
-        if info and info.version:
-            tags["event_rules_version"] = info.version
-        telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace, tags=tags)
-    except Exception:
-        log.warning("Error reporting ASM WAF logs metrics", exc_info=True)
+def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
+    tags = {
+        "waf_version": DDWAF_VERSION,
+        "lib_language": "python",
+    }
+    if version:
+        tags["event_rules_version"] = version
+    level = TELEMETRY_LOG_LEVEL.ERROR if error_level else TELEMETRY_LOG_LEVEL.WARNING
+    telemetry.telemetry_writer.add_log(level, msg, tags=tags)
 
 
 def _set_waf_updates_metric(info):

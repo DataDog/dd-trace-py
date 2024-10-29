@@ -10,9 +10,11 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
+from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal._rand import rand64bits
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -21,6 +23,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
@@ -99,32 +102,36 @@ class LLMObs(Service):
         self._trace_processor = LLMObsTraceProcessor(self._llmobs_span_writer, self._evaluator_runner)
         forksafe.register(self._child_after_fork)
 
+        self._annotations = []
+        self._annotation_context_lock = forksafe.RLock()
+        self.tracer.on_start_span(self._do_annotations)
+
+    def _do_annotations(self, span):
+        # get the current span context
+        # only do the annotations if it matches the context
+        if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
+            return
+        current_context = self._instance.tracer.current_trace_context()
+        current_context_id = current_context.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+        with self._annotation_context_lock:
+            for _, context_id, annotation_kwargs in self._instance._annotations:
+                if current_context_id == context_id:
+                    self.annotate(span, **annotation_kwargs)
+
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
         self._trace_processor._evaluator_runner = self._evaluator_runner
-        tracer_filters = self.tracer._filters
-        if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [self._trace_processor]
-        self.tracer.configure(settings={"FILTERS": tracer_filters})
-        try:
-            self._llmobs_span_writer.start()
-            self._llmobs_eval_metric_writer.start()
-        except ServiceStatusError:
-            log.debug("Error starting LLMObs writers after fork")
-
-        try:
-            self._evaluator_runner.start()
-        except ServiceStatusError:
-            log.debug("Error starting evaluator runner after fork")
+        if self.enabled:
+            self._start_service()
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
             tracer_filters += [self._trace_processor]
-        self.tracer.configure(settings={"FILTERS": tracer_filters})
+            self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
             self._llmobs_eval_metric_writer.start()
@@ -226,6 +233,7 @@ class LLMObs(Service):
 
         if integrations_enabled:
             cls._patch_integrations()
+
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=_tracer)
         cls.enabled = True
@@ -252,6 +260,7 @@ class LLMObs(Service):
 
         cls.enabled = False
         cls._instance.stop()
+        cls._instance.tracer.deregister_on_start_span(cls._instance._do_annotations)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
@@ -262,8 +271,7 @@ class LLMObs(Service):
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
-        Do not use nested annotation contexts to override the same attributes since the order in which annotations
-        are applied is non-deterministic.
+        Annotations are applied in the order in which annotation contexts are entered.
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
@@ -273,9 +281,40 @@ class LLMObs(Service):
                         This argument is only applicable to LLM spans.
         :param name: Set to override the span name for any spans annotated within the returned context.
         """
-        return AnnotationContext(
-            cls._instance.tracer, lambda span: cls.annotate(span, tags=tags, prompt=prompt, _name=name)
-        )
+        # id to track an annotation for registering / de-registering
+        annotation_id = rand64bits()
+
+        def get_annotations_context_id():
+            current_ctx = cls._instance.tracer.current_trace_context()
+            # default the context id to the annotation id
+            ctx_id = annotation_id
+            if current_ctx is None:
+                current_ctx = Context(is_remote=False)
+                current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+                cls._instance.tracer.context_provider.activate(current_ctx)
+            elif not current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID):
+                current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+            else:
+                ctx_id = current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+            return ctx_id
+
+        def register_annotation():
+            with cls._instance._annotation_context_lock:
+                ctx_id = get_annotations_context_id()
+                cls._instance._annotations.append(
+                    (annotation_id, ctx_id, {"tags": tags, "prompt": prompt, "_name": name})
+                )
+
+        def deregister_annotation():
+            with cls._instance._annotation_context_lock:
+                for i, (key, _, _) in enumerate(cls._instance._annotations):
+                    if key == annotation_id:
+                        cls._instance._annotations.pop(i)
+                        return
+                else:
+                    log.debug("Failed to pop annotation context")
+
+        return AnnotationContext(register_annotation, deregister_annotation)
 
     @classmethod
     def flush(cls) -> None:
@@ -354,7 +393,7 @@ class LLMObs(Service):
     @classmethod
     def llm(
         cls,
-        model_name: str,
+        model_name: Optional[str] = None,
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -363,7 +402,7 @@ class LLMObs(Service):
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
-        :param str model_name: The name of the invoked LLM.
+        :param str model_name: The name of the invoked LLM. If not provided, a default value of "custom" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -375,12 +414,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if not model_name:
-            log.warning("LLMObs.llm() missing model_name")
+        if model_name is None:
+            model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
-        if model_name is None:
-            model_name = "unknown"
         return cls._instance._start_span(
             "llm", name, model_name=model_name, model_provider=model_provider, session_id=session_id, ml_app=ml_app
         )
@@ -454,7 +491,7 @@ class LLMObs(Service):
     @classmethod
     def embedding(
         cls,
-        model_name: str,
+        model_name: Optional[str] = None,
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -464,6 +501,7 @@ class LLMObs(Service):
         Trace a call to an embedding model or function to create an embedding.
 
         :param str model_name: The name of the invoked embedding model.
+                               If not provided, a default value of "custom" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "embedding" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
@@ -475,12 +513,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if not model_name:
-            log.warning("LLMObs.embedding() missing model_name")
+        if model_name is None:
+            model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
-        if model_name is None:
-            model_name = "unknown"
         return cls._instance._start_span(
             "embedding",
             name,
@@ -580,7 +616,7 @@ class LLMObs(Service):
         if not span_kind:
             log.debug("Span kind not specified, skipping annotation for input/output data")
             return
-        if input_data or output_data:
+        if input_data is not None or output_data is not None:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
             elif span_kind == "embedding":
@@ -674,9 +710,9 @@ class LLMObs(Service):
         """Tags input/output values for non-LLM kind spans.
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
-        if input_value:
+        if input_value is not None:
             span.set_tag_str(INPUT_VALUE, safe_json(input_value))
-        if output_value:
+        if output_value is not None:
             span.set_tag_str(OUTPUT_VALUE, safe_json(output_value))
 
     @staticmethod
@@ -690,9 +726,11 @@ class LLMObs(Service):
             log.warning("span_tags must be a dictionary of string key - primitive value pairs.")
             return
         try:
-            current_tags = span.get_tag(TAGS)
-            if current_tags:
-                span_tags.update(json.loads(current_tags))
+            current_tags_str = span.get_tag(TAGS)
+            if current_tags_str:
+                current_tags = json.loads(current_tags_str)
+                current_tags.update(span_tags)
+                span_tags = current_tags
             span.set_tag_str(TAGS, safe_json(span_tags))
         except Exception:
             log.warning("Failed to parse tags.", exc_info=True)
@@ -727,6 +765,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
+        metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -739,6 +778,8 @@ class LLMObs(Service):
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
+        :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
+                                evaluation metric.
         """
         if cls.enabled is False:
             log.warning(
@@ -816,18 +857,26 @@ class LLMObs(Service):
                 except TypeError:
                     log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
 
-        cls._instance._llmobs_eval_metric_writer.enqueue(
-            {
-                "span_id": span_id,
-                "trace_id": trace_id,
-                "label": str(label),
-                "metric_type": metric_type.lower(),
-                "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,
-                "ml_app": ml_app,
-                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
-            }
-        )
+        evaluation_metric = {
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "label": str(label),
+            "metric_type": metric_type.lower(),
+            "timestamp_ms": timestamp_ms,
+            "{}_value".format(metric_type): value,
+            "ml_app": ml_app,
+            "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
+        }
+
+        if metadata:
+            if not isinstance(metadata, dict):
+                log.warning("metadata must be json serializable dictionary.")
+            else:
+                metadata = safe_json(metadata)
+                if metadata and isinstance(metadata, str):
+                    evaluation_metric["metadata"] = json.loads(metadata)
+
+        cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:

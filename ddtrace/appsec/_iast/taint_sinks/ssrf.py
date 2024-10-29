@@ -7,9 +7,9 @@ from ddtrace.internal.utils.importlib import func_name
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
+from .._iast_request_context import is_iast_request_enabled
 from .._metrics import increment_iast_span_metric
 from ..constants import VULN_SSRF
-from ..processor import AppSecIastSpanProcessor
 from ._base import VulnerabilityBase
 
 
@@ -50,7 +50,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
 
         _set_metric_iast_executed_sink(SSRF.vulnerability_type)
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
-        if AppSecIastSpanProcessor.is_span_analyzed() and SSRF.has_quota():
+        if is_iast_request_enabled() and SSRF.has_quota():
             try:
                 from .._taint_tracking import is_pyobject_tainted
 

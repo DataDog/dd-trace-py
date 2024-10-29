@@ -29,6 +29,7 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
@@ -550,12 +551,16 @@ class TelemetryTestSession(object):
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_events(self, event_type=None, filter_heartbeats=True):
+    def get_events(self, event_type=None, filter_heartbeats=True, subprocess=False):
         """Get a list of the event payloads sent to the test agent
 
         Results are in reverse order by ``seq_id``
         """
         requests = self.get_requests(event_type, filter_heartbeats)
+        if subprocess:
+            # Use get_runtime_id to filter telemetry events generated in the current process
+            runtime_id = get_runtime_id()
+            requests = [req for req in requests if req["body"]["runtime_id"] != runtime_id]
         return [req["body"] for req in requests]
 
     def get_metrics(self, name=None):
@@ -575,6 +580,17 @@ class TelemetryTestSession(object):
                     deps.append(dep)
         deps.sort(key=lambda x: x["name"], reverse=False)
         return deps
+
+    def get_configurations(self, name=None, ignores=None):
+        ignores = ignores or []
+        configurations = []
+        events_with_configs = self.get_events("app-started") + self.get_events("app-client-configuration-change")
+        for event in events_with_configs:
+            for c in event["payload"]["configuration"]:
+                if c["name"] == name or (name is None and c["name"] not in ignores):
+                    configurations.append(c)
+        configurations.sort(key=lambda x: x["name"], reverse=False)
+        return configurations
 
 
 @pytest.fixture

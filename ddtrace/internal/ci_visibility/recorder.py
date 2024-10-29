@@ -72,6 +72,7 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
+from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
@@ -273,7 +274,7 @@ class CIVisibility(Service):
             self._api_settings.skipping_enabled,
         )
         log.info(
-            "API-provided settings: early flake detection enabled: %s",
+            "API-provided settings: Early Flake Detection enabled: %s",
             self._api_settings.early_flake_detection.enabled,
         )
         log.info("Detected configurations: %s", str(self._configurations))
@@ -504,7 +505,7 @@ class CIVisibility(Service):
 
         log.debug("%s enabled", cls.__name__)
         log.info(
-            "Final settings: coverage collection: %s, test skipping: %s, early flake detection: %s",
+            "Final settings: coverage collection: %s, test skipping: %s, Early Flake Detection: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
             CIVisibility.is_efd_enabled(),
@@ -783,8 +784,8 @@ class CIVisibility(Service):
             log.debug("Not setting test session name because no CIVisibilityEventClient is active")
             return
 
-        if ddconfig.test_session_name:
-            test_session_name = ddconfig.test_session_name
+        if ddconfig._test_session_name:
+            test_session_name = ddconfig._test_session_name
         else:
             job_name = instance._tags.get(ci.JOB_NAME)
             test_session_name = f"{job_name}-{test_command}" if job_name else test_command
@@ -833,6 +834,9 @@ def _on_discover_session(
     test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
 
     efd_api_settings = CIVisibility.get_efd_api_settings()
+    if efd_api_settings is None:
+        log.debug("Could not get Early Flake Detection settings, using defaults")
+        efd_api_settings = EarlyFlakeDetectionSettings()
 
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
@@ -1248,8 +1252,18 @@ def _register_itr_handlers():
 
 
 @_requires_civisibility_enabled
+def _on_efd_is_enabled() -> bool:
+    return CIVisibility.get_session().efd_is_enabled()
+
+
+@_requires_civisibility_enabled
 def _on_efd_session_is_faulty() -> bool:
     return CIVisibility.get_session().efd_is_faulty_session()
+
+
+@_requires_civisibility_enabled
+def _on_efd_session_has_efd_failed_tests() -> bool:
+    return CIVisibility.get_session().efd_has_failed_tests()
 
 
 @_requires_civisibility_enabled
@@ -1275,31 +1289,19 @@ def _on_efd_finish_retry(efd_finish_args: EFDTestMixin.EFDRetryFinishArgs):
 
 
 @_requires_civisibility_enabled
-def _on_efd_record_initial(efd_record_initial_args: EFDTestMixin.EFDRecordInitialArgs):
-    CIVisibility.get_test_by_id(efd_record_initial_args.test_id).efd_record_initial(
-        efd_record_initial_args.status, efd_record_initial_args.skip_reason, efd_record_initial_args.exc_info
-    )
-
-
-@_requires_civisibility_enabled
-def _on_efd_get_final_status(test_id: InternalTestId):
+def _on_efd_get_final_status(test_id: InternalTestId) -> EFDTestStatus:
     return CIVisibility.get_test_by_id(test_id).efd_get_final_status()
-
-
-@_requires_civisibility_enabled
-def _on_efd_finish_test(test_id: InternalTestId):
-    CIVisibility.get_test_by_id(test_id).efd_finish_test()
 
 
 def _register_efd_handlers():
     log.debug("Registering EFD handlers")
+    core.on("test_visibility.efd.is_enabled", _on_efd_is_enabled, "is_enabled")
     core.on("test_visibility.efd.session_is_faulty", _on_efd_session_is_faulty, "is_faulty_session")
+    core.on("test_visibility.efd.session_has_failed_tests", _on_efd_session_has_efd_failed_tests, "has_failed_tests")
     core.on("test_visibility.efd.should_retry_test", _on_efd_should_retry_test, "should_retry_test")
     core.on("test_visibility.efd.add_retry", _on_efd_add_retry, "retry_number")
     core.on("test_visibility.efd.start_retry", _on_efd_start_retry)
     core.on("test_visibility.efd.finish_retry", _on_efd_finish_retry)
-    core.on("test_visibility.efd.finish_test", _on_efd_finish_test)
-    core.on("test_visibility.efd.record_initial", _on_efd_record_initial)
     core.on("test_visibility.efd.get_final_status", _on_efd_get_final_status, "efd_final_status")
 
 

@@ -123,6 +123,7 @@ jobs:
     name: Sanic 24.6 (with ${{ matrix.suffix }})
     runs-on: ubuntu-20.04
     needs: needs-run
+    timeout-minutes: 15
     env:
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
       DD_IAST_ENABLED: ${{ matrix.iast }}
@@ -625,6 +626,7 @@ jobs:
     name: Starlette 0.38.4 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
+    timeout-minutes: 30
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
@@ -972,7 +974,7 @@ jobs:
           git clone -b 4.12.3 https://git.launchpad.net/beautifulsoup
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install ddtrace
+        run: pip3 install ./ddtrace
       - name: Pytest fix
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install pytest==8.2.1

@@ -110,7 +110,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         }  # type: Dict[str, str]
         container.update_headers_with_container_info(self._headers, container.get_container_info())
         self._hostname = ""
-        if config.report_hostname:
+        if config._report_hostname:
             self._hostname = get_hostname()
         self._lock = Lock()
         self._enabled = True

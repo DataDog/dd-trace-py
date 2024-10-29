@@ -287,7 +287,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
     prompt = None
     for k, v in request_params.items():
-        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx[ctx["call_key"]]):
+        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
             prompt = v
     ctx.set_item("prompt", prompt)
 
@@ -334,7 +334,6 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         ),
         resource=function_vars.get("operation"),
         span_type=SpanTypes.LLM if submit_to_llmobs else None,
-        call_key="instrumented_bedrock_call",
         call_trace=True,
         bedrock_integration=integration,
         params=params,
