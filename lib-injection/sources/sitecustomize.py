@@ -263,8 +263,8 @@ def _inject():
                     create_count_metric(
                         "library_entrypoint.abort.integration",
                         [
-                            "integration:" + key,
-                            "integration_version:" + value,
+                            f"integration:{key}",
+                            f"integration_version:{value}",
                         ],
                     )
                 )
@@ -312,7 +312,7 @@ def _inject():
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
             telemetry_data.append(
-                create_count_metric("library_entrypoint.error", ["error_type:" + "site-packages-not-found"])
+                create_count_metric("library_entrypoint.error", ["error_type:site-packages-not-found"])
             )
             event = gen_telemetry_payload(telemetry_data)
             send_telemetry(event)
@@ -327,7 +327,7 @@ def _inject():
         except BaseException as e:
             _log("failed to load ddtrace module: %s" % e, level="error")
             telemetry_data.append(
-                create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])
+                create_count_metric("library_entrypoint.error", [f"error_type:{type(e).__name__.lower()}"])
             )
             event = gen_telemetry_payload(telemetry_data)
             send_telemetry(event)
@@ -365,7 +365,7 @@ def _inject():
                     create_count_metric(
                         "library_entrypoint.complete",
                         [
-                            "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
+                            f"injection_forced:{str(runtime_incomp or integration_incomp).lower()}",
                         ],
                     )
                 )
@@ -373,7 +373,7 @@ def _inject():
                 send_telemetry(event)
             except Exception as e:
                 telemetry_data.append(
-                    create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])
+                    create_count_metric("library_entrypoint.error", [f"error_type:{type(e).__name__.lower()}"])
                 )
                 event = gen_telemetry_payload(telemetry_data)
                 send_telemetry(event)
