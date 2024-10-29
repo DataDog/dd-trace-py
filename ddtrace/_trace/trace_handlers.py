@@ -17,6 +17,7 @@ from ddtrace._trace.utils_botocore.span_tags import (
     set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags,
 )
 from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
+from ddtrace.appsec import _ddprof
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -155,6 +156,14 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
 
 
 def _on_request_prepare(ctx, start_response):
+    # JJJ
+    try:
+        res = _ddprof.start_profiling()
+        log.debug("JJJ ddprof started with result code %s", res)
+    except Exception:
+        log.debug("JJJ some ddprof exception on start! ", exc_info=True)
+
+    # print("JJJ result from _ddprof.start_profiling():", res)
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     req_span.set_tag_str(COMPONENT, middleware._config.integration_name)
@@ -208,6 +217,13 @@ def _on_app_exception(ctx):
 
 
 def _on_request_complete(ctx, closing_iterable, app_is_iterator):
+    # JJJ
+    try:
+        _ddprof.stop_profiling(1000)
+        log.debug("JJJ ddprof stopped")
+    except Exception:
+        log.debug("JJJ some ddprof exception on stop! ", exc_info=True)
+
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
