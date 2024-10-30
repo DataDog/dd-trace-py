@@ -19,7 +19,6 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor.jsonpath_ng import parse
 
-MAX_TAGS = 758 # RFC-defined maximum number of allowed tags
 INCOMPLETE_TAG = "_dd.payload_tags_incomplete" # Set to True if MAX_TAGS is reached
 
 class AWSPayloadTagging:
@@ -38,7 +37,7 @@ class AWSPayloadTagging:
 
         for key2, value in redacted_dict.items():
             self._tag_object(span, f"{key}.{key2}", value)
-            if self.current_tag_count >= MAX_TAGS:
+            if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
                 return
 
     def _should_try_string(self, obj: Any) -> bool:
@@ -145,7 +144,7 @@ class AWSPayloadTagging:
         """
         Expands the current key and value into a span tag
         """
-        if self.current_tag_count >= MAX_TAGS:
+        if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
             span.set_tag(INCOMPLETE_TAG, True)
             return    
         if obj is None:

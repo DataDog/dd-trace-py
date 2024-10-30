@@ -107,9 +107,10 @@ config._add(
         "payload_tagging_request": os.getenv("DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING", default=""),
         "payload_tagging_response": os.getenv("DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING", default=""),
         "payload_tagging_max_depth": int(os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH", 10)),
+        "payload_tagging_max_tags": int(os.getenv("TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)),
+        "payload_tagging_services": set(os.getenv("TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", default="s3,sns,sqs,kinesis,eventbridge").split(",")),
     },
 )
-
 
 def get_version():
     # type: () -> str
