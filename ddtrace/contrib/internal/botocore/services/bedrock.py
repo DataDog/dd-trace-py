@@ -318,7 +318,11 @@ def handle_bedrock_response(
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     pin = function_vars.get("pin")
-    model_provider, model_name = params.get("modelId").split(".")
+    model_meta = params.get("modelId").split(".")
+    if len(model_meta) == 2:
+        model_provider, model_name = model_meta
+    else:
+        _, model_provider, model_name = model_meta  # cross-region inference
     integration = function_vars.get("integration")
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
