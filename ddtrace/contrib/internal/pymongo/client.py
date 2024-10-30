@@ -103,7 +103,10 @@ def _trace_topology_select_server(func, args, kwargs):
     # Ensure the pin used on the traced mongo client is passed down to the topology instance
     # This allows us to pass the same pin in traced server objects.
     topology_instance = get_argument_value(args, kwargs, 0, "self")
-    ddtrace.Pin.get_from(topology_instance).onto(server)
+    pin = ddtrace.Pin.get_from(topology_instance)
+
+    if pin is not None:
+        pin.onto(server)
     return server
 
 
