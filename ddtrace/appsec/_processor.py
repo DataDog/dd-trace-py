@@ -289,10 +289,10 @@ class AppSecSpanProcessor(SpanProcessor):
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if key in data_already_sent:
                 continue
-            if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
-                value = custom_data.get(key) if custom_data else None
-                if value:
-                    ephemeral_data[waf_name] = value
+            # ensure ephemeral addresses are sent, event when value is None
+            if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES and custom_data:
+                if key in custom_data:
+                    ephemeral_data[waf_name] = custom_data[key]
 
             elif self._is_needed(waf_name) or force_keys:
                 value = None
@@ -306,6 +306,10 @@ class AppSecSpanProcessor(SpanProcessor):
                     if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
                         data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
+
+        # small optimization to avoid running the waf if there is no data to check
+        if not data and not ephemeral_data:
+            return None
 
         waf_results = self._ddwaf.run(
             ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
