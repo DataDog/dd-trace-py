@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-import logging
 import os
 from pathlib import Path
 import subprocess
@@ -69,8 +68,7 @@ def daphne_client(django_asgi, additional_env=None):
         print("Waiting for server to start")
         client.wait(max_tries=120, delay=0.2, initial_wait=2.0)
         print("Server started")
-    except Exception as e:
-        logging.warning(e)
+    except Exception:
         raise AssertionError(
             "Server failed to start, see stdout and stderr logs"
             "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
@@ -94,7 +92,7 @@ def test_urlpatterns_include(client):
     When a view is specified using `django.urls.include`
         The view is traced
     """
-    assert client.get("/include/test/").status_code == 200
+    assert client.get("/include/test/", timeout=5).status_code == 200
 
 
 @snapshot(
@@ -259,7 +257,7 @@ def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
 def test_asgi_200(django_asgi):
     with daphne_client(django_asgi) as (client, _):
-        resp = client.get("/")
+        resp = client.get("/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"Hello, test app."
 
@@ -280,7 +278,7 @@ def test_asgi_200_simple_app():
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_traced_simple_app():
     with daphne_client("channels_application") as (client, _):
-        resp = client.get("/traced-simple-asgi-app/")
+        resp = client.get("/traced-simple-asgi-app/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"Hello World. It's me simple asgi app"
 
@@ -308,7 +306,7 @@ def test_asgi_500():
 def test_templates_enabled():
     """Default behavior to compare with disabled variant"""
     with daphne_client("application") as (client, _):
-        resp = client.get("/template-view/")
+        resp = client.get("/template-view/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"some content\n"
 
@@ -323,7 +321,7 @@ def test_templates_enabled():
 def test_templates_disabled():
     """Template instrumentation disabled"""
     with daphne_client("application", additional_env={"DD_DJANGO_INSTRUMENT_TEMPLATES": "false"}) as (client, _):
-        resp = client.get("/template-view/")
+        resp = client.get("/template-view/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"some content\n"
 
