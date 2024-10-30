@@ -768,6 +768,154 @@ venv = Venv(
                 ),
             ],
         ),
+        # Django  Python version support
+        # 2.2     3.5, 3.6, 3.7, 3.8  3.9
+        # 3.2     3.6, 3.7, 3.8, 3.9, 3.10
+        # 4.0     3.8, 3.9, 3.10
+        # 4.1     3.8, 3.9, 3.10, 3.11
+        # 4.2     3.8, 3.9, 3.10, 3.11
+        # 5.0     3.10, 3.11, 3.12
+        # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
+        Venv(
+            name="django",
+            command="pytest {cmdargs} tests/contrib/django",
+            pkgs={
+                "django-redis": ">=4.5,<4.6",
+                "django-pylibmc": ">=0.6,<0.7",
+                "daphne": [latest],
+                "requests": [latest],
+                "redis": ">=2.10,<2.11",
+                "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
+                "pytest-django[testing]": "==3.10.0",
+                "pylibmc": latest,
+                "python-memcached": latest,
+                "pytest-randomly": latest,
+                "django-q": latest,
+                "spyne": latest,
+                "zeep": latest,
+            },
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
+            venvs=[
+                Venv(
+                    # django dropped support for Python 3.6/3.7 in 4.0
+                    pys=select_pys(max_version="3.7"),
+                    pkgs={
+                        "django": "~=3.2",
+                        "channels": ["~=3.0", latest],
+                    },
+                ),
+                Venv(
+                    # django dropped support for Python 3.8/3.9 in 5.0
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "django": ["~=4.0"],
+                        "channels": latest,
+                    },
+                ),
+                Venv(
+                    # django started supporting psycopg3 in 4.2 for versions >3.1.8
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": ["~=4.2"],
+                        "psycopg": latest,
+                        "channels": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="django_hosts",
+            command="pytest {cmdargs} tests/contrib/django_hosts",
+            pkgs={
+                "pytest-django[testing]": [
+                    "==3.10.0",
+                ],
+                "pytest-randomly": latest,
+                "setuptools": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "django_hosts": "~=4.0",
+                        "django": "~=3.2",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django_hosts": ["~=5.0", latest],
+                        "django": "~=4.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="djangorestframework",
+            command="pytest {cmdargs} tests/contrib/djangorestframework",
+            pkgs={
+                "pytest-django[testing]": "==3.10.0",
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    # djangorestframework dropped support for Django 2.x in 3.14
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "django": ">=2.2,<2.3",
+                        "djangorestframework": ["==3.12.4", "==3.13.1"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "django": "~=3.2",
+                        "djangorestframework": ">=3.11,<3.12",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": "~=4.0",
+                        "djangorestframework": ["~=3.13", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="django_celery",
+            command="pytest {cmdargs} tests/contrib/django_celery",
+            pkgs={
+                # The test app was built with Django 2. We don't need to test
+                # other versions as the main purpose of these tests is to ensure
+                # an error-free interaction between Django and Celery. We find
+                # that we currently have no reasons for expanding this matrix.
+                "celery": latest,
+                "gevent": latest,
+                "requests": latest,
+                "typing-extensions": latest,
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pkgs={
+                        "sqlalchemy": "~=1.2.18",
+                        "django": "==2.2.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "sqlalchemy": latest,
+                        "django": latest,
+                    },
+                ),
+            ],
+        ),
         Venv(
             name="dramatiq",
             command="pytest {cmdargs} tests/contrib/dramatiq",
