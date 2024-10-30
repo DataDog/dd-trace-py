@@ -988,7 +988,13 @@ def test_flask_packages_propagation(package, venv, printer):
 
     package.install(venv)
     with flask_server(
-        python_cmd=venv, iast_enabled="true", remote_configuration_enabled="false", token=None, port=_TEST_PORT
+        python_cmd=venv,
+        iast_enabled="true",
+        remote_configuration_enabled="false",
+        token=None,
+        port=_TEST_PORT,
+        # assert_debug=True,  # DEV: uncomment to debug propagation
+        # manual_propagation=True,  # DEV: uncomment to debug propagation
     ) as context:
         _, client, pid = context
         response = client.get(package.url_propagation)
