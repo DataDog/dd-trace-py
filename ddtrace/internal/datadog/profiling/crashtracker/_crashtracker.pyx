@@ -17,6 +17,7 @@ cdef extern from "<string_view>" namespace "std" nogil:
 # For now, the crashtracker code is bundled in the libdatadog Profiling FFI.
 # This is primarily to reduce binary size.
 cdef extern from "crashtracker_interface.hpp":
+    const char *crashtracker_get_exe_name()
     void crashtracker_set_url(string_view url)
     void crashtracker_set_service(string_view service)
     void crashtracker_set_env(string_view env)
@@ -150,9 +151,10 @@ def set_tag(key: StringType, value: StringType) -> None:
 
 
 def start() -> bool:
-    # The file is "crashtracker_exe" in the same directory as the libdd_wrapper.so
+    crashtracker_filename_raw = crashtracker_get_exe_name()
+    crashtracker_filename = crashtracker_filename_raw.decode("utf-8")
     exe_dir = os.path.dirname(__file__)
-    crashtracker_path = os.path.join(exe_dir, "crashtracker_exe")
+    crashtracker_path = os.path.join(exe_dir, crashtracker_filename)
     crashtracker_path_bytes = ensure_binary_or_empty(crashtracker_path)
     bin_exists = crashtracker_set_receiver_binary_path(
         string_view(<const char*>crashtracker_path_bytes, len(crashtracker_path_bytes))

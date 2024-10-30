@@ -66,6 +66,7 @@ from tests.appsec.iast_packages.packages.pkg_pynacl import pkg_pynacl
 from tests.appsec.iast_packages.packages.pkg_pyopenssl import pkg_pyopenssl
 from tests.appsec.iast_packages.packages.pkg_pyparsing import pkg_pyparsing
 from tests.appsec.iast_packages.packages.pkg_python_dateutil import pkg_python_dateutil
+from tests.appsec.iast_packages.packages.pkg_python_multipart import pkg_python_multipart
 from tests.appsec.iast_packages.packages.pkg_pytz import pkg_pytz
 from tests.appsec.iast_packages.packages.pkg_pyyaml import pkg_pyyaml
 from tests.appsec.iast_packages.packages.pkg_requests import pkg_requests
@@ -144,6 +145,7 @@ app.register_blueprint(pkg_pynacl)
 app.register_blueprint(pkg_pyopenssl)
 app.register_blueprint(pkg_pyparsing)
 app.register_blueprint(pkg_python_dateutil)
+app.register_blueprint(pkg_python_multipart)
 app.register_blueprint(pkg_pytz)
 app.register_blueprint(pkg_pyyaml)
 app.register_blueprint(pkg_requests)
@@ -193,6 +195,20 @@ def iast_cmdi_vulnerability():
     resp = Response("OK")
     resp.set_cookie("insecure", "cookie", secure=True, httponly=True, samesite="None")
     return resp
+
+
+@app.route("/iast-weak-hash-vulnerability", methods=["GET"])
+def iast_weak_hash_vulnerability():
+    import _md5
+
+    m = _md5.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+    from ddtrace.internal import telemetry
+
+    list_metrics_logs = list(telemetry.telemetry_writer._logs)
+    return str(list_metrics_logs)
 
 
 @app.route("/iast-ast-patching-import-error", methods=["GET"])

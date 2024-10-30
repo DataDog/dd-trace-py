@@ -80,11 +80,9 @@ PYBIND11_MODULE(_native, m)
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");
     atexit_register(py::cpp_function([]() {
-        initializer->reset_context();
+        initializer->reset_contexts();
         initializer.reset();
     }));
-
-    initializer->create_context();
 
     m.doc() = "Native Python module";
 

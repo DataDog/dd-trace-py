@@ -1,6 +1,7 @@
 #include "cast_to_pyfunc.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
+#include "thread_span_links.hpp"
 
 #include <mutex>
 #include <unordered_map>
@@ -83,12 +84,53 @@ stack_v2_thread_unregister(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+_stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    (void)self;
+    uint64_t thread_id;
+    uint64_t span_id;
+    uint64_t local_root_span_id;
+    const char* span_type = nullptr;
+
+    PyThreadState* state = PyThreadState_Get();
+
+    if (!state) {
+        return NULL;
+    }
+
+    thread_id = state->thread_id;
+
+    static const char* const_kwlist[] = { "span_id", "local_root_span_id", "span_type", NULL };
+    static char** kwlist = const_cast<char**>(const_kwlist);
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "KKz", kwlist, &span_id, &local_root_span_id, &span_type)) {
+        return NULL;
+    }
+
+    // From Python, span_type is a string or None, and when given None, it is passed as a nullptr.
+    static const std::string empty_string = "";
+    if (span_type == nullptr) {
+        span_type = empty_string.c_str();
+    }
+
+    ThreadSpanLinks::get_instance().link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
+
+    Py_RETURN_NONE;
+}
+
+PyCFunction stack_v2_link_span = cast_to_pycfunction(_stack_v2_link_span);
+
 static PyMethodDef _stack_v2_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_v2_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_v2_stop, METH_VARARGS, "Stop the sampler" },
     { "register_thread", stack_v2_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_v2_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_v2_set_interval, METH_VARARGS, "Set the sampling interval" },
+    { "link_span",
+      reinterpret_cast<PyCFunction>(stack_v2_link_span),
+      METH_VARARGS | METH_KEYWORDS,
+      "Link a span to a thread" },
     { NULL, NULL, 0, NULL }
 };
 
