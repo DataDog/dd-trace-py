@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: Support added for session fingerprints.

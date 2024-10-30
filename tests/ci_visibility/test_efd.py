@@ -163,7 +163,7 @@ class TestCIVisibilityTestEFD:
             for test_result in retry_results:
                 expected_num_retry += 1
                 added_retry_number = efd_test.efd_add_retry(start_immediately=True)
-                assert added_retry_number
+                assert added_retry_number == expected_num_retry
                 efd_test.efd_finish_retry(added_retry_number, test_result)
             assert efd_test.efd_get_final_status() == expected_statuses[0]
             assert efd_test.get_status() == expected_statuses[1]
@@ -173,6 +173,8 @@ class TestCIVisibilityTestEFD:
             name="efd_test",
             session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(False)),
         )
+        efd_test.start()
+        efd_test.finish_test(TestStatus.FAIL)
         assert efd_test.efd_should_retry() is False
 
     @pytest.mark.parametrize("faulty_session_threshold,expected_faulty", ((None, False), (10, True), (40, False)))
