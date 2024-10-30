@@ -55,6 +55,8 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
         if not all(isinstance(k, str) for k in ctx_variable_keys):
             raise TypeError("Prompt `context_variable_keys` must be a list of strings.")
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ctx_variable_keys
+    else:
+        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ["context"]
     return validated_prompt
 
 
