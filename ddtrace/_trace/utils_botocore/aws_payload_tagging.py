@@ -59,36 +59,90 @@ class AWSPayloadTagging:
         Redact sensitive data in the JSON payload based on default and user-provided JSONPath expressions
         """
         # TODO should we cache these paths and generated lists?
-        request_redaction = self._get_redaction_paths(config.botocore.get("payload_tagging_request"))
-        response_redaction = self._get_redaction_paths(config.botocore.get("payload_tagging_response"))    
+        request_redaction = self._get_redaction_paths_request(config.botocore.get("payload_tagging_request"))
+        response_redaction = self._get_redaction_paths_response(config.botocore.get("payload_tagging_response"))
         for path in request_redaction + response_redaction:
             expression = parse(path)
             for match in expression.find(data):
                 match.context.value[match.path.fields[0]] = "redacted"
 
-    def _get_redaction_paths(self, user_paths: Optional[str]) -> list:
+    def _get_redaction_paths_default(self) -> list:
         """
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
-        # TODO - I'm treating the defaults as the same for request/response
         # Note: these need to be recursive ".." to ensure that we handle batches
         #       maybe we could do this better though without recursive paths?
         defaults = [
-            "$..MessageAttributes.*", # TODO remove this one, as it is for testing!
+            # SNS
             "$..Attributes.KmsMasterKeyId",
+            "$..Attributes.Token",
+            # EventBridge
+            "$..AuthParameters.OAuthParameters.OAuthHttpParameters.HeaderParameters[*].Value",
+            "$..AuthParameters.OAuthParameters.OAuthHttpParameters.QueryStringParameters[*].Value",
+            "$..AuthParameters.OAuthParameters.OAuthHttpParameters.BodyParameters[*].Value",
+            "$..AuthParameters.InvocationHttpParameters.HeaderParameters[*].Value",
+            "$..AuthParameters.InvocationHttpParameters.QueryStringParameters[*].Value",
+            "$..AuthParameters.InvocationHttpParameters.BodyParameters[*].Value",
+            "$..Targets[*].RedshiftDataParameters.Sql",
+            "$..Targets[*].RedshiftDataParameters.Sqls",
+            "$..Targets[*].AppSyncParameters.GraphQLOperation",
+            # // S3
+            "$..SSEKMSKeyId",
+            "$..SSEKMSEncryptionContext",
+        ]
+
+        return defaults
+
+    def _get_redaction_paths_response(self, user_paths: Optional[str]) -> list:
+        """
+        Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
+        """
+        # Note: these need to be recursive ".." to ensure that we handle batches
+        #       maybe we could do this better though without recursive paths?
+        response_defaults = [
+            # // Sns
+            "$..Endpoints.*.Token",
+            "$..PlatformApplication.*.PlatformCredential",
+            "$..PlatformApplication.*.PlatformPrincipal",
+            "$..Subscriptions.*.Endpoint",
+            "$..PhoneNumbers[*].PhoneNumber",
+            "$..phoneNumbers[*]",
+            # // S3
+            "$..Credentials.SecretAccessKey",
+            "$..Credentials.SessionToken",
+        ]
+        if user_paths and user_paths != "all": # "all" is a special value that just enables the expansion and uses defaults
+            return response_defaults + self._get_redaction_paths_default() + user_paths.split(',')
+        return response_defaults + self._get_redaction_paths_default()
+
+    def _get_redaction_paths_request(self, user_paths: Optional[str]) -> list:
+        """
+        Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
+        """
+        # Note: these need to be recursive ".." to ensure that we handle batches
+        #       maybe we could do this better though without recursive paths?
+        request_defaults = [
+            # Sns
             "$..Attributes.PlatformCredential",
             "$..Attributes.PlatformPrincipal",
-            "$..Attributes.Token",
             "$..AWSAccountId",
             "$..Endpoint",
+            "$..Token",
             "$..OneTimePassword",
             "$..phoneNumber",
             "$..PhoneNumber",
-            "$..Token"
+            # EventBridge
+            "$..AuthParameters.BasicAuthParameters.Password",
+            "$..AuthParameters.OAuthParameters.ClientParameters.ClientSecret",
+            "$..AuthParameters.ApiKeyAuthParameters.ApiKeyValue",
+            # S3
+            "$..SSECustomerKey",
+            "$..CopySourceSSECustomerKey",
+            "$..RestoreRequest.OutputLocation.S3.Encryption.KMSKeyId"
         ]
         if user_paths and user_paths != "all": # "all" is a special value that just enables the expansion and uses defaults
-            return defaults + user_paths.split(',')
-        return defaults
+            return request_defaults + self._get_redaction_paths_default() + user_paths.split(',')
+        return request_defaults + self._get_redaction_paths_default()
 
     def _tag_object(self, span: Span, key: str, obj: Any, depth: int = 0) -> None:
         """
