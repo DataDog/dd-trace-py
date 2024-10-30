@@ -104,7 +104,7 @@ class ProbeFactory(object):
 
         args["module"] = where.get("type") or where["typeName"]
         args["func_qname"] = where.get("method") or where["methodName"]
-        if isinstance(cls.__function_class__, TimingMixin):
+        if issubclass(cls.__function_class__, TimingMixin):
             args["evaluate_at"] = ProbeEvalTiming[attribs.get("evaluateAt", "DEFAULT")]
 
         return cls.__function_class__(**args)
@@ -242,7 +242,7 @@ def get_probes(config: dict, status_logger: ProbeStatusLogger) -> Iterable[Probe
         raise
     except Exception as e:
         status_logger.error(
-            probe=Probe(probe_id=config["id"], version=config["version"], tags={}),
+            probe=Probe(probe_id=config["id"], version=config.get("version", 0), tags={}),
             error=(type(e).__name__, str(e)),
         )
         return []
