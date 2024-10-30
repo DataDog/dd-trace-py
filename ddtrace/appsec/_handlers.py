@@ -301,7 +301,12 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
         http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
         http_req.POST = taint_structure(http_req.POST, OriginType.BODY, OriginType.BODY)
-        if getattr(http_req, "_body", None) is not None and not is_pyobject_tainted(getattr(http_req, "_body", None)):
+
+        if (
+            getattr(http_req, "_body", None) is not None
+            and len(getattr(http_req, "_body", None)) > 0
+            and not is_pyobject_tainted(getattr(http_req, "_body", None))
+        ):
             try:
                 http_req._body = taint_pyobject(
                     http_req._body,
@@ -311,7 +316,11 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                 )
             except AttributeError:
                 log.debug("IAST can't set attribute http_req._body", exc_info=True)
-        elif getattr(http_req, "body", None) is not None and not is_pyobject_tainted(getattr(http_req, "body", None)):
+        elif (
+            getattr(http_req, "body", None) is not None
+            and len(getattr(http_req, "body", None)) > 0
+            and not is_pyobject_tainted(getattr(http_req, "body", None))
+        ):
             try:
                 http_req.body = taint_pyobject(
                     http_req.body,

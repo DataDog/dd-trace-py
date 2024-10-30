@@ -1,4 +1,6 @@
+import io
 import json
+import logging
 import sys
 import typing
 
@@ -6,6 +8,7 @@ from fastapi import Cookie
 from fastapi import Form
 from fastapi import Header
 from fastapi import Request
+from fastapi import UploadFile
 from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
 import pytest
@@ -41,6 +44,23 @@ def _aux_appsec_prepare_tracer(tracer):
 
 def get_response_body(response):
     return response.text
+
+
+@pytest.fixture(autouse=True)
+def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_writer):
+    if "skip_iast_check_logs" in request.keywords:
+        yield
+    else:
+        caplog.set_level(logging.DEBUG)
+        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+            yield
+
+        log_messages = [record.msg for record in caplog.get_records("call")]
+        for message in log_messages:
+            if "[IAST] " in message:
+                pytest.fail(message)
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
 
 def test_query_param_source(fastapi_application, client, tracer, test_spans):
@@ -463,6 +483,37 @@ def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spa
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 8
         assert result["ranges_origin"] == "http.request.body"
+
+
+@pytest.mark.skipif(fastapi_version < (0, 65, 0), reason="UploadFile not supported")
+def test_path_body_body_upload(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/uploadfile/")
+    async def create_upload_file(files: typing.List[UploadFile]):
+        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+
+        ranges_result = get_tainted_ranges(files[0])
+        return JSONResponse(
+            {
+                "filenames": [file.filename for file in files],
+                "is_tainted": len(ranges_result),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(IAST_ENV):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        tmp = io.BytesIO(b"upload this")
+        resp = client.post(
+            "/uploadfile/",
+            files=(
+                ("files", ("test.txt", tmp)),
+                ("files", ("test2.txt", tmp)),
+            ),
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["filenames"] == ["test.txt", "test2.txt"]
+        assert result["is_tainted"] == 0
 
 
 def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans):

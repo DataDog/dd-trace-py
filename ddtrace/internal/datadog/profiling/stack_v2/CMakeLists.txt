@@ -20,9 +20,18 @@ include(FindCppcheck)
 # but whether or not we keep that design is unknown.  Hack it for now.
 add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
 
+find_package(Python3 COMPONENTS Interpreter Development)
+
 # Make sure we have necessary Python variables
 if (NOT Python3_INCLUDE_DIRS)
   message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
+endif()
+
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
+if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
+    message(FATAL_ERROR "pthread compatible library not found")
 endif()
 
 # Add echion
@@ -38,11 +47,7 @@ if(NOT echion_POPULATED)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED
-    src/sampler.cpp
-    src/stack_renderer.cpp
-    src/stack_v2.cpp
-)
+add_library(${EXTENSION_NAME} SHARED src/sampler.cpp src/stack_renderer.cpp src/stack_v2.cpp src/thread_span_links.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
@@ -94,9 +99,12 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # RPATH is needed for sofile discovery at runtime, since Python packages are not
 # installed in the system path. This is typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
-target_link_libraries(${EXTENSION_NAME} PRIVATE
-    dd_wrapper
-)
+
+target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads)
+
+if(Python3_LIBRARIES)
+    target_link_libraries(${EXTENSION_NAME} PRIVATE ${Python3_LIBRARIES})
+endif()
 
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -109,3 +117,9 @@ if (LIB_INSTALL_DIR)
         RUNTIME DESTINATION ${LIB_INSTALL_DIR}
     )
 endif()
+
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(test)
+endif()
+

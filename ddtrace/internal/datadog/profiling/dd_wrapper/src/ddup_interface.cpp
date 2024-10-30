@@ -1,4 +1,6 @@
 #include "ddup_interface.hpp"
+
+#include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "sample.hpp"
@@ -21,6 +23,7 @@ ddup_postfork_child()
 {
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
+    Datadog::CodeProvenance::postfork_child();
 }
 
 void
@@ -269,6 +272,12 @@ void
 ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
     sample->flush_sample();
+}
+
+void
+ddup_flush_sample_v2(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
+{
+    sample->flush_sample(/*reverse_locations*/ true);
 }
 
 void

@@ -128,9 +128,12 @@ def retrieve_task_id(context):
     """
     headers = context.get("headers")
     body = context.get("body")
-    if headers:
+    # Check if the id is in the headers, then check the body for it.
+    # If we don't check the id first, we could wrongly assume no task_id
+    # when the task_id is in the body.
+    if headers and "id" in headers:
         # Protocol Version 2 (default from Celery 4.0)
         return headers.get("id")
-    else:
+    elif body and "id" in body:
         # Protocol Version 1
         return body.get("id")
