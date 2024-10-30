@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.utils_botocore.aws_payload_tagging import AWSPayloadTagging
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -31,6 +32,10 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         if params and not config.botocore["tag_no_params"]:
             aws._add_api_param_span_tags(span, endpoint_name, params)
 
+        if params and config.botocore["payload_tagging_request"] is not None and config.botocore["payload_tagging_request"].replace(" ", "") != "":
+            payload_tagger = AWSPayloadTagging() # TODO where do I put this?
+            payload_tagger.expand_payload_as_tags(span, params, "aws.request.body")
+
     else:
         span.resource = endpoint_name
 
@@ -53,6 +58,10 @@ def set_botocore_response_metadata_tags(
     if not result or not result.get("ResponseMetadata"):
         return
     response_meta = result["ResponseMetadata"]
+
+    if config.botocore["payload_tagging_response"] is not None and config.botocore["payload_tagging_response"].replace(" ", "") != "":
+        payload_tagger = AWSPayloadTagging() # TODO where do I put this?
+        payload_tagger.expand_payload_as_tags(span, response_meta, "aws.response.body")
 
     if "HTTPStatusCode" in response_meta:
         status_code = response_meta["HTTPStatusCode"]
