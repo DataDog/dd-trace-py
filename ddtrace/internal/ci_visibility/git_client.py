@@ -108,7 +108,7 @@ class CIVisibilityGitClient(object):
         # type: (Optional[str]) -> Optional[str]
         try:
             return extract_workspace_path(cwd=cwd)
-        except ValueError:
+        except (FileNotFoundError, ValueError):
             return None
 
     def upload_git_metadata(self, cwd=None):
