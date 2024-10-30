@@ -19,7 +19,6 @@ ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_
         it->second->span_id = span_id;
         it->second->local_root_span_id = local_root_span_id;
         it->second->span_type = span_type;
-        it->second->unseen_count = g_default_unseen_count;
     }
 }
 
@@ -37,25 +36,11 @@ ThreadSpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
 }
 
 void
-ThreadSpanLinks::clear_unseen(const std::unordered_set<uint64_t>& seen_native_thread_ids)
+ThreadSpanLinks::unlink_span(uint64_t thread_id)
 {
-    // DEV: Note that this way of clearing the unseen threads could lead to
-    // missing some threads that are still active but not seen in current set
-    // of samples.
     std::lock_guard<std::mutex> lock(mtx);
 
-    for (auto it = thread_id_to_span.begin(); it != thread_id_to_span.end();) {
-        if (seen_native_thread_ids.find(it->first) == seen_native_thread_ids.end()) {
-            it->second->unseen_count--;
-            if (it->second->unseen_count == 0) {
-                it = thread_id_to_span.erase(it);
-            } else {
-                ++it;
-            }
-        } else {
-            ++it;
-        }
-    }
+    thread_id_to_span.erase(thread_id); // This is a no-op if the key is not found
 }
 
 void
