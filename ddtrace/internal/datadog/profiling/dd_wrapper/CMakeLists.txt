@@ -20,6 +20,13 @@ include(FindCppcheck)
 include(FindInfer)
 include(CheckSymbolExists)
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
+if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
+    message(FATAL_ERROR "pthread compatible library not found")
+endif()
+
 # Library sources
 add_library(dd_wrapper SHARED
     src/uploader_builder.cpp
@@ -46,9 +53,7 @@ target_include_directories(dd_wrapper PRIVATE
     ${Datadog_INCLUDE_DIRS}
 )
 
-target_link_libraries(dd_wrapper PRIVATE
-    ${Datadog_LIBRARIES}
-)
+target_link_libraries(dd_wrapper PRIVATE ${Datadog_LIBRARIES} Threads::Threads)
 
 # Figure out the suffix.  Try to approximate the cpython way of doing things.
 ## C library
