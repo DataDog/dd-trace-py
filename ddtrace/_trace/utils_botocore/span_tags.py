@@ -15,7 +15,7 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import deep_getattr
 
-payload_tagging_endpoints =  {"s3", "sns", "sqs", "apigateway", "kinesis", "eventbridge"}
+payload_tagging_endpoints =  {"s3", "sns", "sqs", "kinesis", "eventbridge"}
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
     span.set_tag_str(COMPONENT, config.botocore.integration_name)
