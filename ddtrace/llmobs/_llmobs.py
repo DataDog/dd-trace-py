@@ -3,7 +3,6 @@ import os
 import time
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -268,38 +267,6 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
-
-    @classmethod
-    def using_prompt(
-        cls,
-        prompt_id: Optional[str] = None,
-        template: Optional[str] = None,
-        variables: Optional[Dict] = None,
-        context_variable_keys: Optional[List[str]] = None,
-        tags: Optional[Dict[str, object]] = None,
-    ):
-        """
-        Sets LLM-specific attributes on LLMObs spans created while the returned context is active.
-        Annotations are applied in the order in which contexts are entered.
-
-        :param str name: span names of any LLM spans started within the returned context
-        :param dict prompt: A dictionary that represents the prompt used for an LLM call in the following form:
-                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
-                        Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
-        :param list context_variable_keys: list of variable names in the prompt that hold ground truth
-                                            context information
-        """
-        if context_variable_keys is None:
-            context_variable_keys = ["context"]
-        return cls.annotation_context(
-            prompt={
-                "id": prompt_id,
-                "template": template,
-                "variables": variables,
-                "_dd_context_variable_keys": context_variable_keys,
-            },
-            tags=tags,
-        )
 
     @classmethod
     def annotation_context(

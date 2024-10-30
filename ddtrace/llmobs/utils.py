@@ -21,7 +21,7 @@ Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": 
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
 Prompt = TypedDict(
     "Prompt",
-    {"variables": Dict[str, str], "template": str, "id": str, "version": str, "_dd_context_variable_keys": List[str]},
+    {"variables": Dict[str, str], "template": str, "id": str, "version": str, "context_variable_keys": List[str]},
     total=False,
 )
 

@@ -10,6 +10,7 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
@@ -29,7 +30,7 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
     template = prompt.get("template")
     version = prompt.get("version")
     prompt_id = prompt.get("id")
-    ctx_variable_keys = prompt.get("_dd_context_variable_keys")
+    ctx_variable_keys = prompt.get("context_variable_keys")
     if variables is not None:
         if not isinstance(variables, dict):
             raise TypeError("Prompt variables must be a dictionary.")
@@ -53,7 +54,7 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
             raise TypeError("Prompt `context_variable_keys` must be a list.")
         if not all(isinstance(k, str) for k in ctx_variable_keys):
             raise TypeError("Prompt `context_variable_keys` must be a list of strings.")
-        validated_prompt["_dd_context_variable_keys"] = ctx_variable_keys
+        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ctx_variable_keys
     return validated_prompt
 
 
