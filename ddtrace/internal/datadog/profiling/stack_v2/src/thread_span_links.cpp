@@ -12,12 +12,15 @@ ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_
 {
     std::lock_guard<std::mutex> lock(mtx);
 
-    if (thread_id_to_span.find(thread_id) == thread_id_to_span.end()) {
+    auto it = thread_id_to_span.find(thread_id);
+    if (it == thread_id_to_span.end()) {
         thread_id_to_span[thread_id] = std::make_unique<Span>(span_id, local_root_span_id, span_type);
+    } else {
+        it->second->span_id = span_id;
+        it->second->local_root_span_id = local_root_span_id;
+        it->second->span_type = span_type;
+        it->second->unseen_count = g_default_unseen_count;
     }
-    thread_id_to_span[thread_id]->span_id = span_id;
-    thread_id_to_span[thread_id]->local_root_span_id = local_root_span_id;
-    thread_id_to_span[thread_id]->span_type = span_type;
 }
 
 const std::optional<Span>
@@ -43,7 +46,12 @@ ThreadSpanLinks::clear_unseen(const std::unordered_set<uint64_t>& seen_native_th
 
     for (auto it = thread_id_to_span.begin(); it != thread_id_to_span.end();) {
         if (seen_native_thread_ids.find(it->first) == seen_native_thread_ids.end()) {
-            it = thread_id_to_span.erase(it);
+            it->second->unseen_count--;
+            if (it->second->unseen_count == 0) {
+                it = thread_id_to_span.erase(it);
+            } else {
+                ++it;
+            }
         } else {
             ++it;
         }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "constants.hpp"
+
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -15,12 +17,14 @@ struct Span
     uint64_t span_id;
     uint64_t local_root_span_id;
     std::string span_type;
+    unsigned int unseen_count;
 
     Span(uint64_t _span_id, uint64_t _local_root_span_id, std::string _span_type)
       : span_id(_span_id)
       , local_root_span_id(_local_root_span_id)
       , span_type(_span_type)
     {
+        unseen_count = g_default_unseen_count;
     }
 
     // for testing
