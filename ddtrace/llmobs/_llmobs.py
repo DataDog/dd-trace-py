@@ -272,7 +272,7 @@ class LLMObs(Service):
     @classmethod
     def using_prompt(
         cls,
-        name: str,
+        prompt_id: Optional[str] = None,
         template: Optional[str] = None,
         variables: Optional[Dict] = None,
         context_variable_keys: Optional[List[str]] = None,
@@ -292,9 +292,8 @@ class LLMObs(Service):
         if context_variable_keys is None:
             context_variable_keys = ["context"]
         return cls.annotation_context(
-            name=name,
             prompt={
-                "id": name,
+                "id": prompt_id,
                 "template": template,
                 "variables": variables,
                 "_dd_context_variable_keys": context_variable_keys,
