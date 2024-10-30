@@ -1,5 +1,7 @@
 from typing import Callable
+
 from ddtrace.propagation.http import HTTPPropagator
+
 
 def extract_DD_context_from_messages(messages, extract_from_message: Callable):
     ctx = None
@@ -11,4 +13,3 @@ def extract_DD_context_from_messages(messages, extract_from_message: Callable):
             if child_of.trace_id is not None:
                 ctx = child_of
     return ctx
-
