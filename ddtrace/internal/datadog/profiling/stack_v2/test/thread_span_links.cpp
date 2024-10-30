@@ -1,3 +1,7 @@
+#include "thread_span_links.hpp"
+
+#include "constants.hpp"
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -6,8 +10,6 @@
 #include <string>
 #include <thread>
 #include <unordered_set>
-
-#include "thread_span_links.hpp"
 
 static void
 get()
@@ -72,7 +74,9 @@ TEST(ThreadSpanLinks, ClearUnSeen)
         }
     }
 
-    Datadog::ThreadSpanLinks::get_instance().clear_unseen(seen_thread_ids);
+    for (unsigned int i = 0; i < g_default_unseen_count; ++i) {
+        Datadog::ThreadSpanLinks::get_instance().clear_unseen(seen_thread_ids);
+    }
 
     // Check that the unseen ids are removed
     for (auto thread_id : thread_ids) {
