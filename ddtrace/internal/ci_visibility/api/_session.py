@@ -49,6 +49,8 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         self._efd_is_faulty_session: Optional[bool] = None
         self._efd_has_efd_failed_tests: bool = False
 
+        self._atr_total_retries: int = 0
+
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
 
     def _get_hierarchy_tags(self) -> Dict[str, Any]:
@@ -152,3 +154,15 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
                     if _test.efd_has_retries() and _test.efd_get_final_status() == EFDTestStatus.ALL_FAIL:
                         return True
         return False
+
+    #
+    # ATR (Auto Test Retries , AKA Flaky Test Retries) functionality
+    #
+    def atr_is_enabled(self) -> bool:
+        return self._session_settings.atr_settings.enabled
+
+    def atr_max_retries_reached(self) -> bool:
+        return self._atr_total_retries >= self._session_settings.atr_settings.max_session_total_retries
+
+    def _atr_count_retry(self):
+        self._atr_total_retries += 1
