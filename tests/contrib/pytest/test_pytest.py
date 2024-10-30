@@ -35,7 +35,10 @@ from tests.utils import override_env
 
 
 def _get_spans_from_list(
-    spans: t.List[ddtrace.Span], span_type: str, name: t.Optional[str] = None, status: t.Optional[str] = None
+    spans: t.List[ddtrace.Span],
+    span_type: str,
+    name: str = None,
+    status: t.Optional[str] = None,
 ) -> t.List[ddtrace.Span]:
     _names_map = {
         "session": ("test_session_end",),
@@ -48,7 +51,7 @@ def _get_spans_from_list(
         raise ValueError("Cannot get session spans with a name")
 
     target_type = _names_map[span_type][0]
-    target_name = _names_map[span_type][1] if name else None
+    target_name = _names_map[span_type][1] if name is not None else None
 
     selected_spans = []
 
@@ -75,7 +78,7 @@ def _fetch_test_to_skip_side_effect(itr_data):
     return _
 
 
-class PytestTestCase(TracerTestCase):
+class PytestTestCaseBase(TracerTestCase):
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch, git_repo):
         self.testdir = testdir
@@ -107,6 +110,11 @@ class PytestTestCase(TracerTestCase):
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
                         CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
 
+            @staticmethod
+            def pytest_unconfigure(config):
+                if CIVisibility.enabled:
+                    CIVisibility.disable()
+
         if project_dir is None:
             project_dir = str(self.testdir.tmpdir)
 
@@ -128,6 +136,8 @@ class PytestTestCase(TracerTestCase):
         with _ci_override_env(_base_env):
             return self.testdir.runpytest_subprocess(*args)
 
+
+class PytestTestCase(PytestTestCaseBase):
     def test_and_emit_get_version(self):
         version = get_version()
         assert isinstance(version, str)
@@ -4076,7 +4086,11 @@ class PytestTestCase(TracerTestCase):
             )
 
         self.testdir.chdir()
-        with mock.patch("ddtrace.ext.git._get_executable_path", return_value=None):
+        with mock.patch("ddtrace.ext.git._get_executable_path", return_value=None), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(),
+        ) as mock_ddconfig:
+            mock_ddconfig._ci_visibility_agentless_enabled = True
             self.inline_run("--ddtrace")
 
             spans = self.pop_spans()

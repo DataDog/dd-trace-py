@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes unnecessary logging of an exception that would appear when trying to upload git metadata in
+    an environment without functioning git (eg: missing ``git`` binary or ``.git`` directory)

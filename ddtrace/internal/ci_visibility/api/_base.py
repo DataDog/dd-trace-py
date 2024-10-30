@@ -37,6 +37,7 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
@@ -68,7 +69,8 @@ class TestVisibilitySessionSettings:
     itr_test_skipping_level: Optional[ITR_SKIPPING_LEVEL] = None
     itr_correlation_id: str = ""
     coverage_enabled: bool = False
-    efd_settings: Optional[EarlyFlakeDetectionSettings] = None
+    efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
+    atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
@@ -428,11 +430,9 @@ class TestVisibilityItemBase(abc.ABC):
         for tag in tags:
             self._tags[tag] = tags[tag]
 
-    @_require_not_finished
     def get_tag(self, tag_name: str) -> Any:
         return self._tags.get(tag_name)
 
-    @_require_not_finished
     def get_tags(self, tag_names: List[str]) -> Dict[str, Any]:
         tags = {}
         for tag_name in tag_names:
