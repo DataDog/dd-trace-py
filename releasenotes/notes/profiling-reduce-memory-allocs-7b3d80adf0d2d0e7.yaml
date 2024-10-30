@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue where the profiler was allocating too much memory
+    from ``ensure_binary_or_empty()`` function, on Python versions before 3.12.
