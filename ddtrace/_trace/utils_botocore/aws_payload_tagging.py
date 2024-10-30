@@ -24,9 +24,6 @@ INCOMPLETE_TAG = "_dd.payload_tags_incomplete" # Set to True if MAX_TAGS is reac
 
 class AWSPayloadTagging:
     def __init__(self):
-        # TODO is this _total_ tags for the span or is this _total_ expanded tags that we added?
-        # TODO is this a limit on the backend or something?
-        # currently treating this as the maximum number of tags we will add from the JSON
         self.current_tag_count = 0
 
     def expand_payload_as_tags(self, span: Span, result: Dict[str, Any], key: str) -> None:
@@ -153,7 +150,7 @@ class AWSPayloadTagging:
             return    
         if obj is None:
             self.current_tag_count += 1
-            span.set_tag(key, obj) # TODO does a value of None actually result in a tag?
+            span.set_tag(key, obj)
             return    
         if depth >= config.botocore.get("payload_tagging_max_depth", 10):
             self.current_tag_count += 1
