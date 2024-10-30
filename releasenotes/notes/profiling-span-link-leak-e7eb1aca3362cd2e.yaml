@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: periodically frees memory used for mapping thread id to ``Span``.
+    The mapping is used when `DD_PROFILING_ENDPOINT_COLLECTION_ENABLED``
+    and ``DD_PROFILING_STACK_V2_ENABLED`` were set to enable grouping of
+    profiles for endpoints.
