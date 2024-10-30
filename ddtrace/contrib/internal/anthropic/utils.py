@@ -1,10 +1,9 @@
-import json
 from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.anthropic import _get_attr
-from ddtrace.llmobs._utils import _unserializable_default_repr
+from ddtrace.llmobs._utils import safe_json
 
 
 log = get_logger(__name__)
@@ -39,7 +38,7 @@ def tag_tool_use_input_on_span(integration, span, chat_input, message_idx, block
     )
     span.set_tag_str(
         "anthropic.request.messages.%d.content.%d.tool_call.input" % (message_idx, block_idx),
-        integration.trunc(json.dumps(_get_attr(chat_input, "input", {}), default=_unserializable_default_repr)),
+        integration.trunc(safe_json(_get_attr(chat_input, "input", {}))),
     )
 
 
@@ -80,8 +79,7 @@ def tag_tool_use_output_on_span(integration, span, chat_completion, idx):
         span.set_tag_str("anthropic.response.completions.content.%d.tool_call.name" % idx, str(tool_name))
     if tool_inputs:
         span.set_tag_str(
-            "anthropic.response.completions.content.%d.tool_call.input" % idx,
-            integration.trunc(json.dumps(tool_inputs, default=_unserializable_default_repr)),
+            "anthropic.response.completions.content.%d.tool_call.input" % idx, integration.trunc(safe_json(tool_inputs))
         )
 
 
@@ -92,7 +90,7 @@ def tag_params_on_span(span, kwargs, integration):
             span.set_tag_str("anthropic.request.system", integration.trunc(str(v)))
         elif k not in ("messages", "model"):
             tagged_params[k] = v
-    span.set_tag_str("anthropic.request.parameters", json.dumps(tagged_params, default=_unserializable_default_repr))
+    span.set_tag_str("anthropic.request.parameters", safe_json(tagged_params))
 
 
 def _extract_api_key(instance: Any) -> Optional[str]:
