@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace Datadog {
 
@@ -20,6 +21,13 @@ struct Span
       , local_root_span_id(_local_root_span_id)
       , span_type(_span_type)
     {
+    }
+
+    // for testing
+    bool operator==(const Span& other) const
+    {
+        return span_id == other.span_id && local_root_span_id == other.local_root_span_id &&
+               span_type == other.span_type;
     }
 };
 
@@ -38,6 +46,7 @@ class ThreadSpanLinks
 
     void link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
     const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
+    void clear_unseen(const std::unordered_set<uint64_t>& seen_native_thread_ids);
     void reset();
 
     static void postfork_child();

@@ -7,6 +7,7 @@
 #include "echion/threads.h"
 
 #include <pthread.h>
+#include <unordered_set>
 
 using namespace Datadog;
 
@@ -21,12 +22,19 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
+        // Collect native thread_ids
+        std::unordered_set<uint64_t> seen_native_thread_ids;
+
         // Perform the sample
         for_each_interp([&](PyInterpreterState* interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 thread.sample(interp->id, tstate, wall_time_us);
+                seen_native_thread_ids.insert(static_cast<uint64_t>(thread.native_id));
             });
         });
+
+        // Clear thread spans link using seen native thread_ids
+        ThreadSpanLinks::get_instance().clear_unseen(seen_native_thread_ids);
 
         // Before sleeping, check whether the user has called for this thread to die.
         if (seq_num != thread_seq_num.load()) {

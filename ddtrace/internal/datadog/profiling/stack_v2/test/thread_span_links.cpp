@@ -1,7 +1,11 @@
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <optional>
+#include <random>
 #include <string>
 #include <thread>
+#include <unordered_set>
 
 #include "thread_span_links.hpp"
 
@@ -37,6 +41,50 @@ TEST(ThreadSpanLinksConcurrency, GetSetRace)
     std::thread t2(set);
     t1.join();
     t2.join();
+}
+
+TEST(ThreadSpanLinks, ClearUnSeen)
+{
+    unsigned int num_thread_ids = 100;
+    std::unordered_set<uint64_t> thread_ids;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<uint64_t> dis(0, UINT64_MAX);
+
+    // Generate random 100 native thread ids
+    for (unsigned int i = 0; i < num_thread_ids; i++) {
+        thread_ids.insert(dis(gen));
+    }
+
+    // Call link_span with the thread ids
+    for (auto thread_id : thread_ids) {
+        Datadog::ThreadSpanLinks::get_instance().link_span(thread_id, thread_id, thread_id, "test");
+    }
+
+    // Randomly select some of the to be seen with p = 0.5
+    std::unordered_set<uint64_t> seen_thread_ids;
+    std::uniform_real_distribution<double> real_dis(0, 1);
+
+    for (auto thread_id : thread_ids) {
+        if (real_dis(gen) < 0.5) {
+            seen_thread_ids.insert(thread_id);
+        }
+    }
+
+    Datadog::ThreadSpanLinks::get_instance().clear_unseen(seen_thread_ids);
+
+    // Check that the unseen ids are removed
+    for (auto thread_id : thread_ids) {
+        std::optional<Datadog::Span> span_opt =
+          Datadog::ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+        if (seen_thread_ids.find(thread_id) != seen_thread_ids.end()) {
+            EXPECT_EQ(span_opt, Datadog::Span(thread_id, thread_id, "test"));
+
+        } else {
+            EXPECT_EQ(span_opt, std::nullopt);
+        }
+    }
 }
 
 int
