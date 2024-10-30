@@ -1,6 +1,5 @@
 from typing import Callable
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace._trace.utils_botocore import AWSPayloadTagging
 
 def extract_DD_context_from_messages(messages, extract_from_message: Callable):
     ctx = None
