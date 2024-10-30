@@ -9,6 +9,8 @@ from ddtrace.contrib.pytest._retry_utils import RetryOutcomes
 from ddtrace.contrib.pytest._retry_utils import _efd_get_attempt_string
 from ddtrace.contrib.pytest._retry_utils import _retry_run_when
 from ddtrace.contrib.pytest._retry_utils import set_retry_num
+from ddtrace.contrib.pytest._types import pytest_TestReport
+from ddtrace.contrib.pytest._types import pytest_TestShortLogReport
 from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.pytest._utils import _TestOutcome
@@ -48,7 +50,7 @@ def efd_handle_retries(
     test_id: InternalTestId,
     item: pytest.Item,
     when: str,
-    original_result: _pytest.reports.TestReport,
+    original_result: pytest_TestReport,
     test_outcome: _TestOutcome,
 ):
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
@@ -87,7 +89,7 @@ def efd_handle_retries(
 
     efd_outcome = _efd_handle_retries(item)
 
-    final_report = pytest.TestReport(
+    final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
         keywords=item.keywords,
@@ -98,7 +100,7 @@ def efd_handle_retries(
     item.ihook.pytest_runtest_logreport(report=final_report)
 
 
-def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[_pytest.reports.TestReport]:
+def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest_TestReport]:
     return terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED)
 
 
@@ -358,7 +360,7 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     terminalreporter.write_sep("=", purple=True, bold=True)
 
 
-def efd_get_teststatus(report: _pytest.reports.TestReport) -> t.Optional[pytest.TestShortLogReport]:
+def efd_get_teststatus(report: pytest_TestReport) -> t.Optional[pytest_TestShortLogReport]:
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED:
         return pytest.TestShortLogReport(
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED,

@@ -40,7 +40,10 @@ def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = 
     return new_ddconfig
 
 
-def _fetch_unique_tests_side_effect(unique_test_ids: t.Set[InternalTestId]):
+def _fetch_unique_tests_side_effect(unique_test_ids: t.Optional[t.Set[InternalTestId]] = None):
+    if unique_test_ids is None:
+        unique_test_ids = set()
+
     def _side_effect():
         CIVisibility._instance._unique_test_ids = unique_test_ids
 
