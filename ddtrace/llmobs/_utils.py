@@ -1,5 +1,6 @@
 import json
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -20,14 +21,15 @@ from ddtrace.llmobs._constants import SESSION_ID
 log = get_logger(__name__)
 
 
-def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict]]:
-    validated_prompt = {}  # type: Dict[str, Union[str, dict]]
+def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
+    validated_prompt = {}  # type: Dict[str, Union[str, dict, List[str]]]
     if not isinstance(prompt, dict):
         raise TypeError("Prompt must be a dictionary")
     variables = prompt.get("variables")
     template = prompt.get("template")
     version = prompt.get("version")
     prompt_id = prompt.get("id")
+    ctx_variable_keys = prompt.get("_dd_context_variable_keys")
     if variables is not None:
         if not isinstance(variables, dict):
             raise TypeError("Prompt variables must be a dictionary.")
@@ -46,6 +48,12 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict]]:
         if not isinstance(prompt_id, str):
             raise TypeError("Prompt id must be a string.")
         validated_prompt["id"] = prompt_id
+    if ctx_variable_keys is not None:
+        if not isinstance(ctx_variable_keys, list):
+            raise TypeError("Prompt `context_variable_keys` must be a list.")
+        if not all(isinstance(k, str) for k in ctx_variable_keys):
+            raise TypeError("Prompt `context_variable_keys` must be a list of strings.")
+        validated_prompt["_dd_context_variable_keys"] = ctx_variable_keys
     return validated_prompt
 
 

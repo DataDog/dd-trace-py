@@ -146,7 +146,6 @@ class LLMObsTraceProcessor(TraceProcessor):
         llmobs_span_event["tags"] = self._llmobs_tags(
             span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
         )
-
         return llmobs_span_event, is_ragas_integration_span
 
     @staticmethod

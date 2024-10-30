@@ -297,7 +297,7 @@ class LLMObs(Service):
                 "id": name,
                 "template": template,
                 "variables": variables,
-                "_context_variable_keys": context_variable_keys,
+                "_dd_context_variable_keys": context_variable_keys,
             },
             tags=tags,
         )
