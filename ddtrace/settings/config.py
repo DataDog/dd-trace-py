@@ -11,7 +11,7 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal._file_queue import File_Queue
+from ddtrace.internal.compat import get_mp_context
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -339,6 +339,8 @@ class Config(object):
     available and can be updated by users.
     """
 
+    _extra_services_queue = None if in_aws_lambda() else get_mp_context().Queue(512)
+
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -450,7 +452,6 @@ class Config(object):
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
         self._extra_services = set()
-        self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -577,16 +578,23 @@ class Config(object):
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
             return
-        if service_name != self.service:
-            self._extra_services_queue.put(service_name)
+        if self._remote_config_enabled and service_name != self.service:
+            try:
+                self._extra_services_queue.put_nowait(service_name)
+            except Exception:  # nosec
+                pass
 
     def _get_extra_services(self):
         # type: () -> set[str]
         if self._extra_services_queue is None:
             return set()
-        self._extra_services.update(self._extra_services_queue.get_all())
-        while len(self._extra_services) > 64:
-            self._extra_services.pop()
+        try:
+            while True:
+                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
+                if len(self._extra_services) > 64:
+                    self._extra_services.pop()
+        except Exception:  # nosec
+            pass
         return self._extra_services
 
     def get_from(self, obj):

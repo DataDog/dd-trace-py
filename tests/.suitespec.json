@@ -37,7 +37,6 @@
         "core": [
             "ddtrace/internal/__init__.py",
             "ddtrace/internal/_exceptions.py",
-            "ddtrace/internal/_file_queue.py",
             "ddtrace/internal/_rand.pyi",
             "ddtrace/internal/_rand.pyx",
             "ddtrace/internal/_stdint.h",
