@@ -61,5 +61,5 @@ def _default_datadog_exc_callback():
     if not span:
         return
 
-    span._add_event("handled_exception", {"message": str(
+    span._add_event("exception", {"message": str(
         exc), "type": type(exc).__name__, "stack": ''.join(traceback.format_exception(exc))})
