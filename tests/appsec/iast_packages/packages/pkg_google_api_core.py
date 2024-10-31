@@ -5,9 +5,14 @@ https://pypi.org/project/google-api-core/
 """
 from flask import Blueprint
 from flask import request
-from google.cloud.storage.batch import Batch  # noqa:F401
 
 from .utils import ResultResponse
+
+
+try:
+    from google.cloud.storage.batch import Batch  # noqa:F401
+except ModuleNotFoundError:
+    pass
 
 
 pkg_google_api_core = Blueprint("package_google_api_core", __name__)
