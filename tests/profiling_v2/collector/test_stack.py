@@ -1,6 +1,8 @@
 import os
 import sys
+import threading
 import time
+from unittest.mock import patch
 import uuid
 
 import pytest
@@ -9,6 +11,7 @@ from ddtrace import ext
 from ddtrace import tracer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
+from ddtrace.settings.profiling import config
 from tests.profiling.collector import pprof_utils
 
 
@@ -109,6 +112,63 @@ def test_push_span(stack_v2_enabled, tmp_path):
                 trace_endpoint=resource,
             ),
         )
+
+
+def test_push_span_unregister_thread(tmp_path, monkeypatch):
+    if sys.version_info[:2] == (3, 7):
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    with patch("ddtrace.internal.datadog.profiling.stack_v2.unregister_thread") as unregister_thread:
+        monkeypatch.setattr(config.stack, "v2_enabled", True)
+        tracer._endpoint_call_counter_span_processor.enable()
+
+        test_name = "test_push_span_unregister_thread"
+        pprof_prefix = str(tmp_path / test_name)
+        output_filename = pprof_prefix + "." + str(os.getpid())
+
+        assert ddup.is_available
+        ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+        ddup.start()
+
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
+
+        def target_fun():
+            for _ in range(5):
+                time.sleep(0.01)
+
+        with stack.StackCollector(
+            None,
+            tracer=tracer,
+            endpoint_collection_enabled=True,
+            ignore_profiler=True,  # this is not necessary, but it's here to trim samples
+            _stack_collector_v2_enabled=True,
+        ):
+            with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
+                span_id = span.span_id
+                local_root_span_id = span._local_root.span_id
+                t = threading.Thread(target=target_fun)
+                t.start()
+                t.join()
+                thread_id = t.ident
+        ddup.upload()
+
+        profile = pprof_utils.parse_profile(output_filename)
+        samples = pprof_utils.get_samples_with_label_key(profile, "span id")
+        assert len(samples) > 0
+        for sample in samples:
+            pprof_utils.assert_stack_event(
+                profile,
+                sample,
+                expected_event=pprof_utils.StackEvent(
+                    span_id=span_id,
+                    local_root_span_id=local_root_span_id,
+                    trace_type=span_type,
+                    trace_endpoint=resource,
+                ),
+            )
+
+        unregister_thread.assert_called_once_with(thread_id)
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
