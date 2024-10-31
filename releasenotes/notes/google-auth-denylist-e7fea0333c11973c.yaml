@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    Code Security: Add google auth modules to the IAST denylist.
+    Code Security: Add google auth modules to the IAST denylist to avoid patching it since it's not involved in taint tracking propagation.
