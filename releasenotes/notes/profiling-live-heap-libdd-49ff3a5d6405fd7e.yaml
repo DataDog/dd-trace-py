@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue where enabling native exporter via
+    ``DD_PROFILING_EXPORT_LIBDD_ENABLED``, ``DD_PROFILING_TIMELINE_ENABLED``
+    or ``DD_PROFILING_STACK_V2_ENABLED`` turned off live heap profiling.
+
