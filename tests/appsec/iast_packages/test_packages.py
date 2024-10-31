@@ -255,7 +255,7 @@ PACKAGES = [
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
     PackageForTesting(
         "google-auth",
-        "2.29.0",
+        "2.35.0",
         "",
         "",
         "",
@@ -265,12 +265,14 @@ PACKAGES = [
     ),
     PackageForTesting(
         "google-api-core",
-        "2.19.0",
+        "2.22.0",
         "",
         "",
         "",
         import_name="google",
         import_module_to_validate="google.auth.iam",
+        extras=[("google-cloud-storage", "2.18.2")],
+        test_e2e=True,
     ),
     PackageForTesting(
         "google-api-python-client",
