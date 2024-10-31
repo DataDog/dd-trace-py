@@ -190,6 +190,85 @@ def test_wrapt_disable_extensions():
     )
 
 
+# This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
+# which affects the whole process.
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_FILE_PATH=__file__),
+)
+def test_lock_gevent_tasks():
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import glob
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import threading as collector_threading
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+
+    assert ddup.is_available, "ddup is not available"
+
+    # Set up the ddup exporter
+    test_name = "test_lock_gevent_tasks"
+    pprof_prefix = "/tmp" + os.sep + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def play_with_lock():
+        lock = threading.Lock()  # !CREATE! test_lock_gevent_tasks
+        lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks
+        lock.release()  # !RELEASE! test_lock_gevent_tasks
+
+    with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+        t = threading.Thread(name="foobar", target=play_with_lock)
+        t.start()
+        t.join()
+
+    ddup.upload()
+
+    expected_filename = "test_threading.py"
+    linenos = get_lock_linenos(test_name)
+
+    profile = pprof_utils.parse_profile(output_filename)
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="play_with_lock",
+                filename=expected_filename,
+                linenos=linenos,
+                lock_name="lock",
+                task_id=t.ident,
+                task_name="foobar",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="play_with_lock",
+                filename=expected_filename,
+                linenos=linenos,
+                lock_name="lock",
+                task_id=t.ident,
+                task_name="foobar",
+            ),
+        ],
+    )
+
+    for f in glob.glob(pprof_prefix + ".*"):
+        try:
+            os.remove(f)
+        except Exception as e:
+            print("Error removing file: {}".format(e))
+
+
 class TestThreadingLockCollector:
     # setup_method and teardown_method which will be called before and after
     # each test method, respectively, part of pytest api.
@@ -500,51 +579,6 @@ class TestThreadingLockCollector:
                     filename=os.path.basename(__file__),
                     linenos=linenos2,
                     lock_name="lock2",
-                ),
-            ],
-        )
-
-    @pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
-    def test_lock_gevent_tasks(self):
-        from gevent import monkey
-
-        monkey.patch_all()
-
-        def play_with_lock():
-            lock = threading.Lock()  # !CREATE! test_lock_gevent_tasks
-            lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks
-            lock.release()  # !RELEASE! test_lock_gevent_tasks
-
-        with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
-            t = threading.Thread(name="foobar", target=play_with_lock)
-            t.start()
-            t.join()
-
-        ddup.upload()
-
-        linenos = get_lock_linenos("test_lock_gevent_tasks")
-
-        profile = pprof_utils.parse_profile(self.output_filename)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name="play_with_lock",
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="lock",
-                    task_id=t.ident,
-                    task_name="foobar",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name="play_with_lock",
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="lock",
-                    task_id=t.ident,
-                    task_name="foobar",
                 ),
             ],
         )
