@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Code Security: Add google auth modules to the IAST denylist.
