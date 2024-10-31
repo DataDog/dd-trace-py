@@ -8,6 +8,7 @@ from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
+from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import request_token
 
@@ -55,6 +56,16 @@ def mock_llmobs_eval_metric_writer():
     LLMObsEvalMetricWriterMock = patcher.start()
     m = mock.MagicMock()
     LLMObsEvalMetricWriterMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_llmobs_submit_evaluation():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObs.submit_evaluation")
+    LLMObsMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsMock.return_value = m
     yield m
     patcher.stop()
 
@@ -141,7 +152,48 @@ def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_w
 
 
 @pytest.fixture
-def mock_ragas_evaluator(mock_llmobs_eval_metric_writer):
-    with mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate") as m:
-        m.return_value = 1.0
-        yield RagasFaithfulnessEvaluator
+def mock_llmobs_evaluator_runner():
+    patcher = mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.enqueue")
+    LLMObsMockEvaluatorRunner = patcher.start()
+    m = mock.MagicMock()
+    LLMObsMockEvaluatorRunner.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_ragas_dependencies_not_present():
+    import ragas
+
+    previous = ragas.__version__
+    ## unsupported version
+    ragas.__version__ = "0.0.0"
+    yield
+    ragas.__version__ = previous
+
+
+@pytest.fixture
+def ragas(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
+        import ragas
+
+        with override_env(dict(OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"))):
+            yield ragas
+
+
+@pytest.fixture
+def reset_ragas_faithfulness_llm():
+    import ragas
+
+    previous_llm = ragas.metrics.faithfulness.llm
+    yield
+    ragas.metrics.faithfulness.llm = previous_llm
+
+
+@pytest.fixture
+def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
+    patcher = mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate")
+    LLMObsMockRagas = patcher.start()
+    LLMObsMockRagas.return_value = 1.0
+    yield RagasFaithfulnessEvaluator
+    patcher.stop()

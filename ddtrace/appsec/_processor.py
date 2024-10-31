@@ -4,7 +4,6 @@ import json
 from json.decoder import JSONDecodeError
 import os
 import os.path
-import traceback
 from typing import Any
 from typing import Dict
 from typing import List
@@ -26,7 +25,6 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
-from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
@@ -173,14 +171,6 @@ class AppSecSpanProcessor(SpanProcessor):
             self._ddwaf = DDWaf(
                 self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
             )
-            if not self._ddwaf._handle or self._ddwaf.info.failed:
-                stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
-                    self._rules,
-                    self._ddwaf.info.loaded,
-                    self._ddwaf.info.errors,
-                )
-                _set_waf_error_metric("WAF init error. Invalid rules", stack_trace, self._ddwaf.info)
-
             _set_waf_init_metric(self._ddwaf.info)
         except ValueError:
             # Partial of DDAS-0005-00
@@ -201,17 +191,8 @@ class AppSecSpanProcessor(SpanProcessor):
         result = False
         if asm_config._asm_static_rule_file is not None:
             return result
-        try:
-            result = self._ddwaf.update_rules(new_rules)
-            _set_waf_updates_metric(self._ddwaf.info)
-        except TypeError:
-            error_msg = "Error updating ASM rules. TypeError exception "
-            log.debug(error_msg, exc_info=True)
-            _set_waf_error_metric(error_msg, traceback.format_exc(), self._ddwaf.info)
-        if not result:
-            error_msg = "Error updating ASM rules. Invalid rules"
-            log.debug(error_msg)
-            _set_waf_error_metric(error_msg, "", self._ddwaf.info)
+        result = self._ddwaf.update_rules(new_rules)
+        _set_waf_updates_metric(self._ddwaf.info)
         self._update_required()
         return result
 
@@ -308,10 +289,10 @@ class AppSecSpanProcessor(SpanProcessor):
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if key in data_already_sent:
                 continue
-            if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
-                value = custom_data.get(key) if custom_data else None
-                if value:
-                    ephemeral_data[waf_name] = value
+            # ensure ephemeral addresses are sent, event when value is None
+            if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES and custom_data:
+                if key in custom_data:
+                    ephemeral_data[waf_name] = custom_data[key]
 
             elif self._is_needed(waf_name) or force_keys:
                 value = None
@@ -325,6 +306,10 @@ class AppSecSpanProcessor(SpanProcessor):
                     if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
                         data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
+
+        # small optimization to avoid running the waf if there is no data to check
+        if not data and not ephemeral_data:
+            return None
 
         waf_results = self._ddwaf.run(
             ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout

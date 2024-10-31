@@ -14,10 +14,13 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._retry_utils import get_retry_num
+from ddtrace.contrib.pytest._types import pytest_CallInfo
+from ddtrace.contrib.pytest._types import pytest_Config
+from ddtrace.contrib.pytest._types import pytest_TestReport
+from ddtrace.contrib.pytest._types import pytest_TestShortLogReport
 from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
-from ddtrace.contrib.pytest._utils import _get_pytest_version_tuple
 from ddtrace.contrib.pytest._utils import _get_session_command
 from ddtrace.contrib.pytest._utils import _get_source_file_info
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
@@ -60,16 +63,6 @@ if _pytest_version_supports_efd():
     from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
     from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
 
-if _get_pytest_version_tuple() >= (7, 0, 0):
-    from pytest import CallInfo as pytest_CallInfo
-    from pytest import Config as pytest_Config  # noqa: F401
-    from pytest import TestReport as pytest_TestReport
-    from pytest import TestShortLogReport as pytest_TestShortLogReport
-else:
-    from _pytest.config import Config as pytest_Config
-    from _pytest.reports import TestReport as pytest_TestReport
-    from _pytest.reports import TestReport as pytest_TestShortLogReport
-    from _pytest.runner import CallInfo as pytest_CallInfo
 
 log = get_logger(__name__)
 
