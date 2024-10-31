@@ -347,14 +347,7 @@ class _ProfilerInstance(service.Service):
                 ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
-            self._collectors.append(
-                memalloc.MemoryCollector(
-                    r,
-                    max_nframe=profiling_config.max_frames,
-                    _max_events=profiling_config.memory.events_buffer,
-                    heap_sample_size=profiling_config.heap.sample_size,
-                )
-            )
+            self._collectors.append(memalloc.MemoryCollector(r))
 
         exporters = self._build_default_exporters()
 
