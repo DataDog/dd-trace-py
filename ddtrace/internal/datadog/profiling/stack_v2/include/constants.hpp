@@ -1,3 +1,5 @@
+#pragma once
+
 #include "dd_wrapper/include/constants.hpp"
 
 // Default sampling frequency in microseconds.  This will almost certainly be overridden by dynamic sampling.
