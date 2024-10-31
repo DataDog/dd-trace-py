@@ -6,7 +6,10 @@ on:
 
 jobs:
   check_target_branch:
+    name: "Check for old target branch"
     runs-on: ubuntu-latest
+    permissions:
+       pull-requests: write
     steps:
       - name: Check if target branch is too old to backport
         id: check-branch
@@ -17,14 +20,14 @@ jobs:
           
           if [[ "$target_branch" =~ $old_branch_regex ]]; then
               echo "Old target branch detected: $target_branch"
-              echo "::set-output name=old_branch::true"
+              echo "old_branch=true" >> $GITHUB_ENV
               exit 1
           else
-              echo "::set-output name=old_branch::false"
+              echo "old_branch=false" >> $GITHUB_ENV
           fi
 
-      - name: Comment on PR if blacklisted
-        if: steps.check-branch.outputs.old_branch == 'true'
+      - name: Old branch warning on PR
+        if: env.old_branch == 'true'
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
