@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    profiling: when a Python thread finishes, frees memory used for mapping
+    profiling: when a Python thread finishes, this change frees memory used for mapping
     its thread id to ``Span``. The mapping is populated and used when
     `DD_PROFILING_ENDPOINT_COLLECTION_ENABLED`` and
     ``DD_PROFILING_STACK_V2_ENABLED`` were set to enable grouping of profiles
