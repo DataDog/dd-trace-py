@@ -7,8 +7,8 @@ from ddtrace.contrib.pytest._retry_utils import RetryOutcomes
 from ddtrace.contrib.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.pytest._retry_utils import set_retry_num
+from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.pytest._types import pytest_TestReport
-from ddtrace.contrib.pytest._types import pytest_TestShortLogReport
 from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.pytest._utils import _TestOutcome
@@ -244,31 +244,27 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     terminalreporter.write_sep("=", purple=True, bold=True)
 
 
-def atr_get_teststatus(report: pytest_TestReport) -> t.Optional[pytest_TestShortLogReport]:
+def atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_return_type:
     if report.outcome == _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED:
-        return pytest.TestShortLogReport(
+        return (
             _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
             "r",
             (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
         )
     if report.outcome == _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED:
-        return pytest.TestShortLogReport(
+        return (
             _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
             "R",
             (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
         )
     if report.outcome == _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED:
-        return pytest.TestShortLogReport(
+        return (
             _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED,
             "s",
             (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
     if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
-        return pytest.TestShortLogReport(
-            _ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, ".", ("ATR FINAL STATUS: PASSED", {"green": True})
-        )
+        return (_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, ".", ("ATR FINAL STATUS: PASSED", {"green": True}))
     if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED:
-        return pytest.TestShortLogReport(
-            _ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, "F", ("ATR FINAL STATUS: FAILED", {"red": True})
-        )
+        return (_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, "F", ("ATR FINAL STATUS: FAILED", {"red": True}))
     return None

@@ -18,10 +18,10 @@ from ddtrace.contrib.pytest._atr_utils import atr_pytest_terminal_summary_post_y
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._retry_utils import get_retry_num
+from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.pytest._types import pytest_CallInfo
 from ddtrace.contrib.pytest._types import pytest_Config
 from ddtrace.contrib.pytest._types import pytest_TestReport
-from ddtrace.contrib.pytest._types import pytest_TestShortLogReport
 from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
@@ -562,7 +562,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 def pytest_report_teststatus(
     report: pytest_TestReport,
-) -> t.Optional[pytest_TestShortLogReport]:
+) -> _pytest_report_teststatus_return_type:
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         test_status = atr_get_teststatus(report)
         if test_status is not None:
