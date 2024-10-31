@@ -2,7 +2,6 @@ name: Check for Old Target Branch
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
 
 jobs:
   check_target_branch:
