@@ -265,6 +265,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "envier.",
     "exceptiongroup.",
     "freezegun.",  # Testing utilities for time manipulation
+    "google.auth.",
     "hypothesis.",  # Testing utilities
     "importlib_metadata.",
     "inspect.",  # this package is used to get the stack frames, propagation is not needed
