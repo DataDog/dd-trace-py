@@ -232,6 +232,12 @@ class _ProfilerInstance(service.Service):
         # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
         if self._export_libdd_enabled:
             try:
+                print("ddup config ", profiling_config.output_pprof)
+                print(
+                    profiling_config.max_frames,
+                    profiling_config.memory.events_buffer,
+                    profiling_config.heap.sample_size,
+                )
                 ddup.config(
                     env=self.env,
                     service=self.service,
@@ -347,7 +353,14 @@ class _ProfilerInstance(service.Service):
                 ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
-            self._collectors.append(memalloc.MemoryCollector(r))
+            self._collectors.append(
+                memalloc.MemoryCollector(
+                    r,
+                    max_nframe=profiling_config.max_frames,
+                    _max_events=profiling_config.memory.events_buffer,
+                    heap_sample_size=profiling_config.heap.sample_size,
+                )
+            )
 
         exporters = self._build_default_exporters()
 
