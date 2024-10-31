@@ -684,6 +684,31 @@ def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcoun
 
 
 @pytest.mark.parametrize(
+    "origstr,formatted",
+    [
+        ("/", ""),
+        ("", ""),
+        ("", ""),
+        ("/waf/", "waf/"),
+        ("waf/", "waf"),
+        ("//waf/", "/waf/"),
+        ("path/waf/", "pathwaf/"),
+        ("a/:", "a:"),
+        # TODO: this replace raises basic_string::substr: __pos (which is 4) > this->size() (which is 3)
+        # ("a/:+-/", ":+-<joiner>a<joiner>-+::+-<joiner>a/<joiner>-+:"),
+    ],
+)
+def test_replace_tainted_results_in_no_tainted_django(origstr, formatted):
+    path_info = origstr.encode("iso-8859-1").decode()
+    sep = taint_pyobject(pyobject="/", source_name="d", source_value="/", source_origin=OriginType.PARAMETER)
+    replaced = ddtrace_aspects.replace_aspect(path_info.replace, 1, path_info, sep, "", 1)
+    assert replaced == path_info.replace(sep, "", 1)
+
+    assert as_formatted_evidence(replaced) == formatted
+    assert is_pyobject_tainted(replaced) is False
+
+
+@pytest.mark.parametrize(
     "origstr, substr, replstr, maxcount, formatted",
     [
         (
