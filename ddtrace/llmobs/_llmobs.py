@@ -327,6 +327,12 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")
             return
+
+        try:
+            cls._instance._evaluator_runner.periodic()
+        except Exception:
+            log.warning("Failed to run evaluator runner.", exc_info=True)
+
         try:
             cls._instance._llmobs_span_writer.periodic()
             cls._instance._llmobs_eval_metric_writer.periodic()
