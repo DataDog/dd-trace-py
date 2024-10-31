@@ -13,6 +13,7 @@ jobs:
     steps:
       - name: Check if target branch is too old to backport
         id: check-branch
+        continue-on-error: true
         run: |
           # Define regex for branches with major version 0 or 1, or versions from 2.0 to 2.12
           old_branch_regex="^(0|1)(\\.|$)|^2\\.([0-9]|1[0-2])(\\.|$)"
