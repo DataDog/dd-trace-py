@@ -94,7 +94,7 @@ jobs:
     strategy:
       matrix:
         weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12]
-        scenario: [remote-config, appsec, appsec-1, other]
+        scenario: [remote-config, appsec, appsec-1, other, debugger-1, debugger-2]
 
       fail-fast: false
     env:
@@ -220,6 +220,34 @@ jobs:
       - name: Run APPSEC_RASP
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RASP
+
+      - name: Run DEBUGGER_PROBES_STATUS
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_PROBES_STATUS
+
+      - name: Run DEBUGGER_METHOD_PROBES_SNAPSHOT
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_METHOD_PROBES_SNAPSHOT
+
+      - name: Run DEBUGGER_LINE_PROBES_SNAPSHOT
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_LINE_PROBES_SNAPSHOT
+
+      - name: Run DEBUGGER_MIX_LOG_PROBE
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_MIX_LOG_PROBE
+
+      - name: Run DEBUGGER_PII_REDACTION
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_PII_REDACTION
+
+      - name: Run DEBUGGER_EXPRESSION_LANGUAGE
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_EXPRESSION_LANGUAGE
+
+      - name: Run DEBUGGER_EXCEPTION_REPLAY
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
+        run: ./run.sh DEBUGGER_EXCEPTION_REPLAY
 
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
