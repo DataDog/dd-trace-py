@@ -4,6 +4,34 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.15.1
+
+
+### Bug Fixes
+
+  -   - LLM Observability: This fix resolves two issues with annotation contexts:  
+        \- annotations registered via annotation contexts were being applied globally. Annotations are now only applied to the current trace context and do not pollute to other threads & processes.
+        \- annotations from nested annotation contexts were applied in a non-deterministic order. Annotations are now applied in the order they were registered.
+
+  - CI Visibility: fixes a bug where `CODEOWNERS` would incorrectly fail to discard line-level trailing comments (eg: `@code/owner # my comment` would result in codeowners being parsed as `@code/owner`, `#`, `my`, and `comment`)
+
+  - CI Visibility: fixes unnecessary logging of an exception that would appear when trying to upload git metadata in an environment without functioning git (eg: missing `git` binary or `.git` directory)
+
+  - dynamic instrumentation: Fixes an issue that prevented dynamic span tags probes from adding the requested tags to the requested span.
+
+  - Code Security: This fix resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError
+
+  - profiling: fix a data race where span information associated with a thread was read and updated concurrently, leading to segfaults
+
+  - profiling: resolves an issue where endpoint profiling for stack v2 throws `TypeError` exception when it is given a `Span` with `None` span\_type.
+
+### Other Changes
+
+  - LLM Observability: Updates the merging behavior for tags when <span class="title-ref">LLMObs.annotate</span> is called multiple times on the same span so that the latest value for a tag key overrides the previous value.
+
+
+---
+
 ## 2.15.0
 
 ### New Features
