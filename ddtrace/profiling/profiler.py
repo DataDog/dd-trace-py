@@ -232,12 +232,6 @@ class _ProfilerInstance(service.Service):
         # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
         if self._export_libdd_enabled:
             try:
-                print("ddup config ", profiling_config.output_pprof)
-                print(
-                    profiling_config.max_frames,
-                    profiling_config.memory.events_buffer,
-                    profiling_config.heap.sample_size,
-                )
                 ddup.config(
                     env=self.env,
                     service=self.service,

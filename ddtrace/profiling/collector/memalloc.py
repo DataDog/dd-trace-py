@@ -84,15 +84,6 @@ class MemoryCollector(collector.PeriodicCollector):
         self.ignore_profiler: bool = ignore_profiler
         self._export_libdd_enabled: bool = _export_libdd_enabled
 
-        print(
-            "self._max_events: ",
-            self._max_events,
-            " self.max_nframe: ",
-            self.max_nframe,
-            " self.heap_sample_size: ",
-            self.heap_sample_size,
-        )
-
     def _start_service(self):
         # type: (...) -> None
         """Start collecting memory profiles."""
@@ -100,9 +91,7 @@ class MemoryCollector(collector.PeriodicCollector):
             raise collector.CollectorUnavailable
 
         try:
-            print("_memalloc start called ", self.max_nframe, self._max_events, self.heap_sample_size)
             _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
-            print("_memalloc start successfully called")
         except RuntimeError:
             # This happens on fork because we don't call the shutdown hook since
             # the thread responsible for doing so is not running in the child
@@ -132,19 +121,16 @@ class MemoryCollector(collector.PeriodicCollector):
         }
 
     def snapshot(self):
-        print("====================================memalloc snapshot called")
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         try:
             events = _memalloc.heap()
         except RuntimeError:
-            print("Unable to collect heap events from process: ", os.getpid())
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
         if self._export_libdd_enabled:
-            print("libdd enabled and collected heap events: ", len(events))
             for (frames, nframes, thread_id), size in events:
                 if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
                     handle = ddup.SampleHandle()
@@ -185,7 +171,6 @@ class MemoryCollector(collector.PeriodicCollector):
         try:
             events_iter, count, alloc_count = _memalloc.iter_events()
         except RuntimeError:
-            print("Unable to collect memory events from process %d", os.getpid())
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
             return tuple()
@@ -197,7 +182,6 @@ class MemoryCollector(collector.PeriodicCollector):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         if self._export_libdd_enabled:
-            print("libdd enabled and collected alloc events: %d", len(events))
             for (frames, nframes, thread_id), size, _domain in events:
                 if thread_id in thread_id_ignore_set:
                     continue

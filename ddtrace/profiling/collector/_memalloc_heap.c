@@ -1,5 +1,4 @@
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #define PY_SSIZE_T_CLEAN
@@ -42,7 +41,6 @@ heap_tracker_next_sample_size(uint32_t sample_size)
 static void
 heap_tracker_init(heap_tracker_t* heap_tracker)
 {
-    printf("In heap_tracker_init\n");
     traceback_array_init(&heap_tracker->allocs);
     traceback_array_init(&heap_tracker->freezer.allocs);
     ptr_array_init(&heap_tracker->freezer.frees);
@@ -55,7 +53,6 @@ heap_tracker_init(heap_tracker_t* heap_tracker)
 static void
 heap_tracker_wipe(heap_tracker_t* heap_tracker)
 {
-    printf("heap_tracker_wipe: wiping traceback arrays\n");
     traceback_array_wipe(&heap_tracker->allocs);
     traceback_array_wipe(&heap_tracker->freezer.allocs);
     ptr_array_wipe(&heap_tracker->freezer.frees);
@@ -85,12 +82,9 @@ heap_tracker_untrack_thawed(heap_tracker_t* heap_tracker, void* ptr)
         traceback_t** tb = &heap_tracker->allocs.tab[i - 1];
 
         if (ptr == (*tb)->ptr) {
-            printf("heap_tracker_untrack_thawed: freeing traceback\n");
-            printf("heap_tracker_untrack_thawed: %d\n", heap_tracker->allocs.count);
             /* Free the traceback */
             traceback_free(*tb);
             traceback_array_remove(&heap_tracker->allocs, tb);
-            printf("heap_tracker_untrack_thawed: %d\n", heap_tracker->allocs.count);
             break;
         }
     }
@@ -125,7 +119,6 @@ heap_tracker_thaw(heap_tracker_t* heap_tracker)
 void
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
-    printf("In memalloc_heap_tracker_init %d\n", sample_size);
     heap_tracker_init(&global_heap_tracker);
     global_heap_tracker.sample_size = sample_size;
     global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(sample_size);
@@ -149,9 +142,8 @@ memalloc_heap_untrack(void* ptr)
         */
         if (global_heap_tracker.freezer.frees.count < MEMALLOC_HEAP_PTR_ARRAY_MAX_COUNT)
             ptr_array_append(&global_heap_tracker.freezer.frees, ptr);
-    } else {
+    } else
         heap_tracker_untrack_thawed(&global_heap_tracker, ptr);
-    }
 }
 
 /* Track a memory allocation in the heap profiler.
@@ -161,50 +153,35 @@ bool
 memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
     /* Heap tracking is disabled */
-    if (global_heap_tracker.sample_size == 0) {
-        printf("memalloc_heap_track: heap tracking is disabled with sample size 0\n");
+    if (global_heap_tracker.sample_size == 0)
         return false;
-    }
 
     /* Check for overflow */
     global_heap_tracker.allocated_memory = Py_MIN(global_heap_tracker.allocated_memory + size, MAX_HEAP_SAMPLE_SIZE);
 
     /* Check if we have enough sample or not */
-    if (global_heap_tracker.allocated_memory < global_heap_tracker.current_sample_size) {
-        // printf("memalloc_heap_track: allocated memory %d < current sample size %d\n",
-        //        global_heap_tracker.allocated_memory,
-        //        global_heap_tracker.current_sample_size);
+    if (global_heap_tracker.allocated_memory < global_heap_tracker.current_sample_size)
         return false;
-    }
 
     /* Check if we can add more samples: the sum of the freezer + alloc tracker
      cannot be greater than what the alloc tracker can handle: when the alloc
      tracker is thawed, all the allocs in the freezer will be moved there!*/
-    if ((global_heap_tracker.freezer.allocs.count + global_heap_tracker.allocs.count) >= TRACEBACK_ARRAY_MAX_COUNT) {
-        printf("memalloc_heap_track: (global_heap_tracker.freezer.allocs.count + global_heap_tracker.allocs.count) >= "
-               "TRACEBACK_ARRAY_MAX_COUNT\n");
+    if ((global_heap_tracker.freezer.allocs.count + global_heap_tracker.allocs.count) >= TRACEBACK_ARRAY_MAX_COUNT)
         return false;
-    }
 
     /* Avoid loops */
-    if (memalloc_get_reentrant()) {
-        printf("memalloc_heap_track: memalloc_get_reentrant() is true\n");
+    if (memalloc_get_reentrant())
         return false;
-    }
 
     memalloc_set_reentrant(true);
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory, domain);
     memalloc_set_reentrant(false);
 
     if (tb) {
-        if (global_heap_tracker.frozen) {
-            printf("memalloc_heap_track: tracked allocation in frozen list\n");
+        if (global_heap_tracker.frozen)
             traceback_array_append(&global_heap_tracker.freezer.allocs, tb);
-        } else {
-            printf("memalloc_heap_track: tracked allocation in allocs list\n");
+        else
             traceback_array_append(&global_heap_tracker.allocs, tb);
-            printf("memalloc_heap_track: global_heap_tracker.allocs.count %d\n", global_heap_tracker.allocs.count);
-        }
 
         /* Reset the counter to 0 */
         global_heap_tracker.allocated_memory = 0;
@@ -212,12 +189,9 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         /* Compute the new target sample size */
         global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(global_heap_tracker.sample_size);
 
-        printf("memalloc_heap_track: tracked allocation\n");
-
         return true;
     }
 
-    printf("memalloc_heap_track: tb is nullptr\n");
     return false;
 }
 
@@ -227,8 +201,6 @@ memalloc_heap()
     heap_tracker_freeze(&global_heap_tracker);
 
     PyObject* heap_list = PyList_New(global_heap_tracker.allocs.count);
-
-    printf("memalloc_heap: global_heap_tracker.allocs.count %d\n", global_heap_tracker.allocs.count);
 
     for (TRACEBACK_ARRAY_COUNT_TYPE i = 0; i < global_heap_tracker.allocs.count; i++) {
         traceback_t* tb = global_heap_tracker.allocs.tab[i];
