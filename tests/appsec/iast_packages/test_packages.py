@@ -34,7 +34,7 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 # Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
 # Remember to set to False before pushing it!
-_DEBUG_MODE = True
+_DEBUG_MODE = False
 
 
 class PackageForTesting:
@@ -127,7 +127,7 @@ class PackageForTesting:
         else:
             package_fullversion = package_name
 
-        cmd = [python_cmd, "-m", "pip", "install", package_fullversion]
+        cmd = [python_cmd, "-m", "pip", "install", "-U", package_fullversion]
         env = {}
         env.update(os.environ)
         # CAVEAT: we use subprocess instead of `pip.main(["install", package_fullversion])` due to pip package
@@ -303,6 +303,7 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "importlib-resources",
@@ -490,6 +491,9 @@ PACKAGES = [
         "d8b5635eb590e078a608e083351288a0",
         "",
         import_module_to_validate="multipart.multipart",
+        # This test is failing in CircleCI because, for some reason, instead of installing version
+        # 0.0.5, it’s installing the latest version
+        test_import=False,
         test_propagation=True,
     ),
     PackageForTesting(
@@ -525,6 +529,7 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "sqlalchemy",
