@@ -145,15 +145,18 @@ class LLMObs(Service):
 
     def _stop_service(self) -> None:
         try:
+            self._evaluator_runner.stop()
+            # flush remaining evaluation spans & evaluations
+            self._instance._llmobs_span_writer.periodic()
+            self._instance._llmobs_eval_metric_writer.periodic()
+        except ServiceStatusError:
+            log.debug("Error stopping evaluator runner")
+
+        try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
-
-        try:
-            self._evaluator_runner.stop()
-        except ServiceStatusError:
-            log.debug("Error stopping evaluator runner")
 
         try:
             forksafe.unregister(self._child_after_fork)
@@ -258,8 +261,8 @@ class LLMObs(Service):
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
 
-        cls.enabled = False
         cls._instance.stop()
+        cls.enabled = False
         cls._instance.tracer.deregister_on_start_span(cls._instance._do_annotations)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
