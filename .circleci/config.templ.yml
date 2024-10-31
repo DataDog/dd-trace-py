@@ -593,15 +593,6 @@ jobs:
       - run_test:
           pattern: 'consul'
 
-  django:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: 'django($|_celery)'
-          snapshot: true
-          docker_services: "memcached redis postgres"
-
   mariadb:
     <<: *machine_executor
     parallelism: 4

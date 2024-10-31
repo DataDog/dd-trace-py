@@ -306,6 +306,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pydantic_core.",
     "pydantic_settings.",
     "tomli.",
+    "google.auth.crypt.",
 )
 
 
