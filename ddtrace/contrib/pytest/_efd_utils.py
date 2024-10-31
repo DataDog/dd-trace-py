@@ -1,20 +1,17 @@
 import typing as t
 
 import _pytest
-from _pytest.logging import caplog_handler_key
-from _pytest.logging import caplog_records_key
 import pytest
 
 from ddtrace.contrib.pytest._retry_utils import RetryOutcomes
-from ddtrace.contrib.pytest._retry_utils import _efd_get_attempt_string
-from ddtrace.contrib.pytest._retry_utils import _retry_run_when
+from ddtrace.contrib.pytest._retry_utils import _get_outcome_from_retry
+from ddtrace.contrib.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.pytest._types import pytest_TestReport
 from ddtrace.contrib.pytest._types import pytest_TestShortLogReport
 from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.pytest._utils import _TestOutcome
-from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
@@ -87,7 +84,7 @@ def efd_handle_retries(
             )
             InternalTest.mark_skip(test_id)
 
-    efd_outcome = _efd_handle_retries(item)
+    efd_outcome = _efd_do_retries(item)
 
     final_report = pytest_TestReport(
         nodeid=item.nodeid,
@@ -104,31 +101,8 @@ def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) 
     return terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED)
 
 
-def _efd_handle_retries(item: pytest.Item) -> EFDTestStatus:
+def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
     test_id = _get_test_id_from_item(item)
-
-    while InternalTest.efd_should_retry(test_id):
-        retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
-
-        with set_retry_num(item.nodeid, retry_num):
-            retry_outcome = _efd_get_outcome_from_item(item)
-
-        InternalTest.efd_finish_retry(
-            test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
-        )
-
-    return InternalTest.efd_get_final_status(test_id)
-
-
-def _efd_get_outcome_from_item(
-    item: pytest.Item,
-) -> _TestOutcome:
-    _outcome_status: t.Optional[TestStatus] = None
-    _outcome_skip_reason: t.Optional[str] = None
-    _outcome_exc_info: t.Optional[TestExcInfo] = None
-
-    # _initrequest() needs to be called first because the test has already executed once
-    item._initrequest()
 
     outcomes = RetryOutcomes(
         PASSED=_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED,
@@ -138,47 +112,17 @@ def _efd_get_outcome_from_item(
         XPASS=_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED,
     )
 
-    # Setup
-    setup_call, setup_report = _retry_run_when(item, "setup", outcomes)
-    if setup_report.failed:
-        _outcome_status = TestStatus.FAIL
-        if setup_call.excinfo is not None:
-            _outcome_exc_info = TestExcInfo(setup_call.excinfo.type, setup_call.excinfo.value, setup_call.excinfo.tb)
-            item.stash[caplog_records_key] = {}
-            item.stash[caplog_handler_key] = {}
-    if setup_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED:
-        _outcome_status = TestStatus.SKIP
+    while InternalTest.efd_should_retry(test_id):
+        retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
 
-    # Call
-    if setup_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED:
-        call_call, call_report = _retry_run_when(item, "call", outcomes)
-        if call_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED:
-            _outcome_status = TestStatus.FAIL
-            if call_call.excinfo is not None:
-                _outcome_exc_info = TestExcInfo(call_call.excinfo.type, call_call.excinfo.value, call_call.excinfo.tb)
-                item.stash[caplog_records_key] = {}
-                item.stash[caplog_handler_key] = {}
-        elif call_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED:
-            _outcome_status = TestStatus.SKIP
-        elif call_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED:
-            _outcome_status = TestStatus.PASS
+        with set_retry_num(item.nodeid, retry_num):
+            retry_outcome = _get_outcome_from_retry(item, outcomes)
 
-    # Teardown does not happen if setup skipped
-    if not setup_report.skipped:
-        teardown_call, teardown_report = _retry_run_when(item, "teardown", outcomes)
-        # Only override the outcome if the teardown failed, otherwise defer to either setup or call outcome
-        if teardown_report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED:
-            _outcome_status = TestStatus.FAIL
-            if teardown_call.excinfo is not None:
-                _outcome_exc_info = TestExcInfo(
-                    teardown_call.excinfo.type, teardown_call.excinfo.value, teardown_call.excinfo.tb
-                )
-                item.stash[caplog_records_key] = {}
-                item.stash[caplog_handler_key] = {}
+        InternalTest.efd_finish_retry(
+            test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
+        )
 
-    item._initrequest()
-
-    return _TestOutcome(status=_outcome_status, skip_reason=_outcome_skip_reason, exc_info=_outcome_exc_info)
+    return InternalTest.efd_get_final_status(test_id)
 
 
 def _efd_write_report_for_status(
@@ -365,19 +309,19 @@ def efd_get_teststatus(report: pytest_TestReport) -> t.Optional[pytest_TestShort
         return pytest.TestShortLogReport(
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED,
             "r",
-            (f"EFD RETRY {_efd_get_attempt_string(report.nodeid)}PASSED", {"green": True}),
+            (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
         )
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED:
         return pytest.TestShortLogReport(
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED,
             "R",
-            (f"EFD RETRY {_efd_get_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+            (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
         )
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED:
         return pytest.TestShortLogReport(
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED,
             "s",
-            (f"EFD RETRY {_efd_get_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+            (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED:
         return pytest.TestShortLogReport(
