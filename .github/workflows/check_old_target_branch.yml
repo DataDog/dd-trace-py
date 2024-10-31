@@ -2,7 +2,6 @@ name: Check for Old Target Branch
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
 
 jobs:
   check_target_branch:
@@ -21,7 +20,6 @@ jobs:
           if [[ "$target_branch" =~ $old_branch_regex ]]; then
               echo "Old target branch detected: $target_branch"
               echo "old_branch=true" >> $GITHUB_ENV
-              exit 1
           else
               echo "old_branch=false" >> $GITHUB_ENV
           fi
@@ -32,3 +30,7 @@ jobs:
         with:
           message: |
             🚫 **This target branch is too old or unsupported. Please update the target branch to continue.**
+
+      - name: Fail the job if branch is old
+        if: env.old_branch == 'true'
+        run: exit 1
