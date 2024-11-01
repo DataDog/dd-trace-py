@@ -104,6 +104,10 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._is_new:
             self.set_tag(TEST_IS_NEW, self._is_new)
 
+    def _set_atr_tags(self) -> None:
+        if self._atr_is_retry:
+            self.set_tag(TEST_IS_RETRY, self._atr_is_retry)
+
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
 
@@ -127,6 +131,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             test_framework=self._session_settings.test_framework_metric_name,
             is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
             is_new=self._is_new if self._is_new is not None else None,
+            is_retry=self._efd_is_retry or self._atr_is_retry,
             early_flake_detection_abort_reason=self._efd_abort_reason,
         )
 
@@ -164,6 +169,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             if efd_status == EFDTestStatus.ALL_SKIP:
                 return TestStatus.SKIP
             return TestStatus.FAIL
+        if self.atr_has_retries():
+            return self.atr_get_final_status()
         return super().get_status()
 
     def count_itr_skipped(self) -> None:
@@ -321,6 +328,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         retry_test.parent = self.parent
 
         return retry_test
+
+    def atr_has_retries(self) -> bool:
+        return len(self._atr_retries) > 0
 
     def atr_should_retry(self):
         if not self._session_settings.atr_settings.enabled:
