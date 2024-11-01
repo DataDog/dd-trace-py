@@ -21,6 +21,8 @@ from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 
 
+ctypedef void (*func_ptr_t)(string_view)
+
 cdef extern from "stdint.h":
     ctypedef unsigned long long uint64_t
     ctypedef long long int64_t
@@ -85,89 +87,17 @@ cdef extern from "code_provenance_interface.hpp":
     void code_provenance_add_packages(unordered_map[string_view, string_view] packages)
 
 # Create wrappers for cython
-cdef call_ddup_config_service(service: StringType):
-    if not service:
+cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
+    if not str_arg:
         return
-    if isinstance(service, bytes):
-        ddup_config_service(string_view(<const char*>service, len(service)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(service, &utf8_size)
-    if utf8_data != NULL:
-        ddup_config_service(string_view(utf8_data, utf8_size))
-
-cdef call_ddup_config_env(env: StringType):
-    if not env:
-        return
-    if isinstance(env, bytes):
-        ddup_config_env(string_view(<const char*>env, len(env)))
+    if isinstance(str_arg, bytes):
+        func(string_view(<const char*>str_arg, len(str_arg)))
         return
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(env, &utf8_size)
+    utf8_data = PyUnicode_AsUTF8AndSize(str_arg, &utf8_size)
     if utf8_data != NULL:
-        ddup_config_env(string_view(utf8_data, utf8_size))
-
-cdef call_ddup_config_version(version: StringType):
-    if not version:
-        return
-    if isinstance(version, bytes):
-        ddup_config_version(string_view(<const char*>version, len(version)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(version, &utf8_size)
-    if utf8_data != NULL:
-        ddup_config_version(string_view(utf8_data, utf8_size))
-
-cdef call_ddup_config_url(url: StringType):
-    if not url:
-        return
-    if isinstance(url, bytes):
-        ddup_config_url(string_view(<const char*>url, len(url)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(url, &utf8_size)
-    if utf8_data != NULL:
-        ddup_config_url(string_view(utf8_data, utf8_size))
-
-cdef call_ddup_config_runtime(runtime: StringType):
-    if not runtime:
-        return
-    if isinstance(runtime, bytes):
-        ddup_config_runtime(string_view(<const char*>runtime, len(runtime)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(runtime, &utf8_size)
-    if utf8_data != NULL:
-        ddup_config_runtime(string_view(utf8_data, utf8_size))
-
-cdef call_ddup_config_runtime_version(runtime_version: StringType):
-    if not runtime_version:
-        return
-    if isinstance(runtime_version, bytes):
-        ddup_config_runtime_version(string_view(<const char*>runtime_version, len(runtime_version)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(runtime_version, &utf8_size)
-    if utf8_data != NULL:
-        ddup_config_runtime_version(string_view(<const char*>utf8_data, utf8_size))
-
-cdef call_ddup_config_profiler_version(profiler_version: StringType):
-    if not profiler_version:
-        return
-    if isinstance(profiler_version, bytes):
-        ddup_config_profiler_version(string_view(<const char*>profiler_version, len(profiler_version)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(profiler_version, &utf8_size)
-    if utf8_data != NULL:
-        ddup_config_profiler_version(string_view(utf8_data, utf8_size))
+        func(string_view(utf8_data, utf8_size))
 
 cdef call_ddup_config_user_tag(key: StringType, val: StringType):
     if not key or not val:
@@ -186,42 +116,6 @@ cdef call_ddup_config_user_tag(key: StringType, val: StringType):
             string_view(key_utf8_data, key_utf8_size),
             string_view(val_utf8_data, val_utf8_size)
         )
-
-cdef call_ddup_config_output_filename(output_filename: StringType):
-    if not output_filename:
-        return
-    if isinstance(output_filename, bytes):
-        ddup_config_output_filename(string_view(<const char*>output_filename, len(output_filename)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(output_filename, &utf8_size)
-    if utf8_data != NULL:
-        ddup_config_output_filename(string_view(utf8_data, utf8_size))
-
-cdef call_code_provenance_set_runtime_version(version: StringType):
-    if not version:
-        return
-    if isinstance(version, bytes):
-        code_provenance_set_runtime_version(string_view(<const char*>version, len(version)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(version, &utf8_size)
-    if utf8_data != NULL:
-        code_provenance_set_runtime_version(string_view(utf8_data, utf8_size))
-
-cdef call_code_provenance_set_stdlib_path(stdlib_path: StringType):
-    if not stdlib_path:
-        return
-    if isinstance(stdlib_path, bytes):
-        code_provenance_set_stdlib_path(string_view(<const char*>stdlib_path, len(stdlib_path)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(stdlib_path, &utf8_size)
-    if utf8_data != NULL:
-        code_provenance_set_stdlib_path(string_view(utf8_data, utf8_size))
 
 cdef call_code_provenance_add_packages(distributions):
     dist_names = []
@@ -258,18 +152,6 @@ cdef call_code_provenance_add_packages(distributions):
                 )
             )
     code_provenance_add_packages(names_and_versions)
-
-cdef call_ddup_set_runtime_id(runtime_id: StringType):
-    if not runtime_id:
-        return
-    if isinstance(runtime_id, bytes):
-        ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(runtime_id, &utf8_size)
-    if utf8_data != NULL:
-        ddup_set_runtime_id(string_view(utf8_data, utf8_size))
 
 cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # We want to make sure that endpoint strings outlive the for loop below
@@ -465,22 +347,22 @@ def config(
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
-    call_ddup_config_service(service)
+    call_func_with_str(ddup_config_service, service)
 
     # Empty values are auto-populated in the backend (omitted in client)
     if env:
-        call_ddup_config_env(env)
+        call_func_with_str(ddup_config_env, env)
     if version:
-        call_ddup_config_version(version)
+        call_func_with_str(ddup_config_version, version)
     if url:
-        call_ddup_config_url(url)
+        call_func_with_str(ddup_config_url, url)
     if output_filename:
-        call_ddup_config_output_filename(output_filename)
+        call_func_with_str(ddup_config_output_filename, output_filename)
 
     # Inherited
-    call_ddup_config_runtime(platform.python_implementation())
-    call_ddup_config_runtime_version(platform.python_version())
-    call_ddup_config_profiler_version(ddtrace.__version__)
+    call_func_with_str(ddup_config_runtime, platform.python_implementation())
+    call_func_with_str(ddup_config_runtime_version, platform.python_version())
+    call_func_with_str(ddup_config_profiler_version, ddtrace.__version__)
 
     if max_nframes is not None:
         ddup_config_max_nframes(clamp_to_int64_unsigned(max_nframes))
@@ -496,9 +378,9 @@ def config(
 
     if enable_code_provenance:
         code_provenance_enable(enable_code_provenance)
-        call_code_provenance_set_runtime_version(platform.python_version())
+        call_func_with_str(code_provenance_set_runtime_version, platform.python_version())
         # DEV: Do we also have to pass platsdlib_path, purelib_path, platlib_path?
-        call_code_provenance_set_stdlib_path(sysconfig.get_path("stdlib"))
+        call_func_with_str(code_provenance_set_stdlib_path, sysconfig.get_path("stdlib"))
         call_code_provenance_add_packages(get_distributions())
 
 
@@ -507,8 +389,7 @@ def start() -> None:
 
 
 def upload() -> None:
-    runtime_id = get_runtime_id()
-    call_ddup_set_runtime_id(runtime_id)
+    call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
     processor = ddtrace.tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
