@@ -472,14 +472,14 @@ class Config(object):
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
-        self.inferred_service = detect_service(sys.argv)
+        self._inferred_service = detect_service(sys.argv)
 
         if self.service is None and in_gcp_function():
             self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_azure_function():
             self.service = _get_config("WEBSITE_SITE_NAME", DEFAULT_SPAN_SERVICE_NAME)
-        if self.service is None and self.inferred_service:
-            self.service = self.inferred_service
+        if self.service is None and self._inferred_service:
+            self.service = self._inferred_service
 
         self._extra_services = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
