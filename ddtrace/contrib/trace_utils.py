@@ -372,11 +372,14 @@ def int_service(pin, int_config, default=None):
         return cast(str, int_config.service_name)
 
     global_service = int_config.global_config._get_service()
-    if global_service:
+    if global_service and global_service != int_config.global_config.inferred_service:
         return cast(str, global_service)
 
     if "_default_service" in int_config and int_config._default_service is not None:
         return cast(str, int_config._default_service)
+    
+    if default is None and global_service:
+        return cast(str, global_service)
 
     return default
 
