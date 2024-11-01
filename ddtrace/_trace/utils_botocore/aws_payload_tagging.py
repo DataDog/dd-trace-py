@@ -40,7 +40,6 @@ class AWSPayloadTagging:
         "$..SSEKMSKeyId",
         "$..SSEKMSEncryptionContext",
     ]
-
     _REQUEST_REDACTION_PATHS_DEFAULTS = [
         # Sns
         "$..Attributes.PlatformCredential",
@@ -73,19 +72,38 @@ class AWSPayloadTagging:
         "$..Credentials.SecretAccessKey",
         "$..Credentials.SessionToken",
     ]
+
+
     def __init__(self):
         self.current_tag_count = 0
+        self.validated = False
+        self.request_redaction_paths = None
+        self.response_redaction_paths = None
 
     def expand_payload_as_tags(self, span: Span, result: Dict[str, Any], key: str) -> None:
         """
         Expands the JSON payload from various AWS services into tags and sets them on the Span.
         """
+        if not self.validated:
+            self.request_redaction_paths = self._get_redaction_paths_request()
+            self.response_redaction_paths = self._get_redaction_paths_response()
+            self.validated = True
+
+        if not self.request_redaction_paths and not self.response_redaction_paths:
+            return
+
         if not result:
             return
 
+        # we will be redacting at least one of request/response
         redacted_dict = copy.deepcopy(result)
-        self._redact_json(redacted_dict, span)
+        self.current_tag_count = 0
+        if self.request_redaction_paths:
+            self._redact_json(redacted_dict, span, self.request_redaction_paths)
+        if self.response_redaction_paths:
+            self._redact_json(redacted_dict, span, self.response_redaction_paths)
 
+        # flatten the payload into span tags
         for key2, value in redacted_dict.items():
             self._tag_object(span, f"{key}.{key2}", value)
             if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
@@ -101,38 +119,66 @@ class AWSPayloadTagging:
 
         return False
 
-    def _redact_json(self, data: Dict[str, Any], span: Span) -> None:
+    def _validate_json_paths(self, paths: Optional[str]) -> bool:
+        """
+        Checks whether paths is "all" or all valid JSONPaths
+        """
+        if not paths:
+            return False # not enabled
+
+        if paths == "all":
+            return True # enabled, use the defaults
+
+        # otherwise validate that we have valid JSONPaths
+        for path in paths.split(','):
+            if path:
+                try:
+                    parse(path)
+                except (Exception):
+                    return False
+            else:
+                return False
+
+        return True
+
+    def _redact_json(self, data: Dict[str, Any], span: Span, paths: list) -> None:
         """
         Redact sensitive data in the JSON payload based on default and user-provided JSONPath expressions
         """
-        # TODO should we cache these paths and generated lists?
-        request_redaction = self._get_redaction_paths_request(config.botocore.get("payload_tagging_request"))
-        response_redaction = self._get_redaction_paths_response(config.botocore.get("payload_tagging_response"))
-        for path in request_redaction + response_redaction:
+        for path in paths:
             expression = parse(path)
             for match in expression.find(data):
                 match.context.value[match.path.fields[0]] = "redacted"
 
-    def _get_redaction_paths_response(self, user_paths: Optional[str]) -> list:
+    def _get_redaction_paths_response(self) -> list:
         """
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
-        if user_paths and user_paths != "all": # "all" is a special value that just enables the expansion and uses defaults
-            return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + user_paths.replace(" ", "").split(',')
-        return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
+        if not config.botocore.get("payload_tagging_response"):
+            return None
+        
+        response_redaction = config.botocore.get("payload_tagging_response")
+        if self._validate_json_paths(response_redaction):
+            if response_redaction == "all":
+                return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + response_redaction.split(',')
+            return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
 
-    def _get_redaction_paths_request(self, user_paths: Optional[str]) -> list:
+    def _get_redaction_paths_request(self) -> list:
         """
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
-        if user_paths and user_paths != "all": # "all" is a special value that just enables the expansion and uses defaults
-            return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + user_paths.replace(" ", "").split(',')
-        return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
+        if not config.botocore.get("payload_tagging_request"):
+            return None
+
+        request_redaction = config.botocore.get("payload_tagging_request")
+        if self._validate_json_paths(request_redaction):
+            if request_redaction == "all":
+                return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + request_redaction.split(',')
+            return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
 
     def _tag_object(self, span: Span, key: str, obj: Any, depth: int = 0) -> None:
         """
         Recursively expands the given AWS payload object and adds the values as flattened Span tags.
-        Modeled after: https://github.com/DataDog/datadog-lambda-python/blob/2b85536bbc24cef46bd61381ec62f57011e0633f/datadog_lambda/tag_object.py#L15
         For example, the following (shortened payload object) becomes:
         {
             "ResponseMetadata": {
@@ -149,14 +195,15 @@ class AWSPayloadTagging:
         "aws.response.body.HTTPHeaders.x-amz-request-id": "SOMEID"
         "aws.response.body.HTTPHeaders.content-length": "5"
         """
+        # if we've hit the maximum allowed tags, mark the expansion as incomplete
         if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
             span.set_tag(self._INCOMPLETE_TAG, True)
-            return    
+            return
         if obj is None:
             self.current_tag_count += 1
             span.set_tag(key, obj)
             return    
-        if depth >= config.botocore.get("payload_tagging_max_depth", 10):
+        if depth >= config.botocore.get("payload_tagging_max_depth"):
             self.current_tag_count += 1
             span.set_tag(key, str(obj)[:5000])  # at the maximum depth - set the tag without further expansion
             return
