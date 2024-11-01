@@ -15,6 +15,8 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import deep_getattr
 
+_PAYLOAD_TAGGER=AWSPayloadTagging()
+
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
     span.set_tag_str(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
@@ -31,10 +33,8 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         if params and not config.botocore["tag_no_params"]:
             aws._add_api_param_span_tags(span, endpoint_name, params)
 
-        if params and config.botocore["payload_tagging_request"] is not None and config.botocore["payload_tagging_request"].replace(" ", "") != "":
-            if endpoint_name in config.botocore.get("payload_tagging_services"):
-                payload_tagger = AWSPayloadTagging() # TODO where do I put this?
-                payload_tagger.expand_payload_as_tags(span, params, "aws.request.body")
+        if config.botocore["payload_tagging_request"] and config.botocore["payload_tagging_request"].replace(" ", "") and endpoint_name in config.botocore.get("payload_tagging_services"):
+            _PAYLOAD_TAGGER.expand_payload_as_tags(span, params, "aws.request.body")
 
     else:
         span.resource = endpoint_name
@@ -59,10 +59,8 @@ def set_botocore_response_metadata_tags(
         return
     response_meta = result["ResponseMetadata"]
 
-    if config.botocore["payload_tagging_response"] is not None and config.botocore["payload_tagging_response"].replace(" ", "") != "":
-        if span.get_tag("aws_service") in config.botocore.get("payload_tagging_services"):
-            payload_tagger = AWSPayloadTagging() # TODO where do I put this?
-            payload_tagger.expand_payload_as_tags(span, response_meta, "aws.response.body")
+    if config.botocore["payload_tagging_response"] and config.botocore["payload_tagging_response"].replace(" ", "") and span.get_tag("aws_service") in config.botocore.get("payload_tagging_services"):
+        _PAYLOAD_TAGGER.expand_payload_as_tags(span, response_meta, "aws.response.body")
 
     if "HTTPStatusCode" in response_meta:
         status_code = response_meta["HTTPStatusCode"]
