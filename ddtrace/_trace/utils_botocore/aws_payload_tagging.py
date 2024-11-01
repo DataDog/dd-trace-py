@@ -19,9 +19,9 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor.jsonpath_ng import parse
 
-INCOMPLETE_TAG = "_dd.payload_tags_incomplete" # Set to True if MAX_TAGS is reached
-
 class AWSPayloadTagging:
+    _INCOMPLETE_TAG = "_dd.payload_tags_incomplete" # Set to True if MAX_TAGS is reached
+
     _REDACTION_PATHS_DEFAULTS = [
         # SNS
         "$..Attributes.KmsMasterKeyId",
@@ -134,7 +134,7 @@ class AWSPayloadTagging:
         Expands the current key and value into a span tag
         """
         if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
-            span.set_tag(INCOMPLETE_TAG, True)
+            span.set_tag(self._INCOMPLETE_TAG, True)
             return    
         if obj is None:
             self.current_tag_count += 1
