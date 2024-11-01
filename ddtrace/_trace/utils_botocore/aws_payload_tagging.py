@@ -131,7 +131,23 @@ class AWSPayloadTagging:
 
     def _tag_object(self, span: Span, key: str, obj: Any, depth: int = 0) -> None:
         """
-        Expands the current key and value into a span tag
+        Recursively expands the given AWS payload object and adds the values as flattened Span tags.
+        Modeled after: https://github.com/DataDog/datadog-lambda-python/blob/2b85536bbc24cef46bd61381ec62f57011e0633f/datadog_lambda/tag_object.py#L15
+        For example, the following (shortened payload object) becomes:
+        {
+            "ResponseMetadata": {
+                "RequestId": "SOMEID",
+                "HTTPHeaders": {
+                    "x-amz-request-id": "SOMEID",
+                    "content-length": "5",
+                }
+        }
+
+        =>
+
+        "aws.response.body.RequestId": "SOMEID"
+        "aws.response.body.HTTPHeaders.x-amz-request-id": "SOMEID"
+        "aws.response.body.HTTPHeaders.content-length": "5"
         """
         if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
             span.set_tag(self._INCOMPLETE_TAG, True)
