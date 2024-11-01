@@ -52,6 +52,12 @@ class Scheduler(periodic.PeriodicService):
         # type: (...) -> None
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
+        if self.before_flush is not None:
+            try:
+                self.before_flush()
+            except Exception:
+                LOG.error("Scheduler before_flush hook failed", exc_info=True)
+
         if self._export_libdd_enabled:
             ddup.upload()
 
@@ -61,11 +67,6 @@ class Scheduler(periodic.PeriodicService):
             self._last_export = compat.time_ns()
             return
 
-        if self.before_flush is not None:
-            try:
-                self.before_flush()
-            except Exception:
-                LOG.error("Scheduler before_flush hook failed", exc_info=True)
         events: EventsType = {}
         if self.recorder:
             events = self.recorder.reset()
