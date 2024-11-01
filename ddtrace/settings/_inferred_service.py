@@ -48,13 +48,12 @@ class PythonDetector:
                 return ServiceMetadata(arg), True
 
             if not should_skip_arg:
-                wd = self.working_dir_from_envs(self.ctx.envs)
-                abs_path = self.abs_path(arg, wd)
-                if not pathlib.Path(abs_path).exists():
+                abs_path = pathlib.Path(arg).resolve()
+                if not abs_path.exists():
                     return ServiceMetadata(""), False  # File not found
                 stripped = abs_path
                 if not pathlib.Path(stripped).is_dir():
-                    stripped = str(pathlib.Path(stripped).parent)
+                    stripped = pathlib.Path(stripped).parent
                 value, ok = self.deduce_package_name(stripped)
                 if ok:
                     return ServiceMetadata(value), True
@@ -67,18 +66,14 @@ class PythonDetector:
 
         return ServiceMetadata(""), False
 
-    def working_dir_from_envs(self, envs):
-        # Assuming the function extracts working directory from envs
-        return os.getcwd()
-
     def abs_path(self, a, wd):
         # Converts the given path to an absolute path
-        return str(pathlib.Path(wd) / a)
+        return pathlib.Path(wd) / a
 
     # deduce_package_name is walking until a `__init__.py` is not found.
     # All the dir traversed are joined then with `.`
     def deduce_package_name(self, fp):
-        up = str(pathlib.Path(fp).parent)
+        up = pathlib.Path(fp).parent
         current = fp
         traversed = []
 
@@ -87,13 +82,13 @@ class PythonDetector:
                 break
             traversed.insert(0, pathlib.Path(current).name)
             current = up
-            up = str(pathlib.Path(current).parent)
+            up = pathlib.Path(current).parent
 
         return ".".join(traversed), len(traversed) > 0
 
     # findNearestTopLevel returns the top level dir containing a .py file starting walking up from fp
     def find_nearest_top_level(self, fp):
-        up = str(pathlib.Path(fp).parent)
+        up = pathlib.Path(fp).parent
         current = fp
         last = current
 
@@ -102,7 +97,7 @@ class PythonDetector:
                 break
             last = current
             current = up
-            up = str(pathlib.Path(current).parent)
+            up = pathlib.Path(current).parent
 
         return pathlib.Path(last).name
 
@@ -118,14 +113,13 @@ class GunicornDetector:
         return "gunicorn"
 
     def detect(self, args):
-        # breakpoint()
-        from_env = self.extract_env_var(GUNICORN_CMD_ARGS)
+        from_env = os.getenv(GUNICORN_CMD_ARGS)
         if from_env:
             name, ok = self.extract_gunicorn_name_from(from_env.split())
             if ok:
                 return ServiceMetadata(name), True
 
-        wsgi_app = self.extract_env_var(WSGI_APP_ENV)
+        wsgi_app = os.getenv(WSGI_APP_ENV)
         if wsgi_app:
             return ServiceMetadata(self.parse_name_from_wsgi_app(wsgi_app)), True
 
@@ -134,9 +128,6 @@ class GunicornDetector:
             return ServiceMetadata(name), True
 
         return ServiceMetadata("gunicorn"), True
-
-    def extract_env_var(self, var_name):
-        return os.getenv(var_name)
 
     def extract_gunicorn_name_from(self, args):
         skip = False
@@ -174,29 +165,34 @@ def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
         return None
 
     # Trim the first argument to ensure we're checking the correct command
-    possible_commands = [args[0], sys.executable]
+    possible_commands = [*args, sys.executable]
+    executable_args = []
 
     # List of detectors to try in order
     detectors = {}
     for detector_class in detector_classes:
         detector_instance = detector_class(ctx)
 
-        for command in possible_commands:
+        for i in range(len(possible_commands)):
             detector_name = detector_instance.name
             detector_pattern = detector_instance.pattern
 
+            command = possible_commands[i]
+
             if re.search(detector_pattern, command):
                 detectors.update({detector_name: detector_instance})
+                # append to a list of arg indexes to ignore since they are executables
+                executable_args.append(i)
 
     args_to_search = []
-    for arg in args:
+    for i in range(len(args)):
+        arg = args[i]
         # skip any executable args
-        if "/bin/" not in arg:
+        if "/bin/" not in arg and i not in executable_args:
             args_to_search.append(arg)
 
     # Iterate through the matched detectors
     for detector in detectors.values():
-        # breakpoint()
         metadata, detected = detector.detect(args_to_search)
         if detected and metadata.name:
             return metadata.name

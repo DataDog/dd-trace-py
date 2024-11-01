@@ -7,7 +7,6 @@ from . import schematize_service_name
 
 class BaseServiceProcessor(TraceProcessor):
     def __init__(self):
-        # breakpoint()
         self._global_service = schematize_service_name((config.service or "").lower())
 
     def process_trace(self, trace):
@@ -23,5 +22,4 @@ class BaseServiceProcessor(TraceProcessor):
         return trace
 
     def _update_dd_base_service(self, span):
-        # breakpoint()
         span.set_tag_str(key=BASE_SERVICE_KEY, value=self._global_service)
