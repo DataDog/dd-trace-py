@@ -34,6 +34,11 @@ stack_v2_stop(PyObject* self, PyObject* args)
     (void)self;
     (void)args;
     Sampler::get().stop();
+    // Explicitly clear ThreadSpanLinks. The memory should be cleared up
+    // when the program exits as ThreadSpanLinks is a static singleton instance.
+    // However, this was necessary to make sure that the state is not shared
+    // across tests, as the tests are run in the same process.
+    ThreadSpanLinks::get_instance().reset();
     Py_RETURN_NONE;
 }
 
@@ -81,6 +86,7 @@ stack_v2_thread_unregister(PyObject* self, PyObject* args)
     }
 
     Sampler::get().unregister_thread(id);
+    ThreadSpanLinks::get_instance().unlink_span(id);
     Py_RETURN_NONE;
 }
 
