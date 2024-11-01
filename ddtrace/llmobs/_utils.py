@@ -11,6 +11,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
+from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
@@ -30,7 +31,8 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
     template = prompt.get("template")
     version = prompt.get("version")
     prompt_id = prompt.get("id")
-    ctx_variable_keys = prompt.get("context_variable_keys")
+    ctx_variable_keys = prompt.get("rag_context_variables")
+    rag_query_variable_key = prompt.get("rag_query_variables")
     if variables is not None:
         if not isinstance(variables, dict):
             raise TypeError("Prompt variables must be a dictionary.")
@@ -51,12 +53,20 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
         validated_prompt["id"] = prompt_id
     if ctx_variable_keys is not None:
         if not isinstance(ctx_variable_keys, list):
-            raise TypeError("Prompt `context_variable_keys` must be a list.")
+            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
         if not all(isinstance(k, str) for k in ctx_variable_keys):
-            raise TypeError("Prompt `context_variable_keys` must be a list of strings.")
+            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ctx_variable_keys
     else:
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ["context"]
+    if rag_query_variable_key is not None:
+        if not isinstance(rag_query_variable_key, list):
+            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
+        if not all(isinstance(k, str) for k in rag_query_variable_key):
+            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
+        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = rag_query_variable_key
+    else:
+        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = ["question"]
     return validated_prompt
 
 
