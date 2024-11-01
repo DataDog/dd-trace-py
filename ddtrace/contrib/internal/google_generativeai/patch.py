@@ -8,8 +8,11 @@ from ddtrace.contrib.internal.google_generativeai._utils import TracedAsyncGener
 from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import _extract_api_key
 from ddtrace.contrib.internal.google_generativeai._utils import _extract_model_name
+from ddtrace.contrib.internal.google_generativeai._utils import get_system_instruction_parts
+from ddtrace.contrib.internal.google_generativeai._utils import get_generation_config_dict
 from ddtrace.contrib.internal.google_generativeai._utils import tag_request
 from ddtrace.contrib.internal.google_generativeai._utils import tag_response
+from ddtrace.contrib.internal.google_generativeai._utils import GOOGLE_GENERATIVEAI
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -46,14 +49,14 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, instance, args, kwargs)
+        tag_request(span, integration, args, kwargs, GOOGLE_GENERATIVEAI, get_system_instruction_parts(instance), get_generation_config_dict(instance, kwargs))
         generations = func(*args, **kwargs)
         api_key = _extract_api_key(instance)
         if api_key:
-            span.set_tag("google_generativeai.request.api_key", "...{}".format(api_key[-4:]))
+            span.set_tag("%s.request.api_key" % GOOGLE_GENERATIVEAI, "...{}".format(api_key[-4:]))
         if stream:
             return TracedGenerateContentResponse(generations, instance, integration, span, args, kwargs)
-        tag_response(span, generations, integration, instance)
+        tag_response(GOOGLE_GENERATIVEAI, span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
