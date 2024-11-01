@@ -1,8 +1,9 @@
-import os
 import fnmatch
+import os
 import pathlib
 import re
 import sys
+
 
 INIT_PY = "__init__.py"
 ALL_PY_FILES = "*.py"
@@ -23,15 +24,15 @@ class ServiceMetadata:
 class PythonDetector:
     def __init__(self, ctx):
         self.ctx = ctx
-        name = 'python'
+        name = "python"
         self.name = name
-        
+
         # This pattern matches:
         # - Starts with an optional directory (anything before the last '/' or '')
         # - Ends with the expected command name, possibly followed by a version
         # - Ensures that it does not end with .py
         # - Match /python, /python3.7, etc.
-        self.pattern = r'(^|/)(?!.*\.py$)(' + re.escape(name) + r'(\d+\.\d+)?$)'
+        self.pattern = r"(^|/)(?!.*\.py$)(" + re.escape(name) + r"(\d+\.\d+)?$)"
 
     def detect(self, args):
         prev_arg_is_flag = False
@@ -39,7 +40,7 @@ class PythonDetector:
 
         for arg in args:
             has_flag_prefix = arg.startswith("-")
-            is_env_variable = '=' in arg
+            is_env_variable = "=" in arg
 
             should_skip_arg = prev_arg_is_flag or has_flag_prefix or is_env_variable
 
@@ -75,7 +76,7 @@ class PythonDetector:
         return str(pathlib.Path(wd) / a)
 
     # deduce_package_name is walking until a `__init__.py` is not found.
-    # All the dir traversed are joined then with `.` 
+    # All the dir traversed are joined then with `.`
     def deduce_package_name(self, fp):
         up = str(pathlib.Path(fp).parent)
         current = fp
@@ -109,12 +110,12 @@ class PythonDetector:
 class GunicornDetector:
     def __init__(self, ctx):
         self.ctx = ctx
-        name = 'gunicorn'
+        name = "gunicorn"
         self.name = name
         self.pattern = name
 
     def expected_command_name(self):
-        return 'gunicorn'
+        return "gunicorn"
 
     def detect(self, args):
         # breakpoint()
@@ -151,11 +152,11 @@ class GunicornDetector:
                 if arg == "-n":
                     capture = True
                     continue
-                skip = '=' not in arg
+                skip = "=" not in arg
                 if skip:
                     continue
                 if arg.startswith("--name="):
-                    return arg[len("--name="):], True
+                    return arg[len("--name=") :], True
             else:
                 return self.parse_name_from_wsgi_app(args[-1]), True
         return "", False
@@ -165,7 +166,7 @@ class GunicornDetector:
         return name
 
 
-def detect_service(args, detector_classes = [PythonDetector, GunicornDetector]):
+def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
     ctx = DetectionContext(os.environ)
 
     # Check if args is not empty
@@ -177,23 +178,21 @@ def detect_service(args, detector_classes = [PythonDetector, GunicornDetector]):
 
     # List of detectors to try in order
     detectors = {}
-    args_start_index = 0
     for detector_class in detector_classes:
         detector_instance = detector_class(ctx)
 
         for command in possible_commands:
             detector_name = detector_instance.name
             detector_pattern = detector_instance.pattern
-            
+
             if re.search(detector_pattern, command):
                 detectors.update({detector_name: detector_instance})
 
     args_to_search = []
     for arg in args:
         # skip any executable args
-        if '/bin/' not in arg:
+        if "/bin/" not in arg:
             args_to_search.append(arg)
-
 
     # Iterate through the matched detectors
     for detector in detectors.values():

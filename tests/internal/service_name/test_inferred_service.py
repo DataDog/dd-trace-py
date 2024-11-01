@@ -1,9 +1,11 @@
-import pytest
-import os
 import pathlib
 import tempfile
 from unittest.mock import patch
+
+import pytest
+
 from ddtrace.settings._inferred_service import detect_service
+
 
 @pytest.fixture
 def mock_file_system():
@@ -30,6 +32,7 @@ def mock_file_system():
         (base_path / "apps" / "app2" / "setup.py").touch()
 
         yield base_path
+
 
 def test_python_detector(mock_file_system):
     # Mock the current working directory to the test_modules path

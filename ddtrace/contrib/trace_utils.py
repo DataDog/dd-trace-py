@@ -377,7 +377,7 @@ def int_service(pin, int_config, default=None):
 
     if "_default_service" in int_config and int_config._default_service is not None:
         return cast(str, int_config._default_service)
-    
+
     if default is None and global_service:
         return cast(str, global_service)
 
