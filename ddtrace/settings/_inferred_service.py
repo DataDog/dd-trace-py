@@ -187,12 +187,18 @@ def detect_service(args, detector_classes = [PythonDetector, GunicornDetector]):
             
             if re.search(detector_pattern, command):
                 detectors.update({detector_name: detector_instance})
-                if command == args[0]:
-                    args_start_index = 1 # we want to start with the args, not command executable
+
+    args_to_search = []
+    for arg in args:
+        # skip any executable args
+        if '/bin/' not in arg:
+            args_to_search.append(arg)
+
 
     # Iterate through the matched detectors
     for detector in detectors.values():
-        metadata, detected = detector.detect(args[args_start_index:])
+        # breakpoint()
+        metadata, detected = detector.detect(args_to_search)
         if detected and metadata.name:
             return metadata.name
     return None
