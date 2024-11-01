@@ -118,7 +118,7 @@ class AWSPayloadTagging:
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
         if user_paths and user_paths != "all": # "all" is a special value that just enables the expansion and uses defaults
-            return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + user_paths.split(',')
+            return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + user_paths.replace(" ", "").split(',')
         return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
 
     def _get_redaction_paths_request(self, user_paths: Optional[str]) -> list:
@@ -126,7 +126,7 @@ class AWSPayloadTagging:
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
         if user_paths and user_paths != "all": # "all" is a special value that just enables the expansion and uses defaults
-            return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + user_paths.split(',')
+            return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + user_paths.replace(" ", "").split(',')
         return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
 
     def _tag_object(self, span: Span, key: str, obj: Any, depth: int = 0) -> None:
