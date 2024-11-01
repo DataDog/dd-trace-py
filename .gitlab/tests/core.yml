@@ -8,6 +8,7 @@ telemetry:
   parallel: 4
   variables:
     SUITE_NAME: "telemetry"
+  retry: 2
 
 integration-testagent:
   extends: .test_base_riot_snapshot

@@ -15,6 +15,7 @@ langchain:
   parallel: 6
   variables:
     SUITE_NAME: "langchain"
+  retry: 2
 
 anthropic:
   extends: .test_base_riot_snapshot
