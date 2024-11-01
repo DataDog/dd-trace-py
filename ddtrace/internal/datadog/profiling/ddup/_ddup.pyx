@@ -571,7 +571,12 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             thread_id = thread_id if thread_id is not None else 0
             thread_native_id = thread_native_id if thread_native_id is not None else 0
-            call_ddup_push_threadinfo(self.ptr, thread_id, thread_native_id, thread_name)
+            call_ddup_push_threadinfo(
+                self.ptr,
+                clamp_to_int64_unsigned(thread_id),
+                clamp_to_int64_unsigned(thread_native_id),
+                thread_name
+            )
 
     def push_task_id(self, task_id: Optional[int]) -> None:
         if self.ptr is not NULL:
