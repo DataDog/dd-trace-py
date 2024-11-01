@@ -1,6 +1,8 @@
 import os
 import fnmatch
 import pathlib
+import re
+import sys
 
 INIT_PY = "__init__.py"
 ALL_PY_FILES = "*.py"
@@ -21,9 +23,15 @@ class ServiceMetadata:
 class PythonDetector:
     def __init__(self, ctx):
         self.ctx = ctx
-
-    def expected_command_name(self):
-        return 'python'
+        name = 'python'
+        self.name = name
+        
+        # This pattern matches:
+        # - Starts with an optional directory (anything before the last '/' or '')
+        # - Ends with the expected command name, possibly followed by a version
+        # - Ensures that it does not end with .py
+        # - Match /python, /python3.7, etc.
+        self.pattern = r'(^|/)(?!.*\.py$)(' + re.escape(name) + r'(\d+\.\d+)?$)'
 
     def detect(self, args):
         prev_arg_is_flag = False
@@ -101,6 +109,9 @@ class PythonDetector:
 class GunicornDetector:
     def __init__(self, ctx):
         self.ctx = ctx
+        name = 'gunicorn'
+        self.name = name
+        self.pattern = name
 
     def expected_command_name(self):
         return 'gunicorn'
@@ -162,21 +173,26 @@ def detect_service(args, detector_classes = [PythonDetector, GunicornDetector]):
         return None
 
     # Trim the first argument to ensure we're checking the correct command
-    command = args[0].strip()
+    possible_commands = [args[0], sys.executable]
 
     # List of detectors to try in order
-    detectors = []
+    detectors = {}
+    args_start_index = 0
     for detector_class in detector_classes:
         detector_instance = detector_class(ctx)
 
-        # Check if the command matches the detector's expected executable name.
-        if command.startswith(detector_instance.expected_command_name()):
-            detectors.append(detector_instance)
+        for command in possible_commands:
+            detector_name = detector_instance.name
+            detector_pattern = detector_instance.pattern
+            
+            if re.search(detector_pattern, command):
+                detectors.update({detector_name: detector_instance})
+                if command == args[0]:
+                    args_start_index = 1 # we want to start with the args, not command executable
 
     # Iterate through the matched detectors
-    for detector in detectors:
-        # Pass the trimmed args (excluding the detected command)
-        metadata, detected = detector.detect(args[1:])  # Pass args[1:] to skip the command itself
+    for detector in detectors.values():
+        metadata, detected = detector.detect(args[args_start_index:])
         if detected and metadata.name:
             return metadata.name
     return None
