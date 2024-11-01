@@ -25,6 +25,15 @@ from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from tests.utils import get_128_bit_trace_id_from_headers
 
+# Span data which isn't static to ignore in the snapshots.
+snapshot_ignores = [
+    "meta.aws.response.body.HTTPHeaders.date", 
+    "meta.aws.requestid",
+    "meta.aws.response.body.RequestId",
+    "meta.aws.response.body.HTTPHeaders.content-length",
+    "meta.aws.response.body.HTTPHeaders.x-amzn-requestid"
+]
+
 
 # Older version of moto used kinesis to mock firehose
 try:
@@ -3767,7 +3776,7 @@ class BotocoreTest(TracerTestCase):
             assert span.name == "aws.secretsmanager.request"
 
 
-    # @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
@@ -3812,7 +3821,7 @@ class BotocoreTest(TracerTestCase):
             trace_in_message = "MessageAttributes" in response["Messages"][0]
             assert trace_in_message is False
 
-    # @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns(self):
@@ -3885,7 +3894,7 @@ class BotocoreTest(TracerTestCase):
             msg_attr = msg_body["MessageAttributes"]
             assert msg_attr.get("_datadog") is None
 
-    # @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
@@ -3920,7 +3929,7 @@ class BotocoreTest(TracerTestCase):
                 assert span.error == 1
                 assert span.resource == "s3.listobjects"
 
-    # @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_events
     def test_aws_payload_tagging_eventbridge(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
@@ -3992,7 +4001,7 @@ class BotocoreTest(TracerTestCase):
             # assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
             # assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-    # @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_kinesis
     def test_aws_payload_tagging_kinesis(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
