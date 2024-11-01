@@ -112,6 +112,10 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_question_in_messages
                 label=RagasFaithfulnessEvaluator.LABEL,
                 metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
                 value=1.0,
+                metadata={
+                    "_dd.exported_evaluation_span": mock.ANY,
+                    "_dd.faithfulness_list": mock.ANY,
+                },
             )
         ]
     )
