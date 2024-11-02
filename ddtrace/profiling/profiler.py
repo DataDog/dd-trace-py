@@ -10,12 +10,10 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
-from ddtrace.internal import writer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
@@ -109,11 +107,8 @@ class _ProfilerInstance(service.Service):
 
     """
 
-    ENDPOINT_TEMPLATE = "https://intake.profile.{}"
-
     def __init__(
         self,
-        url: Optional[str] = None,
         service: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         env: Optional[str] = None,
@@ -130,7 +125,6 @@ class _ProfilerInstance(service.Service):
     ):
         super().__init__()
         # User-supplied values
-        self.url: Optional[str] = url
         self.service: Optional[str] = service if service is not None else config.service
         self.tags: Dict[str, str] = tags if tags is not None else profiling_config.tags
         self.env: Optional[str] = env if env is not None else config.env
@@ -177,22 +171,13 @@ class _ProfilerInstance(service.Service):
                     file.PprofFileExporter(prefix=_OUTPUT_PPROF),
                 ]
 
-        if self.url is not None:
-            endpoint = self.url
-        elif self.agentless:
+        if self.agentless:
             LOG.warning(
                 "Agentless uploading is currently for internal usage only and not officially supported. "
                 "You should not enable it unless somebody at Datadog instructed you to do so."
             )
-            endpoint = self.ENDPOINT_TEMPLATE.format(os.environ.get("DD_SITE", "datadoghq.com"))
-        else:
-            if isinstance(self.tracer._writer, writer.AgentWriter):
-                endpoint = self.tracer._writer.agent_url
-            else:
-                endpoint = agent.get_trace_url()
-
-        if self.agentless:
-            endpoint_path = "/api/v2/profile"
+            # TODO: figure out whether this needs to be changed as part of the endpoint update
+            endpoint_path = "profiling/api/v2/profile"
         else:
             # Agent mode
             # path is relative because it is appended
@@ -238,7 +223,6 @@ class _ProfilerInstance(service.Service):
                     version=self.version,
                     tags=self.tags,  # type: ignore
                     max_nframes=profiling_config.max_frames,
-                    url=endpoint,
                     timeline_enabled=profiling_config.timeline_enabled,
                     output_filename=profiling_config.output_pprof,
                     sample_pool_capacity=profiling_config.sample_pool_capacity,
@@ -278,7 +262,6 @@ class _ProfilerInstance(service.Service):
                 tags=self.tags,
                 version=self.version,
                 api_key=self.api_key,
-                endpoint=endpoint,
                 endpoint_path=endpoint_path,
                 enable_code_provenance=self.enable_code_provenance,
                 endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,

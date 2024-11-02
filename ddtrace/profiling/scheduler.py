@@ -2,10 +2,8 @@
 import logging
 from typing import Any  # noqa F401
 from typing import Callable
-from typing import Dict  # noqa F401
 from typing import List
 from typing import Optional
-from typing import Sequence  # noqa F401
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
