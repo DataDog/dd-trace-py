@@ -9,10 +9,6 @@ from ddtrace.settings.endpoint_config import fetch_config_from_endpoint
 from tests.utils import override_env
 
 
-def test_ensure_this_is_running():
-    assert False
-
-
 def mock_getresponse_enabled(self):
     response = mock.Mock(spec=HTTPResponse)
     response.read.return_value = b'{"dd_iast_enabled": true}'
@@ -123,4 +119,6 @@ def test_set_config_endpoint_connection_refused(caplog):
     with override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}):
         assert fetch_config_from_endpoint() == {}
     assert "Failed to fetch configuration from endpoint" in caplog.text
-    assert "Connection refused" in caplog.text
+    assert any(
+        message in caplog.text for message in ("Connection refused", "Address family not supported by protocol")
+    ), "None of the expected connection error log messages were found"
