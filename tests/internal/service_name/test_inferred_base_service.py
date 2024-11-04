@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.settings._inferred_service import detect_service
+from ddtrace.settings._inferred_base_service import detect_service
 
 
 @pytest.fixture

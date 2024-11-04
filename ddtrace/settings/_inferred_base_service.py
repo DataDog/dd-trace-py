@@ -3,12 +3,17 @@ import os
 import pathlib
 import re
 import sys
+from typing import Dict
+from typing import Union
 
 
 INIT_PY = "__init__.py"
 ALL_PY_FILES = "*.py"
 GUNICORN_CMD_ARGS = "GUNICORN_CMD_ARGS"
 WSGI_APP_ENV = "WSGI_APP"
+
+
+CACHE: Dict[str, Union[str, None]] = {}
 
 
 class DetectionContext:
@@ -158,11 +163,15 @@ class GunicornDetector:
 
 
 def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
-    ctx = DetectionContext(os.environ)
-
     # Check if args is empty
     if not args:
         return None
+
+    cache_key = ";".join(args)
+    if cache_key in CACHE:
+        return CACHE.get(cache_key)
+
+    ctx = DetectionContext(os.environ)
 
     # Check both the included command args as well as the executable being run
     possible_commands = [*args, sys.executable]
@@ -195,5 +204,7 @@ def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
     for detector in detectors.values():
         metadata, detected = detector.detect(args_to_search)
         if detected and metadata.name:
+            CACHE[cache_key] = metadata.name
             return metadata.name
+    CACHE[cache_key] = None
     return None
