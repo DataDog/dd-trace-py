@@ -77,7 +77,7 @@ def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_va
         {},
         {"DD_IAST_ENABLED": "false"},
         {"DD_IAST_ENABLED": "true", "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED"},
-        {"DD_IAST_ENABLED": "false", "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}9596/"},
+        {"DD_IAST_ENABLED": "false", "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/"},
         {"_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED"},
         {"_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/"},
     ],
