@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.server.request",
-    "service": "unnamed-python-service",
+    "service": "test_schematization_0",
     "resource": "GET /",
     "trace_id": 0,
     "span_id": 1,
@@ -31,7 +31,7 @@
   },
      {
        "name": "wsgi.application",
-       "service": "unnamed-python-service",
+       "service": "test_schematization_0",
        "resource": "wsgi.application",
        "trace_id": 0,
        "span_id": 2,
@@ -47,7 +47,7 @@
      },
         {
           "name": "wsgi.start_response",
-          "service": "unnamed-python-service",
+          "service": "test_schematization_0",
           "resource": "wsgi.start_response",
           "trace_id": 0,
           "span_id": 4,
@@ -64,7 +64,7 @@
         },
      {
        "name": "wsgi.response",
-       "service": "unnamed-python-service",
+       "service": "test_schematization_0",
        "resource": "wsgi.response",
        "trace_id": 0,
        "span_id": 3,
