@@ -25,16 +25,6 @@ from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from tests.utils import get_128_bit_trace_id_from_headers
 
-# Span data which isn't static to ignore in the snapshots.
-snapshot_ignores = [
-    "meta.aws.response.body.HTTPHeaders.date", 
-    "meta.aws.requestid",
-    "meta.aws.response.body.RequestId",
-    "meta.aws.response.body.HTTPHeaders.content-length",
-    "meta.aws.response.body.HTTPHeaders.x-amzn-requestid"
-]
-
-
 # Older version of moto used kinesis to mock firehose
 try:
     from moto import mock_firehose
@@ -64,6 +54,14 @@ from tests.utils import assert_span_http_status_code
 # Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
 BOTOCORE_VERSION = parse_version(botocore.__version__)
 
+# Span data which isn't static to ignore in the snapshots.
+snapshot_ignores = [
+    "meta.aws.response.body.HTTPHeaders.date",
+    "meta.aws.requestid",
+    "meta.aws.response.body.RequestId",
+    "meta.aws.response.body.HTTPHeaders.content-length",
+    "meta.aws.response.body.HTTPHeaders.x-amzn-requestid"
+]
 
 def get_zip_lambda():
     code = """
