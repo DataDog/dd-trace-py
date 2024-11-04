@@ -17,11 +17,11 @@ from tests.profiling.collector import pprof_utils
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_stack_v2_locations(stack_v2_enabled, tmp_path):
+def test_stack_locations(stack_v2_enabled, tmp_path):
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
-    test_name = "test_locations"
+    test_name = "test_stack_locations"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
@@ -47,27 +47,29 @@ def test_stack_v2_locations(stack_v2_enabled, tmp_path):
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
-    expected_locations = [
-        pprof_utils.StackLocation(
-            function_name="baz",
-            filename="test_stack.py",
-            line_no=baz.__code__.co_firstlineno + 1,
-        ),
-        pprof_utils.StackLocation(
-            function_name="bar",
-            filename="test_stack.py",
-            line_no=bar.__code__.co_firstlineno + 1,
-        ),
-        pprof_utils.StackLocation(
-            function_name="foo",
-            filename="test_stack.py",
-            line_no=foo.__code__.co_firstlineno + 1,
-        ),
-    ]
+    expected_sample = pprof_utils.StackEvent(
+        thread_id=_thread.get_ident(),
+        thread_name="MainThread",
+        locations=[
+            pprof_utils.StackLocation(
+                function_name="baz",
+                filename="test_stack.py",
+                line_no=baz.__code__.co_firstlineno + 1,
+            ),
+            pprof_utils.StackLocation(
+                function_name="bar",
+                filename="test_stack.py",
+                line_no=bar.__code__.co_firstlineno + 1,
+            ),
+            pprof_utils.StackLocation(
+                function_name="foo",
+                filename="test_stack.py",
+                line_no=foo.__code__.co_firstlineno + 1,
+            ),
+        ],
+    )
 
-    assert pprof_utils.has_sample_with_locations(
-        profile, expected_locations
-    ), "Sample with expected locations not found"
+    pprof_utils.assert_has_samples(profile, expected_sample)
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])

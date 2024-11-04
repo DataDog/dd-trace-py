@@ -255,30 +255,6 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
     assert_base_event(profile, sample, expected_event)
 
 
-# helper function to check whether the expected stack event is present in the samples
-def has_sample_with_locations(profile, expected_locations: List[StackLocation]) -> bool:
-    for sample_idx, sample in enumerate(profile.sample):
-        # in a sample there can be multiple locations, we need to check
-        # whether there's a consecutive subsequence of locations that match
-        # the expected locations
-        expected_location_idx = 0
-        for location_id in sample.location_id:
-            location = get_location_with_id(profile, location_id)
-            function = get_function_with_id(profile, location.line[0].function_id)
-            line_no = location.line[0].line
-            function_name = profile.string_table[function.name]
-            filename = os.path.basename(profile.string_table[function.filename])
-            if (
-                function_name.endswith(expected_locations[expected_location_idx].function_name)
-                and filename == expected_locations[expected_location_idx].filename
-                and line_no == expected_locations[expected_location_idx].line_no
-            ):
-                expected_location_idx += 1
-                if expected_location_idx == len(expected_locations):
-                    return True
-    return False
-
-
 def assert_sample_has_locations(profile, sample, expected_locations: Optional[List[StackLocation]]):
     if not expected_locations:
         return
@@ -286,7 +262,11 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
     expected_locations_idx = 0
     checked = False
 
+    # For debug printing
     sample_loc_strs = []
+    # in a sample there can be multiple locations, we need to check
+    # whether there's a consecutive subsequence of locations that match
+    # the expected locations
     for location_id in sample.location_id:
         location = get_location_with_id(profile, location_id)
         line = location.line[0]
@@ -312,13 +292,20 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
 
 def assert_stack_event(profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
     # Check that the sample has label "exception type" with value
-    if expected_event.exception_type is not None:
-        exception_type_label = get_label_with_key(profile.string_table, sample, "exception type")
-        assert (
-            profile.string_table[exception_type_label.str] == expected_event.exception_type
-        ), "Expected exception type {} got {}".format(
-            expected_event.exception_type, profile.string_table[exception_type_label.str]
-        )
 
+    assert_str_label(profile.string_table, sample, "exception type", expected_event.exception_type)
     assert_sample_has_locations(profile, sample, expected_event.locations)
     assert_base_event(profile, sample, expected_event)
+
+
+def assert_has_samples(profile, expected_samples):
+    found = False
+    for sample in profile.sample:
+        try:
+            assert_stack_event(profile, sample, expected_samples)
+            found = True
+            break
+        except AssertionError:
+            pass
+
+    assert found, "Expected samples not found in profile"
