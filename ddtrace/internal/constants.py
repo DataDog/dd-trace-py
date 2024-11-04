@@ -1,10 +1,7 @@
-import sys
-
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.settings._inferred_base_service import detect_service
 
 
 PROPAGATION_STYLE_DATADOG = "datadog"
@@ -30,7 +27,7 @@ W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SAMPLING_RATE_LIMIT = 100
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
-DEFAULT_SERVICE_NAME = detect_service(sys.argv) or "unnamed-python-service"
+DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"

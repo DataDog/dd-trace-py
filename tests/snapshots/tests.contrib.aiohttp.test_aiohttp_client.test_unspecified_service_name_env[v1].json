@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.client.request",
-    "service": "test_unspecified_service_name_0",
+    "service": "test_unspecified_service_name_env_0",
     "resource": "http.client.request",
     "trace_id": 0,
     "span_id": 1,
@@ -34,7 +34,7 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": "test_unspecified_service_name_0",
+       "service": "test_unspecified_service_name_env_0",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
