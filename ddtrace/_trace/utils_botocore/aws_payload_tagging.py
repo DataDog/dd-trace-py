@@ -101,7 +101,7 @@ class AWSPayloadTagging:
 
     def _should_try_string(self, obj: Any) -> bool:
         try:
-            if isinstance(obj, str) or isinstance(obj, unicode):
+            if isinstance(obj, str) or isinstance(obj, bytes):
                 return True
         except NameError:
             if isinstance(obj, bytes):
@@ -145,7 +145,7 @@ class AWSPayloadTagging:
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
         if not config.botocore.get("payload_tagging_response"):
-            return None
+            return []
 
         response_redaction = config.botocore.get("payload_tagging_response")
         if self._validate_json_paths(response_redaction):
@@ -157,12 +157,14 @@ class AWSPayloadTagging:
                 )
             return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
 
+        return []
+
     def _get_redaction_paths_request(self) -> list:
         """
         Get the list of redaction paths, combining defaults with any user-provided JSONPaths.
         """
         if not config.botocore.get("payload_tagging_request"):
-            return None
+            return []
 
         request_redaction = config.botocore.get("payload_tagging_request")
         if self._validate_json_paths(request_redaction):
@@ -173,6 +175,8 @@ class AWSPayloadTagging:
                     + request_redaction.split(",")
                 )
             return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
+
+        return []
 
     def _tag_object(self, span: Span, key: str, obj: Any, depth: int = 0) -> None:
         """
