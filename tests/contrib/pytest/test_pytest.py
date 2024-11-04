@@ -97,7 +97,7 @@ class PytestTestCaseBase(TracerTestCase):
         ):
             yield
 
-    def inline_run(self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None):
+    def inline_run(self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None):
         """Execute test script with test tracer."""
 
         class CIVisibilityPlugin:
@@ -124,6 +124,9 @@ class PytestTestCaseBase(TracerTestCase):
 
         if block_gitlab_env:
             _test_env["GITLAB_CI"] = "0"
+
+        if extra_env:
+            _test_env.update(extra_env)
 
         with _ci_override_env(_test_env, replace_os_env=True):
             return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
@@ -4086,7 +4089,11 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        with mock.patch("ddtrace.ext.git._get_executable_path", return_value=None):
+        with mock.patch("ddtrace.ext.git._get_executable_path", return_value=None), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(),
+        ) as mock_ddconfig:
+            mock_ddconfig._ci_visibility_agentless_enabled = True
             self.inline_run("--ddtrace")
 
             spans = self.pop_spans()
