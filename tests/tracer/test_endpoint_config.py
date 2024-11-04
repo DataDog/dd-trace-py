@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 from http.client import HTTPResponse
-from ddtrace.internal.http import HTTPConnection
 from io import BytesIO
 from unittest import mock
-from tests.utils import override_env
+
+from ddtrace.internal.http import HTTPConnection
 from ddtrace.settings.endpoint_config import fetch_config_from_endpoint
+from tests.utils import override_env
 
 
 def test_ensure_this_is_running():
@@ -77,7 +78,7 @@ def test_set_config_endpoint_enabled(caplog):
         HTTPConnection, "connect", new=mock_pass
     ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_enabled
-    ) as mock_request:
+    ):
         assert fetch_config_from_endpoint() == {"dd_iast_enabled": True}
     assert "Configuration endpoint not set. Skipping fetching configuration." not in caplog.text
     assert "Failed to fetch configuration from endpoint" not in caplog.text
@@ -89,7 +90,7 @@ def test_set_config_endpoint_500(caplog):
         HTTPConnection, "connect", new=mock_pass
     ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_500
-    ) as mock_request:
+    ):
         assert fetch_config_from_endpoint() == {}
     assert "Failed to fetch configuration from endpoint, status code: 500" in caplog.text
 
@@ -100,7 +101,7 @@ def test_set_config_endpoint_403(caplog):
         HTTPConnection, "connect", new=mock_pass
     ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_403
-    ) as mock_request:
+    ):
         assert fetch_config_from_endpoint() == {}
     assert "Failed to fetch configuration from endpoint, status code: 403" in caplog.text
 
@@ -111,7 +112,7 @@ def test_set_config_endpoint_malformed(caplog):
         HTTPConnection, "connect", new=mock_pass
     ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_malformed
-    ) as mock_request:
+    ):
         assert fetch_config_from_endpoint() == {}
     assert "Failed to fetch configuration from endpoint" in caplog.text
     assert "Expecting property name enclosed in double quotes" in caplog.text
