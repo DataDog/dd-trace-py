@@ -5,6 +5,7 @@ from typing import Optional
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
@@ -166,3 +167,14 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
 
     def _atr_count_retry(self):
         self._atr_total_retries += 1
+
+    def atr_has_failed_tests(self):
+        if not self._session_settings.atr_settings.enabled:
+            return False
+
+        for _module in self._children.values():
+            for _suite in _module._children.values():
+                for _test in _suite._children.values():
+                    if _test.atr_has_retries() and _test.atr_get_final_status() == TestStatus.FAIL:
+                        return True
+        return False
