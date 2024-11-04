@@ -52,8 +52,8 @@ class PythonDetector:
                 if not abs_path.exists():
                     return ServiceMetadata(""), False  # File not found
                 stripped = abs_path
-                if not pathlib.Path(stripped).is_dir():
-                    stripped = pathlib.Path(stripped).parent
+                if not stripped.is_dir():
+                    stripped = stripped.parent
                 value, ok = self.deduce_package_name(stripped)
                 if ok:
                     return ServiceMetadata(value), True
