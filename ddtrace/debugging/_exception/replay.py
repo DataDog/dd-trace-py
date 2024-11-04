@@ -188,7 +188,11 @@ class SpanExceptionHandler:
                         )
 
                         # Capture
-                        snapshot.line()
+                        try:
+                            snapshot.do_line()
+                        except Exception:
+                            log.exception("Error capturing exception replay snapshot %r", snapshot)
+                            continue
 
                         # Collect
                         self.__uploader__.get_collector().push(snapshot)

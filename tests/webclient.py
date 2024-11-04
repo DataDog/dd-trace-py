@@ -49,7 +49,7 @@ class Client(object):
 
         @retry(after=[delay] * (max_tries - 1), initial_wait=initial_wait)
         def ping():
-            r = self.get_ignored(path, timeout=1)
+            r = self.get_ignored(path, timeout=10)
             assert r.status_code == 200
 
         ping()

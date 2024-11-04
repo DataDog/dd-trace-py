@@ -269,24 +269,24 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, caplog):
             source_origin=OriginType.PARAMETER,
         )
 
-    ranges_result = get_tainted_ranges(result)
-    assert len(ranges_result) == 0
+        ranges_result = get_tainted_ranges(result)
+        assert len(ranges_result) == 0
 
-    assert not any(record.message.startswith("Tainting object error") for record in caplog.records), [
-        record.message for record in caplog.records
-    ]
-    assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
+        assert not any(record.message.startswith("Tainting object error") for record in caplog.records), [
+            record.message for record in caplog.records
+        ]
+        assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
 
-    _start_iast_context_and_oce()
-    result = taint_pyobject(
-        pyobject=string_to_taint,
-        source_name="test_add_aspect_tainting_left_hand",
-        source_value=string_to_taint,
-        source_origin=OriginType.PARAMETER,
-    )
+        _start_iast_context_and_oce()
+        result = taint_pyobject(
+            pyobject=string_to_taint,
+            source_name="test_add_aspect_tainting_left_hand",
+            source_value=string_to_taint,
+            source_origin=OriginType.PARAMETER,
+        )
 
-    ranges_result = get_tainted_ranges(result)
-    assert len(ranges_result) == 1
+        ranges_result = get_tainted_ranges(result)
+        assert len(ranges_result) == 1
 
 
 @pytest.mark.skip_iast_check_logs
