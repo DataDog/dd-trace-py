@@ -7,6 +7,7 @@ import json
 import os
 from urllib import parse
 
+from ddtrace.constants import CONFIG_ENDPOINT_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import connector
 
@@ -18,7 +19,7 @@ def fetch_config_from_endpoint() -> dict:
     """
     Fetch the configuration from the configuration endpoint.
     """
-    config_endpoint = os.getenv("DD_CONFIG_ENDPOINT", None)
+    config_endpoint = os.getenv(CONFIG_ENDPOINT_ENV, None)
 
     if config_endpoint is None:
         log.debug("Configuration endpoint not set. Skipping fetching configuration.")
