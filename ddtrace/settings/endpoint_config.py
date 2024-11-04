@@ -39,7 +39,7 @@ def fetch_config_from_endpoint() -> dict:
             log.debug("Fetched configuration from endpoint: %s", data)
             return json.loads(data)
 
-    except (json.JSONDecodeError, Exception) as exc:
-        log.error("Failed to fetch configuration from endpoint: %s", exc)
+    except (json.JSONDecodeError, Exception):
+        log.error("Failed to fetch configuration from endpoint:", exc_info=True)
 
     return {}
