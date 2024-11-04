@@ -139,6 +139,8 @@ class TestVisibilityItemBase(abc.ABC):
         self._span: Optional[Span] = None
         self._tags: Dict[str, Any] = initial_tags if initial_tags else {}
 
+        self._stash: Dict[str, Any] = {}
+
         # ITR-related attributes
         self._is_itr_skipped: bool = False
         self._itr_skipped_count: int = 0
@@ -199,6 +201,9 @@ class TestVisibilityItemBase(abc.ABC):
         if self._session_settings.efd_settings is not None and self._session_settings.efd_settings.enabled:
             self._set_efd_tags()
 
+        if self._session_settings.atr_settings is not None and self._session_settings.atr_settings.enabled:
+            self._set_atr_tags()
+
         # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
         self._set_span_tags()
 
@@ -255,6 +260,10 @@ class TestVisibilityItemBase(abc.ABC):
 
     def _set_efd_tags(self) -> None:
         """EFD tags are only set at the test or session level"""
+        pass
+
+    def _set_atr_tags(self) -> None:
+        """ATR tags are only set at the test level"""
         pass
 
     def _set_span_tags(self):
@@ -474,6 +483,15 @@ class TestVisibilityItemBase(abc.ABC):
         if self._coverage_data is None:
             return None
         return self._coverage_data.get_data()
+
+    def stash_set(self, key: str, value: object) -> None:
+        self._stash[key] = value
+
+    def stash_get(self, key: str) -> object:
+        return self._stash.get(key)
+
+    def stash_delete(self, key: str) -> object:
+        return self._stash.pop(key, None)
 
 
 class TestVisibilityChildItem(TestVisibilityItemBase, Generic[CIDT]):

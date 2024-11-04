@@ -1172,10 +1172,31 @@ def _on_item_is_finished(item_id: TestVisibilityItemId) -> bool:
     return CIVisibility.get_item_by_id(item_id).is_finished()
 
 
+@_requires_civisibility_enabled
+def _on_item_stash_set(item_id: TestVisibilityItemId, key: str, value: object) -> None:
+    log.debug("Handling stash set for item %s, key %s, value %s", item_id, key, value)
+    CIVisibility.get_item_by_id(item_id).stash_set(key, value)
+
+
+@_requires_civisibility_enabled
+def _on_item_stash_get(item_id: TestVisibilityItemId, key: str) -> Optional[object]:
+    log.debug("Handling stash get for item %s, key %s", item_id, key)
+    return CIVisibility.get_item_by_id(item_id).stash_get(key)
+
+
+@_requires_civisibility_enabled
+def _on_item_stash_delete(item_id: TestVisibilityItemId, key: str) -> None:
+    log.debug("Handling stash delete for item %s, key %s", item_id, key)
+    CIVisibility.get_item_by_id(item_id).stash_delete(key)
+
+
 def _register_item_handlers():
     log.debug("Registering item handlers")
     core.on("test_visibility.item.get_span", _on_item_get_span, "span")
     core.on("test_visibility.item.is_finished", _on_item_is_finished, "is_finished")
+    core.on("test_visibility.item.stash_set", _on_item_stash_set)
+    core.on("test_visibility.item.stash_get", _on_item_stash_get, "stash_value")
+    core.on("test_visibility.item.stash_delete", _on_item_stash_delete)
 
 
 @_requires_civisibility_enabled
@@ -1389,6 +1410,11 @@ def _on_atr_is_enabled() -> bool:
 
 
 @_requires_civisibility_enabled
+def _on_atr_session_has_failed_tests() -> bool:
+    return CIVisibility.get_session().atr_has_failed_tests()
+
+
+@_requires_civisibility_enabled
 def _on_atr_should_retry_test(item_id: InternalTestId) -> bool:
     return CIVisibility.get_test_by_id(item_id).atr_should_retry()
 
@@ -1418,6 +1444,7 @@ def _on_atr_get_final_status(test_id: InternalTestId) -> TestStatus:
 def _register_atr_handlers():
     log.debug("Registering ATR handlers")
     core.on("test_visibility.atr.is_enabled", _on_atr_is_enabled, "is_enabled")
+    core.on("test_visibility.atr.session_has_failed_tests", _on_atr_session_has_failed_tests, "has_failed_tests")
     core.on("test_visibility.atr.should_retry_test", _on_atr_should_retry_test, "should_retry_test")
     core.on("test_visibility.atr.add_retry", _on_atr_add_retry, "retry_number")
     core.on("test_visibility.atr.start_retry", _on_atr_start_retry)
