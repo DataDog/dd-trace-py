@@ -232,9 +232,9 @@ def test_get_or_create_kwarg_only(region):
 @pytest.mark.parametrize(
     "schema_tuples",
     [
-        (None, None, None, "dogpile.cache"),
-        (None, "v0", None, "dogpile.cache"),
-        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "dogpile.command"),
+        (None, None, "test_schematization_0", "dogpile.cache"),
+        (None, "v0", "test_schematization_0", "dogpile.cache"),
+        (None, "v1", "test_schematization_0", "dogpile.command"),
         ("mysvc", None, "mysvc", "dogpile.cache"),
         ("mysvc", "v0", "mysvc", "dogpile.cache"),
         ("mysvc", "v1", "mysvc", "dogpile.command"),

@@ -44,7 +44,7 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
 @pytest.mark.django_db
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 def test_schematized_service_names(ddtrace_run_python_code_in_subprocess, schema_version):
-    expected_service_name = {None: "django", "v0": "django", "v1": _DEFAULT_SPAN_SERVICE_NAMES["v1"]}[schema_version]
+    expected_service_name = {None: "django", "v0": "django", "v1": "test_schematized_service_names_0"}[schema_version]
     code = """
 import pytest
 import sys

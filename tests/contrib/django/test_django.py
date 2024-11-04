@@ -1497,11 +1497,13 @@ def test_service_can_be_overridden(client, test_spans):
 
 @pytest.mark.parametrize("global_service_name", [None, "mysvc"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_schematized_default_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+def test_schematized_default_service_name(
+    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name, request
+):
     expected_service_name = {
         None: global_service_name or "django",
         "v0": global_service_name or "django",
-        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": global_service_name or "test_schematized_default_service_name_0",
     }[schema_version]
     code = """
 import pytest
@@ -1540,15 +1542,17 @@ if __name__ == "__main__":
     assert status == 0, (out, err)
 
 
-@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
-@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize(
+    "schema_version, global_service_name",
+    [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
+)
 def test_schematized_default_db_service_name(
-    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name
+    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name, request
 ):
     expected_service_name = {
         None: "defaultdb",
         "v0": "defaultdb",
-        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": global_service_name or "test_schematized_default_db_service_name_0",
     }[schema_version]
     code = """
 import pytest
