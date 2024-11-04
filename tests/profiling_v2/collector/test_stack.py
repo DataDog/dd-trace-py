@@ -365,6 +365,26 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
         assert len(samples) == 0
     else:
         assert len(samples) > 0
+        for sample in samples:
+            thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+            thread_id = int(thread_id_label.num)
+            assert thread_id in [t.ident for t in threads]
+
+            pprof_utils.assert_stack_event(
+                profile,
+                sample,
+                expected_event=pprof_utils.StackEvent(
+                    exception_type="builtins.ValueError",
+                    thread_name=r"Thread-\d+ \(target_fun\)",
+                    locations=[
+                        pprof_utils.StackLocation(
+                            filename="test_stack.py",
+                            function_name="target_fun",
+                            line_no=target_fun.__code__.co_firstlineno + 4,
+                        ),
+                    ],
+                ),
+            )
 
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
@@ -399,3 +419,22 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path):
         assert len(samples) == 0
     else:
         assert len(samples) > 0
+        for sample in samples:
+            pprof_utils.assert_stack_event(
+                profile,
+                sample,
+                expected_event=pprof_utils.StackEvent(
+                    thread_id=_thread.get_ident(),
+                    thread_name="MainThread",
+                    exception_type="builtins.ValueError",
+                    trace_type=ext.SpanTypes.WEB,
+                    trace_endpoint="resource",
+                    locations=[
+                        pprof_utils.StackLocation(
+                            filename="test_stack.py",
+                            function_name="test_exception_collection_trace",
+                            line_no=test_exception_collection_trace.__code__.co_firstlineno + 21,
+                        ),
+                    ],
+                ),
+            )
