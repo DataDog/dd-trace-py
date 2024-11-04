@@ -100,13 +100,8 @@ class AWSPayloadTagging:
                 return
 
     def _should_try_string(self, obj: Any) -> bool:
-        try:
-            if isinstance(obj, str) or isinstance(obj, bytes):
-                return True
-        except NameError:
-            if isinstance(obj, bytes):
-                return True
-
+        if isinstance(obj, str) or isinstance(obj, bytes):
+            return True
         return False
 
     def _validate_json_paths(self, paths: Optional[str]) -> bool:
