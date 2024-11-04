@@ -16,6 +16,7 @@ from tests.profiling.collector.lock_utils import LineNo
 
 
 UINT64_MAX = (1 << 64) - 1
+DEBUG_TEST = True
 
 
 # Clamp the value to the range [0, UINT64_MAX] as done in clamp_to_uint64_unsigned
@@ -196,6 +197,7 @@ def assert_str_label(string_table, sample, key: str, expected_value: Optional[st
         label = get_label_with_key(string_table, sample, key)
         # We use fullmatch to ensure that the whole string matches the expected value
         # and not just a substring
+        assert label is not None, "Label {} not found in sample".format(key)
         assert re.fullmatch(expected_value, string_table[label.str]), "Expected {} got {} for label {}".format(
             expected_value, string_table[label.str], key
         )
@@ -305,7 +307,9 @@ def assert_has_samples(profile, expected_samples):
             assert_stack_event(profile, sample, expected_samples)
             found = True
             break
-        except AssertionError:
-            pass
+        except AssertionError as e:
+            # flip the flag to print the error message
+            if DEBUG_TEST:
+                print(e)
 
     assert found, "Expected samples not found in profile"

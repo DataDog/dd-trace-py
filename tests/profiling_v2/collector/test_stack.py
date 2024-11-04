@@ -438,3 +438,121 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path):
                     ],
                 ),
             )
+
+
+@pytest.mark.parametrize("stack_v2_enabled", [True, False])
+def test_collect_once_with_class(stack_v2_enabled, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    class SomeClass(object):
+        @classmethod
+        def sleep_class(cls):
+            return cls().sleep_instance()
+
+        def sleep_instance(self):
+            for _ in range(5):
+                time.sleep(0.01)
+
+    test_name = "test_collect_once_with_class"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+        SomeClass.sleep_class()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_has_samples(
+        profile,
+        pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            class_name="SomeClass" if not stack_v2_enabled else None,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="sleep_instance",
+                    filename="test_stack.py",
+                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 2,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="sleep_class",
+                    filename="test_stack.py",
+                    line_no=SomeClass.sleep_class.__code__.co_firstlineno + 2,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="test_collect_once_with_class",
+                    filename="test_stack.py",
+                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 23,
+                ),
+            ],
+        ),
+    )
+
+
+@pytest.mark.parametrize("stack_v2_enabled", [True, False])
+def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    class SomeClass(object):
+        @classmethod
+        def sleep_class(foobar, cls):
+            return foobar().sleep_instance(cls)
+
+        def sleep_instance(foobar, self):
+            for _ in range(5):
+                time.sleep(0.01)
+
+    test_name = "test_collect_once_with_class"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+        SomeClass.sleep_class(123)
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_has_samples(
+        profile,
+        pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            # stack v1 relied on using cls and self to figure out class name
+            # so we can't find it here.
+            class_name=None,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="sleep_instance",
+                    filename="test_stack.py",
+                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 2,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="sleep_class",
+                    filename="test_stack.py",
+                    line_no=SomeClass.sleep_class.__code__.co_firstlineno + 2,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="test_collect_once_with_class_not_right_type",
+                    filename="test_stack.py",
+                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 23,
+                ),
+            ],
+        ),
+    )
