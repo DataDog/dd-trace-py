@@ -216,14 +216,12 @@ class Dataset:
 
             if not datasets:
                 # Create new dataset
-                print(f"Dataset '{self.name}' not found. Creating it.")
                 dataset_payload = {
                     "data": {
                         "type": "datasets",
                         "attributes": {
                             "name": self.name,
-                            "description": self.description
-                            or f"Dataset used for {self.name}",
+                            "description": self.description,
                             "metadata": {"team": "ml-obs"},
                         },
                     }
@@ -239,34 +237,11 @@ class Dataset:
                 dataset_id = response_data["data"]["id"]
                 self.datadog_dataset_id = dataset_id
             else:
-                # Dataset exists, create a new version
-                dataset_id = datasets[0]["id"]
-                version_suffix = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-                new_dataset_name = f"{self.name}-{version_suffix}"
-                print(
-                    f"Dataset '{self.name}' found. Creating new version '{new_dataset_name}'."
+                # Dataset exists, raise error
+                raise ValueError(
+                    f"Dataset '{self.name}' already exists. Dataset versioning will be supported in a future release. "
+                    "Please use a different name for your dataset."
                 )
-                dataset_payload = {
-                    "data": {
-                        "type": "datasets",
-                        "attributes": {
-                            "name": new_dataset_name,
-                            "description": f"Dataset versioned on {version_suffix} used for {self.name}",
-                            "metadata": {"team": "ml-obs"},
-                        },
-                    }
-                }
-                response_data = _make_request(
-                    conn,
-                    headers,
-                    "POST",
-                    "/api/unstable/llm-obs/v1/datasets",
-                    body=json.dumps(dataset_payload),
-                    context="Dataset version creation",
-                )
-                dataset_id = response_data["data"]["id"]
-                self.datadog_dataset_id = dataset_id
-                self.name = new_dataset_name
 
             # Add records to the dataset
             records_payload = {
@@ -319,6 +294,8 @@ class Experiment:
         evaluators: List[Callable],
         tags: List[str] = [],
         project_name: str = "-",
+        description: str = "",
+        metadata: Dict[str, Any] = {},
     ) -> None:
         self.name = name
         self.task = task
@@ -326,6 +303,8 @@ class Experiment:
         self.evaluators = evaluators
         self.tags = tags
         self.project_name = project_name
+        self.description = description
+        self.metadata = metadata
         # Post-run attributes
         self.has_run = False
         self.has_evaluated = False
@@ -459,7 +438,7 @@ class Experiment:
 
         self.has_run = True
 
-        return self
+        return self.eval()
 
     def eval(self, _jobs: int = 10) -> "ExperimentResults":
         """Evaluate the outputs using the provided evaluators.
@@ -531,15 +510,6 @@ class Experiment:
                 idx = future_to_idx[future]
                 results_buffer[idx] = future.result()["result"]
                 completed += 1
-
-                # Update progress
-                progress = int(50 * completed / total_rows)
-                bar = f"{'=' * progress}{' ' * (50 - progress)}"
-                percent = int(100 * completed / total_rows)
-                sys.stdout.write(
-                    f"\rEvaluating {self.name}: [{bar}] {percent}% ({completed}/{total_rows})"
-                )
-                sys.stdout.flush()
 
             results.experiment_rows = results_buffer
 
@@ -675,15 +645,12 @@ class ExperimentResults:
 
             if not projects:
                 # Create new project
-                print(
-                    f"Project '{self.experiment.project_name}' not found. Creating it."
-                )
                 project_payload = {
                     "data": {
                         "type": "projects",
                         "attributes": {
                             "name": self.experiment.project_name,
-                            "description": f"Project for {self.experiment.project_name}",
+                            "description": "",
                             "metadata": {"team": "ml-obs"},
                         },
                     }
@@ -710,18 +677,17 @@ class ExperimentResults:
 
             if not experiments:
                 # Create new experiment
-                print(f"Experiment '{self.experiment.name}' not found. Creating it.")
                 experiment_payload = {
                     "data": {
                         "type": "experiments",
                         "attributes": {
                             "name": self.experiment.name,
-                            "description": f"Experiment: {self.experiment.name} on dataset: {self.experiment.dataset.name}",
+                            "description": self.experiment.description,
                             "dataset_id": self.experiment.dataset.datadog_dataset_id,
                             "project_id": project_id,
                             "metadata": {
                                 "tags": self.experiment.tags,
-                                "team": "ml-obs",
+                                **self.experiment.metadata,
                             },
                         },
                     }
@@ -747,12 +713,12 @@ class ExperimentResults:
                         "type": "experiments",
                         "attributes": {
                             "name": new_experiment_name,
-                            "description": f"Experiment versioned on {version_suffix} used for {self.experiment.name}",
+                            "description": self.experiment.description,
                             "dataset_id": self.experiment.dataset.datadog_dataset_id,
                             "project_id": project_id,
                             "metadata": {
                                 "tags": self.experiment.tags,
-                                "team": "ml-obs",
+                                **self.experiment.metadata,
                             },
                         },
                     }
@@ -783,6 +749,8 @@ class ExperimentResults:
                     "duration": float(result["metadata"]["duration"] * 1e9),
                     "tags": self.experiment.tags,
                     "status": "ok",
+                    "metrics": { # TODO: Fill in with actual metrics once we have tracing and llm spans
+                    },
                     "meta": {
                         "span": {"kind": "experiment"},
                         "input": self.experiment.dataset[idx]["input"],
@@ -802,10 +770,11 @@ class ExperimentResults:
                 # Add evaluation metrics
                 for metric_name, metric_value in result["evaluations"].items():
                     timestamp_ms = int(result["metadata"]["timestamp"] * 1000)
-
+                    
+                    # Check for bool first, since bool is a subclass of int
                     if isinstance(metric_value, bool):
-                        metric_value = 1 if metric_value else 0
-                        metric_type = "score"
+                        metric_type = "categorical"
+                        metric_value = str(metric_value).lower() 
                     elif isinstance(metric_value, (int, float)):
                         metric_type = "score"
                     else:
@@ -817,18 +786,24 @@ class ExperimentResults:
                         "metric_type": metric_type,
                         "timestamp_ms": timestamp_ms,
                         "label": metric_name,
-                        "score_value"
-                        if metric_type == "score"
-                        else "categorical_value": metric_value,
                     }
+
+                    if metric_type == "score":
+                        metric["score_value"] = metric_value
+                    else:
+                        metric["categorical_value"] = metric_value
+
                     metrics.append(metric)
 
+            print(metrics)
             results_payload = {
                 "data": {
                     "type": "experiments",
                     "attributes": {"spans": spans, "metrics": metrics},
                 }
             }
+
+            
 
             url = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
             _make_request(
@@ -851,57 +826,6 @@ class ExperimentResults:
 
         finally:
             conn.close()
-
-
-def parametrize(**param_dict: Dict[str, Union[Any, List[Any]]]) -> Callable:
-    """Decorator that creates multiple versions of a function with different parameter combinations.
-
-    Creates multiple versions of a function by generating all possible combinations
-    of the provided parameters. Each generated function variant includes tags
-    indicating its parameter values.
-
-    Args:
-        **param_dict: Dictionary of parameter names and their possible values.
-                     Values can be single items or lists of possible values.
-
-    Returns:
-        Callable: Decorator function that generates parameterized versions of the input function
-
-    Example:
-        @parametrize(model=["gpt-3", "gpt-4"], temperature=[0.0, 0.7])
-        def my_function(text, model, temperature):
-            # This will create 4 versions of the function with different combinations
-            # of model and temperature parameters
-            pass
-    """
-
-    def decorator(func):
-        # Generate all combinations of parameters
-        param_names = list(param_dict.keys())
-        param_values = [
-            param_dict[name]
-            if isinstance(param_dict[name], (list, tuple))
-            else [param_dict[name]]
-            for name in param_names
-        ]
-        param_combinations = [
-            dict(zip(param_names, combo)) for combo in itertools.product(*param_values)
-        ]
-
-        # Create a new function for each parameter combination
-        def create_parameterized_func(params):
-            def wrapped_func(*args, **kwargs):
-                return func(*args, **{**kwargs, **params})
-
-            param_str = "-".join(f"{k}={v}" for k, v in params.items())
-            wrapped_func.__name__ = f"{func.__name__}_{param_str}"
-            wrapped_func.tags = [f"{k}:{v}" for k, v in params.items()]
-            return wrapped_func
-
-        return [create_parameterized_func(combo) for combo in param_combinations]
-
-    return decorator
-
 
 
 def _make_request(
@@ -930,7 +854,7 @@ def _make_request(
     response_text = response_body.decode('utf-8')
 
     if response.status >= 400:
-        error_message = f"HTTP {response.status} Error during {context}: {response.reason}"
+        error_message = f"HTTP {response.status} Error during {context}: {response.reason}\nResponse: {response_text}"
         raise DatadogAPIError(error_message, status_code=response.status, response=response_text)
 
     if not response_body:
@@ -984,3 +908,84 @@ def _validate_api_keys() -> None:
         )
 
 
+
+def parametrize(**param_dict: Dict[str, Union[Any, List[Any]]]) -> Callable:
+    """Decorator that creates multiple versions by combining all parameter values.
+    
+    Args:
+        **param_dict: Dictionary of parameter names and their possible values.
+                     Values can be single items or lists of possible values.
+
+    Returns:
+        List[Any]: List of results from calling the decorated function with each parameter combination
+    """
+    def decorator(func):
+        # Convert single values to lists
+        processed_params = {
+            name: [val] if not isinstance(val, (list, tuple)) else val
+            for name, val in param_dict.items()
+        }
+
+        # Generate all combinations of parameters
+        param_names = list(processed_params.keys())
+        param_values = [processed_params[name] for name in param_names]
+        param_combinations = [
+            dict(zip(param_names, combo)) 
+            for combo in itertools.product(*param_values)
+        ]
+
+        # Return list of results from calling function with each combination
+        return [func(**params) for params in param_combinations]
+
+    return decorator
+
+class Prompt:
+    """A class for rendering templated prompts with variables.
+
+    Supports both simple string templates and structured chat-like templates.
+
+    Attributes:
+        template (Union[str, List[Dict[str, str]]]): Either a template string or a list of message dictionaries
+        variables (dict): Default variables to use when rendering the template
+    """
+
+    def __init__(self, template, variables=None):
+        """Initialize a new Prompt.
+
+        Args:
+            template (Union[str, List[Dict[str, str]]]): Either a template string or a list of message dictionaries
+            variables (dict, optional): Default variables to use when rendering the template. Defaults to {}.
+        """
+        self.template = template
+        self.variables = variables or {}
+
+    def render(self, **kwargs):
+        """Render the template with provided variables.
+
+        Args:
+            **kwargs: Additional variables to use when rendering the template.
+                     These override any default variables with the same name.
+
+        Returns:
+            Union[str, List[Dict[str, str]]]: The rendered template with all variables substituted
+        """
+        merged_vars = {**self.variables, **kwargs}
+
+        if isinstance(self.template, str):
+            return self.template.format(**merged_vars)
+        elif isinstance(self.template, (list, tuple)):
+            return [
+                {
+                    k: v.format(**merged_vars) if isinstance(v, str) else v
+                    for k, v in message.items()
+                }
+                for message in self.template
+            ]
+        else:
+            raise ValueError("Template must be either a string or a list of message dictionaries")
+        
+        
+        
+    def __repr__(self):
+        hash = hashlib.md5(str(self.template).encode()).hexdigest()[:8]
+        return f"Prompt(hash={hash})"
