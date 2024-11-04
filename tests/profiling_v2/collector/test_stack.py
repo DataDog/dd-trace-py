@@ -375,7 +375,7 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
                 sample,
                 expected_event=pprof_utils.StackEvent(
                     exception_type="builtins.ValueError",
-                    thread_name=r"Thread-\d+ \(target_fun\)",
+                    thread_name=r"Thread-\d+ \(target_fun\)" if sys.version_info[:2] > (3, 9) else r"Thread-\d+",
                     locations=[
                         pprof_utils.StackLocation(
                             filename="test_stack.py",
