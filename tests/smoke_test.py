@@ -30,6 +30,8 @@ class ListHandler(logging.Handler):
     def emit(self, record):
         log_messages.append(record.getMessage())
 
+# the _native module will produce the "IAST not enabled..." message using the root logger (logger.warning)
+# so we have to configure the capture handler on the root logger
 root_logger = logging.getLogger()
 root_logger.addHandler(ListHandler())
 root_logger.setLevel(logging.WARNING)
