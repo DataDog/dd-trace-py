@@ -32,7 +32,7 @@ def fetch_config_from_endpoint() -> dict:
             conn.request("GET", parsed_url.path or "/")
             response = conn.getresponse()
             if not (200 <= response.status < 300):
-                log.error("Failed to fetch configuration from endpoint: %s", response.read())
+                log.error("Failed to fetch configuration from endpoint, status code: %d", response.status)
                 return {}
 
             data = response.read().decode("utf-8")
