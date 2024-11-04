@@ -65,11 +65,11 @@ if __name__ == "__main__":
 
         env["DD_IAST_ENABLED"] = "False"
         result = subprocess.run(cmd, env=env, capture_output=True, text=True)
-        assert result.returncode == 0, "Failed: %s, %s" % (result.stdout, result.stderr)
+        assert result.returncode == 0, "Failed with DD_IAST_ENABLED=0: %s, %s" % (result.stdout, result.stderr)
 
         env["DD_IAST_ENABLED"] = "True"
         result = subprocess.run(cmd, env=env, capture_output=True, text=True)
-        assert result.returncode == 0, "Failed: %s, %s" % (result.stdout, result.stderr)
+        assert result.returncode == 0, "Failed with DD_IAST_ENABLED=1: %s, %s" % (result.stdout, result.stderr)
 
     ddtrace.appsec._ddwaf.version()
     assert ddtrace.appsec._ddwaf._DDWAF_LOADED
