@@ -24,7 +24,6 @@ import os
 import sys
 import logging
 
-# Set up logging capture
 log_messages = []
 
 class ListHandler(logging.Handler):
