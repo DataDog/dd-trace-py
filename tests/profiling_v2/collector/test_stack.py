@@ -1,3 +1,4 @@
+import _thread
 import os
 import sys
 import threading
@@ -50,14 +51,17 @@ def test_stack_v2_locations(stack_v2_enabled, tmp_path):
         pprof_utils.StackLocation(
             function_name="baz",
             filename="test_stack.py",
+            line_no=baz.__code__.co_firstlineno + 1,
         ),
         pprof_utils.StackLocation(
             function_name="bar",
             filename="test_stack.py",
+            line_no=bar.__code__.co_firstlineno + 1,
         ),
         pprof_utils.StackLocation(
             function_name="foo",
             filename="test_stack.py",
+            line_no=foo.__code__.co_firstlineno + 1,
         ),
     ]
 
@@ -267,3 +271,129 @@ def test_push_span_none_span_type(stack_v2_enabled, tmp_path):
                 # trace_endpoint is not set for non-web spans
             ),
         )
+
+
+@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
+@pytest.mark.parametrize("stack_v2_enabled", [True, False])
+def test_exception_collection(stack_v2_enabled, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    test_name = "test_exception_collection"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+        try:
+            raise ValueError("hello")
+        except Exception:
+            time.sleep(1)
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
+
+    if stack_v2_enabled:
+        # DEV: update the test once we have exception profiling for stack v2
+        # using echion
+        assert len(samples) == 0
+    else:
+        assert len(samples) > 0
+        for sample in samples:
+            pprof_utils.assert_stack_event(
+                profile,
+                sample,
+                expected_event=pprof_utils.StackEvent(
+                    thread_id=_thread.get_ident(),
+                    thread_name="MainThread",
+                    exception_type="builtins.ValueError",
+                    locations=[
+                        pprof_utils.StackLocation(
+                            filename="test_stack.py",
+                            function_name="test_exception_collection",
+                            line_no=test_exception_collection.__code__.co_firstlineno + 18,
+                        ),
+                    ],
+                ),
+            )
+
+
+@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
+@pytest.mark.parametrize("stack_v2_enabled", [True, False])
+def test_exception_collection_threads(stack_v2_enabled, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    test_name = "test_exception_collection_threads"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+
+        def target_fun():
+            try:
+                raise ValueError("hello")
+            except Exception:
+                time.sleep(1)
+
+        threads = []
+        for _ in range(5):
+            t = threading.Thread(target=target_fun)
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
+
+    if stack_v2_enabled:
+        assert len(samples) == 0
+    else:
+        assert len(samples) > 0
+
+
+@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
+@pytest.mark.parametrize("stack_v2_enabled", [True, False])
+def test_exception_collection_trace(stack_v2_enabled, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    test_name = "test_exception_collection_trace"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    tracer._endpoint_call_counter_span_processor.enable()
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector(None, tracer=tracer, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+        with tracer.trace("foobar", resource="resource", span_type=ext.SpanTypes.WEB):
+            try:
+                raise ValueError("hello")
+            except Exception:
+                time.sleep(1)
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
+
+    if stack_v2_enabled:
+        assert len(samples) == 0
+    else:
+        assert len(samples) > 0
