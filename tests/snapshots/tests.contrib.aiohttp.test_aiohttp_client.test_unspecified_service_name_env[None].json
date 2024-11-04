@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": "",
+    "service": "test_unspecified_service_name_0",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
@@ -32,7 +32,7 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": "",
+       "service": "test_unspecified_service_name_0",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
