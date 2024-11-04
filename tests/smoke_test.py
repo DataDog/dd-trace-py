@@ -1,5 +1,8 @@
+import os
 from platform import system
+import subprocess
 import sys
+import textwrap
 
 import ddtrace.appsec._ddwaf
 import ddtrace.bootstrap.sitecustomize as module
@@ -14,12 +17,59 @@ def mac_supported_iast_version():
     return True
 
 
+# Code need to be run in a separate subprocess to reload since reloading .so files doesn't
+# work like normal Python ones
+test_code = """
+import os
+import sys
+import logging
+
+# Set up logging capture
+log_messages = []
+
+class ListHandler(logging.Handler):
+    def emit(self, record):
+        log_messages.append(record.getMessage())
+
+root_logger = logging.getLogger()
+root_logger.addHandler(ListHandler())
+root_logger.setLevel(logging.WARNING)
+
+try:
+    from ddtrace.appsec._iast._taint_tracking._native import ops
+
+    if os.environ.get("DD_IAST_ENABLED") == "False":
+        assert any(
+            "IAST not enabled but native module is being loaded" in message
+            for message in log_messages
+        )
+    else:
+        assert ops
+        assert len(log_messages) == 0
+except ImportError as e:
+    assert False, "Importing the native module failed, _native probably not compiled correctly: %s" % str(e)
+"""
+
 if __name__ == "__main__":
     # ASM WAF smoke test
     if system() == "Linux":
         if not sys.maxsize > 2**32:
             # 32-bit linux DDWAF not ready yet.
             sys.exit(0)
+
+    # ASM IAST smoke test
+    if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
+        test_code = textwrap.dedent(test_code)
+        cmd = [sys.executable, "-c", test_code]
+        env = os.environ.copy()
+
+        env["DD_IAST_ENABLED"] = "False"
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        assert result.returncode == 0, "Failed: %s, %s" % (result.stdout, result.stderr)
+
+        env["DD_IAST_ENABLED"] = "True"
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        assert result.returncode == 0, "Failed: %s, %s" % (result.stdout, result.stderr)
 
     ddtrace.appsec._ddwaf.version()
     assert ddtrace.appsec._ddwaf._DDWAF_LOADED
