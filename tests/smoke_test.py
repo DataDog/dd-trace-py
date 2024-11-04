@@ -19,7 +19,7 @@ def mac_supported_iast_version():
 
 # Code need to be run in a separate subprocess to reload since reloading .so files doesn't
 # work like normal Python ones
-test_code = """
+test_native_load_code = """
 import os
 import sys
 import logging
@@ -57,9 +57,13 @@ if __name__ == "__main__":
             # 32-bit linux DDWAF not ready yet.
             sys.exit(0)
 
+    ddtrace.appsec._ddwaf.version()
+    assert ddtrace.appsec._ddwaf._DDWAF_LOADED
+    assert module.loaded
+
     # ASM IAST smoke test
     if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
-        test_code = textwrap.dedent(test_code)
+        test_code = textwrap.dedent(test_native_load_code)
         cmd = [sys.executable, "-c", test_code]
         env = os.environ.copy()
 
@@ -70,7 +74,3 @@ if __name__ == "__main__":
         env["DD_IAST_ENABLED"] = "True"
         result = subprocess.run(cmd, env=env, capture_output=True, text=True)
         assert result.returncode == 0, "Failed with DD_IAST_ENABLED=1: %s, %s" % (result.stdout, result.stderr)
-
-    ddtrace.appsec._ddwaf.version()
-    assert ddtrace.appsec._ddwaf._DDWAF_LOADED
-    assert module.loaded
