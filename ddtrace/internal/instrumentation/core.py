@@ -1,5 +1,6 @@
 import dis
 import typing as t
+from dataclasses import dataclass
 from abc import ABC
 from enum import Enum
 from types import CodeType
@@ -101,3 +102,35 @@ def instructions_to_bytecode(instructions: t.List[Instruction]) -> bytes:
             new_code.append(0)
 
     return bytes(new_code)
+
+
+@dataclass
+class ExceptionTableEntry:
+    start: t.Union[int, Instruction]
+    end: t.Union[int, Instruction]
+    target: t.Union[int, Instruction]
+    depth_lasti: int
+
+
+def parse_exception_table(code: CodeType):
+    iterator = iter(code.co_exceptiontable)
+    try:
+        while True:
+            start = _from_varint(iterator) << 1
+            length = _from_varint(iterator) << 1
+            end = start + length - 2  # Present as inclusive, not exclusive
+            target = _from_varint(iterator) << 1
+            dl = _from_varint(iterator)
+            yield ExceptionTableEntry(start, end, target, dl)
+    except StopIteration:
+        return
+
+
+def _from_varint(iterator: t.Iterator[int]) -> int:
+    b = next(iterator)
+    val = b & 63
+    while b & 64:
+        val <<= 6
+        b = next(iterator)
+        val |= b & 63
+    return val

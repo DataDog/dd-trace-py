@@ -1,6 +1,8 @@
+import dis
 import sys
+import typing as t
 from types import CodeType
-from ddtrace.internal.instrumentation.core import Instruction, NO_OFFSET, instr_with_arg, inject_co_consts, inject_co_names, instructions_to_bytecode, inject_co_varnames
+from ddtrace.internal.instrumentation.core import Instruction, NO_OFFSET, instr_with_arg, inject_co_consts, inject_co_names, instructions_to_bytecode, inject_co_varnames, parse_exception_table
 from ddtrace.internal.instrumentation.opcodes import *
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
@@ -39,24 +41,61 @@ def _inject_handled_exception_reporting(func):
         Instruction(NO_OFFSET, CACHE, 0),
     ]
 
-    injection_index = _find_bytecode_index(original_code)
-    if not injection_index:
+    injection_indexes = _find_bytecode_indexes(original_code)
+    if not injection_indexes:
         return
 
-    new_code_b = original_code.co_code[:injection_index] + \
-        instructions_to_bytecode(instructions_3_11) + original_code.co_code[injection_index:]
+    for injection_index in reversed(injection_indexes):
+        new_code_b = original_code.co_code[:injection_index] + \
+            instructions_to_bytecode(instructions_3_11) + original_code.co_code[injection_index:]
+        func.__code__ = original_code.replace(co_code=new_code_b, co_consts=tuple(
+            consts), co_names=tuple(names), co_varnames=tuple(variables), co_nlocals=len(variables))
 
-    func.__code__ = original_code.replace(co_code=new_code_b, co_consts=tuple(
-        consts), co_names=tuple(names), co_varnames=tuple(variables), co_nlocals=len(variables))
+
+WAITING_FOR_EXC = 0
+CHECKING_EXC_MATCH = 1
+ANY_EXC_HANDLING_BLOCK = 2
+MATCHED_EXC_HANDLING_BLOCK = 3
 
 
-def _find_bytecode_index(code: CodeType):
+def _find_bytecode_indexes(code: CodeType) -> t.List[int]:
     """
     TODO: Move it to use __code__'s exceptions table
     """
+    injection_indexes = []
+    state = WAITING_FOR_EXC
 
-    for idx in range(0, len(code.co_code), 2):
-        instr = code.co_code[idx]
-        if instr == PUSH_EXC_INFO:
-            return idx + 2  # +2 to inject after the subsequent argument
-    return None
+    exc_entries = parse_exception_table(code)
+    for exc_entry in exc_entries:
+        # we are currently not supporting exc table entry targets as instructions
+        if isinstance(exc_entry.target, Instruction) \
+                or isinstance(exc_entry.start, Instruction) \
+                or isinstance(exc_entry.end, Instruction):
+            break
+
+        if state == WAITING_FOR_EXC and code.co_code[exc_entry.target] == PUSH_EXC_INFO:
+            # at this point either the exception is checked for a match, for example
+            #   ...except >>>ValueError as e<<<:
+            # or the exception handling code starts, for example
+            #   ...except:
+            #          print('...')
+            state = CHECKING_EXC_MATCH
+            continue
+
+        if state == CHECKING_EXC_MATCH:
+            if CHECK_EXC_MATCH in code.co_code[exc_entry.start:exc_entry.end:2]:
+                # we need to move forward, because this block of code is just checking
+                # if the exception handled matches the one that was raised
+                state = MATCHED_EXC_HANDLING_BLOCK
+                continue
+            else:
+                state = ANY_EXC_HANDLING_BLOCK
+
+        if state == ANY_EXC_HANDLING_BLOCK:
+            injection_indexes.append(exc_entry.start + 2)
+            state = WAITING_FOR_EXC
+        elif state == MATCHED_EXC_HANDLING_BLOCK:
+            injection_indexes.append(exc_entry.start)
+            state = WAITING_FOR_EXC
+
+    return injection_indexes

@@ -1,5 +1,4 @@
 from abc import ABC
-from dataclasses import dataclass
 import dis
 from enum import Enum
 import sys
@@ -7,7 +6,7 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal.instrumentation.opcodes import *
-from ddtrace.internal.instrumentation import Jump, JumpDirection, RJump, Instruction, Branch, NO_OFFSET, EXTENDED_ARG, instr_with_arg
+from ddtrace.internal.instrumentation import Jump, JumpDirection, RJump, Instruction, Branch, NO_OFFSET, EXTENDED_ARG, instr_with_arg, ExceptionTableEntry, parse_exception_table
 from ddtrace.internal.injection import HookType
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
@@ -15,16 +14,6 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
 assert sys.version_info >= (3, 11) and sys.version_info < (3, 12)  # nosec
-
-
-def from_varint(iterator: t.Iterator[int]) -> int:
-    b = next(iterator)
-    val = b & 63
-    while b & 64:
-        val <<= 6
-        b = next(iterator)
-        val |= b & 63
-    return val
 
 
 def to_varint(value: int, set_begin_marker: bool = False) -> bytes:
@@ -123,28 +112,6 @@ def update_location_data(
             break
 
     return bytes(new_data)
-
-
-@dataclass
-class ExceptionTableEntry:
-    start: t.Union[int, Instruction]
-    end: t.Union[int, Instruction]
-    target: t.Union[int, Instruction]
-    depth_lasti: int
-
-
-def parse_exception_table(code: CodeType):
-    iterator = iter(code.co_exceptiontable)
-    try:
-        while True:
-            start = from_varint(iterator) << 1
-            length = from_varint(iterator) << 1
-            end = start + length - 2  # Present as inclusive, not exclusive
-            target = from_varint(iterator) << 1
-            dl = from_varint(iterator)
-            yield ExceptionTableEntry(start, end, target, dl)
-    except StopIteration:
-        return
 
 
 def compile_exception_table(exc_table: t.List[ExceptionTableEntry]) -> bytes:

@@ -2,6 +2,7 @@ import dis
 
 CACHE = dis.opmap["CACHE"]
 CALL = dis.opmap["CALL"]
+CHECK_EXC_MATCH = dis.opmap["CHECK_EXC_MATCH"]
 IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 LOAD_CONST = dis.opmap["LOAD_CONST"]
@@ -17,6 +18,7 @@ STORE_FAST = dis.opmap["STORE_FAST"]
 __all__ = [
     "CACHE",
     "CALL",
+    "CHECK_EXC_MATCH",
     "IMPORT_FROM",
     "IMPORT_NAME",
     "LOAD_CONST",
