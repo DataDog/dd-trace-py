@@ -1,26 +1,17 @@
+import copy
+from decimal import Decimal
+import json
 from typing import Any
-from typing import Callable
 from typing import Dict
 from typing import Optional
-import json
-import copy
 
-from decimal import Decimal
 from ddtrace import Span
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.ext import SpanKind
-from ddtrace.ext import aws
-from ddtrace.ext import http
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.utils.formats import deep_getattr
-from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor.jsonpath_ng import parse
 
+
 class AWSPayloadTagging:
-    _INCOMPLETE_TAG = "_dd.payload_tags_incomplete" # Set to True if MAX_TAGS is reached
+    _INCOMPLETE_TAG = "_dd.payload_tags_incomplete"  # Set to True if MAX_TAGS is reached
 
     _REDACTION_PATHS_DEFAULTS = [
         # SNS
@@ -57,7 +48,7 @@ class AWSPayloadTagging:
         # S3
         "$..SSECustomerKey",
         "$..CopySourceSSECustomerKey",
-        "$..RestoreRequest.OutputLocation.S3.Encryption.KMSKeyId"
+        "$..RestoreRequest.OutputLocation.S3.Encryption.KMSKeyId",
     ]
 
     _RESPONSE_REDACTION_PATHS_DEFAULTS = [
@@ -72,7 +63,6 @@ class AWSPayloadTagging:
         "$..Credentials.SecretAccessKey",
         "$..Credentials.SessionToken",
     ]
-
 
     def __init__(self):
         self.current_tag_count = 0
@@ -124,17 +114,17 @@ class AWSPayloadTagging:
         Checks whether paths is "all" or all valid JSONPaths
         """
         if not paths:
-            return False # not enabled
+            return False  # not enabled
 
         if paths == "all":
-            return True # enabled, use the defaults
+            return True  # enabled, use the defaults
 
         # otherwise validate that we have valid JSONPaths
-        for path in paths.split(','):
+        for path in paths.split(","):
             if path:
                 try:
                     parse(path)
-                except (Exception):
+                except Exception:
                     return False
             else:
                 return False
@@ -156,11 +146,15 @@ class AWSPayloadTagging:
         """
         if not config.botocore.get("payload_tagging_response"):
             return None
-        
+
         response_redaction = config.botocore.get("payload_tagging_response")
         if self._validate_json_paths(response_redaction):
             if response_redaction == "all":
-                return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + response_redaction.split(',')
+                return (
+                    self._RESPONSE_REDACTION_PATHS_DEFAULTS
+                    + self._REDACTION_PATHS_DEFAULTS
+                    + response_redaction.split(",")
+                )
             return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
 
     def _get_redaction_paths_request(self) -> list:
@@ -173,7 +167,11 @@ class AWSPayloadTagging:
         request_redaction = config.botocore.get("payload_tagging_request")
         if self._validate_json_paths(request_redaction):
             if request_redaction == "all":
-                return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + request_redaction.split(',')
+                return (
+                    self._REQUEST_REDACTION_PATHS_DEFAULTS
+                    + self._REDACTION_PATHS_DEFAULTS
+                    + request_redaction.split(",")
+                )
             return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
 
     def _tag_object(self, span: Span, key: str, obj: Any, depth: int = 0) -> None:
@@ -202,7 +200,7 @@ class AWSPayloadTagging:
         if obj is None:
             self.current_tag_count += 1
             span.set_tag(key, obj)
-            return    
+            return
         if depth >= config.botocore.get("payload_tagging_max_depth"):
             self.current_tag_count += 1
             span.set_tag(key, str(obj)[:5000])  # at the maximum depth - set the tag without further expansion
@@ -215,26 +213,26 @@ class AWSPayloadTagging:
             except ValueError:
                 self.current_tag_count += 1
                 span.set_tag(key, str(obj)[:5000])
-            return    
+            return
         if isinstance(obj, (int, float, Decimal)):
             self.current_tag_count += 1
             span.set_tag(key, str(obj))
-            return    
+            return
         if isinstance(obj, list):
             for k, v in enumerate(obj):
                 self._tag_object(span, f"{key}.{k}", v, depth)
-            return    
+            return
         if hasattr(obj, "items"):
             for k, v in obj.items():
                 self._tag_object(span, f"{key}.{k}", v, depth)
-            return    
+            return
         if hasattr(obj, "to_dict"):
             for k, v in obj.to_dict().items():
                 self._tag_object(span, f"{key}.{k}", v, depth)
-            return    
+            return
         try:
             value_as_str = str(obj)
         except Exception:
-            value_as_str = "UNKNOWN"    
+            value_as_str = "UNKNOWN"
         self.current_tag_count += 1
         span.set_tag(key, value_as_str)

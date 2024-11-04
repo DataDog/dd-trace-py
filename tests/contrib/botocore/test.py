@@ -25,6 +25,7 @@ from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from tests.utils import get_128_bit_trace_id_from_headers
 
+
 # Older version of moto used kinesis to mock firehose
 try:
     from moto import mock_firehose
@@ -60,8 +61,9 @@ snapshot_ignores = [
     "meta.aws.requestid",
     "meta.aws.response.body.RequestId",
     "meta.aws.response.body.HTTPHeaders.content-length",
-    "meta.aws.response.body.HTTPHeaders.x-amzn-requestid"
+    "meta.aws.response.body.HTTPHeaders.x-amzn-requestid",
 ]
+
 
 def get_zip_lambda():
     code = """
@@ -3772,7 +3774,6 @@ class BotocoreTest(TracerTestCase):
 
             assert span.service == DEFAULT_SPAN_SERVICE_NAME
             assert span.name == "aws.secretsmanager.request"
-
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sqs

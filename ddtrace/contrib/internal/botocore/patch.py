@@ -106,11 +106,18 @@ config._add(
         "add_span_pointers": asbool(os.getenv("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),
         "payload_tagging_request": os.getenv("DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING", default=None),
         "payload_tagging_response": os.getenv("DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING", default=None),
-        "payload_tagging_max_depth": int(os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH", 10)), # RFC defined 10 levels (1.2.3.4...10) as max tagging depth
-        "payload_tagging_max_tags": int(os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)), # RFC defined default limit - spans are limited past 1000
-        "payload_tagging_services": set(os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", default={"s3", "sns", "sqs", "kinesis", "eventbridge"})),
+        "payload_tagging_max_depth": int(
+            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH", 10)
+        ),  # RFC defined 10 levels (1.2.3.4...10) as max tagging depth
+        "payload_tagging_max_tags": int(
+            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)
+        ),  # RFC defined default limit - spans are limited past 1000
+        "payload_tagging_services": set(
+            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", default={"s3", "sns", "sqs", "kinesis", "eventbridge"})
+        ),
     },
 )
+
 
 def get_version():
     # type: () -> str

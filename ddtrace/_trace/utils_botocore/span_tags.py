@@ -15,7 +15,9 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import deep_getattr
 
-_PAYLOAD_TAGGER=AWSPayloadTagging()
+
+_PAYLOAD_TAGGER = AWSPayloadTagging()
+
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
     span.set_tag_str(COMPONENT, config.botocore.integration_name)
@@ -33,7 +35,11 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         if params and not config.botocore["tag_no_params"]:
             aws._add_api_param_span_tags(span, endpoint_name, params)
 
-        if config.botocore["payload_tagging_request"] and config.botocore["payload_tagging_request"].replace(" ", "") and endpoint_name in config.botocore.get("payload_tagging_services"):
+        if (
+            config.botocore["payload_tagging_request"]
+            and config.botocore["payload_tagging_request"].replace(" ", "")
+            and endpoint_name in config.botocore.get("payload_tagging_services")
+        ):
             _PAYLOAD_TAGGER.expand_payload_as_tags(span, params, "aws.request.body")
 
     else:
@@ -59,7 +65,11 @@ def set_botocore_response_metadata_tags(
         return
     response_meta = result["ResponseMetadata"]
 
-    if config.botocore["payload_tagging_response"] and config.botocore["payload_tagging_response"].replace(" ", "") and span.get_tag("aws_service") in config.botocore.get("payload_tagging_services"):
+    if (
+        config.botocore["payload_tagging_response"]
+        and config.botocore["payload_tagging_response"].replace(" ", "")
+        and span.get_tag("aws_service") in config.botocore.get("payload_tagging_services")
+    ):
         _PAYLOAD_TAGGER.expand_payload_as_tags(span, response_meta, "aws.response.body")
 
     if "HTTPStatusCode" in response_meta:
