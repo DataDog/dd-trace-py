@@ -160,11 +160,11 @@ class GunicornDetector:
 def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
     ctx = DetectionContext(os.environ)
 
-    # Check if args is not empty
+    # Check if args is empty
     if not args:
         return None
 
-    # Trim the first argument to ensure we're checking the correct command
+    # Check both the included command args as well as the executable being run
     possible_commands = [*args, sys.executable]
     executable_args = []
 

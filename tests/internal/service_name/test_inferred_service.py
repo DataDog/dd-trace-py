@@ -63,8 +63,7 @@ def test_python_detector(mock_file_system):
             (
                 "gunicorn -w 2 -b 0.0.0.0:8000 modules/m1/first/nice/package:app",
                 "modules/m1/first/nice/package",
-            ),  # NOTE: is this what we want or the module name using "." separators?,
-            # NOTE: or do we want the walked path until we don't find a python file (similar to the python discovery logic) ???
+            ),  # NOTE: is this what we want or do we want the module name using "." separators?,
             ("gunicorn apps.app1:app", "apps.app1"),
             ("gunicorn -w 4 apps.app2:app", "apps.app2"),
             # Edge Cases: Different Python commands
