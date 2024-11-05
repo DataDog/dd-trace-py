@@ -317,7 +317,6 @@ def _after_request_tags(pin, span: Span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
     # during the request.
-
     try:
         user = getattr(request, "user", None)
         if user is not None:
@@ -341,7 +340,7 @@ def _after_request_tags(pin, span: Span, request, response):
                     if username:
                         span.set_tag_str("django.user.name", username)
             except Exception:
-                log.debug("Error retrieving authentication information for user", exc_info=True)
+                log.error("Error retrieving authentication information for user", exc_info=True)
 
         # DEV: Resolve the view and resource name at the end of the request in case
         #      urlconf changes at any point during the request

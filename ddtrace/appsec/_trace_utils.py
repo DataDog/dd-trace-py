@@ -306,9 +306,10 @@ def _on_django_login(
 
         if user_is_authenticated(user):
             user_id, user_extra = info_retriever.get_user_info(
-                name=django_config.include_user_name, email=django_config.include_user_email
+                login=django_config.include_user_login,
+                email=django_config.include_user_email,
+                name=django_config.include_user_realname,
             )
-
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 session_key = getattr(request, "session_key", None)
                 track_user_login_success_event(
@@ -343,7 +344,9 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
             exists = info_retriever.user_exists()
             if exists:
                 user_id, user_extra = info_retriever.get_user_info(
-                    name=django_config.include_user_name, email=django_config.include_user_email
+                    login=django_config.include_user_login,
+                    email=django_config.include_user_email,
+                    name=django_config.include_user_realname,
                 )
                 track_user_login_failure_event(
                     pin.tracer, user_id=user_id, login_events_mode=mode, exists=True, **user_extra
