@@ -8,7 +8,6 @@ import pytest
 
 from ddtrace.contrib.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.utils import flaky
@@ -614,7 +613,7 @@ def test_tracing_in_middleware(snapshot_app_with_middleware):
     [
         (None, None, "fastapi", "fastapi.request"),
         (None, "v0", "fastapi", "fastapi.request"),
-        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "http.server.request"),
+        (None, "v1", "test_schematization_0", "http.server.request"),
         ("mysvc", None, "mysvc", "fastapi.request"),
         ("mysvc", "v0", "mysvc", "fastapi.request"),
         ("mysvc", "v1", "mysvc", "http.server.request"),
