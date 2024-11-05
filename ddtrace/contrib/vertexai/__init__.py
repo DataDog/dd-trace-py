@@ -1,7 +1,7 @@
 from ddtrace.internal.utils.importlib import require_modules
 
 
-required_modules = ["vertexai"]
+required_modules = ["vertexai", "google.generativeai"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

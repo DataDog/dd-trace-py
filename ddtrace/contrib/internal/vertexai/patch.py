@@ -6,6 +6,7 @@ from vertexai.generative_models import GenerativeModel
 import google.generativeai
 
 from ddtrace import config
+from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
 from ddtrace.contrib.internal.google_generativeai._utils import _extract_model_name
 from ddtrace.contrib.internal.google_generativeai._utils import tag_request
 from ddtrace.contrib.internal.google_generativeai._utils import tag_response
@@ -34,6 +35,7 @@ def get_version():
 @with_traced_module
 def traced_generate(vertexai, pin, func, instance, args, kwargs):
     integration = vertexai._datadog_integration
+    stream = kwargs.get("stream", False)
     generations = None
     span = integration.trace(
         pin,
@@ -45,11 +47,20 @@ def traced_generate(vertexai, pin, func, instance, args, kwargs):
     try:
         tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts(instance), get_generation_config_dict(instance, kwargs))
         generations = func(*args, **kwargs)
+        if stream:
+            def on_span_finish(span, chunks):
+                tag_response("vertexai", span, chunks, integration, instance)
+                if span.error or not integration.is_pc_sampled_span(span):
+                    return
+            return TracedVertexAIStreamResponse(generations, instance, integration, span, args, kwargs, on_span_finish)
         tag_response("vertexai", span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
-    span.finish()
+    finally:
+        # streamed spans will be finished separately once the stream generator is exhausted
+        if span.error or not stream:
+            span.finish()
     return generations
 
 
