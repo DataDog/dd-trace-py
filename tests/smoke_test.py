@@ -71,14 +71,13 @@ if __name__ == "__main__":
         print("IAST module load tests completed successfully")
 
     # ASM WAF smoke test
-    print("Running WAF module load test...")
-    if system() == "Linux":
-        if not sys.maxsize > 2**32:
-            # 32-bit linux DDWAF not ready yet.
-            print("Exiting test, 32-bit DDWAF not ready yet")
-            sys.exit(0)
-
-    ddtrace.appsec._ddwaf.version()
-    assert ddtrace.appsec._ddwaf._DDWAF_LOADED
-    assert module.loaded
-    print("WAF module load test completed successfully")
+    if system() != "Linux" or sys.maxsize > 2**32:
+        print("Running WAF module load test...")
+        # Proceed with the WAF module load test
+        ddtrace.appsec._ddwaf.version()
+        assert ddtrace.appsec._ddwaf._DDWAF_LOADED
+        assert module.loaded
+        print("WAF module load test completed successfully")
+    else:
+        # Skip the test for 32-bit Linux systems
+        print("Skipping test, 32-bit DDWAF not ready yet")
