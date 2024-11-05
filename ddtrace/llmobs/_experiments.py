@@ -8,8 +8,8 @@ import sys
 import time
 from urllib.parse import quote
 import concurrent.futures
-import itertools
 import uuid
+
 
 # Constants
 BASE_URL = "api.datadoghq.com"
@@ -28,25 +28,23 @@ class Dataset:
         datadog_dataset_id (str): ID assigned by Datadog after pushing (None if not pushed)
     """
 
-    def __init__(
-        self, name: str, data: List[Dict[str, Any]], description: str = ""
-    ) -> None:
+    def __init__(self, name: str, data: List[Dict[str, Any]], description: str = "") -> None:
         self.name = name
         self._validate_data(data)
-        self.data = data
+        self._data = data
         self.description = description
 
         # Post-push attributes
         self.datadog_dataset_id = None
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
-        return iter(self.data)
+        return iter(self._data)
 
     def __len__(self) -> int:
-        return len(self.data)
+        return len(self._data)
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
-        return self.data[index]
+        return self._data[index]
 
     def __repr__(self) -> str:
         header = f"Dataset: {self.name}\nDescription: {self.description}\nLength: {len(self)}\nDatadog ID: {self.datadog_dataset_id}\n"
@@ -80,13 +78,11 @@ class Dataset:
                 formatted_rows.append(separator)
             return "\n".join(formatted_rows)
 
-        if len(self.data) <= 4:
-            entries = format_entries(enumerate(self.data))
+        if len(self._data) <= 4:
+            entries = format_entries(enumerate(self._data))
         else:
-            first_two = format_entries(enumerate(self.data[:2]))
-            last_two = format_entries(
-                enumerate(self.data[-2:], start=len(self.data) - 2)
-            )
+            first_two = format_entries(enumerate(self._data[:2]))
+            last_two = format_entries(enumerate(self._data[-2:], start=len(self._data) - 2))
             entries = f"{first_two}\n| {'...':<8} | {'...':<38} | {'...':<38} |\n{separator}\n{last_two}"
 
         table = f"{separator}\n| {'Index':<8} | {'Input':<38} | {'Expected Output':<38} |\n{separator}\n{entries}"
@@ -119,12 +115,8 @@ class Dataset:
 
             # Check that 'input' and 'expected_output' are flat dictionaries
             for key in ["input", "expected_output"]:
-                if key in row and any(
-                    isinstance(value, dict) for value in row[key].values()
-                ):
-                    raise ValueError(
-                        f"'{key}' must be a flat dictionary (no nested dictionaries)."
-                    )
+                if key in row and any(isinstance(value, dict) for value in row[key].values()):
+                    raise ValueError(f"'{key}' must be a flat dictionary (no nested dictionaries).")
 
     @classmethod
     def from_datadog(cls, name: str) -> "Dataset":
@@ -152,9 +144,7 @@ class Dataset:
             # Get dataset ID
             encoded_name = quote(name)
             url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
-            response_data = _make_request(
-                conn, headers, "GET", url, context="Dataset lookup"
-            )
+            response_data = _make_request(conn, headers, "GET", url, context="Dataset lookup")
             datasets = response_data.get("data", [])
 
             if not datasets:
@@ -164,9 +154,7 @@ class Dataset:
 
             # Get dataset records
             url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-            records_data = _make_request(
-                conn, headers, "GET", url, context="Records lookup"
-            )
+            records_data = _make_request(conn, headers, "GET", url, context="Records lookup")
 
             # Transform records into the expected format
             class_records = []
@@ -209,9 +197,7 @@ class Dataset:
             # Check if dataset exists
             encoded_name = quote(self.name)
             url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
-            response_data = _make_request(
-                conn, headers, "GET", url, context="Dataset lookup"
-            )
+            response_data = _make_request(conn, headers, "GET", url, context="Dataset lookup")
             datasets = response_data.get("data", [])
 
             if not datasets:
@@ -244,9 +230,7 @@ class Dataset:
                 )
 
             # Add records to the dataset
-            records_payload = {
-                "data": {"type": "datasets", "attributes": {"records": self.data}}
-            }
+            records_payload = {"data": {"type": "datasets", "attributes": {"records": self._data}}}
             url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
             _make_request(
                 conn,
@@ -259,7 +243,7 @@ class Dataset:
 
             print(f"✓ Successfully uploaded dataset '{self.name}'")
             print(f"  • Dataset ID: {dataset_id}")
-            print(f"  • Records uploaded: {len(self.data)}")
+            print(f"  • Records uploaded: {len(self._data)}")
 
             return self
 
@@ -318,9 +302,7 @@ class Experiment:
             return f"{evaluator.__name__}"
 
         evaluator_lines = [format_evaluator(evaluator) for evaluator in self.evaluators]
-        evaluators = (
-            ", ".join(evaluator_lines) if evaluator_lines else "No evaluators available"
-        )
+        evaluators = ", ".join(evaluator_lines) if evaluator_lines else "No evaluators available"
 
         table = (
             f"{separator}\n"
@@ -349,9 +331,7 @@ class Experiment:
         """
         for tag in self.tags:
             if not isinstance(tag, str) or ":" not in tag:
-                raise ValueError(
-                    f"Invalid tag format: {tag}. Tags should be in the format 'key:value'."
-                )
+                raise ValueError(f"Invalid tag format: {tag}. Tags should be in the format 'key:value'.")
 
     def run(self, _jobs: int = 10) -> None:
         """Execute the experiment tasks on the dataset without performing evaluations.
@@ -410,10 +390,7 @@ class Experiment:
                 }
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
-            future_to_idx = {
-                executor.submit(process_row, (idx, row)): idx
-                for idx, row in enumerate(self.dataset)
-            }
+            future_to_idx = {executor.submit(process_row, (idx, row)): idx for idx, row in enumerate(self.dataset)}
 
             # Process as they complete while maintaining order
             completed = 0
@@ -427,9 +404,7 @@ class Experiment:
                 progress = int(50 * completed / total_rows)
                 bar = f"{'=' * progress}{' ' * (50 - progress)}"
                 percent = int(100 * completed / total_rows)
-                sys.stdout.write(
-                    f"\rRunning {self.name}: [{bar}] {percent}% ({completed}/{total_rows})"
-                )
+                sys.stdout.write(f"\rRunning {self.name}: [{bar}] {percent}% ({completed}/{total_rows})")
                 sys.stdout.flush()
 
             self.outputs = outputs_buffer
@@ -471,10 +446,7 @@ class Experiment:
                 idx_in_dataset = output_data["metadata"]["dataset_record_idx"]
                 row = self.dataset[idx_in_dataset]
                 output = output_data["output"]
-                evaluations = {
-                    evaluator.__name__: evaluator(row, output)
-                    for evaluator in self.evaluators
-                }
+                evaluations = {evaluator.__name__: evaluator(row, output) for evaluator in self.evaluators}
 
                 result = {
                     "output": output,
@@ -511,6 +483,13 @@ class Experiment:
                 results_buffer[idx] = future.result()["result"]
                 completed += 1
 
+                # Update progress
+                progress = int(50 * completed / total_rows)
+                bar = f"{'=' * progress}{' ' * (50 - progress)}"
+                percent = int(100 * completed / total_rows)
+                sys.stdout.write(f"\rEvaluating {self.name}: [{bar}] {percent}% ({completed}/{total_rows})")
+                sys.stdout.flush()
+
             results.experiment_rows = results_buffer
 
         sys.stdout.write("\n")
@@ -519,7 +498,7 @@ class Experiment:
         self.results = results
         return results
 
-    def get_results(self) -> 'ExperimentResults':
+    def get_results(self) -> "ExperimentResults":
         if not self.has_evaluated:
             raise ValueError("Evaluations have not been performed yet. Please call eval() after run().")
         return self.results
@@ -563,9 +542,7 @@ class ExperimentResults:
                 dataset_idx = entry["metadata"]["dataset_record_idx"]
                 dataset_entry = self.dataset[dataset_idx]
                 input_lines = format_dict(dataset_entry["input"])
-                expected_output_lines = format_dict(
-                    dataset_entry.get("expected_output", {})
-                )
+                expected_output_lines = format_dict(dataset_entry.get("expected_output", {}))
                 output_lines = format_dict(entry["output"])
                 evaluations_lines = format_dict(entry.get("evaluations", []))
 
@@ -638,13 +615,12 @@ class ExperimentResults:
         try:
             # Check if project exists
             url = f"/api/unstable/llm-obs/v1/projects?filter[name]={self.experiment.project_name}"
-            response_data = _make_request(
-                conn, headers, "GET", url, context="Project lookup"
-            )
+            response_data = _make_request(conn, headers, "GET", url, context="Project lookup")
             projects = response_data.get("data", [])
 
             if not projects:
                 # Create new project
+                print(f"Project '{self.experiment.project_name}' not found. Creating it.")
                 project_payload = {
                     "data": {
                         "type": "projects",
@@ -670,9 +646,7 @@ class ExperimentResults:
             # Check if experiment exists
             encoded_name = quote(self.experiment.name)
             url = f"/api/unstable/llm-obs/v1/experiments?filter[name]={encoded_name}"
-            response_data = _make_request(
-                conn, headers, "GET", url, context="Experiment lookup"
-            )
+            response_data = _make_request(conn, headers, "GET", url, context="Experiment lookup")
             experiments = response_data.get("data", [])
 
             if not experiments:
@@ -705,9 +679,7 @@ class ExperimentResults:
                 # Experiment exists, create a new version
                 version_suffix = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
                 new_experiment_name = f"{self.experiment.name}-{version_suffix}"
-                print(
-                    f"Experiment '{self.experiment.name}' found. Creating new version '{new_experiment_name}'."
-                )
+                print(f"Experiment '{self.experiment.name}' found. Creating new version '{new_experiment_name}'.")
                 experiment_payload = {
                     "data": {
                         "type": "experiments",
@@ -738,7 +710,6 @@ class ExperimentResults:
             metrics = []
 
             for idx, result in enumerate(self.experiment_rows):
-
                 span = {
                     "span_id": _make_id(),
                     "project_id": project_id,
@@ -749,15 +720,12 @@ class ExperimentResults:
                     "duration": float(result["metadata"]["duration"] * 1e9),
                     "tags": self.experiment.tags,
                     "status": "ok",
-                    "metrics": { # TODO: Fill in with actual metrics once we have tracing and llm spans
-                    },
+                    "metrics": {},  # TODO: Fill in with actual metrics once we have tracing and llm spans
                     "meta": {
                         "span": {"kind": "experiment"},
                         "input": self.experiment.dataset[idx]["input"],
                         "output": result["output"],
-                        "expected_output": self.experiment.dataset[idx].get(
-                            "expected_output", {}
-                        ),
+                        "expected_output": self.experiment.dataset[idx].get("expected_output", {}),
                         "error": {
                             "message": result["error"],
                             "stack": None,
@@ -770,11 +738,11 @@ class ExperimentResults:
                 # Add evaluation metrics
                 for metric_name, metric_value in result["evaluations"].items():
                     timestamp_ms = int(result["metadata"]["timestamp"] * 1000)
-                    
+
                     # Check for bool first, since bool is a subclass of int
                     if isinstance(metric_value, bool):
                         metric_type = "categorical"
-                        metric_value = str(metric_value).lower() 
+                        metric_value = str(metric_value).lower()
                     elif isinstance(metric_value, (int, float)):
                         metric_type = "score"
                     else:
@@ -786,6 +754,7 @@ class ExperimentResults:
                         "metric_type": metric_type,
                         "timestamp_ms": timestamp_ms,
                         "label": metric_name,
+                        "score_value" if metric_type == "score" else "categorical_value": metric_value,
                     }
 
                     if metric_type == "score":
@@ -803,8 +772,6 @@ class ExperimentResults:
                 }
             }
 
-            
-
             url = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
             _make_request(
                 conn,
@@ -815,9 +782,7 @@ class ExperimentResults:
                 context="Publishing results",
             )
 
-            print(
-                f"✓ Successfully uploaded experiment results for '{self.experiment.name}'"
-            )
+            print(f"✓ Successfully uploaded experiment results for '{self.experiment.name}'")
             print(f"  • Experiment ID: {experiment_id}")
             print(f"  • Spans uploaded: {len(spans)}")
             print(f"  • Metrics uploaded: {len(metrics)}")
@@ -851,7 +816,7 @@ def _make_request(
 
     response = conn.getresponse()
     response_body = response.read()
-    response_text = response_body.decode('utf-8')
+    response_text = response_body.decode("utf-8")
 
     if response.status >= 400:
         error_message = f"HTTP {response.status} Error during {context}: {response.reason}\nResponse: {response_text}"
@@ -878,13 +843,16 @@ def _make_id() -> str:
 
 class DatadogAPIError(Exception):
     """Raised when there is an error interacting with the Datadog API."""
+
     def __init__(self, message: str, status_code: Optional[int] = None, response: Optional[str] = None):
         self.status_code = status_code
         self.response = response
         super().__init__(message)
 
+
 class DatadogResponseError(Exception):
     """Raised when there is an error parsing the response from Datadog."""
+
     def __init__(self, message: str, raw_response: Optional[str] = None):
         self.raw_response = raw_response
         super().__init__(message)
@@ -907,37 +875,6 @@ def _validate_api_keys() -> None:
             "Please set these environment variables before pushing to Datadog."
         )
 
-
-
-def parametrize(**param_dict: Dict[str, Union[Any, List[Any]]]) -> Callable:
-    """Decorator that creates multiple versions by combining all parameter values.
-    
-    Args:
-        **param_dict: Dictionary of parameter names and their possible values.
-                     Values can be single items or lists of possible values.
-
-    Returns:
-        List[Any]: List of results from calling the decorated function with each parameter combination
-    """
-    def decorator(func):
-        # Convert single values to lists
-        processed_params = {
-            name: [val] if not isinstance(val, (list, tuple)) else val
-            for name, val in param_dict.items()
-        }
-
-        # Generate all combinations of parameters
-        param_names = list(processed_params.keys())
-        param_values = [processed_params[name] for name in param_names]
-        param_combinations = [
-            dict(zip(param_names, combo)) 
-            for combo in itertools.product(*param_values)
-        ]
-
-        # Return list of results from calling function with each combination
-        return [func(**params) for params in param_combinations]
-
-    return decorator
 
 class Prompt:
     """A class for rendering templated prompts with variables.
@@ -975,17 +912,12 @@ class Prompt:
             return self.template.format(**merged_vars)
         elif isinstance(self.template, (list, tuple)):
             return [
-                {
-                    k: v.format(**merged_vars) if isinstance(v, str) else v
-                    for k, v in message.items()
-                }
+                {k: v.format(**merged_vars) if isinstance(v, str) else v for k, v in message.items()}
                 for message in self.template
             ]
         else:
             raise ValueError("Template must be either a string or a list of message dictionaries")
-        
-        
-        
+
     def __repr__(self):
         hash = hashlib.md5(str(self.template).encode()).hexdigest()[:8]
         return f"Prompt(hash={hash})"
