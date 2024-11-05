@@ -46,7 +46,6 @@ def test_crashtracker_config_bytes():
         crashtracker.set_library_version(b"v2.7.1.8")
         crashtracker.set_stdout_filename(b"stdout.log")
         crashtracker.set_stderr_filename(b"stderr.log")
-        crashtracker.set_alt_stack(False)
         crashtracker.set_resolve_frames_full()
         assert crashtracker.start()
     except Exception:
