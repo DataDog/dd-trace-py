@@ -106,7 +106,7 @@ def test_crashtracker_simple():
         assert not stderr_msg
 
         ctypes.string_at(0)
-        exit(-1)
+        sys.exit(-1)
 
     # Part 5
     # Check to see if the listening socket was triggered, if so accept the connection
@@ -146,7 +146,7 @@ def test_crashtracker_simple_fork():
     pid = os.fork()
     if pid == 0:
         ctypes.string_at(0)
-        exit(-1)  # just in case
+        sys.exit(-1)  # just in case
 
     # Part 5, check
     conn = utils.listen_get_conn(sock)
@@ -202,7 +202,7 @@ def test_crashtracker_simple_sigbus():
             arr_type = ctypes.POINTER(ctypes.c_char * 4096)
             arr = ctypes.cast(mm, arr_type).contents
             arr[4095] = b"x"  # sigbus
-        exit(-1)  # just in case
+        sys.exit(-1)  # just in case
 
     # Part 5, check
     conn = utils.listen_get_conn(sock)
@@ -235,7 +235,7 @@ def test_crashtracker_raise_sigsegv():
     pid = os.fork()
     if pid == 0:
         os.kill(os.getpid(), signal.SIGSEGV.value)
-        exit(-1)
+        sys.exit(-1)
 
     # Part 5, check
     conn = utils.listen_get_conn(sock)
@@ -268,7 +268,7 @@ def test_crashtracker_raise_sigbus():
     pid = os.fork()
     if pid == 0:
         os.kill(os.getpid(), signal.SIGBUS.value)
-        exit(-1)
+        sys.exit(-1)
 
     # Part 5, check
     conn = utils.listen_get_conn(sock)
@@ -281,8 +281,9 @@ def test_crashtracker_raise_sigbus():
 
 preload_code = """
 import ctypes
+import sys
 ctypes.string_at(0)
-exit(-1)
+sys.exit(-1)
 """
 
 
@@ -586,11 +587,12 @@ def test_crashtracker_user_tags_core():
 def test_crashtracker_echild_hang():
     """
     It's possible for user code and services to harvest child processes by doing a `waitpid()` until errno is ECHILD.
-    Although this is a more common pattern for native code, because the crashtracking receiver could conceivably suppress
-    this condition, we test for it.
+    Although this is a more common pattern for native code, because the crashtracking receiver could suppress this
+    condition, we test for it.
     """
     import ctypes
     import os
+    import time
 
     import tests.internal.crashtracker.utils as utils
 
@@ -606,7 +608,7 @@ def test_crashtracker_echild_hang():
 
     # Set this process as a subreaper, since we want deparented children to be visible to us
     # (this emulates the behavior of a service which is PID 1 in a container)
-    util.set_cerulean_mollusk()
+    utils.set_cerulean_mollusk()
 
     # Fork, setup crashtracking in the child.
     # The child process emulates a worker fork in the sense that we spawn a number of them in the parent and then
@@ -636,20 +638,17 @@ def test_crashtracker_echild_hang():
             children.append(pid)
 
     # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
-    timeout = 1 # seconds
+    timeout = 1  # seconds
     end_time = time.time() + timeout
-    while true:
+    while True:
         if time.time() > end_time:
             pytest.fail("Timed out waiting for children to exit")
         try:
             _, __ = os.waitpid(-1, os.WNOHANG)
         except ChildProcessError:
-            # No children, we're done
             break
-        except OSError as e:
-            if e.errno == errno.ECHILD:
-                # No children (another way?), we're done
-                break
+        except Exception as e:
+            pytest.fail("Unexpected exception: %s" % e)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -664,6 +663,7 @@ def test_crashtracker_no_zombies():
     """
     import ctypes
     import os
+    import time
 
     import tests.internal.crashtracker.utils as utils
 
@@ -677,7 +677,7 @@ def test_crashtracker_no_zombies():
 
     # Set this process as a subreaper, since we want deparented children to be visible to us
     # (this emulates the behavior of a service which is PID 1 in a container)
-    util.set_cerulean_mollusk()
+    utils.set_cerulean_mollusk()
 
     # This is a rapid fan-out procedure.  We do a combination of terminations, aborts, segfaults, etc., hoping to elicit
     # zombies.
@@ -706,17 +706,14 @@ def test_crashtracker_no_zombies():
             children.append(pid)
 
     # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
-    timeout = 1 # seconds
+    timeout = 1  # seconds
     end_time = time.time() + timeout
-    while true:
+    while True:
         if time.time() > end_time:
             pytest.fail("Timed out waiting for children to exit")
         try:
             _, __ = os.waitpid(-1, os.WNOHANG)
         except ChildProcessError:
-            # No children, we're done
             break
-        except OSError as e:
-            if e.errno == errno.ECHILD:
-                # No children (another way?), we're done
-                break
+        except Exception as e:
+            pytest.fail("Unexpected exception: %s" % e)

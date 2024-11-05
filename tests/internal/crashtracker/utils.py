@@ -99,4 +99,3 @@ def set_cerulean_mollusk():
         print("Failed to set subreaper: %s" % str(e))
         return False
     return True
-
