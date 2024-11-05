@@ -304,7 +304,7 @@ def _on_django_login(
         from ddtrace.contrib.django.compat import user_is_authenticated
 
         if user_is_authenticated(user):
-            user_id = info_retriever.get_userid()
+            user_id, user_extra = info_retriever.get_user_info()
 
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 session_key = getattr(request, "session_key", None)
@@ -314,6 +314,7 @@ def _on_django_login(
                     session_id=session_key,
                     propagate=True,
                     login_events_mode=mode,
+                    **user_extra,
                 )
         else:
             # Login failed and the user is unknown (may exist or not)
@@ -338,12 +339,9 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             exists = info_retriever.user_exists()
             if exists:
-                user_id = info_retriever.get_userid()
+                user_id, user_extra = info_retriever.get_user_info()
                 track_user_login_failure_event(
-                    pin.tracer,
-                    user_id=user_id,
-                    login_events_mode=mode,
-                    exists=True,
+                    pin.tracer, user_id=user_id, login_events_mode=mode, exists=True, **user_extra
                 )
             else:
                 track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode, exists=False)
