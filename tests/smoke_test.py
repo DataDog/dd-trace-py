@@ -4,9 +4,6 @@ import subprocess
 import sys
 import textwrap
 
-import ddtrace.appsec._ddwaf
-import ddtrace.bootstrap.sitecustomize as module
-
 
 def mac_supported_iast_version():
     if system() == "Darwin":
@@ -72,6 +69,9 @@ if __name__ == "__main__":
 
     # ASM WAF smoke test
     if system() != "Linux" or sys.maxsize > 2**32:
+        import ddtrace.appsec._ddwaf
+        import ddtrace.bootstrap.sitecustomize as module
+
         print("Running WAF module load test...")
         # Proceed with the WAF module load test
         ddtrace.appsec._ddwaf.version()
