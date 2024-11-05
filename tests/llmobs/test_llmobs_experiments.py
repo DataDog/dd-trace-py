@@ -6,9 +6,10 @@ from typing import Dict
 from typing import List
 from typing import Union
 
-from ddtrace.llmobs import Dataset
 import pytest
 import vcr
+
+from ddtrace.llmobs import Dataset
 
 
 # Define a function to scrub the headers you want to remove

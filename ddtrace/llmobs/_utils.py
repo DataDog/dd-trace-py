@@ -210,7 +210,6 @@ class HTTPResponse:
         Note that this method can only be called once as the response content is read and consumed.
         """
         data = self._resp.read()
-        print(data)
         return json.loads(data.decode("utf-8"))
 
 
