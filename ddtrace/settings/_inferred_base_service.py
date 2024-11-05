@@ -216,10 +216,14 @@ def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
 
 def _is_executable(file_path):
     normalized_path = os.path.normpath(file_path)
+    if not os.path.isfile(normalized_path):
+        return False
+    
+    # Split the path into directories and check for 'bin'
     directory = os.path.dirname(normalized_path)
-
-    while directory != "":
+    while directory and os.path.dirname(directory) != directory:  # Check to prevent infinite loops
         if os.path.basename(directory) == "bin":
             return True
         directory = os.path.dirname(directory)
+    
     return False
