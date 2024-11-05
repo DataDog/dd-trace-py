@@ -1,7 +1,7 @@
 [[
   {
     "name": "sql.query",
-    "service": "unnamed-python-service",
+    "service": "test_schematization_0",
     "resource": "select current_version();",
     "trace_id": 0,
     "span_id": 1,
