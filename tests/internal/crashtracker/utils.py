@@ -64,7 +64,6 @@ def start_crashtracker(port: int):
         crashtracker.set_library_version("v2.7.1.8")
         crashtracker.set_stdout_filename("stdout.log")
         crashtracker.set_stderr_filename("stderr.log")
-        crashtracker.set_alt_stack(False)
         crashtracker.set_resolve_frames_full()
         ret = crashtracker.start()
     except Exception as e:
