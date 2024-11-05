@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: This fix adds more commands to the auto-injection denylist.
