@@ -145,7 +145,8 @@ def run_python_code_in_subprocess(request, tmpdir):
         # Name the test temp dir with test name and parameterized input index (necessary for service naming
         # snapshot tests that have parameterized inputs)
         temp_dir = tmpdir.join(f"{request.function.__name__}_{request.param_index}")
-        temp_dir.mkdir()
+        if not temp_dir.exists():
+            temp_dir.mkdir()
         pyfile = tmpdir.join("test.py")
         pyfile.write(code)
         return call_program(sys.executable, str(pyfile), **kwargs)
@@ -159,7 +160,8 @@ def ddtrace_run_python_code_in_subprocess(request, tmpdir):
         # Name the test temp dir with test name and parameterized input index (necessary for service naming
         # snapshot tests that have parameterized inputs)
         temp_dir = tmpdir.join(f"{request.function.__name__}_{request.param_index}")
-        temp_dir.mkdir()
+        if not temp_dir.exists():
+            temp_dir.mkdir()
         pyfile = temp_dir.join("test.py")
         pyfile.write(code)
         return call_program("ddtrace-run", sys.executable, str(pyfile), **kwargs)
