@@ -13,6 +13,12 @@ Datadog::Crashtracker::set_create_alt_stack(bool _create_alt_stack)
 }
 
 void
+Datadog::Crashtracker::set_use_alt_stack(bool _use_alt_stack)
+{
+    use_alt_stack = _use_alt_stack;
+}
+
+void
 Datadog::Crashtracker::set_env(std::string_view _env)
 {
     env = std::string(_env);

@@ -88,9 +88,15 @@ crashtracker_set_stderr_filename(std::string_view filename) // cppcheck-suppress
 }
 
 void
-crashtracker_set_alt_stack(bool alt_stack) // cppcheck-suppress unusedFunction
+crashtracker_set_create_alt_stack(bool create_alt_stack) // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_create_alt_stack(alt_stack);
+    crashtracker.set_create_alt_stack(create_alt_stack);
+}
+
+void
+crashtracker_set_use_alt_stack(bool use_alt_stack) // cppcheck-suppress unusedFunction
+{
+    crashtracker.set_use_alt_stack(use_alt_stack);
 }
 
 void

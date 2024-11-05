@@ -31,7 +31,8 @@ struct ProfilingState
 class Crashtracker
 {
   private:
-    bool create_alt_stack = false;
+    bool create_alt_stack = true;
+    bool use_alt_stack = true;
     std::optional<std::string> stderr_filename{ std::nullopt };
     std::optional<std::string> stdout_filename{ std::nullopt };
     std::string path_to_receiver_binary;
@@ -73,6 +74,7 @@ class Crashtracker
     void set_tag(std::string_view _key, std::string_view _value);
 
     void set_create_alt_stack(bool _create_alt_stack);
+    void set_use_alt_stack(bool _use_alt_stack);
     void set_stderr_filename(std::string_view _stderr_filename);
     void set_stdout_filename(std::string_view _stdout_filename);
     bool set_receiver_binary_path(std::string_view _path_to_receiver_binary);
