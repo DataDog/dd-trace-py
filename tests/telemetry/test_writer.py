@@ -197,7 +197,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         assert payload == result["payload"]
 
 
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
+def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir, tracer):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
@@ -400,7 +400,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_SERVICE", "origin": "default", "value": "test_app_started_event_configu1"},
+        {"name": "DD_SERVICE", "origin": "default", "value": tracer._services[0]}, 
         {"name": "DD_SERVICE_MAPPING", "origin": "env_var", "value": "default_dd_service:remapped_dd_service"},
         {"name": "DD_SITE", "origin": "env_var", "value": "datadoghq.com"},
         {"name": "DD_SPAN_SAMPLING_RULES", "origin": "env_var", "value": '[{"service":"xyz", "sample_rate":0.23}]'},

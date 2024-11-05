@@ -144,7 +144,7 @@ def run_python_code_in_subprocess(request, tmpdir):
     def _run(code, **kwargs):
         # Name the test temp dir with test name and parameterized input index (necessary for service naming
         # snapshot tests that have parameterized inputs)
-        temp_dir = tmpdir.join(f"{request.function.__name__}")
+        temp_dir = tmpdir.join(f"{request.function.__name__}_{request.param_index}")
         if not temp_dir.exists():
             temp_dir.mkdir()
         pyfile = tmpdir.join("test.py")
