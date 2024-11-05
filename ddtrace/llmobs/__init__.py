@@ -7,6 +7,9 @@ To start the service manually, invoke the ``enable`` method::
 """
 
 from ._llmobs import LLMObs
+from ._experiments import Dataset
+from ._experiments import Experiment
+from ._experiments import ExperimentResults
 
 
-__all__ = ["LLMObs"]
+__all__ = ["LLMObs", "Dataset", "Experiment", "ExperimentResults"]
