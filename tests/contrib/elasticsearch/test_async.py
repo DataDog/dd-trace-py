@@ -5,7 +5,8 @@ import sys
 from tests.utils import snapshot
 
 
-SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host"]
+SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host", "meta._dd.base_service"]
+# ignore base service since it will change according to the elasticsearch version tested with
 
 
 code = """
