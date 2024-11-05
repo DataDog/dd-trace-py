@@ -55,7 +55,7 @@ class PythonDetector:
             if not should_skip_arg:
                 abs_path = pathlib.Path(arg).resolve()
                 if not abs_path.exists():
-                    return ServiceMetadata(""), False  # File not found
+                    continue
                 stripped = abs_path
                 if not stripped.is_dir():
                     stripped = stripped.parent
@@ -175,7 +175,7 @@ def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
 
     # Check both the included command args as well as the executable being run
     possible_commands = [*args, sys.executable]
-    executable_args = []
+    executable_args = set()
 
     # List of detectors to try in order
     detectors = {}
@@ -191,13 +191,17 @@ def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
             if re.search(detector_pattern, command):
                 detectors.update({detector_name: detector_instance})
                 # append to a list of arg indexes to ignore since they are executables
-                executable_args.append(i)
+                executable_args.add(i)
+                continue
+            elif _is_executable(command):
+                # append to a list of arg indexes to ignore since they are executables
+                executable_args.add(i)
 
     args_to_search = []
     for i in range(len(args)):
         arg = args[i]
         # skip any executable args
-        if "/bin/" not in arg and i not in executable_args:
+        if i not in executable_args:
             args_to_search.append(arg)
 
     # Iterate through the matched detectors
@@ -208,3 +212,14 @@ def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
             return metadata.name
     CACHE[cache_key] = None
     return None
+
+
+def _is_executable(file_path):
+    normalized_path = os.path.normpath(file_path)
+    directory = os.path.dirname(normalized_path)
+
+    while directory != "":
+        if os.path.basename(directory) == "bin":
+            return True
+        directory = os.path.dirname(directory)
+    return False

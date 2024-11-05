@@ -4,7 +4,6 @@ import django
 import pytest
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from tests.utils import assert_span_http_status_code
 
 

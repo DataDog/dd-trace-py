@@ -10,7 +10,6 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.asgi import span_from_scope
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import override_http_config
