@@ -83,7 +83,6 @@ class Crashtracker
 
     // Helpers
     bool start();
-    bool atfork_child();
 
     // State transition
     void sampling_start();
