@@ -1,7 +1,7 @@
 [[
   {
     "name": "work",
-    "service": "test_ddtrace_run_trace_methods_async_0",
+    "service": "test_context_multiprocess0",
     "resource": "work",
     "trace_id": 0,
     "span_id": 1,
@@ -24,7 +24,7 @@
   },
      {
        "name": "proc",
-       "service": "test_ddtrace_run_trace_methods_async_0",
+       "service": "test_context_multiprocess0",
        "resource": "proc",
        "trace_id": 0,
        "span_id": 2,

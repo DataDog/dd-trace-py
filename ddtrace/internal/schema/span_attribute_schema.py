@@ -118,6 +118,6 @@ _SPAN_ATTRIBUTE_TO_FUNCTION = {
 _inferred_base_service: Union[None, str] = detect_service(sys.argv)
 
 _DEFAULT_SPAN_SERVICE_NAMES: Dict[str, Union[str, None]] = {
-    "v0": None,
+    "v0": _inferred_base_service or None,
     "v1": _inferred_base_service or DEFAULT_SERVICE_NAME,
 }
