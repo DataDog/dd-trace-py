@@ -314,6 +314,9 @@ if IAST.DENY_MODULES in os.environ:
 ENCODING = ""
 
 log = get_logger(__name__)
+log.warning(
+    "foo",
+)
 
 
 def get_encoding(module_path: Text) -> Text:

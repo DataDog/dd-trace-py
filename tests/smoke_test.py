@@ -52,26 +52,33 @@ except ImportError as e:
 """
 
 if __name__ == "__main__":
+    # ASM IAST smoke test
+    if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
+        print("Running native IAST module load test...")
+        test_code = textwrap.dedent(test_native_load_code)
+        cmd = [sys.executable, "-c", test_code]
+        env = os.environ.copy()
+
+        print("Running native module load test with DD_IAST_ENABLED=False...")
+        env["DD_IAST_ENABLED"] = "False"
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        assert result.returncode == 0, "Failed with DD_IAST_ENABLED=0: %s, %s" % (result.stdout, result.stderr)
+
+        print("Running native module load test with DD_IAST_ENABLED=True...")
+        env["DD_IAST_ENABLED"] = "True"
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        assert result.returncode == 0, "Failed with DD_IAST_ENABLED=1: %s, %s" % (result.stdout, result.stderr)
+        print("IAST module load tests completed successfully")
+
     # ASM WAF smoke test
+    print("Running WAF module load test...")
     if system() == "Linux":
         if not sys.maxsize > 2**32:
             # 32-bit linux DDWAF not ready yet.
+            print("Exiting test, 32-bit DDWAF not ready yet")
             sys.exit(0)
 
     ddtrace.appsec._ddwaf.version()
     assert ddtrace.appsec._ddwaf._DDWAF_LOADED
     assert module.loaded
-
-    # ASM IAST smoke test
-    if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
-        test_code = textwrap.dedent(test_native_load_code)
-        cmd = [sys.executable, "-c", test_code]
-        env = os.environ.copy()
-
-        env["DD_IAST_ENABLED"] = "False"
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
-        assert result.returncode == 0, "Failed with DD_IAST_ENABLED=0: %s, %s" % (result.stdout, result.stderr)
-
-        env["DD_IAST_ENABLED"] = "True"
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
-        assert result.returncode == 0, "Failed with DD_IAST_ENABLED=1: %s, %s" % (result.stdout, result.stderr)
+    print("WAF module load test completed successfully")
