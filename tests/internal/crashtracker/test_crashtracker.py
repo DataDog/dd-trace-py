@@ -338,7 +338,7 @@ auto_code = """
 import ctypes
 import ddtrace.auto
 ctypes.string_at(0)
-exit(-1)
+sys.exit(-1)
 """
 
 
@@ -436,7 +436,7 @@ def test_crashtracker_tags_required():
         assert not stderr_msg
 
         ctypes.string_at(0)
-        exit(-1)
+        sys.exit(-1)
 
     conn = utils.listen_get_conn(sock)
     assert conn
@@ -522,7 +522,7 @@ def test_crashtracker_user_tags_profiling():
         assert not stderr_msg
 
         ctypes.string_at(0)
-        exit(-1)
+        sys.exit(-1)
 
     conn = utils.listen_get_conn(sock)
     assert conn
@@ -568,7 +568,7 @@ def test_crashtracker_user_tags_core():
         assert not stderr_msg
 
         ctypes.string_at(0)
-        exit(-1)
+        sys.exit(-1)
 
     conn = utils.listen_get_conn(sock)
     assert conn
@@ -620,20 +620,20 @@ def test_crashtracker_echild_hang():
             if not utils.start_crashtracker(port):
                 with open(err_file, "a") as f:
                     f.write("X")
-                    exit(-1)
+                    sys.exit(-1)
 
             stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
             if not stdout_msg or not stderr_msg:
                 with open(err_file, "a") as f:
                     f.write("X")
-                    exit(-1)
+                    sys.exit(-1)
 
             # Crashtracking is started.  Let's sleep for 100ms to give the parent a chance to do some stuff,
             # then crash.
             time.sleep(0.1)
 
             ctypes.string_at(0)
-            exit(-1)
+            sys.exit(-1)
         else:
             children.append(pid)
 
@@ -688,20 +688,20 @@ def test_crashtracker_no_zombies():
             if not utils.start_crashtracker(port):
                 with open(err_file, "a") as f:
                     f.write("X")
-                    exit(-1)
+                    sys.exit(-1)
 
             stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
             if not stdout_msg or not stderr_msg:
                 with open(err_file, "a") as f:
                     f.write("X")
-                    exit(-1)
+                    sys.exit(-1)
 
             # Crashtracking is started.  Let's sleep for 100ms to give the parent a chance to do some stuff,
             # then crash.
             time.sleep(0.1)
 
             ctypes.string_at(0)
-            exit(-1)
+            sys.exit(-1)
         else:
             children.append(pid)
 
