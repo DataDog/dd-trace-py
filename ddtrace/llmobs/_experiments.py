@@ -378,16 +378,7 @@ class Experiment:
                 results_buffer[idx] = future.result()["result"]
                 completed += 1
 
-                # Update progress
-                progress = int(50 * completed / total_rows)
-                bar = f"{'=' * progress}{' ' * (50 - progress)}"
-                percent = int(100 * completed / total_rows)
-                sys.stdout.write(f"\rEvaluating {self.name}: [{bar}] {percent}% ({completed}/{total_rows})")
-                sys.stdout.flush()
-
             results.experiment_rows = results_buffer
-
-        sys.stdout.write("\n")
 
         self.has_evaluated = True
         self.results = results
@@ -425,7 +416,7 @@ class ExperimentResults:
     def __getitem__(self, index: int) -> Any:
         return self.experiment_rows[index]
 
-    def push(self) -> Dict[str, str]:
+    def push(self) -> None:
         """Push the experiment results to Datadog.
 
         Returns:
@@ -582,7 +573,6 @@ class ExperimentResults:
 
         url = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
         exp_http_request("POST", url, body=json.dumps(results_payload).encode("utf-8"))
-        return self
 
 
 def _make_id() -> str:
@@ -613,4 +603,6 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
         "Content-Type": "application/json",
     }
     url = BASE_URL + url
-    return http_request(method, url, headers=headers, body=body)
+    resp = HTTPResponse(http_request(method, url, headers=headers, body=body))
+    if resp.status_code >= 400:
+        raise ValueError(f"Failed to make request, got status code {resp.status_code}.")
