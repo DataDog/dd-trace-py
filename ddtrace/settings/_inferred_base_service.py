@@ -4,6 +4,8 @@ import pathlib
 import re
 import sys
 from typing import Dict
+from typing import List
+from typing import Tuple
 from typing import Union
 
 
@@ -39,7 +41,7 @@ class PythonDetector:
         # - Match /python, /python3.7, etc.
         self.pattern = r"(^|/)(?!.*\.py$)(" + re.escape(name) + r"(\d+\.\d+)?$)"
 
-    def detect(self, args):
+    def detect(self, args: List[str]) -> Tuple[ServiceMetadata, bool]:
         prev_arg_is_flag = False
         module_flag = False
 
@@ -71,29 +73,25 @@ class PythonDetector:
 
         return ServiceMetadata(""), False
 
-    def abs_path(self, a, wd):
-        # Converts the given path to an absolute path
-        return pathlib.Path(wd) / a
-
-    # deduce_package_name is walking until a `__init__.py` is not found.
-    # All the dir traversed are joined then with `.`
-    def deduce_package_name(self, fp):
+    def deduce_package_name(self, fp: pathlib.Path) -> Tuple[str, bool]:
+        # Walks the file path until a `__init__.py` is not found.
+        # All the dir traversed are joined then with `.`
         up = pathlib.Path(fp).parent
         current = fp
-        traversed = []
+        traversed: List[str] = []
 
         while current != up:
-            if not pathlib.Path(current, INIT_PY).exists():
+            if not (current / INIT_PY).exists():
                 break
-            traversed.insert(0, pathlib.Path(current).name)
+            traversed.insert(0, current.name)
             current = up
-            up = pathlib.Path(current).parent
+            up = current.parent
 
         return ".".join(traversed), len(traversed) > 0
 
-    # findNearestTopLevel returns the top level dir containing a .py file starting walking up from fp
-    def find_nearest_top_level(self, fp):
-        up = pathlib.Path(fp).parent
+    def find_nearest_top_level(self, fp: pathlib.Path) -> str:
+        # returns the top level dir containing a .py file starting walking up from fp
+        up = fp.parent
         current = fp
         last = current
 
@@ -102,9 +100,9 @@ class PythonDetector:
                 break
             last = current
             current = up
-            up = pathlib.Path(current).parent
+            up = current.parent
 
-        return pathlib.Path(last).name
+        return last.name
 
 
 class GunicornDetector:
@@ -114,10 +112,10 @@ class GunicornDetector:
         self.name = name
         self.pattern = name
 
-    def expected_command_name(self):
+    def expected_command_name(self) -> str:
         return "gunicorn"
 
-    def detect(self, args):
+    def detect(self, args: List[str]) -> Tuple[ServiceMetadata, bool]:
         from_env = os.getenv(GUNICORN_CMD_ARGS)
         if from_env:
             name, ok = self.extract_gunicorn_name_from(from_env.split())
@@ -134,7 +132,7 @@ class GunicornDetector:
 
         return ServiceMetadata("gunicorn"), True
 
-    def extract_gunicorn_name_from(self, args):
+    def extract_gunicorn_name_from(self, args: List[str]) -> Tuple[str, bool]:
         skip = False
         capture = False
 
@@ -157,12 +155,12 @@ class GunicornDetector:
                 return self.parse_name_from_wsgi_app(args[-1]), True
         return "", False
 
-    def parse_name_from_wsgi_app(self, wsgi_app):
+    def parse_name_from_wsgi_app(self, wsgi_app: str) -> str:
         name, _, _ = wsgi_app.partition(":")
         return name
 
 
-def detect_service(args, detector_classes=[PythonDetector, GunicornDetector]):
+def detect_service(args: List[str], detector_classes=[PythonDetector, GunicornDetector]) -> Union[None, str]:
     # Check if args is empty
     if not args:
         return None
