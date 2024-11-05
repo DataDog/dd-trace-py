@@ -125,6 +125,7 @@ Datadog::Crashtracker::get_config()
 {
     ddog_crasht_Config config{};
     config.create_alt_stack = create_alt_stack;
+    config.use_alt_stack = use_alt_stack;
     config.endpoint = ddog_endpoint_from_url(to_slice(url));
     config.resolve_frames = resolve_frames;
     config.timeout_ms = timeout_ms;
