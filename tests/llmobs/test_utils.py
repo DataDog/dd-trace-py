@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.llmobs._utils import http_request
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 
@@ -99,3 +100,12 @@ def test_documents_dictionary_with_incorrect_value_types():
         Documents({"text": "hello", "name": {"key": "value"}})
     with pytest.raises(TypeError):
         Documents([{"text": "hello", "score": "123"}])
+
+
+def test_http_request():
+    response = http_request("GET", "https://httpbin.org/get")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["url"] == "https://httpbin.org/get"
+    assert data["args"] == {}
+    assert data["headers"]["Host"] == "httpbin.org"
