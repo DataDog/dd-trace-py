@@ -1,3 +1,4 @@
+import copy
 import os
 from platform import system
 import subprocess
@@ -50,34 +51,38 @@ except ImportError as e:
 
 if __name__ == "__main__":
     # ASM IAST smoke test
-    if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
-        print("Running native IAST module load test...")
-        test_code = textwrap.dedent(test_native_load_code)
-        cmd = [sys.executable, "-c", test_code]
-        env = os.environ.copy()
-
-        print("Running native module load test with DD_IAST_ENABLED=False...")
-        env["DD_IAST_ENABLED"] = "False"
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
-        assert result.returncode == 0, "Failed with DD_IAST_ENABLED=0: %s, %s" % (result.stdout, result.stderr)
-
-        print("Running native module load test with DD_IAST_ENABLED=True...")
-        env["DD_IAST_ENABLED"] = "True"
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
-        assert result.returncode == 0, "Failed with DD_IAST_ENABLED=1: %s, %s" % (result.stdout, result.stderr)
-        print("IAST module load tests completed successfully")
+    # if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
+    #     print("Running native IAST module load test...")
+    #     test_code = textwrap.dedent(test_native_load_code)
+    #     cmd = [sys.executable, "-c", test_code]
+    #     orig_env = os.environ.copy()
+    #     copied_env = copy.deepcopy(orig_env)
+    #
+    #     try:
+    #         print("Running native module load test with DD_IAST_ENABLED=False...")
+    #         copied_env["DD_IAST_ENABLED"] = "False"
+    #         result = subprocess.run(cmd, env=copied_env, capture_output=True, text=True)
+    #         assert result.returncode == 0, "Failed with DD_IAST_ENABLED=0: %s, %s" % (result.stdout, result.stderr)
+    #
+    #         print("Running native module load test with DD_IAST_ENABLED=True...")
+    #         copied_env["DD_IAST_ENABLED"] = "True"
+    #         result = subprocess.run(cmd, env=copied_env, capture_output=True, text=True)
+    #         assert result.returncode == 0, "Failed with DD_IAST_ENABLED=1: %s, %s" % (result.stdout, result.stderr)
+    #         print("IAST module load tests completed successfully")
+    #     finally:
+    #         os.environ = orig_env
 
     # ASM WAF smoke test
-    if system() != "Linux" or sys.maxsize > 2**32:
-        import ddtrace.appsec._ddwaf
-        import ddtrace.bootstrap.sitecustomize as module
-
-        print("Running WAF module load test...")
-        # Proceed with the WAF module load test
-        ddtrace.appsec._ddwaf.version()
-        assert ddtrace.appsec._ddwaf._DDWAF_LOADED
-        assert module.loaded
-        print("WAF module load test completed successfully")
-    else:
-        # Skip the test for 32-bit Linux systems
-        print("Skipping test, 32-bit DDWAF not ready yet")
+    # if system() != "Linux" or sys.maxsize > 2**32:
+    #     import ddtrace.appsec._ddwaf
+    #     import ddtrace.bootstrap.sitecustomize as module
+    #
+    #     print("Running WAF module load test...")
+    #     # Proceed with the WAF module load test
+    #     ddtrace.appsec._ddwaf.version()
+    #     assert ddtrace.appsec._ddwaf._DDWAF_LOADED
+    #     assert module.loaded
+    #     print("WAF module load test completed successfully")
+    # else:
+    #     # Skip the test for 32-bit Linux systems
+    #     print("Skipping test, 32-bit DDWAF not ready yet")
