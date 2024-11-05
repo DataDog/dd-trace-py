@@ -340,7 +340,7 @@ def _after_request_tags(pin, span: Span, request, response):
                     if username:
                         span.set_tag_str("django.user.name", username)
             except Exception:
-                log.error("Error retrieving authentication information for user", exc_info=True)
+                log.debug("Error retrieving authentication information for user", exc_info=True)
 
         # DEV: Resolve the view and resource name at the end of the request in case
         #      urlconf changes at any point during the request
