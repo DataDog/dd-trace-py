@@ -4,6 +4,58 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.16.0
+
+### New Features
+
+- tracing: Introduces support for Baggage as defined by the [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/baggage/api/).
+
+- LLM Observability: When starting LLM and embedding spans, the `model_name` argument is now optional and will default to `custom`.  
+  This applies to both inline methods (e.g. `LLMObs.llm()`) and function decorators (e.g. `@llm`).
+
+- LLM Observability: This introduces the ability to add metadata for evaluation metrics via the <span class="title-ref">submit_evaluation</span> method. For more information, see \[submitting evaluations with the SDK.\](<https://docs.datadoghq.com/llm_observability/submit_evaluations/#submitting-evaluations-with-the-sdk>)
+
+- botocore: Adds span pointers for successful DynamoDB `BatchWriteItem` spans. Table Primary Keys will need to be provided with the `ddtrace.config.botocore.dynamodb_primary_key_names_for_tables` option or the `DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS` environment variable to correctly handle the `PutRequest` items.
+
+- botocore: Adds span pointers for successful DynamoDB `TransactWriteItems` spans. Table Primary Keys will need to be provided with the `ddtrace.config.botocore.dynamodb_primary_key_names_for_tables` option or the `DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS` environment variable to correctly handle the `Put` items.
+
+- botocore: Add `ddtrace.config.botocore.add_span_pointers` option or the `DD_BOTOCORE_ADD_SPAN_POINTERS` environment variable to control adding span pointers to some successful AWS API requests. This option is enabled by default.
+### Bug Fixes
+
+- profiling: fixes an issue where the profiler was allocating too much memory from `ensure_binary_or_empty()` function, on Python versions before 3.12, with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.- Code Security: This fix resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError
+- profiling: fix a data race where span information associated with a thread was read and updated concurrently, leading to segfaults
+- profiling: fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+- profiling: when a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when <span class="title-ref">DD_PROFILING_ENDPOINT_COLLECTION_ENABLED</span><span class="title-ref"> and </span><span class="title-ref">DD_PROFILING_STACK_V2_ENABLED</span>\` were set to enable grouping of profiles for endpoints.
+
+- LLM Observability: This fix resolves two issues with annotation contexts:  
+  \- annotations registered via annotation contexts were being applied globally. Annotations are now only applied to the current trace context and do not pollute to other threads & processes.
+
+  \- annotations from nested annotation contexts were applied in a non-deterministic order. Annotations are now applied in the order they were registered.
+
+- CI Visibility: fixes a bug where `CODEOWNERS` would incorrectly fail to discard line-level trailing comments (eg: `@code/owner # my comment` would result in codeowners being parsed as `@code/owner`, `#`, `my`, and `comment`)
+
+- CI Visibility: fixes unnecessary logging of an exception that would appear when trying to upload git metadata in an environment without functioning git (eg: missing `git` binary or `.git` directory)
+
+- elasticsearch: this fix resolves an issue where span tags were not fully populated on "sampled" spans, causing metric dimensions to be incorrect when spans were prematurely marked as sampled, including resource_name.
+
+- LLM Observability: This fix resolves an issue where input and output values equal to zero were not being annotated on workflow, task, agent and tool spans when using <span class="title-ref">LLMObs.annotate</span>.
+
+- dynamic instrumentation: Fixes an issue that prevented dynamic span tags probes from adding the requested tags to the requested span.
+
+- tracing(flare): Resolves the issue where tracer flares would not be generated if unexpected types were received in the AGENT_CONFIG remote configuration product.
+
+- LLM Observability: Resolves errors where the disabled setting was being ignored when forking.
+
+- profiling: this resolves an issue where asyncio task names are not captured by stack v2, when `DD_PROFILING_STACK_V2_ENABLED` is set.
+
+- profiling: resolves an issue where endpoint profiling for stack v2 throws `TypeError` exception when it is given a `Span` with `None` span_type.
+### Other Changes
+
+- LLM Observability: Updates the merging behavior for tags when <span class="title-ref">LLMObs.annotate</span> is called multiple times on the same span so that the latest value for a tag key overrides the previous value.
+
+
+---
+
 ## 2.15.0
 
 ### New Features
