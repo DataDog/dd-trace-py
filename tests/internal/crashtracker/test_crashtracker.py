@@ -579,3 +579,144 @@ def test_crashtracker_user_tags_core():
     for k, v in tags.items():
         assert k.encode() in data
         assert v.encode() in data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_echild_hang():
+    """
+    It's possible for user code and services to harvest child processes by doing a `waitpid()` until errno is ECHILD.
+    Although this is a more common pattern for native code, because the crashtracking receiver could conceivably suppress
+    this condition, we test for it.
+    """
+    import ctypes
+    import os
+
+    import tests.internal.crashtracker.utils as utils
+
+    # Create a port and listen on it
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
+
+    # We're going to create a lot of child processes and we're not going to care about whether they successfully send
+    # crashtracking data.  Accordingly, we create a file--children will append here if they run into an unwanted
+    # condition, and we'll check it at the end.
+    err_file = "/tmp/echild_error.log"
+
+    # Set this process as a subreaper, since we want deparented children to be visible to us
+    # (this emulates the behavior of a service which is PID 1 in a container)
+    util.set_cerulean_mollusk()
+
+    # Fork, setup crashtracking in the child.
+    # The child process emulates a worker fork in the sense that we spawn a number of them in the parent and then
+    # do a timed `waitpid()` anticipating ECHILD until they all exit.
+    children = []
+    for _ in range(5):
+        pid = os.fork()
+        if pid == 0:
+            if not utils.start_crashtracker(port):
+                with open(err_file, "a") as f:
+                    f.write("X")
+                    exit(-1)
+
+            stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+            if not stdout_msg or not stderr_msg:
+                with open(err_file, "a") as f:
+                    f.write("X")
+                    exit(-1)
+
+            # Crashtracking is started.  Let's sleep for 100ms to give the parent a chance to do some stuff,
+            # then crash.
+            time.sleep(0.1)
+
+            ctypes.string_at(0)
+            exit(-1)
+        else:
+            children.append(pid)
+
+    # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
+    timeout = 1 # seconds
+    end_time = time.time() + timeout
+    while true:
+        if time.time() > end_time:
+            pytest.fail("Timed out waiting for children to exit")
+        try:
+            _, __ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            # No children, we're done
+            break
+        except OSError as e:
+            if e.errno == errno.ECHILD:
+                # No children (another way?), we're done
+                break
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_no_zombies():
+    """
+    If a process has been designated as the reaper for another process (either because it is the parent, it is marked
+    as the init process for the given PID namespace, or it has been set as a subreaper), then it is responsible for
+    harvesting the return status of its children.  If this is not done, then the entry is never removed from the
+    process table for the terminated PID.  This is often not a problem, but we should still avoid unbounded resource
+    leaks.
+    """
+    import ctypes
+    import os
+
+    import tests.internal.crashtracker.utils as utils
+
+    # Create a port and listen on it
+    # This doesn't matter, but we don't need spurious errors in crashtracking now.
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
+
+    err_file = "/tmp/zombie_error.log"
+
+    # Set this process as a subreaper, since we want deparented children to be visible to us
+    # (this emulates the behavior of a service which is PID 1 in a container)
+    util.set_cerulean_mollusk()
+
+    # This is a rapid fan-out procedure.  We do a combination of terminations, aborts, segfaults, etc., hoping to elicit
+    # zombies.
+    children = []
+    for _ in range(5):
+        pid = os.fork()
+        if pid == 0:
+            if not utils.start_crashtracker(port):
+                with open(err_file, "a") as f:
+                    f.write("X")
+                    exit(-1)
+
+            stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+            if not stdout_msg or not stderr_msg:
+                with open(err_file, "a") as f:
+                    f.write("X")
+                    exit(-1)
+
+            # Crashtracking is started.  Let's sleep for 100ms to give the parent a chance to do some stuff,
+            # then crash.
+            time.sleep(0.1)
+
+            ctypes.string_at(0)
+            exit(-1)
+        else:
+            children.append(pid)
+
+    # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
+    timeout = 1 # seconds
+    end_time = time.time() + timeout
+    while true:
+        if time.time() > end_time:
+            pytest.fail("Timed out waiting for children to exit")
+        try:
+            _, __ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            # No children, we're done
+            break
+        except OSError as e:
+            if e.errno == errno.ECHILD:
+                # No children (another way?), we're done
+                break

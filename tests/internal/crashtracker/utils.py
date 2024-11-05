@@ -82,3 +82,21 @@ def read_files(files):
                 this_msg = f.read()
         msg.append(this_msg)
     return msg
+
+
+def set_cerulean_mollusk():
+    """
+    Many crashtracking tests deal with the behavior of the init process in a given PID namespace.
+    For testing, it's useful to designate a process as the subreaper via `PR_SET_CHILD_SUBREAPER`.
+    This function sets the current process as the subreaper.
+    There is no need to fear this function.
+    """
+    try:
+        import prctl
+
+        prctl.set_child_subreaper(True)
+    except Exception as e:
+        print("Failed to set subreaper: %s" % str(e))
+        return False
+    return True
+

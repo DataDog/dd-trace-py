@@ -13,12 +13,6 @@ Datadog::Crashtracker::set_create_alt_stack(bool _create_alt_stack)
 }
 
 void
-Datadog::Crashtracker::set_wait_for_receiver(bool _wait)
-{
-    wait_for_receiver = _wait;
-}
-
-void
 Datadog::Crashtracker::set_env(std::string_view _env)
 {
     env = std::string(_env);
@@ -127,8 +121,7 @@ Datadog::Crashtracker::get_config()
     config.create_alt_stack = create_alt_stack;
     config.endpoint = ddog_endpoint_from_url(to_slice(url));
     config.resolve_frames = resolve_frames;
-    config.timeout_secs = timeout_secs;
-    config.wait_for_receiver = wait_for_receiver;
+    config.timeout_ms = timeout_ms;
     return config;
 }
 
@@ -205,7 +198,7 @@ Datadog::Crashtracker::start()
     auto tags = get_tags();
     auto metadata = get_metadata(tags);
 
-    auto result = ddog_crasht_init_with_receiver(config, receiver_config, metadata);
+    auto result = ddog_crasht_init(config, receiver_config, metadata);
     ddog_Vec_Tag_drop(tags);
     if (result.tag != DDOG_CRASHT_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = result.err;                 // NOLINT (cppcoreguidelines-pro-type-union-access)
