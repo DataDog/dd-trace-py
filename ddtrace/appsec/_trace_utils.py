@@ -299,12 +299,15 @@ def _on_django_login(
     user,
     mode,
     info_retriever,
+    django_config,
 ):
     if user:
         from ddtrace.contrib.django.compat import user_is_authenticated
 
         if user_is_authenticated(user):
-            user_id, user_extra = info_retriever.get_user_info()
+            user_id, user_extra = info_retriever.get_user_info(
+                name=django_config.include_user_name, email=django_config.include_user_email
+            )
 
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 session_key = getattr(request, "session_key", None)
@@ -322,7 +325,7 @@ def _on_django_login(
             track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode)
 
 
-def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
+def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_config):
     if not asm_config._asm_enabled:
         return True, result_user
 
@@ -339,7 +342,9 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             exists = info_retriever.user_exists()
             if exists:
-                user_id, user_extra = info_retriever.get_user_info()
+                user_id, user_extra = info_retriever.get_user_info(
+                    name=django_config.include_user_name, email=django_config.include_user_email
+                )
                 track_user_login_failure_event(
                     pin.tracer, user_id=user_id, login_events_mode=mode, exists=True, **user_extra
                 )

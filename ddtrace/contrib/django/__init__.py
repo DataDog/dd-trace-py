@@ -131,6 +131,14 @@ Configuration
 
    Default: ``True``
 
+.. py:data:: ddtrace.config.django['include_user_email']
+
+   Whether or not to include the authenticated user's email (if available) as a tag on the root request span.
+
+   Can also be configured via the ``DD_DJANGO_INCLUDE_USER_EMAIL`` environment variable.
+
+   Default: ``False``
+
 .. py:data:: ddtrace.config.django['use_handler_resource_format']
 
    Whether or not to use the resource format `"{method} {handler}"`. Can also be
@@ -176,6 +184,7 @@ Example::
 
 .. __: https://www.djangoproject.com/
 """  # noqa: E501
+
 from ddtrace.internal.utils.importlib import require_modules
 
 

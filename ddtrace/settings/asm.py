@@ -214,6 +214,10 @@ class ASMConfig(Env):
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
 
+    # Django ATO
+    _django_include_user_name = Env.var(bool, "DD_DJANGO_INCLUDE_USER_NAME", default=True)
+    _django_include_user_email = Env.var(bool, "DD_DJANGO_INCLUDE_USER_EMAIL", default=False)
+
     def __init__(self):
         super().__init__()
         # Is one click available?
