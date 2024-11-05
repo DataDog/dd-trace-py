@@ -5,7 +5,7 @@ import sys
 from tests.utils import snapshot
 
 
-SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host"]
+SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host", "meta._dd.base_service"]
 
 code = """
 import datetime

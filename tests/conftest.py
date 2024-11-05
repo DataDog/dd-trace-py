@@ -140,8 +140,12 @@ def clear_context_after_every_test():
 
 
 @pytest.fixture
-def run_python_code_in_subprocess(tmpdir):
+def run_python_code_in_subprocess(request, tmpdir):
     def _run(code, **kwargs):
+        # Name the test temp dir with test name and parameterized input index (necessary for service naming
+        # snapshot tests that have parameterized inputs)
+        temp_dir = tmpdir.join(f"{request.function.__name__}_{request.param_index}")
+        temp_dir.mkdir()
         pyfile = tmpdir.join("test.py")
         pyfile.write(code)
         return call_program(sys.executable, str(pyfile), **kwargs)
