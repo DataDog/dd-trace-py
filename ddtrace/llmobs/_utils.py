@@ -1,8 +1,10 @@
+import http.client
 import json
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
+import urllib.request
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
@@ -192,3 +194,32 @@ def safe_json(obj, ensure_ascii=True):
         return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
+
+
+class HTTPResponse:
+    def __init__(self, resp: http.client.HTTPResponse) -> None:
+        self._resp = resp
+
+    @property
+    def status_code(self) -> int:
+        return self._resp.status
+
+    def json(self) -> dict:
+        """Return the JSON content of the response.
+
+        Note that this method can only be called once as the response content is read and consumed.
+        """
+        data = self._resp.read()
+        print(data)
+        return json.loads(data.decode("utf-8"))
+
+
+def http_request(
+    method: str, url: str, headers: Optional[Dict[str, str]] = None, body: Optional[bytes] = None
+) -> HTTPResponse:
+    # Create the request object
+    req = urllib.request.Request(url, data=body, method=method)
+    if headers:
+        for key, value in headers.items():
+            req.add_header(key, value)
+    return HTTPResponse(urllib.request.urlopen(req))
