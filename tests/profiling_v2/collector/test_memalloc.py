@@ -14,8 +14,6 @@ def test_heap_samples_collected(tmp_path, monkeypatch):
     test_name = "test_heap"
     pprof_prefix = str(tmp_path / test_name)
     monkeypatch.setattr(config, "output_pprof", pprof_prefix)
-    monkeypatch.setattr(config, "max_frames", 32)
-    monkeypatch.setattr(config.memory, "events_buffer", 10)
     monkeypatch.setattr(config.heap, "sample_size", 1024)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
