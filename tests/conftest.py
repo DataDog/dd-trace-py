@@ -8,6 +8,7 @@ import json
 import os
 from os.path import split
 from os.path import splitext
+import platform
 import random
 import subprocess
 import sys
@@ -116,7 +117,9 @@ def use_global_tracer():
 
 @pytest.fixture
 def auto_enable_crashtracking():
-    yield True
+    # Crashtracking is only supported on linux right now
+    # TODO: Default to `True` when Windows and Darwin are supported
+    yield platform.system() == "Linux"
 
 
 @pytest.fixture(autouse=True)
