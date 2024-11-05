@@ -15,6 +15,7 @@ def test_service_names_import_default():
     from ddtrace.internal.schema.span_attribute_schema import service_name_v0
     from ddtrace.internal.schema.span_attribute_schema import url_operation_v0
 
+    print(DEFAULT_SPAN_SERVICE_NAME)
     assert DEFAULT_SPAN_SERVICE_NAME == 'tmp'
     assert schematize_service_name == service_name_v0
     assert schematize_database_operation == database_operation_v0
@@ -37,6 +38,7 @@ def test_service_names_import_and_v0():
     from ddtrace.internal.schema.span_attribute_schema import service_name_v0
     from ddtrace.internal.schema.span_attribute_schema import url_operation_v0
 
+    print(DEFAULT_SPAN_SERVICE_NAME)
     assert DEFAULT_SPAN_SERVICE_NAME == 'tmp'
     assert schematize_service_name == service_name_v0
     assert schematize_database_operation == database_operation_v0
@@ -62,6 +64,7 @@ def test_service_name_imports_v1():
     from ddtrace.internal.schema.span_attribute_schema import service_name_v1
     from ddtrace.internal.schema.span_attribute_schema import url_operation_v1
 
+    print(DEFAULT_SPAN_SERVICE_NAME)
     assert DEFAULT_SPAN_SERVICE_NAME == 'tmp'
     assert schematize_service_name == service_name_v1
     assert schematize_database_operation == database_operation_v1
@@ -89,6 +92,7 @@ def test_service_name_import_with_client_service_names_enabled_v0():
     from ddtrace.internal.schema.span_attribute_schema import service_name_v1
     from ddtrace.internal.schema.span_attribute_schema import url_operation_v0
 
+    print(DEFAULT_SPAN_SERVICE_NAME)
     assert DEFAULT_SPAN_SERVICE_NAME == 'tmp'
     assert schematize_service_name == service_name_v1
     assert schematize_database_operation == database_operation_v0
