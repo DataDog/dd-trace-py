@@ -6,10 +6,10 @@ To start the service manually, invoke the ``enable`` method::
     LLMObs.enable()
 """
 
-from ._llmobs import LLMObs
 from ._experiments import Dataset
 from ._experiments import Experiment
 from ._experiments import ExperimentResults
+from ._llmobs import LLMObs
 
 
 __all__ = ["LLMObs", "Dataset", "Experiment", "ExperimentResults"]
