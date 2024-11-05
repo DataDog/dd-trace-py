@@ -51,7 +51,7 @@
   },
      {
        "name": "http.client.request",
-       "service": "unnamed-python-service",
+       "service": "test_integration_service_name_0",
        "resource": "POST /v1/completions",
        "trace_id": 0,
        "span_id": 2,

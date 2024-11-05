@@ -59,7 +59,7 @@
        "type": "http",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "test_integration_service_name_0",
          "component": "requests",
          "http.method": "POST",
          "http.status_code": "200",

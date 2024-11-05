@@ -15,9 +15,9 @@ def processor():
 @pytest.mark.parametrize("global_service_name", [None, "mysvc"])
 def test_base_service(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
     expected_base_service_name = {
-        None: global_service_name or "",
-        "v0": global_service_name or "",
-        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        None: global_service_name or "test_base_service_0",
+        "v0": global_service_name or "test_base_service_0",
+        "v1": global_service_name or "test_base_service_0",
     }[schema_version]
 
     code = """
