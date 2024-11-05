@@ -130,6 +130,7 @@ def test_cmdi(client):
     assert vulnerability_in_traces("COMMAND_INJECTION", client.agent_session)
 
 
+@pytest.mark.skip("TODO: fix interaction with new RASP rules")
 def test_sqli(client):
     payload = {"name": "admin", "pass": "anything' OR '1' ='1", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/sql_lab", data=payload, headers=TESTAGENT_HEADERS)

@@ -45,4 +45,12 @@ AGENTLESS_ENDPOINT = "api/v2/llmobs"
 DROPPED_IO_COLLECTION_ERROR = "dropped_io"
 DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 1MB size limit.]"
 
+# Set for traces of evaluator integrations e.g. `runner.integration:ragas`.
+# Used to differentiate traces of Datadog-run operations vs user-application operations.
+RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
+
+# The ml app of all ragas traces have this prefix that we use to detect
+# whether a span is generated from the ragas evaluation itself.
+RAGAS_ML_APP_PREFIX = "dd-ragas"
+
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"

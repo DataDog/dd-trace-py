@@ -1072,7 +1072,6 @@ def snapshot_context(
             elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
                 pytest.fail(to_unicode(r.read()), pytrace=False)
-
         try:
             yield SnapshotTest(
                 tracer=tracer,
