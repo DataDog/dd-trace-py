@@ -27,6 +27,7 @@ import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.runtime import get_runtime_id
@@ -111,6 +112,19 @@ def pytest_configure(config):
 @pytest.fixture
 def use_global_tracer():
     yield False
+
+
+@pytest.fixture
+def auto_enable_crashtracking():
+    yield True
+
+
+@pytest.fixture(autouse=True)
+def enable_crashtracking(auto_enable_crashtracking):
+    if auto_enable_crashtracking:
+        crashtracking.start()
+        assert crashtracking.is_started()
+    yield
 
 
 @pytest.fixture
