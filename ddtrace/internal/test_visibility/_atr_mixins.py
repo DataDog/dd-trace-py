@@ -27,6 +27,16 @@ class ATRSessionMixin:
         log.debug("Auto Test Retries enabled: %s", is_enabled)
         return is_enabled
 
+    @staticmethod
+    @_catch_and_log_exceptions
+    def atr_has_failed_tests() -> bool:
+        log.debug("Checking if session has failed tests for Auto Test Retries")
+        has_failed_tests = core.dispatch_with_results(
+            "test_visibility.atr.session_has_failed_tests"
+        ).has_failed_tests.value
+        log.debug("Session has ATR failed tests: %s", has_failed_tests)
+        return has_failed_tests
+
 
 class ATRTestMixin:
     @staticmethod
