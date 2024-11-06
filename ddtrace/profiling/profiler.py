@@ -15,7 +15,6 @@ from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
-from ddtrace.internal import writer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
@@ -109,8 +108,6 @@ class _ProfilerInstance(service.Service):
 
     """
 
-    ENDPOINT_TEMPLATE = "https://intake.profile.{}"
-
     def __init__(
         self,
         service: Optional[str] = None,
@@ -119,7 +116,6 @@ class _ProfilerInstance(service.Service):
         version: Optional[str] = None,
         tracer: Any = ddtrace.tracer,
         api_key: Optional[str] = None,
-        agentless: bool = profiling_config.agentless,
         _memory_collector_enabled: bool = profiling_config.memory.enabled,
         _stack_collector_enabled: bool = profiling_config.stack.enabled,
         _stack_v2_enabled: bool = profiling_config.stack.v2_enabled,
@@ -135,7 +131,6 @@ class _ProfilerInstance(service.Service):
         self.version: Optional[str] = version if version is not None else config.version
         self.tracer: Any = tracer
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key
-        self.agentless: bool = agentless
         self._memory_collector_enabled: bool = _memory_collector_enabled
         self._stack_collector_enabled: bool = _stack_collector_enabled
         self._stack_v2_enabled: bool = _stack_v2_enabled
@@ -174,26 +169,6 @@ class _ProfilerInstance(service.Service):
                 return [
                     file.PprofFileExporter(prefix=_OUTPUT_PPROF),
                 ]
-
-        if self.agentless:
-            LOG.warning(
-                "Agentless uploading is currently for internal usage only and not officially supported. "
-                "You should not enable it unless somebody at Datadog instructed you to do so."
-            )
-            endpoint = self.ENDPOINT_TEMPLATE.format(os.environ.get("DD_SITE", "datadoghq.com"))
-        else:
-            if isinstance(self.tracer._writer, writer.AgentWriter):
-                endpoint = self.tracer._writer.agent_url
-            else:
-                endpoint = agent.get_trace_url()
-
-        if self.agentless:
-            endpoint_path = "/api/v2/profile"
-        else:
-            # Agent mode
-            # path is relative because it is appended
-            # to the agent base path.
-            endpoint_path = "profiling/v1/input"
 
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
@@ -234,7 +209,6 @@ class _ProfilerInstance(service.Service):
                     version=self.version,
                     tags=self.tags,  # type: ignore
                     max_nframes=profiling_config.max_frames,
-                    url=endpoint,
                     timeline_enabled=profiling_config.timeline_enabled,
                     output_filename=profiling_config.output_pprof,
                     sample_pool_capacity=profiling_config.sample_pool_capacity,
@@ -269,13 +243,12 @@ class _ProfilerInstance(service.Service):
 
         return [
             http.PprofHTTPExporter(
+                tracer=self.tracer,
                 service=self.service,
                 env=self.env,
                 tags=self.tags,
                 version=self.version,
                 api_key=self.api_key,
-                endpoint=endpoint,
-                endpoint_path=endpoint_path,
                 enable_code_provenance=self.enable_code_provenance,
                 endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
             )
@@ -434,3 +407,25 @@ class _ProfilerInstance(service.Service):
 
     def visible_events(self):
         return not self._export_libdd_enabled
+
+
+def _get_endpoint(tracer: ddtrace.Tracer) -> str:
+    if profiling_config.agentless:
+        LOG.warning(
+            "Agentless uploading is currently for internal usage only and not officially supported. "
+            "You should not enable it unless somebody at Datadog instructed you to do so."
+        )
+        endpoint = "https://intake.profile.{}".format(os.environ.get("DD_SITE", "datadoghq.com"))
+    else:
+        tracer_agent_url = tracer.agent_trace_url
+        endpoint = tracer_agent_url if tracer_agent_url else agent.get_trace_url()
+    return endpoint
+
+
+def _get_endpoint_path() -> str:
+    if profiling_config.agentless:
+        endpoint_path = "/api/v2/profile"
+    else:
+        # path is relative because it is appended to the agent base path
+        endpoint_path = "profiling/v1/input"
+    return endpoint_path
