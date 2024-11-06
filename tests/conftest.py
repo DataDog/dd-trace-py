@@ -140,16 +140,27 @@ def clear_context_after_every_test():
         _DD_CONTEXTVAR.set(None)
 
 
+def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
+    # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
+    # inferred path service name as a fallback to DD_SERVICE
+    ddtrace_dir = tmpdir.join("ddtrace_subprocess_dir")
+    if not ddtrace_dir.exists():
+        ddtrace_dir.mkdir()
+
+    # Check for __init__.py and create it if it doesn't exist
+    # The first dir without an init file aka 'ddtrace_subprocess_dir' will be our service name
+    init_file = ddtrace_dir.join("__init__.py")
+    if not init_file.exists():
+        init_file.write("")  # Create an empty __init__.py file
+
+    pyfile = ddtrace_dir.join("test.py")
+    return pyfile
+
+
 @pytest.fixture
-def run_python_code_in_subprocess(request, tmpdir):
+def run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
-        # Name the test temp dir with test name and parameterized input index (necessary for service naming
-        # snapshot tests that have parameterized inputs)
-        temp_dir = tmpdir.join(f"{request.function.__name__}_{request.param_index}")
-        if not temp_dir.exists():
-            temp_dir.mkdir()
-            temp_dir.join("__init__.py")
-        pyfile = tmpdir.join("test.py")
+        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
         return call_program(sys.executable, str(pyfile), **kwargs)
 
@@ -157,21 +168,9 @@ def run_python_code_in_subprocess(request, tmpdir):
 
 
 @pytest.fixture
-def ddtrace_run_python_code_in_subprocess(request, tmpdir):
+def ddtrace_run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
-        # Name the test temp dir with test name and parameterized input index (necessary for service naming
-        # snapshot tests that have parameterized inputs)
-        # Check for __init__.py and create it if it doesn't exist
-        ddtrace_dir = tmpdir.join("ddtrace_subprocess_dir")
-
-        if not ddtrace_dir.exists():
-            ddtrace_dir.mkdir()
-
-        # Check for __init__.py and create it if it doesn't exist
-        init_file = ddtrace_dir.join("__init__.py")
-        if not init_file.exists():
-            init_file.write("")  # Create an empty __init__.py file
-        pyfile = ddtrace_dir.join("test.py")
+        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
         return call_program("ddtrace-run", sys.executable, str(pyfile), **kwargs)
 

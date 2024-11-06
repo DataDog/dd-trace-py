@@ -427,7 +427,7 @@ def test_service_name_schematization(ddtrace_run_python_code_in_subprocess, sche
     expected_service_name = {
         None: service_name or "sanic",
         "v0": service_name or "sanic",
-        "v1": service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": service_name or "ddtrace_subprocess_dir",
     }[schema_version]
     code = """
 import asyncio

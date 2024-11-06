@@ -3,7 +3,6 @@ import os
 import pytest
 
 from ddtrace.internal.schema.processor import BaseServiceProcessor
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 
 
 @pytest.fixture
