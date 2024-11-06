@@ -3,6 +3,7 @@ import subprocess
 import sys
 
 from tests.utils import snapshot
+from tests.conftest import create_ddtrace_subprocess_dir_and_return_test_pyfile
 
 
 SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host"]
@@ -30,7 +31,7 @@ else:
 
 
 def do_test(tmpdir, es_version):
-    f = tmpdir.join("test.py")
+    f = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
     f.write(code % es_version)
     env = os.environ.copy()
     # ddtrace-run patches sqlite3 which is used by coverage to store coverage

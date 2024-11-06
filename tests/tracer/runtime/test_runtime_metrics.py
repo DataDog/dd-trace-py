@@ -87,11 +87,11 @@ def test_runtime_tags_usm():
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 
     tags = list(RuntimeTags())
-    assert len(tags) == 8, tags
+    assert len(tags) == 7, tags
 
     tags = dict(tags)
     assert set(tags.keys()) == set(
-        ["lang", "lang_interpreter", "lang_version", "tracer_version", "service", "version", "env", "service"]
+        ["lang", "lang_interpreter", "lang_version", "tracer_version", "service", "version", "env"]
     )
     assert tags["service"] == "my-service"
     assert tags["env"] == "test-env"
