@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: fix a data race where span information associated with a thread
+    was read and updated concurrently, leading to segfaults

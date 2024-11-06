@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pymongo: Adds type checking to solve an issue where ``NoneType`` instead of expected ``Pin`` object would throw an error in ``TracedTopology`` method.
