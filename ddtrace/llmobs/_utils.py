@@ -32,7 +32,7 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
     version = prompt.get("version")
     prompt_id = prompt.get("id")
     ctx_variable_keys = prompt.get("rag_context_variables")
-    rag_query_variable_key = prompt.get("rag_query_variables")
+    rag_query_variable_keys = prompt.get("rag_query_variables")
     if variables is not None:
         if not isinstance(variables, dict):
             raise TypeError("Prompt variables must be a dictionary.")
@@ -59,12 +59,12 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ctx_variable_keys
     else:
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ["context"]
-    if rag_query_variable_key is not None:
-        if not isinstance(rag_query_variable_key, list):
+    if rag_query_variable_keys is not None:
+        if not isinstance(rag_query_variable_keys, list):
             raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
-        if not all(isinstance(k, str) for k in rag_query_variable_key):
+        if not all(isinstance(k, str) for k in rag_query_variable_keys):
             raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
-        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = rag_query_variable_key
+        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = rag_query_variable_keys
     else:
         validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = ["question"]
     return validated_prompt

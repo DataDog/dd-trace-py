@@ -27,7 +27,7 @@ Prompt = TypedDict(
         "id": str,
         "version": str,
         "rag_context_variables": List[str],
-        "rag_query_variables": str,
+        "rag_query_variables": List[str],
     },
     total=False,
 )
