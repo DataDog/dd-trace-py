@@ -13,7 +13,6 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_cove
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
-from ddtrace.contrib.pytest._retry_utils import get_retry_num
 from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.pytest._types import pytest_CallInfo
 from ddtrace.contrib.pytest._types import pytest_Config
@@ -30,6 +29,7 @@ from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.pytest._utils import _pytest_version_supports_atr
 from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.pytest._utils import _TestOutcome
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
@@ -58,11 +58,15 @@ from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
+if _pytest_version_supports_retries():
+    from ddtrace.contrib.pytest._retry_utils import get_retry_num
+
 if _pytest_version_supports_efd():
     from ddtrace.contrib.pytest._efd_utils import efd_get_failed_reports
     from ddtrace.contrib.pytest._efd_utils import efd_get_teststatus
     from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
     from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.pytest._retry_utils import get_retry_num
 
 if _pytest_version_supports_atr():
     from ddtrace.contrib.pytest._atr_utils import atr_get_failed_reports
@@ -418,7 +422,7 @@ def _process_result(item, call, result) -> _TestOutcome:
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
     # When ATR or EFD retries are active, we do not want makereport to generate results
-    if get_retry_num(item.nodeid) is not None:
+    if _pytest_version_supports_retries and get_retry_num(item.nodeid) is not None:
         return
 
     original_result = outcome.get_result()
