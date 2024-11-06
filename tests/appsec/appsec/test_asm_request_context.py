@@ -1,6 +1,3 @@
-from inspect import currentframe
-from inspect import getframeinfo
-
 import mock
 import pytest
 
@@ -131,11 +128,7 @@ def test_log_waf_callback():
     with mock.patch("ddtrace.appsec._asm_request_context.log.warning") as mck, override_global_config(
         {"_asm_enabled": True}
     ):
-        line_number = getframeinfo(currentframe()).lineno
         _asm_request_context.call_waf_callback()
     log_message = mck.call_args[0][0]
     assert log_message.startswith("appsec.asm_context.warning::call_waf_callback::not_set[")
-    assert log_message.endswith(
-        "dd-trace-py/tests/appsec/appsec/test_asm_request_context.py,"
-        f" line {line_number+1}, in test_log_waf_callback]",
-    )
+    # log message can end with anything here due to tests being instrumented by pytest or other tools
