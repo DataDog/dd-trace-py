@@ -20,26 +20,33 @@ log = get_logger(__name__)
 
 RETRIES = 1
 try:
-    RETRIES = int(os.getenv(CONFIG_ENDPOINT_RETRIES_ENV, "1"))
+    if CONFIG_ENDPOINT_RETRIES_ENV in os.environ:
+        RETRIES = int(os.getenv(CONFIG_ENDPOINT_RETRIES_ENV, str(RETRIES)))
 except ValueError:
     log.error("Invalid value for %s. Using default value: %s", CONFIG_ENDPOINT_RETRIES_ENV, RETRIES)
 
 
+def _get_retries():
+    return RETRIES
+
+
 TIMEOUT = DEFAULT_TIMEOUT
 try:
-    TIMEOUT = int(os.getenv(CONFIG_ENDPOINT_TIMEOUT_ENV, str(DEFAULT_TIMEOUT)))
+    if CONFIG_ENDPOINT_TIMEOUT_ENV in os.environ:
+        TIMEOUT = int(os.getenv(CONFIG_ENDPOINT_TIMEOUT_ENV, str(TIMEOUT)))
 except ValueError:
     log.error("Invalid value for %s. Using default value: %s", CONFIG_ENDPOINT_TIMEOUT_ENV, TIMEOUT)
 
 
-# @fibonacci_backoff_with_jitter(
-#     attempts=RETRIES, initial_wait=0.5, until=lambda resp: isinstance(resp, Response) and (200 <= resp.status < 300)
-# )
+def _get_timeout():
+    return TIMEOUT
+
+
 def _do_request(url: str) -> Response:
     try:
         parsed_url = verify_url(url)
         url_path = parsed_url.path
-        conn = get_connection(url, timeout=TIMEOUT)
+        conn = get_connection(url, timeout=_get_timeout())
         conn.request("GET", url_path)
         response = conn.getresponse()
         result = Response.from_http_response(response)
@@ -59,8 +66,10 @@ def fetch_config_from_endpoint() -> dict:
         return {}
 
     try:
+        # DEV: This can also work as a decorator,
+        # but it's harder to mock the retries in the tests.
         res = fibonacci_backoff_with_jitter(
-            attempts=RETRIES,
+            attempts=_get_retries(),
             initial_wait=0.1,
             until=lambda resp: hasattr(resp, "status") and (200 <= resp.status < 300),
         )(_do_request)(config_endpoint)

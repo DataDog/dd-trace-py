@@ -10,14 +10,14 @@ from tests.utils import override_env
 
 
 def mock_getresponse_enabled_after_4_retries(self):
-    if not hasattr(self, "getresponse_call_count"):
-        self.getresponse_call_count = 0
+    if not hasattr(mock_getresponse_enabled_after_4_retries, "call_count"):
+        mock_getresponse_enabled_after_4_retries.call_count = 0
 
-    self.getresponse_call_count += 1
+    mock_getresponse_enabled_after_4_retries.call_count += 1
 
     response = mock.Mock(spec=HTTPResponse)
     response.chunked = False
-    if self.getresponse_call_count < 4:
+    if mock_getresponse_enabled_after_4_retries.call_count < 4:
         response.read.return_value = b"{}"
         response.status = 500
         response.reason = "KO"
@@ -163,11 +163,11 @@ def test_set_config_endpoint_timeout_error(caplog):
 
 def test_set_config_endpoint_retries(caplog):
     caplog.set_level(10)
-    with override_env(
-        {"_DD_CONFIG_ENDPOINT": "http://localhost:80", "DD_TRACE_DEBUG": "true", "_DD_CONFIG_ENDPOINT_RETRIES": "5"}
-    ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
-        HTTPConnection, "send", new=mock_pass
-    ), mock.patch.object(
+    with override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80", "DD_TRACE_DEBUG": "true"}), mock.patch.object(
+        HTTPConnection, "connect", new=mock_pass
+    ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_enabled_after_4_retries
+    ), mock.patch(
+        "ddtrace.settings.endpoint_config._get_retries", return_value=5
     ):
         assert fetch_config_from_endpoint() == {"dd_iast_enabled": True}
