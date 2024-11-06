@@ -130,5 +130,5 @@ def test_log_waf_callback():
     ):
         _asm_request_context.call_waf_callback()
     log_message = mck.call_args[0][0]
-    assert log_message.startswith("appsec.asm_context.warning::call_waf_callback::not_set[")
+    assert log_message.startswith("appsec.asm_context.warning::call_waf_callback::not_set")
     # log message can end with anything here due to tests being instrumented by pytest or other tools
