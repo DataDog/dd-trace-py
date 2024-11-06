@@ -19,11 +19,11 @@ def test_crashtracker_available():
 def test_crashtracker_config():
     import pytest
 
-    from tests.internal.crashtracker.utils import read_files
-    from tests.internal.crashtracker.utils import start_crashtracker
+    from tests.internal.crashtracker.utils import CrashtrackerWrapper
 
-    start_crashtracker(1234)
-    stdout_msg, stderr_msg = read_files(["stdout.log", "stderr.log"])
+    ct = CrashtrackerWrapper(1234, "config")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
     if stdout_msg or stderr_msg:
         pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
 
@@ -31,10 +31,19 @@ def test_crashtracker_config():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
 def test_crashtracker_config_bytes():
+    import os
+
     import pytest
 
     import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
     from tests.internal.crashtracker.utils import read_files
+
+    # Delete the stdout and stderr files if they exist
+    base_name = b"config_bytes"
+    stdout, stderr = (f"{base_name}.{x}.log" for x in (b"stdout", b"stderr"))
+    for file in [stdout, stderr]:
+        if os.path.exists(file):
+            os.unlink(file)
 
     try:
         crashtracker.set_url(b"http://localhost:1234")
@@ -44,14 +53,14 @@ def test_crashtracker_config_bytes():
         crashtracker.set_runtime_version(b"v9001")
         crashtracker.set_runtime_id(b"0")
         crashtracker.set_library_version(b"v2.7.1.8")
-        crashtracker.set_stdout_filename(b"stdout.log")
-        crashtracker.set_stderr_filename(b"stderr.log")
+        crashtracker.set_stdout_filename(stdout)
+        crashtracker.set_stderr_filename(stderr)
         crashtracker.set_resolve_frames_full()
         assert crashtracker.start()
     except Exception:
         pytest.fail("Exception when starting crashtracker")
 
-    stdout_msg, stderr_msg = read_files(["stdout.log", "stderr.log"])
+    stdout_msg, stderr_msg = read_files([stdout, stderr])
     if stdout_msg or stderr_msg:
         pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
 
@@ -62,17 +71,16 @@ def test_crashtracker_started():
     import pytest
 
     import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
-    from tests.internal.crashtracker.utils import read_files
+    from tests.internal.crashtracker.utils import CrashtrackerWrapper
 
     try:
-        crashtracker.set_stdout_filename("stdout.log")
-        crashtracker.set_stderr_filename("stderr.log")
-        assert crashtracker.start()
-        assert crashtracker.is_started()
+        ct = CrashtrackerWrapper(1234, "started")
+        assert ct.start()
+        assert crashtracker.is_started()  # Confirmation at the module level
     except Exception:
         pytest.fail("Exception when starting crashtracker")
 
-    stdout_msg, stderr_msg = read_files(["stdout.log", "stderr.log"])
+    stdout_msg, stderr_msg = ct.logs()
     if stdout_msg or stderr_msg:
         pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
 
@@ -99,10 +107,11 @@ def test_crashtracker_simple():
     # Part 3 and 4, Fork, setup crashtracker, and crash
     pid = os.fork()
     if pid == 0:
-        assert utils.start_crashtracker(port)
-        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
-        assert not stdout_msg
-        assert not stderr_msg
+        ct = utils.CrashtrackerWrapper(port, "simple")
+        assert ct.start()
+        stdout_msg, stderr_msg = ct.logs()
+        assert not stdout_msg, stdout_msg
+        assert not stderr_msg, stderr_msg
 
         ctypes.string_at(0)
         sys.exit(-1)
@@ -136,8 +145,9 @@ def test_crashtracker_simple_fork():
     assert sock
 
     # Part 3, setup crashtracker in parent
-    assert utils.start_crashtracker(port)
-    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+    ct = utils.CrashtrackerWrapper(port, "simple_fork")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
     assert not stdout_msg
     assert not stderr_msg
 
@@ -182,10 +192,11 @@ def test_crashtracker_simple_sigbus():
     assert sock
 
     # Part 3, setup crashtracker in parent
-    assert utils.start_crashtracker(port)
-    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
-    assert not stdout_msg
-    assert not stderr_msg
+    ct = utils.CrashtrackerWrapper(port, "simple_sigbus")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
+    assert not stdout_msg, stdout_msg
+    assert not stderr_msg, stderr_msg
 
     # Part 4, Fork and crash
     pid = os.fork()
@@ -225,8 +236,9 @@ def test_crashtracker_raise_sigsegv():
     assert port
     assert sock
 
-    assert utils.start_crashtracker(port)
-    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+    ct = utils.CrashtrackerWrapper(port, "raise_sigsegv")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
     assert not stdout_msg
     assert not stderr_msg
 
@@ -258,8 +270,9 @@ def test_crashtracker_raise_sigbus():
     assert port
     assert sock
 
-    assert utils.start_crashtracker(port)
-    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+    ct = utils.CrashtrackerWrapper(port, "raise_sigbus")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
     assert not stdout_msg
     assert not stderr_msg
 
@@ -429,8 +442,9 @@ def test_crashtracker_tags_required():
 
     pid = os.fork()
     if pid == 0:
-        assert utils.start_crashtracker(port)
-        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+        ct = utils.CrashtrackerWrapper(port, "tags_required")
+        assert ct.start()
+        stdout_msg, stderr_msg = ct.logs()
         assert not stdout_msg
         assert not stderr_msg
 
@@ -515,8 +529,9 @@ def test_crashtracker_user_tags_profiling():
         # Set the tags before starting
         for k, v in tags.items():
             crashtracker.set_tag(k, v)
-        assert utils.start_crashtracker(port)
-        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+        ct = utils.CrashtrackerWrapper(port, "user_tags_profiling")
+        assert ct.start()
+        stdout_msg, stderr_msg = ct.logs()
         assert not stdout_msg
         assert not stderr_msg
 
@@ -561,8 +576,9 @@ def test_crashtracker_user_tags_core():
         # Set the tags before starting
         for k, v in tags.items():
             crashtracking.add_tag(k, v)
-        assert utils.start_crashtracker(port)
-        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+        ct = utils.CrashtrackerWrapper(port, "user_tags_core")
+        assert ct.start()
+        stdout_msg, stderr_msg = ct.logs()
         assert not stdout_msg
         assert not stderr_msg
 
@@ -591,6 +607,8 @@ def test_crashtracker_echild_hang():
     """
     import ctypes
     import os
+    import random
+    import sys
     import time
 
     import tests.internal.crashtracker.utils as utils
@@ -616,12 +634,15 @@ def test_crashtracker_echild_hang():
     for _ in range(5):
         pid = os.fork()
         if pid == 0:
-            if not utils.start_crashtracker(port):
+            rand_num = random.randint(0, 999999)
+            base_name = f"echild_hang_{rand_num}"
+            ct = utils.CrashtrackerWrapper(port, base_name)
+            if not ct.start():
                 with open(err_file, "a") as f:
                     f.write("X")
                     sys.exit(-1)
 
-            stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+            stdout_msg, stderr_msg = ct.logs()
             if not stdout_msg or not stderr_msg:
                 with open(err_file, "a") as f:
                     f.write("X")
@@ -662,6 +683,8 @@ def test_crashtracker_no_zombies():
     """
     import ctypes
     import os
+    import random
+    import sys
     import time
 
     import tests.internal.crashtracker.utils as utils
@@ -684,12 +707,15 @@ def test_crashtracker_no_zombies():
     for _ in range(5):
         pid = os.fork()
         if pid == 0:
-            if not utils.start_crashtracker(port):
+            rand_num = random.randint(0, 999999)
+            base_name = f"no_zombies_{rand_num}"
+            ct = utils.CrashtrackerWrapper(port, base_name)
+            if not ct.start():
                 with open(err_file, "a") as f:
                     f.write("X")
                     sys.exit(-1)
 
-            stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+            stdout_msg, stderr_msg = ct.logs()
             if not stdout_msg or not stderr_msg:
                 with open(err_file, "a") as f:
                     f.write("X")
