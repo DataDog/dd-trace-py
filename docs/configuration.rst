@@ -42,6 +42,15 @@ Traces
 ------
 
 .. ddtrace-configuration-options::
+   DD_<INTEGRATION>_DISTRIBUTED_TRACING:
+     default: True
+     
+     description: |
+         Enables distributed tracing for the specified <INTEGRATION>.
+
+     version_added:
+       v2.7.0:
+
    DD_<INTEGRATION>_SERVICE:
       type: String
       default: <INTEGRATION>
@@ -51,7 +60,6 @@ Traces
       
       version_added:
          v2.11.0:
-
 
    DD_ASGI_TRACE_WEBSOCKET:
      default: False
