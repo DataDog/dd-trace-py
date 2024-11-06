@@ -4,9 +4,9 @@ import re
 import subprocess
 import sys
 import time
+import urllib.request
 
 import pytest
-import requests
 
 from tests.profiling.collector import pprof_utils
 
@@ -63,15 +63,18 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # Wait for the workers to start
     time.sleep(3)
 
-    response = None
     try:
-        response = requests.get("http://127.0.0.1:7643")
+        with urllib.request.urlopen("http://127.0.0.1:7643") as f:
+            status_code = f.getcode()
+            assert status_code == 200, status_code
+            response = f.read().decode()
+            debug_print(response)
+
     except Exception as e:
         pytest.fail("Failed to make request to gunicorn server %s" % e)
     finally:
         # Need to terminate the process to get the output and release the port
         proc.terminate()
-    assert response and response.status_code == 200, response
 
     output = proc.stdout.read().decode()
     worker_pids = _get_worker_pids(output)
