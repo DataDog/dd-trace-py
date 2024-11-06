@@ -28,7 +28,7 @@ six==1.16.0
 sortedcontainers==2.4.0
 tomli==2.0.1
 typing-extensions==4.7.1
-uwsgi==2.0.28
+uwsgi==2.0.26
 zipp==3.15.0
 
 # The following packages are considered to be unsafe in a requirements file:

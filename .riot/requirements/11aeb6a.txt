@@ -18,9 +18,9 @@ protobuf==4.22.0
 py-cpuinfo==8.0.0
 pytest==8.3.3
 pytest-asyncio==0.21.1
-pytest-benchmark==5.1.0
-pytest-cov==6.0.0
+pytest-benchmark==4.0.0
+pytest-cov==5.0.0
 pytest-mock==3.14.0
-pytest-randomly==3.16.0
+pytest-randomly==3.15.0
 sortedcontainers==2.4.0
-uwsgi==2.0.28
+uwsgi==2.0.27
