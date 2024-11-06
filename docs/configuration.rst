@@ -65,6 +65,16 @@ Tracing
 -------
 
 .. ddtrace-configuration-options::
+   DD_<INTEGRATION>_SERVICE:
+      type: String
+      default: <INTEGRATION>
+      
+      description: |
+         Set the service name, allowing default service name overrides for traces for the specific <INTEGRATION>.
+      
+      version_added:
+         v2.11.0:
+
 
    DD_ASGI_TRACE_WEBSOCKET:
      default: False
@@ -96,16 +106,6 @@ Tracing
       
       version_added:
          v2.6.0:
-
-   DD_BOTOCORE_SERVICE:
-      type: String
-      default: "aws"
-      
-      description: |
-         Set the service name, allowing default service name overrides for traces in botocore.
-      
-      version_added:
-         v2.11.0:
 
    DD_HTTP_SERVER_TAG_QUERY_STRING:
      type: Boolean
