@@ -17,7 +17,7 @@ def patch_psycopg():
 
 
 @pytest.mark.subprocess(ddtrace_run=True)
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=0)
 def test_connect_default():
     """By default we do not trace psycopg2.connect method"""
     import psycopg2
