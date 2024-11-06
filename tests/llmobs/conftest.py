@@ -61,6 +61,16 @@ def mock_llmobs_eval_metric_writer():
 
 
 @pytest.fixture
+def mock_llmobs_evaluator_runner():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.EvaluatorRunner")
+    LLMObsEvalRunner = patcher.start()
+    m = mock.MagicMock()
+    LLMObsEvalRunner.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
 def mock_llmobs_submit_evaluation():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObs.submit_evaluation")
     LLMObsMock = patcher.start()
@@ -129,7 +139,9 @@ def default_global_config():
 
 
 @pytest.fixture
-def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
+def LLMObs(
+    mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner, ddtrace_global_config
+):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
@@ -140,7 +152,12 @@ def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_glob
 
 
 @pytest.fixture
-def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
+def AgentlessLLMObs(
+    mock_llmobs_span_agentless_writer,
+    mock_llmobs_eval_metric_writer,
+    mock_llmobs_evaluator_runner,
+    ddtrace_global_config,
+):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     global_config.update(dict(_llmobs_agentless_enabled=True))
@@ -152,13 +169,11 @@ def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_w
 
 
 @pytest.fixture
-def mock_llmobs_evaluator_runner():
-    patcher = mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.enqueue")
-    LLMObsMockEvaluatorRunner = patcher.start()
-    m = mock.MagicMock()
-    LLMObsMockEvaluatorRunner.return_value = m
-    yield m
-    patcher.stop()
+def disabled_llmobs():
+    prev = llmobs_service.enabled
+    llmobs_service.enabled = False
+    yield
+    llmobs_service.enabled = prev
 
 
 @pytest.fixture
