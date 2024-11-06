@@ -18,7 +18,7 @@ from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.profiling.profiler import _get_endpoint
+from ddtrace.profiling.utils import _get_endpoint
 from ddtrace._trace.span import Span
 
 

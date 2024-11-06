@@ -20,8 +20,8 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder  # noqa:F401
 from ddtrace.profiling.exporter import pprof
-from ddtrace.profiling.profiler import _get_endpoint
-from ddtrace.profiling.profiler import _get_endpoint_path
+from ddtrace.profiling.utils import _get_endpoint
+from ddtrace.profiling.utils import _get_endpoint_path
 from ddtrace.settings.profiling import config
 
 

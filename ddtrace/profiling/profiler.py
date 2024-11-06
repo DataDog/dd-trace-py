@@ -10,7 +10,6 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
@@ -407,25 +406,3 @@ class _ProfilerInstance(service.Service):
 
     def visible_events(self):
         return not self._export_libdd_enabled
-
-
-def _get_endpoint(tracer: ddtrace.Tracer) -> str:
-    if profiling_config.agentless:
-        LOG.warning(
-            "Agentless uploading is currently for internal usage only and not officially supported. "
-            "You should not enable it unless somebody at Datadog instructed you to do so."
-        )
-        endpoint = "https://intake.profile.{}".format(os.environ.get("DD_SITE", "datadoghq.com"))
-    else:
-        tracer_agent_url = tracer.agent_trace_url
-        endpoint = tracer_agent_url if tracer_agent_url else agent.get_trace_url()
-    return endpoint
-
-
-def _get_endpoint_path() -> str:
-    if profiling_config.agentless:
-        endpoint_path = "/api/v2/profile"
-    else:
-        # path is relative because it is appended to the agent base path
-        endpoint_path = "profiling/v1/input"
-    return endpoint_path
