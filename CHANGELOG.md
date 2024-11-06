@@ -79,7 +79,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
   - elasticsearch: Resolves an issue where span tags were not fully populated on "sampled" spans, causing metric dimensions to be incorrect when spans were prematurely marked as sampled, including resource_name.
 
 
-
 ### Other Changes
 - LLM Observability
   - Updates the merging behavior for tags when `LLMObs.annotate` is called multiple times on the same span so that the latest value for a tag key overrides the previous value.
