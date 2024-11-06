@@ -12,6 +12,8 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal import core
 from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._atr_mixins import ATRSessionMixin
+from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDSessionMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -28,8 +30,28 @@ class InternalTestBase(ext_api.TestBase):
     def get_span(item_id: t.Union[ext_api.TestVisibilityItemId, InternalTestId]) -> Span:
         return _get_item_span(item_id)
 
+    @staticmethod
+    @_catch_and_log_exceptions
+    def stash_set(item_id, key: str, value: object):
+        log.debug("Stashing value %s for key %s in item %s", value, key, item_id)
+        core.dispatch("test_visibility.item.stash_set", (item_id, key, value))
 
-class InternalTestSession(ext_api.TestSession, EFDSessionMixin):
+    @staticmethod
+    @_catch_and_log_exceptions
+    def stash_get(item_id: ext_api.TestVisibilityItemId, key: str):
+        log.debug("Getting stashed value for key %s in item %s", key, item_id)
+        stash_value = core.dispatch_with_results("test_visibility.item.stash_get", (item_id, key)).stash_value.value
+        log.debug("Got stashed value %s for key %s in item %s", stash_value, key, item_id)
+        return stash_value
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def stash_delete(item_id: ext_api.TestVisibilityItemId, key: str):
+        log.debug("Deleting stashed value for key %s in item %s", key, item_id)
+        core.dispatch("test_visibility.item.stash_delete", (item_id, key))
+
+
+class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin):
     @staticmethod
     def get_span() -> Span:
         return _get_item_span(TestSessionId())
@@ -110,7 +132,7 @@ class InternalTestSuite(ext_api.TestSuite, InternalTestBase, ITRMixin):
     pass
 
 
-class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin):
+class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin):
     class FinishArgs(NamedTuple):
         """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
 

@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import time
 
 import mock
 import pytest
@@ -25,6 +26,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -1353,37 +1355,46 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
 
 
 def test_flush_calls_periodic_agentless(
-    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer
+    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner
 ):
     AgentlessLLMObs.flush()
     mock_llmobs_span_agentless_writer.periodic.assert_called_once()
     mock_llmobs_eval_metric_writer.periodic.assert_called_once()
+    mock_llmobs_evaluator_runner.periodic.assert_called_once()
 
 
-def test_flush_does_not_call_period_when_llmobs_is_disabled(
-    LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_logs
+def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
+    LLMObs,
+    mock_llmobs_span_writer,
+    mock_llmobs_eval_metric_writer,
+    mock_llmobs_evaluator_runner,
+    mock_logs,
+    disabled_llmobs,
 ):
-    LLMObs.disable()
     LLMObs.flush()
     mock_llmobs_span_writer.periodic.assert_not_called()
     mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_llmobs_evaluator_runner.periodic.assert_not_called()
     mock_logs.warning.assert_has_calls(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
-    LLMObs.enable()
 
 
-def test_flush_does_not_call_period_when_llmobs_is_disabled_agentless(
-    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, mock_logs
+def test_flush_does_not_call_periodic_when_llmobs_is_disabled_agentless(
+    AgentlessLLMObs,
+    mock_llmobs_span_agentless_writer,
+    mock_llmobs_eval_metric_writer,
+    mock_llmobs_evaluator_runner,
+    mock_logs,
+    disabled_llmobs,
 ):
-    AgentlessLLMObs.disable()
     AgentlessLLMObs.flush()
     mock_llmobs_span_agentless_writer.periodic.assert_not_called()
     mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_llmobs_evaluator_runner.periodic.assert_not_called()
     mock_logs.warning.assert_has_calls(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
-    AgentlessLLMObs.enable()
 
 
 def test_inject_distributed_headers_llmobs_disabled_does_nothing(LLMObs, mock_logs):
@@ -1725,6 +1736,37 @@ def test_llmobs_fork_disabled_then_enabled(monkeypatch):
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
     svc.disable()
+
+
+def test_llmobs_with_evaluator_runner(LLMObs, mock_llmobs_evaluator_runner):
+    with LLMObs.llm(model_name="test_model"):
+        pass
+    time.sleep(0.1)
+    assert LLMObs._instance._evaluator_runner.enqueue.call_count == 1
+
+
+def test_llmobs_with_evaluator_runner_does_not_enqueue_evaluation_spans(mock_llmobs_evaluator_runner, LLMObs):
+    with LLMObs.llm(model_name="test_model", ml_app="{}-dummy".format(RAGAS_ML_APP_PREFIX)):
+        pass
+    time.sleep(0.1)
+    assert LLMObs._instance._evaluator_runner.enqueue.call_count == 0
+
+
+def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmobs_evaluator_runner, LLMObs):
+    with LLMObs.workflow(name="test"):
+        pass
+    with LLMObs.agent(name="test"):
+        pass
+    with LLMObs.task(name="test"):
+        pass
+    with LLMObs.embedding(model_name="test"):
+        pass
+    with LLMObs.retrieval(name="test"):
+        pass
+    with LLMObs.tool(name="test"):
+        pass
+    time.sleep(0.1)
+    assert LLMObs._instance._evaluator_runner.enqueue.call_count == 0
 
 
 def test_annotation_context_modifies_span_tags(LLMObs):

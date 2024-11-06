@@ -155,9 +155,9 @@ def test_session_id_propagates_ignore_non_llmobs_spans():
                     with dummy_tracer.trace("great_grandchild_span", span_type=SpanTypes.LLM) as great_grandchild_span:
                         great_grandchild_span.set_tag_str(SPAN_KIND, "llm")
         tp = LLMObsTraceProcessor(dummy_tracer._writer)
-        llm_span_event = tp._llmobs_span_event(llm_span)
-        grandchild_span_event = tp._llmobs_span_event(grandchild_span)
-        great_grandchild_span_event = tp._llmobs_span_event(great_grandchild_span)
+        llm_span_event, _ = tp._llmobs_span_event(llm_span)
+        grandchild_span_event, _ = tp._llmobs_span_event(grandchild_span)
+        great_grandchild_span_event, _ = tp._llmobs_span_event(great_grandchild_span)
     assert llm_span_event["session_id"] == "session-123"
     assert grandchild_span_event["session_id"] == "session-123"
     assert great_grandchild_span_event["session_id"] == "session-123"
@@ -171,7 +171,7 @@ def test_ml_app_tag_defaults_to_env_var():
             llm_span.set_tag_str(SPAN_KIND, "llm")
             pass
         tp = LLMObsTraceProcessor(dummy_tracer._writer)
-        span_event = tp._llmobs_span_event(llm_span)
+        span_event, _ = tp._llmobs_span_event(llm_span)
         assert "ml_app:<not-a-real-app-name>" in span_event["tags"]
 
 
@@ -183,7 +183,7 @@ def test_ml_app_tag_overrides_env_var():
             llm_span.set_tag_str(SPAN_KIND, "llm")
             llm_span.set_tag(ML_APP, "test-ml-app")
         tp = LLMObsTraceProcessor(dummy_tracer._writer)
-        span_event = tp._llmobs_span_event(llm_span)
+        span_event, _ = tp._llmobs_span_event(llm_span)
         assert "ml_app:test-ml-app" in span_event["tags"]
 
 
@@ -203,9 +203,9 @@ def test_ml_app_propagates_ignore_non_llmobs_spans():
                     with dummy_tracer.trace("great_grandchild_span", span_type=SpanTypes.LLM) as great_grandchild_span:
                         great_grandchild_span.set_tag_str(SPAN_KIND, "llm")
         tp = LLMObsTraceProcessor(dummy_tracer._writer)
-        llm_span_event = tp._llmobs_span_event(llm_span)
-        grandchild_span_event = tp._llmobs_span_event(grandchild_span)
-        great_grandchild_span_event = tp._llmobs_span_event(great_grandchild_span)
+        llm_span_event, _ = tp._llmobs_span_event(llm_span)
+        grandchild_span_event, _ = tp._llmobs_span_event(grandchild_span)
+        great_grandchild_span_event, _ = tp._llmobs_span_event(great_grandchild_span)
         assert "ml_app:test-ml-app" in llm_span_event["tags"]
         assert "ml_app:test-ml-app" in grandchild_span_event["tags"]
         assert "ml_app:test-ml-app" in great_grandchild_span_event["tags"]
@@ -236,7 +236,7 @@ def test_model_and_provider_are_set():
             llm_span.set_tag(MODEL_NAME, "model_name")
             llm_span.set_tag(MODEL_PROVIDER, "model_provider")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        span_event = tp._llmobs_span_event(llm_span)
+        span_event, _ = tp._llmobs_span_event(llm_span)
     assert span_event["meta"]["model_name"] == "model_name"
     assert span_event["meta"]["model_provider"] == "model_provider"
 
@@ -250,7 +250,7 @@ def test_model_provider_defaults_to_custom():
             llm_span.set_tag(SPAN_KIND, "llm")
             llm_span.set_tag(MODEL_NAME, "model_name")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        span_event = tp._llmobs_span_event(llm_span)
+        span_event, _ = tp._llmobs_span_event(llm_span)
     assert span_event["meta"]["model_name"] == "model_name"
     assert span_event["meta"]["model_provider"] == "custom"
 
@@ -264,7 +264,7 @@ def test_model_not_set_if_not_llm_kind_span():
             span.set_tag(SPAN_KIND, "workflow")
             span.set_tag(MODEL_NAME, "model_name")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        span_event = tp._llmobs_span_event(span)
+        span_event, _ = tp._llmobs_span_event(span)
     assert "model_name" not in span_event["meta"]
     assert "model_provider" not in span_event["meta"]
 
@@ -278,7 +278,9 @@ def test_input_messages_are_set():
             llm_span.set_tag(SPAN_KIND, "llm")
             llm_span.set_tag(INPUT_MESSAGES, '[{"content": "message", "role": "user"}]')
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(llm_span)["meta"]["input"]["messages"] == [{"content": "message", "role": "user"}]
+        assert tp._llmobs_span_event(llm_span)[0]["meta"]["input"]["messages"] == [
+            {"content": "message", "role": "user"}
+        ]
 
 
 def test_input_value_is_set():
@@ -290,7 +292,7 @@ def test_input_value_is_set():
             llm_span.set_tag(SPAN_KIND, "llm")
             llm_span.set_tag(INPUT_VALUE, "value")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(llm_span)["meta"]["input"]["value"] == "value"
+        assert tp._llmobs_span_event(llm_span)[0]["meta"]["input"]["value"] == "value"
 
 
 def test_input_parameters_are_set():
@@ -302,7 +304,7 @@ def test_input_parameters_are_set():
             llm_span.set_tag(SPAN_KIND, "llm")
             llm_span.set_tag(INPUT_PARAMETERS, '{"key": "value"}')
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(llm_span)["meta"]["input"]["parameters"] == {"key": "value"}
+        assert tp._llmobs_span_event(llm_span)[0]["meta"]["input"]["parameters"] == {"key": "value"}
 
 
 def test_output_messages_are_set():
@@ -314,7 +316,9 @@ def test_output_messages_are_set():
             llm_span.set_tag(SPAN_KIND, "llm")
             llm_span.set_tag(OUTPUT_MESSAGES, '[{"content": "message", "role": "user"}]')
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(llm_span)["meta"]["output"]["messages"] == [{"content": "message", "role": "user"}]
+        assert tp._llmobs_span_event(llm_span)[0]["meta"]["output"]["messages"] == [
+            {"content": "message", "role": "user"}
+        ]
 
 
 def test_output_value_is_set():
@@ -326,7 +330,7 @@ def test_output_value_is_set():
             llm_span.set_tag(SPAN_KIND, "llm")
             llm_span.set_tag(OUTPUT_VALUE, "value")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(llm_span)["meta"]["output"]["value"] == "value"
+        assert tp._llmobs_span_event(llm_span)[0]["meta"]["output"]["value"] == "value"
 
 
 def test_prompt_is_set():
@@ -338,7 +342,7 @@ def test_prompt_is_set():
             llm_span.set_tag(SPAN_KIND, "llm")
             llm_span.set_tag(INPUT_PROMPT, json.dumps({"variables": {"var1": "var2"}}))
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(llm_span)["meta"]["input"]["prompt"] == {"variables": {"var1": "var2"}}
+        assert tp._llmobs_span_event(llm_span)[0]["meta"]["input"]["prompt"] == {"variables": {"var1": "var2"}}
 
 
 def test_prompt_is_not_set_for_non_llm_spans():
@@ -351,7 +355,7 @@ def test_prompt_is_not_set_for_non_llm_spans():
             task_span.set_tag(INPUT_VALUE, "ival")
             task_span.set_tag(INPUT_PROMPT, json.dumps({"variables": {"var1": "var2"}}))
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(task_span)["meta"]["input"].get("prompt") is None
+        assert tp._llmobs_span_event(task_span)[0]["meta"]["input"].get("prompt") is None
 
 
 def test_metadata_is_set():
@@ -363,7 +367,7 @@ def test_metadata_is_set():
             llm_span.set_tag(SPAN_KIND, "llm")
             llm_span.set_tag(METADATA, '{"key": "value"}')
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(llm_span)["meta"]["metadata"] == {"key": "value"}
+        assert tp._llmobs_span_event(llm_span)[0]["meta"]["metadata"] == {"key": "value"}
 
 
 def test_metrics_are_set():
@@ -375,7 +379,7 @@ def test_metrics_are_set():
             llm_span.set_tag(SPAN_KIND, "llm")
             llm_span.set_tag(METRICS, '{"tokens": 100}')
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(llm_span)["metrics"] == {"tokens": 100}
+        assert tp._llmobs_span_event(llm_span)[0]["metrics"] == {"tokens": 100}
 
 
 def test_langchain_span_name_is_set_to_class_name():
@@ -386,7 +390,7 @@ def test_langchain_span_name_is_set_to_class_name():
         with dummy_tracer.trace(LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
             llm_span.set_tag(SPAN_KIND, "llm")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        assert tp._llmobs_span_event(llm_span)["name"] == "expected_name"
+        assert tp._llmobs_span_event(llm_span)[0]["name"] == "expected_name"
 
 
 def test_error_is_set():
@@ -399,7 +403,7 @@ def test_error_is_set():
                 llm_span.set_tag(SPAN_KIND, "llm")
                 raise ValueError("error")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        span_event = tp._llmobs_span_event(llm_span)
+        span_event, _ = tp._llmobs_span_event(llm_span)
     assert span_event["meta"]["error.message"] == "error"
     assert "ValueError" in span_event["meta"]["error.type"]
     assert 'raise ValueError("error")' in span_event["meta"]["error.stack"]

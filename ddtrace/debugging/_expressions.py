@@ -32,6 +32,7 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -345,7 +346,7 @@ class DDCompiler:
             self._compile_direct_predicate(ast) or self._compile_arg_predicate(ast) or self._compile_value_source(ast)
         )
 
-    def compile(self, ast: DDASTType) -> Callable[[Dict[str, Any]], Any]:
+    def compile(self, ast: DDASTType) -> Callable[[Mapping[str, Any]], Any]:
         return self._make_function(ast, ("_locals",), "<expr>")
 
 
@@ -375,24 +376,24 @@ class DDExpression:
     __compiler__ = dd_compile
 
     dsl: str
-    callable: Callable[[Dict[str, Any]], Any]
+    callable: Callable[[Mapping[str, Any]], Any]
 
-    def eval(self, _locals):
+    def eval(self, scope: Mapping[str, Any]) -> Any:
         try:
-            return self.callable(_locals)
+            return self.callable(scope)
         except Exception as e:
             raise DDExpressionEvaluationError(self.dsl, e) from e
 
-    def __call__(self, _locals):
-        return self.eval(_locals)
+    def __call__(self, scope: Mapping[str, Any]) -> Any:
+        return self.eval(scope)
 
     @classmethod
-    def on_compiler_error(cls, dsl: str, exc: Exception) -> Callable[[Dict[str, Any]], Any]:
+    def on_compiler_error(cls, dsl: str, exc: Exception) -> Callable[[Mapping[str, Any]], Any]:
         log.error("Cannot compile expression: %s", dsl, exc_info=True)
         return _invalid_expression
 
     @classmethod
-    def compile(cls, expr: Dict[str, Any]) -> "DDExpression":
+    def compile(cls, expr: Mapping[str, Any]) -> "DDExpression":
         ast = expr["json"]
         dsl = expr["dsl"]
 
