@@ -2,8 +2,8 @@ import os
 import subprocess
 import sys
 
-from tests.utils import snapshot
 from tests.conftest import create_ddtrace_subprocess_dir_and_return_test_pyfile
+from tests.utils import snapshot
 
 
 SNAPSHOT_IGNORES = ["meta.server.address", "meta.out.host"]

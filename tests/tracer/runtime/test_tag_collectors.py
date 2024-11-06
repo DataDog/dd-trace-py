@@ -95,4 +95,6 @@ def test_tracer_tags_service_from_code():
     values = ttc.collect()
 
     assert values is not None
-    assert set(values) == set([('service', 'new-service'), ('service', 'ddtrace_subprocess_dir'), ('service', 'my-service')])
+    assert set(values) == set(
+        [("service", "new-service"), ("service", "ddtrace_subprocess_dir"), ("service", "my-service")]
+    )

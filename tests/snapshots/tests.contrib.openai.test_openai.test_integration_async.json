@@ -21,6 +21,7 @@
       "openai.request.method": "POST",
       "openai.request.model": "ada",
       "openai.request.prompt.0": "hello world",
+      "openai.request.temperature": "0.8",
       "openai.response.choices.0.finish_reason": "length",
       "openai.response.choices.0.text": ",\" a male farrago, or \"voices of the people.\" If",
       "openai.response.created": "1681852801",
