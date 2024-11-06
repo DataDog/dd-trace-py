@@ -69,7 +69,7 @@ def test_stack_locations(stack_v2_enabled, tmp_path):
         ],
     )
 
-    pprof_utils.assert_has_samples(profile, expected_sample)
+    pprof_utils.assert_profile_has_sample(profile, samples=samples, expected_sample=expected_sample)
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
@@ -471,9 +471,10 @@ def test_collect_once_with_class(stack_v2_enabled, tmp_path):
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
-    pprof_utils.assert_has_samples(
+    pprof_utils.assert_profile_has_sample(
         profile,
-        pprof_utils.StackEvent(
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
             class_name="SomeClass" if not stack_v2_enabled else None,
@@ -529,9 +530,10 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
-    pprof_utils.assert_has_samples(
+    pprof_utils.assert_profile_has_sample(
         profile,
-        pprof_utils.StackEvent(
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
             # stack v1 relied on using cls and self to figure out class name
