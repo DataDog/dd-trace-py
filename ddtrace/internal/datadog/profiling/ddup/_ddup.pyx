@@ -18,6 +18,7 @@ from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.profiling.profiler import _get_endpoint
 from ddtrace._trace.span import Span
 
 
@@ -339,7 +340,6 @@ def config(
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
@@ -354,8 +354,6 @@ def config(
         call_func_with_str(ddup_config_env, env)
     if version:
         call_func_with_str(ddup_config_version, version)
-    if url:
-        call_func_with_str(ddup_config_url, url)
     if output_filename:
         call_func_with_str(ddup_config_output_filename, output_filename)
 
@@ -396,6 +394,9 @@ def upload() -> None:
 
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
+
+    endpoint = _get_endpoint()
+    call_func_with_str(ddup_config_url, endpoint)
 
     with nogil:
         ddup_upload()
