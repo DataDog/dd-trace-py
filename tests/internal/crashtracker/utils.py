@@ -119,8 +119,8 @@ class CrashtrackerWrapper:
             CrashtrackerWrapper._seed = random.randint(0, 999999)
 
         self.port = port
-        self.stdout = "stdout." + base_name + ".%d.log" % CrashtrackerWrapper._seed
-        self.stderr = "stderr." + base_name + ".%d.log" % CrashtrackerWrapper._seed
+        self.stdout = f"stdout.{base_name}.{CrashtrackerWrapper._seed}.log"
+        self.stderr = f"stderr.{base_name}.{CrashtrackerWrapper._seed}.log"
 
         for file in [self.stdout, self.stderr]:
             if os.path.exists(file):
