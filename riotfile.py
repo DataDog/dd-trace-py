@@ -2987,7 +2987,6 @@ venv = Venv(
                 "py-cpuinfo": "~=8.0.0",
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
-                "requests": latest,
             },
             venvs=[
                 # Python 3.7
