@@ -82,11 +82,11 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, instance, args, kwargs)
+        tag_request(span, integration, args, kwargs, GOOGLE_GENERATIVEAI, get_system_instruction_parts(instance), get_generation_config_dict(instance, kwargs))
         generations = await func(*args, **kwargs)
         if stream:
             return TracedAsyncGenerateContentResponse(generations, instance, integration, span, args, kwargs)
-        tag_response(span, generations, integration, instance)
+        tag_response(GOOGLE_GENERATIVEAI, span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise

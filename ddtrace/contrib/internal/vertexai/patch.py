@@ -7,6 +7,7 @@ import google.generativeai
 
 from ddtrace import config
 from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
+from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
 from ddtrace.contrib.internal.google_generativeai._utils import _extract_model_name
 from ddtrace.contrib.internal.google_generativeai._utils import tag_request
 from ddtrace.contrib.internal.google_generativeai._utils import tag_response
@@ -63,6 +64,37 @@ def traced_generate(vertexai, pin, func, instance, args, kwargs):
             span.finish()
     return generations
 
+@with_traced_module
+async def traced_agenerate(vertexai, pin, func, instance, args, kwargs):
+    integration = vertexai._datadog_integration
+    stream = kwargs.get("stream", False)
+    generations = None
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        provider="google",
+        model=_extract_model_name(instance),
+        submit_to_llmobs=True,
+    )
+    try:
+        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts(instance), get_generation_config_dict(instance, kwargs))
+        generations = await func(*args, **kwargs)
+        if stream:
+            def on_span_finish(span, chunks):
+                tag_response("vertexai", span, chunks, integration, instance)
+                if span.error or not integration.is_pc_sampled_span(span):
+                    return
+            return TracedAsyncVertexAIStreamResponse(generations, instance, integration, span, args, kwargs, on_span_finish)
+        tag_response("vertexai", span, generations, integration, instance)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        # streamed spans will be finished separately once the stream generator is exhausted
+        if span.error or not stream:
+            span.finish()
+    return generations
+
 
 def patch():
     if getattr(vertexai, "_datadog_patch", False):
@@ -75,6 +107,7 @@ def patch():
     vertexai._datadog_integration = integration
 
     wrap("vertexai", "generative_models.GenerativeModel.generate_content", traced_generate(vertexai))
+    wrap("vertexai", "generative_models.GenerativeModel.generate_content_async", traced_agenerate(vertexai))
 
 
 def unpatch():
@@ -83,6 +116,7 @@ def unpatch():
 
     vertexai._datadog_patch = False
 
-    unwrap(GenerativeModel, "generate_content")
+    unwrap(vertexai.generative_models.GenerativeModel, "generate_content")
+    unwrap(vertexai.generative_models.GenerativeModel, "generate_content_async")
 
     delattr(vertexai, "_datadog_integration")

@@ -108,3 +108,26 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
             self._kwargs["instance"] = self._model_instance
             self._dd_span.finish()
 
+
+class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
+    def __enter__(self):
+        self._generator.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._generator.__exit__(exc_type, exc_val, exc_tb)
+
+    async def __aiter__(self):
+        try:
+            async for chunk in self._generator.__aiter__():
+                self._chunks.append(chunk)
+                yield chunk
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            raise
+        else:
+            tag_stream_response("vertexai", self._dd_span, self._chunks, self._dd_integration, self._model_instance)
+        finally:
+            self._kwargs["instance"] = self._model_instance
+            self._dd_span.finish()
+

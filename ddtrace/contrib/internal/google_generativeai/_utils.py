@@ -200,7 +200,7 @@ def tag_request(span, integration, args, kwargs, tag_prefix, system_instructions
     if system_instructions:
         for idx, part in enumerate(system_instructions):
             span.set_tag_str(
-                "%s.request.system_instruction.%d.text" % (tag_prefix, idx), integration.trunc(str(part.text))
+                "%s.request.system_instruction.%d.text" % (tag_prefix, idx), integration.trunc(str(part.text if hasattr(part, "text") else part))
             )
 
     if isinstance(contents, str):
