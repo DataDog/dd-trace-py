@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import contextlib
+
 import pytest
 
 from ddtrace import config
@@ -13,6 +15,24 @@ from ddtrace.internal import constants
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.utils import override_global_config
+
+
+@contextlib.contextmanager
+def update_django_config():
+    initial_settings = (
+        config.django.include_user_email,
+        config.django.include_user_login,
+        config.django.include_user_realname,
+    )
+    config.django.include_user_email = asm_config._django_include_user_email
+    config.django.include_user_login = asm_config._django_include_user_login
+    config.django.include_user_realname = asm_config._django_include_user_realname
+    yield
+    (
+        config.django.include_user_email,
+        config.django.include_user_login,
+        config.django.include_user_realname,
+    ) = initial_settings
 
 
 def _aux_appsec_get_root_span(
@@ -158,11 +178,8 @@ def test_django_login_sucess_identification(client, test_spans, tracer, use_logi
             _django_include_user_login=use_login,
             _django_include_user_realname=use_realname,
         )
-    ):
+    ), update_django_config():
         # update django config for tests
-        config.django.include_user_email = asm_config._django_include_user_email
-        config.django.include_user_login = asm_config._django_include_user_login
-        config.django.include_user_realname = asm_config._django_include_user_realname
         test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
         test_user.set_password("secret")
         test_user.save()
@@ -193,11 +210,22 @@ def test_django_login_sucess_identification(client, test_spans, tracer, use_logi
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_anonymization(client, test_spans, tracer):
+@pytest.mark.parametrize("use_login", (False, True))
+@pytest.mark.parametrize("use_email", (False, True))
+@pytest.mark.parametrize("use_realname", (False, True))
+def test_django_login_sucess_anonymization(client, test_spans, tracer, use_login, use_email, use_realname):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON)):
+    with override_global_config(
+        dict(
+            _asm_enabled=True,
+            _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON,
+            _django_include_user_email=use_email,
+            _django_include_user_login=use_login,
+            _django_include_user_realname=use_realname,
+        )
+    ), update_django_config():
         test_user = User.objects.create(username="fred2")
         test_user.set_password("secret")
         test_user.save()

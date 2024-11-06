@@ -118,6 +118,8 @@ def track_user_login_success_event(
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
+    if real_mode == LOGIN_EVENTS_MODE.ANON:
+        login = name = email = None
     span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email, span)
     if not span:
         return
