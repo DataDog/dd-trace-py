@@ -42,6 +42,23 @@ class PythonDetector:
         self.pattern = r"(^|/)(?!.*\.py$)(" + re.escape(name) + r"(\d+\.\d+)?$)"
 
     def detect(self, args: List[str]) -> Tuple[ServiceMetadata, bool]:
+        """
+        Detects and returns service metadata based on the provided list of arguments.
+
+        This function iterates through the provided arguments, skipping any that are
+        flags (starting with '-') or environment variable assignments (containing '=').
+        If a valid module flag ('-m') is encountered, it will switch to module detection mode.
+        It checks for existing directories and deduces package names from provided paths
+        to generate service metadata.
+
+        Args:
+            args (List[str]): A list of command-line arguments.
+
+        Returns:
+            Tuple[ServiceMetadata, bool]: A tuple containing:
+                - ServiceMetadata: The detected service metadata.
+                - bool: A flag indicating whether valid metadata was found.
+        """
         prev_arg_is_flag = False
         module_flag = False
 
@@ -116,6 +133,25 @@ class GunicornDetector:
         return "gunicorn"
 
     def detect(self, args: List[str]) -> Tuple[ServiceMetadata, bool]:
+        """
+        Extracts and returns the Gunicorn application name from various potential sources.
+
+        This function first checks for the application name in the environment variable
+        specified by `GUNICORN_CMD_ARGS`. If found, it extracts the name from it.
+        Next, it looks for the WSGI application name in the environment variable
+        `WSGI_APP_ENV`. If that is not present, it tries to extract the name from
+        the provided list of command-line arguments. If no valid name is found,
+        it defaults to returning "gunicorn" as the application name.
+
+        Args:
+            args (List[str]): A list of command-line arguments.
+
+        Returns:
+            Tuple[ServiceMetadata, bool]: A tuple containing:
+                - ServiceMetadata: The extracted or default gunicorn app name.
+                - bool: A flag indicating whether a valid app name was found.
+        """
+
         from_env = os.getenv(GUNICORN_CMD_ARGS)
         if from_env:
             name, ok = self.extract_gunicorn_name_from(from_env.split())
@@ -133,6 +169,7 @@ class GunicornDetector:
         return ServiceMetadata("gunicorn"), True
 
     def extract_gunicorn_name_from(self, args: List[str]) -> Tuple[str, bool]:
+        # try to capture the app name from the arg: --name=example or -n example
         skip = False
         capture = False
 
@@ -156,12 +193,29 @@ class GunicornDetector:
         return "", False
 
     def parse_name_from_wsgi_app(self, wsgi_app: str) -> str:
+        # wsgi app is in the format my-app-name:app
         name, _, _ = wsgi_app.partition(":")
         return name
 
 
 def detect_service(args: List[str], detector_classes=[PythonDetector, GunicornDetector]) -> Optional[str]:
-    # Check if args is empty
+    """
+    Detects and returns the name of a service based on the provided list of command-line arguments.
+
+    This function checks the provided arguments against a list of detector classes to identify
+    the service type. If any of the arguments represent executables, they are ignored. The
+    function iterates through the detector instances, applying their detection logic to the qualifying
+    arguments in order to determine a service name.
+
+    Args:
+        args (List[str]): A list of command-line arguments.
+        detector_classes (List[Type[Detector]]): A list of detector classes to use for service detection.
+            Defaults to [PythonDetector, GunicornDetector].
+
+    Returns:
+        Optional[str]: The name of the detected service, or None if no service was detected.
+    """
+
     if not args:
         return None
 
