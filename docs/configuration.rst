@@ -82,16 +82,6 @@ Traces
       version_added:
          v2.6.0:
 
-   DD_BOTOCORE_PROPAGATION_ENABLED:
-      type: Boolean
-      default: False
-      
-      description: |
-         Enables trace context propagation connecting producer and consumer spans within a single trace for AWS SQS, SNS, and Kinesis messaging services.
-      
-      version_added:
-         v2.6.0:
-
    DD_HTTP_SERVER_TAG_QUERY_STRING:
      type: Boolean
      default: True

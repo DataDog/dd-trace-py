@@ -109,7 +109,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             result = original_func(*args, **kwargs)
             core.dispatch(
                 f"botocore.{endpoint_name}.{operation}.post",
-                [parent_ctx, params, result, config.botocore.propagation_enabled, extract_DD_json],
+                [parent_ctx, params, result, config.botocore.distributed_tracing, extract_DD_json],
             )
         except Exception as e:
             func_run_err = e
