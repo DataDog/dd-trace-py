@@ -395,7 +395,8 @@ def upload() -> None:
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
-    endpoint = _get_endpoint()
+    # TODO(taegyunkim): support agentless mode
+    endpoint = _get_endpoint(ddtrace.tracer)
     call_func_with_str(ddup_config_url, endpoint)
 
     with nogil:
