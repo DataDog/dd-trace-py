@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "vertexai.request",
+    "service": "",
+    "resource": "GenerativeModel.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "672bd39000000000",
+      "language": "python",
+      "runtime-id": "48de62f2ecc348699298f4fb8b4e37d4",
+      "vertexai.request.contents.0.text": "What is the weather like in New York City?",
+      "vertexai.request.generation_config.max_output_tokens": "30",
+      "vertexai.request.generation_config.stop_sequences": "['x']",
+      "vertexai.request.generation_config.temperature": "0.0",
+      "vertexai.request.model": "gemini-1.5-flash",
+      "vertexai.request.provider": "google",
+      "vertexai.request.stream": "True",
+      "vertexai.response.candidates.0.content.parts.0.text": "print(default_api.get_current_weather(location = \"New York City\"))",
+      "vertexai.response.candidates.0.content.role": "model",
+      "vertexai.response.candidates.0.finish_reason": "1"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 0.6666666666666667,
+      "_sampling_priority_v1": 1,
+      "process_id": 4371,
+      "vertexai.response.usage.completion_tokens": 19,
+      "vertexai.response.usage.prompt_tokens": 43,
+      "vertexai.response.usage.total_tokens": 62
+    },
+    "duration": 503109000,
+    "start": 1730925456606051000
+  }]]

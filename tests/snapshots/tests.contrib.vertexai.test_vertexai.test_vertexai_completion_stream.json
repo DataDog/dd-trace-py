@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "vertexai.request",
+    "service": "",
+    "resource": "GenerativeModel.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "672a88bc00000000",
+      "language": "python",
+      "runtime-id": "fd3f846bc6a8454cb6d93667175f5fdc",
+      "vertexai.request.contents.0.text": "What do you like to do for fun?",
+      "vertexai.request.generation_config.max_output_tokens": "60",
+      "vertexai.request.generation_config.stop_sequences": "['x']",
+      "vertexai.request.generation_config.temperature": "0.0",
+      "vertexai.request.model": "gemini-1.5-flash",
+      "vertexai.request.provider": "google",
+      "vertexai.request.stream": "True",
+      "vertexai.response.candidates.0.content.parts.0.text": "As a large language model, I don't have the capacity to e",
+      "vertexai.response.candidates.0.content.role": "model",
+      "vertexai.response.candidates.0.finish_reason": "1"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 89658,
+      "vertexai.response.usage.completion_tokens": 15,
+      "vertexai.response.usage.prompt_tokens": 9,
+      "vertexai.response.usage.total_tokens": 24
+    },
+    "duration": 540596000,
+    "start": 1730840764968866000
+  }]]
