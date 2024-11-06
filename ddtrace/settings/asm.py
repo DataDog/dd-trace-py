@@ -175,7 +175,7 @@ class ASMConfig(Env):
     # Django ATO
     _django_include_user_name = Env.var(bool, "DD_DJANGO_INCLUDE_USER_NAME", default=True)
     _django_include_user_email = Env.var(bool, "DD_DJANGO_INCLUDE_USER_EMAIL", default=False)
-    _django_include_user_login = Env.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=False)
+    _django_include_user_login = Env.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=True)
     _django_include_user_realname = Env.var(bool, "DD_DJANGO_INCLUDE_USER_REALNAME", default=False)
 
     # for tests purposes

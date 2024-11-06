@@ -334,7 +334,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_CRASHTRACKING_WAIT_FOR_RECEIVER", "origin": "default", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_DJANGO_INCLUDE_USER_EMAIL", "origin": "default", "value": False},
-        {"name": "DD_DJANGO_INCLUDE_USER_LOGIN", "origin": "default", "value": False},
+        {"name": "DD_DJANGO_INCLUDE_USER_LOGIN", "origin": "default", "value": True},
         {"name": "DD_DJANGO_INCLUDE_USER_NAME", "origin": "default", "value": True},
         {"name": "DD_DJANGO_INCLUDE_USER_REALNAME", "origin": "default", "value": False},
         {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": None},
