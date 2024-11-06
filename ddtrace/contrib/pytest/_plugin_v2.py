@@ -507,6 +507,10 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report flaky or failed tests"""
+    if not is_test_visibility_enabled():
+        yield
+        return
+
     failed_reports_initial_size = None
     try:
         failed_reports_initial_size = _pytest_terminal_summary_pre_yield(terminalreporter)
@@ -563,6 +567,9 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 def pytest_report_teststatus(
     report: pytest_TestReport,
 ) -> _pytest_report_teststatus_return_type:
+    if not is_test_visibility_enabled():
+        return
+
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         test_status = atr_get_teststatus(report)
         if test_status is not None:
