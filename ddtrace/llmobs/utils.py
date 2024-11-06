@@ -26,8 +26,10 @@ Prompt = TypedDict(
         "template": str,
         "id": str,
         "version": str,
-        "rag_context_variables": List[str],
-        "rag_query_variables": List[str],
+        "rag_context_variables": List[
+            str
+        ],  # a list of variable key names that contain ground truth context information
+        "rag_query_variables": List[str],  # a list of variable key names that contains query information
     },
     total=False,
 )
