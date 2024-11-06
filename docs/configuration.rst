@@ -10,9 +10,8 @@ see specific integration documentation for more details.
 
 The following environment variables for the tracer are supported:
 
-
-General
--------
+Unified Service Tagging
+-----------------------
 
 .. ddtrace-configuration-options::
 
@@ -29,27 +28,6 @@ General
          :ref:`pyramid`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
          :ref:`falcon`. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
 
-   DD_SERVICE_MAPPING:
-     description: |
-         Define service name mappings to allow renaming services in traces, e.g. ``postgres:postgresql,defaultdb:postgresql``.
-
-   DD_SITE:
-     default: datadoghq.com
-     
-     description: |
-         Specify which site to use for uploading profiles and logs. Set to
-         ``datadoghq.eu`` to use EU site.
-
-   DD_TAGS:
-     description: |
-         Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2:value2`` or ``key1:value key2:value2``.
-
-         If a tag value is not supplied the value will be an empty string. e.g. ``key1,key2`` or ``key1 key2``.
-     
-     version_added:
-       v0.38.0: Comma separated support added
-       v0.48.0: Space separated support added
-
    DD_VERSION:
      description: |
          Set an application's version in traces and logs e.g. ``1.2.3``,
@@ -60,9 +38,8 @@ General
      version_added:
        v0.36.0:
 
-
-Tracing
--------
+Traces
+------
 
 .. ddtrace-configuration-options::
    DD_<INTEGRATION>_SERVICE:
@@ -112,15 +89,9 @@ Tracing
      default: True
      description: Send query strings in http.url tag in http server integrations.
 
-   DD_PATCH_MODULES:
+   DD_SERVICE_MAPPING:
      description: |
-         Override the modules patched for this execution of the program. Must be
-         a list in the ``module1:boolean,module2:boolean`` format. For example,
-         ``boto:true,redis:false``.
-     
-     version_added:
-       v0.55.0: |
-           Formerly named ``DATADOG_PATCH_MODULES``
+         Define service name mappings to allow renaming services in traces, e.g. ``postgres:postgresql,defaultdb:postgresql``.
 
    DD_TRACE_<INTEGRATION>_ENABLED:
      type: Boolean
@@ -281,46 +252,6 @@ Tracing
        v1.7.0: Added support for ``tracecontext`` W3C headers. Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
        v2.6.0: Updated default value to ``datadog,tracecontext``.
 
-   DD_TRACE_PROPAGATION_STYLE_EXTRACT:
-     default: |
-         ``datadog,tracecontext``
-     
-     description: |
-         Comma separated list of propagation styles used for extracting trace context from inbound request headers.
-
-         Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
-
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
-
-         When checking inbound request headers we will take the first valid trace context in the order provided.
-         When ``none`` is the only propagator listed, extraction is disabled.
-
-         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"`` to check for both ``x-datadog-*`` and ``x-b3-*``
-         headers when parsing incoming request headers for a trace context.
-
-     version_added:
-       v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
-
-   DD_TRACE_PROPAGATION_STYLE_INJECT:
-     default: |
-         ``tracecontext,datadog``
-     
-     description: |
-         Comma separated list of propagation styles used for injecting trace context into outbound request headers.
-
-         Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
-
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
-
-         All provided styles are injected into the headers of outbound requests.
-         When ``none`` is the only propagator listed, injection is disabled.
-
-         Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
-         headers into outbound requests.
-
-     version_added:
-       v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
-
    DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
       type: Integer
       default: 30
@@ -369,6 +300,51 @@ Tracing
      
      version_added:
         v1.9.0:
+
+Trace Context propagation
+-------------------------
+
+.. ddtrace-configuration-options::
+
+   DD_TRACE_PROPAGATION_STYLE_EXTRACT:
+     default: |
+         ``datadog,tracecontext``
+     
+     description: |
+         Comma separated list of propagation styles used for extracting trace context from inbound request headers.
+
+         Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
+
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
+
+         When checking inbound request headers we will take the first valid trace context in the order provided.
+         When ``none`` is the only propagator listed, extraction is disabled.
+
+         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"`` to check for both ``x-datadog-*`` and ``x-b3-*``
+         headers when parsing incoming request headers for a trace context.
+
+     version_added:
+       v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
+
+   DD_TRACE_PROPAGATION_STYLE_INJECT:
+     default: |
+         ``tracecontext,datadog``
+     
+     description: |
+         Comma separated list of propagation styles used for injecting trace context into outbound request headers.
+
+         Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
+
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
+
+         All provided styles are injected into the headers of outbound requests.
+         When ``none`` is the only propagator listed, injection is disabled.
+
+         Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
+         headers into outbound requests.
+
+     version_added:
+       v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
 AppSec
 ------
@@ -546,8 +522,8 @@ Test Visibility
         v2.16.0:
 
 
-Datadog Agent
--------------
+Agent
+-----
 
 .. ddtrace-configuration-options::
 
@@ -572,6 +548,49 @@ Datadog Agent
         v0.17.0:
         v1.7.0:
 
+   DD_DOGSTATSD_URL:
+     type: URL
+     
+     default: |
+         ``unix:///var/run/datadog/dsd.socket`` if available
+         otherwise ``udp://localhost:8125``
+     
+     description: |
+         The URL to use to connect the Datadog agent for Dogstatsd metrics. The url can start with
+         ``udp://`` to connect using UDP or with ``unix://`` to use a Unix
+         Domain Socket.
+
+         Example for UDP url: ``DD_DOGSTATSD_URL=udp://localhost:8125``
+
+         Example for UDS: ``DD_DOGSTATSD_URL=unix:///var/run/datadog/dsd.socket``
+
+   DD_PATCH_MODULES:
+     description: |
+         Override the modules patched for this execution of the program. Must be
+         a list in the ``module1:boolean,module2:boolean`` format. For example,
+         ``boto:true,redis:false``.
+     
+     version_added:
+       v0.55.0: |
+           Formerly named ``DATADOG_PATCH_MODULES``
+
+   DD_SITE:
+     default: datadoghq.com
+     
+     description: |
+         Specify which site to use for uploading profiles and logs. Set to
+         ``datadoghq.eu`` to use EU site.
+
+   DD_TAGS:
+     description: |
+         Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2:value2`` or ``key1:value key2:value2``.
+
+         If a tag value is not supplied the value will be an empty string. e.g. ``key1,key2`` or ``key1 key2``.
+     
+     version_added:
+       v0.38.0: Comma separated support added
+       v0.48.0: Space separated support added
+
    DD_TRACE_AGENT_TIMEOUT_SECONDS:
      type: Float
      default: 2.0
@@ -593,8 +612,8 @@ Datadog Agent
 
            Example for UDS: ``DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket``
 
-Logging
--------
+Logs
+----
 
 .. ddtrace-configuration-options::
 
@@ -712,22 +731,6 @@ Other
 -----
 
 .. ddtrace-configuration-options::
-
-   DD_DOGSTATSD_URL:
-     type: URL
-     
-     default: |
-         ``unix:///var/run/datadog/dsd.socket`` if available
-         otherwise ``udp://localhost:8125``
-     
-     description: |
-         The URL to use to connect the Datadog agent for Dogstatsd metrics. The url can start with
-         ``udp://`` to connect using UDP or with ``unix://`` to use a Unix
-         Domain Socket.
-
-         Example for UDP url: ``DD_DOGSTATSD_URL=udp://localhost:8125``
-
-         Example for UDS: ``DD_DOGSTATSD_URL=unix:///var/run/datadog/dsd.socket``
 
    DD_COMPILE_DEBUG:
      type: Boolean
