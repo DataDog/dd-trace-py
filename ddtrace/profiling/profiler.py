@@ -113,7 +113,6 @@ class _ProfilerInstance(service.Service):
 
     def __init__(
         self,
-        url: Optional[str] = None,
         service: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         env: Optional[str] = None,
@@ -130,7 +129,6 @@ class _ProfilerInstance(service.Service):
     ):
         super().__init__()
         # User-supplied values
-        self.url: Optional[str] = url
         self.service: Optional[str] = service if service is not None else config.service
         self.tags: Dict[str, str] = tags if tags is not None else profiling_config.tags
         self.env: Optional[str] = env if env is not None else config.env
@@ -177,9 +175,7 @@ class _ProfilerInstance(service.Service):
                     file.PprofFileExporter(prefix=_OUTPUT_PPROF),
                 ]
 
-        if self.url is not None:
-            endpoint = self.url
-        elif self.agentless:
+        if self.agentless:
             LOG.warning(
                 "Agentless uploading is currently for internal usage only and not officially supported. "
                 "You should not enable it unless somebody at Datadog instructed you to do so."

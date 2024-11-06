@@ -123,7 +123,6 @@ def test_env_default():
     prof = profiler.Profiler()
     assert prof.env == "staging"
     assert prof.version == "123"
-    assert prof.url is None
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
             assert exp.env == "staging"
@@ -137,7 +136,6 @@ def test_env_api():
     prof = profiler.Profiler(env="staging", version="123")
     assert prof.env == "staging"
     assert prof.version == "123"
-    assert prof.url is None
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
             assert exp.env == "staging"
@@ -151,7 +149,6 @@ def test_tags_api():
     prof = profiler.Profiler(env="staging", version="123", tags={"foo": "bar"})
     assert prof.env == "staging"
     assert prof.version == "123"
-    assert prof.url is None
     assert prof.tags["foo"] == "bar"
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
