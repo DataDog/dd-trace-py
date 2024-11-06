@@ -76,11 +76,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     @property
     def endpoint(self):
-        return _get_endpoint(self.tracer)
+        return _get_endpoint(self.tracer, agentless=config.agentless)
 
     @property
     def endpoint_path(self):
-        return _get_endpoint_path()
+        return _get_endpoint_path(agentless=config.agentless)
 
     def __eq__(self, other):
         # Exporter class used to be decorated with @attr.s which implements __eq__, using only the attributes defined

@@ -2,14 +2,13 @@ import logging
 import os
 
 from ddtrace.internal import agent
-from ddtrace.settings.profiling import config
 
 
 LOG = logging.getLogger(__name__)
 
 
-def _get_endpoint(tracer) -> str:
-    if config.agentless:
+def _get_endpoint(tracer, agentless=False) -> str:
+    if agentless:
         LOG.warning(
             "Agentless uploading is currently for internal usage only and not officially supported. "
             "You should not enable it unless somebody at Datadog instructed you to do so."
@@ -21,8 +20,8 @@ def _get_endpoint(tracer) -> str:
     return endpoint
 
 
-def _get_endpoint_path() -> str:
-    if config.agentless:
+def _get_endpoint_path(agentless=False) -> str:
+    if agentless:
         endpoint_path = "/api/v2/profile"
     else:
         # path is relative because it is appended to the agent base path

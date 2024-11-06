@@ -13,7 +13,7 @@ from tests.profiling.collector import pprof_utils
 
 # DEV: gunicorn tests are hard to debug, so keeping these print statements for
 # future debugging
-DEBUG_PRINT = False
+DEBUG_PRINT = True
 
 
 def debug_print(*args):
