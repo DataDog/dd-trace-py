@@ -52,6 +52,14 @@ Datadog::Profile::cycle_buffers()
 }
 
 void
+Datadog::Profile::reset()
+{
+    const std::lock_guard<std::mutex> lock(profile_mtx);
+    strings.clear();
+    string_storage.clear();
+}
+
+void
 Datadog::Profile::setup_samplers()
 {
     // TODO propagate error if no valid samplers are defined

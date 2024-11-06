@@ -21,6 +21,7 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 void
 Datadog::Sample::profile_clear_state()
 {
+    profile_state.reset();
     profile_state.cycle_buffers();
 }
 
