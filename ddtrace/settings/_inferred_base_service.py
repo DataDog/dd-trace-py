@@ -5,8 +5,8 @@ import re
 import sys
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Tuple
-from typing import Union
 
 
 INIT_PY = "__init__.py"
@@ -15,7 +15,7 @@ GUNICORN_CMD_ARGS = "GUNICORN_CMD_ARGS"
 WSGI_APP_ENV = "WSGI_APP"
 
 
-CACHE: Dict[str, Union[str, None]] = {}
+CACHE: Dict[str, Optional[str]] = {}
 
 
 class DetectionContext:
@@ -160,7 +160,7 @@ class GunicornDetector:
         return name
 
 
-def detect_service(args: List[str], detector_classes=[PythonDetector, GunicornDetector]) -> Union[None, str]:
+def detect_service(args: List[str], detector_classes=[PythonDetector, GunicornDetector]) -> Optional[str]:
     # Check if args is empty
     if not args:
         return None
