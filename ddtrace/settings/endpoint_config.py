@@ -32,9 +32,9 @@ except ValueError:
     log.error("Invalid value for %s. Using default value: %s", CONFIG_ENDPOINT_TIMEOUT_ENV, TIMEOUT)
 
 
-@fibonacci_backoff_with_jitter(
-    attempts=RETRIES, initial_wait=0, until=lambda resp: isinstance(resp, Response) and (200 <= resp.status < 300)
-)
+# @fibonacci_backoff_with_jitter(
+#     attempts=RETRIES, initial_wait=0.5, until=lambda resp: isinstance(resp, Response) and (200 <= resp.status < 300)
+# )
 def _do_request(url: str) -> Response:
     try:
         parsed_url = verify_url(url)
@@ -59,7 +59,13 @@ def fetch_config_from_endpoint() -> dict:
         return {}
 
     try:
-        return _do_request(config_endpoint).get_json()
+        res = fibonacci_backoff_with_jitter(
+            attempts=RETRIES,
+            initial_wait=0.1,
+            until=lambda resp: hasattr(resp, "status") and (200 <= resp.status < 300),
+        )(_do_request)(config_endpoint)
+
+        return res.get_json() or {}
     except Exception:
         log.error("Failed to fetch configuration from endpoint", exc_info=True)
 
