@@ -39,7 +39,7 @@ def do_test(tmpdir, es_version):
     # with the snapshot. So disable sqlite3.
     env.update({"DD_TRACE_SQLITE3_ENABLED": "false"})
     p = subprocess.Popen(
-        ["ddtrace-run", sys.executable, "test.py"],
+        ["ddtrace-run", sys.executable, str(f)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=str(tmpdir),
