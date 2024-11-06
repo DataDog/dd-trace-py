@@ -5,7 +5,7 @@ import pytest
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_version):
-    expected_service_name = {None: "falcon", "v0": "falcon", "v1": "test_schematized_service_name_0"}[schema_version]
+    expected_service_name = {None: "falcon", "v0": "falcon", "v1": "ddtrace_subprocess_dir"}[schema_version]
     code = """
 import pytest
 import falcon

@@ -977,7 +977,7 @@ def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_
     expected_service_name = {
         None: service_name or "flask",
         "v0": service_name or "flask",
-        "v1": service_name or "test_schematized_service_name_0",
+        "v1": service_name or "ddtrace_subprocess_dir",
     }[schema_version]
 
     code = """

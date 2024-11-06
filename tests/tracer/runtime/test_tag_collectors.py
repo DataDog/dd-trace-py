@@ -63,11 +63,7 @@ def test_tracer_tags_config():
 
     assert values is not None
     assert set(values) == set(
-        [
-            ("env", "my-env"),
-            ("global", "global-tag"),
-            ("version", "1.5.4"),
-        ]
+        [("service", "ddtrace_subprocess_dir"), ("env", "my-env"), ("version", "1.5.4"), ("global", "global-tag")]
     )
 
 
@@ -99,4 +95,4 @@ def test_tracer_tags_service_from_code():
     values = ttc.collect()
 
     assert values is not None
-    assert set(values) == set([("service", "my-service"), ("service", "new-service")])
+    assert set(values) == set([("service", "my-service"), ("service", "new-service"), ("service", "tmp")])

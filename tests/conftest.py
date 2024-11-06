@@ -12,6 +12,7 @@ import random
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
+from tempfile import gettempdir
 import time
 from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
@@ -147,6 +148,7 @@ def run_python_code_in_subprocess(request, tmpdir):
         temp_dir = tmpdir.join(f"{request.function.__name__}_{request.param_index}")
         if not temp_dir.exists():
             temp_dir.mkdir()
+            temp_dir.join("__init__.py")
         pyfile = tmpdir.join("test.py")
         pyfile.write(code)
         return call_program(sys.executable, str(pyfile), **kwargs)
@@ -159,10 +161,17 @@ def ddtrace_run_python_code_in_subprocess(request, tmpdir):
     def _run(code, **kwargs):
         # Name the test temp dir with test name and parameterized input index (necessary for service naming
         # snapshot tests that have parameterized inputs)
-        temp_dir = tmpdir.join(f"{request.function.__name__}_{request.param_index}")
-        if not temp_dir.exists():
-            temp_dir.mkdir()
-        pyfile = temp_dir.join("test.py")
+        # Check for __init__.py and create it if it doesn't exist
+        ddtrace_dir = tmpdir.join("ddtrace_subprocess_dir")
+
+        if not ddtrace_dir.exists():
+            ddtrace_dir.mkdir()
+
+        # Check for __init__.py and create it if it doesn't exist
+        init_file = ddtrace_dir.join("__init__.py")
+        if not init_file.exists():
+            init_file.write("")  # Create an empty __init__.py file
+        pyfile = ddtrace_dir.join("test.py")
         pyfile.write(code)
         return call_program("ddtrace-run", sys.executable, str(pyfile), **kwargs)
 
@@ -298,7 +307,14 @@ def run_function_from_file(item, params=None):
     expected_out = marker.kwargs.get("out", "")
     expected_err = marker.kwargs.get("err", "")
 
-    with NamedTemporaryFile(mode="wb", suffix=".pyc") as fp:
+    # Create a temporary dir named `ddtrace_subprocess_dir` that will be used for service naming
+    # consistency
+    temp_dir = gettempdir()
+    custom_temp_dir = os.path.join(temp_dir, "ddtrace_subprocess_dir")
+
+    os.makedirs(custom_temp_dir, exist_ok=True)
+
+    with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
         dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
 
         # If running a module with -m, we change directory to the module's

@@ -1,7 +1,7 @@
 [[
   {
     "name": "kafka.process",
-    "service": "test_schematized_span_service_and_operation_0",
+    "service": "ddtrace_subprocess_dir",
     "resource": "kafka.process",
     "trace_id": 0,
     "span_id": 1,
@@ -39,7 +39,7 @@
 [
   {
     "name": "kafka.send",
-    "service": "test_schematized_span_service_and_operation_0",
+    "service": "ddtrace_subprocess_dir",
     "resource": "kafka.send",
     "trace_id": 1,
     "span_id": 1,

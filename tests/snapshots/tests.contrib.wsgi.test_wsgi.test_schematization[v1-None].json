@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "test_schematization_0",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "672940e400000000",
       "component": "wsgi",
@@ -40,7 +40,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "test_schematization_0",
+         "_dd.base_service": "ddtrace_subprocess_dir",
          "component": "wsgi"
        },
        "duration": 100000,
@@ -56,7 +56,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.base_service": "test_schematization_0",
+            "_dd.base_service": "ddtrace_subprocess_dir",
             "component": "wsgi",
             "span.kind": "server"
           },
@@ -73,7 +73,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "test_schematization_0",
+         "_dd.base_service": "ddtrace_subprocess_dir",
          "component": "wsgi",
          "result_class": "list"
        },

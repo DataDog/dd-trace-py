@@ -138,7 +138,7 @@ async def test_meta_override(tracer, test_spans):
     [
         (None, None, "redis", "redis.command"),
         (None, "v0", "redis", "redis.command"),
-        (None, "v1", "test_schematization_of_service_and_operation_0", "redis.command"),
+        (None, "v1", "ddtrace_subprocess_dir", "redis.command"),
         ("mysvc", None, "redis", "redis.command"),
         ("mysvc", "v0", "redis", "redis.command"),
         ("mysvc", "v1", "mysvc", "redis.command"),

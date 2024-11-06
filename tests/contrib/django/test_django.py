@@ -1502,7 +1502,7 @@ def test_schematized_default_service_name(
     expected_service_name = {
         None: global_service_name or "django",
         "v0": global_service_name or "django",
-        "v1": global_service_name or "test_schematized_default_service_name_0",
+        "v1": global_service_name or "ddtrace_subprocess_dir",
     }[schema_version]
     code = """
 import pytest
@@ -1551,7 +1551,7 @@ def test_schematized_default_db_service_name(
     expected_service_name = {
         None: "defaultdb",
         "v0": "defaultdb",
-        "v1": global_service_name or "test_schematized_default_db_service_name_0",
+        "v1": global_service_name or "ddtrace_subprocess_dir",
     }[schema_version]
     code = """
 import pytest

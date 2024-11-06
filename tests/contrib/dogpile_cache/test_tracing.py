@@ -231,9 +231,9 @@ def test_get_or_create_kwarg_only(region):
 @pytest.mark.parametrize(
     "schema_tuples",
     [
-        (None, None, "test_schematization_0", "dogpile.cache"),
-        (None, "v0", "test_schematization_0", "dogpile.cache"),
-        (None, "v1", "test_schematization_0", "dogpile.command"),
+        (None, None, "ddtrace_subprocess_dir", "dogpile.cache"),
+        (None, "v0", "ddtrace_subprocess_dir", "dogpile.cache"),
+        (None, "v1", "ddtrace_subprocess_dir", "dogpile.command"),
         ("mysvc", None, "mysvc", "dogpile.cache"),
         ("mysvc", "v0", "mysvc", "dogpile.cache"),
         ("mysvc", "v1", "mysvc", "dogpile.command"),

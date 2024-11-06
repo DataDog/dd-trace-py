@@ -238,7 +238,7 @@ if __name__ == "__main__":
     [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
 )
 def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
-    inferred_base_service = "test_span_attribute_schema_service_name_0"
+    inferred_base_service = "ddtrace_subprocess_dir"
     expected_service_name = {
         None: global_service_name or inferred_base_service,
         "v0": global_service_name or inferred_base_service,

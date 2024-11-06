@@ -17,6 +17,7 @@ import urllib.parse as parse
 
 from ...internal import atexit
 from ...internal import forksafe
+from ...settings._inferred_base_service import detect_service
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -45,7 +46,6 @@ from .metrics import MetricTagType  # noqa:F401
 from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType  # noqa:F401
-from ...settings._inferred_base_service import detect_service
 
 
 _inferred_service = detect_service(sys.argv)
