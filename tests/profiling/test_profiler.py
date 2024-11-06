@@ -223,11 +223,6 @@ def test_env_no_agentless():
     _check_url(prof, "http://localhost:8126", "foobar")
 
 
-def test_url():
-    prof = profiler.Profiler(url="https://foobar:123")
-    _check_url(prof, "https://foobar:123", os.environ.get("DD_API_KEY"))
-
-
 def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
@@ -237,22 +232,6 @@ def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
-
-
-def test_default_tracer_and_url():
-    try:
-        ddtrace.tracer.configure(hostname="foobar")
-        prof = profiler.Profiler(url="https://foobaz:123")
-        _check_url(prof, "https://foobaz:123", os.environ.get("DD_API_KEY"))
-    finally:
-        ddtrace.tracer.configure(hostname="localhost")
-
-
-def test_tracer_and_url():
-    t = ddtrace.Tracer()
-    t.configure(hostname="foobar")
-    prof = profiler.Profiler(tracer=t, url="https://foobaz:123")
-    _check_url(prof, "https://foobaz:123", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url():
@@ -281,6 +260,13 @@ def test_tracer_url_uds():
     t.configure(uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "unix:///foobar", os.environ.get("DD_API_KEY"))
+
+
+def test_tracer_url_configure_after():
+    t = ddtrace.Tracer()
+    prof = profiler.Profiler(tracer=t)
+    t.configure(hostname="foobar")
+    _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
 def test_env_no_api_key():
