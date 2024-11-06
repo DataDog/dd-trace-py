@@ -133,8 +133,9 @@ def test_log_waf_callback():
     ):
         line_number = getframeinfo(currentframe()).lineno
         _asm_request_context.call_waf_callback()
-    assert mck.call_args[0] == (
-        "appsec.asm_context.warning::call_waf_callback::not_set"
-        "[/Users/christophe.papazian/GitHub/version_1.x/dd-trace-py/tests/appsec/appsec/test_asm_request_context.py,"
+    log_message = mck.call_args[0][0]
+    assert log_message.startswith("appsec.asm_context.warning::call_waf_callback::not_set[")
+    assert log_message.endswith(
+        "dd-trace-py/tests/appsec/appsec/test_asm_request_context.py,"
         f" line {line_number+1}, in test_log_waf_callback]",
     )
