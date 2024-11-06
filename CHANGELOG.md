@@ -4,6 +4,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.14.6
+
+
+### Bug Fixes
+
+- profiling: fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+- profiling: fixes an issue where the profiler was allocating too much memory from `ensure_binary_or_empty()` function, on Python versions before 3.12, with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+- profiling: when a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when <span class="title-ref">DD_PROFILING_ENDPOINT_COLLECTION_ENABLED</span><span class="title-ref"> and </span><span class="title-ref">DD_PROFILING_STACK_V2_ENABLED</span>\` were set to enable grouping of profiles for endpoints.
+- profiling: this resolves an issue where asyncio task names are not captured by stack v2, when `DD_PROFILING_STACK_V2_ENABLED` is set.
+- pymongo: Adds type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+
+
+---
+
 ## 2.15.1
 
 
