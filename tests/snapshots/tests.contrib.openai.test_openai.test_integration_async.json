@@ -27,7 +27,7 @@
       "openai.request.user": "ddtrace-test",
       "openai.response.choices.0.finish_reason": "length",
       "openai.response.choices.0.text": " I am; and I am in a sense a non-human entity woven together from memories, desires and emotions. But, who is to say that I am n...",
-      "openai.response.created": "1681852801",
+      "openai.response.created": "1681852797",
       "openai.response.id": "cmpl-76n21v67JBLBTiNAIzghImtsNjBrq",
       "openai.response.model": "curie",
       "openai.user.api_key": "sk-...key>",

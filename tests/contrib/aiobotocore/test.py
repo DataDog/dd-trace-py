@@ -7,7 +7,6 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_config
@@ -405,7 +404,7 @@ async def test_user_specified_service(tracer):
     [
         (None, None, "aws.{}", "{}.command"),
         (None, "v0", "aws.{}", "{}.command"),
-        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "aws.{}.request"),
+        (None, "v1", "ddtrace_subprocess_dir", "aws.{}.request"),
         ("mysvc", None, "mysvc", "{}.command"),
         ("mysvc", "v0", "mysvc", "{}.command"),
         ("mysvc", "v1", "mysvc", "aws.{}.request"),
