@@ -11,6 +11,16 @@ import requests
 from tests.profiling.collector import pprof_utils
 
 
+# DEV: gunicorn tests are hard to debug, so keeping these print statements for
+# future debugging
+DEBUG_PRINT = False
+
+
+def debug_print(*args):
+    if DEBUG_PRINT:
+        print(*args)
+
+
 # gunicorn is not available on Windows
 if sys.platform == "win32":
     pytestmark = pytest.mark.skip
@@ -47,44 +57,47 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # type: (...) -> None
     filename = str(tmp_path / "gunicorn.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    print(filename)
 
+    # DEV: We only start 1 worker to simplify the test
     proc = gunicorn("-w", "1", *args)
-
+    # Wait for the workers to start
     time.sleep(3)
 
     response = None
     try:
         response = requests.get("http://127.0.0.1:7643")
     except Exception as e:
-        print(e)
+        pytest.fail("Failed to make request to gunicorn server %s" % e)
     finally:
+        # Need to terminate the process to get the output and release the port
         proc.terminate()
-
-    if response:
-        print(response.status_code, response.text)
+    assert response and response.status_code == 200, response
 
     output = proc.stdout.read().decode()
     worker_pids = _get_worker_pids(output)
 
-    print(worker_pids)
     for line in output.splitlines():
-        print(line)
+        debug_print(line)
 
     assert len(worker_pids) == 1, output
     assert proc.wait() == 0, output
     assert "module 'threading' has no attribute '_active'" not in output, output
 
     for pid in worker_pids:
-        print("%s.%d" % (filename, pid))
+        debug_print("Reading pprof file with prefix %s.%d" % (filename, pid))
         profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
+        # This returns a list of samples that have non-zero cpu-time
         samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
         assert len(samples) > 0
 
-        pprof_utils.assert_has_samples(
+        pprof_utils.assert_profile_has_sample(
             profile,
-            expected_samples=pprof_utils.StackEvent(
-                locations=[pprof_utils.StackLocation(function_name="fib", filename="gunicorn-app.py", line_no=8)]
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                locations=[
+                    pprof_utils.StackLocation(function_name="fib", filename="gunicorn-app.py", line_no=8),
+                    pprof_utils.StackLocation(function_name="fib", filename="gunicorn-app.py", line_no=8),
+                ]
             ),
         )
 
