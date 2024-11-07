@@ -1,5 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Adds `rag_context_variables` and `rag_query_variables` helper fields to the `Prompt`
-    class to allow users to specify which prompt template variables are the ground truth contexts and user queries.
