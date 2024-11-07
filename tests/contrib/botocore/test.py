@@ -3946,14 +3946,8 @@ class BotocoreTest(TracerTestCase):
 
             # testing for span error
             self.reset()
-            try:
+            with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
-            except Exception:
-                spans = self.get_spans()
-                assert spans
-                span = spans[0]
-                assert span.error == 1
-                assert span.resource == "s3.listobjects"
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
@@ -3970,14 +3964,8 @@ class BotocoreTest(TracerTestCase):
 
             # testing for span error
             self.reset()
-            try:
+            with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
-            except Exception:
-                spans = self.get_spans()
-                assert spans
-                span = spans[0]
-                assert span.error == 1
-                assert span.resource == "s3.listobjects"
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
@@ -3993,14 +3981,8 @@ class BotocoreTest(TracerTestCase):
 
             # testing for span error
             self.reset()
-            try:
+            with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
-            except Exception:
-                spans = self.get_spans()
-                assert spans
-                span = spans[0]
-                assert span.error == 1
-                assert span.resource == "s3.listobjects"
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_events
