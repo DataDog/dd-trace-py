@@ -175,6 +175,7 @@ class AWSPayloadTagging:
     def _tag_object(self, span: Span, key: str, obj: Any, depth: int = 0) -> None:
         """
         Recursively expands the given AWS payload object and adds the values as flattened Span tags.
+        It is not expected that AWS Payloads will be deeply nested so the number of recursive calls should be low.
         For example, the following (shortened payload object) becomes:
         {
             "ResponseMetadata": {
