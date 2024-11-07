@@ -66,7 +66,6 @@ if _pytest_version_supports_efd():
     from ddtrace.contrib.pytest._efd_utils import efd_get_teststatus
     from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
     from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
-    from ddtrace.contrib.pytest._retry_utils import get_retry_num
 
 if _pytest_version_supports_atr():
     from ddtrace.contrib.pytest._atr_utils import atr_get_failed_reports
@@ -422,7 +421,7 @@ def _process_result(item, call, result) -> _TestOutcome:
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
     # When ATR or EFD retries are active, we do not want makereport to generate results
-    if _pytest_version_supports_retries and get_retry_num(item.nodeid) is not None:
+    if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
         return
 
     original_result = outcome.get_result()
