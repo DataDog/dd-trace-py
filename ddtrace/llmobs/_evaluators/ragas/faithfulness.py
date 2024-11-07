@@ -371,7 +371,7 @@ class RagasFaithfulnessEvaluator:
                 context = " ".join([prompt_variables.get(key) for key in context_keys if prompt_variables.get(key)])
                 question = " ".join([prompt_variables.get(key) for key in question_keys if prompt_variables.get(key)])
 
-            if not question and input_messages is not None:
+            if not question and input_messages is not None and len(input_messages) > 0:
                 question = input_messages[-1].get("content")
 
             self.llmobs_service.annotate(
