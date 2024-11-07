@@ -10,6 +10,7 @@ from os.path import split
 from os.path import splitext
 import platform
 import random
+import shutil
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
@@ -333,44 +334,49 @@ def run_function_from_file(item, params=None):
 
     os.makedirs(custom_temp_dir, exist_ok=True)
 
-    with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
-        dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
+    try:
+        with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
+            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
 
-        # If running a module with -m, we change directory to the module's
-        # folder and run the module directly.
-        if run_module:
-            cwd, module = split(splitext(fp.name)[0])
-            args.append(module)
-        else:
-            cwd = None
-            args.append(fp.name)
+            # If running a module with -m, we change directory to the module's
+            # folder and run the module directly.
+            if run_module:
+                cwd, module = split(splitext(fp.name)[0])
+                args.append(module)
+            else:
+                cwd = None
+                args.append(fp.name)
 
-        # Add any extra requested args
-        args.extend(marker.kwargs.get("args", []))
+            # Add any extra requested args
+            args.extend(marker.kwargs.get("args", []))
 
-        def _subprocess_wrapper():
-            out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
+            def _subprocess_wrapper():
+                out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
-            xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
-            if xfailed:
-                pytest.xfail("subprocess test resulted in XFail")
-                return
+                xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
+                if xfailed:
+                    pytest.xfail("subprocess test resulted in XFail")
+                    return
 
-            if status != expected_status:
-                raise AssertionError(
-                    "Expected status %s, got %s."
-                    "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                    "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                    % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
-                )
+                if status != expected_status:
+                    raise AssertionError(
+                        "Expected status %s, got %s."
+                        "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                        "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                        % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
+                    )
 
-            if not is_stream_ok(out, expected_out):
-                raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                if not is_stream_ok(out, expected_out):
+                    raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
 
-            if not is_stream_ok(err, expected_err):
-                raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+                if not is_stream_ok(err, expected_err):
+                    raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
 
-        return _subprocess_wrapper()
+            return _subprocess_wrapper()
+    finally:
+        # Clean up the temporary directory
+        if os.path.exists(custom_temp_dir):
+            shutil.rmtree(custom_temp_dir)
 
 
 @pytest.hookimpl(tryfirst=True)
