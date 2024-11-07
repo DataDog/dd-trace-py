@@ -3797,8 +3797,8 @@ class BotocoreTest(TracerTestCase):
             )
             spans = self.get_spans()
             assert spans
-            span = spans[0]
             assert len(spans) == 1
+            span = spans[0]
             assert span.get_tag("aws.region") == "us-east-1"
             assert span.get_tag("region") == "us-east-1"
             assert span.get_tag("aws.operation") == "SendMessage"
