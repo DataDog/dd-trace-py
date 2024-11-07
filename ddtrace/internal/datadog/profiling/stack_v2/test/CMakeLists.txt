@@ -19,6 +19,13 @@ function(dd_wrapper_add_test name)
     add_ddup_config(${name})
 
     gtest_discover_tests(${name})
+
+    if(LIB_INSTALL_DIR)
+        install(TARGETS ${name}
+            LIBRARY DESTINATION ${LIB_INSTALL_DIR}/../test
+            ARCHIVE DESTINATION ${LIB_INSTALL_DIR}/../test
+            RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+    endif()
 endfunction()
 
 # Add the tests

@@ -2979,7 +2979,6 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
-                "DD_PROFILInG_NATIVE_TESTS": "1",
             },
             pkgs={
                 "gunicorn": latest,
