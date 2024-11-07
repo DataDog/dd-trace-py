@@ -31,68 +31,24 @@ def get_version():
 
 @with_traced_module
 def traced_generate(vertexai, pin, func, instance, args, kwargs):
-    integration = vertexai._datadog_integration
-    stream = kwargs.get("stream", False)
-    generations = None
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider="google",
-        model=_extract_model_name(instance),
-        submit_to_llmobs=True,
-    )
-    try:
-        tag_request(span, integration, instance, args, kwargs)
-        generations = func(*args, **kwargs)
-        if stream:
-            def on_span_finish(span, chunks):
-                tag_response(span, chunks, integration)
-                if span.error or not integration.is_pc_sampled_span(span):
-                    return
-            return TracedVertexAIStreamResponse(generations, instance, integration, span, args, kwargs, on_span_finish)
-        tag_response(span, generations, integration)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        # streamed spans will be finished separately once the stream generator is exhausted
-        if span.error or not stream:
-            span.finish()
-    return generations
+    return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance)
 
 @with_traced_module
 async def traced_agenerate(vertexai, pin, func, instance, args, kwargs):
-    integration = vertexai._datadog_integration
-    stream = kwargs.get("stream", False)
-    generations = None
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider="google",
-        model=_extract_model_name(instance),
-        submit_to_llmobs=True,
-    )
-    try:
-        tag_request(span, integration, instance, args, kwargs)
-        generations = await func(*args, **kwargs)
-        if stream:
-            def on_span_finish(span, chunks):
-                tag_response(span, chunks, integration)
-                if span.error or not integration.is_pc_sampled_span(span):
-                    return
-            return TracedAsyncVertexAIStreamResponse(generations, instance, integration, span, args, kwargs, on_span_finish)
-        tag_response(span, generations, integration)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        # streamed spans will be finished separately once the stream generator is exhausted
-        if span.error or not stream:
-            span.finish()
-    return generations
+    return await _traced_agenerate(vertexai, pin, func, instance, args, kwargs, instance)
+
 
 @with_traced_module
 def traced_send_message(vertexai, pin, func, instance, args, kwargs):
+    return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance._model)
+
+@with_traced_module
+async def traced_send_message_async(vertexai, pin, func, instance, args, kwargs):
+    return await _traced_agenerate(vertexai, pin, func, instance, args, kwargs, instance._model)
+
+
+
+def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance):
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
@@ -100,7 +56,7 @@ def traced_send_message(vertexai, pin, func, instance, args, kwargs):
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
-        model=_extract_model_name(instance._model),
+        model=_extract_model_name(model_instance),
         submit_to_llmobs=True,
     )
     try:
@@ -122,8 +78,8 @@ def traced_send_message(vertexai, pin, func, instance, args, kwargs):
             span.finish()
     return generations
 
-@with_traced_module
-async def traced_send_message_async(vertexai, pin, func, instance, args, kwargs):
+
+async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_instance):
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
@@ -131,7 +87,7 @@ async def traced_send_message_async(vertexai, pin, func, instance, args, kwargs)
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
-        model=_extract_model_name(instance._model),
+        model=_extract_model_name(model_instance),
         submit_to_llmobs=True,
     )
     try:
