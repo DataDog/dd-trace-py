@@ -23,10 +23,10 @@ function(dd_wrapper_add_test name)
 
     gtest_discover_tests(${name})
 
+    set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+
     if(LIB_INSTALL_DIR)
         install(TARGETS ${name}
-            LIBRARY DESTINATION ${LIB_INSTALL_DIR}/../test
-            ARCHIVE DESTINATION ${LIB_INSTALL_DIR}/../test
             RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
     endif()
 endfunction()

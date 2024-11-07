@@ -96,15 +96,21 @@ endif()
 set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
 set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
-# RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
-# typical.
-set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
-
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads)
+
+# to discover dd_wrapper at runtime
+set(RPATH_DIRS "$ORIGIN/..")
 
 if(Python3_LIBRARIES)
     target_link_libraries(${EXTENSION_NAME} PRIVATE ${Python3_LIBRARIES})
+
+    # to discover Python at runtime
+    set(RPATH_DIRS "${RPATH_DIRS}:${Python3_RUNTIME_LIBRARY_DIRS}")
 endif()
+
+# RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
+# typical.
+set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH ${RPATH_DIRS})
 
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -122,4 +128,3 @@ if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
 endif()
-
