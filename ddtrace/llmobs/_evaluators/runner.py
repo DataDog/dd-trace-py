@@ -56,7 +56,7 @@ class EvaluatorRunner(PeriodicService):
                     raise e
                 finally:
                     telemetry_writer.add_count_metric(
-                        namespace=TELEMETRY_APM_PRODUCT.LLMOBS,  # type: ignore
+                        namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
                         name="evaluators.init",
                         value=1,
                         tags=(
