@@ -56,51 +56,77 @@ from .._taint_tracking._native import aspects  # noqa: F401
 
 TEXT_TYPES = Union[str, bytes, bytearray]
 
+_extend_aspect = aspects.extend_aspect
+_join_aspect = aspects.join_aspect
 add_aspect = aspects.add_aspect
 add_inplace_aspect = aspects.add_inplace_aspect
-_extend_aspect = aspects.extend_aspect
 index_aspect = aspects.index_aspect
-_join_aspect = aspects.join_aspect
-slice_aspect = aspects.slice_aspect
 modulo_aspect = aspects.modulo_aspect
-split_aspect = _aspect_split
-rsplit_aspect = _aspect_rsplit
-splitlines_aspect = _aspect_splitlines
-str_aspect = aspects.str_aspect
-ospathjoin_aspect = _aspect_ospathjoin
 ospathbasename_aspect = _aspect_ospathbasename
 ospathdirname_aspect = _aspect_ospathdirname
-ospathsplit_aspect = _aspect_ospathsplit
-ospathsplitext_aspect = _aspect_ospathsplitext
-ospathsplitdrive_aspect = _aspect_ospathsplitdrive
-ospathsplitroot_aspect = _aspect_ospathsplitroot
+ospathjoin_aspect = _aspect_ospathjoin
 ospathnormcase_aspect = _aspect_ospathnormcase
+ospathsplit_aspect = _aspect_ospathsplit
+ospathsplitdrive_aspect = _aspect_ospathsplitdrive
+ospathsplitext_aspect = _aspect_ospathsplitext
+ospathsplitroot_aspect = _aspect_ospathsplitroot
+rsplit_aspect = _aspect_rsplit
+slice_aspect = aspects.slice_aspect
+split_aspect = _aspect_split
+splitlines_aspect = _aspect_splitlines
+str_aspect = aspects.str_aspect
 
 __all__ = [
+    "_aspect_rsplit",
+    "_aspect_split",
+    "_aspect_splitlines",
     "add_aspect",
     "add_inplace_aspect",
-    "str_aspect",
+    "bytearray_aspect",
     "bytearray_extend_aspect",
+    "bytes_aspect",
+    "bytesio_aspect",
+    "capitalize_aspect",
+    "casefold_aspect",
     "decode_aspect",
     "encode_aspect",
-    "re_sub_aspect",
-    "ospathjoin_aspect",
-    "_aspect_split",
-    "split_aspect",
-    "_aspect_rsplit",
-    "rsplit_aspect",
+    "format_aspect",
+    "format_map_aspect",
+    "index_aspect",
+    "join_aspect",
+    "ljust_aspect",
+    "lower_aspect",
     "modulo_aspect",
-    "_aspect_splitlines",
-    "splitlines_aspect",
     "ospathbasename_aspect",
     "ospathdirname_aspect",
+    "ospathjoin_aspect",
     "ospathnormcase_aspect",
     "ospathsplit_aspect",
-    "ospathsplitext_aspect",
     "ospathsplitdrive_aspect",
+    "ospathsplitext_aspect",
     "ospathsplitroot_aspect",
-    "bytesio_aspect",
+    "re_expand_aspect",
+    "re_findall_aspect",
+    "re_finditer_aspect",
+    "re_fullmatch_aspect",
+    "re_group_aspect",
+    "re_groups_aspect",
+    "re_match_aspect",
+    "re_search_aspect",
+    "re_sub_aspect",
+    "re_subn_aspect",
+    "replace_aspect",
+    "repr_aspect",
+    "rsplit_aspect",
+    "slice_aspect",
+    "split_aspect",
+    "splitlines_aspect",
+    "str_aspect",
     "stringio_aspect",
+    "swapcase_aspect",
+    "title_aspect",
+    "translate_aspect",
+    "upper_aspect",
 ]
 
 
@@ -116,7 +142,7 @@ def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
 
     if args and is_pyobject_tainted(args[0]) and isinstance(result, _io.StringIO):
         try:
-            copy_and_shift_ranges_from_strings(args[0], result, 0)
+            copy_ranges_from_strings(args[0], result)
         except Exception as e:
             iast_taint_log_error("IAST propagation error. stringio_aspect. {}".format(e))
     return result
@@ -134,7 +160,7 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
 
     if args and is_pyobject_tainted(args[0]) and isinstance(result, _io.BytesIO):
         try:
-            copy_and_shift_ranges_from_strings(args[0], result, 0)
+            copy_ranges_from_strings(args[0], result)
         except Exception as e:
             iast_taint_log_error("IAST propagation error. bytesio_aspect. {}".format(e))
     return result
@@ -759,6 +785,8 @@ def aspect_replace_api(
             len(old_value),
             candidate_text_ranges,
         )
+    else:
+        new_elements = [element for element in new_elements if element is not None]
 
     result_formatted = as_formatted_evidence(new_value, tag_mapping_function=TagMappingMode.Mapper).join(new_elements)
 

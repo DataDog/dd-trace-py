@@ -4,11 +4,9 @@ from unittest import mock
 
 import pytest
 
-import ddtrace
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.contrib.pytest.plugin import is_enabled
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
@@ -18,10 +16,11 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _mock_ddconfig_test_visibility
-from tests.ci_visibility.util import _patch_dummy_writer
+from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _fetch_test_to_skip_side_effect
-from tests.utils import TracerTestCase
 
+
+pytestmark = pytest.mark.skipif(not _pytest_version_supports_itr(), reason="pytest version does not support coverage")
 
 # TODO: investigate why pytest 3.7 does not mark the decorated function line when skipped as covered
 _DONT_COVER_SKIPPED_FUNC_LINE = PYTHON_VERSION_INFO <= (3, 8, 0)
@@ -54,27 +53,7 @@ def _get_span_coverage_data(span, use_plugin_v2=False):
         }
 
 
-class PytestTestCase(TracerTestCase):
-    @pytest.fixture(autouse=True)
-    def fixtures(self, testdir, monkeypatch, git_repo):
-        self.testdir = testdir
-        self.monkeypatch = monkeypatch
-        self.git_repo = git_repo
-
-    def inline_run(self, *args):
-        """Execute test script with test tracer."""
-
-        class CIVisibilityPlugin:
-            @staticmethod
-            def pytest_configure(config):
-                if is_enabled(config):
-                    with _patch_dummy_writer():
-                        assert CIVisibility.enabled
-                        CIVisibility.disable()
-                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
-
-        return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
-
+class PytestTestCase(PytestTestCaseBase):
     def test_pytest_will_report_coverage_by_suite_with_pytest_skipped(self):
         self.testdir.makepyfile(
             ret_false="""

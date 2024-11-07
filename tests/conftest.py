@@ -8,6 +8,7 @@ import json
 import os
 from os.path import split
 from os.path import splitext
+import platform
 import random
 import subprocess
 import sys
@@ -27,8 +28,10 @@ import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
@@ -110,6 +113,21 @@ def pytest_configure(config):
 @pytest.fixture
 def use_global_tracer():
     yield False
+
+
+@pytest.fixture
+def auto_enable_crashtracking():
+    # Crashtracking is only supported on linux right now
+    # TODO: Default to `True` when Windows and Darwin are supported
+    yield platform.system() == "Linux"
+
+
+@pytest.fixture(autouse=True)
+def enable_crashtracking(auto_enable_crashtracking):
+    if auto_enable_crashtracking:
+        crashtracking.start()
+        assert crashtracking.is_started()
+    yield
 
 
 @pytest.fixture
@@ -550,12 +568,16 @@ class TelemetryTestSession(object):
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_events(self, event_type=None, filter_heartbeats=True):
+    def get_events(self, event_type=None, filter_heartbeats=True, subprocess=False):
         """Get a list of the event payloads sent to the test agent
 
         Results are in reverse order by ``seq_id``
         """
         requests = self.get_requests(event_type, filter_heartbeats)
+        if subprocess:
+            # Use get_runtime_id to filter telemetry events generated in the current process
+            runtime_id = get_runtime_id()
+            requests = [req for req in requests if req["body"]["runtime_id"] != runtime_id]
         return [req["body"] for req in requests]
 
     def get_metrics(self, name=None):

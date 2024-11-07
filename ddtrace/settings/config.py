@@ -37,6 +37,7 @@ from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from ._core import get_config as _get_config
 from ._otel_remapper import otel_remapping as _otel_remapping
+from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
@@ -49,6 +50,7 @@ else:
 
 log = get_logger(__name__)
 
+ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"(?ix)"
@@ -112,10 +114,11 @@ def _parse_propagation_styles(styles_str):
     - "b3" (formerly 'b3 single header')
     - "b3 single header (deprecated for 'b3')"
     - "tracecontext"
+    - "baggage"
     - "none"
 
 
-    The default value is ``"datadog,tracecontext"``.
+    The default value is ``"datadog,tracecontext,baggage"``.
 
 
     Examples::
@@ -383,6 +386,7 @@ class Config(object):
         # Must map Otel configurations to Datadog configurations before creating the config object.
         _otel_remapping()
         # Must come before _integration_configs due to __setattr__
+        self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
 
         sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
@@ -762,7 +766,7 @@ class Config(object):
 
     def __setattr__(self, key, value):
         # type: (str, Any) -> None
-        if key == "_config":
+        if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
             self._set_config_items([(key, value, "code")])

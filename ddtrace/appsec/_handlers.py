@@ -11,7 +11,6 @@ from ddtrace.contrib.trace_utils import _set_url_tag
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import http as http_utils
@@ -276,7 +275,6 @@ def _asgi_make_block_content(ctx, url):
 
 
 def _on_flask_blocked_request(span):
-    core.set_item(HTTP_REQUEST_BLOCKED, True)
     span.set_tag_str(http.STATUS_CODE, "403")
     request = core.get_item("flask_request")
     try:

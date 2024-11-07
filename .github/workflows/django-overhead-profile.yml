@@ -16,6 +16,9 @@ jobs:
     env:
       PREFIX: ${{ github.workspace }}/prefix
       DD_CODE_ORIGIN_FOR_SPANS_ENABLED: "1"
+      DD_PROFILING_ENABLED: "1"
+      DD_PROFILING_STACK_V2_ENABLED: "1"
+      DD_PROFILING_OUTPUT_PPROF: ${{ github.workspace }}/prefix/artifacts/ddtrace_profile.pprof
     defaults:
       run:
         working-directory: ddtrace

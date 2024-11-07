@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: When not using a provider integration (OpenAI, Anthropic, or Bedrock) with the LangChain integration, token metrics will be appended to the LLM Observability ``llm`` span.
+    LLM Observability: When langchain's ``chat_model.with_structured_output(..., method="json_mode")`` is used, or ``response_format={"type": "json_object"}`` is passed into a langchain chat model invocation, the LLM Observability span will be an ``llm`` span instead of a ``workflow`` span.                 

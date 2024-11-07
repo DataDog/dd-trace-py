@@ -1469,24 +1469,40 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag("usr.id") is None
                 assert not any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
                 assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in root_span()._meta)
-
-    @pytest.mark.parametrize("asm_enabled", [True, False])
-    def test_fingerprinting(self, interface, root_span, get_tag, asm_enabled):
-        with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=None)):
-            self.update_tracer(interface)
-            response = interface.client.post(
-                "/asm/324/huj/?x=1&y=2", headers={"User-Agent": "dd-test-scanner-log-block"}, data={"test": "attack"}
-            )
-            assert self.status(response) == (403 if asm_enabled else 200)
-            assert get_tag("http.status_code") == ("403" if asm_enabled else "200")
-            if asm_enabled:
+            # check for fingerprints when user events
+            if asm_enabled and auto_events_enabled and mode != "disabled":
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION)
             else:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("user_agent", ["dd-test-scanner-log-block", "UnitTestAgent"])
+    def test_fingerprinting(self, interface, root_span, get_tag, asm_enabled, user_agent):
+        with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=None)):
+            self.update_tracer(interface)
+            response = interface.client.post(
+                "/asm/324/huj/?x=1&y=2", headers={"User-Agent": user_agent}, data={"test": "attack"}
+            )
+            code = 403 if asm_enabled and user_agent == "dd-test-scanner-log-block" else 200
+            assert self.status(response) == code
+            assert get_tag("http.status_code") == str(code)
+            # check for fingerprints when security events
+            if asm_enabled and user_agent == "dd-test-scanner-log-block":
+                assert get_tag(asm_constants.FINGERPRINTING.HEADER)
+                assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
+                assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION)
+            else:
+                assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
+                assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
+                assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
 
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
