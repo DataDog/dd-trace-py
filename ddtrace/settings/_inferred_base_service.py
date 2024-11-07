@@ -11,9 +11,6 @@ from typing import Tuple
 
 INIT_PY = "__init__.py"
 ALL_PY_FILES = "*.py"
-GUNICORN_CMD_ARGS = "GUNICORN_CMD_ARGS"
-WSGI_APP_ENV = "WSGI_APP"
-
 
 CACHE: Dict[str, Optional[str]] = {}
 
@@ -25,7 +22,8 @@ class DetectionContext:
 
 class ServiceMetadata:
     def __init__(self, name):
-        self.name = name
+        # prevent service name from being an empty string
+        self.name = name if name != "" else None
 
 
 class PythonDetector:
@@ -122,83 +120,7 @@ class PythonDetector:
         return last.name
 
 
-class GunicornDetector:
-    def __init__(self, ctx):
-        self.ctx = ctx
-        name = "gunicorn"
-        self.name = name
-        self.pattern = name
-
-    def expected_command_name(self) -> str:
-        return "gunicorn"
-
-    def detect(self, args: List[str]) -> Tuple[ServiceMetadata, bool]:
-        """
-        Extracts and returns the Gunicorn application name from various potential sources.
-
-        This function first checks for the application name in the environment variable
-        specified by `GUNICORN_CMD_ARGS`. If found, it extracts the name from it.
-        Next, it looks for the WSGI application name in the environment variable
-        `WSGI_APP_ENV`. If that is not present, it tries to extract the name from
-        the provided list of command-line arguments. If no valid name is found,
-        it defaults to returning "gunicorn" as the application name.
-
-        Args:
-            args (List[str]): A list of command-line arguments.
-
-        Returns:
-            Tuple[ServiceMetadata, bool]: A tuple containing:
-                - ServiceMetadata: The extracted or default gunicorn app name.
-                - bool: A flag indicating whether a valid app name was found.
-        """
-
-        from_env = os.getenv(GUNICORN_CMD_ARGS)
-        if from_env:
-            name, ok = self.extract_gunicorn_name_from(from_env.split())
-            if ok:
-                return ServiceMetadata(name), True
-
-        wsgi_app = os.getenv(WSGI_APP_ENV)
-        if wsgi_app:
-            return ServiceMetadata(self.parse_name_from_wsgi_app(wsgi_app)), True
-
-        name, ok = self.extract_gunicorn_name_from(args)
-        if ok:
-            return ServiceMetadata(name), True
-
-        return ServiceMetadata("gunicorn"), True
-
-    def extract_gunicorn_name_from(self, args: List[str]) -> Tuple[str, bool]:
-        # try to capture the app name from the arg: --name=example or -n example
-        skip = False
-        capture = False
-
-        for arg in args:
-            if capture:
-                return arg, True
-            if skip:
-                skip = False
-                continue
-            if arg.startswith("-"):
-                if arg == "-n":
-                    capture = True
-                    continue
-                skip = "=" not in arg
-                if skip:
-                    continue
-                if arg.startswith("--name="):
-                    return arg[len("--name=") :], True
-            else:
-                return self.parse_name_from_wsgi_app(args[-1]), True
-        return "", False
-
-    def parse_name_from_wsgi_app(self, wsgi_app: str) -> str:
-        # wsgi app is in the format my-app-name:app
-        name, _, _ = wsgi_app.partition(":")
-        return name
-
-
-def detect_service(args: List[str], detector_classes=[PythonDetector, GunicornDetector]) -> Optional[str]:
+def detect_service(args: List[str], detector_classes=[PythonDetector]) -> Optional[str]:
     """
     Detects and returns the name of a service based on the provided list of command-line arguments.
 
@@ -210,7 +132,7 @@ def detect_service(args: List[str], detector_classes=[PythonDetector, GunicornDe
     Args:
         args (List[str]): A list of command-line arguments.
         detector_classes (List[Type[Detector]]): A list of detector classes to use for service detection.
-            Defaults to [PythonDetector, GunicornDetector].
+            Defaults to [PythonDetector].
 
     Returns:
         Optional[str]: The name of the detected service, or None if no service was detected.
