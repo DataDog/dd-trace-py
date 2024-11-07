@@ -95,7 +95,8 @@ class AWSPayloadTagging:
 
         # flatten the payload into span tags
         for key2, value in redacted_dict.items():
-            self._tag_object(span, f"{key}.{key2}", value)
+            escaped_sub_key = key2.replace(".", "\\.")
+            self._tag_object(span, f"{key}.{escaped_sub_key}", value)
             if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
                 return
 
@@ -219,15 +220,18 @@ class AWSPayloadTagging:
             return
         if isinstance(obj, list):
             for k, v in enumerate(obj):
-                self._tag_object(span, f"{key}.{k}", v, depth)
+                escaped_key = str(k).replace(".", "\\.")
+                self._tag_object(span, f"{key}.{escaped_key}", v, depth)
             return
         if hasattr(obj, "items"):
             for k, v in obj.items():
-                self._tag_object(span, f"{key}.{k}", v, depth)
+                escaped_key = str(k).replace(".", "\\.")
+                self._tag_object(span, f"{key}.{escaped_key}", v, depth)
             return
         if hasattr(obj, "to_dict"):
             for k, v in obj.to_dict().items():
-                self._tag_object(span, f"{key}.{k}", v, depth)
+                escaped_key = str(k).replace(".", "\\.")
+                self._tag_object(span, f"{key}.{escaped_key}", v, depth)
             return
         try:
             value_as_str = str(obj)
