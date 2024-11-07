@@ -1,11 +1,17 @@
 import sys
 import copy
 
-def get_system_instruction_parts(instance):
+def get_system_instruction_parts_from_model(instance):
     """
     Assumes that the system instruction is provided as []Part
     """
     return getattr(instance, "_system_instruction", None)
+
+def get_system_instruction_parts_from_chat(instance):
+    """
+    Assumes that the system instruction is provided as []Part
+    """
+    return getattr(instance._model, "_system_instruction", None)
 
 def get_generation_config_from_model(instance, kwargs):
     """

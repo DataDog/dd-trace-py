@@ -11,7 +11,8 @@ from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamRe
 from ddtrace.contrib.internal.google_generativeai._utils import _extract_model_name
 from ddtrace.contrib.internal.google_generativeai._utils import tag_request
 from ddtrace.contrib.internal.google_generativeai._utils import tag_response
-from ddtrace.contrib.internal.vertexai._utils import get_system_instruction_parts
+from ddtrace.contrib.internal.vertexai._utils import get_system_instruction_parts_from_model
+from ddtrace.contrib.internal.vertexai._utils import get_system_instruction_parts_from_chat
 from ddtrace.contrib.internal.vertexai._utils import get_generation_config_from_model
 from ddtrace.contrib.internal.vertexai._utils import get_generation_config_from_chat
 from ddtrace.contrib.trace_utils import unwrap
@@ -47,7 +48,7 @@ def traced_generate(vertexai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts(instance), get_generation_config_from_model(instance, kwargs))
+        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts_from_model(instance), get_generation_config_from_model(instance, kwargs))
         generations = func(*args, **kwargs)
         if stream:
             def on_span_finish(span, chunks):
@@ -78,7 +79,7 @@ async def traced_agenerate(vertexai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts(instance), get_generation_config_from_model(instance, kwargs))
+        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts_from_model(instance), get_generation_config_from_model(instance, kwargs))
         generations = await func(*args, **kwargs)
         if stream:
             def on_span_finish(span, chunks):
@@ -105,11 +106,11 @@ def traced_send_message(vertexai, pin, func, instance, args, kwargs):
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
-        model=_extract_model_name(instance),
+        model=_extract_model_name(instance._model),
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts(instance), get_generation_config_from_chat(instance, kwargs))
+        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts_from_chat(instance), get_generation_config_from_chat(instance, kwargs))
         generations = func(*args, **kwargs)
         if stream:
             def on_span_finish(span, chunks):
@@ -136,11 +137,11 @@ async def traced_send_message_async(vertexai, pin, func, instance, args, kwargs)
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
-        model=_extract_model_name(instance),
+        model=_extract_model_name(instance._model),
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts(instance), get_generation_config_from_chat(instance, kwargs))
+        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts_from_chat(instance), get_generation_config_from_chat(instance, kwargs))
         generations = await func(*args, **kwargs)
         if stream:
             def on_span_finish(span, chunks):
