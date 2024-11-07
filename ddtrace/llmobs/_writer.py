@@ -64,7 +64,6 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     ml_app: str
     timestamp_ms: int
     tags: List[str]
-    metadata: Dict[str, Any]
 
 
 class BaseLLMObsWriter(PeriodicService):
