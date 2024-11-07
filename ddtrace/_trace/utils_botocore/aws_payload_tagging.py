@@ -220,8 +220,7 @@ class AWSPayloadTagging:
             return
         if isinstance(obj, list):
             for k, v in enumerate(obj):
-                escaped_key = str(k).replace(".", "\\.")
-                self._tag_object(span, f"{key}.{escaped_key}", v, depth)
+                self._tag_object(span, f"{key}.{k}", v, depth)
             return
         if hasattr(obj, "items"):
             for k, v in obj.items():
