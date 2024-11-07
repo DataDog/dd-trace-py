@@ -12,34 +12,28 @@ from typing import Tuple
 INIT_PY = "__init__.py"
 ALL_PY_FILES = "*.py"
 
-CACHE: Dict[str, Optional[str]] = {}
-
-
-class DetectionContext:
-    def __init__(self, envs):
-        self.envs = envs
+CACHE: Dict[Tuple[str, ...], Optional[str]] = {}
 
 
 class ServiceMetadata:
-    def __init__(self, name):
+    def __init__(self, name: str):
         # prevent service name from being an empty string
         self.name = name if name != "" else None
 
 
 class PythonDetector:
-    def __init__(self, ctx):
-        self.ctx = ctx
-        name = "python"
-        self.name = name
+    def __init__(self, environ: os._Environ[str]):
+        self.environ = environ
+        self.name = "python"
 
         # This pattern matches:
         # - Starts with an optional directory (anything before the last '/' or '')
         # - Ends with the expected command name, possibly followed by a version
         # - Ensures that it does not end with .py
         # - Match /python, /python3.7, etc.
-        self.pattern = r"(^|/)(?!.*\.py$)(" + re.escape(name) + r"(\d+\.\d+)?$)"
+        self.pattern = r"(^|/)(?!.*\.py$)(" + re.escape("python") + r"(\d+\.\d+)?$)"
 
-    def detect(self, args: List[str]) -> Tuple[ServiceMetadata, bool]:
+    def detect(self, args: List[str]) -> Optional[ServiceMetadata]:
         """
         Detects and returns service metadata based on the provided list of arguments.
 
@@ -53,9 +47,8 @@ class PythonDetector:
             args (List[str]): A list of command-line arguments.
 
         Returns:
-            Tuple[ServiceMetadata, bool]: A tuple containing:
-                - ServiceMetadata: The detected service metadata.
-                - bool: A flag indicating whether valid metadata was found.
+            Optional[ServiceMetadata]:
+                - ServiceMetadata: The detected service metadata if found.
         """
         prev_arg_is_flag = False
         module_flag = False
@@ -67,7 +60,7 @@ class PythonDetector:
             should_skip_arg = prev_arg_is_flag or has_flag_prefix or is_env_variable
 
             if module_flag:
-                return ServiceMetadata(arg), True
+                return ServiceMetadata(arg)
 
             if not should_skip_arg:
                 abs_path = pathlib.Path(arg).resolve()
@@ -78,15 +71,15 @@ class PythonDetector:
                     stripped = stripped.parent
                 value, ok = self.deduce_package_name(stripped)
                 if ok:
-                    return ServiceMetadata(value), True
-                return ServiceMetadata(self.find_nearest_top_level(stripped)), True
+                    return ServiceMetadata(value)
+                return ServiceMetadata(self.find_nearest_top_level(stripped))
 
             if has_flag_prefix and arg == "-m":
                 module_flag = True
 
             prev_arg_is_flag = has_flag_prefix
 
-        return ServiceMetadata(""), False
+        return None
 
     def deduce_package_name(self, fp: pathlib.Path) -> Tuple[str, bool]:
         # Walks the file path until a `__init__.py` is not found.
@@ -119,8 +112,12 @@ class PythonDetector:
 
         return last.name
 
+    def matches(self, command: str) -> bool:
+        # Returns if the command matches the regex pattern for finding python executables / commands.
+        return bool(re.search(self.pattern, command))
 
-def detect_service(args: List[str], detector_classes=[PythonDetector]) -> Optional[str]:
+
+def detect_service(args: List[str]) -> Optional[str]:
     """
     Detects and returns the name of a service based on the provided list of command-line arguments.
 
@@ -137,15 +134,14 @@ def detect_service(args: List[str], detector_classes=[PythonDetector]) -> Option
     Returns:
         Optional[str]: The name of the detected service, or None if no service was detected.
     """
+    detector_classes = [PythonDetector]
 
     if not args:
         return None
 
-    cache_key = ";".join(args)
+    cache_key = tuple(sorted(args))
     if cache_key in CACHE:
         return CACHE.get(cache_key)
-
-    ctx = DetectionContext(os.environ)
 
     # Check both the included command args as well as the executable being run
     possible_commands = [*args, sys.executable]
@@ -154,15 +150,12 @@ def detect_service(args: List[str], detector_classes=[PythonDetector]) -> Option
     # List of detectors to try in order
     detectors = {}
     for detector_class in detector_classes:
-        detector_instance = detector_class(ctx)
+        detector_instance = detector_class(os.environ)
 
-        for i in range(len(possible_commands)):
+        for i, command in enumerate(possible_commands):
             detector_name = detector_instance.name
-            detector_pattern = detector_instance.pattern
 
-            command = possible_commands[i]
-
-            if re.search(detector_pattern, command):
+            if detector_instance.matches(command):
                 detectors.update({detector_name: detector_instance})
                 # append to a list of arg indexes to ignore since they are executables
                 executable_args.add(i)
@@ -172,23 +165,22 @@ def detect_service(args: List[str], detector_classes=[PythonDetector]) -> Option
                 executable_args.add(i)
 
     args_to_search = []
-    for i in range(len(args)):
-        arg = args[i]
+    for i, arg in enumerate(args):
         # skip any executable args
         if i not in executable_args:
             args_to_search.append(arg)
 
     # Iterate through the matched detectors
     for detector in detectors.values():
-        metadata, detected = detector.detect(args_to_search)
-        if detected and metadata.name:
+        metadata = detector.detect(args_to_search)
+        if metadata and metadata.name:
             CACHE[cache_key] = metadata.name
             return metadata.name
     CACHE[cache_key] = None
     return None
 
 
-def _is_executable(file_path):
+def _is_executable(file_path: str) -> bool:
     normalized_path = os.path.normpath(file_path)
     if not os.path.isfile(normalized_path):
         return False
@@ -196,7 +188,7 @@ def _is_executable(file_path):
     # Split the path into directories and check for 'bin'
     directory = os.path.dirname(normalized_path)
     while directory and os.path.dirname(directory) != directory:  # Check to prevent infinite loops
-        if os.path.basename(directory) == "bin":
+        if os.path.basename(directory).endswith("bin"):
             return True
         directory = os.path.dirname(directory)
 

@@ -34,6 +34,7 @@ from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_dict_issuperset
 from tests.utils import flaky
@@ -1502,7 +1503,7 @@ def test_schematized_default_service_name(
     expected_service_name = {
         None: global_service_name or "django",
         "v0": global_service_name or "django",
-        "v1": global_service_name or "ddtrace_subprocess_dir",
+        "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
     code = """
 import pytest
@@ -1551,7 +1552,7 @@ def test_schematized_default_db_service_name(
     expected_service_name = {
         None: "defaultdb",
         "v0": "defaultdb",
-        "v1": global_service_name or "ddtrace_subprocess_dir",
+        "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
     code = """
 import pytest

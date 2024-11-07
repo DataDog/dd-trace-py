@@ -48,6 +48,9 @@ from tests.utils import snapshot_context as _snapshot_context
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
 
+DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
+
+
 # Hack to try and capture more logging data from pytest failing on `internal` jobs on
 # pytest shutdown. This is a temporary workaround until we can figure out... why....
 # https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/68751/workflows/8939123d-e0bf-4fd5-a4f2-2368eb9fc141/jobs/4201092
@@ -160,7 +163,7 @@ def clear_context_after_every_test():
 def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
     # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
     # inferred path service name as a fallback to DD_SERVICE
-    ddtrace_dir = tmpdir.join("ddtrace_subprocess_dir")
+    ddtrace_dir = tmpdir.join(DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
     if not ddtrace_dir.exists():
         ddtrace_dir.mkdir()
 
@@ -326,7 +329,7 @@ def run_function_from_file(item, params=None):
     # Create a temporary dir named `ddtrace_subprocess_dir` that will be used for service naming
     # consistency
     temp_dir = gettempdir()
-    custom_temp_dir = os.path.join(temp_dir, "ddtrace_subprocess_dir")
+    custom_temp_dir = os.path.join(temp_dir, DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
 
     os.makedirs(custom_temp_dir, exist_ok=True)
 

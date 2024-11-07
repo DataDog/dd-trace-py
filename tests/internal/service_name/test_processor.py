@@ -3,6 +3,7 @@ import os
 import pytest
 
 from ddtrace.internal.schema.processor import BaseServiceProcessor
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 
 @pytest.fixture
@@ -14,9 +15,9 @@ def processor():
 @pytest.mark.parametrize("global_service_name", [None, "mysvc"])
 def test_base_service(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
     expected_base_service_name = {
-        None: global_service_name or "ddtrace_subprocess_dir",
-        "v0": global_service_name or "ddtrace_subprocess_dir",
-        "v1": global_service_name or "ddtrace_subprocess_dir",
+        None: global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
+        "v0": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
+        "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
 
     code = """

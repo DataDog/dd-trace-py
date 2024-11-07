@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace.internal.runtime import tag_collectors
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 
 def test_values():
@@ -63,7 +64,12 @@ def test_tracer_tags_config():
 
     assert values is not None
     assert set(values) == set(
-        [("service", "ddtrace_subprocess_dir"), ("env", "my-env"), ("version", "1.5.4"), ("global", "global-tag")]
+        [
+            ("service", DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME),
+            ("env", "my-env"),
+            ("version", "1.5.4"),
+            ("global", "global-tag"),
+        ]
     )
 
 
@@ -96,5 +102,9 @@ def test_tracer_tags_service_from_code():
 
     assert values is not None
     assert set(values) == set(
-        [("service", "new-service"), ("service", "ddtrace_subprocess_dir"), ("service", "my-service")]
+        [
+            ("service", "new-service"),
+            ("service", DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME),
+            ("service", "my-service"),
+        ]
     )

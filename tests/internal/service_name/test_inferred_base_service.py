@@ -48,32 +48,33 @@ def mock_file_system():
         yield base_path
 
 
-def test_python_detector(mock_file_system):
+@pytest.mark.parametrize(
+    "cmd,expected",
+    [
+        ("python modules/m1/first/nice/package", "m1.first.nice.package"),
+        ("python modules/m1/first/nice", "m1.first.nice"),
+        ("python modules/m1/first/nice/something.py", "m1.first.nice"),
+        ("python modules/m1/first", "m1.first"),
+        ("python modules/m2", "m2"),
+        ("python apps/app1", "app1"),
+        ("python apps/app2/cmd/run.py", "app2"),
+        ("python apps/app2/setup.py", "app2"),
+        ("DD_ENV=prod OTHER_ENV_VAR=hi python apps/app2/setup.py", "app2"),
+        ("python3.7 apps/app2/setup.py", "app2"),
+        ("/usr/bin/python3.11 apps/app2/setup.py", "app2"),
+        # Additional Python test cases
+        ("venv/bin/python3.11/ddtrace-run venv/bin/python3.11 apps/app2/setup.py", "app2"),
+        ("venv/bin/python3.11/ddtrace-run python apps/app2/setup.py", "app2"),
+        ("ddtrace-run python apps/app2/setup.py", "app2"),
+        ("python3.12 apps/app2/cmd/run.py", "app2"),
+        ("python -m m1.first.nice.package", "m1.first.nice.package"),
+        ("python -m http.server 8000", "http.server"),
+    ],
+)
+def test_python_detector(cmd, expected, mock_file_system):
     # Mock the current working directory to the test_modules path
     with patch("os.getcwd", return_value=str(mock_file_system)):
-        tests = [
-            # # SSI Test Cases copied over from Injection Code
-            ("python modules/m1/first/nice/package", "m1.first.nice.package"),
-            ("python modules/m1/first/nice", "m1.first.nice"),
-            ("python modules/m1/first/nice/something.py", "m1.first.nice"),
-            ("python modules/m1/first", "m1.first"),
-            ("python modules/m2", "m2"),
-            ("python apps/app1", "app1"),
-            ("python apps/app2/cmd/run.py", "app2"),
-            ("python apps/app2/setup.py", "app2"),
-            ("DD_ENV=prod OTHER_ENV_VAR=hi python apps/app2/setup.py", "app2"),
-            ("python3.7 apps/app2/setup.py", "app2"),
-            ("/usr/bin/python3.11 apps/app2/setup.py", "app2"),
-            # Additional Python test cases
-            ("venv/bin/python3.11/ddtrace-run venv/bin/python3.11 apps/app2/setup.py", "app2"),
-            ("venv/bin/python3.11/ddtrace-run python apps/app2/setup.py", "app2"),
-            ("ddtrace-run python apps/app2/setup.py", "app2"),
-            ("python3.12 apps/app2/cmd/run.py", "app2"),
-            ("python -m m1.first.nice.package", "m1.first.nice.package"),
-            ("python -m http.server 8000", "http.server"),
-        ]
+        cmd_parts = cmd.split(" ")
+        detected_name = detect_service(cmd_parts)
 
-        for cmd, expected in tests:
-            cmd_parts = cmd.split(" ")
-            detected_name = detect_service(cmd_parts)
-            assert detected_name == expected, f"Test failed for command: [{cmd}]"
+        assert detected_name == expected, f"Test failed for command: [{cmd}]"

@@ -11,6 +11,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.asgi import span_from_scope
 from ddtrace.propagation import http as http_propagation
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import DummyTracer
 from tests.utils import override_http_config
 
@@ -238,7 +239,7 @@ if __name__ == "__main__":
     [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
 )
 def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
-    inferred_base_service = "ddtrace_subprocess_dir"
+    inferred_base_service = DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
     expected_service_name = {
         None: global_service_name or inferred_base_service,
         "v0": global_service_name or inferred_base_service,
