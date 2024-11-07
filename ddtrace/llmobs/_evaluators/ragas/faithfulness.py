@@ -203,7 +203,7 @@ class RagasFaithfulnessEvaluator:
             None,
             None,
             None,
-            {},
+            {"_dd.evaluation_kind": "faithfulness"},
         )
 
         with self.llmobs_service.workflow(
@@ -235,7 +235,9 @@ class RagasFaithfulnessEvaluator:
                     logger.debug("Failed to create faithfulness list `ragas_faithfulness` evaluator")
                     return "statements_create_faithfulness_list", evaluation_metadata
 
-                evaluation_metadata["_dd.faithfulness_list"] = faithfulness_list.dicts()
+                evaluation_metadata["_dd.faithfulness_list"] = [
+                    {"answer_quote": answer.statement} for answer in faithfulness_list.__root__ if answer.verdict == 0
+                ]
 
                 score = self._compute_score(faithfulness_list)
                 if math.isnan(score):
