@@ -205,7 +205,7 @@ class AWSPayloadTagging:
             span.set_tag(key, str(obj)[:5000])  # at the maximum depth - set the tag without further expansion
             return
         depth += 1
-        if self._should_try_string(obj):
+        if self._should_json_parse(obj):
             try:
                 parsed = json.loads(obj)
                 self._tag_object(span, key, parsed, depth)
