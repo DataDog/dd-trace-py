@@ -22,7 +22,7 @@ class ServiceMetadata:
 
 
 class PythonDetector:
-    def __init__(self, environ: os._Environ[str]):
+    def __init__(self, environ: Dict[str, str]):
         self.environ = environ
         self.name = "python"
 
@@ -150,7 +150,7 @@ def detect_service(args: List[str]) -> Optional[str]:
     # List of detectors to try in order
     detectors = {}
     for detector_class in detector_classes:
-        detector_instance = detector_class(os.environ)
+        detector_instance = detector_class(dict(os.environ))
 
         for i, command in enumerate(possible_commands):
             detector_name = detector_instance.name
