@@ -3894,9 +3894,163 @@ class BotocoreTest(TracerTestCase):
             assert msg_attr.get("_datadog") is None
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @mock_sns
+    @mock_sqs
+    def test_aws_payload_tagging_sns_valid_config(self):
+        with self.override_config(
+            "botocore",
+            dict(
+                payload_tagging_request="$..PublishBatchRequestEntries.[*].Message,$..PublishBatchRequestEntries.[*].Id",
+                payload_tagging_response="$..HTTPHeaders.*",
+            ),
+        ):
+            region = "us-east-1"
+            sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+
+            topic = sns.create_topic(Name="testTopic")
+
+            topic_arn = topic["TopicArn"]
+            sqs_url = self.sqs_test_queue["QueueUrl"]
+            url_parts = sqs_url.split("/")
+            sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+
+            message_attributes = {
+                "one": {"DataType": "String", "StringValue": "one"},
+                "two": {"DataType": "String", "StringValue": "two"},
+                "three": {"DataType": "String", "StringValue": "three"},
+                "f.our": {"DataType": "String", "StringValue": "four"},
+                "five": {"DataType": "String", "StringValue": "five"},
+                "six": {"DataType": "String", "StringValue": "six"},
+                "seven": {"DataType": "String", "StringValue": "seven"},
+                "eight": {"DataType": "String", "StringValue": "eight"},
+                "nine": {"DataType": "String", "StringValue": "nine"},
+                "ten": {"DataType": "String", "StringValue": "ten"},
+            }
+            entries = [
+                {"Id": "1", "Message": "ironmaiden", "MessageAttributes": message_attributes},
+                {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
+            ]
+            sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+            spans = self.get_spans()
+
+            # get SNS messages via SQS
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+
+            # clean up resources
+            sns.delete_topic(TopicArn=topic_arn)
+
+            # check if the appropriate span was generated
+            assert spans
+            span = spans[0]
+            assert len(spans) == 2
+            assert span.get_tag("aws.region") == region
+            assert span.get_tag("region") == region
+            assert span.get_tag("aws.operation") == "PublishBatch"
+            assert span.get_tag("params.MessageBody") is None
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 200)
+            assert span.service == "test-botocore-tracing.sns"
+            assert span.resource == "sns.publishbatch"
+            trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
+            assert trace_json is None
+
+            # receive message using SQS and ensure headers are present
+            assert response.get("Messages"), response
+            assert len(response["Messages"]) == 1
+            msg = response["Messages"][0]
+            assert msg is not None
+            msg_body = json.loads(msg["Body"])
+            msg_str = msg_body["Message"]
+            assert msg_str == "ironmaiden"
+            msg_attr = msg_body["MessageAttributes"]
+            assert msg_attr.get("_datadog") is None
+
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
+            s3 = self.session.create_client("s3", region_name="us-west-2")
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
+
+            s3.list_buckets()
+            s3.list_buckets()
+
+            spans = self.get_spans()
+            assert spans
+            span = spans[0]
+            assert len(spans) == 2
+            assert_is_measured(span)
+            assert span.get_tag("aws.operation") == "ListBuckets"
+            assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
+            assert_span_http_status_code(span, 200)
+            assert span.service == "test-botocore-tracing.s3"
+            assert span.resource == "s3.listbuckets"
+
+            assert not span._links, "no links, i.e. no span pointers"
+
+            # testing for span error
+            self.reset()
+            try:
+                s3.list_objects(bucket="mybucket")
+            except Exception:
+                spans = self.get_spans()
+                assert spans
+                span = spans[0]
+                assert span.error == 1
+                assert span.resource == "s3.listobjects"
+
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @mock_s3
+    def test_aws_payload_tagging_s3_invalid_config(self):
+        with self.override_config(
+            "botocore",
+            dict(payload_tagging_request="non_json_path", payload_tagging_response="$..Attr ibutes.PlatformCredential"),
+        ):
+            s3 = self.session.create_client("s3", region_name="us-west-2")
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
+
+            s3.list_buckets()
+            s3.list_buckets()
+
+            spans = self.get_spans()
+            assert spans
+            span = spans[0]
+            assert len(spans) == 2
+            assert_is_measured(span)
+            assert span.get_tag("aws.operation") == "ListBuckets"
+            assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
+            assert_span_http_status_code(span, 200)
+            assert span.service == "test-botocore-tracing.s3"
+            assert span.resource == "s3.listbuckets"
+
+            assert not span._links, "no links, i.e. no span pointers"
+
+            # testing for span error
+            self.reset()
+            try:
+                s3.list_objects(bucket="mybucket")
+            except Exception:
+                spans = self.get_spans()
+                assert spans
+                span = spans[0]
+                assert span.error == 1
+                assert span.resource == "s3.listobjects"
+
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @mock_s3
+    def test_aws_payload_tagging_s3_valid_config(self):
+        with self.override_config(
+            "botocore", dict(payload_tagging_request="$..bucket", payload_tagging_response="$..HTTPHeaders")
+        ):
             s3 = self.session.create_client("s3", region_name="us-west-2")
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
 
