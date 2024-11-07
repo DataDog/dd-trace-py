@@ -35,9 +35,8 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         if params and not config.botocore["tag_no_params"]:
             aws._add_api_param_span_tags(span, endpoint_name, params)
 
-        if (
-            config.botocore["payload_tagging_request"]
-            and endpoint_name in config.botocore.get("payload_tagging_services")
+        if config.botocore["payload_tagging_request"] and endpoint_name in config.botocore.get(
+            "payload_tagging_services"
         ):
             _PAYLOAD_TAGGER.expand_payload_as_tags(span, params, "aws.request.body")
 
@@ -64,9 +63,8 @@ def set_botocore_response_metadata_tags(
         return
     response_meta = result["ResponseMetadata"]
 
-    if (
-        config.botocore["payload_tagging_response"]
-        and span.get_tag("aws_service") in config.botocore.get("payload_tagging_services")
+    if config.botocore["payload_tagging_response"] and span.get_tag("aws_service") in config.botocore.get(
+        "payload_tagging_services"
     ):
         _PAYLOAD_TAGGER.expand_payload_as_tags(span, response_meta, "aws.response.body")
 
