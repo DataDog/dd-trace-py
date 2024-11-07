@@ -1,3 +1,5 @@
+import logging
+import sys
 from typing import Any
 import uuid
 
@@ -182,3 +184,10 @@ def get_triggers(span) -> Any:
         except Exception:
             log.debug("Failed to parse triggers", exc_info=True)
     return None
+
+
+def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
+    if sys.version_info < (3, 8):
+        return msg
+    filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
+    return f"{msg}[{filename}, line {line_number}, in {function_name}]"
