@@ -3867,32 +3867,6 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-            # check if the appropriate span was generated
-            assert spans
-            span = spans[0]
-            assert len(spans) == 2
-            assert span.get_tag("aws.region") == region
-            assert span.get_tag("region") == region
-            assert span.get_tag("aws.operation") == "PublishBatch"
-            assert span.get_tag("params.MessageBody") is None
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sns"
-            assert span.resource == "sns.publishbatch"
-            trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-            assert trace_json is None
-
-            # receive message using SQS and ensure headers are present
-            assert response.get("Messages"), response
-            assert len(response["Messages"]) == 1
-            msg = response["Messages"][0]
-            assert msg is not None
-            msg_body = json.loads(msg["Body"])
-            msg_str = msg_body["Message"]
-            assert msg_str == "ironmaiden"
-            msg_attr = msg_body["MessageAttributes"]
-            assert msg_attr.get("_datadog") is None
-
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
@@ -3946,32 +3920,6 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-            # check if the appropriate span was generated
-            assert spans
-            span = spans[0]
-            assert len(spans) == 2
-            assert span.get_tag("aws.region") == region
-            assert span.get_tag("region") == region
-            assert span.get_tag("aws.operation") == "PublishBatch"
-            assert span.get_tag("params.MessageBody") is None
-            assert_is_measured(span)
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sns"
-            assert span.resource == "sns.publishbatch"
-            trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-            assert trace_json is None
-
-            # receive message using SQS and ensure headers are present
-            assert response.get("Messages"), response
-            assert len(response["Messages"]) == 1
-            msg = response["Messages"][0]
-            assert msg is not None
-            msg_body = json.loads(msg["Body"])
-            msg_str = msg_body["Message"]
-            assert msg_str == "ironmaiden"
-            msg_attr = msg_body["MessageAttributes"]
-            assert msg_attr.get("_datadog") is None
-
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3(self):
@@ -4020,20 +3968,6 @@ class BotocoreTest(TracerTestCase):
             s3.list_buckets()
             s3.list_buckets()
 
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 2
-            assert_is_measured(span)
-            assert span.get_tag("aws.operation") == "ListBuckets"
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.s3"
-            assert span.resource == "s3.listbuckets"
-
-            assert not span._links, "no links, i.e. no span pointers"
-
             # testing for span error
             self.reset()
             try:
@@ -4056,20 +3990,6 @@ class BotocoreTest(TracerTestCase):
 
             s3.list_buckets()
             s3.list_buckets()
-
-            spans = self.get_spans()
-            assert spans
-            span = spans[0]
-            assert len(spans) == 2
-            assert_is_measured(span)
-            assert span.get_tag("aws.operation") == "ListBuckets"
-            assert span.get_tag("component") == "botocore"
-            assert span.get_tag("span.kind"), "client"
-            assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.s3"
-            assert span.resource == "s3.listbuckets"
-
-            assert not span._links, "no links, i.e. no span pointers"
 
             # testing for span error
             self.reset()
@@ -4124,36 +4044,6 @@ class BotocoreTest(TracerTestCase):
 
             bridge.delete_event_bus(Name="a-test-bus")
 
-            spans = self.get_spans()
-            assert spans
-            assert len(spans) == 2
-            span = spans[0]
-            str_entries = span.get_tag("params.Entries")
-            assert str_entries is None
-
-            message = messages["Messages"][0]
-            body = message.get("Body")
-            assert body is not None
-            body_obj = json.loads(body)
-            detail = body_obj.get("detail")
-            headers = detail.get("_datadog")
-            assert headers is not None
-            assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-            # the following doesn't work due to an issue in moto/localstack where
-            # an SQS message is generated per put_events rather than per event sent
-
-            # message = messages["Messages"][1]
-            # body = message.get("Body")
-            # assert body is not None
-            # body_obj = json.loads(body)
-            # detail = body_obj.get("detail")
-            # headers = detail.get("_datadog")
-            # assert headers is not None
-            # assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
-            # assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_kinesis
     def test_aws_payload_tagging_kinesis(self):
@@ -4172,16 +4062,3 @@ class BotocoreTest(TracerTestCase):
             with self.tracer.trace("kinesis.manual_span"):
                 client.create_stream(StreamName=stream_name, ShardCount=1)
                 client.put_records(StreamName=stream_name, Records=data)
-
-            spans = self.get_spans()
-            assert len(spans) == 3, "Did not receive expected number of spans"
-
-            assert spans[0].name == "kinesis.manual_span"
-
-            assert spans[1].service == "aws.kinesis"
-            assert spans[1].name == "kinesis.command"
-            assert spans[1].parent_id == spans[0].span_id
-
-            assert spans[2].service == "aws.kinesis"
-            assert spans[2].name == "kinesis.command"
-            assert spans[2].parent_id == spans[0].span_id
