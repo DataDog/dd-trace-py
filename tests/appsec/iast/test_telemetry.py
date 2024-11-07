@@ -3,11 +3,12 @@ import pytest
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._constants import TELEMETRY_DEBUG_VERBOSITY
+from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
+from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
+from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_django_patch
-from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
-from ddtrace.appsec._iast._metrics import TELEMETRY_INFORMATION_VERBOSITY
-from ddtrace.appsec._iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._patch_modules import patch_iast
@@ -29,7 +30,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -61,15 +61,12 @@ def _assert_instrumented_sink(telemetry_writer, vuln_type):
     ],
 )
 def test_metric_verbosity(lvl, env_lvl, expected_result):
-    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY=env_lvl)):
+    with override_global_config(dict(_iast_telemetry_report_lvl=env_lvl)):
         assert metric_verbosity(lvl)(lambda: 1)() == expected_result
 
 
-@pytest.mark.skip_iast_check_logs
 def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
-    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
-        dict(_iast_enabled=True)
-    ):
+    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         patch_iast()
 
         tracer = DummyTracer(iast_enabled=True)
@@ -99,9 +96,7 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
 
 
 def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
-    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
-        dict(_iast_enabled=True)
-    ):
+    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         cmdi_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_CMDI)
@@ -110,9 +105,7 @@ def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
 def test_metric_instrumented_path_traversal(no_request_sampling, telemetry_writer):
     # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
     unpatch_common_modules()
-    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
-        dict(_iast_enabled=True)
-    ):
+    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         patch_common_modules()
 
     _assert_instrumented_sink(telemetry_writer, VULN_PATH_TRAVERSAL)
@@ -121,36 +114,28 @@ def test_metric_instrumented_path_traversal(no_request_sampling, telemetry_write
 def test_metric_instrumented_header_injection(no_request_sampling, telemetry_writer):
     # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
     header_injection_unpatch()
-    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
-        dict(_iast_enabled=True)
-    ):
+    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         header_injection_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_HEADER_INJECTION)
 
 
 def test_metric_instrumented_sqli_sqlite3(no_request_sampling, telemetry_writer):
-    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
-        dict(_iast_enabled=True)
-    ):
+    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         sqli_sqlite3_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_SQL_INJECTION)
 
 
 def test_metric_instrumented_sqli_sqlalchemy_patch(no_request_sampling, telemetry_writer):
-    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
-        dict(_iast_enabled=True)
-    ):
+    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         sqli_sqlalchemy_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_SQL_INJECTION)
 
 
 def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
-    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
-        dict(_iast_enabled=True)
-    ):
+    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
     metrics_result = telemetry_writer._namespace._metrics_data
@@ -162,8 +147,8 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
 
 
 def test_metric_request_tainted(no_request_sampling, telemetry_writer):
-    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
-        dict(_iast_enabled=True, _iast_request_sampling=100.0)
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_request_sampling=100.0, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)
     ):
         oce.reconfigure()
         tracer = DummyTracer(iast_enabled=True)

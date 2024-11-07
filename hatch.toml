@@ -410,10 +410,10 @@ template = "pytest_plugin_v2"
 dependencies = [
     "httpx",
     "msgpack",
-    "pytest",
-    "pytest-cov",  # only used so --no-cov can be passed (conflicts with setup.cfg otherwise)
     "requests",
     "hypothesis",
+    "pytest{matrix:pytest}",
+    "pytest-cov"
 ]
 
 [envs.pytest_plugin_v2.env-vars]
@@ -428,16 +428,17 @@ test = [
 ]
 
 [[envs.pytest_plugin_v2.matrix]]
-python = ["3.7", "3.9"]
-pytest = ["~=6.0", "latest"]
+python = ["3.7"]
+pytest = ["~=6.0", "~=7.0"]
 
 
 [[envs.pytest_plugin_v2.matrix]]
-python = ["3.10", "3.12"]
-pytest = ["~=6.0", "~=7.0", "latest"]
+python = ["3.9", "3.10", "3.12"]
+pytest = ["~=6.0", "~=7.0", "~=8.0"]
 
 [envs.snapshot_viewer]
 dev-mode = false
+detached = true
 template = "snapshot_viewer"
 dependencies = [
     "PrettyPrintTree"

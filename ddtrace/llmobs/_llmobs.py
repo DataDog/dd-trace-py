@@ -124,26 +124,14 @@ class LLMObs(Service):
         self._evaluator_runner = self._evaluator_runner.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
         self._trace_processor._evaluator_runner = self._evaluator_runner
-        tracer_filters = self.tracer._filters
-        if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [self._trace_processor]
-        self.tracer.configure(settings={"FILTERS": tracer_filters})
-        try:
-            self._llmobs_span_writer.start()
-            self._llmobs_eval_metric_writer.start()
-        except ServiceStatusError:
-            log.debug("Error starting LLMObs writers after fork")
-
-        try:
-            self._evaluator_runner.start()
-        except ServiceStatusError:
-            log.debug("Error starting evaluator runner after fork")
+        if self.enabled:
+            self._start_service()
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
             tracer_filters += [self._trace_processor]
-        self.tracer.configure(settings={"FILTERS": tracer_filters})
+            self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
             self._llmobs_eval_metric_writer.start()
@@ -157,15 +145,18 @@ class LLMObs(Service):
 
     def _stop_service(self) -> None:
         try:
+            self._evaluator_runner.stop()
+            # flush remaining evaluation spans & evaluations
+            self._instance._llmobs_span_writer.periodic()
+            self._instance._llmobs_eval_metric_writer.periodic()
+        except ServiceStatusError:
+            log.debug("Error stopping evaluator runner")
+
+        try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
-
-        try:
-            self._evaluator_runner.stop()
-        except ServiceStatusError:
-            log.debug("Error stopping evaluator runner")
 
         try:
             forksafe.unregister(self._child_after_fork)
@@ -245,6 +236,7 @@ class LLMObs(Service):
 
         if integrations_enabled:
             cls._patch_integrations()
+
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=_tracer)
         cls.enabled = True
@@ -269,8 +261,8 @@ class LLMObs(Service):
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
 
-        cls.enabled = False
         cls._instance.stop()
+        cls.enabled = False
         cls._instance.tracer.deregister_on_start_span(cls._instance._do_annotations)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
@@ -289,7 +281,12 @@ class LLMObs(Service):
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
-                        This argument is only applicable to LLM spans.
+                        - This argument is only applicable to LLM spans.
+                        - The dictionary may contain two optional keys relevant to RAG applications:
+                            `rag_context_variables` - a list of variable key names that contain ground
+                                                        truth context information
+                            `rag_query_variables` - a list of variable key names that contains query
+                                                        information for an LLM call
         :param name: Set to override the span name for any spans annotated within the returned context.
         """
         # id to track an annotation for registering / de-registering
@@ -335,6 +332,12 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")
             return
+
+        try:
+            cls._instance._evaluator_runner.periodic()
+        except Exception:
+            log.warning("Failed to run evaluator runner.", exc_info=True)
+
         try:
             cls._instance._llmobs_span_writer.periodic()
             cls._instance._llmobs_eval_metric_writer.periodic()
@@ -577,7 +580,12 @@ class LLMObs(Service):
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
-                        This argument is only applicable to LLM spans.
+                        - This argument is only applicable to LLM spans.
+                        - The dictionary may contain two optional keys relevant to RAG applications:
+                            `rag_context_variables` - a list of variable key names that contain ground
+                                                        truth context information
+                            `rag_query_variables` - a list of variable key names that contains query
+                                                        information for an LLM call
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.

@@ -2819,6 +2819,9 @@ venv = Venv(
             command="pytest {cmdargs} tests/llmobs",
             pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
             pys=select_pys(min_version="3.7"),
+            venvs=[
+                Venv(pys=select_pys(min_version="3.8"), pkgs={"ragas": "==0.1.21", "langchain": latest}),
+            ],
         ),
         Venv(
             name="profile",
@@ -2944,6 +2947,7 @@ venv = Venv(
                 # Python 3.12
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
@@ -3090,6 +3094,7 @@ venv = Venv(
                 # Python 3.12
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={

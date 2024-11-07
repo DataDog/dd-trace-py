@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import os
+from pathlib import Path
 import signal
 import subprocess
 import sys
@@ -10,23 +11,11 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.vendor import psutil
+from tests.utils import _build_env
 from tests.webclient import Client
 
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-
-def _build_env(env=None):
-    environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
-    if os.environ.get("PATH"):
-        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
-    if os.environ.get("PYTHONPATH"):
-        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
-    if env:
-        for k, v in env.items():
-            environ[k] = v
-    return environ
+FILE_PATH = Path(__file__).resolve().parent
 
 
 @contextmanager
@@ -65,6 +54,7 @@ def flask_server(
     env=None,
     port=8000,
     assert_debug=False,
+    manual_propagation_debug=False,
 ):
     cmd = [python_cmd, app, "--no-reload"]
     yield from appsec_application_server(
@@ -78,6 +68,7 @@ def flask_server(
         env=env,
         port=port,
         assert_debug=assert_debug,
+        manual_propagation_debug=manual_propagation_debug,
     )
 
 
@@ -92,8 +83,9 @@ def appsec_application_server(
     env=None,
     port=8000,
     assert_debug=False,
+    manual_propagation_debug=False,
 ):
-    env = _build_env(env)
+    env = _build_env(env, file_path=FILE_PATH)
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
@@ -124,8 +116,9 @@ def appsec_application_server(
         "stderr": sys.stderr,
     }
     if assert_debug:
-        subprocess_kwargs["stdout"] = subprocess.PIPE
-        subprocess_kwargs["stderr"] = subprocess.PIPE
+        if not manual_propagation_debug:
+            subprocess_kwargs["stdout"] = subprocess.PIPE
+            subprocess_kwargs["stderr"] = subprocess.PIPE
         subprocess_kwargs["text"] = True
 
     server_process = subprocess.Popen(cmd, **subprocess_kwargs)

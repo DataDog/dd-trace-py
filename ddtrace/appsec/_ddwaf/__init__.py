@@ -102,6 +102,10 @@ if _DDWAF_LOADED:
             obfuscation_parameter_key_regexp: bytes,
             obfuscation_parameter_value_regexp: bytes,
         ):
+            # avoid circular import
+            from ddtrace.appsec._metrics import _set_waf_error_log
+
+            self.report_error = _set_waf_error_log
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
@@ -109,7 +113,7 @@ if _DDWAF_LOADED:
             ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
             self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(diagnostics))
             self._cached_version = ""
-            self._set_info(diagnostics)
+            self._set_info(diagnostics, "init")
             info = self.info
             if not self._handle or info.failed:
                 # We keep the handle alive in case of errors, as some valid rules can be loaded
@@ -126,12 +130,20 @@ if _DDWAF_LOADED:
         def required_data(self) -> List[str]:
             return py_ddwaf_known_addresses(self._handle) if self._handle else []
 
-        def _set_info(self, diagnostics: ddwaf_object) -> None:
+        def _set_info(self, diagnostics: ddwaf_object, action: str) -> None:
             info_struct: dict[str, Any] = diagnostics.struct or {}  # type: ignore
             rules = info_struct.get("rules", {})
             errors_result = rules.get("errors", {})
             version = info_struct.get("ruleset_version", self._cached_version)
             self._cached_version = version
+            for key, value in info_struct.items():
+                if isinstance(value, dict):
+                    if value.get("error", False):
+                        self.report_error(f"appsec.waf.error::{action}::{key}::{value['error']}", self._cached_version)
+                    elif value.get("errors", False):
+                        self.report_error(
+                            f"appsec.waf.error::{action}::{key}::{str(value['errors'])}", self._cached_version, False
+                        )
             self._info = DDWaf_info(
                 len(rules.get("loaded", [])),
                 len(rules.get("failed", [])),
@@ -149,7 +161,7 @@ if _DDWAF_LOADED:
             rules = ddwaf_object.create_without_limits(new_rules)
             diagnostics = ddwaf_object()
             result = py_ddwaf_update(self._handle, rules, diagnostics)
-            self._set_info(diagnostics)
+            self._set_info(diagnostics, "update")
             ddwaf_object_free(rules)
             if result:
                 LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
@@ -189,6 +201,7 @@ if _DDWAF_LOADED:
             error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result), int(timeout_ms * 1000))
             if error < 0:
                 LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
+                self.report_error(f"appsec.waf.request::error::{error}", self._cached_version)
             if error == DDWAF_ERR_INTERNAL:
                 # result is not valid
                 return DDWaf_result(error, [], {}, 0, 0, False, 0, {})

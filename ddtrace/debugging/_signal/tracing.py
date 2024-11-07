@@ -7,16 +7,12 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
-from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
-from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationMixin
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
-from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
@@ -36,16 +32,12 @@ class DynamicSpan(Signal):
     _span_cm: t.Optional[Span] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
+        super().__post_init__()
+
         self._span_cm = None
 
-    def enter(self) -> None:
-        probe = self.probe
-        if not isinstance(probe, SpanFunctionProbe):
-            log.debug("Dynamic span entered with non-span probe: %s", self.probe)
-            return
-
-        if not self._eval_condition(self.args):
-            return
+    def enter(self, scope: t.Mapping[str, t.Any]) -> None:
+        probe = t.cast(SpanFunctionProbe, self.probe)
 
         self._span_cm = ddtrace.tracer.trace(
             SPAN_NAME,
@@ -59,18 +51,12 @@ class DynamicSpan(Signal):
         span.set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)
         span.set_tag_str(ORIGIN_KEY, "di")
 
-        self.state = SignalState.DONE
-
-    def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float) -> None:
-        if not isinstance(self.probe, SpanFunctionProbe):
-            log.debug("Dynamic span exited with non-span probe: %s", self.probe)
-            return
-
+    def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float, scope: t.Mapping[str, t.Any]) -> None:
         if self._span_cm is not None:
             # Condition evaluated to true so we created a span. Finish it.
             self._span_cm.__exit__(*exc_info)
 
-    def line(self):
+    def line(self, scope):
         raise NotImplementedError("Dynamic line spans are not supported in Python")
 
 
@@ -111,36 +97,14 @@ class SpanDecoration(LogSignal):
                         span.set_tag_str(tag.name, tag_value if _isinstance(tag_value, str) else serialize(tag_value))
                         span.set_tag_str("_dd.di.%s.probe_id" % tag.name, t.cast(Probe, probe).probe_id)
 
-    def enter(self) -> None:
-        probe = self.probe
-        if not isinstance(probe, SpanDecorationFunctionProbe):
-            log.debug("Span decoration entered with non-span decoration probe: %s", self.probe)
-            return
+    def enter(self, scope: t.Mapping[str, t.Any]) -> None:
+        self._decorate_span(scope)
 
-        if probe.evaluate_at is ProbeEvaluateTimingForMethod.ENTER:
-            self._decorate_span(self.args)
-            self.state = SignalState.DONE
+    def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float, scope: t.Mapping[str, t.Any]) -> None:
+        self._decorate_span(scope)
 
-    def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float) -> None:
-        probe = self.probe
-
-        if not isinstance(probe, SpanDecorationFunctionProbe):
-            log.debug("Span decoration exited with non-span decoration probe: %s", self.probe)
-            return
-
-        if probe.evaluate_at is ProbeEvaluateTimingForMethod.EXIT:
-            self._decorate_span(self.get_full_scope(retval, exc_info, duration))
-            self.state = SignalState.DONE
-
-    def line(self):
-        probe = self.probe
-        if not isinstance(probe, SpanDecorationLineProbe):
-            log.debug("Span decoration on line with non-span decoration probe: %s", self.probe)
-            return
-
-        self._decorate_span(self.frame.f_locals)
-
-        self.state = SignalState.DONE
+    def line(self, scope: t.Mapping[str, t.Any]):
+        self._decorate_span(scope)
 
     @property
     def message(self):

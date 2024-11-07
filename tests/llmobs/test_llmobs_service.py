@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import time
 
 import mock
 import pytest
@@ -25,6 +26,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -775,6 +777,31 @@ def test_annotate_prompt_dict(LLMObs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        }
+
+
+def test_annotate_prompt_dict_with_context_var_keys(LLMObs):
+    with LLMObs.llm(model_name="test_model") as span:
+        LLMObs.annotate(
+            span=span,
+            prompt={
+                "template": "{var1} {var3}",
+                "variables": {"var1": "var1", "var2": "var3"},
+                "version": "1.0.0",
+                "id": "test_prompt",
+                "rag_context_variables": ["var1", "var2"],
+                "rag_query_variables": ["user_input"],
+            },
+        )
+        assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+            "template": "{var1} {var3}",
+            "variables": {"var1": "var1", "var2": "var3"},
+            "version": "1.0.0",
+            "id": "test_prompt",
+            "_dd_context_variable_keys": ["var1", "var2"],
+            "_dd_query_variable_keys": ["user_input"],
         }
 
 
@@ -787,6 +814,8 @@ def test_annotate_prompt_typed_dict(LLMObs):
                 variables={"var1": "var1", "var2": "var3"},
                 version="1.0.0",
                 id="test_prompt",
+                rag_context_variables=["var1", "var2"],
+                rag_query_variables=["user_input"],
             ),
         )
         assert json.loads(span.get_tag(INPUT_PROMPT)) == {
@@ -794,6 +823,8 @@ def test_annotate_prompt_typed_dict(LLMObs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "_dd_context_variable_keys": ["var1", "var2"],
+            "_dd_query_variable_keys": ["user_input"],
         }
 
 
@@ -1353,37 +1384,46 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
 
 
 def test_flush_calls_periodic_agentless(
-    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer
+    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner
 ):
     AgentlessLLMObs.flush()
     mock_llmobs_span_agentless_writer.periodic.assert_called_once()
     mock_llmobs_eval_metric_writer.periodic.assert_called_once()
+    mock_llmobs_evaluator_runner.periodic.assert_called_once()
 
 
-def test_flush_does_not_call_period_when_llmobs_is_disabled(
-    LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_logs
+def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
+    LLMObs,
+    mock_llmobs_span_writer,
+    mock_llmobs_eval_metric_writer,
+    mock_llmobs_evaluator_runner,
+    mock_logs,
+    disabled_llmobs,
 ):
-    LLMObs.disable()
     LLMObs.flush()
     mock_llmobs_span_writer.periodic.assert_not_called()
     mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_llmobs_evaluator_runner.periodic.assert_not_called()
     mock_logs.warning.assert_has_calls(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
-    LLMObs.enable()
 
 
-def test_flush_does_not_call_period_when_llmobs_is_disabled_agentless(
-    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, mock_logs
+def test_flush_does_not_call_periodic_when_llmobs_is_disabled_agentless(
+    AgentlessLLMObs,
+    mock_llmobs_span_agentless_writer,
+    mock_llmobs_eval_metric_writer,
+    mock_llmobs_evaluator_runner,
+    mock_logs,
+    disabled_llmobs,
 ):
-    AgentlessLLMObs.disable()
     AgentlessLLMObs.flush()
     mock_llmobs_span_agentless_writer.periodic.assert_not_called()
     mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_llmobs_evaluator_runner.periodic.assert_not_called()
     mock_logs.warning.assert_has_calls(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
-    AgentlessLLMObs.enable()
 
 
 def test_inject_distributed_headers_llmobs_disabled_does_nothing(LLMObs, mock_logs):
@@ -1574,7 +1614,7 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluato
 
 def test_llmobs_fork_create_span(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
-    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
+    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", "5.0")
     with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
         pid = os.fork()
@@ -1684,6 +1724,80 @@ def test_llmobs_fork_custom_filter(monkeypatch):
         llmobs_service.disable()
 
 
+def test_llmobs_fork_disabled(monkeypatch):
+    """Test that after being disabled the service remains disabled when forking"""
+    monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
+    svc = llmobs_service(tracer=DummyTracer())
+    pid = os.fork()
+    assert not svc.enabled, "both the parent and child should be disabled"
+    assert svc._llmobs_span_writer.status == ServiceStatus.STOPPED
+    assert svc._llmobs_eval_metric_writer.status == ServiceStatus.STOPPED
+    if not pid:
+        svc.disable()
+        os._exit(12)
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+    svc.disable()
+
+
+def test_llmobs_fork_disabled_then_enabled(monkeypatch):
+    """Test that after being initially disabled, the service can be enabled in a fork"""
+    monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
+    svc = llmobs_service._instance
+    pid = os.fork()
+    assert not svc.enabled, "both the parent and child should be disabled"
+    assert svc._llmobs_span_writer.status == ServiceStatus.STOPPED
+    assert svc._llmobs_eval_metric_writer.status == ServiceStatus.STOPPED
+    if not pid:
+        # Enable the service in the child
+        with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+            monkeypatch.setenv("DD_LLMOBS_ENABLED", "1")
+            llmobs_service.enable(_tracer=DummyTracer())
+        svc = llmobs_service._instance
+        assert svc._llmobs_span_writer.status == ServiceStatus.RUNNING
+        assert svc._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
+        svc.disable()
+        os._exit(12)
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+    svc.disable()
+
+
+def test_llmobs_with_evaluator_runner(LLMObs, mock_llmobs_evaluator_runner):
+    with LLMObs.llm(model_name="test_model"):
+        pass
+    time.sleep(0.1)
+    assert LLMObs._instance._evaluator_runner.enqueue.call_count == 1
+
+
+def test_llmobs_with_evaluator_runner_does_not_enqueue_evaluation_spans(mock_llmobs_evaluator_runner, LLMObs):
+    with LLMObs.llm(model_name="test_model", ml_app="{}-dummy".format(RAGAS_ML_APP_PREFIX)):
+        pass
+    time.sleep(0.1)
+    assert LLMObs._instance._evaluator_runner.enqueue.call_count == 0
+
+
+def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmobs_evaluator_runner, LLMObs):
+    with LLMObs.workflow(name="test"):
+        pass
+    with LLMObs.agent(name="test"):
+        pass
+    with LLMObs.task(name="test"):
+        pass
+    with LLMObs.embedding(model_name="test"):
+        pass
+    with LLMObs.retrieval(name="test"):
+        pass
+    with LLMObs.tool(name="test"):
+        pass
+    time.sleep(0.1)
+    assert LLMObs._instance._evaluator_runner.enqueue.call_count == 0
+
+
 def test_annotation_context_modifies_span_tags(LLMObs):
     with LLMObs.annotation_context(tags={"foo": "bar"}):
         with LLMObs.agent(name="test_agent") as span:
@@ -1693,7 +1807,11 @@ def test_annotation_context_modifies_span_tags(LLMObs):
 def test_annotation_context_modifies_prompt(LLMObs):
     with LLMObs.annotation_context(prompt={"template": "test_template"}):
         with LLMObs.llm(name="test_agent", model_name="test") as span:
-            assert json.loads(span.get_tag(INPUT_PROMPT)) == {"template": "test_template"}
+            assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+                "template": "test_template",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            }
 
 
 def test_annotation_context_modifies_name(LLMObs):
@@ -1832,7 +1950,11 @@ async def test_annotation_context_async_modifies_span_tags(LLMObs):
 async def test_annotation_context_async_modifies_prompt(LLMObs):
     async with LLMObs.annotation_context(prompt={"template": "test_template"}):
         with LLMObs.llm(name="test_agent", model_name="test") as span:
-            assert json.loads(span.get_tag(INPUT_PROMPT)) == {"template": "test_template"}
+            assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+                "template": "test_template",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            }
 
 
 async def test_annotation_context_async_modifies_name(LLMObs):
