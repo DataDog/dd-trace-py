@@ -235,8 +235,8 @@ def finalize_asm_env(env: ASM_Environment) -> None:
 def set_value(category: str, address: str, value: Any) -> None:
     env = _get_asm_context()
     if env is None:
-        info = add_context_log(log, f"appsec.asm_context.warning::set_value::no_active_context::{category}::{address}")
-        log.warning(info)
+        info = add_context_log(log, f"appsec.asm_context.debug::set_value::no_active_context::{category}::{address}")
+        log.debug(info)
         return
     asm_context_attr = getattr(env, category, None)
     if asm_context_attr is not None:
@@ -272,8 +272,8 @@ def set_waf_address(address: str, value: Any) -> None:
 def get_value(category: str, address: str, default: Any = None) -> Any:
     env = _get_asm_context()
     if env is None:
-        info = add_context_log(log, f"appsec.asm_context.warning::get_value::no_active_context::{category}::{address}")
-        log.warning(info)
+        info = add_context_log(log, f"appsec.asm_context.debug::get_value::no_active_context::{category}::{address}")
+        log.debug(info)
         return default
     asm_context_attr = getattr(env, category, None)
     if asm_context_attr is not None:
