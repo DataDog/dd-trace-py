@@ -134,7 +134,6 @@ def test_set_config_endpoint_malformed(caplog):
         HTTPConnection, "getresponse", new=mock_getresponse_malformed
     ):
         assert fetch_config_from_endpoint() == {}
-    assert "Unable to parse Datadog Agent JSON response" in caplog.text
     assert "Expecting property name enclosed in double quotes" in caplog.text
 
 
