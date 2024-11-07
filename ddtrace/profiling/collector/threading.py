@@ -62,4 +62,10 @@ def init_stack_v2():
 
         # Instrument any living threads
         for thread_id, thread in threading._active.items():
-            stack_v2.register_thread(thread.ident, thread.native_id, thread.name)
+            # DEV: calling _set_native_id will register the thread with stack_v2
+            # as we've already patched it.
+            # Calling _set_native_id was necessary to ensure that the native_id
+            # was set on the thread running in gunicorn workers. They need to be
+            # updated with correct native_id so that the thread can be tracked
+            # correctly in the echion stack_v2.
+            thread._set_native_id()
