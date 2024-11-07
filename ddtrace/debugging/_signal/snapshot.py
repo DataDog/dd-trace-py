@@ -137,6 +137,17 @@ class Snapshot(LogSignal):
         self.duration = duration
         self.return_capture = self._do(retval, exc_info, scope)
 
+        # Fix the line number of the top frame. This might have been mangled by
+        # the instrumented exception handling of function probes.
+        assert self._stack is not None  # nosec B101
+        tb = exc_info[2]
+        while tb is not None:
+            frame = tb.tb_frame
+            if frame == self.frame:
+                self._stack[0]["lineNumber"] = tb.tb_lineno
+                break
+            tb = tb.tb_next
+
     def line(self, scope) -> None:
         self.line_capture = self._do(_NOTSET, sys.exc_info(), scope)
 
