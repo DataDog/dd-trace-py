@@ -17,6 +17,7 @@ import urllib.parse as parse
 
 from ...internal import atexit
 from ...internal import forksafe
+from ...settings._inferred_base_service import detect_service
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -27,7 +28,7 @@ from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
-from ..utils.version import _pep440_to_semver
+from ..utils.version import version as tracer_version
 from . import modules
 from .constants import TELEMETRY_APM_PRODUCT
 from .constants import TELEMETRY_LOG_LEVEL  # noqa:F401
@@ -47,6 +48,9 @@ from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 
+_inferred_service = detect_service(sys.argv)
+
+
 log = getLogger(__name__)
 
 
@@ -54,7 +58,7 @@ class _TelemetryConfig:
     API_KEY = os.environ.get("DD_API_KEY", None)
     SITE = os.environ.get("DD_SITE", "datadoghq.com")
     ENV = os.environ.get("DD_ENV", "")
-    SERVICE = os.environ.get("DD_SERVICE", "unnamed-python-service")
+    SERVICE = os.environ.get("DD_SERVICE", _inferred_service or "unnamed-python-service")
     VERSION = os.environ.get("DD_VERSION", "")
     AGENTLESS_MODE = asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
     HEARTBEAT_INTERVAL = float(os.environ.get("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
@@ -93,7 +97,7 @@ class _TelemetryClient:
         self._headers = {
             "Content-Type": "application/json",
             "DD-Client-Library-Language": "python",
-            "DD-Client-Library-Version": _pep440_to_semver(),
+            "DD-Client-Library-Version": tracer_version,
         }
 
         if agentless and _TelemetryConfig.API_KEY:
@@ -331,7 +335,7 @@ class TelemetryWriter(PeriodicService):
         self.started = True
 
         products = {
-            product: {"version": _pep440_to_semver(), "enabled": status}
+            product: {"version": tracer_version, "enabled": status}
             for product, status in self._product_enablement.items()
         }
 
@@ -438,7 +442,7 @@ class TelemetryWriter(PeriodicService):
 
         payload = {
             "products": {
-                product: {"version": _pep440_to_semver(), "enabled": status}
+                product: {"version": tracer_version, "enabled": status}
                 for product, status in self._product_enablement.items()
             }
         }
@@ -446,13 +450,13 @@ class TelemetryWriter(PeriodicService):
         self._send_product_change_updates = False
 
     def product_activated(self, product, enabled):
-        # type: (TELEMETRY_APM_PRODUCT, bool) -> None
+        # type: (str, bool) -> None
         """Updates the product enablement dict"""
 
-        if self._product_enablement[product.value] == enabled:
+        if self._product_enablement.get(product, False) is enabled:
             return
 
-        self._product_enablement[product.value] = enabled
+        self._product_enablement[product] = enabled
 
         # If the app hasn't started, the product status will be included in the app_started event's payload
         if self.started:

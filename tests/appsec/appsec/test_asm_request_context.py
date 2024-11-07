@@ -1,8 +1,10 @@
+import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.internal._exceptions import BlockingException
 from tests.appsec.utils import asm_context
+from tests.utils import override_global_config
 
 
 _TEST_IP = "1.2.3.4"
@@ -120,3 +122,13 @@ def test_blocking_exception_correctly_propagated():
     # no more exception there
     # ensure that the exception was raised and caught at the end of the last context manager
     assert witness == 1
+
+
+def test_log_waf_callback():
+    with mock.patch("ddtrace.appsec._asm_request_context.log.warning") as mck, override_global_config(
+        {"_asm_enabled": True}
+    ):
+        _asm_request_context.call_waf_callback()
+    log_message = mck.call_args[0][0]
+    assert log_message.startswith("appsec.asm_context.warning::call_waf_callback::not_set")
+    # log message can end with anything here due to tests being instrumented by pytest or other tools
