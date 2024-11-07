@@ -195,6 +195,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     SSRF_ADDRESS: Literal["server.io.net.url"] = "server.io.net.url"
     SQLI_ADDRESS: Literal["server.db.statement"] = "server.db.statement"
     SQLI_SYSTEM_ADDRESS: Literal["server.db.system"] = "server.db.system"
+    LOGIN_FAILURE: Literal["server.business_logic.users.login.failure"] = "server.business_logic.users.login.failure"
+    LOGIN_SUCCESS: Literal["server.business_logic.users.login.success"] = "server.business_logic.users.login.success"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):

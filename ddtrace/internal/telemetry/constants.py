@@ -16,7 +16,7 @@ class TELEMETRY_LOG_LEVEL(Enum):
     ERROR = "ERROR"
 
 
-class TELEMETRY_APM_PRODUCT(Enum):
+class TELEMETRY_APM_PRODUCT(str, Enum):
     LLMOBS = "mlobs"
     DYNAMIC_INSTRUMENTATION = "dynamic_instrumentation"
     PROFILER = "profiler"

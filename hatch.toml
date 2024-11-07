@@ -438,6 +438,7 @@ pytest = ["~=6.0", "~=7.0", "~=8.0"]
 
 [envs.snapshot_viewer]
 dev-mode = false
+detached = true
 template = "snapshot_viewer"
 dependencies = [
     "PrettyPrintTree"

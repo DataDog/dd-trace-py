@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue where cpu-time was not profiled for services using
+    gunicorn, when ``DD_PROFILING_STACK_V2_ENABLED` was set.
