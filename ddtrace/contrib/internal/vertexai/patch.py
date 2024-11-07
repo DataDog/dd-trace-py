@@ -2,19 +2,13 @@ import os
 import sys
 
 import vertexai
-from vertexai.generative_models import GenerativeModel
-import google.generativeai
 
 from ddtrace import config
 from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
-from ddtrace.contrib.internal.google_generativeai._utils import _extract_model_name
-from ddtrace.contrib.internal.google_generativeai._utils import tag_request
-from ddtrace.contrib.internal.google_generativeai._utils import tag_response
-from ddtrace.contrib.internal.vertexai._utils import get_system_instruction_parts_from_model
-from ddtrace.contrib.internal.vertexai._utils import get_system_instruction_parts_from_chat
-from ddtrace.contrib.internal.vertexai._utils import get_generation_config_from_model
-from ddtrace.contrib.internal.vertexai._utils import get_generation_config_from_chat
+from ddtrace.contrib.internal.vertexai._utils import _extract_model_name
+from ddtrace.contrib.internal.vertexai._utils import tag_request
+from ddtrace.contrib.internal.vertexai._utils import tag_response
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -48,15 +42,15 @@ def traced_generate(vertexai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts_from_model(instance), get_generation_config_from_model(instance, kwargs))
+        tag_request(span, integration, instance, args, kwargs)
         generations = func(*args, **kwargs)
         if stream:
             def on_span_finish(span, chunks):
-                tag_response("vertexai", span, chunks, integration, instance)
+                tag_response(span, chunks, integration)
                 if span.error or not integration.is_pc_sampled_span(span):
                     return
             return TracedVertexAIStreamResponse(generations, instance, integration, span, args, kwargs, on_span_finish)
-        tag_response("vertexai", span, generations, integration, instance)
+        tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -79,15 +73,15 @@ async def traced_agenerate(vertexai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts_from_model(instance), get_generation_config_from_model(instance, kwargs))
+        tag_request(span, integration, instance, args, kwargs)
         generations = await func(*args, **kwargs)
         if stream:
             def on_span_finish(span, chunks):
-                tag_response("vertexai", span, chunks, integration, instance)
+                tag_response(span, chunks, integration)
                 if span.error or not integration.is_pc_sampled_span(span):
                     return
             return TracedAsyncVertexAIStreamResponse(generations, instance, integration, span, args, kwargs, on_span_finish)
-        tag_response("vertexai", span, generations, integration, instance)
+        tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -110,15 +104,15 @@ def traced_send_message(vertexai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts_from_chat(instance), get_generation_config_from_chat(instance, kwargs))
+        tag_request(span, integration, instance, args, kwargs)
         generations = func(*args, **kwargs)
         if stream:
             def on_span_finish(span, chunks):
-                tag_response("vertexai", span, chunks, integration, instance)
+                tag_response(span, chunks, integration)
                 if span.error or not integration.is_pc_sampled_span(span):
                     return
             return TracedVertexAIStreamResponse(generations, instance, integration, span, args, kwargs, on_span_finish)
-        tag_response("vertexai", span, generations, integration, instance)
+        tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -141,15 +135,15 @@ async def traced_send_message_async(vertexai, pin, func, instance, args, kwargs)
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, args, kwargs, "vertexai", get_system_instruction_parts_from_chat(instance), get_generation_config_from_chat(instance, kwargs))
+        tag_request(span, integration, instance, args, kwargs)
         generations = await func(*args, **kwargs)
         if stream:
             def on_span_finish(span, chunks):
-                tag_response("vertexai", span, chunks, integration, instance)
+                tag_response(span, chunks, integration)
                 if span.error or not integration.is_pc_sampled_span(span):
                     return
             return TracedAsyncVertexAIStreamResponse(generations, instance, integration, span, args, kwargs, on_span_finish)
-        tag_response("vertexai", span, generations, integration, instance)
+        tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -183,5 +177,7 @@ def unpatch():
 
     unwrap(vertexai.generative_models.GenerativeModel, "generate_content")
     unwrap(vertexai.generative_models.GenerativeModel, "generate_content_async")
+    unwrap(vertexai.generative_models.ChatSession, "send_message")
+    unwrap(vertexai.generative_models.ChatSession, "send_message_async")
 
     delattr(vertexai, "_datadog_integration")
