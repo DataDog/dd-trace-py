@@ -11,6 +11,11 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
+from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
+from ddtrace.llmobs._constants import FAITHFULNESS_DISAGREEMENTS_METADATA
+from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
+from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 
 
@@ -166,7 +171,7 @@ class RagasFaithfulnessEvaluator:
             return
         score_result_or_failure, metric_metadata = self.evaluate(span_event)
         telemetry_writer.add_count_metric(
-            TELEMETRY_APM_PRODUCT.LLMOBS,  # type: ignore
+            TELEMETRY_APM_PRODUCT.LLMOBS,
             "evaluators.run",
             1,
             tags=(
@@ -195,22 +200,23 @@ class RagasFaithfulnessEvaluator:
         if not self.ragas_faithfulness_instance:
             return "fail_faithfulness_is_none", {}
 
+        evaluation_metadata = {EVALUATION_KIND_METADATA: "faithfulness"}  # type: dict[str, Union[str, dict, list]]
+
         # initialize data we annotate for tracing ragas
-        score, question, answer, context, statements, faithfulness_list, evaluation_metadata = (
+        score, question, answer, context, statements, faithfulness_list = (
             math.nan,
             None,
             None,
             None,
             None,
             None,
-            {"_dd.evaluation_kind": "faithfulness"},
         )
 
         with self.llmobs_service.workflow(
             "dd-ragas.faithfulness", ml_app=_get_ml_app_for_ragas_trace(span_event)
         ) as ragas_faithfulness_workflow:
             try:
-                evaluation_metadata["_dd.exported_evaluation_span"] = self.llmobs_service.export_span(
+                evaluation_metadata[EVALUATION_SPAN_METADATA] = self.llmobs_service.export_span(
                     span=ragas_faithfulness_workflow
                 )
 
@@ -235,7 +241,7 @@ class RagasFaithfulnessEvaluator:
                     logger.debug("Failed to create faithfulness list `ragas_faithfulness` evaluator")
                     return "statements_create_faithfulness_list", evaluation_metadata
 
-                evaluation_metadata["_dd.faithfulness_list"] = [
+                evaluation_metadata[FAITHFULNESS_DISAGREEMENTS_METADATA] = [
                     {"answer_quote": answer.statement} for answer in faithfulness_list.__root__ if answer.verdict == 0
                 ]
 
@@ -360,8 +366,10 @@ class RagasFaithfulnessEvaluator:
                 answer = messages[-1].get("content")
 
             if prompt_variables:
-                question = prompt_variables.get("question")
-                context = prompt_variables.get("context")
+                context_keys = prompt.get(INTERNAL_CONTEXT_VARIABLE_KEYS, ["context"])
+                question_keys = prompt.get(INTERNAL_QUERY_VARIABLE_KEYS, ["question"])
+                context = " ".join([prompt_variables.get(key) for key in context_keys if prompt_variables.get(key)])
+                question = " ".join([prompt_variables.get(key) for key in question_keys if prompt_variables.get(key)])
 
             if not question and len(input_messages) > 0:
                 question = input_messages[-1].get("content")

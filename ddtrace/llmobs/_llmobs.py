@@ -894,7 +894,6 @@ class LLMObs(Service):
                 metadata = safe_json(metadata)
                 if metadata and isinstance(metadata, str):
                     evaluation_metric["metadata"] = json.loads(metadata)
-
         cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 
     @classmethod

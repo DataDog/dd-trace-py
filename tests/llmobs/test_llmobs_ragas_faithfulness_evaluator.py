@@ -30,7 +30,8 @@ def test_ragas_faithfulness_throws_if_dependencies_not_present(LLMObs, mock_raga
 
 def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, LLMObs):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    assert rf_evaluator.evaluate(_llm_span_without_io()) == "fail_extract_faithfulness_inputs"
+    failure_msg, _ = rf_evaluator.evaluate(_llm_span_without_io())
+    assert failure_msg == "fail_extract_faithfulness_inputs"
     assert rf_evaluator.llmobs_service.submit_evaluation.call_count == 0
 
 
@@ -89,6 +90,11 @@ def test_ragas_faithfulness_submits_evaluation(ragas, LLMObs, mock_llmobs_submit
                 label=RagasFaithfulnessEvaluator.LABEL,
                 metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
                 value=1.0,
+                metadata={
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                    "_dd.faithfulness_disagreements": mock.ANY,
+                    "_dd.evaluation_kind": "faithfulness",
+                },
             )
         ]
     )
@@ -113,8 +119,9 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_question_in_messages
                 metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
                 value=1.0,
                 metadata={
-                    "_dd.exported_evaluation_span": mock.ANY,
-                    "_dd.faithfulness_list": mock.ANY,
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                    "_dd.faithfulness_disagreements": mock.ANY,
+                    "_dd.evaluation_kind": "faithfulness",
                 },
             )
         ]
