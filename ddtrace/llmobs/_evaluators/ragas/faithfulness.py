@@ -165,7 +165,7 @@ class RagasFaithfulnessEvaluator:
             return
         score_result_or_failure = self.evaluate(span_event)
         telemetry_writer.add_count_metric(
-            TELEMETRY_APM_PRODUCT.LLMOBS,  # type: ignore
+            TELEMETRY_APM_PRODUCT.LLMOBS,
             "evaluators.run",
             1,
             tags=(
