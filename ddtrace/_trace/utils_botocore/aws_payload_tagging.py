@@ -9,6 +9,8 @@ from ddtrace import Span
 from ddtrace import config
 from ddtrace.vendor.jsonpath_ng import parse
 
+_MAX_TAG_VALUE_LENGTH = 5000
+
 
 class AWSPayloadTagging:
     _INCOMPLETE_TAG = "_dd.payload_tags_incomplete"  # Set to True if MAX_TAGS is reached
@@ -199,7 +201,9 @@ class AWSPayloadTagging:
             return
         if depth >= config.botocore.get("payload_tagging_max_depth"):
             self.current_tag_count += 1
-            span.set_tag(key, str(obj)[:5000])  # at the maximum depth - set the tag without further expansion
+            span.set_tag(
+                key, str(obj)[:_MAX_TAG_VALUE_LENGTH]
+            )  # at the maximum depth - set the tag without further expansion
             return
         depth += 1
         if self._should_json_parse(obj):
@@ -208,7 +212,7 @@ class AWSPayloadTagging:
                 self._tag_object(span, key, parsed, depth)
             except ValueError:
                 self.current_tag_count += 1
-                span.set_tag(key, str(obj)[:5000])
+                span.set_tag(key, str(obj)[:_MAX_TAG_VALUE_LENGTH])
             return
         if isinstance(obj, (int, float, Decimal)):
             self.current_tag_count += 1
