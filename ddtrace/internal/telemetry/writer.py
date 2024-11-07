@@ -17,6 +17,7 @@ import urllib.parse as parse
 
 from ...internal import atexit
 from ...internal import forksafe
+from ...settings._inferred_base_service import detect_service
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -47,6 +48,9 @@ from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 
+_inferred_service = detect_service(sys.argv)
+
+
 log = getLogger(__name__)
 
 
@@ -54,7 +58,7 @@ class _TelemetryConfig:
     API_KEY = os.environ.get("DD_API_KEY", None)
     SITE = os.environ.get("DD_SITE", "datadoghq.com")
     ENV = os.environ.get("DD_ENV", "")
-    SERVICE = os.environ.get("DD_SERVICE", "unnamed-python-service")
+    SERVICE = os.environ.get("DD_SERVICE", _inferred_service or "unnamed-python-service")
     VERSION = os.environ.get("DD_VERSION", "")
     AGENTLESS_MODE = asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
     HEARTBEAT_INTERVAL = float(os.environ.get("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
