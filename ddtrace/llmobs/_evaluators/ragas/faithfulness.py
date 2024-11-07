@@ -139,7 +139,7 @@ class RagasFaithfulnessEvaluator:
             raise NotImplementedError("Failed to load dependencies for `ragas_faithfulness` evaluator") from e
         finally:
             telemetry_writer.add_count_metric(
-                namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
+                namespace=TELEMETRY_APM_PRODUCT.LLMOBS.value,
                 name="evaluators.init",
                 value=1,
                 tags=(
@@ -165,7 +165,7 @@ class RagasFaithfulnessEvaluator:
             return
         score_result_or_failure = self.evaluate(span_event)
         telemetry_writer.add_count_metric(
-            TELEMETRY_APM_PRODUCT.LLMOBS,  # type: ignore
+            TELEMETRY_APM_PRODUCT.LLMOBS.value,
             "evaluators.run",
             1,
             tags=(

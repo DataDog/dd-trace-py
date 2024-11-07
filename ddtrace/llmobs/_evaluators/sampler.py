@@ -67,7 +67,7 @@ class EvaluatorRunnerSampler:
                 TELEMETRY_LOG_LEVEL.ERROR, message="Evaluator sampling parsing failure because: {}".format(msg)
             )
             telemetry_writer.add_count_metric(
-                namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
+                namespace=TELEMETRY_APM_PRODUCT.LLMOBS.value,
                 name="evaluators.error",
                 value=1,
                 tags=(("reason", "sampling_rule_parsing_failure"),),
@@ -104,7 +104,7 @@ class EvaluatorRunnerSampler:
             span_name = rule.get(EvaluatorRunnerSamplingRule.SPAN_NAME_KEY, SamplingRule.NO_RULE)
             evaluator_label = rule.get(EvaluatorRunnerSamplingRule.EVALUATOR_LABEL_KEY, SamplingRule.NO_RULE)
             telemetry_writer.add_distribution_metric(
-                TELEMETRY_APM_PRODUCT.LLMOBS,  # type: ignore
+                TELEMETRY_APM_PRODUCT.LLMOBS.value,
                 "evaluators.rule_sample_rate",
                 sample_rate,
                 tags=(("evaluator_label", evaluator_label), ("span_name", span_name)),
