@@ -5,9 +5,18 @@ import sys
 from types import CodeType
 import typing as t
 
-from ddtrace.internal.instrumentation.opcodes import *
-from ddtrace.internal.instrumentation import Jump, JumpDirection, RJump, Instruction, Branch, NO_OFFSET, EXTENDED_ARG, instr_with_arg, ExceptionTableEntry, parse_exception_table
 from ddtrace.internal.injection import HookType
+from ddtrace.internal.instrumentation import EXTENDED_ARG
+from ddtrace.internal.instrumentation import NO_OFFSET
+from ddtrace.internal.instrumentation import Branch
+from ddtrace.internal.instrumentation import ExceptionTableEntry
+from ddtrace.internal.instrumentation import Instruction
+from ddtrace.internal.instrumentation import Jump
+from ddtrace.internal.instrumentation import JumpDirection
+from ddtrace.internal.instrumentation import RJump
+from ddtrace.internal.instrumentation import instr_with_arg
+from ddtrace.internal.instrumentation import parse_exception_table
+from ddtrace.internal.instrumentation.opcodes import *
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
@@ -344,7 +353,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
                 exts.append((ext_instr, c))
                 # Update the instruction offset from the point of insertion
                 # of the EXTENDED_ARGs
-                for instr_index, instr in enumerate(instructions[index + 1:], index + 1):
+                for instr_index, instr in enumerate(instructions[index + 1 :], index + 1):
                     instr.offset = instr_index << 1
 
                 process_branches = True
