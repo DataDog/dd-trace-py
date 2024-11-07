@@ -15,6 +15,11 @@ highest_gxx=""
 highest_clang=""
 highest_clangxx=""
 
+if [[ $OSTYPE == 'darwin'* ]]; then
+  # Needed for some of ForkDeathTests to pass on Mac
+  export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+fi
+
 # Function to find the highest version of compilers
 # Note that the product of this check is ignored if the user passes CC/CXX
 find_highest_compiler_version() {

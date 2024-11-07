@@ -24,6 +24,6 @@ sortedcontainers==2.4.0
 soupsieve==2.6
 tomli==2.0.2
 waitress==3.0.0
-webob==1.8.8
+webob==1.8.9
 webtest==3.0.1
 zipp==3.20.2
