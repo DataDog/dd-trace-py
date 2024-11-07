@@ -1,7 +1,6 @@
 import pytest
 
 from ddtrace.internal.runtime import tag_collectors
-from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 
 def test_values():
@@ -46,6 +45,7 @@ def test_tracer_tags_config():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace
     from ddtrace.internal.runtime import tag_collectors
+    from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
     # DEV: setting `config.tags` does not work, they get copied to `tracer._tags`
     #      when the tracer is created
@@ -79,6 +79,7 @@ def test_tracer_tags_service_from_code():
     import ddtrace
     from ddtrace.filters import TraceFilter
     from ddtrace.internal.runtime import tag_collectors
+    from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
     class DropFilter(TraceFilter):
         def process_trace(self, _):
