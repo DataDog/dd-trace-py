@@ -146,12 +146,10 @@ class AWSPayloadTagging:
         response_redaction = config.botocore.get("payload_tagging_response")
         if self._validate_json_paths(response_redaction):
             if response_redaction == "all":
-                return (
-                    self._RESPONSE_REDACTION_PATHS_DEFAULTS
-                    + self._REDACTION_PATHS_DEFAULTS
-                    + response_redaction.split(",")
-                )
-            return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
+                return self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
+            return (
+                self._RESPONSE_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + response_redaction.split(",")
+            )
 
         return []
 
@@ -165,12 +163,10 @@ class AWSPayloadTagging:
         request_redaction = config.botocore.get("payload_tagging_request")
         if self._validate_json_paths(request_redaction):
             if request_redaction == "all":
-                return (
-                    self._REQUEST_REDACTION_PATHS_DEFAULTS
-                    + self._REDACTION_PATHS_DEFAULTS
-                    + request_redaction.split(",")
-                )
-            return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
+                return self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS
+            return (
+                self._REQUEST_REDACTION_PATHS_DEFAULTS + self._REDACTION_PATHS_DEFAULTS + request_redaction.split(",")
+            )
 
         return []
 
