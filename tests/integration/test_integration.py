@@ -763,7 +763,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     assert out == b"", "an empty program should generate no logs under ddtrace-run"
 
     assert (
-        b"[dd.service= dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
+        b"[dd.service=ddtrace_subprocess_dir dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
     ), "stderr should contain debug output when DD_TRACE_DEBUG is set"
 
     assert b"KeyError: 'dd.service'" not in err, "stderr should not contain any exception logs"
