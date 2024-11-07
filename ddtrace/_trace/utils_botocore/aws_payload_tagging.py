@@ -99,8 +99,8 @@ class AWSPayloadTagging:
             if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
                 return
 
-    def _should_try_string(self, obj: Any) -> bool:
-        if isinstance(obj, str) or isinstance(obj, bytes):
+    def _should_json_parse(self, obj: Any) -> bool:
+        if isinstance(obj, (str, bytes)):
             return True
         return False
 

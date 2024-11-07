@@ -4020,6 +4020,7 @@ class BotocoreTest(TracerTestCase):
                 client.put_records(StreamName=stream_name, Records=data)
 
             spans = self.get_spans()
+            assert len(spans) == 3, "Did not receive expected number of spans"
 
             assert spans[0].name == "kinesis.manual_span"
 
