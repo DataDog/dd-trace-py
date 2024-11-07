@@ -32,8 +32,8 @@ function(dd_wrapper_add_test name)
 endfunction()
 
 # Add the tests
-dd_wrapper_add_test(initialization initialization.cpp)
-dd_wrapper_add_test(api api.cpp)
-dd_wrapper_add_test(threading threading.cpp)
-dd_wrapper_add_test(forking forking.cpp)
-dd_wrapper_add_test(code_provenance code_provenance.cpp)
+dd_wrapper_add_test(test_initialization test_initialization.cpp)
+dd_wrapper_add_test(test_api test_api.cpp)
+dd_wrapper_add_test(test_threading test_threading.cpp)
+dd_wrapper_add_test(test_forking test_forking.cpp)
+dd_wrapper_add_test(test_code_provenance test_code_provenance.cpp)

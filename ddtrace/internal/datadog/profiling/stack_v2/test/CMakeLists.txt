@@ -35,4 +35,4 @@ function(dd_wrapper_add_test name)
 endfunction()
 
 # Add the tests
-dd_wrapper_add_test(thread_span_links thread_span_links.cpp)
+dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
