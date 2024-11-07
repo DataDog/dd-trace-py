@@ -10,12 +10,12 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "672a851000000000",
+      "_dd.p.tid": "672c382e00000000",
       "error.message": "_GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'",
-      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/vertexai/patch.py\", line 49, in traced_generate\n    generations = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\nTypeError: _GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/vertexai/patch.py\", line 50, in traced_generate\n    generations = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\nTypeError: _GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'\n",
       "error.type": "builtins.TypeError",
       "language": "python",
-      "runtime-id": "9d140cd9e8854e2cb3c90a48e42060a5",
+      "runtime-id": "f6757971af4a4bf79634b10aec47b658",
       "vertexai.request.contents.0.text": "Why do bears hibernate?",
       "vertexai.request.generation_config.max_output_tokens": "30",
       "vertexai.request.generation_config.stop_sequences": "['x']",
@@ -28,8 +28,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 67898
+      "process_id": 99215
     },
-    "duration": 2096000,
-    "start": 1730839824314015000
+    "duration": 965000,
+    "start": 1730951214233357000
   }]]

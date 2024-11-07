@@ -1,4 +1,5 @@
 import sys
+import copy
 
 def get_system_instruction_parts(instance):
     """
@@ -6,7 +7,7 @@ def get_system_instruction_parts(instance):
     """
     return getattr(instance, "_system_instruction", None)
 
-def get_generation_config_dict(instance, kwargs):
+def get_generation_config_from_model(instance, kwargs):
     """
     The generation config can be defined on the model instance or 
     as a kwarg to generate_content. Therefore, try to extract this information
@@ -17,6 +18,19 @@ def get_generation_config_dict(instance, kwargs):
         return generation_config_arg if isinstance(generation_config_arg, dict) else generation_config_arg.to_dict()
     generation_config_attr = instance._generation_config or {}
     return generation_config_attr if isinstance(generation_config_attr, dict) else generation_config_attr.to_dict()
+
+def get_generation_config_from_chat(instance, kwargs):
+    """
+    The generation config can be defined on the chat's model instance or 
+    as a kwarg to send_message. Therefore, try to extract this information
+    from the kwargs and otherwise default to checking the chat's model instance attribute.
+    """
+    generation_config_arg = kwargs.get("generation_config", {})
+    if generation_config_arg != {}:
+        return generation_config_arg if isinstance(generation_config_arg, dict) else generation_config_arg.to_dict()
+    generation_config_attr = instance._model._generation_config or {}
+    return generation_config_attr if isinstance(generation_config_attr, dict) else generation_config_attr.to_dict()
+
 
 def extract_info_from_parts(parts):
     """Return concatenated text from parts and function calls."""
@@ -48,7 +62,7 @@ def _tag_response_parts(tag_prefix, span, integration, parts):
         )
 
 
-def tag_stream_response(tag_prefix, span, chunks, integration, instance):
+def tag_stream_response(tag_prefix, span, chunks, integration):
     all_parts = []
     role = ""
     for chunk in chunks:
@@ -97,13 +111,13 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
     def __iter__(self):
         try:
             for chunk in self._generator.__iter__():
-                self._chunks.append(chunk)
+                self._chunks.append(copy.deepcopy(chunk))
                 yield chunk
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         else:
-            tag_stream_response("vertexai", self._dd_span, self._chunks, self._dd_integration, self._model_instance)
+            tag_stream_response("vertexai", self._dd_span, self._chunks, self._dd_integration)
         finally:
             self._kwargs["instance"] = self._model_instance
             self._dd_span.finish()
@@ -120,13 +134,13 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
     async def __aiter__(self):
         try:
             async for chunk in self._generator.__aiter__():
-                self._chunks.append(chunk)
+                self._chunks.append(copy.deepcopy(chunk))
                 yield chunk
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         else:
-            tag_stream_response("vertexai", self._dd_span, self._chunks, self._dd_integration, self._model_instance)
+            tag_stream_response("vertexai", self._dd_span, self._chunks, self._dd_integration)
         finally:
             self._kwargs["instance"] = self._model_instance
             self._dd_span.finish()

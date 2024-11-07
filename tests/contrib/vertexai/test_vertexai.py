@@ -33,6 +33,7 @@ def test_vertexai_completion(vertexai):
             generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=0),
         )
 
+
 @pytest.mark.snapshot 
 def test_vertexai_completion_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -56,7 +57,7 @@ def test_vertexai_completion_multiple_messages(vertexai):
     )
 
 @pytest.mark.snapshot
-def test_gemini_completion_system_prompt(vertexai):
+def test_vertexai_completion_system_prompt(vertexai):
     llm = vertexai.generative_models.GenerativeModel(
         "gemini-1.5-flash",
         system_instruction=[
@@ -98,5 +99,23 @@ def test_vertexai_completion_tool_stream(vertexai):
     )
     for _ in response:
         pass
+
+@pytest.mark.snapshot
+async def test_vertexai_completion_async(vertexai):
+    llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
+    await llm.generate_content_async(
+            "Why do bears hibernate?",
+            generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=0),
+        )
+    
+@pytest.mark.snapshot 
+def test_vertexai_completion_async_error(vertexai):
+    llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
+    with pytest.raises(TypeError):
+        llm.generate_content_async(
+            "Why do bears hibernate?",
+            generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=0),
+            candidate_count=2, # candidate_count is not a valid keyword argument 
+        )
 
 

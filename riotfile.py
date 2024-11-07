@@ -2714,6 +2714,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/vertexai",
             pys=select_pys(min_version="3.9"),
             pkgs={
+                "pytest-asyncio": latest,
                 "vertexai": [latest],
                 "google-generativeai": [latest],
             },
