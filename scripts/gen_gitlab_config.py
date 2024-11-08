@@ -10,26 +10,45 @@ SUITES = {
 }
 
 
-def print_job(name, base, services, variables, parallel, file=None):
+def print_job(
+    name, runner, is_snapshot, services=None, env=None, parallelism=None, retry=None, timeout=None, file=None
+):
+    base = f".test_base_{runner}"
+    if is_snapshot:
+        base += "_snapshot"
+
     print(f"{name}:", file=file)
 
     print(f"  extends: {base}", file=file)
 
     if services:
         print("  services:", file=file)
-        for service in services:
+
+        _services = [f"!reference [.services, {_}]" for _ in services]
+        if is_snapshot:
+            _services.insert(0, "!reference [.test_base_riot_snapshot, services]")
+
+        for service in _services:
             print(f"    - {service}", file=file)
 
-    if parallel:
-        print(f"  parallel: {parallel}", file=file)
+    if parallelism is not None:
+        print(f"  parallel: {parallelism}", file=file)
 
-    print("  variables:", file=file)
-    for key, value in variables.items():
-        print(f"    {key}: {value}", file=file)
+    if env is not None:
+        print("  variables:", file=file)
+        for key, value in env.items():
+            print(f"    {key}: {value}", file=file)
+
+    if retry is not None:
+        print(f"  retry: {retry}", file=file)
+
+    if timeout is not None:
+        print(f"  timeout: {timeout}", file=file)
 
     print(file=file)
 
 
+# TODO: delete this function
 def convert_circleci_config():
     gitlab_jobs = {}
     jobs = {}
@@ -41,7 +60,7 @@ def convert_circleci_config():
     }
 
     CONFIG_TEMPLATE_FILE = ROOT / ".circleci" / "config.templ.yml"
-    with YAML(output=TESTS / "jobs.yml") as yaml, (GITLAB / "alltests.yml").open("w") as out:
+    with YAML(output=TESTS / "jobspec.yml") as yaml, (GITLAB / "alltests.yml").open("w") as out:
         LOGGER.info("Loading configuration template from %s", CONFIG_TEMPLATE_FILE)
         config = yaml.load(CONFIG_TEMPLATE_FILE)
 
@@ -57,18 +76,25 @@ def convert_circleci_config():
                     continue
 
             is_snapshot = run_test.get("snapshot", False)
-            docker_services = set(run_test.get("docker_services", "").split())
-            services = [f"!reference [.services, {_}]" for _ in docker_services]
-            if is_snapshot:
-                services.insert(0, "!reference [.test_base_riot_snapshot, services]")
+            services = set(run_test.get("docker_services", "").split())
 
             variables = {"SUITE_NAME": name if runner == "riot" else run_test["env"]}
-            for service in docker_services:
+            for service in services:
                 variables.update(SERVICE_VARIABLES.get(service, {}))
 
             jobs[name] = {
+                "runner": runner,
                 "is_snapshot": is_snapshot,
+                "services": services,
+                "env": variables,
             }
+            parallel = job.get("parallelism")
+            if parallel is not None:
+                jobs[name]["parallelism"] = parallel
+
+            retry = job.get("retry")
+            if retry is not None:
+                jobs[name]["retry"] = retry
 
             base = (
                 (".test_base_riot_snapshot" if is_snapshot else ".test_base_riot")
@@ -76,11 +102,24 @@ def convert_circleci_config():
                 else ".test_base_hatch"
             )
 
-            print_job(name, base, services, variables, job.get("parallelism"), file=out)
+            print_job(name, runner, is_snapshot, services, variables, parallel, file=out)
 
-            gitlab_jobs[name] = (base, services, variables, job.get("parallelism"))
+            gitlab_jobs[name] = (base, services, variables, parallel)
+
+        yaml.dump(jobs)
 
     return gitlab_jobs
+
+
+def collect_jobspecs() -> dict:
+    # Recursively search for jobspec.yml in TESTS
+    jobspecs = {}
+    for js in TESTS.rglob("jobspec.yml"):
+        with YAML() as yaml:
+            LOGGER.info("Loading jobspec from %s", js)
+            jobspecs.update(yaml.load(js))
+
+    return jobspecs
 
 
 def gen_required_suites() -> None:
@@ -89,12 +128,24 @@ def gen_required_suites() -> None:
     from needs_testrun import for_each_testrun_needed as fetn
     from suitespec import get_suites
 
-    all_jobs = convert_circleci_config()
+    all_jobs = collect_jobspecs()
 
-    (GITLAB / "tests-gen.yml").write_text((GITLAB / "tests.yml").read_text())  # TODO: Delete this line
+    (GITLAB / "tests-gen.yml").write_text(
+        (GITLAB / "tests.yml").read_text().replace(r"{{services.yml}}", (GITLAB / "services.yml").read_text())
+    )  # TODO: Delete this line
 
     suites = get_suites()
     required_suites = []
+
+    for suite in suites:
+        if suite not in all_jobs:
+            print(f"WARNING: Suite {suite} has no jobspec", file=sys.stderr)
+            continue
+
+    for job in all_jobs:
+        if job not in suites:
+            print(f"WARNING: Job {job} has no suitespec", file=sys.stderr)
+            continue
 
     fetn(
         suites=sorted(suites),
@@ -108,13 +159,13 @@ def gen_required_suites() -> None:
 
     with (GITLAB / "tests-gen.yml").open("a") as f:
         for suite in required_suites:
-            if suite not in SUITES:
-                continue
-
             if suite not in all_jobs:
+                print(f"Suite {suite} not found in jobspec", file=sys.stderr)
                 continue
 
-            print_job(suite, *all_jobs[suite], file=f)
+            job_spec = all_jobs[suite]
+
+            print_job(suite, **job_spec, file=f)
 
     # Generate the list of suites to run
 
