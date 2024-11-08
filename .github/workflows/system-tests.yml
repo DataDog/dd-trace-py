@@ -165,6 +165,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_MISSING_RULES
 
+      - name: Run APPSEC_AUTO_EVENTS_EXTENDED
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_AUTO_EVENTS_EXTENDED
+
       - name: Run APPSEC_CUSTOM_RULES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_CUSTOM_RULES
