@@ -582,6 +582,16 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         return
 
+    try:
+        import pytest_cpp
+
+        if isinstance(item, isinstance(pytest_cpp.CppItem)):
+            yield
+            return
+    except Exception:
+        # only some test suites have pytest_cpp installed
+        pass
+
     is_skipped = bool(
         item.get_closest_marker("skip")
         or any([marker for marker in item.iter_markers(name="skipif") if marker.args[0] is True])
