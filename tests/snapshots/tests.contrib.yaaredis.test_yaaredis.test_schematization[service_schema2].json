@@ -1,7 +1,7 @@
 [[
   {
     "name": "redis.command",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "FLUSHALL",
     "trace_id": 0,
     "span_id": 1,
@@ -38,7 +38,7 @@
 [
   {
     "name": "redis.command",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "GET",
     "trace_id": 1,
     "span_id": 1,
