@@ -149,12 +149,14 @@ class TestTestVisibilityAPIClientBase:
             if CIVisibility.enabled:
                 CIVisibility.disable()
         except Exception:  # noqa: E722
+            # no-dd-sa:python-best-practices/no-silent-exception
             pass
         yield
         try:
             if CIVisibility.enabled:
                 CIVisibility.disable()
         except Exception:  # noqa: E722
+            # no-dd-sa:python-best-practices/no-silent-exception
             pass
 
     default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala")
