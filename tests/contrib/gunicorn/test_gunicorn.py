@@ -11,7 +11,6 @@ from typing import Optional  # noqa:F401
 import pytest
 
 from ddtrace.internal.utils.retry import RetryError  # noqa:F401
-from tests.utils import flaky
 from tests.utils import snapshot_context
 from tests.webclient import Client
 
