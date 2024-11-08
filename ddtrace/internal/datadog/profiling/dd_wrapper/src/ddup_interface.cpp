@@ -308,10 +308,6 @@ ddup_upload() // cppcheck-suppress unusedFunction
             {
                 uploader.upload(Datadog::Sample::profile_borrow());
                 Datadog::Sample::profile_release();
-                // TODO(nick): should profile_clear_state happen above?
-                // Even if it's protected by the lock, are we messing with stuff by
-                // creating a window here where other stuff can access it even though
-                // we're about to clear it?
                 Datadog::Sample::profile_clear_state();
             }
             void operator()(const std::string& err) { std::cerr << "Failed to create uploader: " << err << std::endl; }
