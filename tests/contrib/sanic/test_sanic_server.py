@@ -40,7 +40,7 @@ def sanic_client():
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.http.useragent"],
+    ignores=["meta.http.useragent", "meta._dd.base_service"],
     variants={
         "": sanic_version >= (21, 9, 0),
         "pre_21.9": sanic_version < (21, 9, 0),
@@ -57,7 +57,7 @@ def test_multiple_requests_sanic_http(sanic_client):
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack", "meta.http.useragent"],
+    ignores=["meta.error.stack", "meta.http.useragent", "meta._dd.base_service"],
     variants={
         "": sanic_version >= (21, 9, 0),
         "pre_21.9": sanic_version < (21, 9, 0),

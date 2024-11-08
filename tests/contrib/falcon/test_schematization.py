@@ -2,12 +2,14 @@ import os
 
 import pytest
 
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_version):
-    expected_service_name = {None: "falcon", "v0": "falcon", "v1": _DEFAULT_SPAN_SERVICE_NAMES["v1"]}[schema_version]
+    expected_service_name = {None: "falcon", "v0": "falcon", "v1": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME}[
+        schema_version
+    ]
     code = """
 import pytest
 import falcon

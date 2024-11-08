@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: This fix ensures we do not import the user installed ``ddtrace`` if it is present.

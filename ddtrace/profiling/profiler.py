@@ -370,7 +370,7 @@ class _ProfilerInstance(service.Service):
                     for events in snapshot:
                         self._recorder.push_events(events)
             except Exception:
-                LOG.error("Error while snapshoting collector %r", c, exc_info=True)
+                LOG.error("Error while snapshotting collector %r", c, exc_info=True)
 
     _COPY_IGNORE_ATTRIBUTES = {"status"}
 
