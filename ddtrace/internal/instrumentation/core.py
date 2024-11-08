@@ -22,11 +22,28 @@ class JumpDirection(int, Enum):
         return cls.BACKWARD if "BACKWARD" in dis.opname[opcode] else cls.FORWARD
 
 
+@dataclass
+class JumpType(ABC):
+    start: int
+    arg: int
+    direction: JumpDirection
+
+    @property
+    def end(self):
+        return self.start + (self.arg << 1) * self.direction + 2
+
+
 class Jump(ABC):
     def __init__(self, start: int, arg: int) -> None:
         self.start = start
         self.end: t.Optional[int] = None
         self.arg = arg
+
+    def shift_foward(self, bytecode_lenght: int):
+        assert self.end is not None
+        self.end = self.start + (self.arg << 1) * self.direction + 2
+        self.end += bytecode_lenght * self.direction
+        self.arg = ((self.end - self.start) >> 1) * self.direction - 2
 
 
 class RJump(Jump):
@@ -113,10 +130,13 @@ def instructions_to_bytecode(instructions: t.List[Instruction]) -> bytes:
 
 @dataclass
 class ExceptionTableEntry:
-    start: t.Union[int, Instruction]
-    end: t.Union[int, Instruction]
-    target: t.Union[int, Instruction]
+    start: int
+    end: int
+    target: int
     depth_lasti: int
+
+    def is_entirely_before(self, index: int) -> bool:
+        return self.end <= index and self.target <= index and self.start <= index
 
 
 def parse_exception_table(code: CodeType):
@@ -172,8 +192,9 @@ def inject_instructions(
     exc_table_offsets = {_ for e in exc_table for _ in (e.start, e.end, e.target)}
     offset_map = {}
 
-    # Collect all the original jumps
+    # Collect all the original jumps.
     jumps: t.Dict[int, Jump] = {}
+    jumps_by_index: t.Dict[int, JumpType] = {}
     injection_points: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
     line_starts = dict(dis.findlinestarts(code))
@@ -197,15 +218,20 @@ def inject_instructions(
     _previous_previous_arg: int = 0
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
+    # There can be multiple conditions why an injection index cannot be honored. Here we store honored injection indexes.
+    actual_injection_indexes = []
 
     try:
         code_iter = iter(enumerate(code.co_code))
         ext: list[bytes] = []
+        injected_instructions_total_count = 0
         while True:
             original_offset, opcode = next(code_iter)
 
             if original_offset in exc_table_offsets:
                 offset_map[original_offset] = len(instructions) << 1
+
+            is_code_injected = False
 
             if original_offset in injection_indexes and original_offset > resume_offset:
                 line = line_starts[original_offset]
@@ -217,6 +243,8 @@ def inject_instructions(
                     # trap_instructions = trap_call(trap_index, len(new_consts))
                     injection_points[original_offset] = len(inject_instructions)
                     instructions.extend(inject_instructions)
+                    is_code_injected = True
+                    actual_injection_indexes.append(original_offset)
 
                     # # Make sure that the current module is marked as depending on its own package by instrumenting the
                     # # first executable line
@@ -234,16 +262,24 @@ def inject_instructions(
 
             offset = len(instructions) << 1  # opcode + arg
 
+            # # Let's adjust right now the exception table
+            # for exc_entry in exc_table:
+            #     if exc_entry.is_entirely_before(original_offset):
+            #         continue
+            #     elif is_injection_index:
+            #         if original_offset >= exc_entry.start and original_offset < exc_entry.end:
+
             # Propagate code
-            instructions.append(Instruction(original_offset, opcode, arg))
+            instructions.append(Instruction(NO_OFFSET, opcode, arg))
+            # instructions.append(Instruction(original_offset, opcode, arg))
 
             if opcode is EXTENDED_ARG:
                 ext.append(arg)
                 continue
 
-            # _previous_previous_arg = previous_arg
-            # previous_arg = current_arg
-            # current_arg = int.from_bytes([*ext, arg], "big", signed=False)
+            _previous_previous_arg = previous_arg
+            previous_arg = current_arg
+            current_arg = int.from_bytes([*ext, arg], "big", signed=False)
             ext.clear()
 
             # # Track imports names
@@ -273,92 +309,123 @@ def inject_instructions(
 
             # Collect branching instructions for processing
             if opcode in RJump.__opcodes__:
-                jumps[offset] = RJump(original_offset, current_arg, JumpDirection.from_opcode(opcode))
+                jumps[len(instructions) - 1] = RJump(original_offset, current_arg, JumpDirection.from_opcode(opcode))
+                jumps_by_index[offset] = JumpType(original_offset, arg, JumpDirection.from_opcode(opcode))
 
     except StopIteration:
         pass
 
-    # Collect all the old jump start and end offsets
-    jump_targets = {_ for j in jumps.values() for _ in (j.start, j.end)}
+    # OPTION 1
+    # Adjust the destination of the jump instructions
+    injected_bytecode_len = len(inject_instructions) << 1  # opcode + arg
+    for instr_idx, j in jumps.items():
+        instruction = instructions[instr_idx]
+        bytecode_idx = instr_idx * 2
+        delta = j.arg * 2 + 2
+        for injection_cycle, inject_index in enumerate([ii for ii in injection_indexes if ii >= bytecode_idx]):
+            adjusted_injection_idx = inject_index + injection_cycle * injected_bytecode_len
+            if bytecode_idx + delta < adjusted_injection_idx:
+                # no need to make an adjustment
+                continue
 
-    # Adjust all the offsets and map the old offsets to the new ones for the
-    # jumps
-    for index, instr in enumerate(instructions):
-        new_offset = index << 1
-        if instr.offset in jump_targets or instr.offset in offset_map:
-            offset_map[instr.offset] = new_offset
-        instr.offset = new_offset
+            delta += injected_bytecode_len
+        # TODO: Account for backward jumps
+        instruction.arg = (delta - 2) >> 1
 
-    # Adjust all the jumps, neglecting any EXTENDED_ARGs for now
-    branches: t.List[Branch] = []
-    for jump in jumps.values():
-        new_start = offset_map[jump.start]
-        new_end = offset_map[jump.end]
+    # OPTION 2
+    # Adjust the destination of the jump instructions, exceptions, table, line tables
+    original_start_of_block = 0
+    original_end_of_block = 0
+    for injection_cycle, inject_index in enumerate(actual_injection_indexes):
+        original_start_of_block += injection_cycle * injected_bytecode_len
+        original_end_of_block = inject_index + injection_cycle * injected_bytecode_len
+        for instr_idx, jump in jumps_by_index.items():
+            instruction = instructions[instr_idx]
+            new_start = instr_idx << 1
+            if jump.start < inject_index:
+                new_arg = instruction.arg
 
-        # If we are jumping at the beginning of a line, jump to the
-        # beginning of the trap call instead
-        target_instr = line_map.get(jump.end, instructions[new_end >> 1])
-        branch = Branch(instructions[new_start >> 1], target_instr)
-        target_instr.targets.append(branch)
+        # # Collect all the old jump start and end offsets
+        # jump_targets = {_ for j in jumps.values() for _ in (j.start, j.end)}
 
-        branches.append(branch)
+        # # Adjust all the offsets and map the old offsets to the new ones for the
+        # # jumps
+        # for index, instr in enumerate(instructions):
+        #     new_offset = index << 1
+        #     if instr.offset in jump_targets or instr.offset in offset_map:
+        #         offset_map[instr.offset] = new_offset
+        #     instr.offset = new_offset
 
-    # Resolve the exception table
-    for e in exc_table:
-        e.start = instructions[offset_map[e.start] >> 1]
-        e.end = instructions[offset_map[e.end] >> 1]
-        e.target = instructions[offset_map[e.target] >> 1]
+        # # Adjust all the jumps, neglecting any EXTENDED_ARGs for now
+        # branches: t.List[Branch] = []
+        # for jump in jumps.values():
+        #     new_start = offset_map[jump.start]
+        #     new_end = offset_map[jump.end]
 
-    # Process all the branching instructions to adjust the arguments. We
-    # need to add EXTENDED_ARGs if the argument is too large.
-    process_branches = True
-    exts: t.List[t.Tuple[Instruction, int]] = []
-    while process_branches:
-        process_branches = False
-        for branch in branches:
-            jump_instr = branch.start
-            new_arg = branch.arg
-            jump_instr.arg = new_arg & 0xFF
-            new_arg >>= 8
-            c = 0
-            index = jump_instr.offset >> 1
+        #     # If we are jumping at the beginning of a line, jump to the
+        #     # beginning of the trap call instead
+        #     target_instr = line_map.get(jump.end, instructions[new_end >> 1])
+        #     branch = Branch(instructions[new_start >> 1], target_instr)
+        #     target_instr.targets.append(branch)
 
-            # Update the argument of the branching instruction, adding
-            # EXTENDED_ARGs if needed
-            while new_arg:
-                if index and instructions[index - 1].opcode is EXTENDED_ARG:
-                    index -= 1
-                    instructions[index].arg = new_arg & 0xFF
-                else:
-                    ext_instr = Instruction(index << 1, EXTENDED_ARG, new_arg & 0xFF)
-                    instructions.insert(index, ext_instr)
-                    c += 1
-                    # If the jump instruction was a target of another jump,
-                    # make the latest EXTENDED_ARG instruction the target
-                    # of that jump.
-                    if jump_instr.targets:
-                        for target in jump_instr.targets:
-                            if target.end is not jump_instr:
-                                raise ValueError("Invalid target")
-                            target.end = ext_instr
-                        ext_instr.targets.extend(jump_instr.targets)
-                        jump_instr.targets.clear()
-                new_arg >>= 8
+        #     branches.append(branch)
 
-            # Check if we added any EXTENDED_ARGs because we would have to
-            # reprocess the branches.
-            # TODO[perf]: only reprocess the branches that are affected.
-            # However, this branch is not expected to be taken often.
-            if c:
-                exts.append((ext_instr, c))
-                # Update the instruction offset from the point of insertion
-                # of the EXTENDED_ARGs
-                for instr_index, instr in enumerate(instructions[index + 1 :], index + 1):
-                    instr.offset = instr_index << 1
+        # # Resolve the exception table
+        # for e in exc_table:
+        #     e.start = instructions[offset_map[e.start] >> 1]
+        #     e.end = instructions[offset_map[e.end] >> 1]
+        #     e.target = instructions[offset_map[e.target] >> 1]
 
-                process_branches = True
+        # # Process all the branching instructions to adjust the arguments. We
+        # # need to add EXTENDED_ARGs if the argument is too large.
+        # process_branches = True
+        # exts: t.List[t.Tuple[Instruction, int]] = []
+        # while process_branches:
+        #     process_branches = False
+        #     for branch in branches:
+        #         jump_instr = branch.start
+        #         new_arg = branch.arg
+        #         jump_instr.arg = new_arg & 0xFF
+        #         new_arg >>= 8
+        #         c = 0
+        #         index = jump_instr.offset >> 1
 
-    # Create the new code object
+        #         # Update the argument of the branching instruction, adding
+        #         # EXTENDED_ARGs if needed
+        #         while new_arg:
+        #             if index and instructions[index - 1].opcode is EXTENDED_ARG:
+        #                 index -= 1
+        #                 instructions[index].arg = new_arg & 0xFF
+        #             else:
+        #                 ext_instr = Instruction(index << 1, EXTENDED_ARG, new_arg & 0xFF)
+        #                 instructions.insert(index, ext_instr)
+        #                 c += 1
+        #                 # If the jump instruction was a target of another jump,
+        #                 # make the latest EXTENDED_ARG instruction the target
+        #                 # of that jump.
+        #                 if jump_instr.targets:
+        #                     for target in jump_instr.targets:
+        #                         if target.end is not jump_instr:
+        #                             raise ValueError("Invalid target")
+        #                         target.end = ext_instr
+        #                     ext_instr.targets.extend(jump_instr.targets)
+        #                     jump_instr.targets.clear()
+        #             new_arg >>= 8
+
+        #         # Check if we added any EXTENDED_ARGs because we would have to
+        #         # reprocess the branches.
+        #         # TODO[perf]: only reprocess the branches that are affected.
+        #         # However, this branch is not expected to be taken often.
+        #         if c:
+        #             exts.append((ext_instr, c))
+        #             # Update the instruction offset from the point of insertion
+        #             # of the EXTENDED_ARGs
+        #             for instr_index, instr in enumerate(instructions[index + 1:], index + 1):
+        #                 instr.offset = instr_index << 1
+
+        #             process_branches = True
+
+        # Create the new code object
     new_code = bytearray()
     for instr in instructions:
         new_code.append(instr.opcode)
@@ -373,8 +440,8 @@ def inject_instructions(
     return code.replace(
         co_code=bytes(new_code),
         co_stacksize=code.co_stacksize,  # TODO: Compute the value!
-        co_linetable=update_location_data(code, injection_points, [(instr.offset, s) for instr, s in exts]),
-        co_exceptiontable=compile_exception_table(exc_table),
+        # co_linetable=update_location_data(code, injection_points, [(instr.offset, s) for instr, s in exts]),
+        # co_exceptiontable=compile_exception_table(exc_table),
     )
 
 
