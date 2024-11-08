@@ -26,7 +26,7 @@ Configuration
    Whether or not to pass distributed tracing headers to Celery workers.
    Note: this flag applies to both Celery workers and callers separately.
    
-   On the Caller: enabling propagation causes the caller and worker to
+   On the caller: enabling propagation causes the caller and worker to
    share a single trace while disabling causes them to be separate.
 
    On the worker: enabling propagation causes context to propagate across
