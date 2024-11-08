@@ -11,6 +11,7 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
+
 from doctest import DocTest
 import json
 import os
@@ -73,6 +74,17 @@ from ddtrace.internal.utils.inspection import undecorated
 
 
 log = get_logger(__name__)
+
+
+PYTEST_CPP_ENABLED = False
+
+try:
+    import pytest_cpp
+
+    PYTEST_CPP_ENABLED = True
+except ImportError:
+    log.debug("pytest-cpp not installed, it's only installed for profiling suites")
+
 
 _global_skipped_elements = 0
 
@@ -582,15 +594,9 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         return
 
-    try:
-        import pytest_cpp
-
-        if isinstance(item, isinstance(pytest_cpp.CppItem)):
-            yield
-            return
-    except Exception:
-        # only some test suites have pytest_cpp installed
-        pass
+    if PYTEST_CPP_ENABLED and isinstance(item, pytest_cpp.plugin.CppItem):
+        yield
+        return
 
     is_skipped = bool(
         item.get_closest_marker("skip")
