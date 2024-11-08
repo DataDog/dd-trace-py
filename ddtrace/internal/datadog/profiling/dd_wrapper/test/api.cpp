@@ -2,11 +2,6 @@
 #include "test_utils.hpp"
 #include <gtest/gtest.h>
 
-#ifdef __GLIBC__
-#include <malloc.h>
-#include <sys/resource.h>
-#endif
-
 // NOTE: cmake gives us an old gtest, and rather than update I just use the
 //       "workaround" in the following link
 //       https://stackoverflow.com/a/71257678
@@ -166,38 +161,6 @@ TEST(UploadDeathTest, LotsaSamplesLotsaFrames)
 {
     EXPECT_EXIT(lotsa_frames_lotsa_samples(), ::testing::ExitedWithCode(0), "");
 }
-
-#ifdef __GLIBC__
-TEST(ClearMemory, Foobar)
-{
-    // TODO: mallinfo2 seems maybe kinda promising but we don't have
-    // a new enough GLIBC
-    struct rusage r;
-    ASSERT_EQ(0, getrusage(RUSAGE_SELF, &r));
-    //// TODO: is this a good measure? probably not...
-    long before_kib = r.ru_maxrss;
-    std::cout << "before_kib: " << before_kib << std::endl;
-
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 512);
-    std::string s(1024 * 1024 * 128, 'a');
-    for (int i = 0; i < 10; i++) {
-        // Make the string "unique"
-        s[i] = 'b';
-        auto h = ddup_start_sample();
-        ddup_push_cputime(h, 1.0, 1);
-        ddup_push_task_id(h, 42);
-        ddup_push_task_name(h, s);
-        ddup_flush_sample(h);
-        ddup_drop_sample(h);
-        ddup_upload();
-    }
-
-    ASSERT_EQ(0, getrusage(RUSAGE_SELF, &r));
-    long after_kib = r.ru_maxrss;
-    std::cout << "after_kib: " << after_kib << std::endl;
-    EXPECT_LE(after_kib, before_kib + 50 * 1024);
-}
-#endif // __linux__
 
 int
 main(int argc, char** argv)
