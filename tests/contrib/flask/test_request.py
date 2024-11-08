@@ -14,9 +14,9 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
-from ddtrace.internal.schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
@@ -965,8 +965,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         assert traces[0][-1].name == "hello_2"
 
 
-@pytest.mark.parametrize("service_name", [None, "mysvc"])
-@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize(
+    "schema_version, service_name",
+    [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
+)
 def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
     """
     v0/Default: expect the service name to be "flask"
@@ -976,7 +978,7 @@ def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_
     expected_service_name = {
         None: service_name or "flask",
         "v0": service_name or "flask",
-        "v1": service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
 
     code = """

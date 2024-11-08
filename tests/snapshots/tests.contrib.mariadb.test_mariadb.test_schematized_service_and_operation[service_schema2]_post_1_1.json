@@ -1,7 +1,7 @@
 [[
   {
     "name": "mariadb.query",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "SELECT 1",
     "trace_id": 0,
     "span_id": 1,
