@@ -284,7 +284,7 @@ def test_extract(tracer):  # noqa: F811
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.test=value,any=tag",
         "ot-baggage-key1": "value1",
-        "baggage": "foo=bar,racoon=cute,serverNode=DF%2028",
+        "baggage": "foo=bar,raccoon=cute,serverNode=DF%2028",
     }
 
     context = HTTPPropagator.extract(headers)
@@ -312,7 +312,7 @@ def test_extract(tracer):  # noqa: F811
                 "_dd.p.test": "value",
             }
         assert context.get_baggage_item("foo") == "bar"
-        assert context.get_baggage_item("racoon") == "cute"
+        assert context.get_baggage_item("raccoon") == "cute"
         assert context.get_baggage_item("serverNode") == "DF 28"
         assert len(context.get_all_baggage_items()) == 3
 
