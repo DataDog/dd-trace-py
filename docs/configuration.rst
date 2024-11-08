@@ -655,7 +655,7 @@ The following environment variables for the tracer are supported:
       type: Boolean
       default: True
       description: |
-         Enables creation of consumer span when AWS SQS and AWS Kinesis `poll()` operations return no records. When disabled, no consumer span is created
+         Enables creation of consumer span when AWS SQS and AWS Kinesis ``poll()`` operations return no records. When disabled, no consumer span is created
          if no records are returned.
       version_added:
          v2.6.0:
@@ -664,7 +664,7 @@ The following environment variables for the tracer are supported:
       type: String
       default: None
       description: |
-         Enables AWS request payload tagging when set to `"all"` or a valid comma-separated list of `JSONPath`s.
+         Enables AWS request payload tagging when set to ``"all"`` or a valid comma-separated list of ``JSONPath``s.
       version_added:
          v2.17.0
 
@@ -672,7 +672,7 @@ The following environment variables for the tracer are supported:
       type: String
       default: None
       description: |
-         Enables AWS response payload tagging when set to `"all"` or a valid comma-separated list of `JSONPath`s.
+         Enables AWS response payload tagging when set to ``"all"`` or a valid comma-separated list of ``JSONPath``s.
       version_added:
          v2.17.0
 
