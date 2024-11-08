@@ -7,6 +7,7 @@ from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
@@ -138,7 +139,7 @@ class RagasFaithfulnessEvaluator:
             raise NotImplementedError("Failed to load dependencies for `ragas_faithfulness` evaluator") from e
         finally:
             telemetry_writer.add_count_metric(
-                namespace="llmobs",
+                namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
                 name="evaluators.init",
                 value=1,
                 tags=(
@@ -164,7 +165,7 @@ class RagasFaithfulnessEvaluator:
             return
         score_result_or_failure = self.evaluate(span_event)
         telemetry_writer.add_count_metric(
-            "llmobs",
+            TELEMETRY_APM_PRODUCT.LLMOBS,
             "evaluators.run",
             1,
             tags=(

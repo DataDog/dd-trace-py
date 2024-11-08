@@ -7,8 +7,8 @@ from ddtrace.contrib.pytest._retry_utils import RetryOutcomes
 from ddtrace.contrib.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.pytest._retry_utils import set_retry_num
+from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.pytest._types import pytest_TestReport
-from ddtrace.contrib.pytest._types import pytest_TestShortLogReport
 from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.pytest._utils import _TestOutcome
@@ -304,39 +304,33 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     terminalreporter.write_sep("=", purple=True, bold=True)
 
 
-def efd_get_teststatus(report: pytest_TestReport) -> t.Optional[pytest_TestShortLogReport]:
+def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_return_type:
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED:
-        return pytest.TestShortLogReport(
+        return (
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED,
             "r",
             (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
         )
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED:
-        return pytest.TestShortLogReport(
+        return (
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED,
             "R",
             (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
         )
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED:
-        return pytest.TestShortLogReport(
+        return (
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED,
             "s",
             (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED:
-        return pytest.TestShortLogReport(
-            _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True})
-        )
+        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED:
-        return pytest.TestShortLogReport(
-            _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True})
-        )
+        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED:
-        return pytest.TestShortLogReport(
-            _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True})
-        )
+        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY:
         # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the final
         # count of terminal summary
-        return pytest.TestShortLogReport(_EFD_FLAKY_OUTCOME, "K", ("EFD FINAL STATUS: FLAKY", {"yellow": True}))
+        return (_EFD_FLAKY_OUTCOME, "K", ("EFD FINAL STATUS: FLAKY", {"yellow": True}))
     return None

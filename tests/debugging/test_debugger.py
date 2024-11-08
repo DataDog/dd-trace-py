@@ -207,6 +207,7 @@ def test_debugger_function_probe_on_function_with_exception():
     snapshot_data = snapshot["debugger"]["snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
     assert snapshot_data["stack"][0]["function"] == "throwexcstuff"
+    assert snapshot_data["stack"][0]["lineNumber"] == 110
 
     entry_capture = snapshot_data["captures"]["entry"]
     assert entry_capture["arguments"] == {}

@@ -317,7 +317,6 @@ def _after_request_tags(pin, span: Span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
     # during the request.
-
     try:
         user = getattr(request, "user", None)
         if user is not None:

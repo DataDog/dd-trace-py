@@ -281,7 +281,12 @@ class LLMObs(Service):
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
-                        This argument is only applicable to LLM spans.
+                        - This argument is only applicable to LLM spans.
+                        - The dictionary may contain two optional keys relevant to RAG applications:
+                            `rag_context_variables` - a list of variable key names that contain ground
+                                                        truth context information
+                            `rag_query_variables` - a list of variable key names that contains query
+                                                        information for an LLM call
         :param name: Set to override the span name for any spans annotated within the returned context.
         """
         # id to track an annotation for registering / de-registering
@@ -327,6 +332,12 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")
             return
+
+        try:
+            cls._instance._evaluator_runner.periodic()
+        except Exception:
+            log.warning("Failed to run evaluator runner.", exc_info=True)
+
         try:
             cls._instance._llmobs_span_writer.periodic()
             cls._instance._llmobs_eval_metric_writer.periodic()
@@ -569,7 +580,12 @@ class LLMObs(Service):
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
-                        This argument is only applicable to LLM spans.
+                        - This argument is only applicable to LLM spans.
+                        - The dictionary may contain two optional keys relevant to RAG applications:
+                            `rag_context_variables` - a list of variable key names that contain ground
+                                                        truth context information
+                            `rag_query_variables` - a list of variable key names that contains query
+                                                        information for an LLM call
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
