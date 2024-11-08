@@ -475,7 +475,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", "-s", "-vvv", file_name)
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
