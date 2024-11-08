@@ -143,6 +143,20 @@ class TestTestVisibilityAPIClientBase:
     - good/bad/incorrect API responses
     """
 
+    @pytest.fixture(scope="function", autouse=True)
+    def _disable_ci_visibility(self):
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:  # noqa: E722
+            pass
+        yield
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:  # noqa: E722
+            pass
+
     default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala")
 
     default_configurations = {

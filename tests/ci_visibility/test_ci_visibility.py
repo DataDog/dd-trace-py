@@ -48,6 +48,21 @@ TEST_SHA_1 = "b3672ea5cbc584124728c48a443825d2940e0ddd"
 TEST_SHA_2 = "b3672ea5cbc584124728c48a443825d2940e0eee"
 
 
+@pytest.fixture(scope="function", autouse=True)
+def _disable_ci_visibility():
+    try:
+        if CIVisibility.enabled:
+            CIVisibility.disable()
+    except Exception:  # noqa: E722
+        pass
+    yield
+    try:
+        if CIVisibility.enabled:
+            CIVisibility.disable()
+    except Exception:  # noqa: E722
+        pass
+
+
 @contextlib.contextmanager
 def _dummy_noop_git_client():
     with mock.patch.multiple(
