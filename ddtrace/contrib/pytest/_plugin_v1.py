@@ -11,7 +11,6 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
-
 from doctest import DocTest
 import json
 import os
@@ -131,8 +130,7 @@ def _extract_ancestor_suite_span(item):
 
 def _store_module_span(item, span):
     """Store span at `pytest.Item` instance."""
-    if item:
-        item._datadog_span_module = span
+    item._datadog_span_module = span
 
 
 def _mark_failed(item):
@@ -262,7 +260,7 @@ def _get_module_path(item):
     """Extract module path from a `pytest.Item` instance."""
     # type (pytest.Item) -> str
     if not isinstance(item, (pytest.Package, pytest.Module)):
-        return ""
+        return None
 
     if _is_pytest_8_or_later() and isinstance(item, pytest.Package):
         module_path = item.nodeid
@@ -276,9 +274,7 @@ def _get_module_path(item):
 def _module_is_package(pytest_package_item=None, pytest_module_item=None):
     # Pytest 8+ module items have a pytest.Dir object as their parent instead of the session object
     if _is_pytest_8_or_later():
-        if pytest_module_item:
-            return isinstance(pytest_module_item.parent, pytest.Package)
-        return False
+        return isinstance(pytest_module_item.parent, pytest.Package)
 
     if pytest_package_item is None and pytest_module_item is not None:
         return False
@@ -670,8 +666,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         span.set_tag_str(test.MODULE_PATH, test_module_path)
 
-        if test_suite_span:
-            span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+        span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
         test_class_hierarchy = _get_test_class_hierarchy(item)
         if test_class_hierarchy:
             span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
@@ -679,9 +674,8 @@ def pytest_runtest_protocol(item, nextitem):
             test_suite_name = "{}.py".format(item.dtest.globs["__name__"])
             span.set_tag_str(test.SUITE, test_suite_name)
         else:
-            if test_suite_span:
-                test_suite_name = test_suite_span.get_tag(test.SUITE)
-                span.set_tag_str(test.SUITE, test_suite_name)
+            test_suite_name = test_suite_span.get_tag(test.SUITE)
+            span.set_tag_str(test.SUITE, test_suite_name)
 
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
         span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
@@ -753,12 +747,7 @@ def pytest_runtest_protocol(item, nextitem):
             _report_coverage_to_span(pytest._dd_coverage, span, root_directory, TEST_FRAMEWORKS.PYTEST)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
-        if (
-            nextitem is None
-            or nextitem_pytest_module_item != pytest_module_item
-            and test_suite_span is not None
-            and not test_suite_span.finished
-        ):
+        if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
             _mark_test_status(pytest_module_item, test_suite_span)
             # Finish coverage for the test suite if coverage is enabled
             # In ITR suite skipping mode, all tests in a skipped suite should be marked
@@ -859,8 +848,6 @@ def pytest_runtest_makereport(item, call):
 @pytest.hookimpl(trylast=True)
 def pytest_ddtrace_get_item_module_name(item):
     pytest_module_item = _find_pytest_item(item, pytest.Module)
-    if not pytest_module_item:
-        return ""
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
     if _module_is_package(pytest_package_item, pytest_module_item):
