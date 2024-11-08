@@ -143,7 +143,7 @@ class _UserInfoRetriever:
 
         return self.find_in_user_model(self.possible_name_fields)
 
-    def get_user_info(self):
+    def get_user_info(self, login=False, email=False, name=False):
         """
         In safe mode, try to get the user id from the user object.
         In extended mode, try to also get the username (which will be the returned user_id),
@@ -155,12 +155,12 @@ class _UserInfoRetriever:
         if not user_id:
             return None, {}
 
-        user_extra_info = {
-            "login": self.get_username(),
-            "email": self.get_user_email(),
-            "name": self.get_name(),
-        }
-
+        if login:
+            user_extra_info["login"] = self.get_username()
+        if email:
+            user_extra_info["email"] = self.get_user_email()
+        if name:
+            user_extra_info["name"] = self.get_name()
         return user_id, user_extra_info
 
 
