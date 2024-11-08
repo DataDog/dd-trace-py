@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 import urllib.request
+from urllib.error import HTTPError
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
@@ -197,28 +198,46 @@ def safe_json(obj, ensure_ascii=True):
 
 
 class HTTPResponse:
-    def __init__(self, resp: http.client.HTTPResponse) -> None:
+    def __init__(self, resp) -> None:
+        if resp is None:
+            raise ValueError("Response object cannot be None")
         self._resp = resp
+        self._content = None  # Cache the content
 
     @property
     def status_code(self) -> int:
-        return self._resp.status
+        if hasattr(self._resp, 'status'):
+            return self._resp.status
+        elif hasattr(self._resp, 'code'):
+            return self._resp.code
+        elif hasattr(self._resp, 'getcode'):
+            return self._resp.getcode()
+        else:
+            raise AttributeError(f"Could not find status code in response object of type {type(self._resp)}")
+
+    def read(self) -> bytes:
+        if self._content is None:
+            self._content = self._resp.read()
+        return self._content
+
+    def text(self) -> str:
+        return self.read().decode('utf-8')
 
     def json(self) -> dict:
-        """Return the JSON content of the response.
-
-        Note that this method can only be called once as the response content is read and consumed.
-        """
-        data = self._resp.read()
-        return json.loads(data.decode("utf-8"))
+        return json.loads(self.text())
 
 
 def http_request(
     method: str, url: str, headers: Optional[Dict[str, str]] = None, body: Optional[bytes] = None
 ) -> HTTPResponse:
+    """Make an HTTP request and return an HTTPResponse object."""
     # Create the request object
     req = urllib.request.Request(url, data=body, method=method)
     if headers:
-        for key, value in headers.items():
-            req.add_header(key, value)
-    return HTTPResponse(urllib.request.urlopen(req))
+        req.headers.update(headers)
+    try:
+        response = urllib.request.urlopen(req)
+        return HTTPResponse(response)
+    except HTTPError as e:
+        # Create an HTTPResponse object from the error response
+        return HTTPResponse(e)
