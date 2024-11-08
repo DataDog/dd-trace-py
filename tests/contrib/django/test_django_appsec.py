@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import contextlib
+
 import pytest
 
+from ddtrace import config
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -12,6 +15,24 @@ from ddtrace.internal import constants
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.utils import override_global_config
+
+
+@contextlib.contextmanager
+def update_django_config():
+    initial_settings = (
+        config.django.include_user_email,
+        config.django.include_user_login,
+        config.django.include_user_realname,
+    )
+    config.django.include_user_email = asm_config._django_include_user_email
+    config.django.include_user_login = asm_config._django_include_user_login
+    config.django.include_user_realname = asm_config._django_include_user_realname
+    yield
+    (
+        config.django.include_user_email,
+        config.django.include_user_login,
+        config.django.include_user_realname,
+    ) = initial_settings
 
 
 def _aux_appsec_get_root_span(
@@ -142,11 +163,23 @@ def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_identification(client, test_spans, tracer):
+@pytest.mark.parametrize("use_login", (False, True))
+@pytest.mark.parametrize("use_email", (False, True))
+@pytest.mark.parametrize("use_realname", (False, True))
+def test_django_login_sucess_identification(client, test_spans, tracer, use_login, use_email, use_realname):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT)):
+    with override_global_config(
+        dict(
+            _asm_enabled=True,
+            _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT,
+            _django_include_user_email=use_email,
+            _django_include_user_login=use_login,
+            _django_include_user_realname=use_realname,
+        )
+    ), update_django_config():
+        # update django config for tests
         test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
         test_user.set_password("secret")
         test_user.save()
@@ -158,17 +191,41 @@ def test_django_login_sucess_identification(client, test_spans, tracer):
         assert login_span.get_tag(user.ID) == "1"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") is None
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") is None
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") is None
+        if use_login:
+            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == "fred"
+        else:
+            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") is None
+        if use_email:
+            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == "fred@test.com"
+            assert login_span.get_tag("usr.email") == "fred@test.com"
+        else:
+            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") is None
+            assert login_span.get_tag("usr.email") is None
+        if use_realname:
+            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == "Fred"
+            assert login_span.get_tag("usr.name") == "Fred"
+        else:
+            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") is None
+            assert login_span.get_tag("usr.name") is None
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_anonymization(client, test_spans, tracer):
+@pytest.mark.parametrize("use_login", (False, True))
+@pytest.mark.parametrize("use_email", (False, True))
+@pytest.mark.parametrize("use_realname", (False, True))
+def test_django_login_sucess_anonymization(client, test_spans, tracer, use_login, use_email, use_realname):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON)):
+    with override_global_config(
+        dict(
+            _asm_enabled=True,
+            _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON,
+            _django_include_user_email=use_email,
+            _django_include_user_login=use_login,
+            _django_include_user_realname=use_realname,
+        )
+    ), update_django_config():
         test_user = User.objects.create(username="fred2")
         test_user.set_password("secret")
         test_user.save()
@@ -180,9 +237,9 @@ def test_django_login_sucess_anonymization(client, test_spans, tracer):
         assert login_span.get_tag(user.ID) == "1"
         assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.ANON
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.email")
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.username")
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") is None
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") is None
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") is None
 
 
 @pytest.mark.django_db
