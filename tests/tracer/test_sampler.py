@@ -677,7 +677,7 @@ def test_sampling_rule_sample_rate_0():
 @pytest.mark.subprocess(
     env={"DD_TRACE_RATE_LIMIT": "2", "DD_TRACE_SAMPLING_RULES": ""},
     err=b"DD_TRACE_RATE_LIMIT is set to 2 and DD_TRACE_SAMPLING_RULES is not set. "
-    b"Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+    b"Tracer rate limiting is only applied to spans that match tracer sampling rules. "
     b"All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.\n",
 )
 def test_rate_limit_without_sampling_rules_warning():
