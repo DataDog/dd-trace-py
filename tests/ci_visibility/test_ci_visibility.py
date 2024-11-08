@@ -54,12 +54,14 @@ def _disable_ci_visibility():
         if CIVisibility.enabled:
             CIVisibility.disable()
     except Exception:  # noqa: E722
+        # no-dd-sa:python-best-practices/no-silent-exception
         pass
     yield
     try:
         if CIVisibility.enabled:
             CIVisibility.disable()
     except Exception:  # noqa: E722
+        # no-dd-sa:python-best-practices/no-silent-exception
         pass
 
 

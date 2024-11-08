@@ -21,12 +21,14 @@ class TestCIITRMixin:
             if CIVisibility.enabled:
                 CIVisibility.disable()
         except Exception:  # noqa: E722
+            # no-dd-sa:python-best-practices/no-silent-exception
             pass
         yield
         try:
             if CIVisibility.enabled:
                 CIVisibility.disable()
         except Exception:  # noqa: E722
+            # no-dd-sa:python-best-practices/no-silent-exception
             pass
 
     def test_api_is_item_itr_skippable_test_level(self):
