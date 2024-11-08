@@ -4,6 +4,114 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.14.6
+
+### Bug Fixes
+
+- Profiling
+  - Fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+  - Fixes an issue where the profiler was allocating too much memory from `ensure_binary_or_empty()` function, on Python versions before 3.12, with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - When a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when `DD_PROFILING_ENDPOINT_COLLECTION_ENABLED` and `DD_PROFILING_STACK_V2_ENABLED` were set to enable grouping of profiles for endpoints.
+  - Resolves an issue where asyncio task names are not captured by stack v2, when `DD_PROFILING_STACK_V2_ENABLED` is set.
+
+- Tracing
+  - pymongo: Adds type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+
+
+---
+
+## 2.15.2
+
+### Bug Fixes
+
+- Profiling: 
+  - Fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+  - Fixes an issue where the profiler was allocating too much memory from `ensure_binary_or_empty()` function, on Python versions before 3.12, with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - When a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when `DD_PROFILING_ENDPOINT_COLLECTION_ENABLED` and `DD_PROFILING_STACK_V2_ENABLED` were set to enable grouping of profiles for endpoints.
+  - Resolves an issue where asyncio task names are not captured by stack v2, when `DD_PROFILING_STACK_V2_ENABLED` is set.
+- Tracing: 
+  - pymongo: Adds type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+
+
+---
+
+## 2.16.0
+
+### New Features
+- LLM Observability
+  - When starting LLM and embedding spans, the `model_name` argument is now optional and will default to `custom`. This applies to both inline methods (e.g. `LLMObs.llm()`) and function decorators (e.g. `@llm`).
+  - Introduces the ability to add metadata for evaluation metrics via the `submit_evaluation` method. For more information, see [submitting evaluations with the SDK.](https://docs.datadoghq.com/llm_observability/submit_evaluations/#submitting-evaluations-with-the-sdk)
+
+- Tracing
+  - Introduces support for Baggage as defined by the [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/baggage/api/).
+  - botocore: Adds span pointers for successful DynamoDB `BatchWriteItem` spans. Table Primary Keys will need to be provided with the `ddtrace.config.botocore.dynamodb_primary_key_names_for_tables` option or the `DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS` environment variable to correctly handle the `PutRequest` items.
+  - botocore: Adds span pointers for successful DynamoDB `TransactWriteItems` spans. Table Primary Keys will need to be provided with the `ddtrace.config.botocore.dynamodb_primary_key_names_for_tables` option or the `DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS` environment variable to correctly handle the `Put` items.
+  - botocore: Adds `ddtrace.config.botocore.add_span_pointers` option or the `DD_BOTOCORE_ADD_SPAN_POINTERS` environment variable to control adding span pointers to some successful AWS API requests. This option is enabled by default.
+
+
+### Bug Fixes
+- CI Visibility
+  - Fixes a bug where `CODEOWNERS` would incorrectly fail to discard line-level trailing comments (eg: `@code/owner # my comment` would result in codeowners being parsed as `@code/owner`, `#`, `my`, and `comment`)
+  - Fixes unnecessary logging of an exception that would appear when trying to upload git metadata in an environment without functioning git (eg: missing `git` binary or `.git` directory)
+
+- Code Security
+  - Resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError
+
+- Dynamic Instrumentation
+  - Fixes an issue that prevented dynamic span tags probes from adding the requested tags to the requested span.
+
+- LLM Observability
+  - Resolves two issues with annotation contexts:  
+    - annotations registered via annotation contexts were being applied globally. Annotations are now only applied to the current trace context and do not pollute to other threads & processes.
+    - annotations from nested annotation contexts were applied in a non-deterministic order. Annotations are now applied in the order they were registered.
+  - Resolves an issue where input and output values equal to zero were not being annotated on workflow, task, agent and tool spans when using `LLMObs.annotate`.
+  - Resolves errors where the disabled setting was being ignored when forking.
+
+- Profiling
+  - Fixes a data race where span information associated with a thread was read and updated concurrently, leading to segfaults.
+  - Fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+  - When a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when `DD_PROFILING_ENDPOINT_COLLECTION_ENABLED` and `DD_PROFILING_STACK_V2_ENABLED` were set to enable grouping of profiles for endpoints.
+  - Resolves an issue where asyncio task names are not captured by stack v2, when `DD_PROFILING_STACK_V2_ENABLED` is set.
+  - Resolves an issue where endpoint profiling for stack v2 throws `TypeError` exception when it is given a `Span` with `None` span_type.
+
+- Tracing
+  - Resolves the issue where tracer flares would not be generated if unexpected types were received in the `AGENT_CONFIG` remote configuration product. 
+  - elasticsearch: Resolves an issue where span tags were not fully populated on "sampled" spans, causing metric dimensions to be incorrect when spans were prematurely marked as sampled, including resource_name.
+
+
+### Other Changes
+- LLM Observability
+  - Updates the merging behavior for tags when `LLMObs.annotate` is called multiple times on the same span so that the latest value for a tag key overrides the previous value.
+
+
+---
+
+## 2.15.1
+
+### Bug Fixes
+
+- CI Visibility: 
+  - Fixes a bug where `CODEOWNERS` would incorrectly fail to discard line-level trailing comments (eg: `@code/owner # my comment` would result in codeowners being parsed as `@code/owner`, `#`, `my`, and `comment`)
+  - Fixes unnecessary logging of an exception that would appear when trying to upload git metadata in an environment without functioning git (eg: missing `git` binary or `.git` directory)
+- Code Security: 
+  - Resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError.
+- Dynamic Instrumentation: 
+  - Fixes an issue that prevented dynamic span tags probes from adding the requested tags to the requested span.
+- LLM Observability:
+  - This fix resolves two issues with annotation contexts:  
+    - annotations registered via annotation contexts were being applied globally. Annotations are now only applied to the current trace context and do not pollute to other threads & processes.
+    - annotations from nested annotation contexts were applied in a non-deterministic order. Annotations are now applied in the order they were registered.
+- Profiling: 
+  - fix a data race where span information associated with a thread was read and updated concurrently, leading to segfaults
+  - resolves an issue where endpoint profiling for stack v2 throws `TypeError` exception when it is given a `Span` with `None` span\_type.
+
+### Other Changes
+- LLM Observability: 
+  - Updates the merging behavior for tags when <span class="title-ref">LLMObs.annotate</span> is called multiple times on the same span so that the latest value for a tag key overrides the previous value.
+
+
+---
+
 ## 2.15.0
 
 ### New Features

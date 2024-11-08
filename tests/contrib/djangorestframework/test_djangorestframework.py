@@ -4,7 +4,7 @@ import django
 import pytest
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import assert_span_http_status_code
 
 
@@ -44,7 +44,9 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
 @pytest.mark.django_db
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 def test_schematized_service_names(ddtrace_run_python_code_in_subprocess, schema_version):
-    expected_service_name = {None: "django", "v0": "django", "v1": _DEFAULT_SPAN_SERVICE_NAMES["v1"]}[schema_version]
+    expected_service_name = {None: "django", "v0": "django", "v1": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME}[
+        schema_version
+    ]
     code = """
 import pytest
 import sys
