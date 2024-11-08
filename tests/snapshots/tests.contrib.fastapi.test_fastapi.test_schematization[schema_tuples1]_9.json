@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.request",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "http.request",
     "trace_id": 0,
     "span_id": 1,
@@ -41,7 +41,7 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "ddtrace_subprocess_dir",
          "_dd.p.tid": "65e2cda800000000",
          "component": "fastapi",
          "http.method": "GET",
@@ -68,7 +68,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "ddtrace_subprocess_dir",
             "_dd.p.tid": "65e2cda800000000",
             "component": "fastapi",
             "http.method": "GET",
@@ -91,7 +91,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "ddtrace_subprocess_dir",
                "_dd.p.tid": "65e2cda800000000"
              },
              "duration": 28000,

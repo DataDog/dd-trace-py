@@ -84,6 +84,9 @@ ITR_TEST_CODE_COVERAGE_ENABLED = "test.code_coverage.enabled"
 ITR_UNSKIPPABLE = "test.itr.unskippable"
 ITR_FORCED_RUN = "test.itr.forced_run"
 
+# Test Session Name
+TEST_SESSION_NAME = "test_session.name"
+
 
 class Status(Enum):
     PASS = "pass"

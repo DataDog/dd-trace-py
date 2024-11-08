@@ -8,7 +8,7 @@ import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
@@ -29,7 +29,7 @@ class TestPytest(TracerTestCase):
         """
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             yield
 

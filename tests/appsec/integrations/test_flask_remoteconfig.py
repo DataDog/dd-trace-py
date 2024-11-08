@@ -2,7 +2,6 @@ import base64
 import datetime
 import hashlib
 import json
-from multiprocessing.pool import ThreadPool
 import os
 import signal
 import sys
@@ -15,6 +14,9 @@ from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from tests.appsec.appsec_utils import gunicorn_server
+from tests.appsec.integrations.utils import _PORT
+from tests.appsec.integrations.utils import _multi_requests
+from tests.appsec.integrations.utils import _request_200
 from tests.utils import flaky
 
 
@@ -165,44 +167,6 @@ def _unblock_ip(token):
     assert resp.status == 202
 
 
-def _request(client):
-    response = client.get("/", headers={"X-Forwarded-For": "123.45.67.88"})
-    return response
-
-
-def _multi_requests(client, debug_mode=False):
-    if debug_mode:
-        results = [
-            _request(
-                client,
-            )
-            for _ in range(10)
-        ]
-    else:
-        pool = ThreadPool(processes=9)
-        results_async = [pool.apply_async(_request, (client,)) for _ in range(50)]
-        results = [res.get() for res in results_async]
-
-    return results
-
-
-def _request_200(client, debug_mode=False, max_retries=40, sleep_time=1):
-    """retry until it gets at least 2 successful checks"""
-    time.sleep(sleep_time)
-    previous = False
-    for id_try in range(max_retries):
-        results = _multi_requests(client, debug_mode)
-        check = all(response.status_code == 200 and response.content == b"OK_index" for response in results)
-        if check:
-            if previous:
-                return
-            previous = True
-        else:
-            previous = False
-        time.sleep(sleep_time * pow(8, id_try / max_retries))
-    raise AssertionError("request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
-
-
 def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
     """retry until it gets at least 2 successful checks"""
     time.sleep(sleep_time)
@@ -221,9 +185,6 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
             previous = False
         time.sleep(sleep_time * pow(8, id_try / max_retries))
     raise AssertionError("request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
-
-
-_PORT = 8040
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")

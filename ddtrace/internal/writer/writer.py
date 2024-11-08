@@ -204,7 +204,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
         if not self._report_metrics:
             return
-        if config.health_metrics_enabled and self.dogstatsd:
+        if config._health_metrics_enabled and self.dogstatsd:
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
     def _set_drop_rate(self) -> None:

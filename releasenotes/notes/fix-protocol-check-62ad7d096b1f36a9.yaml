@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing(celery): Fixes an issue where ``celery.apply`` spans using task_protocol 1 didn't close by improving the check for the task id in the body.

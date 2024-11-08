@@ -69,23 +69,29 @@ def test_llm_decorator(LLMObs, mock_llmobs_span_writer):
     )
 
 
-def test_llm_decorator_no_model_name_raises_error(LLMObs, mock_llmobs_span_writer):
-    with pytest.raises(TypeError):
-
-        @llm(model_provider="test_provider", name="test_function", session_id="test_session_id")
-        def f():
-            pass
-
-
-def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
-    @llm(model_name="test_model")
+def test_llm_decorator_no_model_name_sets_default(LLMObs, mock_llmobs_span_writer):
+    @llm(model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
         pass
 
     f()
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_span_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="custom")
+        _expected_llmobs_llm_span_event(
+            span, "llm", model_name="custom", model_provider="test_provider", session_id="test_session_id"
+        )
+    )
+
+
+def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
+    @llm
+    def f():
+        pass
+
+    f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "llm", model_name="custom", model_provider="custom")
     )
 
 
@@ -105,23 +111,29 @@ def test_embedding_decorator(LLMObs, mock_llmobs_span_writer):
     )
 
 
-def test_embedding_decorator_no_model_name_raises_error(LLMObs):
-    with pytest.raises(TypeError):
-
-        @embedding(model_provider="test_provider", name="test_function", session_id="test_session_id")
-        def f():
-            pass
-
-
-def test_embedding_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
-    @embedding(model_name="test_model")
+def test_embedding_decorator_no_model_name_sets_default(LLMObs, mock_llmobs_span_writer):
+    @embedding(model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
         pass
 
     f()
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_span_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="custom")
+        _expected_llmobs_llm_span_event(
+            span, "embedding", model_name="custom", model_provider="test_provider", session_id="test_session_id"
+        )
+    )
+
+
+def test_embedding_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
+    @embedding
+    def f():
+        pass
+
+    f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "embedding", model_name="custom", model_provider="custom")
     )
 
 

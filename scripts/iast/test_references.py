@@ -1,3 +1,4 @@
+import asyncio
 import gc
 import sys
 
@@ -8,13 +9,13 @@ from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import reset_context
 
 
-def test_main():
+async def test_main():
     for i in range(1000):
         gc.collect()
         a = sys.gettotalrefcount()
         try:
             create_context()
-            result = test_doit()  # noqa: F841
+            result = await test_doit()  # noqa: F841
             assert is_pyobject_tainted(result)
             reset_context()
         except KeyboardInterrupt:
@@ -25,4 +26,5 @@ def test_main():
 
 
 if __name__ == "__main__":
-    test_main()
+    loop = asyncio.get_event_loop()
+    sys.exit(loop.run_until_complete(test_main()))

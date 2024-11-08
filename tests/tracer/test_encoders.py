@@ -162,7 +162,7 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = [
             [
-                Span(name="client.testing"),
+                Span(name="client.testing", links=[SpanLink(trace_id=12345, span_id=678990)]),
                 Span(name="client.testing"),
             ],
             [
@@ -184,6 +184,7 @@ class TestEncoders(TestCase):
         assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
+        assert len(items[0][0]["span_links"]) == 1
         assert len(items[1]) == 2
         assert len(items[2]) == 2
         for i in range(3):
@@ -194,7 +195,7 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = [
             [
-                Span(name="client.testing", span_id=0xAAAAAA),
+                Span(name="client.testing", span_id=0xAAAAAA, links=[SpanLink(trace_id=12345, span_id=67890)]),
                 Span(name="client.testing", span_id=0xAAAAAA),
             ],
             [
@@ -215,6 +216,7 @@ class TestEncoders(TestCase):
         assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
+        assert len(items[0][0]["span_links"]) == 1
         assert len(items[1]) == 2
         assert len(items[2]) == 2
         for i in range(3):

@@ -246,7 +246,7 @@ def test_metrics():
 
     assert t._partial_flush_min_spans == 300
 
-    with override_global_config(dict(health_metrics_enabled=True)):
+    with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -296,7 +296,7 @@ def test_metrics_partial_flush_disabled():
         partial_flush_enabled=False,
     )
 
-    with override_global_config(dict(health_metrics_enabled=True)):
+    with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -763,7 +763,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     assert out == b"", "an empty program should generate no logs under ddtrace-run"
 
     assert (
-        b"[dd.service= dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
+        b"[dd.service=ddtrace_subprocess_dir dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
     ), "stderr should contain debug output when DD_TRACE_DEBUG is set"
 
     assert b"KeyError: 'dd.service'" not in err, "stderr should not contain any exception logs"

@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Profiling: all files with platform-dependent code have had their filenames updated to reflect the platform they are
+    for.  This fixes issues where the wrong file would be used on a given platform.

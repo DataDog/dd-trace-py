@@ -11,7 +11,7 @@ from ddtrace.contrib.pytest_bdd._plugin import _get_step_func_args_json
 from ddtrace.contrib.pytest_bdd._plugin import get_version
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import DummyCIVisibilityWriter
@@ -42,7 +42,7 @@ class TestPytest(TracerTestCase):
         """
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             yield
 
@@ -68,7 +68,7 @@ class TestPytest(TracerTestCase):
 
     def test_and_emit_get_version(self):
         version = get_version()
-        assert type(version) == str
+        assert isinstance(version, str)
         assert version != ""
 
         emit_integration_and_version_to_test_agent("pytest-bdd", version)

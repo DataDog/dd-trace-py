@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: enables code provenance when using libdatadog exporter,
+    ``DD_PROFILING_EXPORT_LIBDD_ENABLED``, ``DD_PROFILING_STACK_V2_ENABLED``,
+    or ``DD_PROFILING_TIMELINE_ENABLED``.
+

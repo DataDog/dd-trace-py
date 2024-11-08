@@ -13,6 +13,7 @@ from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings._core import report_telemetry as _report_telemetry
 
 
 logger = get_logger(__name__)
@@ -418,6 +419,7 @@ ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
+_report_telemetry(config)
 
 # If during processing we discover that the configuration was injected, we need to do a few things
 # - Mark it as such

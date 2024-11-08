@@ -11,8 +11,18 @@ from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.pytest._atr_utils import atr_get_failed_reports
+from ddtrace.contrib.pytest._atr_utils import atr_get_teststatus
+from ddtrace.contrib.pytest._atr_utils import atr_handle_retries
+from ddtrace.contrib.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.pytest._retry_utils import get_retry_num
+from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
+from ddtrace.contrib.pytest._types import pytest_CallInfo
+from ddtrace.contrib.pytest._types import pytest_Config
+from ddtrace.contrib.pytest._types import pytest_TestReport
+from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
 from ddtrace.contrib.pytest._utils import _get_session_command
@@ -22,12 +32,17 @@ from ddtrace.contrib.pytest._utils import _get_test_parameters_json
 from ddtrace.contrib.pytest._utils import _is_enabled_early
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_atr
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.pytest._utils import _TestOutcome
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility.api import TestExcInfo
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
@@ -45,6 +60,13 @@ from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+
+
+if _pytest_version_supports_efd():
+    from ddtrace.contrib.pytest._efd_utils import efd_get_failed_reports
+    from ddtrace.contrib.pytest._efd_utils import efd_get_teststatus
+    from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
+    from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
 
 
 log = get_logger(__name__)
@@ -70,11 +92,11 @@ def _handle_itr_should_skip(item, test_id) -> bool:
             # Marking the test as forced run also applies to its hierarchy
             InternalTest.mark_itr_forced_run(test_id)
             return False
-        else:
-            InternalTest.mark_itr_skipped(test_id)
-            # Marking the test as skipped by ITR so that it appears in pytest's output
-            item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
-            return True
+
+        InternalTest.mark_itr_skipped(test_id)
+        # Marking the test as skipped by ITR so that it appears in pytest's output
+        item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
+        return True
 
     return False
 
@@ -119,7 +141,7 @@ def _handle_coverage_dependencies(suite_id) -> None:
 def _disable_ci_visibility():
     try:
         disable_test_visibility()
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during disable_ci_visibility", exc_info=True)
 
 
@@ -134,7 +156,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
-        dd_config.test_visibility.itr_skipping_level = "suite"
+        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()
@@ -142,12 +164,12 @@ def pytest_load_initial_conftests(early_config, parser, args):
                 workspace_path = Path.cwd().absolute()
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
 
-def pytest_configure(config: pytest.Config) -> None:
+def pytest_configure(config: pytest_Config) -> None:
     try:
         if is_enabled(config):
             take_over_logger_stream_handler()
@@ -159,9 +181,16 @@ def pytest_configure(config: pytest.Config) -> None:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
             _disable_ci_visibility()
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
+
+
+def pytest_unconfigure(config: pytest_Config) -> None:
+    if not is_test_visibility_enabled():
+        return
+
+    _disable_ci_visibility()
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -185,7 +214,10 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.start()
-    except:  # noqa: E722
+        if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
+            log.warning("Early Flake Detection disabled: pytest version is not supported")
+
+    except Exception:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -224,6 +256,10 @@ def _pytest_collection_finish(session) -> None:
             InternalTest.mark_itr_unskippable(test_id)
             InternalTestSuite.mark_itr_unskippable(suite_id)
 
+    # NOTE: EFD enablement status is already specified during service enablement
+    if InternalTestSession.efd_enabled() and InternalTestSession.efd_is_faulty_session():
+        log.warning("Early Flake Detection disabled: too many new tests detected")
+
 
 def pytest_collection_finish(session) -> None:
     if not is_test_visibility_enabled():
@@ -231,7 +267,7 @@ def pytest_collection_finish(session) -> None:
 
     try:
         return _pytest_collection_finish(session)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during collection finish, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
@@ -297,7 +333,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
     try:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
 
     # Yield control back to pytest to run the test
@@ -305,23 +341,15 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
     try:
         return _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during post-test", exc_info=True)
         return
 
 
-def _pytest_runtest_makereport(item, call, outcome):
-    result = outcome.get_result()
-
+def _process_result(item, call, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 
     has_exception = call.excinfo is not None
-
-    # There are scenarios in which we may have already finished this item in setup or call, eg:
-    # - it was skipped by ITR
-    # - it was marked with skipif
-    if InternalTest.is_finished(test_id):
-        return
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
@@ -336,9 +364,8 @@ def _pytest_runtest_makereport(item, call, outcome):
     # - the test passed with xfail
     # - we are tearing down the test
     # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
-
     if call.when != "teardown" and not (has_exception or result.failed):
-        return
+        return _TestOutcome()
 
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
     xfail_reason_tag = InternalTest.get_tag(test_id, XFAIL_REASON) if xfail else None
@@ -348,8 +375,8 @@ def _pytest_runtest_makereport(item, call, outcome):
     # that's why no XFAIL_REASON or test.RESULT tags will be added.
     if result.skipped:
         if InternalTest.was_skipped_by_itr(test_id):
-            # Items that were skipped by ITR already have their status set
-            return
+            # Items that were skipped by ITR already have their status and reason set
+            return _TestOutcome()
 
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
@@ -357,11 +384,9 @@ def _pytest_runtest_makereport(item, call, outcome):
                 InternalTest.set_tag(test_id, test.RESULT, test.Status.XFAIL.value)
                 if xfail_reason_tag is None:
                     InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
-                InternalTest.mark_pass(test_id)
-                return
+                return _TestOutcome(TestStatus.PASS)
 
-        InternalTest.mark_skip(test_id, _extract_reason(call))
-        return
+        return _TestOutcome(TestStatus.SKIP, _extract_reason(call))
 
     if result.passed:
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
@@ -370,26 +395,61 @@ def _pytest_runtest_makereport(item, call, outcome):
                 InternalTest.set_tag(test_id, XFAIL_REASON, "XFail")
             InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
 
-        InternalTest.mark_pass(test_id)
-        return
+        return _TestOutcome(TestStatus.PASS)
 
     if xfail and not has_skip_keyword and not item.config.option.runxfail:
         # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
         if xfail_reason_tag is None:
             InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
         InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
-        InternalTest.mark_fail(test_id)
-        return
+        return _TestOutcome(TestStatus.FAIL)
+
+    # NOTE: for ATR and EFD purposes, we need to know if the test failed during setup or teardown.
+    if call.when == "setup" and result.failed:
+        InternalTest.stash_set(test_id, "setup_failed", True)
+    elif call.when == "teardown" and result.failed:
+        InternalTest.stash_set(test_id, "teardown_failed", True)
 
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 
-    InternalTest.mark_fail(test_id, exc_info)
+    return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
+
+
+def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
+    # When ATR or EFD retries are active, we do not want makereport to generate results
+    if get_retry_num(item.nodeid) is not None:
+        return
+
+    original_result = outcome.get_result()
+
+    test_id = _get_test_id_from_item(item)
+
+    test_outcome = _process_result(item, call, original_result)
+
+    # A None value for test_outcome.status implies the test has not finished yet
+    # Only continue to finishing the test if the test has finished, or if tearing down the test
+    if test_outcome.status is None and call.when != "teardown":
+        return
+
+    # Record a result if we haven't already recorded it:
+    if not InternalTest.is_finished(test_id):
+        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+
+    # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
+    # NOTE: this mutates the original result's outcome
+    if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
+        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
+        return
+    if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+        return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
+    if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome)
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call) -> None:
+def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
-    outcome: pytest.TestReport
+    outcome: pytest_TestReport
     outcome = yield
 
     if not is_test_visibility_enabled():
@@ -401,9 +461,76 @@ def pytest_runtest_makereport(item, call) -> None:
         log.debug("encountered error during makereport", exc_info=True)
 
 
+def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
+    # Before yield gives us a chance to show failure reports, but they have to be in terminalreporter.stats["failed"] to
+    # be shown. That, however, would make them count towards the final summary, so we add them temporarily, then restore
+    # terminalreporter.stats["failed"] to its original size after the yield.
+    failed_reports_initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
+
+    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+        for failed_report in efd_get_failed_reports(terminalreporter):
+            failed_report.outcome = PYTEST_STATUS.FAILED
+            terminalreporter.stats.setdefault("failed", []).append(failed_report)
+
+    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+        for failed_report in atr_get_failed_reports(terminalreporter):
+            failed_report.outcome = PYTEST_STATUS.FAILED
+            terminalreporter.stats.setdefault("failed", []).append(failed_report)
+
+    return failed_reports_initial_size
+
+
+def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial_size: t.Optional[int] = None):
+    # After yield gives us a chance to:
+    # - print our flaky test status summary
+    # - modify the total counts
+
+    # Restore terminalreporter.stats["failed"] to its original size so the final summary remains correct
+    if failed_reports_initial_size is None:
+        log.debug("Could not get initial failed report size, not restoring failed reports")
+    elif failed_reports_initial_size == 0:
+        terminalreporter.stats.pop("failed", None)
+    else:
+        terminalreporter.stats[PYTEST_STATUS.FAILED] = terminalreporter.stats[PYTEST_STATUS.FAILED][
+            :failed_reports_initial_size
+        ]
+
+    # IMPORTANT: terminal summary functions mutate terminalreporter.stats
+    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+        efd_pytest_terminal_summary_post_yield(terminalreporter)
+
+    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+        atr_pytest_terminal_summary_post_yield(terminalreporter)
+    return
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Report flaky or failed tests"""
+    failed_reports_initial_size = None
+    try:
+        failed_reports_initial_size = _pytest_terminal_summary_pre_yield(terminalreporter)
+    except Exception:  # noqa: E722
+        log.debug("Encountered error during terminal summary pre-yield", exc_info=True)
+
+    yield
+
+    try:
+        _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial_size)
+    except Exception:  # noqa: E722
+        log.debug("Encountered error during terminal summary post-yield", exc_info=True)
+
+    return
+
+
 def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
+
+    if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    if InternalTestSession.atr_has_failed_tests() and InternalTestSession.atr_has_failed_tests():
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
@@ -414,14 +541,13 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
         if not isinstance(lines_pct_value, float):
             log.warning("Tried to add total covered percentage to session span but the format was unexpected")
-            return
-        InternalTestSession.set_covered_lines_pct(lines_pct_value)
+        else:
+            InternalTestSession.set_covered_lines_pct(lines_pct_value)
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
 
     InternalTestSession.finish(force_finish_children=True)
-    disable_test_visibility()
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -430,10 +556,22 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     try:
         _pytest_sessionfinish(session, exitstatus)
-    except:  # noqa: E722
+    except Exception:  # noqa: E722
         log.debug("encountered error during session finish", exc_info=True)
-        # Try, again, to disable CI Visibility just in case
-        _disable_ci_visibility()
+
+
+def pytest_report_teststatus(
+    report: pytest_TestReport,
+) -> _pytest_report_teststatus_return_type:
+    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+        test_status = atr_get_teststatus(report)
+        if test_status is not None:
+            return test_status
+
+    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+        test_status = efd_get_teststatus(report)
+        if test_status is not None:
+            return test_status
 
 
 @pytest.hookimpl(trylast=True)

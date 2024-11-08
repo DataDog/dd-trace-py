@@ -45,22 +45,20 @@ def record_objects_pack_data(num_files: int, num_bytes: int) -> None:
     telemetry_writer.add_distribution_metric(_NAMESPACE, GIT_TELEMETRY.OBJECTS_PACK_FILES, num_files)
 
 
-def record_settings(
-    duration: float,
+def record_settings_response(
     coverage_enabled: Optional[bool] = False,
     skipping_enabled: Optional[bool] = False,
     require_git: Optional[bool] = False,
     itr_enabled: Optional[bool] = False,
-    error: Optional[ERROR_TYPES] = None,
+    early_flake_detection_enabled: Optional[bool] = False,
 ) -> None:
     log.debug(
-        "Recording settings telemetry: %s, %s, %s, %s, %s, %s",
-        duration,
+        "Recording settings telemetry: %s, %s, %s, %s, %s",
         coverage_enabled,
         skipping_enabled,
         require_git,
         itr_enabled,
-        error,
+        early_flake_detection_enabled,
     )
     # Telemetry "booleans" are true if they exist, otherwise false
     response_tags = []
@@ -72,13 +70,8 @@ def record_settings(
         response_tags.append(("require_git", "1"))
     if itr_enabled:
         response_tags.append(("itrskip_enabled", "1"))
+    if early_flake_detection_enabled:
+        response_tags.append(("early_flake_detection_enabled", "1"))
 
-    telemetry_writer.add_count_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_COUNT, 1)
-    telemetry_writer.add_distribution_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_MS, duration)
-
-    telemetry_writer.add_count_metric(
-        _NAMESPACE, GIT_TELEMETRY.SETTINGS_RESPONSE, 1, tuple(response_tags) if response_tags else None
-    )
-    if error is not None:
-        error_tags = (("error", error),)
-        telemetry_writer.add_count_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_ERRORS, 1, error_tags)
+    if response_tags:
+        telemetry_writer.add_count_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_RESPONSE, 1, tuple(response_tags))

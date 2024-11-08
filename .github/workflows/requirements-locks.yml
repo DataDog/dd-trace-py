@@ -3,11 +3,10 @@ on:
   push:
     branches:
       - main
+      - 'mq-working-branch**'
   pull_request:
     types: [opened, reopened, synchronize]
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
+
 jobs:
   validate:
     name: Check requirements lockfiles
@@ -26,7 +25,7 @@ jobs:
         run: pyenv global 3.10 3.7 3.8 3.9 3.11 3.12
 
       - name: Install Dependencies
-        run: pip install --upgrade pip && pip install riot
+        run: pip install --upgrade pip && pip install riot==0.20.0
 
       - name: Generate riot locks
         run: scripts/compile-and-prune-test-requirements

@@ -371,21 +371,6 @@ def test_span_creation_metrics():
             )
 
 
-def test_span_creation_metrics_disabled_telemetry():
-    """Test that telemetry metrics are not queued when telemetry is disabled"""
-    aggr = SpanAggregator(
-        partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=DummyWriter()
-    )
-
-    with override_global_config(dict(_telemetry_enabled=False)):
-        with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
-            for _ in range(300):
-                span = Span("span", on_finish=[aggr.on_span_finish])
-                aggr.on_span_start(span)
-                span.finish()
-        mock_tm.assert_not_called()
-
-
 def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
     """Changing the tracer sampler should change the sampling processor's sampler"""
     tracer = Tracer()
@@ -614,9 +599,9 @@ def test_endpoint_call_counter_processor():
     processor.on_span_finish(spanNonWeb)
     processor.on_span_finish(spanNonLocalRoot)
 
-    assert processor.reset() == {"a": 2, "b": 1}
+    assert processor.reset()[0] == {"a": 2, "b": 1}
     # Make sure data has been cleared
-    assert processor.reset() == {}
+    assert processor.reset()[0] == {}
 
 
 def test_endpoint_call_counter_processor_disabled():
@@ -628,7 +613,7 @@ def test_endpoint_call_counter_processor_disabled():
 
     processor.on_span_finish(spanA)
 
-    assert processor.reset() == {}
+    assert processor.reset()[0] == {}
 
 
 def test_endpoint_call_counter_processor_real_tracer():
@@ -652,7 +637,7 @@ def test_endpoint_call_counter_processor_real_tracer():
     with tracer.trace("parent", service="top_level_test_service", resource="ignored", span_type=SpanTypes.HTTP):
         pass
 
-    assert tracer._endpoint_call_counter_span_processor.reset() == {"a": 2, "b": 1}
+    assert tracer._endpoint_call_counter_span_processor.reset()[0] == {"a": 2, "b": 1}
 
 
 def test_trace_tag_processor_adds_chunk_root_tags():

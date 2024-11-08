@@ -1,6 +1,7 @@
 """
 Some utils used by the dogtrace redis integration
 """
+
 from contextlib import contextmanager
 from typing import List
 from typing import Optional
@@ -58,8 +59,7 @@ def _instrument_redis_cmd(pin, config_integration, instance, args):
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
         resource=query.split(" ")[0] if config_integration.resource_only_command else query,
-        call_key="redis_command_call",
-    ) as ctx, ctx[ctx["call_key"]] as span:
+    ) as ctx, ctx.span as span:
         _set_span_tags(span, pin, config_integration, args, instance, query)
         yield ctx
 

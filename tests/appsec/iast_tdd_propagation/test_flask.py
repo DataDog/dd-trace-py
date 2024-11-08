@@ -107,8 +107,8 @@ def test_iast_flask_headers():
         assert tainted_response.status_code == 200
         content = json.loads(tainted_response.content)
         assert content["param"] == [
-            ["Host", "0.0.0.0:8000"],
-            ["User-Agent", "python-requests/2.31.0"],
+            ["Host", f"0.0.0.0:{_PORT}"],
+            ["User-Agent", "python-requests/2.32.3"],
             ["Accept-Encoding", "gzip, deflate, br"],
             ["Accept", "*/*"],
             ["Connection", "keep-alive"],

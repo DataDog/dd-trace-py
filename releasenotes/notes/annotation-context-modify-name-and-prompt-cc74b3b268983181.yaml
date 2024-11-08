@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Introduces `prompt` and `name` arguments to ``LLMObs.annotation_context`` to support setting an integration generated span's name and `prompt` field.
+    For more information on annotation contexts, see https://docs.datadoghq.com/llm_observability/setup/sdk/#annotating-a-span.

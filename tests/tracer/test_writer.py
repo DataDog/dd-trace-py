@@ -59,7 +59,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_disabled(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=False)):
+        with override_global_config(dict(_health_metrics_enabled=False)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -71,7 +71,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_bad_endpoint(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(_health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -89,7 +89,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True, _trace_writer_buffer_size=15000)):
+        with override_global_config(dict(_health_metrics_enabled=True, _trace_writer_buffer_size=15000)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -124,7 +124,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_multi(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(_health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)])
@@ -158,7 +158,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_generate_health_metrics_with_different_tags(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(_health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
 
             # Queue 3 health metrics where each metric has the same name but different tags
@@ -189,7 +189,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_report_metrics_disabled(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(_health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False, report_metrics=False)
 
             # Queue 3 health metrics where each metric has the same name but different tags
@@ -224,7 +224,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_write_sync(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(_health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=True)
             writer.write([Span(name="name", trace_id=1, span_id=j + 1, parent_id=j or None) for j in range(5)])
             statsd.distribution.assert_has_calls(
@@ -241,7 +241,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_drop_reason_bad_endpoint(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(_health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -260,7 +260,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_drop_reason_trace_too_big(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(_health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, buffer_size=1000)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -284,7 +284,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(_health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", buffer_size=1000, dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -311,7 +311,7 @@ class AgentWriterTests(BaseTestCase):
         writer_encoder = mock.Mock()
         writer_encoder.__len__ = (lambda *args: n_traces).__get__(writer_encoder)
         writer_encoder.encode.side_effect = Exception
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(_health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             for client in writer._clients:
                 client.encoder = writer_encoder
@@ -338,7 +338,7 @@ class AgentWriterTests(BaseTestCase):
         writer_run_periodic = mock.Mock()
         writer_put = mock.Mock()
         writer_put.return_value = Response(status=200)
-        with override_global_config(dict(health_metrics_enabled=False, _trace_writer_buffer_size=8 << 20)):
+        with override_global_config(dict(_health_metrics_enabled=False, _trace_writer_buffer_size=8 << 20)):
             # this test decodes the msgpack payload to verify the keep rate. v04 is easier to decode so we use that here
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, api_version="v0.4")
             writer.run_periodic = writer_run_periodic

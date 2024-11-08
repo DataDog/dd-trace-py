@@ -2,7 +2,6 @@
 import mock
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -17,10 +16,6 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
-
-
-def setup():
-    oce._enabled = True
 
 
 @pytest.mark.parametrize(
@@ -61,11 +56,11 @@ def test_str_aspect_objs(obj):
 @pytest.mark.parametrize(
     "args",
     [
-        ("utf-8", "strict"),
-        ("latin1", "strict"),
-        ("iso-8859-8", "strict"),
-        ("sjis", "strict"),
-        ("utf-8", "replace"),
+        ("utf-8",),
+        ("latin1",),
+        ("iso-8859-8",),
+        ("sjis",),
+        ("utf-8",),
     ],
 )
 @pytest.mark.parametrize("kwargs", [{}, {"errors": "ignore"}, {"errors": "replace"}])

@@ -287,7 +287,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
     prompt = None
     for k, v in request_params.items():
-        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx[ctx["call_key"]]):
+        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
             prompt = v
     ctx.set_item("prompt", prompt)
 
@@ -318,7 +318,11 @@ def handle_bedrock_response(
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     pin = function_vars.get("pin")
-    model_provider, model_name = params.get("modelId").split(".")
+    model_meta = params.get("modelId").split(".")
+    if len(model_meta) == 2:
+        model_provider, model_name = model_meta
+    else:
+        _, model_provider, model_name = model_meta  # cross-region inference
     integration = function_vars.get("integration")
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
@@ -330,7 +334,6 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         ),
         resource=function_vars.get("operation"),
         span_type=SpanTypes.LLM if submit_to_llmobs else None,
-        call_key="instrumented_bedrock_call",
         call_trace=True,
         bedrock_integration=integration,
         params=params,

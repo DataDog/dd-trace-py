@@ -14,11 +14,12 @@ ddtrace/profiling/collector/stack.c
 ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
 ddtrace/internal/datadog/profiling/ddup/_ddup.cpp
-ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe
+ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 *.so
+*.dylib
 *.a
 
 # Cython annotate HTML files
@@ -141,10 +142,24 @@ ddtrace/_version.py
 artifacts/
 
 # IAST cpp
+ddtrace/appsec/_iast/_taint_tracking/cmake_install.cmake
+ddtrace/appsec/_iast/_taint_tracking/CMakeCache.txt
+ddtrace/appsec/_iast/_taint_tracking/Makefile
 ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/*
 ddtrace/appsec/_iast/_taint_tracking/_deps/*
 ddtrace/appsec/_iast/_taint_tracking/CMakeFiles/*
-
+ddtrace/appsec/_iast/_taint_tracking/tests/CMakeFiles/*
+ddtrace/appsec/_iast/_taint_tracking/tests/cmake_install.cmake
+ddtrace/appsec/_iast/_taint_tracking/tests/CMakeCache.txt
+ddtrace/appsec/_iast/_taint_tracking/tests/Makefile
+ddtrace/appsec/_iast/_taint_tracking/tests/CTestTestfile.cmake
+ddtrace/appsec/_iast/_taint_tracking/tests/native_tests*
+ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/Makefile
+ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/CMakeFiles/*
+ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/cmake_install.cmake
+# Those folders are required for tests/appsec/iast_packages/test_packages.py
+template_venv/
+cloned_venvs/
 # CircleCI generated config
 .circleci/config.gen.yml
 

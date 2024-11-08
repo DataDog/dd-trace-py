@@ -4,9 +4,11 @@ from ddtrace import Tracer
 from ddtrace import constants
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._asm_request_context import call_waf_callback
+from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import SpanTypes
@@ -113,16 +115,20 @@ def track_user_login_success_event(
     :param user_id: a string with the UserId
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
-
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
+    if real_mode == LOGIN_EVENTS_MODE.ANON:
+        login = name = email = None
     span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email, span)
     if not span:
         return
 
     if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
+
+    if in_asm_context():
+        call_waf_callback(custom_data={"REQUEST_USER_ID": str(user_id), "LOGIN_SUCCESS": real_mode})
 
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
@@ -166,6 +172,8 @@ def track_user_login_failure_event(
             span.set_tag_str("%s.failure.email" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, email)
         if name:
             span.set_tag_str("%s.failure.username" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, name)
+    if in_asm_context():
+        call_waf_callback(custom_data={"LOGIN_FAILURE": None})
 
 
 def track_user_signup_event(
@@ -246,22 +254,12 @@ def should_block_user(tracer: Tracer, userid: str) -> bool:
         )
         return False
 
-    # Early check to avoid calling the WAF if the request is already blocked
-    span = tracer.current_root_span()
-    if not span:
-        log.warning(
-            "No root span in the current execution. should_block_user returning False"
-            "See https://docs.datadoghq.com/security_platform/application_security"
-            "/setup_and_configure/"
-            "?tab=set_user&code-lang=python for more information.",
-        )
-        return False
-
-    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+    # Early check to avoid calling the WAF if the request is already blockedxw
+    if get_blocked():
         return True
 
     _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)})
-    return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
+    return bool(get_blocked())
 
 
 def block_request() -> None:
@@ -303,13 +301,17 @@ def _on_django_login(
     user,
     mode,
     info_retriever,
+    django_config,
 ):
     if user:
         from ddtrace.contrib.django.compat import user_is_authenticated
 
         if user_is_authenticated(user):
-            user_id = info_retriever.get_userid()
-
+            user_id, user_extra = info_retriever.get_user_info(
+                login=django_config.include_user_login,
+                email=django_config.include_user_email,
+                name=django_config.include_user_realname,
+            )
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 session_key = getattr(request, "session_key", None)
                 track_user_login_success_event(
@@ -318,6 +320,7 @@ def _on_django_login(
                     session_id=session_key,
                     propagate=True,
                     login_events_mode=mode,
+                    **user_extra,
                 )
         else:
             # Login failed and the user is unknown (may exist or not)
@@ -325,7 +328,7 @@ def _on_django_login(
             track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode)
 
 
-def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
+def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_config):
     if not asm_config._asm_enabled:
         return True, result_user
 
@@ -342,12 +345,13 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             exists = info_retriever.user_exists()
             if exists:
-                user_id = info_retriever.get_userid()
+                user_id, user_extra = info_retriever.get_user_info(
+                    login=django_config.include_user_login,
+                    email=django_config.include_user_email,
+                    name=django_config.include_user_realname,
+                )
                 track_user_login_failure_event(
-                    pin.tracer,
-                    user_id=user_id,
-                    login_events_mode=mode,
-                    exists=True,
+                    pin.tracer, user_id=user_id, login_events_mode=mode, exists=True, **user_extra
                 )
             else:
                 track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode, exists=False)

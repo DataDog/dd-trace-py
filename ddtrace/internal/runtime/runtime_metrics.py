@@ -8,7 +8,6 @@ import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import telemetry
-from ddtrace.internal.telemetry.constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import periodic
@@ -20,6 +19,8 @@ from .metric_collectors import PSUtilRuntimeMetricCollector
 from .tag_collectors import PlatformTagCollector
 from .tag_collectors import TracerTagCollector
 
+
+TELEMETRY_RUNTIMEMETRICS_ENABLED = "DD_RUNTIME_METRICS_ENABLED"
 
 log = get_logger(__name__)
 

@@ -2,6 +2,7 @@
 """
 tests for Tracer and utilities.
 """
+
 import contextlib
 import gc
 import logging
@@ -40,7 +41,6 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
-from tests.appsec.appsec.test_processor import tracer_appsec
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
@@ -50,9 +50,9 @@ from ..utils import override_env
 
 class TracerTestCases(TracerTestCase):
     @pytest.fixture(autouse=True)
-    def inject_fixtures(self, caplog):
+    def inject_fixtures(self, tracer, caplog):
         self._caplog = caplog
-        self._tracer_appsec = tracer_appsec
+        self._tracer_appsec = tracer
 
     def test_tracer_vars(self):
         span = self.trace("a", service="s", resource="r", span_type="t")
@@ -1601,7 +1601,7 @@ def test_manual_drop(tracer, test_spans):
 @mock.patch("ddtrace.internal.hostname.get_hostname")
 def test_get_report_hostname_enabled(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    with override_global_config(dict(report_hostname=True)):
+    with override_global_config(dict(_report_hostname=True)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
@@ -1616,7 +1616,7 @@ def test_get_report_hostname_enabled(get_hostname, tracer, test_spans):
 @mock.patch("ddtrace.internal.hostname.get_hostname")
 def test_get_report_hostname_disabled(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    with override_global_config(dict(report_hostname=False)):
+    with override_global_config(dict(_report_hostname=False)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
@@ -1631,7 +1631,7 @@ def test_get_report_hostname_disabled(get_hostname, tracer, test_spans):
 @mock.patch("ddtrace.internal.hostname.get_hostname")
 def test_get_report_hostname_default(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    with override_global_config(dict(report_hostname=False)):
+    with override_global_config(dict(_report_hostname=False)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
@@ -2057,3 +2057,23 @@ def test_asm_standalone_configuration():
     assert tracer._compute_stats is False
     # reset tracer values
     tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+def test_gc_not_used_on_root_spans():
+    tracer = ddtrace.Tracer()
+    gc.freeze()
+
+    with tracer.trace("test-event"):
+        pass
+
+    # There should be no more span objects lingering around.
+    assert not any(str(obj).startswith("<Span") for obj in gc.get_objects())
+
+    # To check the exact nature of the objects and their references, use the following:
+
+    # for i, obj in enumerate(objects):
+    #     print("--------------------")
+    #     print(f"object {i}:", obj)
+    #     print("referrers:", [f"object {objects.index(r)}" for r in gc.get_referrers(obj)[:-2]])
+    #     print("referents:", [f"object {objects.index(r)}" if r in objects else r for r in gc.get_referents(obj)])
+    #     print("--------------------")

@@ -29,9 +29,10 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.utils import get_blocked
+from ddtrace.internal.utils import set_blocked
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -107,7 +108,7 @@ class _DDWSGIMiddlewareBase(object):
             distributed_headers=environ,
             environ=environ,
             middleware=self,
-            call_key="req_span",
+            span_key="req_span",
         ) as ctx:
             ctx.set_item("wsgi.construct_url", construct_url)
 
@@ -119,7 +120,7 @@ class _DDWSGIMiddlewareBase(object):
                     status, headers, content = 403, [], ""
                 return content, status, headers
 
-            if core.get_item(HTTP_REQUEST_BLOCKED):
+            if get_blocked():
                 content, status, headers = blocked_view()
                 start_response(str(status), headers)
                 closing_iterable = [content]
@@ -133,7 +134,7 @@ class _DDWSGIMiddlewareBase(object):
                 try:
                     closing_iterable = self.app(environ, ctx.get_item("intercept_start_response"))
                 except BlockingException as e:
-                    core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
+                    set_blocked(e.args[0])
                     content, status, headers = blocked_view()
                     start_response(str(status), headers)
                     closing_iterable = [content]
@@ -153,7 +154,7 @@ class _DDWSGIMiddlewareBase(object):
                     core.dispatch("wsgi.app.exception", (ctx,))
                     raise
                 else:
-                    if core.get_item(HTTP_REQUEST_BLOCKED):
+                    if get_blocked():
                         _, _, content = core.dispatch_with_results(
                             "wsgi.block.started", (ctx, construct_url)
                         ).status_headers_content.value or (None, None, "")
@@ -186,7 +187,6 @@ class _DDWSGIMiddlewareBase(object):
             service=trace_utils.int_service(None, self._config),
             start_span=False,
             tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
-            call_key="response_span",
         ):
             return start_response(status, environ, exc_info)
 
@@ -293,8 +293,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             service=trace_utils.int_service(None, self._config),
             start_span=True,
             tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
-            call_key="response_span",
-        ) as ctx, ctx.get_item("response_span"):
+        ) as ctx, ctx.span:
             return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):

@@ -1,6 +1,10 @@
 import pytest
 
 from tests.appsec.appsec_utils import flask_server
+from tests.appsec.appsec_utils import gunicorn_server
+from tests.appsec.integrations.utils import _PORT
+from tests.appsec.integrations.utils import _request_200
+from tests.utils import flaky
 
 
 def test_flask_iast_ast_patching_import_error():
@@ -13,7 +17,9 @@ def test_flask_iast_ast_patching_import_error():
         # They don't have html5lib installed.
         pass
     """
-    with flask_server(appsec_enabled="false", iast_enabled="true", token=None, port=8020, assert_debug=True) as context:
+    with flask_server(
+        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=True
+    ) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-ast-patching-import-error")
@@ -22,6 +28,7 @@ def test_flask_iast_ast_patching_import_error():
         assert response.content == b"False"
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.parametrize("style", ["re_module", "re_object"])
 @pytest.mark.parametrize("endpoint", ["re", "non-re"])
 @pytest.mark.parametrize(
@@ -49,7 +56,7 @@ def test_flask_iast_ast_patching_re(style, endpoint, function):
 
         filename = quote_plus("Isaac Newton")
     with flask_server(
-        appsec_enabled="false", iast_enabled="true", token=None, port=8020, assert_debug=False
+        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 
@@ -79,7 +86,7 @@ def test_flask_iast_ast_patching_io(style, function, endpoint="io"):
     """
     filename = "path_traversal_test_file.txt"
     with flask_server(
-        appsec_enabled="false", iast_enabled="true", token=None, port=8020, assert_debug=False
+        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 
@@ -87,3 +94,18 @@ def test_flask_iast_ast_patching_io(style, function, endpoint="io"):
 
         assert response.status_code == 200
         assert response.content == b"OK"
+
+
+def test_multiple_requests():
+    """we want to validate context is working correctly among multiple request and no race condition creating and
+    destroying contexts
+    """
+    with gunicorn_server(remote_configuration_enabled="false", iast_enabled="true", port=_PORT) as context:
+        _, client, pid = context
+
+        _request_200(
+            client,
+            url="/iast-weak-hash-vulnerability",
+            extra_validation=lambda response: b"[IAST] Propagation error" not in response.content,
+            max_retries=40,
+        )

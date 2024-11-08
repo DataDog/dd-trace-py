@@ -1,8 +1,12 @@
-from tests.utils import override_env
+import pytest
+
+from tests.utils import override_global_config
 
 
-def test_aggregated_leaks():
-    with override_env({"DD_IAST_ENABLED": "True"}):
-        from scripts.iast.test_leak_functions import test_iast_leaks
+@pytest.mark.asyncio
+async def test_aggregated_leaks():
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+        from scripts.iast.leak_functions import iast_leaks
 
-        assert test_iast_leaks(75000, 2.0, 100) == 0
+        result = await iast_leaks(60000, 0.2, 500) == 0
+        assert result
