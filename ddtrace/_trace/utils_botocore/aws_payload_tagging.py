@@ -9,6 +9,7 @@ from ddtrace import Span
 from ddtrace import config
 from ddtrace.vendor.jsonpath_ng import parse
 
+
 _MAX_TAG_VALUE_LENGTH = 5000
 
 

@@ -3855,10 +3855,10 @@ class BotocoreTest(TracerTestCase):
                 {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
             ]
             sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-            spans = self.get_spans()
+            self.get_spans()
 
             # get SNS messages via SQS
-            response = self.sqs_client.receive_message(
+            self.sqs_client.receive_message(
                 QueueUrl=self.sqs_test_queue["QueueUrl"],
                 MessageAttributeNames=["_datadog"],
                 WaitTimeSeconds=2,
@@ -3908,10 +3908,10 @@ class BotocoreTest(TracerTestCase):
                 {"Id": "2", "Message": "megadeth", "MessageAttributes": message_attributes},
             ]
             sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-            spans = self.get_spans()
+            self.get_spans()
 
             # get SNS messages via SQS
-            response = self.sqs_client.receive_message(
+            self.sqs_client.receive_message(
                 QueueUrl=self.sqs_test_queue["QueueUrl"],
                 MessageAttributeNames=["_datadog"],
                 WaitTimeSeconds=2,
@@ -4022,7 +4022,7 @@ class BotocoreTest(TracerTestCase):
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
             bridge.put_events(Entries=entries)
 
-            messages = self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
+            self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
 
             bridge.delete_event_bus(Name="a-test-bus")
 
