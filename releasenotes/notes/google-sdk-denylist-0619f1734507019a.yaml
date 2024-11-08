@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Add googlecloudsdk and google auth to the Code Security deny list.

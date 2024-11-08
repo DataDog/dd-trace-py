@@ -166,6 +166,12 @@ class ASMConfig(Env):
         int, EXPLOIT_PREVENTION.MAX_STACK_TRACE_DEPTH, default=32, validator=_validate_non_negative_int
     )
 
+    # Django ATO
+    _django_include_user_name = Env.var(bool, "DD_DJANGO_INCLUDE_USER_NAME", default=True)
+    _django_include_user_email = Env.var(bool, "DD_DJANGO_INCLUDE_USER_EMAIL", default=False)
+    _django_include_user_login = Env.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=True)
+    _django_include_user_realname = Env.var(bool, "DD_DJANGO_INCLUDE_USER_REALNAME", default=False)
+
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
@@ -198,6 +204,10 @@ class ASMConfig(Env):
         "_ep_max_stack_trace_depth",
         "_asm_config_keys",
         "_deduplication_enabled",
+        "_django_include_user_name",
+        "_django_include_user_email",
+        "_django_include_user_login",
+        "_django_include_user_realname",
     ]
     _iast_redaction_numeral_pattern = Env.var(
         str,
