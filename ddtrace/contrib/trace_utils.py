@@ -372,11 +372,18 @@ def int_service(pin, int_config, default=None):
         return cast(str, int_config.service_name)
 
     global_service = int_config.global_config._get_service()
-    if global_service:
+    # We check if global_service != _inferred_base_service since global service (config.service)
+    # defaults to _inferred_base_service when no DD_SERVICE is set. In this case, we want to not
+    # use the inferred base service value, and instead use the integration default service. If we
+    # didn't do this, we would have a massive breaking change from adding inferred_base_service.
+    if global_service and global_service != int_config.global_config._inferred_base_service:
         return cast(str, global_service)
 
     if "_default_service" in int_config and int_config._default_service is not None:
         return cast(str, int_config._default_service)
+
+    if default is None and global_service:
+        return cast(str, global_service)
 
     return default
 

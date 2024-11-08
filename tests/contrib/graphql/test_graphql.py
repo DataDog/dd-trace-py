@@ -124,7 +124,7 @@ def test_graphql_with_document_with_no_location(test_schema, test_source_str):
 
 
 @snapshot(token_override="tests.contrib.graphql.test_graphql.test_graphql")
-@pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT suppoerted in v2.0")
+@pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT supported in v2.0")
 def test_graphql_sync(test_schema, test_source_str):
     result = graphql.graphql_sync(test_schema, test_source_str)
     assert result.data == {"hello": "friend"}
@@ -159,9 +159,11 @@ def test_graphql_execute_sync_with_middlware_manager(
 
 
 @pytest.mark.snapshot
-@pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT suppoerted in v2.0")
-@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-@pytest.mark.parametrize("service_name", [None, "my-service"])
+@pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT supported in v2.0")
+@pytest.mark.parametrize(
+    "service_name, schema_version",
+    [(None, None), ("my-service", None), (None, "v0"), ("my-service", "v0"), (None, "v1"), ("my-service", "v1")],
+)
 def test_span_schematization(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
     code = """
 import sys
