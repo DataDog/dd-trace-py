@@ -1,7 +1,7 @@
 [[
   {
     "name": "work",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "work",
     "trace_id": 0,
     "span_id": 1,
@@ -24,7 +24,7 @@
   },
      {
        "name": "proc",
-       "service": "",
+       "service": "ddtrace_subprocess_dir",
        "resource": "proc",
        "trace_id": 0,
        "span_id": 2,
