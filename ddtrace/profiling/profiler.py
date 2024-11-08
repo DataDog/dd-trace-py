@@ -226,7 +226,6 @@ class _ProfilerInstance(service.Service):
         self.tags.update({"profiler_config": "_".join(configured_features)})
         crashtracking.add_tag("profiler_config", self.tags["profiler_config"])
 
-
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
