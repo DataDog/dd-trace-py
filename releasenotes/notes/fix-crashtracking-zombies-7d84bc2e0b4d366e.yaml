@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes an issue where the use of the crashtracking component could result in zombie processes.

@@ -19,11 +19,11 @@ def test_crashtracker_available():
 def test_crashtracker_config():
     import pytest
 
-    from tests.internal.crashtracker.utils import read_files
-    from tests.internal.crashtracker.utils import start_crashtracker
+    from tests.internal.crashtracker.utils import CrashtrackerWrapper
 
-    start_crashtracker(1234)
-    stdout_msg, stderr_msg = read_files(["stdout.log", "stderr.log"])
+    ct = CrashtrackerWrapper(1234, "config")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
     if stdout_msg or stderr_msg:
         pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
 
@@ -31,10 +31,19 @@ def test_crashtracker_config():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
 def test_crashtracker_config_bytes():
+    import os
+
     import pytest
 
     import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
     from tests.internal.crashtracker.utils import read_files
+
+    # Delete the stdout and stderr files if they exist
+    base_name = b"config_bytes"
+    stdout, stderr = (f"{base_name}.{x}.log" for x in (b"stdout", b"stderr"))
+    for file in [stdout, stderr]:
+        if os.path.exists(file):
+            os.unlink(file)
 
     try:
         crashtracker.set_url(b"http://localhost:1234")
@@ -44,15 +53,14 @@ def test_crashtracker_config_bytes():
         crashtracker.set_runtime_version(b"v9001")
         crashtracker.set_runtime_id(b"0")
         crashtracker.set_library_version(b"v2.7.1.8")
-        crashtracker.set_stdout_filename(b"stdout.log")
-        crashtracker.set_stderr_filename(b"stderr.log")
-        crashtracker.set_alt_stack(False)
+        crashtracker.set_stdout_filename(stdout)
+        crashtracker.set_stderr_filename(stderr)
         crashtracker.set_resolve_frames_full()
         assert crashtracker.start()
     except Exception:
         pytest.fail("Exception when starting crashtracker")
 
-    stdout_msg, stderr_msg = read_files(["stdout.log", "stderr.log"])
+    stdout_msg, stderr_msg = read_files([stdout, stderr])
     if stdout_msg or stderr_msg:
         pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
 
@@ -63,17 +71,16 @@ def test_crashtracker_started():
     import pytest
 
     import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
-    from tests.internal.crashtracker.utils import read_files
+    from tests.internal.crashtracker.utils import CrashtrackerWrapper
 
     try:
-        crashtracker.set_stdout_filename("stdout.log")
-        crashtracker.set_stderr_filename("stderr.log")
-        assert crashtracker.start()
-        assert crashtracker.is_started()
+        ct = CrashtrackerWrapper(1234, "started")
+        assert ct.start()
+        assert crashtracker.is_started()  # Confirmation at the module level
     except Exception:
         pytest.fail("Exception when starting crashtracker")
 
-    stdout_msg, stderr_msg = read_files(["stdout.log", "stderr.log"])
+    stdout_msg, stderr_msg = ct.logs()
     if stdout_msg or stderr_msg:
         pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
 
@@ -100,13 +107,14 @@ def test_crashtracker_simple():
     # Part 3 and 4, Fork, setup crashtracker, and crash
     pid = os.fork()
     if pid == 0:
-        assert utils.start_crashtracker(port)
-        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
-        assert not stdout_msg
-        assert not stderr_msg
+        ct = utils.CrashtrackerWrapper(port, "simple")
+        assert ct.start()
+        stdout_msg, stderr_msg = ct.logs()
+        assert not stdout_msg, stdout_msg
+        assert not stderr_msg, stderr_msg
 
         ctypes.string_at(0)
-        exit(-1)
+        sys.exit(-1)
 
     # Part 5
     # Check to see if the listening socket was triggered, if so accept the connection
@@ -137,8 +145,9 @@ def test_crashtracker_simple_fork():
     assert sock
 
     # Part 3, setup crashtracker in parent
-    assert utils.start_crashtracker(port)
-    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+    ct = utils.CrashtrackerWrapper(port, "simple_fork")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
     assert not stdout_msg
     assert not stderr_msg
 
@@ -146,7 +155,7 @@ def test_crashtracker_simple_fork():
     pid = os.fork()
     if pid == 0:
         ctypes.string_at(0)
-        exit(-1)  # just in case
+        sys.exit(-1)  # just in case
 
     # Part 5, check
     conn = utils.listen_get_conn(sock)
@@ -183,10 +192,11 @@ def test_crashtracker_simple_sigbus():
     assert sock
 
     # Part 3, setup crashtracker in parent
-    assert utils.start_crashtracker(port)
-    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
-    assert not stdout_msg
-    assert not stderr_msg
+    ct = utils.CrashtrackerWrapper(port, "simple_sigbus")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
+    assert not stdout_msg, stdout_msg
+    assert not stderr_msg, stderr_msg
 
     # Part 4, Fork and crash
     pid = os.fork()
@@ -202,7 +212,7 @@ def test_crashtracker_simple_sigbus():
             arr_type = ctypes.POINTER(ctypes.c_char * 4096)
             arr = ctypes.cast(mm, arr_type).contents
             arr[4095] = b"x"  # sigbus
-        exit(-1)  # just in case
+        sys.exit(-1)  # just in case
 
     # Part 5, check
     conn = utils.listen_get_conn(sock)
@@ -226,8 +236,9 @@ def test_crashtracker_raise_sigsegv():
     assert port
     assert sock
 
-    assert utils.start_crashtracker(port)
-    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+    ct = utils.CrashtrackerWrapper(port, "raise_sigsegv")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
     assert not stdout_msg
     assert not stderr_msg
 
@@ -235,7 +246,7 @@ def test_crashtracker_raise_sigsegv():
     pid = os.fork()
     if pid == 0:
         os.kill(os.getpid(), signal.SIGSEGV.value)
-        exit(-1)
+        sys.exit(-1)
 
     # Part 5, check
     conn = utils.listen_get_conn(sock)
@@ -259,8 +270,9 @@ def test_crashtracker_raise_sigbus():
     assert port
     assert sock
 
-    assert utils.start_crashtracker(port)
-    stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+    ct = utils.CrashtrackerWrapper(port, "raise_sigbus")
+    assert ct.start()
+    stdout_msg, stderr_msg = ct.logs()
     assert not stdout_msg
     assert not stderr_msg
 
@@ -268,7 +280,7 @@ def test_crashtracker_raise_sigbus():
     pid = os.fork()
     if pid == 0:
         os.kill(os.getpid(), signal.SIGBUS.value)
-        exit(-1)
+        sys.exit(-1)
 
     # Part 5, check
     conn = utils.listen_get_conn(sock)
@@ -281,8 +293,9 @@ def test_crashtracker_raise_sigbus():
 
 preload_code = """
 import ctypes
+import sys
 ctypes.string_at(0)
-exit(-1)
+sys.exit(-1)
 """
 
 
@@ -337,7 +350,7 @@ auto_code = """
 import ctypes
 import ddtrace.auto
 ctypes.string_at(0)
-exit(-1)
+sys.exit(-1)
 """
 
 
@@ -429,13 +442,14 @@ def test_crashtracker_tags_required():
 
     pid = os.fork()
     if pid == 0:
-        assert utils.start_crashtracker(port)
-        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+        ct = utils.CrashtrackerWrapper(port, "tags_required")
+        assert ct.start()
+        stdout_msg, stderr_msg = ct.logs()
         assert not stdout_msg
         assert not stderr_msg
 
         ctypes.string_at(0)
-        exit(-1)
+        sys.exit(-1)
 
     conn = utils.listen_get_conn(sock)
     assert conn
@@ -515,13 +529,14 @@ def test_crashtracker_user_tags_profiling():
         # Set the tags before starting
         for k, v in tags.items():
             crashtracker.set_tag(k, v)
-        assert utils.start_crashtracker(port)
-        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+        ct = utils.CrashtrackerWrapper(port, "user_tags_profiling")
+        assert ct.start()
+        stdout_msg, stderr_msg = ct.logs()
         assert not stdout_msg
         assert not stderr_msg
 
         ctypes.string_at(0)
-        exit(-1)
+        sys.exit(-1)
 
     conn = utils.listen_get_conn(sock)
     assert conn
@@ -561,13 +576,14 @@ def test_crashtracker_user_tags_core():
         # Set the tags before starting
         for k, v in tags.items():
             crashtracking.add_tag(k, v)
-        assert utils.start_crashtracker(port)
-        stdout_msg, stderr_msg = utils.read_files(["stdout.log", "stderr.log"])
+        ct = utils.CrashtrackerWrapper(port, "user_tags_core")
+        assert ct.start()
+        stdout_msg, stderr_msg = ct.logs()
         assert not stdout_msg
         assert not stderr_msg
 
         ctypes.string_at(0)
-        exit(-1)
+        sys.exit(-1)
 
     conn = utils.listen_get_conn(sock)
     assert conn
@@ -579,3 +595,150 @@ def test_crashtracker_user_tags_core():
     for k, v in tags.items():
         assert k.encode() in data
         assert v.encode() in data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_echild_hang():
+    """
+    It's possible for user code and services to harvest child processes by doing a `waitpid()` until errno is ECHILD.
+    Although this is a more common pattern for native code, because the crashtracking receiver could suppress this
+    condition, we test for it.
+    """
+    import ctypes
+    import os
+    import random
+    import sys
+    import time
+
+    import tests.internal.crashtracker.utils as utils
+
+    # Create a port and listen on it
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
+
+    # We're going to create a lot of child processes and we're not going to care about whether they successfully send
+    # crashtracking data.  Accordingly, we create a file--children will append here if they run into an unwanted
+    # condition, and we'll check it at the end.
+    err_file = "/tmp/echild_error.log"
+
+    # Set this process as a subreaper, since we want deparented children to be visible to us
+    # (this emulates the behavior of a service which is PID 1 in a container)
+    utils.set_cerulean_mollusk()
+
+    # Fork, setup crashtracking in the child.
+    # The child process emulates a worker fork in the sense that we spawn a number of them in the parent and then
+    # do a timed `waitpid()` anticipating ECHILD until they all exit.
+    children = []
+    for _ in range(5):
+        pid = os.fork()
+        if pid == 0:
+            rand_num = random.randint(0, 999999)
+            base_name = f"echild_hang_{rand_num}"
+            ct = utils.CrashtrackerWrapper(port, base_name)
+            if not ct.start():
+                with open(err_file, "a") as f:
+                    f.write("X")
+                    sys.exit(-1)
+
+            stdout_msg, stderr_msg = ct.logs()
+            if not stdout_msg or not stderr_msg:
+                with open(err_file, "a") as f:
+                    f.write("X")
+                    sys.exit(-1)
+
+            # Crashtracking is started.  Let's sleep for 100ms to give the parent a chance to do some stuff,
+            # then crash.
+            time.sleep(0.1)
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+        else:
+            children.append(pid)
+
+    # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
+    timeout = 1  # seconds
+    end_time = time.time() + timeout
+    while True:
+        if time.time() > end_time:
+            pytest.fail("Timed out waiting for children to exit")
+        try:
+            _, __ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            break
+        except Exception as e:
+            pytest.fail("Unexpected exception: %s" % e)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_no_zombies():
+    """
+    If a process has been designated as the reaper for another process (either because it is the parent, it is marked
+    as the init process for the given PID namespace, or it has been set as a subreaper), then it is responsible for
+    harvesting the return status of its children.  If this is not done, then the entry is never removed from the
+    process table for the terminated PID.  This is often not a problem, but we should still avoid unbounded resource
+    leaks.
+    """
+    import ctypes
+    import os
+    import random
+    import sys
+    import time
+
+    import tests.internal.crashtracker.utils as utils
+
+    # Create a port and listen on it
+    # This doesn't matter, but we don't need spurious errors in crashtracking now.
+    port, sock = utils.crashtracker_receiver_bind()
+    assert port
+    assert sock
+
+    err_file = "/tmp/zombie_error.log"
+
+    # Set this process as a subreaper, since we want deparented children to be visible to us
+    # (this emulates the behavior of a service which is PID 1 in a container)
+    utils.set_cerulean_mollusk()
+
+    # This is a rapid fan-out procedure.  We do a combination of terminations, aborts, segfaults, etc., hoping to elicit
+    # zombies.
+    children = []
+    for _ in range(5):
+        pid = os.fork()
+        if pid == 0:
+            rand_num = random.randint(0, 999999)
+            base_name = f"no_zombies_{rand_num}"
+            ct = utils.CrashtrackerWrapper(port, base_name)
+            if not ct.start():
+                with open(err_file, "a") as f:
+                    f.write("X")
+                    sys.exit(-1)
+
+            stdout_msg, stderr_msg = ct.logs()
+            if not stdout_msg or not stderr_msg:
+                with open(err_file, "a") as f:
+                    f.write("X")
+                    sys.exit(-1)
+
+            # Crashtracking is started.  Let's sleep for 100ms to give the parent a chance to do some stuff,
+            # then crash.
+            time.sleep(0.1)
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+        else:
+            children.append(pid)
+
+    # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
+    timeout = 1  # seconds
+    end_time = time.time() + timeout
+    while True:
+        if time.time() > end_time:
+            pytest.fail("Timed out waiting for children to exit")
+        try:
+            _, __ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            break
+        except Exception as e:
+            pytest.fail("Unexpected exception: %s" % e)
