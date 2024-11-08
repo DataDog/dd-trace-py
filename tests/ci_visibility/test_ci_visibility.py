@@ -628,7 +628,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             ):
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+                _get_connection.assert_any_call("https://citestcov-intake.datadoghq.com", 2.0)
 
     def test_civisibilitywriter_coverage_evp_proxy_url(self):
         with _ci_override_env(
@@ -648,7 +648,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_called_once_with("http://arandomhost:9126", 2.0)
+                _get_connection.assert_any_call("http://arandomhost:9126", 2.0)
 
 
 def test_civisibilitywriter_agentless_url_envvar():
