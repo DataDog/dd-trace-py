@@ -19,8 +19,8 @@ extern "C"
     void crashtracker_set_library_version(std::string_view profiler_version);
     void crashtracker_set_stdout_filename(std::string_view filename);
     void crashtracker_set_stderr_filename(std::string_view filename);
-    void crashtracker_set_alt_stack(bool alt_stack);
-    void crashtracker_set_wait_for_receiver(bool wait);
+    void crashtracker_set_create_alt_stack(bool create_alt_stack);
+    void crashtracker_set_use_alt_stack(bool use_alt_stack);
     void crashtracker_set_resolve_frames_disable();
     void crashtracker_set_resolve_frames_fast();
     void crashtracker_set_resolve_frames_full();
