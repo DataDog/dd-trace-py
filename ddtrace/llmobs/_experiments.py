@@ -213,6 +213,24 @@ class Dataset:
         expected_output_columns: List[str] = None,
         metadata_columns: List[str] = None,
     ) -> "Dataset":
+        """Create a Dataset from a CSV file.
+
+        Args:
+            filepath: Path to the CSV file
+            name: Name of the dataset
+            description: Optional description of the dataset
+            delimiter: CSV delimiter character, defaults to comma
+            input_columns: List of column names to use as input data
+            expected_output_columns: List of column names to use as expected output data
+            metadata_columns: Optional list of column names to include as metadata
+
+        Returns:
+            Dataset: A new Dataset instance containing the CSV data
+
+        Raises:
+            ValueError: If input_columns or expected_output_columns are not provided
+            Exception: If there are issues reading the CSV file
+        """
         if input_columns is None or expected_output_columns is None:
             raise ValueError("`input_columns` and `expected_output_columns` must be provided.")
 
@@ -258,6 +276,23 @@ class Dataset:
 
     @classmethod
     def from_jsonl(cls, filepath: str, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None) -> "Dataset":
+        """Create a Dataset from a JSONL file.
+
+        Args:
+            filepath: Path to the JSONL file
+            name: Name of the dataset
+            description: Optional description of the dataset
+            input_columns: List of column names to use as input data
+            expected_output_columns: List of column names to use as expected output data
+            metadata_columns: Optional list of column names to include as metadata
+
+        Returns:
+            Dataset: A new Dataset instance containing the JSONL data
+
+        Raises:
+            ValueError: If input_columns or expected_output_columns are not provided
+            Exception: If there are issues reading the JSONL file
+        """
         if input_columns is None or expected_output_columns is None:
             raise ValueError("`input_columns` and `expected_output_columns` must be provided.")
 
@@ -289,6 +324,25 @@ class Dataset:
 
     @classmethod
     def from_parquet(cls, filepath: str, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None) -> "Dataset":
+        """Create a Dataset from a Parquet file.
+
+        Args:
+            filepath: Path to the Parquet file
+            name: Name of the dataset
+            description: Optional description of the dataset
+            input_columns: List of column names to use as input data
+            expected_output_columns: List of column names to use as expected output data
+            metadata_columns: Optional list of column names to include as metadata
+
+        Returns:
+            Dataset: A new Dataset instance containing the Parquet data
+
+        Raises:
+            ImportError: If pandas is not installed
+            ValueError: If input_columns or expected_output_columns are not provided,
+                       if the Parquet file is empty, or if specified columns are missing
+            Exception: If there are issues reading the Parquet file
+        """
         try:
             import pandas as pd
         except ImportError:
@@ -340,6 +394,24 @@ class Dataset:
 
     @classmethod
     def import_file(cls, path: str, filetype: FileType, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None, delimiter: str = ",") -> "Dataset":
+        """Import a dataset from a file.
+
+        Args:
+            path (str): Path to the input file
+            filetype (FileType): Type of file to import (CSV, JSONL, or PARQUET)
+            name (str): Name of the dataset
+            description (str, optional): Description of the dataset. Defaults to "".
+            input_columns (List[str], optional): List of column names to use as input data. Required for CSV and PARQUET files.
+            expected_output_columns (List[str], optional): List of column names to use as expected output data. Required for CSV and PARQUET files.
+            metadata_columns (List[str], optional): List of column names to include as metadata. Defaults to None.
+            delimiter (str, optional): Delimiter character for CSV files. Defaults to ",".
+
+        Returns:
+            Dataset: A new Dataset instance containing the imported data
+
+        Raises:
+            ValueError: If filetype is not supported or if required columns are missing
+        """
         if filetype == FileType.CSV:
             return cls.from_csv(
                 filepath=path,
@@ -499,7 +571,21 @@ class Experiment:
         max_delay: float = 60.0,
         raise_on_error: bool = False,
     ) -> None:
-        """Execute the task function on the dataset and store the outputs."""
+        """Execute the task function on the dataset and store the outputs.
+
+        Args:
+            _jobs: Number of concurrent jobs to run (between 1-20). Defaults to 10.
+            timeout: Maximum time in seconds to wait for each task execution. 
+                    If None, will wait indefinitely. Defaults to None.
+            retries: Number of retry attempts for failed tasks. Defaults to 0.
+            max_delay: Maximum delay in seconds between retries using exponential backoff.
+                      Defaults to 60 seconds.
+            raise_on_error: If True, raises exceptions from failed tasks. If False, stores
+                          errors in the output. Defaults to False.
+
+        Raises:
+            ValueError: If _jobs is not between 1 and 20, or if retries is negative.
+        """
         if not 1 <= _jobs <= 20:
             raise ValueError("Number of jobs must be between 1 and 20")
         if retries < 0:
@@ -773,6 +859,8 @@ class Experiment:
             timeout (float, optional): Time limit for the task execution in seconds.
             retries (int): Number of retries for failed tasks.
             max_delay (float): Maximum delay between retries in seconds.
+            raise_on_error (bool): If True, raises exceptions from failed tasks. If False, stores
+                                  errors in the output. Defaults to False.
 
         Returns:
             ExperimentResults: The results of the experiment.
