@@ -1,4 +1,8 @@
-# TODO: Add error handling
+# TODO: Test failures on badly defined evaluators
+# TODO: Test workflows for re-evals and publishing results
+# TODO: Handle behavior pushing experiment results without dataset
+# TODO: Idempotency of push/pull methods
+# TODO: Support running on subsets of datasets 
 
 import concurrent.futures
 from datetime import datetime
@@ -14,11 +18,11 @@ import csv
 from enum import Enum
 import itertools
 import hashlib
-import threading
 
 from ._utils import HTTPResponse
 from ._utils import http_request
 
+import ddtrace
 
 DD_SITE = os.getenv("DD_SITE", "datadoghq.com")
 BASE_URL = f"https://api.{DD_SITE}"
@@ -117,6 +121,7 @@ class Dataset:
         encoded_name = quote(name)
         url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
         resp = exp_http_request("GET", url)
+        
         response_data = resp.json()
         datasets = response_data.get("data", [])
 
@@ -193,6 +198,9 @@ class Dataset:
         url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
         resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
         data = resp.json()
+
+        # Print url to the dataset in Datadog
+        print(f"Dataset '{self.name}' created: {BASE_URL}/llm/experiments/datasets/{dataset_id}")
 
     @classmethod
     def from_csv(
@@ -437,10 +445,13 @@ class Experiment:
         evaluators (List[Callable]): Functions that evaluate task outputs
         tags (List[str]): Tags for organizing experiments
         project_name (str): Name of the project this experiment belongs to
+        description (str): Description of the experiment
+        metadata (Dict[str, Any]): Additional metadata for the experiment
+        config (Optional[Dict[str, Any]]): Configuration for the task
         has_run (bool): Whether the experiment has been executed
         has_evaluated (bool): Whether the evaluations have been performed
         outputs (List[Dict]): Outputs after running the task
-        results (ExperimentResults): Results after running evaluations
+        evaluations (List[Dict]): Evaluation results after running evaluators
     """
 
     def __init__(
@@ -478,90 +489,228 @@ class Experiment:
         self.has_run = False
         self.has_evaluated = False
         self.outputs = []
-        self.results = None
+        self.evaluations = []
 
-    def run_task(self, _jobs: int = 10) -> None:
+    def run_task(
+        self,
+        _jobs: int = 10,
+        timeout: Optional[float] = None,
+        retries: int = 0,
+        max_delay: float = 60.0,
+        raise_on_error: bool = False,
+    ) -> None:
         """Execute the task function on the dataset and store the outputs."""
         if not 1 <= _jobs <= 20:
             raise ValueError("Number of jobs must be between 1 and 20")
+        if retries < 0:
+            raise ValueError("Number of retries must be non-negative")
         self.outputs = []
         total_rows = len(self.dataset)
         completed = 0
 
         def process_row(idx_row):
             idx, row = idx_row
-            try:
-                # Extract the input data
-                input_data = row['input']
-                # Apply the task function to the input data with config
-                start_time = time.time()
-                if getattr(self.task, '_accepts_config', False):
-                    output = self.task(input_data, self.config)
-                else:
-                    output = self.task(input_data)
-                end_time = time.time()
-                duration = end_time - start_time
+            attempt = 0
+            delay = 1.0  # Initial delay in seconds
 
-                # **Ensure output is a dictionary**
-                if not isinstance(output, dict):
-                    output = {'value': output}
+            while attempt <= retries:
+                try:
+                    # Extract the input data
+                    input_data = row['input']
+                    start_time = time.time()
 
-                # Prepare output data
-                output_data = {
-                    "idx": idx,
-                    "output": output,
-                    "metadata": {
-                        "timestamp": start_time,
-                        "duration": duration,
-                        "dataset_record_idx": idx,
-                        "project_name": self.project_name,
-                        "experiment_name": self.name,
-                        "dataset_name": self.dataset.name,
-                    },
-                    "error": None,
-                }
-                return output_data
+                    def execute_task():
+                        if getattr(self.task, '_accepts_config', False):
+                            return self.task(input_data, self.config)
+                        else:
+                            return self.task(input_data)
 
-            except Exception as e:
-                output_data = {
-                    "idx": idx,
-                    "output": None,
-                    "metadata": {
-                        "timestamp": time.time(),
-                        "duration": 0,
-                        "dataset_record_idx": idx,
-                        "project_name": self.project_name,
-                        "experiment_name": self.name,
-                        "dataset_name": self.dataset.name,
-                    },
-                    "error": str(e),
-                }
-                return output_data
+                    # Use ThreadPoolExecutor to enforce timeout
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as single_executor:
+                        future = single_executor.submit(execute_task)
+                        output = future.result(timeout=timeout)
+
+                    end_time = time.time()
+                    duration = end_time - start_time
+
+                    # Ensure output is a dictionary
+                    if not isinstance(output, dict):
+                        output = {'value': output}
+
+                    # Prepare output data
+                    output_data = {
+                        "idx": idx,
+                        "output": output,
+                        "metadata": {
+                            "timestamp": start_time,
+                            "duration": duration,
+                            "dataset_record_idx": idx,
+                            "project_name": self.project_name,
+                            "experiment_name": self.name,
+                            "dataset_name": self.dataset.name,
+                        },
+                        "error": {
+                            "message": None,
+                            "stack": None,
+                            "type": None,
+                        }
+                    }
+                    return output_data
+
+                except concurrent.futures.TimeoutError as e:
+                    if raise_on_error:
+                        # Reraise the exception to trigger cancellation
+                        raise Exception(f"TimeoutError in task for row {idx}: {e}") from e
+                    if attempt < retries:
+                        # Exponential backoff and retry
+                        sleep_time = min(delay, max_delay)
+                        time.sleep(sleep_time)
+                        delay *= 2
+                        attempt += 1
+                    else:
+                        # All retries exhausted, record the timeout error
+                        output_data = {
+                            "idx": idx,
+                            "output": None,
+                            "metadata": {
+                                "timestamp": time.time(),
+                                "duration": 0,
+                                "dataset_record_idx": idx,
+                                "project_name": self.project_name,
+                                "experiment_name": self.name,
+                                "dataset_name": self.dataset.name,
+                            },
+                            "error": {
+                                "message": "Task timed out",
+                                "stack": None,
+                                "type": "TimeoutError",
+                            }
+                        }
+                        return output_data
+
+                except Exception as e:
+                    if raise_on_error:
+                        # Reraise the exception to trigger cancellation
+                        error_type = type(e).__name__
+                        raise Exception(f"Exception in task for row {idx}: {error_type}: {e}") from e
+                    if attempt < retries:
+                        # Exponential backoff and retry
+                        sleep_time = min(delay, max_delay)
+                        time.sleep(sleep_time)
+                        delay *= 2
+                        attempt += 1
+                    else:
+                        # All retries exhausted, record the error
+                        output_data = {
+                            "idx": idx,
+                            "output": None,
+                            "metadata": {
+                                "timestamp": time.time(),
+                                "duration": 0,
+                                "dataset_record_idx": idx,
+                                "project_name": self.project_name,
+                                "experiment_name": self.name,
+                                "dataset_name": self.dataset.name,
+                            },
+                            "error": {
+                                "message": str(e),
+                                "stack": None,
+                                "type": type(e).__name__,
+                            }
+                        }
+                        return output_data
 
         # Initialize the progress bar
         _print_progress_bar(0, total_rows, prefix='Processing:', suffix='Complete')
 
+        # Use a flag to determine if an error occurred
+        error_occurred = False
+        error_exception = None
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
-            future_to_idx = {executor.submit(process_row, (idx, row)): idx for idx, row in enumerate(self.dataset)}
+            # Submit the process_row function to the executor for each dataset record
+            futures = {executor.submit(process_row, (idx, row)): idx for idx, row in enumerate(self.dataset)}
 
             outputs_buffer = [None] * total_rows
-            for future in concurrent.futures.as_completed(future_to_idx):
-                idx = future_to_idx[future]
-                output_data = future.result()
-                outputs_buffer[idx] = output_data
-                completed += 1
-                _print_progress_bar(completed, total_rows, prefix='Processing:', suffix='Complete')
+            try:
+                for future in concurrent.futures.as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        output_data = future.result()
+                        outputs_buffer[idx] = output_data
+                        if raise_on_error and output_data['error']['message']:
+                            # An error occurred; cancel all futures
+                            error_occurred = True
+                            error_exception = Exception(f"Task failed on row {idx}: {output_data['error']['message']}")
+                            break
+                    except Exception as e:
+                        outputs_buffer[idx] = {
+                            "idx": idx,
+                            "output": None,
+                            "metadata": {
+                                "timestamp": time.time(),
+                                "duration": 0,
+                                "dataset_record_idx": idx,
+                                "project_name": self.project_name,
+                                "experiment_name": self.name,
+                                "dataset_name": self.dataset.name,
+                            },
+                            "error": {
+                                "message": str(e),
+                                "stack": None,
+                                "type": type(e).__name__,
+                            }
+                        }
+                        if raise_on_error:
+                            # An exception occurred; cancel all futures
+                            error_occurred = True
+                            error_exception = e
+                            break
+                    completed += 1
+                    _print_progress_bar(completed, total_rows, prefix='Processing:', suffix='Complete')
+            finally:
+                if error_occurred:
+                    # Cancel all pending futures
+                    for future in futures:
+                        future.cancel()
+                    # Shutdown the executor immediately
+                    executor.shutdown(wait=False)
+                    raise error_exception
 
         self.outputs = outputs_buffer
         self.has_run = True
 
-    def run_evaluations(self) -> None:
-        """Run evaluators on the outputs and store the results."""
+        # Log error statistics if any errors occurred
+        error_count = sum(1 for output in self.outputs if output['error']['message'] is not None)
+        if error_count > 0:
+            error_rate = (error_count / total_rows) * 100
+            print(f"Task completed with {error_count} errors ({error_rate:.2f}% error rate)")
+
+    def run_evaluations(self, evaluators: Optional[List[Callable]] = None, raise_on_error: bool = False) -> "ExperimentResults":
+        """Run evaluators on the outputs and return ExperimentResults.
+        
+        Args:
+            evaluators (Optional[List[Callable]]): List of evaluators to use. If None, uses the experiment's evaluators.
+            raise_on_error (bool): If True, raises exceptions encountered during evaluation.
+        
+        Returns:
+            ExperimentResults: A new ExperimentResults instance with the evaluation results.
+        
+        Raises:
+            ValueError: If task has not been run yet
+        """
         if not self.has_run:
             raise ValueError("Task has not been run yet. Please call run_task() before run_evaluations().")
 
-        self.results = ExperimentResults(self.dataset, self)
-        results_buffer = []
+        # Use provided evaluators or fall back to experiment's evaluators
+        evaluators_to_use = evaluators if evaluators is not None else self.evaluators
+
+        # Validate that all evaluators have the @evaluator decorator
+        for evaluator_func in evaluators_to_use:
+            if not hasattr(evaluator_func, '_is_evaluator'):
+                raise TypeError(f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator.")
+
+        evaluations = []
         total_rows = len(self.outputs)
         completed = 0
 
@@ -570,7 +719,7 @@ class Experiment:
 
         for idx, output_data in enumerate(self.outputs):
             try:
-                # Retrieve output from output_data
+                # Retrieve output from outputs
                 output = output_data["output"]
                 # Get the corresponding dataset row
                 dataset_row = self.dataset[idx]
@@ -578,46 +727,60 @@ class Experiment:
                 expected_output = dataset_row.get('expected_output', {})
 
                 # Perform evaluation
-                evaluations = {}
-                for evaluator in self.evaluators:
+                evaluations_dict = {}
+                for evaluator in evaluators_to_use:
                     evaluation_result = evaluator(expected_output, output, input_data)
-                    evaluations[evaluator.__name__] = evaluation_result
+                    evaluations_dict[evaluator.__name__] = evaluation_result
 
-                # Prepare result data
-                result = {
-                    "output": output,
-                    "evaluations": evaluations,
-                    "metadata": output_data["metadata"],
-                    "tags": self.tags,
-                    "error": None #TODO: Add error handling
-                }
+                # Store evaluation results
+                evaluations.append({
+                    "idx": idx,
+                    "evaluations": evaluations_dict,
+                    "error": None,
+                })
+
             except Exception as e:
-                result = {
-                    "output": output_data.get('output'),
+                if raise_on_error:
+                    raise e
+                evaluations.append({
+                    "idx": idx,
                     "evaluations": {},
-                    "metadata": output_data["metadata"],
-                    "tags": self.tags,
-                    "error": str(e),
-                }
+                    "error": {
+                        "message": str(e),
+                        "type": type(e).__name__,
+                        "stack": None,
+                    },
+                })
 
-            results_buffer.append(result)
             completed += 1
             _print_progress_bar(completed, total_rows, prefix='Evaluating:', suffix='Complete')
 
-        self.has_evaluated = True
-        self.results.experiment_rows = results_buffer
+        # Return new ExperimentResults without modifying the experiment's state
+        return ExperimentResults(self.dataset, self, self.outputs, evaluations)
 
-    def run(self, _jobs: int = 10) -> "ExperimentResults":
-        """Execute the task and evaluations, returning the results."""
-        self.run_task(_jobs=_jobs)
-        self.run_evaluations()
+    def run(
+        self,
+        _jobs: int = 10,
+        timeout: Optional[float] = None,
+        retries: int = 0,
+        max_delay: float = 60.0,
+        raise_on_error: bool = False,
+    ) -> "ExperimentResults":
+        """Execute the task and evaluations, returning the results.
+
+        Args:
+            _jobs (int): Number of worker threads.
+            timeout (float, optional): Time limit for the task execution in seconds.
+            retries (int): Number of retries for failed tasks.
+            max_delay (float): Maximum delay between retries in seconds.
+
+        Returns:
+            ExperimentResults: The results of the experiment.
+        """
+        self.run_task(_jobs=_jobs, timeout=timeout, retries=retries, max_delay=max_delay, raise_on_error=raise_on_error)
+        experiment_results = self.run_evaluations(raise_on_error=raise_on_error)
         print()  # Move to the next line after completion
-        return self.results
-
-    def get_results(self) -> "ExperimentResults":
-        if not self.has_evaluated:
-            raise ValueError("Evaluations have not been performed yet. Please call run() or run_evaluations().")
-        return self.results
+        return experiment_results
 
 
 class ExperimentResults:
@@ -629,22 +792,122 @@ class ExperimentResults:
     Attributes:
         dataset (Dataset): The dataset used in the experiment
         experiment (Experiment): The experiment that generated these results
-        experiment_rows (List[Dict]): Results for each processed record
+        outputs (List[Dict]): Outputs after running the task
+        evaluations (List[Dict]): Evaluation results after running evaluators
     """
 
-    def __init__(self, dataset: Dataset, experiment: Experiment) -> None:
+    def __init__(self, dataset: Dataset, experiment: Experiment, outputs: List[Dict], evaluations: List[Dict]) -> None:
         self.dataset = dataset
         self.experiment = experiment
-        self.experiment_rows = []
+        self.outputs = outputs  # List of outputs from run_task
+        self.evaluations = evaluations  # List of evaluations from run_evaluations
+        self.merged_results = self._merge_results()  # Merged outputs and evaluations
+
+    def _merge_results(self) -> List[Dict[str, Any]]:
+        """Merge outputs and evaluations into a single list of results."""
+        merged_results = []
+        for idx in range(len(self.outputs)):
+            output_data = self.outputs[idx]
+            evaluation_data = self.evaluations[idx]
+            dataset_record = self.dataset[idx]
+
+            merged_result = {
+                "idx": idx,
+                "input": dataset_record.get('input', {}),
+                "expected_output": dataset_record.get('expected_output', {}),
+                "output": output_data.get('output'),
+                "evaluations": evaluation_data.get('evaluations', {}),
+                "metadata": output_data.get('metadata', {}),
+                "error": output_data.get('error'),
+                "tags": self.experiment.tags,
+            }
+            merged_results.append(merged_result)
+        return merged_results
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
-        return iter(self.experiment_rows)
+        return iter(self.merged_results)
 
     def __len__(self) -> int:
-        return len(self.experiment_rows)
+        return len(self.merged_results)
 
     def __getitem__(self, index: int) -> Any:
-        return self.experiment_rows[index]
+        return self.merged_results[index]
+
+    def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
+        """Convert the experiment results to a pandas DataFrame, including the experiment config.
+
+        Args:
+            multiindex (bool): If True, expand nested dictionaries into MultiIndex columns.
+                               If False, keep the nested dictionaries as they are.
+
+        Returns:
+            pd.DataFrame: A DataFrame representation of the experiment results.
+
+        Raises:
+            ImportError: If pandas is not installed.
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            raise ImportError(
+                "pandas is required to convert experiment results to DataFrame. "
+                "Please install it with `pip install pandas`"
+            )
+
+        data = []
+
+        for result in self.merged_results:
+            record = {}
+            if multiindex:
+                # Flatten 'input'
+                for k, v in result['input'].items():
+                    record[('input', k)] = v
+                # Flatten 'expected_output'
+                for k, v in result['expected_output'].items():
+                    record[('expected_output', k)] = v
+                # Flatten 'output'
+                output = result.get('output', {})
+                if isinstance(output, dict):
+                    for k, v in output.items():
+                        record[('output', k)] = v
+                else:
+                    record[('output', 'value')] = output
+                # Flatten 'evaluations'
+                for eval_name, eval_result in result['evaluations'].items():
+                    if isinstance(eval_result, dict):
+                        for k, v in eval_result.items():
+                            record[('evaluations', eval_name, k)] = v
+                    else:
+                        record[('evaluations', eval_name)] = eval_result
+                # Flatten 'metadata'
+                for k, v in result.get('metadata', {}).items():
+                    record[('metadata', k)] = v
+                # Include 'config' from the experiment
+                if self.experiment.config:
+                    for k, v in self.experiment.config.items():
+                        record[('config', k)] = v
+                # Flatten 'error'
+                error = result['error']
+                if error:
+                    record[('error', 'message')] = error.get('message')
+                    record[('error', 'type')] = error.get('type')
+                    record[('error', 'stack')] = error.get('stack')
+               
+            else:
+                # Keep nested structures
+                record['input'] = result['input']
+                record['expected_output'] = result['expected_output']
+                record['output'] = result.get('output')
+                record['evaluations'] = result.get('evaluations')
+                record['metadata'] = result.get('metadata')
+                record['config'] = self.experiment.config
+                record['error'] = result.get('error')
+            data.append(record)
+
+        df = pd.DataFrame(data)
+        if multiindex:
+            df.columns = pd.MultiIndex.from_tuples(df.columns)
+        return df
 
     def push(self, overwrite: bool = False) -> None:
         """Push the experiment results to Datadog.
@@ -728,7 +991,6 @@ class ExperimentResults:
                         "dataset_id": self.experiment.dataset._datadog_dataset_id,
                         "project_id": project_id,
                         "metadata": {
-                            "tags": self.experiment.tags,
                             **self.experiment.metadata,
                             "config": self.experiment.config,
                         },
@@ -744,35 +1006,42 @@ class ExperimentResults:
 
         spans = []
         metrics = []
-        for idx, result in enumerate(self.experiment_rows):
+        for result in self.merged_results:
+            idx = result['idx']
+            merged_result = result
+            output = merged_result.get('output')
+            evaluations = merged_result.get('evaluations', {})
+            metadata = merged_result.get('metadata', {})
+            error = merged_result.get('error', {})
+
+            # Prepare span data
             span = {
                 "span_id": _make_id(),
                 "project_id": project_id,
                 "experiment_id": experiment_id,
                 "dataset_id": self.experiment.dataset._datadog_dataset_id,
                 "dataset_record_id": _make_id(),
-                "start_ns": int(result["metadata"]["timestamp"] * 1e9),
-                "duration": float(result["metadata"]["duration"] * 1e9),
-                "tags": self.experiment.tags,
-                "status": "ok",
+                "start_ns": int(metadata.get("timestamp", time.time()) * 1e9),
+                "duration": float(metadata.get("duration", 0) * 1e9),
+                "status": "ok" if not error else "error",
                 "metrics": {},  # TODO: Fill in with actual metrics once we have tracing and llm spans
                 "meta": {
                     "span": {"kind": "experiment"},
-                    "input": self.experiment.dataset[idx]["input"],
-                    "output": result["output"],
-                    "expected_output": self.experiment.dataset[idx].get("expected_output", {}),
+                    "input": merged_result.get('input', {}),
+                    "output": output,
+                    "expected_output": merged_result.get('expected_output', {}),
                     "error": {
-                        "message": result["error"],
-                        "stack": None,
-                        "type": None,
-                    },
+                        "message": error.get("message"),
+                        "type": error.get("type"),
+                        "stack": error.get("stack"),
+                    }
                 },
             }
             spans.append(span)
 
             # Add evaluation metrics
-            for metric_name, metric_value in result["evaluations"].items():
-                timestamp_ms = int(result["metadata"]["timestamp"] * 1000)
+            for metric_name, metric_value in evaluations.items():
+                timestamp_ms = int(metadata.get("timestamp", time.time()) * 1000)
 
                 # Check for bool first, since bool is a subclass of int
                 if isinstance(metric_value, bool):
@@ -792,115 +1061,24 @@ class ExperimentResults:
                     "score_value" if metric_type == "score" else "categorical_value": metric_value,
                 }
 
-                if metric_type == "score":
-                    metric["score_value"] = metric_value
-                else:
-                    metric["categorical_value"] = metric_value
-
                 metrics.append(metric)
 
+        # Prepare payload and send to Datadog
         results_payload = {
             "data": {
                 "type": "experiments",
+                "tags": self.experiment.tags + ["ddtrace.version:" + ddtrace.__version__],
                 "attributes": {"spans": spans, "metrics": metrics},
             }
         }
 
+        print(json.dumps(results_payload, indent=2))
+
         url = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
         exp_http_request("POST", url, body=json.dumps(results_payload).encode("utf-8"))
 
-    def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
-        """Convert the experiment results to a pandas DataFrame, including the experiment config.
-
-        Args:
-            multiindex (bool): If True, expand nested dictionaries into MultiIndex columns.
-                               If False, keep the nested dictionaries as they are.
-
-        Returns:
-            pd.DataFrame: A DataFrame representation of the experiment results.
-
-        Raises:
-            ImportError: If pandas is not installed.
-        """
-        try:
-            import pandas as pd
-        except ImportError:
-            raise ImportError(
-                "pandas is required to convert experiment results to DataFrame. "
-                "Please install it with `pip install pandas`"
-            )
-
-        # Collect data
-        data = []
-        for result in self.experiment_rows:
-            record = {}
-            # Get index of the dataset record
-            idx = result['metadata'].get('dataset_record_idx')
-            dataset_record = self.dataset[idx]
-
-            if multiindex:
-
-                # Flatten 'input' and 'expected_output' from the dataset
-                for k, v in dataset_record.get('input', {}).items():
-                    record[('input', k)] = v
-                for k, v in dataset_record.get('expected_output', {}).items():
-                    record[('expected_output', k)] = v
-
-                # Flatten 'output' from the result
-                output = result.get('output', {})
-                if isinstance(output, dict):
-                    for k, v in output.items():
-                        record[('output', k)] = v
-                else:
-                    record[('output', 'value')] = output
-
-                # Flatten 'evaluations' from the result
-                evaluations = result.get('evaluations', {})
-                for evaluator_name, evaluation in evaluations.items():
-                    if isinstance(evaluation, dict):
-                        for k, v in evaluation.items():
-                            record[('evaluations', evaluator_name, k)] = v
-                    else:
-                        record[('evaluations', evaluator_name)] = evaluation
-
-                 # Flatten 'config' from the experiment, if it exists
-                if self.experiment.config:
-                    for k, v in self.experiment.config.items():
-                        record[('config', k)] = v
-
-                # Flatten 'metadata' from the result
-                for k, v in result.get('metadata', {}).items():
-                    # Skip project_name, experiment_name, and dataset_name
-                    if k not in ['project_name', 'experiment_name', 'dataset_name']:
-                        record[('metadata', k)] = v
-
-
-                # Include 'error' if any
-                error = result.get('error')
-                if error:
-                    record[('error', 'message')] = error
-
-            else:
-                # Include config as a dictionary, if it exists
-                if self.experiment.config:
-                    record['config'] = self.experiment.config
-
-                # Keep nested dictionaries
-                record['input'] = dataset_record.get('input', {})
-                record['expected_output'] = dataset_record.get('expected_output', {})
-                record['output'] = result.get('output', {})
-                record['evaluations'] = result.get('evaluations', {})
-                record['metadata'] = result.get('metadata', {})
-                record['tags'] = result.get('tags', [])
-                record['error'] = result.get('error')
-
-            data.append(record)
-
-        df = pd.DataFrame(data)
-        if multiindex:
-            # Set columns as MultiIndex
-            df.columns = pd.MultiIndex.from_tuples(df.columns)
-        return df
+        # Print URL to the experiment in Datadog
+        print(f"Experiment '{self.experiment.name}' created: {BASE_URL}/llm/experiments/experiment-list/{experiment_id}")
 
     def export_to_jsonl(self, file_path):
         """
@@ -912,7 +1090,7 @@ class ExperimentResults:
         import json
 
         with open(file_path, 'w') as f:
-            for result in self.experiment_rows:
+            for result in self.merged_results:
                 json_line = json.dumps(result)
                 f.write(json_line + '\n')
 
@@ -946,6 +1124,8 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
     }
     url = BASE_URL + url
     resp = http_request(method, url, headers=headers, body=body)
+    if resp.status_code == 403:
+        raise ValueError("API key or application key is incorrect.")
     if resp.status_code >= 400:
         try:
             error_details = resp.json()
@@ -990,6 +1170,15 @@ def evaluator(func):
         raise TypeError(f"Evaluator function must have parameters {required_params}.")
     wrapper._is_evaluator = True  # Set attribute to indicate decoration
     return wrapper
+
+
+def _print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=50, fill='█'):
+    percent = f"{100 * (iteration / float(total)):.{decimals}f}"
+    filled_length = int(length * iteration // total)
+    bar = fill * filled_length + '-' * (length - filled_length)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end='\r')
+    if iteration == total:
+        print()
 
 
 class ExperimentGrid:
@@ -1097,12 +1286,3 @@ class ExperimentGrid:
             List[ExperimentResults]: A list of results for each experiment.
         """
         return self.results
-
-
-def _print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=50, fill='█'):
-    percent = f"{100 * (iteration / float(total)):.{decimals}f}"
-    filled_length = int(length * iteration // total)
-    bar = fill * filled_length + '-' * (length - filled_length)
-    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end='\r')
-    if iteration == total:
-        print()
