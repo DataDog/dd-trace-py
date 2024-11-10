@@ -269,8 +269,14 @@ class Dataset:
                         'expected_output': expected_output_data,
                         **metadata,
                     })
+        except FileNotFoundError as e:
+            raise DatasetFileError(f"CSV file not found: {filepath}") from e
+        except PermissionError as e:
+            raise DatasetFileError(f"Permission denied when reading CSV file: {filepath}") from e
+        except csv.Error as e:
+            raise DatasetFileError(f"Error parsing CSV file: {e}") from e
         except Exception as e:
-            raise Exception(f"Failed to read CSV file: {e}")
+            raise DatasetFileError(f"Unexpected error reading CSV file: {e}") from e
 
         return cls(name=name, data=data, description=description)
 
@@ -317,8 +323,14 @@ class Dataset:
                 if not data:
                     raise ValueError("JSONL file is empty.")
 
+        except FileNotFoundError as e:
+            raise DatasetFileError(f"JSONL file not found: {filepath}") from e
+        except PermissionError as e:
+            raise DatasetFileError(f"Permission denied when reading JSONL file: {filepath}") from e
+        except json.JSONDecodeError as e:
+            raise DatasetFileError(f"Error parsing JSONL file: {e}") from e
         except Exception as e:
-            raise Exception(f"Failed to read JSONL file: {e}")
+            raise DatasetFileError(f"Unexpected error reading JSONL file: {e}") from e
 
         return cls(name=name, data=data, description=description)
 
@@ -387,8 +399,12 @@ class Dataset:
                     **metadata,
                 })
 
+        except FileNotFoundError as e:
+            raise DatasetFileError(f"Parquet file not found: {filepath}") from e
+        except PermissionError as e:
+            raise DatasetFileError(f"Permission denied when reading Parquet file: {filepath}") from e
         except Exception as e:
-            raise Exception(f"Failed to read Parquet file: {e}")
+            raise DatasetFileError(f"Error reading Parquet file: {e}") from e
 
         return cls(name=name, data=data, description=description)
 
@@ -485,9 +501,7 @@ class Dataset:
             # Set columns as MultiIndex
             df.columns = pd.MultiIndex.from_tuples(df.columns)
             return df
-        else:
-            # Keep 'input' and 'expected_output' as dicts in the DataFrame
-            return pd.DataFrame(self._data)
+        return pd.DataFrame(self._data)
 
     def export_to_jsonl(self, file_path):
         """
@@ -608,8 +622,7 @@ class Experiment:
                     def execute_task():
                         if getattr(self.task, '_accepts_config', False):
                             return self.task(input_data, self.config)
-                        else:
-                            return self.task(input_data)
+                        return self.task(input_data)
 
                     # Use ThreadPoolExecutor to enforce timeout
                     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as single_executor:
@@ -645,8 +658,8 @@ class Experiment:
 
                 except concurrent.futures.TimeoutError as e:
                     if raise_on_error:
-                        # Reraise the exception to trigger cancellation
-                        raise Exception(f"TimeoutError in task for row {idx}: {e}") from e
+                        # Raise specific experiment task error
+                        raise ExperimentTaskError(f"Task timed out after {timeout} seconds", idx, e)
                     if attempt < retries:
                         # Exponential backoff and retry
                         sleep_time = min(delay, max_delay)
@@ -667,7 +680,7 @@ class Experiment:
                                 "dataset_name": self.dataset.name,
                             },
                             "error": {
-                                "message": "Task timed out",
+                                "message": f"Task timed out after {timeout} seconds",
                                 "stack": None,
                                 "type": "TimeoutError",
                             }
@@ -676,9 +689,8 @@ class Experiment:
 
                 except Exception as e:
                     if raise_on_error:
-                        # Reraise the exception to trigger cancellation
-                        error_type = type(e).__name__
-                        raise Exception(f"Exception in task for row {idx}: {error_type}: {e}") from e
+                        # Raise specific experiment task error
+                        raise ExperimentTaskError(str(e), idx, e)
                     if attempt < retries:
                         # Exponential backoff and retry
                         sleep_time = min(delay, max_delay)
@@ -1210,8 +1222,8 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
         "DD-APPLICATION-KEY": os.getenv("DD_APPLICATION_KEY"),
         "Content-Type": "application/json",
     }
-    url = BASE_URL + url
-    resp = http_request(method, url, headers=headers, body=body)
+    full_url = BASE_URL + url
+    resp = http_request(method, full_url, headers=headers, body=body)
     if resp.status_code == 403:
         raise ValueError("API key or application key is incorrect.")
     if resp.status_code >= 400:
@@ -1233,8 +1245,7 @@ def task(func):
         # Call the original function with or without config
         if 'config' in inspect.signature(func).parameters:
             return func(input, config)
-        else:
-            return func(input)
+        return func(input)
     # Enforce signature compliance
     sig = inspect.signature(func)
     params = sig.parameters
@@ -1374,3 +1385,16 @@ class ExperimentGrid:
             List[ExperimentResults]: A list of results for each experiment.
         """
         return self.results
+
+
+class DatasetFileError(Exception):
+    """Exception raised when there are errors reading or processing dataset files."""
+    pass
+
+
+class ExperimentTaskError(Exception):
+    """Exception raised when a task fails during experiment execution."""
+    def __init__(self, message: str, row_idx: int, original_error: Exception = None):
+        self.row_idx = row_idx
+        self.original_error = original_error
+        super().__init__(f"Task failed on row {row_idx}: {message}")
