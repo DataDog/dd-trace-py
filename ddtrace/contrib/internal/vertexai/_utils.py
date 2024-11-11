@@ -66,7 +66,7 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
 
 def _extract_model_name(instance):
     """Extract the model name from the instance.
-    The Google Gemini Python SDK stores model names in the format `"models/{model_name}"`
+    Model names are stored in the format `"models/{model_name}"`
     so we do our best to return the model name instead of the full string.
     """
     model_name = getattr(instance, "_model_name", "")
@@ -241,7 +241,7 @@ def tag_request(span, integration, instance, args, kwargs):
     if history:
         if isinstance(contents, list):
             contents = history + contents
-        if isinstance(contents, Part):
+        if isinstance(contents, Part) or isinstance(contents, str) or isinstance(contents, dict):
             contents = history + [contents]
     generation_config_dict = get_generation_config_from_model(model_instance, kwargs)
     system_instructions = get_system_instruction_parts_from_model(model_instance)

@@ -13,9 +13,18 @@ class TestVertexAIPatch(PatchTestCase.Base):
 
     def assert_module_patched(self, vertexai):
         self.assert_wrapped(vertexai.generative_models.GenerativeModel.generate_content)
+        self.assert_wrapped(vertexai.generative_models.GenerativeModel.generate_content_async)
+        self.assert_wrapped(vertexai.generative_models.ChatSession.send_message)
+        self.assert_wrapped(vertexai.generative_models.ChatSession.send_message_async)
 
     def assert_not_module_patched(self, vertexai):
         self.assert_not_wrapped(vertexai.generative_models.GenerativeModel.generate_content)
+        self.assert_not_wrapped(vertexai.generative_models.GenerativeModel.generate_content_async)
+        self.assert_not_wrapped(vertexai.generative_models.ChatSession.send_message)
+        self.assert_not_wrapped(vertexai.generative_models.ChatSession.send_message_async)
 
     def assert_not_module_double_patched(self, vertexai):
         self.assert_not_double_wrapped(vertexai.generative_models.GenerativeModel.generate_content)
+        self.assert_not_double_wrapped(vertexai.generative_models.GenerativeModel.generate_content_async)
+        self.assert_not_double_wrapped(vertexai.generative_models.ChatSession.send_message)
+        self.assert_not_double_wrapped(vertexai.generative_models.ChatSession.send_message_async)

@@ -2,7 +2,7 @@
   {
     "name": "vertexai.request",
     "service": "",
-    "resource": "GenerativeModel.generate_content",
+    "resource": "GenerativeModel.generate_content_async",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -34,6 +34,6 @@
       "vertexai.response.usage.prompt_tokens": 16,
       "vertexai.response.usage.total_tokens": 53
     },
-    "duration": 1660000,
-    "start": 1731348651044914000
+    "duration": 1448000,
+    "start": 1731348651167804000
   }]]

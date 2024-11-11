@@ -10,9 +10,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "672a851000000000",
+      "_dd.p.tid": "67314edd00000000",
       "language": "python",
-      "runtime-id": "9d140cd9e8854e2cb3c90a48e42060a5",
+      "runtime-id": "8d7e579bb509412295b01a97f9d0d90d",
       "vertexai.request.contents.0.parts.0.text": "Hello World!",
       "vertexai.request.contents.0.role": "user",
       "vertexai.request.contents.1.parts.0.text": "Great to meet you. What would you like to know?",
@@ -24,7 +24,7 @@
       "vertexai.request.generation_config.temperature": "0.0",
       "vertexai.request.model": "gemini-1.5-flash",
       "vertexai.request.provider": "google",
-      "vertexai.response.candidates.0.content.parts.0.text": "Bears hibernate for a few key reasons:\\n\\n* **Food Scarcity:**  During the winter, food sources like berries, nuts, and insects ...",
+      "vertexai.response.candidates.0.content.parts.0.text": "Bears hibernate for a few key reasons:\\n\\n* **Food Scarcity:** During the winter, food sources like berries, nuts, and insects ....",
       "vertexai.response.candidates.0.content.role": "model",
       "vertexai.response.candidates.0.finish_reason": "MAX_TOKENS"
     },
@@ -33,11 +33,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 67898,
-      "vertexai.response.usage.completion_tokens": 35,
-      "vertexai.response.usage.prompt_tokens": 20,
-      "vertexai.response.usage.total_tokens": 55
+      "process_id": 88108,
+      "vertexai.response.usage.completion_tokens": 30,
+      "vertexai.response.usage.prompt_tokens": 12,
+      "vertexai.response.usage.total_tokens": 42
     },
-    "duration": 636948000,
-    "start": 1730839824351348000
+    "duration": 430000,
+    "start": 1731284701515636000
   }]]

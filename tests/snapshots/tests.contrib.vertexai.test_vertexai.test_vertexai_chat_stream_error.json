@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "vertexai.request",
+    "service": "",
+    "resource": "ChatSession.send_message",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6732635f00000000",
+      "error.message": "ChatSession.send_message() got an unexpected keyword argument 'candidate_count'",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/vertexai/patch.py\", line 64, in _traced_generate\n    generations = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\nTypeError: ChatSession.send_message() got an unexpected keyword argument 'candidate_count'\n",
+      "error.type": "builtins.TypeError",
+      "language": "python",
+      "runtime-id": "c6700b7c3afa410ebab0e446755395e3",
+      "vertexai.request.contents.0.parts.0.text": "Hello world!",
+      "vertexai.request.contents.0.role": "user",
+      "vertexai.request.contents.1.parts.0.text": "Great to meet you. What would you like to know?",
+      "vertexai.request.contents.1.role": "model",
+      "vertexai.request.contents.2.text": "How big is the solar system?",
+      "vertexai.request.generation_config.max_output_tokens": "30",
+      "vertexai.request.generation_config.stop_sequences": "['x']",
+      "vertexai.request.generation_config.temperature": "1.0",
+      "vertexai.request.model": "gemini-1.5-flash",
+      "vertexai.request.provider": "google",
+      "vertexai.request.stream": "True"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 228
+    },
+    "duration": 339000,
+    "start": 1731355487640489000
+  }]]
