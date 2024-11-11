@@ -1,5 +1,5 @@
 # This script is used to generate the GitLab dynamic config file in
-# .circleci/config.gen.yml.
+# .gitlab/tests.yml.
 #
 # To add new configuration manipulations that are based on top of the template
 # file in .circleci/config.templ.yml, add a function named gen_<name> to this
