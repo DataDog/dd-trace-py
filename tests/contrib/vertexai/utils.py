@@ -84,7 +84,7 @@ MOCK_COMPLETION_SIMPLE_3 = {
     "usage_metadata": {"prompt_token_count": 16, "candidates_token_count": 50, "total_token_count": 66},
 }
 
-MOCK_TOOL_COMPLETION_1 = {
+MOCK_COMPLETION_TOOL = {
     "candidates": [ 
         {
             "content": {

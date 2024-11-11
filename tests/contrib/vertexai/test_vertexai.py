@@ -7,7 +7,12 @@ from tests.contrib.vertexai.utils import weather_tool
 from tests.contrib.vertexai.utils import _async_streamed_response
 from tests.contrib.vertexai.utils import _mock_completion_response
 from tests.contrib.vertexai.utils import _mock_completion_stream_chunk
-from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1, MOCK_TOOL_COMPLETION_1, MOCK_COMPLETION_SIMPLE_2, MOCK_COMPLETION_SIMPLE_3, MOCK_COMPLETION_STREAM_CHUNKS, MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_2
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_3
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_STREAM_CHUNKS
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
 
 def test_global_tags(vertexai, mock_tracer):
     """
@@ -38,7 +43,7 @@ def test_vertexai_completion(vertexai, mock_client):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm.generate_content(
                 "Why do bears hibernate?",
-                generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=1.0),
+                generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=1.0),
             )
         
 
@@ -60,7 +65,7 @@ def test_vertexai_completion_error(vertexai, mock_client):
 def test_vertexai_completion_tool(vertexai, mock_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_client
-        mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_TOOL_COMPLETION_1))
+        mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm.generate_content(
             "What is the weather like in New York City?",
@@ -79,7 +84,7 @@ def test_vertexai_completion_multiple_messages(vertexai, mock_client):
                 {"role": "model", "parts": [{"text": "Great to meet you. What would you like to know?"}]},
                 {"role": "user", "parts": [{"text": "Why do bears hibernate?"}]},
             ],
-            generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=0),
+            generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=0),
         )
 
 @pytest.mark.snapshot
@@ -177,7 +182,7 @@ async def test_vertexai_completion_async_error(vertexai, mock_async_client):
 async def test_vertexai_completion_async_tool(vertexai, mock_async_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_async_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_async_client
-        mock_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_TOOL_COMPLETION_1))
+        mock_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         await llm.generate_content_async(
             "What is the weather like in New York City?",
@@ -273,7 +278,7 @@ def test_vertexai_chat_error(vertexai, mock_client):
 def test_vertexai_chat_tool(vertexai, mock_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_client
-        mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_TOOL_COMPLETION_1))
+        mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         chat = llm.start_chat(
             history=[
@@ -413,7 +418,7 @@ async def test_vertexai_chat_async_error(vertexai, mock_async_client):
 async def test_vertexai_chat_async_tool(vertexai, mock_async_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_async_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_async_client
-        mock_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_TOOL_COMPLETION_1))
+        mock_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         chat = llm.start_chat(
             history=[
@@ -483,9 +488,9 @@ async def test_vertexai_chat_async_stream_tool(vertexai, mock_async_client):
             ]
         )
         response = await chat.send_message_async(
-                "What is the weather like in New York City?",
-                generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=1.0),
-                stream = True,
-            )
+            "What is the weather like in New York City?",
+            generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=1.0),
+            stream = True,
+        )
         async for _ in response:
             pass
