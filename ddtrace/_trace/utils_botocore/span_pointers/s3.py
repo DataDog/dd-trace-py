@@ -85,7 +85,7 @@ def _extract_span_pointers_for_s3_response_with_helper(
             etag = etag[1:-1]
 
     except KeyError as e:
-        log.warning(
+        log.debug(
             "missing a parameter or response field required to make span pointer for S3.%s: %s",
             operation_name,
             str(e),
@@ -102,7 +102,7 @@ def _extract_span_pointers_for_s3_response_with_helper(
             )
         ]
     except Exception as e:
-        log.warning(
+        log.debug(
             "failed to generate S3.%s span pointer: %s",
             operation_name,
             str(e),

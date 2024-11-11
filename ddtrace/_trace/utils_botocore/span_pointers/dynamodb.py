@@ -154,7 +154,7 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
         ]
 
     except Exception as e:
-        log.warning(
+        log.debug(
             "failed to generate DynamoDB.PutItem span pointer: %s",
             str(e),
         )
@@ -178,7 +178,7 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
         ]
 
     except Exception as e:
-        log.warning(
+        log.debug(
             "failed to generate DynamoDB.%s span pointer: %s",
             operation_name,
             str(e),
@@ -214,7 +214,7 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
         )
 
     except Exception as e:
-        log.warning(
+        log.debug(
             "failed to generate DynamoDB.BatchWriteItem span pointer: %s",
             str(e),
         )
@@ -237,7 +237,7 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
         )
 
     except Exception as e:
-        log.warning(
+        log.debug(
             "failed to generate DynamoDB.TransactWriteItems span pointer: %s",
             str(e),
         )
