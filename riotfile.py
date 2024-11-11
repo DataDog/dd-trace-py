@@ -2489,7 +2489,7 @@ venv = Venv(
                         ),
                         Venv(
                             pys="3.11",
-                            pkgs={"gevent": "~=22.8.0"},
+                            pkgs={"gevent": latest},
                         ),
                         Venv(
                             pys=select_pys(min_version="3.12"),
