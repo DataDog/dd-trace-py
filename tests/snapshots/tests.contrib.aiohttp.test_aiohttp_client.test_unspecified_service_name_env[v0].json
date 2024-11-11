@@ -19,7 +19,6 @@
       "language": "python",
       "out.host": "localhost",
       "runtime-id": "46c94f5e0ef041cfb59591463f097660",
-      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {

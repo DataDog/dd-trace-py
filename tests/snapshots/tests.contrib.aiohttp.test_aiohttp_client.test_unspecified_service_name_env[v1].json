@@ -21,7 +21,6 @@
       "out.host": "localhost",
       "peer.service": "localhost",
       "runtime-id": "df73bafc708a46ab8bd75faf673a61e2",
-      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
