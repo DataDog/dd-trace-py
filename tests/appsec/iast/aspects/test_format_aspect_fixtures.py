@@ -7,7 +7,6 @@ from typing import NamedTuple
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import create_context
@@ -17,7 +16,7 @@ from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
@@ -246,7 +245,7 @@ def test_propagate_ranges_with_no_context(caplog):
         source_origin=OriginType.PARAMETER,
     )
     reset_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result_2 = mod.do_args_kwargs_4(string_input, 6, test_var=1)
 
     ranges_result = get_tainted_ranges(result_2)

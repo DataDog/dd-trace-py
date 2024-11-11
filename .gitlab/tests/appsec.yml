@@ -56,7 +56,7 @@ appsec threats fastapi:
 
 appsec aggregated leak testing:
   extends: .test_base_hatch
-  parallel: 4
+  parallel: 3
   variables:
     SUITE_NAME: "appsec_aggregated_leak_testing"
   retry: 2

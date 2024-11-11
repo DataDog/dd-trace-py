@@ -36,7 +36,9 @@ from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from ._core import get_config as _get_config
+from ._inferred_base_service import detect_service
 from ._otel_remapper import otel_remapping as _otel_remapping
+from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
@@ -49,6 +51,7 @@ else:
 
 log = get_logger(__name__)
 
+ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"(?ix)"
@@ -112,10 +115,11 @@ def _parse_propagation_styles(styles_str):
     - "b3" (formerly 'b3 single header')
     - "b3 single header (deprecated for 'b3')"
     - "tracecontext"
+    - "baggage"
     - "none"
 
 
-    The default value is ``"datadog,tracecontext"``.
+    The default value is ``"datadog,tracecontext,baggage"``.
 
 
     Examples::
@@ -198,10 +202,10 @@ _JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JS
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
-    def __init__(self, name, default, envs):
-        # type: (str, Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
+    def __init__(self, default, envs):
+        # type: (Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
         # _ConfigItem._name is only used in __repr__ and instrumentation telemetry
-        self._name = name
+        self._name = envs[0][0]
         self._env_value: _JSONType = None
         self._code_value: _JSONType = None
         self._rc_value: _JSONType = None
@@ -214,7 +218,7 @@ class _ConfigItem:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
                 break
-        telemetry_writer.add_configuration(name, self._telemetry_value(), self.source())
+        telemetry_writer.add_configuration(self._name, self.value(), self.source())
 
     def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
@@ -248,16 +252,6 @@ class _ConfigItem:
             return "env_var"
         return "default"
 
-    def _telemetry_value(self) -> str:
-        val = self.value()
-        if val is None:
-            return ""
-        elif isinstance(val, (bool, int, float)):
-            return str(val).lower()
-        elif isinstance(val, dict):
-            return ",".join(":".join((k, str(v))) for k, v in val.items())
-        return str(val)
-
     def __repr__(self):
         return "<{} name={} default={} env_value={} user_value={} remote_config_value={}>".format(
             self.__class__.__name__,
@@ -277,52 +271,42 @@ def _parse_global_tags(s):
 def _default_config() -> Dict[str, _ConfigItem]:
     return {
         "_trace_sample_rate": _ConfigItem(
-            name="trace_sample_rate",
             default=1.0,
             envs=[("DD_TRACE_SAMPLE_RATE", float)],
         ),
         "_trace_sampling_rules": _ConfigItem(
-            name="trace_sampling_rules",
             default=lambda: "",
             envs=[("DD_TRACE_SAMPLING_RULES", str)],
         ),
         "_logs_injection": _ConfigItem(
-            name="logs_injection_enabled",
             default=False,
             envs=[("DD_LOGS_INJECTION", asbool)],
         ),
         "_trace_http_header_tags": _ConfigItem(
-            name="trace_header_tags",
             default=lambda: {},
             envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
         ),
         "tags": _ConfigItem(
-            name="trace_tags",
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
         ),
         "_tracing_enabled": _ConfigItem(
-            name="trace_enabled",
             default=True,
             envs=[("DD_TRACE_ENABLED", asbool)],
         ),
         "_profiling_enabled": _ConfigItem(
-            name="profiling_enabled",
             default=False,
             envs=[("DD_PROFILING_ENABLED", asbool)],
         ),
         "_asm_enabled": _ConfigItem(
-            name="appsec_enabled",
             default=False,
             envs=[("DD_APPSEC_ENABLED", asbool)],
         ),
         "_sca_enabled": _ConfigItem(
-            name="DD_APPSEC_SCA_ENABLED",
             default=None,
             envs=[("DD_APPSEC_SCA_ENABLED", asbool)],
         ),
         "_dsm_enabled": _ConfigItem(
-            name="data_streams_enabled",
             default=False,
             envs=[("DD_DATA_STREAMS_ENABLED", asbool)],
         ),
@@ -403,13 +387,8 @@ class Config(object):
         # Must map Otel configurations to Datadog configurations before creating the config object.
         _otel_remapping()
         # Must come before _integration_configs due to __setattr__
+        self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
-
-        # Remove the SCA configuration from instrumentation telemetry if it is not set
-        # this behavior is validated by system tests
-        # FIXME(munir): Is this really needed? Should report the default value (None) instead?
-        if self._config["_sca_enabled"].value() is None:
-            telemetry_writer.remove_configuration("DD_APPSEC_SCA_ENABLED")
 
         sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
         if sample_rate is not None:
@@ -432,7 +411,7 @@ class Config(object):
             # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
-                "Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+                "Tracer rate limiting is only applied to spans that match tracer sampling rules. "
                 "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
                 rate_limit,
             )
@@ -496,11 +475,14 @@ class Config(object):
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+        self._inferred_base_service = detect_service(sys.argv)
 
         if self.service is None and in_gcp_function():
             self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_azure_function():
             self.service = _get_config("WEBSITE_SITE_NAME", DEFAULT_SPAN_SERVICE_NAME)
+        if self.service is None and self._inferred_base_service:
+            self.service = self._inferred_base_service
 
         self._extra_services = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
@@ -767,6 +749,15 @@ class Config(object):
         :type default: str
         :rtype: str|None
         """
+
+        # We check if self.service != _inferred_base_service since config.service
+        # defaults to _inferred_base_service when no DD_SERVICE is set. In this case, we want to not
+        # use the inferred base service value, and instead use the default if included. If we
+        # didn't do this, we would have a massive breaking change from adding inferred_base_service,
+        # which would be replacing any integration defaults since service is no longer None.
+        if self.service and self.service == self._inferred_base_service:
+            return default if default is not None else self.service
+
         # TODO: This method can be replaced with `config.service`.
         return self.service if self.service is not None else default
 
@@ -788,7 +779,7 @@ class Config(object):
 
     def __setattr__(self, key, value):
         # type: (str, Any) -> None
-        if key == "_config":
+        if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
             self._set_config_items([(key, value, "code")])
@@ -815,7 +806,7 @@ class Config(object):
             item = self._config[key]
             item.set_value_source(value, origin)
             if self._telemetry_enabled:
-                telemetry_writer.add_configuration(item._name, item._telemetry_value(), item.source())
+                telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
 
     def _reset(self):

@@ -43,8 +43,7 @@ def _wrap_call(
         service=trace_utils.int_service(pin, config.flask),
         span_type=span_type,
         tags=tags,
-        call_key="flask_call",
-    ) as ctx, ctx.get_item("flask_call"):
+    ) as ctx, ctx.span:
         if do_dispatch:
             result = core.dispatch_with_results("flask.wrapped_view", (kwargs,)).callback_and_args
             if result:

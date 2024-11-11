@@ -4,9 +4,9 @@ from ddtrace.internal.logger import get_logger
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
+from .._iast_request_context import is_iast_request_enabled
 from .._metrics import increment_iast_span_metric
 from ..constants import VULN_PATH_TRAVERSAL
-from ..processor import AppSecIastSpanProcessor
 from ._base import VulnerabilityBase
 
 
@@ -19,7 +19,7 @@ class PathTraversal(VulnerabilityBase):
 
 
 def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
-    if AppSecIastSpanProcessor.is_span_analyzed() and PathTraversal.has_quota():
+    if is_iast_request_enabled() and PathTraversal.has_quota():
         try:
             from .._metrics import _set_metric_iast_executed_sink
             from .._taint_tracking import is_pyobject_tainted

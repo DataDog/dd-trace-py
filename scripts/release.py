@@ -391,7 +391,12 @@ def create_notebook(dd_repo, name, rn, base):
                     author = author.split(" ")
                     author_slack = "@" + author[0] + "." + author[-1]
                     author_dd = author_slack + "@datadoghq.com"
-                pr_num = re.findall(r"\(#(\d{4})\)", commit.commit.message)[0]
+                maybe_pr_num = re.findall(r"\(#(\d+)\)", commit.commit.message)
+                if len(maybe_pr_num) == 0:
+                    print("Could not parse PR number from commit message: ", commit.commit.message)
+                    pr_num = "x"
+                else:
+                    pr_num = maybe_pr_num[0]
                 url = "https://github.com/DataDog/dd-trace-py/pull/{pr_num}".format(pr_num=pr_num)
                 prs_details.append(
                     {"author_slack": author_slack, "author_dd": author_dd, "url": url, "rn_piece": rn_piece}
@@ -402,8 +407,9 @@ def create_notebook(dd_repo, name, rn, base):
     prs_details = sorted(prs_details, key=lambda prd: prd["rn_piece"])
     notebook_rns = ""
     for pr_detail in prs_details:
-        notebook_rns += f"\n- [ ] {pr_detail['rn_piece']}\n  - PR:{pr_detail['url']},"
-        "Tester: {pr_detail['author_dd']}\n  - Findings: "
+        notebook_rns += "\n- [ ] {rn_piece}\n  - PR:{url}\n  - Tester: {author}\n  - Findings: ".format(
+            rn_piece=pr_detail["rn_piece"], url=pr_detail["url"], author=pr_detail["author_dd"]
+        )
 
     # create the review notebook and add the release notes formatted for testing
     # get notebook template

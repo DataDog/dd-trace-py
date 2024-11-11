@@ -1,7 +1,7 @@
 [[
   {
     "name": "trace.annotation",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "_async_test_method",
     "trace_id": 0,
     "span_id": 1,
@@ -26,7 +26,7 @@
 [
   {
     "name": "trace.annotation",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "_async_test_method2",
     "trace_id": 1,
     "span_id": 1,
@@ -51,7 +51,7 @@
 [
   {
     "name": "trace.annotation",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "_Class.async_test_method",
     "trace_id": 2,
     "span_id": 1,
@@ -76,7 +76,7 @@
 [
   {
     "name": "trace.annotation",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "_Class.async_test_method",
     "trace_id": 3,
     "span_id": 1,

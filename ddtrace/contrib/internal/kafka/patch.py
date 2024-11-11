@@ -171,7 +171,13 @@ def traced_produce(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
+        cluster_id = _get_cluster_id(instance, topic)
+        core.set_item("kafka_cluster_id", cluster_id)
+        if cluster_id:
+            span.set_tag_str(kafkax.CLUSTER_ID, cluster_id)
+
         core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
+
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -246,15 +252,20 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     ) as span:
         # reset span start time to before function call
         span.start_ns = start_ns
+        cluster_id = None
 
         for message in messages:
             if message is not None and first_message is not None:
+                cluster_id = _get_cluster_id(instance, str(first_message.topic()))
+                core.set_item("kafka_cluster_id", cluster_id)
                 core.set_item("kafka_topic", str(first_message.topic()))
                 core.dispatch("kafka.consume.start", (instance, first_message, span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        if cluster_id:
+            span.set_tag_str(kafkax.CLUSTER_ID, cluster_id)
         span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(first_message is not None))
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if first_message is not None:
@@ -293,7 +304,6 @@ def traced_commit(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     core.dispatch("kafka.commit.start", (instance, args, kwargs))
-
     return func(*args, **kwargs)
 
 
@@ -310,3 +320,17 @@ def serialize_key(instance, topic, key, headers):
         else:
             log.warning("Failed to set Kafka Consumer key tag, no method available to serialize key: %s", str(key))
             return None
+
+
+def _get_cluster_id(instance, topic):
+    if instance and getattr(instance, "_dd_cluster_id", None):
+        return instance._dd_cluster_id
+
+    if getattr(instance, "list_topics", None) is None:
+        return None
+
+    cluster_metadata = instance.list_topics(topic=topic)
+    if cluster_metadata and getattr(cluster_metadata, "cluster_id", None):
+        instance._dd_cluster_id = cluster_metadata.cluster_id
+        return cluster_metadata.cluster_id
+    return None

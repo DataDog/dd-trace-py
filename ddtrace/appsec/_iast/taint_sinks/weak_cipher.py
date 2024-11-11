@@ -103,19 +103,28 @@ def patch():
 
 
 def wrapped_aux_rc2_function(wrapped, instance, args, kwargs):
-    result = wrapped(*args, **kwargs)
+    if hasattr(wrapped, "__func__"):
+        result = wrapped.__func__(instance, *args, **kwargs)
+    else:
+        result = wrapped(*args, **kwargs)
     result._dd_weakcipher_algorithm = "RC2"
     return result
 
 
 def wrapped_aux_des_function(wrapped, instance, args, kwargs):
-    result = wrapped(*args, **kwargs)
+    if hasattr(wrapped, "__func__"):
+        result = wrapped.__func__(instance, *args, **kwargs)
+    else:
+        result = wrapped(*args, **kwargs)
     result._dd_weakcipher_algorithm = "DES"
     return result
 
 
 def wrapped_aux_blowfish_function(wrapped, instance, args, kwargs):
-    result = wrapped(*args, **kwargs)
+    if hasattr(wrapped, "__func__"):
+        result = wrapped.__func__(instance, *args, **kwargs)
+    else:
+        result = wrapped(*args, **kwargs)
     result._dd_weakcipher_algorithm = "Blowfish"
     return result
 
@@ -127,6 +136,8 @@ def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
     WeakCipher.report(
         evidence_value="RC4",
     )
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
@@ -139,7 +150,10 @@ def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -
         WeakCipher.report(
             evidence_value=evidence,
         )
-
+    print("@WeakCipher.wrap.wrapped_function!!!!!!!!!!!!!!!!!")
+    print(wrapped)
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
@@ -152,4 +166,6 @@ def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, k
         WeakCipher.report(
             evidence_value=algorithm_name,
         )
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)

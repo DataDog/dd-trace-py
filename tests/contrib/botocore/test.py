@@ -529,6 +529,15 @@ class BotocoreTest(TracerTestCase):
         ]
 
     @mock_s3
+    def test_s3_put_with_add_span_pointers_false(self):
+        with self.override_config("botocore", dict(add_span_pointers=False)):
+            span = self._test_s3_put()
+            assert span.get_tag("aws.s3.bucket_name") == "mybucket"
+            assert span.get_tag("bucketname") == "mybucket"
+
+            assert span._links == []
+
+    @mock_s3
     def test_s3_put_no_params(self):
         with self.override_config("botocore", dict(tag_no_params=True)):
             span = self._test_s3_put()

@@ -9,7 +9,6 @@
     "type": "test",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "66e1983700000000",
@@ -60,7 +59,6 @@
     "type": "test",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "66e1983700000000",
@@ -103,7 +101,6 @@
        "type": "test",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
          "_dd.origin": "ciapp-test",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "66e1983700000000",
@@ -146,7 +143,6 @@
           "type": "test",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
             "_dd.p.tid": "66e1983700000000",

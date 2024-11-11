@@ -606,7 +606,9 @@ class TestCIVisibilityWriter(TracerTestCase):
             cov_client = dummy_writer._clients[1]
             assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
-            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection, mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+            ):
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
                 _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
@@ -842,6 +844,15 @@ class TestUploadGitMetadata:
             git_client = CIVisibilityGitClient(api_key, requests_mode)
             git_client.upload_git_metadata()
             assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.UNNECESSARY
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_upload_no_git_dir(self, api_key, requests_mode):
+        with mock.patch.object(CIVisibilityGitClient, "_get_git_dir", mock.Mock(return_value=None)):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client.upload_git_metadata()
+
+            # Notably, this should _not_ raise ValueError
+            assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.FAILED
 
 
 def test_get_filtered_revisions():

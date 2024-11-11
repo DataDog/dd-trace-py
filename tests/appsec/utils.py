@@ -3,6 +3,7 @@ import sys
 import typing
 
 from ddtrace import tracer as default_tracer
+from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 import ddtrace.internal.core as core
 from ddtrace.settings.asm import config as asm_config
@@ -30,7 +31,7 @@ def asm_context(
     block_request_callable: typing.Optional[typing.Callable[[], bool]] = None,
     service: typing.Optional[str] = None,
     config=None,
-):
+) -> typing.Iterator[Span]:
     with override_global_config(config) if config else contextlib.nullcontext():
         if tracer is None:
             tracer = default_tracer
@@ -48,3 +49,7 @@ def asm_context(
             service=service,
         ), tracer.trace(span_name or "test", span_type=SpanTypes.WEB, service=service) as span:
             yield span
+
+
+def is_blocked(span: Span) -> bool:
+    return span.get_tag("appsec.blocked") == "true" and span.get_tag("appsec.event") == "true"

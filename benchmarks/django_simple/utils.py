@@ -9,8 +9,8 @@ import tenacity
 SERVER_URL = "http://0.0.0.0:8000/"
 
 
-def _get_response():
-    r = requests.get(SERVER_URL)
+def _get_response(path=""):
+    r = requests.get(SERVER_URL + path)
     r.raise_for_status()
 
 
@@ -30,6 +30,7 @@ def server(scenario):
         "PERF_APPSEC_ENABLED": str(scenario.appsec_enabled),
         "PERF_IAST_ENABLED": str(scenario.iast_enabled),
         "PERF_SPAN_CODE_ORIGIN_ENABLED": str(scenario.span_code_origin_enabled),
+        "PERF_EXCEPTION_REPLAY_ENABLED": str(scenario.exception_replay_enabled),
     }
     # copy over current environ
     env.update(os.environ)
