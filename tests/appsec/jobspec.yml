@@ -1,7 +1,6 @@
 appsec:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: "appsec$"
   parallelism: 6
@@ -20,7 +19,6 @@ appsec_iast:
 appsec_iast_tdd_propagation:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: appsec_iast_tdd_propagation
   parallelism: 2
@@ -28,7 +26,6 @@ appsec_iast_tdd_propagation:
 appsec_iast_memcheck:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: appsec_iast_memcheck
     CI_DEBUG_TRACE: "true" 
@@ -37,32 +34,24 @@ appsec_iast_memcheck:
   retry: 2
 appsec_threats_django:
   runner: hatch
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: appsec_threats_django
   parallelism: 12
   retry: 2
 appsec_threats_flask:
   runner: hatch
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: appsec_threats_flask
   parallelism: 10
   retry: 2
 appsec_threats_fastapi:
   runner: hatch
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: appsec_threats_fastapi
   parallelism: 9
   retry: 2
 appsec_aggregated_leak_testing:
   runner: hatch
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: appsec_aggregated_leak_testing
   parallelism: 3
@@ -70,8 +59,6 @@ appsec_aggregated_leak_testing:
   timeout: 35m
 appsec_iast_native:
   runner: hatch
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: appsec_iast_native
   parallelism: 6

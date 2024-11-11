@@ -1,7 +1,5 @@
 debugger:
   runner: riot
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: debugger
   parallelism: 2

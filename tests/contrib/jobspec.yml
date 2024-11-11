@@ -9,19 +9,16 @@ aiohttp:
 asgi:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: "asgi$"
 tornado:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: tornado
 bottle:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: bottle
   parallelism: 1
@@ -43,13 +40,11 @@ celery:
 cherrypy:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: cherrypy
 dogpile_cache:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: dogpile_cache
 elasticsearch:
@@ -66,7 +61,6 @@ elasticsearch:
 falcon:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: falcon
 django:
@@ -84,7 +78,6 @@ django:
 django_hosts:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: "django_hosts$"
 djangorestframework:
@@ -109,7 +102,6 @@ dramatiq:
 fastapi:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: fastapi
 flask:
@@ -126,32 +118,27 @@ flask:
 gevent:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: gevent
 graphene:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: graphene
 graphql:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: graphql
   parallelism: 6
 grpc:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: grpc
 gunicorn:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: gunicorn
   parallelism: 12
@@ -173,7 +160,6 @@ httpx:
 molten:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: molten
 pylibmc:
@@ -185,8 +171,6 @@ pylibmc:
     SUITE_NAME: pylibmc
 asynctest:
   runner: riot
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: "asynctest$"
   parallelism: 3
@@ -207,19 +191,16 @@ pymongo:
 pynamodb:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: pynamodb
 pyodbc:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: pyodbc
 pyramid:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: pyramid
   # TODO: Requires a before script
@@ -233,25 +214,21 @@ requests:
 sanic:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: sanic
 snowflake:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: snowflake
 starlette:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: starlette
 structlog:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: structlog
 aredis:
@@ -306,7 +283,6 @@ urllib3:
 wsgi:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: wsgi
 kafka:
@@ -329,72 +305,57 @@ kombu:
 jinja2:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: jinja2
 mako:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: mako
 algoliasearch:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: algoliasearch
 logbook:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: logbook
 loguru:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: loguru
 stdlib:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
 test_logging:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: test_logging
 subprocess:
   runner: riot
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: subprocess
 sourcecode:
   runner: riot
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: sourcecode
 opentracer:
   runner: riot
-  is_snapshot: false
-  services: []
   env:
     SUITE_NAME: opentracer
 protobuf:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: protobuf
 avro:
   runner: riot
   is_snapshot: true
-  services: []
   env:
     SUITE_NAME: avro
