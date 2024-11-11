@@ -2933,10 +2933,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                                "gevent": latest
-                            },
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
@@ -2955,10 +2952,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                                "gevent": latest
-                            },
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
@@ -3072,10 +3066,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                                "gevent": latest
-                            },
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
@@ -3094,10 +3085,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                                "gevent": latest
-                            },
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
