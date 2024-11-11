@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add requirements.json to SSI artifact for bailing out on unsupported systems.
