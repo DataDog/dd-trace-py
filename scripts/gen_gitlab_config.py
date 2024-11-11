@@ -1,4 +1,4 @@
-# This script is used to generate the CircleCI dynamic config file in
+# This script is used to generate the GitLab dynamic config file in
 # .circleci/config.gen.yml.
 #
 # To add new configuration manipulations that are based on top of the template
