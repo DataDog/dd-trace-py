@@ -11,6 +11,7 @@ from typing import cast
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _standard_hashing_function
+from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calcuation_issue
 from ddtrace.internal.logger import get_logger
 
 
@@ -158,6 +159,7 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
             "failed to generate DynamoDB.PutItem span pointer: %s",
             str(e),
         )
+        record_span_pointer_calcuation_issue(operation="DynamoDB.PutItem")
         return []
 
 
@@ -183,6 +185,7 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
             operation_name,
             str(e),
         )
+        record_span_pointer_calcuation_issue(operation=f"DynamoDB.{operation_name}")
         return []
 
 
@@ -218,6 +221,7 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
             "failed to generate DynamoDB.BatchWriteItem span pointer: %s",
             str(e),
         )
+        record_span_pointer_calcuation_issue(operation="DynamoDB.BatchWriteItem")
         return []
 
 
@@ -241,6 +245,7 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
             "failed to generate DynamoDB.TransactWriteItems span pointer: %s",
             str(e),
         )
+        record_span_pointer_calcuation_issue(operation="DynamoDB.TransactWriteItems")
         return []
 
 

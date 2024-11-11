@@ -7,6 +7,7 @@ from typing import NamedTuple
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _standard_hashing_function
+from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calcuation_issue
 from ddtrace.internal.logger import get_logger
 
 
@@ -90,6 +91,7 @@ def _extract_span_pointers_for_s3_response_with_helper(
             operation_name,
             str(e),
         )
+        record_span_pointer_calcuation_issue(operation=f"S3.{operation_name}")
         return []
 
     try:
@@ -107,6 +109,7 @@ def _extract_span_pointers_for_s3_response_with_helper(
             operation_name,
             str(e),
         )
+        record_span_pointer_calcuation_issue(operation=f"S3.{operation_name}")
         return []
 
 

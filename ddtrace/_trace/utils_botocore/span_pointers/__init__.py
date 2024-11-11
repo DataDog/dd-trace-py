@@ -14,6 +14,7 @@ from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _extract_span_p
 # import from here as well.
 from ddtrace._trace.utils_botocore.span_pointers.s3 import _aws_s3_object_span_pointer_description  # noqa: F401
 from ddtrace._trace.utils_botocore.span_pointers.s3 import _extract_span_pointers_for_s3_response
+from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation
 
 
 def extract_span_pointers_from_successful_botocore_response(
@@ -23,12 +24,16 @@ def extract_span_pointers_from_successful_botocore_response(
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    result = []
+
     if endpoint_name == "s3":
-        return _extract_span_pointers_for_s3_response(operation_name, request_parameters, response)
+        result = _extract_span_pointers_for_s3_response(operation_name, request_parameters, response)
 
     if endpoint_name == "dynamodb":
-        return _extract_span_pointers_for_dynamodb_response(
+        result = _extract_span_pointers_for_dynamodb_response(
             dynamodb_primary_key_names_for_tables, operation_name, request_parameters, response
         )
 
-    return []
+    record_span_pointer_calculation(span_pointer_count=len(result))
+
+    return result
