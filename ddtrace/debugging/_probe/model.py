@@ -14,6 +14,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.debugging._expressions import DDExpression
+from ddtrace.debugging._session import SessionId
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _resolve
@@ -26,6 +27,7 @@ log = get_logger(__name__)
 
 DEFAULT_PROBE_RATE = 5000.0
 DEFAULT_SNAPSHOT_PROBE_RATE = 1.0
+DEFAULT_TRIGGER_PROBE_RATE = 1.0
 DEFAULT_PROBE_CONDITION_ERROR_RATE = 1.0 / 60 / 5
 
 
@@ -296,8 +298,26 @@ class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, Spa
     pass
 
 
-LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe]
-FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe]
+@dataclass
+class SessionMixin:
+    session_id: SessionId
+    level: int
+
+
+@dataclass
+class TriggerLineProbe(Probe, LineLocationMixin, SessionMixin, ProbeConditionMixin):
+    pass
+
+
+@dataclass
+class TriggerFunctionProbe(Probe, FunctionLocationMixin, SessionMixin, ProbeConditionMixin):
+    pass
+
+
+LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe, TriggerLineProbe]
+FunctionProbe = Union[
+    LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe, TriggerFunctionProbe
+]
 
 
 class ProbeType(str, Enum):
@@ -305,3 +325,4 @@ class ProbeType(str, Enum):
     METRIC_PROBE = "METRIC_PROBE"
     SPAN_PROBE = "SPAN_PROBE"
     SPAN_DECORATION_PROBE = "SPAN_DECORATION_PROBE"
+    TRIGGER_PROBE = "TRIGGER_PROBE"

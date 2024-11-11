@@ -27,6 +27,7 @@ from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._safety import get_args
+from ddtrace.debugging._session import Session
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 
@@ -119,11 +120,16 @@ class Signal(abc.ABC):
             # We don't have a rate limiter, so no rate was exceeded.
             return False
 
-        exceeded = probe.limiter.limit() is RateLimitExceeded
+        exceeded = self.session is None and probe.limiter.limit() is RateLimitExceeded
         if exceeded:
             self.state = SignalState.SKIP_RATE
 
         return exceeded
+
+    @property
+    def session(self):
+        session_id = self.probe.tags.get("sessionId")
+        return Session.lookup(session_id) if session_id is not None else None
 
     @property
     def args(self):
