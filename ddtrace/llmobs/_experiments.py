@@ -1,8 +1,6 @@
 # TODO: Test failures on badly defined evaluators
 # TODO: Test workflows for re-evals and publishing results
-# TODO: Handle behavior pushing experiment results without dataset
 # TODO: Idempotency of push/pull methods
-# TODO: Support running on subsets of datasets 
 
 import concurrent.futures
 from datetime import datetime
@@ -614,10 +612,11 @@ class Experiment:
             delay = 1.0  # Initial delay in seconds
 
             while attempt <= retries:
+                start_time = time.time()
                 try:
                     # Extract the input data
                     input_data = row['input']
-                    start_time = time.time()
+                    
 
                     def execute_task():
                         if getattr(self.task, '_accepts_config', False):
@@ -629,8 +628,6 @@ class Experiment:
                         future = single_executor.submit(execute_task)
                         output = future.result(timeout=timeout)
 
-                    end_time = time.time()
-                    duration = end_time - start_time
 
                     # Ensure output is a dictionary
                     if not isinstance(output, dict):
@@ -642,7 +639,7 @@ class Experiment:
                         "output": output,
                         "metadata": {
                             "timestamp": start_time,
-                            "duration": duration,
+                            "duration": time.time() - start_time,
                             "dataset_record_idx": idx,
                             "project_name": self.project_name,
                             "experiment_name": self.name,
@@ -672,8 +669,8 @@ class Experiment:
                             "idx": idx,
                             "output": None,
                             "metadata": {
-                                "timestamp": time.time(),
-                                "duration": 0,
+                                "timestamp": start_time,
+                                "duration": time.time() - start_time,
                                 "dataset_record_idx": idx,
                                 "project_name": self.project_name,
                                 "experiment_name": self.name,
@@ -703,8 +700,8 @@ class Experiment:
                             "idx": idx,
                             "output": None,
                             "metadata": {
-                                "timestamp": time.time(),
-                                "duration": 0,
+                                "timestamp": start_time,
+                                "duration": time.time() - start_time,
                                 "dataset_record_idx": idx,
                                 "project_name": self.project_name,
                                 "experiment_name": self.name,
@@ -733,6 +730,7 @@ class Experiment:
             try:
                 for future in concurrent.futures.as_completed(futures):
                     idx = futures[future]
+                    start_time = time.time()
                     try:
                         output_data = future.result()
                         outputs_buffer[idx] = output_data
@@ -746,8 +744,8 @@ class Experiment:
                             "idx": idx,
                             "output": None,
                             "metadata": {
-                                "timestamp": time.time(),
-                                "duration": 0,
+                                "timestamp": start_time,
+                                "duration": time.time() - start_time,
                                 "dataset_record_idx": idx,
                                 "project_name": self.project_name,
                                 "experiment_name": self.name,
@@ -970,8 +968,6 @@ class ExperimentResults:
                 if isinstance(output, dict):
                     for k, v in output.items():
                         record[('output', k)] = v
-                else:
-                    record[('output', 'value')] = output
                 # Flatten 'evaluations'
                 for eval_name, eval_result in result['evaluations'].items():
                     if isinstance(eval_result, dict):
@@ -1004,6 +1000,7 @@ class ExperimentResults:
                 record['error'] = result.get('error')
             data.append(record)
 
+        
         df = pd.DataFrame(data)
         if multiindex:
             df.columns = pd.MultiIndex.from_tuples(df.columns)
@@ -1110,17 +1107,22 @@ class ExperimentResults:
             idx = result['idx']
             merged_result = result
             output = merged_result.get('output')
+            input = merged_result.get('input', {})
             evaluations = merged_result.get('evaluations', {})
+            expected_output = merged_result.get('expected_output', {})
             metadata = merged_result.get('metadata', {})
             error = merged_result.get('error', {})
 
-            # Prepare span data
+            # When the dataset is not hosted, we use the hash of the input and expected output as the dataset record id
+            dataset_record_id = hashlib.md5((str(input) + str(expected_output)).encode('utf-8')).hexdigest()
+
             span = {
                 "span_id": _make_id(),
                 "project_id": project_id,
                 "experiment_id": experiment_id,
                 "dataset_id": self.experiment.dataset._datadog_dataset_id,
-                "dataset_record_id": _make_id(),
+                #TODO: Extract the record id from the dataset for hosted datasets
+                "dataset_record_id": dataset_record_id,
                 "start_ns": int(metadata.get("timestamp", time.time()) * 1e9),
                 "duration": float(metadata.get("duration", 0) * 1e9),
                 "status": "ok" if not error else "error",
@@ -1373,8 +1375,8 @@ class ExperimentGrid:
             _jobs (int): Number of parallel workers for each experiment run.
         """
         for experiment in self.experiments:
-            experiment.run(_jobs=_jobs)
-            self.results.append(experiment.get_results())
+            results = experiment.run(_jobs=_jobs)
+            self.results.append(results)
 
         return self.results
 
