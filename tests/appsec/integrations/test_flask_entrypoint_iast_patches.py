@@ -146,7 +146,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_all():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.views"]
 
 
-@pytest.mark.subprocess(env={"DD_IAST_ENABLED": "0"})
+@pytest.mark.subprocess(env={"DD_IAST_ENABLED": "false"})
 def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation():
     import dis
     import io
