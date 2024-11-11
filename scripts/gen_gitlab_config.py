@@ -2,7 +2,7 @@
 # .gitlab/tests.yml.
 #
 # To add new configuration manipulations that are based on top of the template
-# file in .circleci/config.templ.yml, add a function named gen_<name> to this
+# file in .gitlab/tests.yml, add a function named gen_<name> to this
 # file. The function will be called automatically when this script is run.
 
 from dataclasses import dataclass
