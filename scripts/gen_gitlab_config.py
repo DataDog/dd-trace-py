@@ -94,10 +94,6 @@ def gen_required_suites() -> None:
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
 
-    if not required_suites:
-        # Nothing to generate
-        return
-
     # Copy the template file
     (GITLAB / "tests-gen.yml").write_text(
         (GITLAB / "tests.yml").read_text().replace(r"{{services.yml}}", (GITLAB / "services.yml").read_text())

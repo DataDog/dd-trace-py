@@ -203,7 +203,6 @@ pyramid:
   is_snapshot: true
   env:
     SUITE_NAME: pyramid
-  # TODO: Requires a before script
 requests:
   runner: riot
   is_snapshot: true
