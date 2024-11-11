@@ -27,7 +27,7 @@ from ddtrace.pin import Pin
 
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
-#      but in `1.x.x` `__version__` is a tuple annd `VERSION` does not exist
+#      but in `1.x.x` `__version__` is a tuple and `VERSION` does not exist
 REDISCLUSTER_VERSION = getattr(rediscluster, "VERSION", rediscluster.__version__)
 
 config._add(

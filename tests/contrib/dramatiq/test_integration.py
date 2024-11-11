@@ -101,7 +101,7 @@ class DramatiqSnapshotTests(unittest.TestCase):
         def fn_task(a: int, b: int) -> int:
             return a + b
 
-        # send() with invalid pararms
+        # send() with invalid params
         with pytest.raises(TypeError):
             fn_task.send_with_options([])
 
