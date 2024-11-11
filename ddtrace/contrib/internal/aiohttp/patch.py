@@ -105,6 +105,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             method=method,
             url=str(url),
             target_host=host,
+            server_address=host,
             query=query,
             request_headers=headers,
         )
