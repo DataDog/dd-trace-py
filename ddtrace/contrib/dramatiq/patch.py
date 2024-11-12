@@ -8,6 +8,8 @@ def __getattr__(name):
         ("%s.%s is deprecated" % (__name__, name)),
         category=DDTraceDeprecationWarning,
     )
+    hello = "hello"
+    print(hello)
 
     if name in globals():
         return globals()[name]
