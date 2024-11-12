@@ -1,51 +1,51 @@
-| integration                    | minimum_tracer_supported       | max_tracer_supported           | minumum_available_supported    | maximum_available_supported    |
+| integration                    | minimum tracer supported       | max tracer supported           | minumum available supported    | maximum available supported    |
 | ------------------------------ | ------------------------------ | ------------------------------ | ------------------------------ | ------------------------------ |
-| aiobotocore                    | 1.4.2                          | 2.13.3                         | 2.4.0                          | 2.15.2                         |
-| aiohttp                        | 3.8.6                          | 3.10.10                        | 3.8.3                          | 3.10.10                        |
-| aiomysql                       | 0.1.1                          | 0.2.0                          | 0.1.1                          | 0.2.0                          |
-| aiopg                          | 1.4.0                          | 1.4.0                          | 1.4.0                          | 1.4.0                          |
-| algoliasearch                  | 2.6.3                          | 2.6.3                          | 2.6.2                          | 4.8.1                          |
-| anthropic                      | 0.26.0                         | 0.36.0                         | 0.2.2                          | 0.39.0                         |
-| aredis                         | 1.1.8                          | 1.1.8                          | 1.1.8                          | 1.1.8                          |
-| asyncpg                        | 0.23.0                         | 0.29.0                         | 0.27.0                         | 0.30.0                         |
-| avro                           | 1.12.0                         | 1.12.0                         | 1.11.1                         | 1.12.0                         |
-| boto                           | 2.49.0                         | 2.49.0                         | 2.49.0                         | 2.49.0                         |
-| botocore                       | 1.20.106                       | 1.35.14                        | 1.29.8                         | 1.35.59                        |
-| bottle                         | 0.12.25                        | 0.13.2                         | 0.12.23                        | 0.13.2                         |
-| celery                         | 4.4.7                          | 5.4.0                          | 5.2.7                          | 5.4.0                          |
-| cherrypy                       | 17.4.2                         | 18.10.0                        | 18.8.0                         | 18.10.0                        |
-| coverage                       | 7.2.7                          | 7.4.4                          | 6.5.0                          | 7.6.4                          |
-| django                         | 2.2.1                          | 5.1                            | 4.1.3                          | 5.1.3                          |
-| dramatiq                       | 1.16.0                         | 1.17.0                         | 1.13.0                         | 1.17.1                         |
-| falcon                         | 3.0.1                          | 3.1.3                          | 3.1.0                          | 4.0.2                          |
-| fastapi                        | 0.64.0                         | 0.115.2                        | 0.86.0                         | 0.115.5                        |
-| flask                          | 0.12.5                         | 3.0.3                          | 2.2.2                          | 3.0.3                          |
-| gevent                         | 20.12.1                        | 24.11.1                        | 22.10.2                        | 24.11.1                        |
-| httpx                          | 0.15.4                         | 0.27.2                         | 0.23.0                         | 0.27.2                         |
-| jinja2                         | 2.11.3                         | 3.1.4                          | 3.1.2                          | 3.1.4                          |
-| kombu                          | 4.2.2.post1                    | 5.4.2                          | 5.2.4                          | 5.4.2                          |
-| langchain                      | 0.0.192                        | 0.2.16                         | 0.0.12                         | 0.3.7                          |
-| logbook                        | 1.0.0                          | 1.7.0.post0                    | 1.5.3                          | 1.8.0                          |
-| loguru                         | 0.4.1                          | 0.7.2                          | 0.6.0                          | 0.7.2                          |
-| mako                           | 1.1.6                          | 1.3.5                          | 1.2.3                          | 1.3.6                          |
-| mariadb                        | 1.0.11                         | 1.1.10                         | 1.1.5.post2                    | 1.1.10                         |
-| molten                         | 1.0.2                          | 1.0.2                          | 1.0.2                          | 1.0.2                          |
-| mongoengine                    | 0.29.1                         | 0.29.1                         | 0.24.2                         | 0.29.1                         |
-| openai                         | 0.26.5                         | 1.52.0                         | 0.25.0                         | 1.54.4                         |
-| protobuf                       | 3.8.0                          | 5.28.3                         | 4.21.9                         | 5.28.3                         |
-| pylibmc                        | 1.6.3                          | 1.6.3                          | 1.6.3                          | 1.6.3                          |
-| pymemcache                     | 3.4.4                          | 4.0.0                          | 4.0.0                          | 4.0.0                          |
-| pymongo                        | 3.8.0                          | 4.10.1                         | 4.3.2                          | 4.10.1                         |
-| pymysql                        | 0.10.1                         | 1.1.1                          | 1.0.2                          | 1.1.1                          |
-| pynamodb                       | 5.5.1                          | 5.5.1                          | 5.3.0                          | 6.0.1                          |
-| pyodbc                         | 4.0.39                         | 5.1.0                          | 4.0.34                         | 5.2.0                          |
-| pyramid                        | 1.10.8                         | 2.0.2                          | 2.0                            | 2.0.2                          |
-| redis                          | 2.10.6                         | 5.1.1                          | 4.3.4                          | 5.2.0                          |
-| requests                       | 2.20.1                         | 2.32.3                         | 2.28.1                         | 2.32.3                         |
-| sanic                          | 20.12.7                        | 24.6.0                         | 22.9.1                         | 24.6.0                         |
-| sqlalchemy                     | 1.2.19                         | 2.0.36                         | 1.4.44                         | 2.0.36                         |
-| starlette                      | 0.13.6                         | 0.40.0                         | 0.21.0                         | 0.41.2                         |
-| structlog                      | 20.2.0                         | 24.4.0                         | 22.1.0                         | 24.4.0                         |
-| tornado                        | 4.5.3                          | 6.4                            | 6.2                            | 6.4.1                          |
-| urllib3                        | 1.24.3                         | 2.2.3                          | 1.26.12                        | 2.2.3                          |
-| yaaredis                       | 2.0.4                          | 3.0.0                          | 3.0.0                          | 3.0.0                          |
+| aiobotocore                    |                                |                                |                                |                                |
+| aiohttp                        |                                |                                |                                |                                |
+| aiomysql                       |                                |                                |                                |                                |
+| aiopg                          |                                |                                |                                |                                |
+| algoliasearch                  |                                |                                |                                |                                |
+| anthropic                      |                                |                                |                                |                                |
+| aredis                         |                                |                                |                                |                                |
+| asyncpg                        |                                |                                |                                |                                |
+| avro                           |                                |                                |                                |                                |
+| boto                           |                                |                                |                                |                                |
+| botocore                       |                                |                                |                                |                                |
+| bottle                         |                                |                                |                                |                                |
+| celery                         |                                |                                |                                |                                |
+| cherrypy                       |                                |                                |                                |                                |
+| coverage                       |                                |                                |                                |                                |
+| django                         |                                |                                |                                |                                |
+| dramatiq                       |                                |                                |                                |                                |
+| falcon                         |                                |                                |                                |                                |
+| fastapi                        |                                |                                |                                |                                |
+| flask                          |                                |                                |                                |                                |
+| gevent                         |                                |                                |                                |                                |
+| httpx                          |                                |                                |                                |                                |
+| jinja2                         |                                |                                |                                |                                |
+| kombu                          |                                |                                |                                |                                |
+| langchain                      |                                |                                |                                |                                |
+| logbook                        |                                |                                |                                |                                |
+| loguru                         |                                |                                |                                |                                |
+| mako                           |                                |                                |                                |                                |
+| mariadb                        |                                |                                |                                |                                |
+| molten                         |                                |                                |                                |                                |
+| mongoengine                    |                                |                                |                                |                                |
+| openai                         |                                |                                |                                |                                |
+| protobuf                       |                                |                                |                                |                                |
+| pylibmc                        |                                |                                |                                |                                |
+| pymemcache                     |                                |                                |                                |                                |
+| pymongo                        |                                |                                |                                |                                |
+| pymysql                        |                                |                                |                                |                                |
+| pynamodb                       |                                |                                |                                |                                |
+| pyodbc                         |                                |                                |                                |                                |
+| pyramid                        |                                |                                |                                |                                |
+| redis                          |                                |                                |                                |                                |
+| requests                       |                                |                                |                                |                                |
+| sanic                          |                                |                                |                                |                                |
+| sqlalchemy                     |                                |                                |                                |                                |
+| starlette                      |                                |                                |                                |                                |
+| structlog                      |                                |                                |                                |                                |
+| tornado                        |                                |                                |                                |                                |
+| urllib3                        |                                |                                |                                |                                |
+| yaaredis                       |                                |                                |                                |                                |

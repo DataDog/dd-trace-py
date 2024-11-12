@@ -6,10 +6,10 @@ with open("supported_versions.json", "r") as json_file:
 
 columns = [
     "integration",
-    "minimum_tracer_supported",
-    "max_tracer_supported",
-    "minumum_available_supported",
-    "maximum_available_supported",
+    "minimum tracer supported",
+    "max tracer supported",
+    "minimum available supported",
+    "maximum available supported",
 ]
 
 column_width = 30  # set a fixed width for each column
