@@ -14,19 +14,22 @@ from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_STREAM_CHUNKS
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
 
-def test_global_tags(vertexai, mock_tracer):
+def test_global_tags(vertexai, mock_client, mock_tracer):
     """
     When the global config UST tags are set
         The service name should be used for all data
         The env should be used for all data
         The version should be used for all data
     """
-    llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
-    with override_global_config(dict(service="test-svc", env="staging", version="1234")):
-        llm.generate_content(
-            "Why do bears hibernate?",
-            generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=35, temperature=1.0),
-        )
+    with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_client', new_callable=PropertyMock) as mock_client_property:
+        mock_client_property.return_value = mock_client
+        mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+        llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
+        with override_global_config(dict(service="test-svc", env="staging", version="1234")):
+            llm.generate_content(
+                "Why do bears hibernate?",
+                generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=1.0),
+            )
 
     span = mock_tracer.pop_traces()[0][0]
     assert span.resource == "GenerativeModel.generate_content"
