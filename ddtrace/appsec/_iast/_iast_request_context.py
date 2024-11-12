@@ -4,7 +4,6 @@ from typing import Optional
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
 from ddtrace.appsec._iast._handlers import _on_django_patch
@@ -16,6 +15,7 @@ from ddtrace.appsec._iast._handlers import _on_wsgi_environ
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import ORIGIN_KEY

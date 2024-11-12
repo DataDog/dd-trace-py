@@ -27,7 +27,7 @@ try:
 except ImportError:
     langchain_pinecone = None
 
-from ddtrace.appsec._iast import _is_iast_enabled
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 
 
 try:

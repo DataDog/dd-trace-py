@@ -15,7 +15,7 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace._trace.span import Span  # noqa:F401
-from ddtrace.appsec._iast import _is_iast_enabled
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.trace_utils import with_traced_module

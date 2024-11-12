@@ -34,7 +34,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 
 from ._overhead_control_engine import OverheadControl
-from ._utils import _is_iast_enabled
 
 
 log = get_logger(__name__)
@@ -50,6 +49,8 @@ def ddtrace_iast_flask_patch():
     and must be before the `app.run()` call. It also requires `DD_IAST_ENABLED` to be
     activated.
     """
+    from ._utils import _is_iast_enabled
+
     if not _is_iast_enabled():
         return
 
