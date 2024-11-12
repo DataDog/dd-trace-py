@@ -11,7 +11,7 @@ from typing import cast
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _standard_hashing_function
-from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calcuation_issue
+from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
 from ddtrace.internal.logger import get_logger
 
 
@@ -143,23 +143,38 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
     try:
         table_name = request_parameters["TableName"]
         item = request_parameters["Item"]
+    except KeyError as e:
+        log.debug(
+            "failed to extract DynamoDB.PutItem span pointer: missing key %s",
+            e,
+        )
+        record_span_pointer_calculation_issue(operation="DynamoDB.PutItem", issue_tag="request_parameters")
+        return []
 
+    try:
+        primary_key_names = dynamodb_primary_key_names_for_tables[table_name]
+    except KeyError as e:
+        log.warning(
+            "failed to extract DynamoDB.PutItem span pointer: table %s not found in primary key names",
+            e,
+        )
+        record_span_pointer_calculation_issue(operation="DynamoDB.PutItem", issue_tag="missing_table_info")
+        return []
+
+    try:
         return [
             _aws_dynamodb_item_span_pointer_description(
                 pointer_direction=_SpanPointerDirection.DOWNSTREAM,
                 table_name=table_name,
-                primary_key=_aws_dynamodb_item_primary_key_from_item(
-                    dynamodb_primary_key_names_for_tables[table_name], item
-                ),
+                primary_key=_aws_dynamodb_item_primary_key_from_item(primary_key_names, item),
             )
         ]
-
     except Exception as e:
         log.debug(
             "failed to generate DynamoDB.PutItem span pointer: %s",
             str(e),
         )
-        record_span_pointer_calcuation_issue(operation="DynamoDB.PutItem")
+        record_span_pointer_calculation_issue(operation="DynamoDB.PutItem", issue_tag="calculation")
         return []
 
 
@@ -170,7 +185,16 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
     try:
         table_name = request_parmeters["TableName"]
         key = request_parmeters["Key"]
+    except KeyError as e:
+        log.debug(
+            "failed to extract DynamoDB.%s span pointer: missing key %s",
+            operation_name,
+            e,
+        )
+        record_span_pointer_calculation_issue(operation=f"DynamoDB.{operation_name}", issue_tag="request_parameters")
+        return []
 
+    try:
         return [
             _aws_dynamodb_item_span_pointer_description(
                 pointer_direction=_SpanPointerDirection.DOWNSTREAM,
@@ -178,14 +202,13 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
                 primary_key=key,
             )
         ]
-
     except Exception as e:
         log.debug(
             "failed to generate DynamoDB.%s span pointer: %s",
             operation_name,
             str(e),
         )
-        record_span_pointer_calcuation_issue(operation=f"DynamoDB.{operation_name}")
+        record_span_pointer_calculation_issue(operation=f"DynamoDB.{operation_name}", issue_tag="calculation")
         return []
 
 
@@ -199,7 +222,15 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
         unprocessed_items = response.get("UnprocessedItems", {})
 
         processed_items = _identify_dynamodb_batch_write_item_processed_items(requested_items, unprocessed_items)
+    except Exception as e:
+        log.debug(
+            "failed to extract DynamoDB.BatchWriteItem span pointers: %s",
+            str(e),
+        )
+        record_span_pointer_calculation_issue(operation="DynamoDB.BatchWriteItem", issue_tag="request_parameters")
+        return []
 
+    try:
         return list(
             itertools.chain.from_iterable(
                 [
@@ -221,7 +252,7 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
             "failed to generate DynamoDB.BatchWriteItem span pointer: %s",
             str(e),
         )
-        record_span_pointer_calcuation_issue(operation="DynamoDB.BatchWriteItem")
+        record_span_pointer_calculation_issue(operation="DynamoDB.BatchWriteItem", issue_tag="calculation")
         return []
 
 
@@ -245,7 +276,7 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
             "failed to generate DynamoDB.TransactWriteItems span pointer: %s",
             str(e),
         )
-        record_span_pointer_calcuation_issue(operation="DynamoDB.TransactWriteItems")
+        record_span_pointer_calculation_issue(operation="DynamoDB.TransactWriteItems", issue_tag="calculation")
         return []
 
 
