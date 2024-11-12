@@ -8,14 +8,11 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._utils import _get_attr
 
 class BaseTracedVertexAIStreamResponse:
-    def __init__(self, generator, instance, integration, span, args, kwargs, on_span_finish):
+    def __init__(self, generator, instance, integration, span):
         self._generator = generator
         self._model_instance = instance
         self._dd_integration = integration
         self._dd_span = span
-        self._args = args
-        self._kwargs = kwargs
-        self._on_span_finish = on_span_finish
         self._chunks = []
 
 
@@ -37,9 +34,7 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
             raise
         else:
             tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
-        finally:
-            self._kwargs["instance"] = self._model_instance
-            self._dd_span.finish()
+        self._dd_span.finish()
 
 
 class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
@@ -60,9 +55,7 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
             raise
         else:
             tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
-        finally:
-            self._kwargs["instance"] = self._model_instance
-            self._dd_span.finish()
+        self._dd_span.finish()
 
 def _extract_model_name(instance):
     """Extract the model name from the instance.
