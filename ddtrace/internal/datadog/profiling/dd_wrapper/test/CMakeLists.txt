@@ -22,11 +22,18 @@ function(dd_wrapper_add_test name)
     add_ddup_config(${name})
 
     gtest_discover_tests(${name})
+
+    set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+
+    if(LIB_INSTALL_DIR)
+        install(TARGETS ${name}
+            RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+    endif()
 endfunction()
 
 # Add the tests
-dd_wrapper_add_test(initialization initialization.cpp)
-dd_wrapper_add_test(api api.cpp)
-dd_wrapper_add_test(threading threading.cpp)
-dd_wrapper_add_test(forking forking.cpp)
-dd_wrapper_add_test(code_provenance code_provenance.cpp)
+dd_wrapper_add_test(test_initialization test_initialization.cpp)
+dd_wrapper_add_test(test_api test_api.cpp)
+dd_wrapper_add_test(test_threading test_threading.cpp)
+dd_wrapper_add_test(test_forking test_forking.cpp)
+dd_wrapper_add_test(test_code_provenance test_code_provenance.cpp)
