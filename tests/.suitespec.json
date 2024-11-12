@@ -1553,10 +1553,10 @@
             "@core",
             "@tracing",
             "@contrib",
-            "@google_generativeai",
             "@vertexai",
             "@llmobs",
-            "tests/contrib/vertexai/*"
+            "tests/contrib/vertexai/*",
+            "tests/snapshots/tests.contrib.google_generativeai.*"
         ],
         "runtime": [
             "@core",

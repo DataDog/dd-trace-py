@@ -2716,7 +2716,6 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
-                "google-generativeai": [latest],
             },
         ),
         
