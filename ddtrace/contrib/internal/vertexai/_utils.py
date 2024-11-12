@@ -127,7 +127,7 @@ def tag_stream_response(span, chunks, integration):
                     "vertexai.response.candidates.%d.finish_reason" % (candidate_idx), str(finish_reason.name)
                 )
             candidate_content = candidate.content
-            role = candidate_content.role
+            role = role or candidate_content.role
             span.set_tag_str("vertexai.response.candidates.%d.content.role" % (candidate_idx), str(role))
             if not integration.is_pc_sampled_span(span):
                 continue
