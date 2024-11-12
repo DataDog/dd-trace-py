@@ -21,25 +21,30 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 void
 Datadog::Sample::profile_clear_state()
 {
-    profile_state.reset();
     profile_state.cycle_buffers();
 }
 
 void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
-    name = profile_state.insert_or_get(name);
-    filename = profile_state.insert_or_get(filename);
+    // TODO: why is 0 for the string ID okay here but not in the loc initialization?
+    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, {}, 0 /* string id */, {}, 0 /* string id */ };
 
     CodeProvenance::get_instance().add_filename(filename);
+
+    // TODO: error check?
+    auto name_id = profile_state.get_string(name);
+    auto filename_id = profile_state.get_string(filename);
 
     const ddog_prof_Location loc = {
         .mapping = null_mapping, // No support for mappings in Python
         .function = {
-          .name = to_slice(name),
+          .name = {},
+          .name_id = name_id,
           .system_name = {}, // No support for system_name in Python
-          .filename = to_slice(filename),
+          .system_name_id = {},
+          .filename = {},
+          .filename_id = filename_id,
           .start_line = 0, // We don't know the start_line for the function
         },
         .address = address,
@@ -74,10 +79,11 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     // Otherwise, persist the val string and add the label
-    val = profile_state.insert_or_get(val);
+    // val = profile_state.insert_or_get(val);
     auto& label = labels.emplace_back();
     label.key = to_slice(key_sv);
-    label.str = to_slice(val);
+    //  TODO: error check?
+    label.str_id = profile_state.get_string(val);
     return true;
 }
 
@@ -104,7 +110,18 @@ void
 Datadog::Sample::clear_buffers()
 {
     std::fill(values.begin(), values.end(), 0);
+    // release libdatadog-managed references
+    for (auto label : labels) {
+        profile_state.drop_string(label.key_id);
+        // NB: drop checks if str_id == 0 (empty string or unset) so this is safe
+        // even if it wasn't a string label
+        profile_state.drop_string(label.str_id);
+    }
     labels.clear();
+    for (auto loc : locations) {
+        profile_state.drop_string(loc.function.filename_id);
+        profile_state.drop_string(loc.function.name_id);
+    }
     locations.clear();
     dropped_frames = 0;
 }

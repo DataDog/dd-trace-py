@@ -15,10 +15,14 @@ namespace {
 inline bool
 make_profile(const ddog_prof_Slice_ValueType& sample_types,
              const struct ddog_prof_Period* period,
+             ddog_prof_ManagedStringStorage string_storage,
              ddog_prof_Profile& profile)
 {
     // Private helper function for creating a ddog_prof_Profile from arguments
-    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period, nullptr);
+    // TODO ddog_prof_Profile_with_string_storage?
+    // I think we _have_ to do this, right?
+    // ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period, nullptr);
+    auto res = ddog_prof_Profile_with_string_storage(sample_types, period, nullptr, string_storage);
     if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err;                           // NOLINT (cppcoreguidelines-pro-type-union-access)
         const std::string errmsg = Datadog::err_to_msg(&err, "Error initializing profile");
@@ -30,6 +34,28 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
     return true;
 }
 
+}
+
+ddog_prof_ManagedStringId
+Datadog::Profile::get_string(std::string_view string)
+{
+    std::lock_guard<std::mutex> lock(string_storage_mtx);
+    auto s = to_slice(string);
+    // TODO: error handling?
+    auto r = ddog_prof_ManagedStringStorage_intern(string_storage, s);
+    return r.ok;
+}
+
+void
+Datadog::Profile::drop_string(ddog_prof_ManagedStringId id)
+{
+    if (id.value == 0) {
+        // Empty/unset string, no need to drop
+        return;
+    }
+    std::lock_guard<std::mutex> lock(string_storage_mtx);
+    // TODO: error handling?
+    (void)ddog_prof_ManagedStringStorage_unintern(string_storage, id);
 }
 
 bool
@@ -48,15 +74,18 @@ Datadog::Profile::cycle_buffers()
         ddog_Error_drop(&err);
         return false;
     }
-    return true;
-}
 
-void
-Datadog::Profile::reset()
-{
-    const std::lock_guard<std::mutex> lock(profile_mtx);
-    strings.clear();
-    string_storage.clear();
+    // Advance the string table generation. Any unreferenced strings will be
+    // deallocated
+    // TODO: can/should we completely clear this on fork?
+    auto r = ddog_prof_ManagedStringStorage_advance_gen(string_storage);
+    if (r.tag == DDOG_PROF_OPTION_ERROR_SOME_ERROR) {
+        const std::string errmsg = err_to_msg(&r.some, "Error clearing string storage");
+        std::cout << "Could not clear string storage:" << errmsg << std::endl;
+        ddog_Error_drop(&r.some);
+        return false;
+    }
+    return true;
 }
 
 void
@@ -132,6 +161,7 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     // In contemporary dd-trace-py, it is expected that the initialization path is in
     // a single thread, and done only once.
     // However, it doesn't cost us much to keep this initialization tight.
+    // TODO(nick): this is not a correct pthread_once style implementation. Should it be?
     if (!first_time.load()) {
         return;
     }
@@ -155,34 +185,28 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     // Setup the samplers
     setup_samplers();
 
+    // TODO(nick): okay to share string storage between the two profilers?
+    auto res = ddog_prof_ManagedStringStorage_new();
+    if (res.tag == DDOG_PROF_MANAGED_STRING_STORAGE_NEW_RESULT_ERR) {
+        // TODO: error message from res?
+        std::cerr << "Error initializing libdatadog-managed string storage" << std::endl;
+        return;
+    }
+    string_storage = res.ok;
+
     // We need to initialize the profiles
     const ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
-    if (!make_profile(sample_types, &default_period, cur_profile)) {
+    if (!make_profile(sample_types, &default_period, string_storage, cur_profile)) {
         std::cerr << "Error initializing top half of profile storage" << std::endl;
         return;
     }
-    if (!make_profile(sample_types, &default_period, last_profile)) {
+    if (!make_profile(sample_types, &default_period, string_storage, last_profile)) {
         std::cerr << "Error initializing bottom half of profile storage" << std::endl;
         return;
     }
 
     // We're done. Don't do this again.
     first_time.store(false);
-}
-
-std::string_view
-Datadog::Profile::insert_or_get(std::string_view str)
-{
-    const std::lock_guard<std::mutex> lock(string_table_mtx); // Serialize access
-
-    auto str_it = strings.find(str);
-    if (str_it != strings.end()) {
-        return *str_it;
-    }
-
-    string_storage.emplace_back(str);
-    strings.insert(string_storage.back());
-    return string_storage.back();
 }
 
 const Datadog::ValueIndex&
@@ -210,5 +234,17 @@ void
 Datadog::Profile::postfork_child()
 {
     profile_mtx.unlock();
+    // make new string storage. We may have forked with read locks
+    // held on the table and we'll never be able to write to it.
+    // The old one will leak... Can we make it safe to drop?
+    auto res = ddog_prof_ManagedStringStorage_new();
+    if (res.tag == DDOG_PROF_MANAGED_STRING_STORAGE_NEW_RESULT_ERR) {
+        // TODO: error message from res?
+        std::cerr << "Error initializing libdatadog-managed string storage" << std::endl;
+        // TODO: ????
+    } else {
+        string_storage = res.ok;
+    }
+    // TODO: we need to recreate profilers with the new string storage
     cycle_buffers();
 }
