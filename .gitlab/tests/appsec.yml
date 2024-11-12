@@ -3,7 +3,6 @@ appsec:
   parallel: 6
   variables:
     SUITE_NAME: "appsec$"
-  retry: 2
 
 appsec iast:
   extends: .test_base_riot_snapshot
@@ -14,7 +13,6 @@ appsec iast:
   variables:
     SUITE_NAME: "appsec_iast$"
     TEST_POSTGRES_HOST: "postgres"
-  retry: 2
   timeout: 25m
 
 appsec iast tdd_propagation:
@@ -22,7 +20,6 @@ appsec iast tdd_propagation:
   parallel: 2
   variables:
     SUITE_NAME: "appsec_iast_tdd_propagation"
-  retry: 2
 
 appsec iast memcheck:
   extends: .test_base_riot_snapshot
@@ -31,35 +28,30 @@ appsec iast memcheck:
     SUITE_NAME: "appsec_iast_memcheck"
     CI_DEBUG_TRACE: "true" 
     PYTEST_ADDOPTS: "-v -s" 
-  retry: 2
 
 appsec threats django:
   extends: .test_base_hatch
   parallel: 12
   variables:
     SUITE_NAME: "appsec_threats_django"
-  retry: 2
 
 appsec threats flask:
   extends: .test_base_hatch
   parallel: 10
   variables:
     SUITE_NAME: "appsec_threats_flask"
-  retry: 2
 
 appsec threats fastapi:
   extends: .test_base_hatch
   parallel: 9
   variables:
     SUITE_NAME: "appsec_threats_fastapi"
-  retry: 2
 
 appsec aggregated leak testing:
   extends: .test_base_hatch
   parallel: 3
   variables:
     SUITE_NAME: "appsec_aggregated_leak_testing"
-  retry: 2
   timeout: 35m
 
 appsec iast native:
@@ -67,4 +59,3 @@ appsec iast native:
   parallel: 6
   variables:
     SUITE_NAME: "appsec_iast_native"
-  retry: 2
