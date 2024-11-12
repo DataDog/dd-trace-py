@@ -17,6 +17,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_global_config
 
 
@@ -152,7 +153,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "profiling_enabled", "origin": "default", "value": "false"},
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
-                    {"name": "crashtracking_alt_stack", "origin": "unknown", "value": False},
+                    {"name": "crashtracking_create_alt_stack", "origin": "unknown", "value": True},
+                    {"name": "crashtracking_use_alt_stack", "origin": "unknown", "value": True},
                     {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
                     {"name": "crashtracking_debug_url", "origin": "unknown", "value": None},
                     {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
@@ -324,15 +326,20 @@ import ddtrace.settings.exception_replay
         {"name": "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
-        {"name": "DD_CRASHTRACKING_ALT_STACK", "origin": "default", "value": False},
+        {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER", "origin": "default", "value": "full"},
         {"name": "DD_CRASHTRACKING_STDERR_FILENAME", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_STDOUT_FILENAME", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_TAGS", "origin": "default", "value": ""},
+        {"name": "DD_CRASHTRACKING_USE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_WAIT_FOR_RECEIVER", "origin": "default", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_DJANGO_INCLUDE_USER_EMAIL", "origin": "default", "value": False},
+        {"name": "DD_DJANGO_INCLUDE_USER_LOGIN", "origin": "default", "value": True},
+        {"name": "DD_DJANGO_INCLUDE_USER_NAME", "origin": "default", "value": True},
+        {"name": "DD_DJANGO_INCLUDE_USER_REALNAME", "origin": "default", "value": False},
         {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": None},
         {"name": "DD_DOGSTATSD_URL", "origin": "default", "value": None},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL", "origin": "default", "value": 3600},
@@ -400,7 +407,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_SERVICE", "origin": "default", "value": "unnamed-python-service"},
+        {"name": "DD_SERVICE", "origin": "default", "value": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME},
         {"name": "DD_SERVICE_MAPPING", "origin": "env_var", "value": "default_dd_service:remapped_dd_service"},
         {"name": "DD_SITE", "origin": "env_var", "value": "datadoghq.com"},
         {"name": "DD_SPAN_SAMPLING_RULES", "origin": "env_var", "value": '[{"service":"xyz", "sample_rate":0.23}]'},

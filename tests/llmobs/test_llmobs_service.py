@@ -777,6 +777,31 @@ def test_annotate_prompt_dict(LLMObs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        }
+
+
+def test_annotate_prompt_dict_with_context_var_keys(LLMObs):
+    with LLMObs.llm(model_name="test_model") as span:
+        LLMObs.annotate(
+            span=span,
+            prompt={
+                "template": "{var1} {var3}",
+                "variables": {"var1": "var1", "var2": "var3"},
+                "version": "1.0.0",
+                "id": "test_prompt",
+                "rag_context_variables": ["var1", "var2"],
+                "rag_query_variables": ["user_input"],
+            },
+        )
+        assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+            "template": "{var1} {var3}",
+            "variables": {"var1": "var1", "var2": "var3"},
+            "version": "1.0.0",
+            "id": "test_prompt",
+            "_dd_context_variable_keys": ["var1", "var2"],
+            "_dd_query_variable_keys": ["user_input"],
         }
 
 
@@ -789,6 +814,8 @@ def test_annotate_prompt_typed_dict(LLMObs):
                 variables={"var1": "var1", "var2": "var3"},
                 version="1.0.0",
                 id="test_prompt",
+                rag_context_variables=["var1", "var2"],
+                rag_query_variables=["user_input"],
             ),
         )
         assert json.loads(span.get_tag(INPUT_PROMPT)) == {
@@ -796,6 +823,8 @@ def test_annotate_prompt_typed_dict(LLMObs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "_dd_context_variable_keys": ["var1", "var2"],
+            "_dd_query_variable_keys": ["user_input"],
         }
 
 
@@ -1355,37 +1384,46 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
 
 
 def test_flush_calls_periodic_agentless(
-    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer
+    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner
 ):
     AgentlessLLMObs.flush()
     mock_llmobs_span_agentless_writer.periodic.assert_called_once()
     mock_llmobs_eval_metric_writer.periodic.assert_called_once()
+    mock_llmobs_evaluator_runner.periodic.assert_called_once()
 
 
-def test_flush_does_not_call_period_when_llmobs_is_disabled(
-    LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_logs
+def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
+    LLMObs,
+    mock_llmobs_span_writer,
+    mock_llmobs_eval_metric_writer,
+    mock_llmobs_evaluator_runner,
+    mock_logs,
+    disabled_llmobs,
 ):
-    LLMObs.disable()
     LLMObs.flush()
     mock_llmobs_span_writer.periodic.assert_not_called()
     mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_llmobs_evaluator_runner.periodic.assert_not_called()
     mock_logs.warning.assert_has_calls(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
-    LLMObs.enable()
 
 
-def test_flush_does_not_call_period_when_llmobs_is_disabled_agentless(
-    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, mock_logs
+def test_flush_does_not_call_periodic_when_llmobs_is_disabled_agentless(
+    AgentlessLLMObs,
+    mock_llmobs_span_agentless_writer,
+    mock_llmobs_eval_metric_writer,
+    mock_llmobs_evaluator_runner,
+    mock_logs,
+    disabled_llmobs,
 ):
-    AgentlessLLMObs.disable()
     AgentlessLLMObs.flush()
     mock_llmobs_span_agentless_writer.periodic.assert_not_called()
     mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_llmobs_evaluator_runner.periodic.assert_not_called()
     mock_logs.warning.assert_has_calls(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
-    AgentlessLLMObs.enable()
 
 
 def test_inject_distributed_headers_llmobs_disabled_does_nothing(LLMObs, mock_logs):
@@ -1769,7 +1807,11 @@ def test_annotation_context_modifies_span_tags(LLMObs):
 def test_annotation_context_modifies_prompt(LLMObs):
     with LLMObs.annotation_context(prompt={"template": "test_template"}):
         with LLMObs.llm(name="test_agent", model_name="test") as span:
-            assert json.loads(span.get_tag(INPUT_PROMPT)) == {"template": "test_template"}
+            assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+                "template": "test_template",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            }
 
 
 def test_annotation_context_modifies_name(LLMObs):
@@ -1908,7 +1950,11 @@ async def test_annotation_context_async_modifies_span_tags(LLMObs):
 async def test_annotation_context_async_modifies_prompt(LLMObs):
     async with LLMObs.annotation_context(prompt={"template": "test_template"}):
         with LLMObs.llm(name="test_agent", model_name="test") as span:
-            assert json.loads(span.get_tag(INPUT_PROMPT)) == {"template": "test_template"}
+            assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+                "template": "test_template",
+                "_dd_context_variable_keys": ["context"],
+                "_dd_query_variable_keys": ["question"],
+            }
 
 
 async def test_annotation_context_async_modifies_name(LLMObs):

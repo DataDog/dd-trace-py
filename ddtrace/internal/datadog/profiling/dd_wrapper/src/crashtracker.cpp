@@ -13,9 +13,9 @@ Datadog::Crashtracker::set_create_alt_stack(bool _create_alt_stack)
 }
 
 void
-Datadog::Crashtracker::set_wait_for_receiver(bool _wait)
+Datadog::Crashtracker::set_use_alt_stack(bool _use_alt_stack)
 {
-    wait_for_receiver = _wait;
+    use_alt_stack = _use_alt_stack;
 }
 
 void
@@ -125,10 +125,10 @@ Datadog::Crashtracker::get_config()
 {
     ddog_crasht_Config config{};
     config.create_alt_stack = create_alt_stack;
+    config.use_alt_stack = use_alt_stack;
     config.endpoint = ddog_endpoint_from_url(to_slice(url));
     config.resolve_frames = resolve_frames;
-    config.timeout_secs = timeout_secs;
-    config.wait_for_receiver = wait_for_receiver;
+    config.timeout_ms = timeout_ms;
     return config;
 }
 
@@ -205,7 +205,7 @@ Datadog::Crashtracker::start()
     auto tags = get_tags();
     auto metadata = get_metadata(tags);
 
-    auto result = ddog_crasht_init_with_receiver(config, receiver_config, metadata);
+    auto result = ddog_crasht_init(config, receiver_config, metadata);
     ddog_Vec_Tag_drop(tags);
     if (result.tag != DDOG_CRASHT_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = result.err;                 // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -214,40 +214,6 @@ Datadog::Crashtracker::start()
         ddog_Error_drop(&err);
         return false;
     }
-    return true;
-}
-
-bool
-Datadog::Crashtracker::atfork_child()
-{
-    auto config = get_config();
-    auto receiver_config = get_receiver_config();
-    auto tags = get_tags();
-    auto metadata = get_metadata(tags);
-
-    auto result = ddog_crasht_update_on_fork(config, receiver_config, metadata);
-    ddog_Vec_Tag_drop(tags);
-    if (result.tag != DDOG_CRASHT_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = result.err;                 // NOLINT (cppcoreguidelines-pro-type-union-access)
-        std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
-        std::cerr << errmsg << std::endl;
-        ddog_Error_drop(&err);
-        return false;
-    }
-
-    // Reset the profiling state
-    profiling_state.is_sampling.store(0);
-    auto res_sampling = ddog_crasht_end_op(DDOG_CRASHT_OP_TYPES_PROFILER_COLLECTING_SAMPLE);
-    (void)res_sampling;
-
-    profiling_state.is_unwinding.store(0);
-    auto res_unwinding = ddog_crasht_end_op(DDOG_CRASHT_OP_TYPES_PROFILER_UNWINDING);
-    (void)res_unwinding;
-
-    profiling_state.is_serializing.store(0);
-    auto res_serializing = ddog_crasht_end_op(DDOG_CRASHT_OP_TYPES_PROFILER_SERIALIZING);
-    (void)res_serializing;
-
     return true;
 }
 

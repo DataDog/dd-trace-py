@@ -1,0 +1,30 @@
+[[
+  {
+    "name": "psycopg2.connect",
+    "service": "postgres",
+    "resource": "psycopg2.connect",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "672bb07300000000",
+      "component": "psycopg",
+      "db.system": "postgresql",
+      "language": "python",
+      "runtime-id": "8166f0c068d04b2f9b5ee065e819d7c0",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 689
+    },
+    "duration": 11286000,
+    "start": 1730916467898579000
+  }]]
