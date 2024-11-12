@@ -133,7 +133,8 @@ class TestBotocoreSpanPointers:
         request_parameters: dict
         response: dict
         expected_pointers: List[_SpanPointerDescription]
-        expected_warning_regex: Optional[str]
+        expected_logger_regex: Optional[str]
+        logger_level: str
 
     @pytest.mark.parametrize(
         "pointers_case",
@@ -145,7 +146,8 @@ class TestBotocoreSpanPointers:
                 request_parameters={},
                 response={},
                 expected_pointers=[],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="unknown s3 operation",
@@ -154,7 +156,8 @@ class TestBotocoreSpanPointers:
                 request_parameters={},
                 response={},
                 expected_pointers=[],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="malformed s3.PutObject, missing bucket",
@@ -167,7 +170,8 @@ class TestBotocoreSpanPointers:
                     "ETag": "ab12ef34",
                 },
                 expected_pointers=[],
-                expected_warning_regex=r"missing a parameter or response field .*: 'Bucket'",
+                expected_logger_regex=r"missing a parameter or response field .*: 'Bucket'",
+                logger_level="debug",
             ),
             PointersCase(
                 name="malformed s3.PutObject, missing key",
@@ -180,7 +184,8 @@ class TestBotocoreSpanPointers:
                     "ETag": "ab12ef34",
                 },
                 expected_pointers=[],
-                expected_warning_regex=r"missing a parameter or response field .*: 'Key'",
+                expected_logger_regex=r"missing a parameter or response field .*: 'Key'",
+                logger_level="debug",
             ),
             PointersCase(
                 name="malformed s3.PutObject, missing etag",
@@ -192,7 +197,8 @@ class TestBotocoreSpanPointers:
                 },
                 response={},
                 expected_pointers=[],
-                expected_warning_regex=r"missing a parameter or response field .*: 'ETag'",
+                expected_logger_regex=r"missing a parameter or response field .*: 'ETag'",
+                logger_level="debug",
             ),
             PointersCase(
                 name="malformed s3.PutObject, impossible non-ascii bucket",
@@ -206,7 +212,8 @@ class TestBotocoreSpanPointers:
                     "ETag": "ab12ef34",
                 },
                 expected_pointers=[],
-                expected_warning_regex=r".*'ascii' codec can't encode characters.*",
+                expected_logger_regex=r".*'ascii' codec can't encode characters.*",
+                logger_level="debug",
             ),
             PointersCase(
                 name="s3.PutObject",
@@ -227,7 +234,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="s3.PutObject with double quoted ETag",
@@ -249,7 +257,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="s3.CopyObject",
@@ -272,7 +281,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="s3.CopyObject with double quoted ETag",
@@ -295,7 +305,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="s3.CompleteMultipartUpload",
@@ -316,7 +327,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="s3.CompleteMultipartUpload with double quoted ETag",
@@ -338,7 +350,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.PutItem",
@@ -361,7 +374,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.PutItem with extra data",
@@ -385,7 +399,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.PutItem unknown table",
@@ -401,7 +416,8 @@ class TestBotocoreSpanPointers:
                     # things we do not care about
                 },
                 expected_pointers=[],
-                expected_warning_regex=".*unknown-table.*",
+                expected_logger_regex=".*unknown-table.*",
+                logger_level="warning",
             ),
             PointersCase(
                 name="dynamodb.PutItem missing primary key",
@@ -417,7 +433,8 @@ class TestBotocoreSpanPointers:
                     # things we do not care about
                 },
                 expected_pointers=[],
-                expected_warning_regex=".*missing primary key field: some-key",
+                expected_logger_regex=".*missing primary key field: some-key",
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.UpdateItem",
@@ -440,7 +457,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.UpdateItem table does not need to be known",
@@ -463,7 +481,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.UpdateItem with two key attributes",
@@ -487,7 +506,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.UpdateItem with three keys, impossibly",
@@ -505,7 +525,8 @@ class TestBotocoreSpanPointers:
                     # things we do not care about
                 },
                 expected_pointers=[],
-                expected_warning_regex=".*unexpected number of primary key fields: 3",
+                expected_logger_regex=".*unexpected number of primary key fields: 3",
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.UpdateItem missing the key",
@@ -518,7 +539,8 @@ class TestBotocoreSpanPointers:
                     # things we do not care about
                 },
                 expected_pointers=[],
-                expected_warning_regex=".*'Key'.*",
+                expected_logger_regex=".*'Key'.*",
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.DeleteItem",
@@ -541,7 +563,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.DeleteItem table does not need to be known",
@@ -564,7 +587,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.DeleteItem with two key attributes",
@@ -588,7 +612,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.DeleteItem with three keys, impossibly",
@@ -606,7 +631,8 @@ class TestBotocoreSpanPointers:
                     # things we do not care about
                 },
                 expected_pointers=[],
-                expected_warning_regex=".*unexpected number of primary key fields: 3",
+                expected_logger_regex=".*unexpected number of primary key fields: 3",
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.DeleteItem missing the key",
@@ -619,7 +645,8 @@ class TestBotocoreSpanPointers:
                     # things we do not care about
                 },
                 expected_pointers=[],
-                expected_warning_regex=".*'Key'.*",
+                expected_logger_regex=".*'Key'.*",
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.BatchWriteItem works with multiple items and tables",
@@ -697,7 +724,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.BatchWriteItem still needs the mapping sometimes",
@@ -718,7 +746,8 @@ class TestBotocoreSpanPointers:
                 },
                 response={},
                 expected_pointers=[],
-                expected_warning_regex=".*unknown-table.*",
+                expected_logger_regex=".*unknown-table.*",
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.TransactWriteItems basic case",
@@ -787,7 +816,8 @@ class TestBotocoreSpanPointers:
                         extra_attributes={},
                     ),
                 ],
-                expected_warning_regex=None,
+                expected_logger_regex=None,
+                logger_level="debug",
             ),
             PointersCase(
                 name="dynamodb.TransactWriteItems still needs the mapping sometimes",
@@ -807,7 +837,8 @@ class TestBotocoreSpanPointers:
                 },
                 response={},
                 expected_pointers=[],
-                expected_warning_regex=".*unknown-table.*",
+                expected_logger_regex=".*unknown-table.*",
+                logger_level="debug",
             ),
         ],
         ids=lambda case: case.name,
@@ -816,7 +847,7 @@ class TestBotocoreSpanPointers:
         # We might like to use caplog here but it resulted in inconsistent test
         # behavior, so we have to go a bit deeper.
 
-        with mock.patch.object(logging.Logger, "warning") as mock_logger:
+        with mock.patch.object(logging.Logger, pointers_case.logger_level) as mock_logger:
             assert sorted(
                 extract_span_pointers_from_successful_botocore_response(
                     dynamodb_primary_key_names_for_tables={
@@ -830,7 +861,7 @@ class TestBotocoreSpanPointers:
                 key=lambda pointer: pointer.pointer_hash,
             ) == sorted(pointers_case.expected_pointers, key=lambda pointer: pointer.pointer_hash)
 
-            if pointers_case.expected_warning_regex is None:
+            if pointers_case.expected_logger_regex is None:
                 mock_logger.assert_not_called()
 
             else:
@@ -840,7 +871,7 @@ class TestBotocoreSpanPointers:
                 assert not kwargs
                 fmt, *other_args = args
                 assert re.match(
-                    pointers_case.expected_warning_regex,
+                    pointers_case.expected_logger_regex,
                     fmt % tuple(other_args),
                 )
 
