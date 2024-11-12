@@ -131,7 +131,7 @@ def tag_stream_response(span, chunks, integration):
             finish_reason = candidate.finish_reason
             if finish_reason:
                 span.set_tag_str(
-                    "vertexai.response.candidates.%d.finish_reason" % (candidate_idx), str(finish_reason)
+                    "vertexai.response.candidates.%d.finish_reason" % (candidate_idx), str(finish_reason.name)
                 )
             candidate_content = candidate.content
             role = candidate_content.role
