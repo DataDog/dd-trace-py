@@ -4,8 +4,9 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal.injection import HookType
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 assert sys.version_info >= (3, 12)  # nosec
@@ -24,6 +25,7 @@ log = get_logger(__name__)
 
 _coverage_monitoring_hooks_initialized = False
 _coverage_monitoring_hooks_successful = False
+
 
 def _ensure_coverage_monitoring_hooks_initialized():
     global _coverage_monitoring_hooks_initialized
@@ -51,15 +53,14 @@ def _ensure_coverage_monitoring_hooks_initialized():
 
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
 
+
 def _line_event_handler(code: CodeType, line: int) -> t.Any:
     hook, path, import_names = _CODE_HOOKS[code]
     import_name = import_names.get(line, None)
     return hook((line, path, import_name))
 
 
-def instrument_all_lines(
-    code: CodeType, hook: HookType, path: str, package: str
-) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     if not _ensure_coverage_monitoring_hooks_initialized():
         return code, CoverageLines()
 
