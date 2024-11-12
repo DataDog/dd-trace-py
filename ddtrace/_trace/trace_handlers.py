@@ -619,12 +619,14 @@ def _on_botocore_bedrock_process_response(
 
 
 def _on_botocore_sqs_recvmessage_post(
-    ctx: core.ExecutionContext, _, result: Dict, propagate: bool, message_parser: Callable
+    ctx: core.ExecutionContext, _, result: Dict, config, message_parser: Callable
 ) -> None:
     if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
         ctx.set_item("message_received", True)
-        if propagate:
-            ctx.set_safe("distributed_context", extract_DD_context_from_messages(result["Messages"], message_parser))
+
+        if config.botocore.propagation_enabled or config.botocore.span_links_enabled:
+            contexts = extract_DD_context_from_messages(result["Messages"], message_parser)
+            ctx.set_safe("distributed_contexts", contexts)
 
 
 def _on_botocore_kinesis_getrecords_post(

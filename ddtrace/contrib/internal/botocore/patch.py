@@ -104,6 +104,7 @@ config._add(
         "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
         "add_span_pointers": asbool(os.getenv("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),
+        "span_links_enabled": asbool(os.getenv("DD_BOTOCORE_ADD_SPAN_POINTERS", default=config._span_links_enabled)),
     },
 )
 
@@ -242,7 +243,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         span_key="instrumented_api_call",
     ) as ctx, ctx.span:
         core.dispatch("botocore.patched_api_call.started", [ctx])
-        if args and config.botocore["distributed_tracing"]:
+        if args and (config.botocore["distributed_tracing"] or config.botocore.span_links_enabled):
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
         try:

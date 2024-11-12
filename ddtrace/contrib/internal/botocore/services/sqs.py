@@ -109,7 +109,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             result = original_func(*args, **kwargs)
             core.dispatch(
                 f"botocore.{endpoint_name}.{operation}.post",
-                [parent_ctx, params, result, config.botocore.propagation_enabled, extract_DD_json],
+                [parent_ctx, params, result, config, extract_DD_json],
             )
         except Exception as e:
             func_run_err = e
@@ -122,7 +122,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
     )
     should_update_messages = (
         args
-        and config.botocore["distributed_tracing"]
+        and (config.botocore["distributed_tracing"] or config.botocore.span_links_enabled)
         and endpoint_name == "sqs"
         and operation in ("SendMessage", "SendMessageBatch")
     )
@@ -136,7 +136,8 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
     else:
         call_name = trace_operation
 
-    child_of = parent_ctx.get_item("distributed_context")
+    extracted_contexts = parent_ctx.get_item("distributed_contexts", default=[])
+    child_of = extracted_contexts[0] if len(extracted_contexts) > 0 and config.botocore.propagation_enabled else None
 
     if should_instrument:
         with core.context_with_data(
@@ -158,6 +159,14 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             pin=pin,
         ) as ctx, ctx.span:
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
+
+            for extracted_context in extracted_contexts:
+                ctx.span.link_span(extracted_context)
+                log.debug(
+                    "Successfully linked span %d to context with span id %d.",
+                    ctx.span.span_id,
+                    extracted_context.span_id,
+                )
 
             if should_update_messages:
                 update_messages(ctx, endpoint_service=endpoint_name)
