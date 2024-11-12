@@ -4,6 +4,7 @@ import datetime as dt
 from http.client import HTTPSConnection
 from io import StringIO
 import json
+from operator import itemgetter
 import os
 import pathlib
 import sys
@@ -34,6 +35,9 @@ suite_to_package = {
     "cassandra": "cassandra-driver",
     "rediscluster": "redis-py-cluster",
 }
+
+supported_versions = [] #list of dicts
+pinned_packages = set()
 
 class Capturing(list):
     def __enter__(self):
@@ -84,7 +88,7 @@ def _get_riot_envs_including_any(modules: typing.Set[str]) -> typing.Set[str]:
 
 
 def _get_updatable_packages_implementing(modules: typing.Set[str]) -> typing.Set[str]:
-    """Return all packages that can be updated and have contribs implemented for them"""
+    """Return all packages have contribs implemented for them"""
     all_venvs = riotfile.venv.venvs
 
     for v in all_venvs:
@@ -92,7 +96,7 @@ def _get_updatable_packages_implementing(modules: typing.Set[str]) -> typing.Set
         if package not in modules:
             continue
         if not _venv_sets_latest_for_package(v, package):
-            modules.remove(package)
+            pinned_packages.add(package)
 
     packages = {m for m in modules if "." not in m}
     return packages
@@ -193,12 +197,24 @@ def main():
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
         if not ordered:
             continue
-        if not _versions_fully_cover_bounds(bounds[package], ordered):
+        json_format = {"integration": package, "minimum_tracer_supported": str(ordered[-1]),
+                       "max_tracer_supported": str(ordered[0]),
+                        "minumum_available_supported": bounds[package][0],
+                        "maximum_available_supported": bounds[package][1] }
+
+        if package in pinned_packages:
+            json_format["pinned"] = "true"
+
+        supported_versions.append(json_format)
+        if not _versions_fully_cover_bounds(bounds[package], ordered) and package not in pinned_packages:
             print(
                 f"{package}: policy supports version {bounds[package][0]} through {bounds[package][1]} "
                 f"but only these versions are used: {[str(v) for v in ordered]}"
             )
 
+    supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
+    with open("supported_versions.json", "w") as file:
+        json.dump(supported_versions_output, file, indent=4)
 
 if __name__ == "__main__":
     main()
