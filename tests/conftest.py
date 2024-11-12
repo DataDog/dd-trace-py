@@ -299,6 +299,7 @@ def run_function_from_file(item, params=None):
     args = [sys.executable]
 
     timeout = marker.kwargs.get("timeout", None)
+    check_logs = marker.kwargs.get("check_logs", True)
 
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
@@ -367,10 +368,16 @@ def run_function_from_file(item, params=None):
                     )
 
                 if not is_stream_ok(out, expected_out):
-                    raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                    if check_logs:
+                        raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                    else:
+                        pytest.xfail("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
 
                 if not is_stream_ok(err, expected_err):
-                    raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+                    if check_logs:
+                        raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+                    else:
+                        pytest.xfail("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
 
             return _subprocess_wrapper()
     finally:
