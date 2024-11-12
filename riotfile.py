@@ -1596,6 +1596,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
             },
             venvs=[
                 Venv(
@@ -1683,6 +1684,9 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
             },
+            env={
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1712,6 +1716,9 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
             },
             venvs=[
                 Venv(
@@ -2959,10 +2966,16 @@ venv = Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
-            env={"DD_PROFILING_ENABLE_ASSERTS": "1", "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1"},
+            env={
+                "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
+                # Enable pytest v2 plugin to handle pytest-cpp items in the test suite
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+            },
             pkgs={
                 "gunicorn": latest,
                 "lz4": latest,
+                "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
