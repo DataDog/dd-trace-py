@@ -1,3 +1,5 @@
+import pytest
+
 import ddtrace.ext.test_visibility.api as ext_api
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.test_visibility import api
@@ -12,6 +14,22 @@ class TestCIITRMixin:
 
     Note: these tests do not bother discovering a session as the ITR functionality currently does not rely on sessions.
     """
+
+    @pytest.fixture(scope="function", autouse=True)
+    def _disable_ci_visibility(self):
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:  # noqa: E722
+            # no-dd-sa:python-best-practices/no-silent-exception
+            pass
+        yield
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:  # noqa: E722
+            # no-dd-sa:python-best-practices/no-silent-exception
+            pass
 
     def test_api_is_item_itr_skippable_test_level(self):
         with set_up_mock_civisibility(

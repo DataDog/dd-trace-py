@@ -53,6 +53,8 @@ DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
+BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+
 CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.20.1"
@@ -349,6 +351,9 @@ class CMakeBuild(build_ext):
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
 
+        if BUILD_PROFILING_NATIVE_TESTS:
+            cmake_args += ["-DBUILD_TESTING=ON"]
+
         # If it's been enabled, also propagate sccache to the CMake build.  We have to manually set the default CC/CXX
         # compilers here, because otherwise the way we wrap sccache will conflict with the CMake wrappers
         sccache_path = os.getenv("DD_SCCACHE_PATH")
@@ -567,7 +572,9 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling": ["libdd_wrapper*.*"],
+        "ddtrace.internal.datadog.profiling": (
+            ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
+        ),
         "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
