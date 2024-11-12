@@ -13,17 +13,19 @@ import typing as t
 class JobSpec:
     name: str
     runner: str
-    is_snapshot: bool = False
+    pattern: t.Optional[str] = None
+    snapshot: bool = False
     services: t.Optional[t.Set[str]] = None
     env: t.Optional[t.Dict[str, str]] = None
     parallelism: t.Optional[int] = None
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
+    paths: t.Optional[t.Set[str]] = None  # ignored
 
     def __str__(self) -> str:
         lines = []
         base = f".test_base_{self.runner}"
-        if self.is_snapshot:
+        if self.snapshot:
             base += "_snapshot"
 
         lines.append(f"{self.name}:")
@@ -33,16 +35,20 @@ class JobSpec:
             lines.append("  services:")
 
             _services = [f"!reference [.services, {_}]" for _ in self.services]
-            if self.is_snapshot:
+            if self.snapshot:
                 _services.insert(0, f"!reference [{base}, services]")
 
             for service in _services:
                 lines.append(f"    - {service}")
 
-        if self.env:
-            lines.append("  variables:")
-            for key, value in self.env.items():
-                lines.append(f"    {key}: {value}")
+        env = self.env
+        if not env or "SUITE_NAME" not in env:
+            env = env or {}
+            env["SUITE_NAME"] = self.pattern or self.name
+
+        lines.append("  variables:")
+        for key, value in env.items():
+            lines.append(f"    {key}: {value}")
 
         if self.parallelism is not None:
             lines.append(f"  parallel: {self.parallelism}")
@@ -56,40 +62,18 @@ class JobSpec:
         return "\n".join(lines)
 
 
-def collect_jobspecs() -> dict:
-    # Recursively search for jobspec.yml in TESTS
-    jobspecs = {}
-    for js in TESTS.rglob("jobspec.yml"):
-        with YAML() as yaml:
-            LOGGER.info("Loading jobspecs from %s", js)
-            jobspecs.update(yaml.load(js))
-
-    return jobspecs
-
-
 def gen_required_suites() -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
     from needs_testrun import for_each_testrun_needed as fetn
-    from suitespec import get_suites
+    import suitespec
 
-    jobspecs = collect_jobspecs()
+    suites = suitespec.get_suites()
 
-    suites = get_suites()
     required_suites = []
 
-    for suite in suites:
-        if suite not in jobspecs:
-            print(f"WARNING: Suite {suite} has no jobspec", file=sys.stderr)
-            continue
-
-    for job in jobspecs:
-        if job not in suites:
-            print(f"WARNING: Job {job} has no suitespec", file=sys.stderr)
-            continue
-
     fetn(
-        suites=sorted(suites),
+        suites=sorted(suites.keys()),
         action=lambda suite: required_suites.append(suite),
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
@@ -102,11 +86,7 @@ def gen_required_suites() -> None:
     # Generate the list of suites to run
     with (GITLAB / "tests-gen.yml").open("a") as f:
         for suite in required_suites:
-            if suite not in jobspecs:
-                print(f"Suite {suite} not found in jobspec", file=sys.stderr)
-                continue
-
-            print(str(JobSpec(suite, **jobspecs[suite])), file=f)
+            print(str(JobSpec(suite, **suites[suite])), file=f)
 
 
 # -----------------------------------------------------------------------------

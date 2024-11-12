@@ -1,0 +1,94 @@
+components:
+  llmobs:
+  - ddtrace/llmobs/*
+  openai:
+  - ddtrace/contrib/openai/*
+  - ddtrace/contrib/internal/openai/*
+  langchain:
+  - ddtrace/contrib/langchain/*
+  - ddtrace/contrib/internal/langchain/*
+  anthropic:
+  - ddtrace/contrib/anthropic/*
+  - ddtrace/contrib/internal/anthropic/*
+  google_generativeai:
+  - ddtrace/contrib/google_generativeai/*
+  - ddtrace/contrib/internal/google_generativeai/*
+  vertexai:
+  - ddtrace/contrib/vertexai/*
+  - ddtrace/contrib/internal/vertexai/*
+
+suites:
+  llmobs:
+    runner: riot
+    paths:
+    - '@bootstrap'
+    - '@core'
+    - '@tracing'
+    - '@llmobs'
+    - tests/llmobs/*
+  openai:
+    runner: riot
+    parallelism: 10
+    snapshot: true
+    paths:
+    - '@bootstrap'
+    - '@core'
+    - '@tracing'
+    - '@contrib'
+    - '@openai'
+    - '@requests'
+    - '@llmobs'
+    - tests/contrib/openai/*
+    - tests/snapshots/tests.contrib.openai.*
+  langchain:
+    runner: riot
+    parallelism: 6
+    snapshot: true
+    paths:
+    - '@bootstrap'
+    - '@core'
+    - '@tracing'
+    - '@contrib'
+    - '@langchain'
+    - '@requests'
+    - '@llmobs'
+    - tests/contrib/langchain/*
+    - tests/snapshots/tests.contrib.{suite}.*
+  anthropic:
+    runner: riot
+    parallelism: 3
+    snapshot: true
+    paths:
+    - '@bootstrap'
+    - '@core'
+    - '@tracing'
+    - '@contrib'
+    - '@anthropic'
+    - '@requests'
+    - '@llmobs'
+    - tests/contrib/anthropic/*
+    - tests/snapshots/tests.contrib.anthropic.*
+  google_generativeai:
+    runner: riot
+    snapshot: true
+    paths:
+    - '@bootstrap'
+    - '@core'
+    - '@tracing'
+    - '@contrib'
+    - '@google_generativeai'
+    - '@llmobs'
+    - tests/contrib/google_generativeai/*
+    - tests/snapshots/tests.contrib.google_generativeai.*
+  vertexai:
+    runner: riot
+    snapshot: true
+    paths:
+    - '@bootstrap'
+    - '@core'
+    - '@tracing'
+    - '@contrib'
+    - '@vertexai'
+    - '@llmobs'
+    - tests/contrib/vertexai/*
+    - tests/snapshots/tests.contrib.vertexai.*

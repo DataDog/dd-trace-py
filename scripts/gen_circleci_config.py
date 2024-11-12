@@ -19,7 +19,7 @@ def gen_required_suites(template: dict) -> None:
 
     required_suites = template["requires_tests"]["requires"] = []
     fetn(
-        suites=sorted(suites & jobs),
+        suites=sorted(set(suites.keys()) & jobs),
         action=lambda suite: required_suites.append(suite),
         git_selections=extract_git_commit_selections(os.getenv("GIT_COMMIT_DESC", "")),
     )
@@ -77,12 +77,12 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
-        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "tests/.suitespec.json"},
+        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
-        name="Validate suitespec JSON file",
+        name="Validate suitespec files",
         command="python -m tests.suitespec",
-        paths={"docker*", "tests/.suitespec.json", "tests/suitespec.py"},
+        paths={"docker*", "**suitespec.yml", "tests/suitespec.py"},
     )
     check(
         name="Check suitespec coverage",

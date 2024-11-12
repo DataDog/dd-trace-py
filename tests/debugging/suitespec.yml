@@ -1,0 +1,18 @@
+components:
+  debugging:
+  - ddtrace/debugging/*
+  - ddtrace/settings/dynamic_instrumentation.py
+  - ddtrace/settings/exception_replay.py
+
+
+suites:
+  debugger:
+    runner: riot
+    parallelism: 2
+    paths:
+    - '@debugging'
+    - '@bootstrap'
+    - '@core'
+    - '@remoteconfig'
+    - '@tracing'
+    - tests/debugging/*
