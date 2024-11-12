@@ -7,7 +7,8 @@ variables:
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
   needs: []
   parallel: 4
-  retry: 2
+  retry:
+    max: 2
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
@@ -40,7 +41,8 @@ variables:
   parallel: 4
   services:
     - !reference [.services, ddagent]
-  retry: 2
+  retry:
+    max: 2
   script:
     - pip install riot==0.20.0
     - unset DD_SERVICE
