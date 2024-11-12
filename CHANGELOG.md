@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.14.7
+
+
+### Bug Fixes
+
+  - Add googlecloudsdk and google auth to the Code Security deny list.
+
+  - profiling: fixes an issue where cpu-time was not profiled for services using gunicorn, when <span class="title-ref">\`DD\_PROFILING\_STACK\_V2\_ENABLED</span> was set.
+
+  -   - profiling: fixes an issue where the sample pool could deadlock after `fork()`  
+        by clearing it in the child process.
+
+
+---
+
 ## 2.14.6
 
 ### Bug Fixes
