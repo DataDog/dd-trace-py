@@ -301,7 +301,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "anyio.",
     "httpcore.",
     "google.auth.",
-    "google.protobuf.message",
+    "google.protobuf.message.",
     "googlecloudsdk.",
 )
 
