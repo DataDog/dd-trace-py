@@ -2718,7 +2718,6 @@ venv = Venv(
                 "vertexai": [latest],
             },
         ),
-        
         Venv(
             name="logbook",
             pys=select_pys(),
