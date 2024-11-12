@@ -4,12 +4,11 @@ import pytest
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_CAPTURE_PCT="100",
-        DD_PROFILING_OUTPUT_PPROF="/tmp/asyncio_lock_acquire_events",
         DD_PROFILING_FILE_PATH=__file__,
     ),
     err=None,
 )
-def test_lock_acquire_events():
+def test_lock_acquire_events(tmp_path):
     import os
     import threading
 
@@ -18,6 +17,9 @@ def test_lock_acquire_events():
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
+
+    pprof_prefix = str(tmp_path / "test_lock_acquire_events")
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -43,7 +45,6 @@ def test_lock_acquire_events():
     p.stop()
 
     expected_filename = "test_threading_asyncio.py"
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
     linenos_1 = get_lock_linenos("test_lock_acquire_events_1")
     linenos_2 = get_lock_linenos("test_lock_acquire_events_2")
