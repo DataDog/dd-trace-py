@@ -1596,6 +1596,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
             },
             venvs=[
                 Venv(
@@ -1683,6 +1684,9 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
             },
+            env={
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1712,6 +1716,9 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
             },
             venvs=[
                 Venv(
