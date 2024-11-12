@@ -114,7 +114,7 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
 def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads", "--master", "--processes", "2")
+    proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
     worker_pids = _get_worker_pids(proc.stdout, 2)
     # Give some time to child to actually startup
     time.sleep(3)
