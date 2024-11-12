@@ -25,7 +25,7 @@ log = get_logger(__name__)
 _coverage_monitoring_hooks_initialized = False
 _coverage_monitoring_hooks_successful = False
 
-def ensure_coverage_monitoring_hooks_initialized():
+def _ensure_coverage_monitoring_hooks_initialized():
     global _coverage_monitoring_hooks_initialized
     global _coverage_monitoring_hooks_successful
 
@@ -60,7 +60,7 @@ def _line_event_handler(code: CodeType, line: int) -> t.Any:
 def instrument_all_lines(
     code: CodeType, hook: HookType, path: str, package: str
 ) -> t.Tuple[CodeType, CoverageLines]:
-    if not ensure_coverage_monitoring_hooks_initialized():
+    if not _ensure_coverage_monitoring_hooks_initialized():
         return code, CoverageLines()
 
     # Enable local line events for the code object
