@@ -108,7 +108,7 @@ class _DDWSGIMiddlewareBase(object):
             distributed_headers=environ,
             environ=environ,
             middleware=self,
-            call_key="req_span",
+            span_key="req_span",
         ) as ctx:
             ctx.set_item("wsgi.construct_url", construct_url)
 
@@ -187,7 +187,6 @@ class _DDWSGIMiddlewareBase(object):
             service=trace_utils.int_service(None, self._config),
             start_span=False,
             tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
-            call_key="response_span",
         ):
             return start_response(status, environ, exc_info)
 
@@ -294,8 +293,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             service=trace_utils.int_service(None, self._config),
             start_span=True,
             tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
-            call_key="response_span",
-        ) as ctx, ctx.get_item("response_span"):
+        ) as ctx, ctx.span:
             return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):

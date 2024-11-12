@@ -5,6 +5,7 @@ containing the ddtrace package compatible with the current Python version and pl
 
 from collections import namedtuple
 import csv
+import importlib.util
 import json
 import os
 import platform
@@ -33,7 +34,7 @@ RUNTIMES_ALLOW_LIST = {
 
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
 FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
-TELEMETRY_ENABLED = "true" in os.environ.get("DD_INJECTION_ENABLED", "").lower()
+TELEMETRY_ENABLED = "DD_INJECTION_ENABLED" in os.environ
 DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
 INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
@@ -205,9 +206,13 @@ def _inject():
     integration_incomp = False
     runtime_incomp = False
     os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
+    spec = None
     try:
-        import ddtrace
-    except ImportError:
+        # None is a valid return value for find_spec (module was not found), so we need to check for it explicitly
+        spec = importlib.util.find_spec("ddtrace")
+        if not spec:
+            raise ModuleNotFoundError("ddtrace")
+    except Exception:
         _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
         current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_1"
@@ -347,9 +352,8 @@ def _inject():
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
     else:
-        _log(
-            "user-installed ddtrace found: %s, aborting site-packages injection" % ddtrace.__version__, level="warning"
-        )
+        module_origin = spec.origin if spec else None
+        _log("user-installed ddtrace found: %s, aborting site-packages injection" % module_origin, level="warning")
 
 
 try:

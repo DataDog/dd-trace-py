@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    elasticsearch: this fix resolves an issue where span tags were not fully populated on "sampled" spans, causing metric dimensions to be incorrect when spans were prematurely marked as sampled, including resource_name.

@@ -19,6 +19,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
+from tests.appsec.utils import is_blocked
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -204,7 +205,7 @@ def test_ip_block(tracer):
         )
     assert get_triggers(span)
     assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
-    assert core.get_item("http.request.blocked", span)
+    assert is_blocked(span)
 
 
 @pytest.mark.parametrize("ip", [rules._IP.MONITORED, rules._IP.BYPASS, rules._IP.DEFAULT])
@@ -216,11 +217,11 @@ def test_ip_not_block(tracer, ip):
         )
 
     assert core.get_item("http.request.remote_ip", span) == ip
-    assert core.get_item("http.request.blocked", span) is None
+    assert is_blocked(span) is False
 
 
 def test_ip_update_rules_and_block(tracer):
-    with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm):
+    with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm) as span1:
         tracer._appsec_processor._update_rules(
             {
                 "rules_data": [
@@ -240,8 +241,8 @@ def test_ip_update_rules_and_block(tracer):
                 rules.Config(),
             )
 
-    assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
-    assert core.get_item("http.request.blocked", span)
+    assert core.get_item("http.request.remote_ip", span1) == rules._IP.BLOCKED
+    assert is_blocked(span1)
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -266,7 +267,7 @@ def test_ip_update_rules_expired_no_block(tracer):
             )
 
     assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
-    assert core.get_item("http.request.blocked", span) is None
+    assert is_blocked(span) is False
 
 
 @snapshot(
@@ -502,7 +503,7 @@ def test_ddwaf_info():
         info = _ddwaf.info
         assert info.loaded == len(rules_json["rules"])
         assert info.failed == 0
-        assert info.errors == {}
+        assert info.errors == ""
         assert info.version == "rules_good"
 
 
@@ -518,7 +519,7 @@ def test_ddwaf_info_with_2_errors():
         expected_dict = sorted(
             {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}.items()
         )
-        assert sorted(info.errors.items()) == expected_dict
+        assert sorted(json.loads(info.errors).items()) == expected_dict
         assert info.version == "5.5.5"
 
 
@@ -530,42 +531,7 @@ def test_ddwaf_info_with_3_errors():
         info = _ddwaf.info
         assert info.loaded == 1
         assert info.failed == 2
-        assert info.errors == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
-
-
-def test_ddwaf_info_with_json_decode_errors(tracer, caplog):
-    config = rules.Config()
-    config.http_tag_query_string = True
-
-    with caplog.at_level(logging.WARNING), mock.patch(
-        "ddtrace.appsec._processor.json.dumps", side_effect=JSONDecodeError("error", "error", 0)
-    ), mock.patch.object(DDWaf, "info"):
-        with asm_context(tracer=tracer, config=config_asm) as span:
-            set_http_meta(
-                span,
-                config,
-                method="PATCH",
-                url="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
-                status_code="200",
-                raw_uri="http://localhost/api/unstable/role_requests/dab1e9ae-9d99-11ed-bfdf-da7ad0900000?_authentication_token=2b0297348221f294de3a047e2ecf1235abb866b6",  # noqa: E501
-                request_headers={
-                    "host": "localhost",
-                    "user-agent": "aa",
-                    "content-length": "73",
-                },
-                response_headers={
-                    "content-length": "501",
-                    "x-ratelimit-remaining": "363",
-                    "x-ratelimit-name": "role_api",
-                    "x-ratelimit-limit": "500",
-                    "x-ratelimit-period": "60",
-                    "content-type": "application/json",
-                    "x-ratelimit-reset": "16",
-                },
-                request_body={"_authentication_token": "2b0297348221f294de3a047e2ecf1235abb866b6"},
-            )
-
-    assert "Error parsing data ASM In-App WAF metrics report" in caplog.text
+        assert json.loads(info.errors) == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
 
 
 def test_ddwaf_run_contained_typeerror(tracer, caplog):

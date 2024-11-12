@@ -4,12 +4,9 @@ from typing import Optional
 from typing import cast
 
 from ddtrace.debugging._metrics import probe_metrics
-from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._signal.model import LogSignal
-from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.metrics import Metrics
 
 
@@ -19,53 +16,22 @@ class MetricSample(LogSignal):
 
     meter: Metrics.Meter = field(default_factory=lambda: probe_metrics.get_meter("probe"))
 
-    def enter(self) -> None:
-        if not isinstance(self.probe, MetricFunctionProbe):
-            return
+    def enter(self, scope) -> None:
+        self.sample(scope)
 
-        probe = self.probe
+    def exit(self, retval, exc_info, duration, scope) -> None:
+        self.sample(scope)
 
-        if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
-            return
+    def line(self, scope) -> None:
+        self.sample(scope)
 
-        _args = dict(self.args) if self.args else {}
-        if not self._eval_condition(_args):
-            return
-
-        self.sample(_args)
-        self.state = SignalState.DONE
-
-    def exit(self, retval, exc_info, duration) -> None:
-        if not isinstance(self.probe, MetricFunctionProbe):
-            return
-
-        probe = self.probe
-        full_scope = self.get_full_scope(retval, exc_info, duration)
-
-        if probe.evaluate_at is not ProbeEvaluateTimingForMethod.EXIT:
-            return
-        if not self._eval_condition(full_scope):
-            return
-
-        self.sample(full_scope)
-        self.state = SignalState.DONE
-
-    def line(self) -> None:
-        frame = self.frame
-
-        if not self._eval_condition(frame.f_locals):
-            return
-
-        self.sample(frame.f_locals)
-        self.state = SignalState.DONE
-
-    def sample(self, _locals) -> None:
+    def sample(self, scope) -> None:
         tags = self.probe.tags
         probe = cast(MetricProbeMixin, self.probe)
 
         assert probe.kind is not None and probe.name is not None  # nosec
 
-        value = float(probe.value(_locals)) if probe.value is not None else 1
+        value = float(probe.value(scope)) if probe.value is not None else 1
 
         # TODO[perf]: We know the tags in advance so we can avoid the
         # list comprehension.

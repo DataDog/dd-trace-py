@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes a bug where ``CODEOWNERS`` would incorrectly fail to discard line-level trailing comments (eg: ``@code/owner # my comment`` would result in codeowners being parsed as ``@code/owner``, ``#``, ``my``, and ``comment``)

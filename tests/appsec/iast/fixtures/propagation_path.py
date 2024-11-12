@@ -201,7 +201,6 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     string27 = re_split_result[0] + " EEE"
     string28 = re.sub(r" EEE", "_OOO", string27, re.IGNORECASE)
     string29 = re.subn(r"OOO", "III", string28, re.IGNORECASE)[0]
-
     tmp_str2 = "_extend"
     string29 += tmp_str2
     try:

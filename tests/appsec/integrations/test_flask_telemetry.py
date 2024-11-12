@@ -1,4 +1,4 @@
-from ddtrace.appsec._handlers import _on_flask_patch
+from ddtrace.appsec._iast._handlers import _on_flask_patch
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_global_config
 

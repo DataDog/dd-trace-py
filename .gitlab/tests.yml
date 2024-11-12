@@ -40,7 +40,7 @@ variables:
   services:
     - !reference [.services, ddagent]
   script:
-    - pip install riot~=0.19.1
+    - pip install riot==0.20.0
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS

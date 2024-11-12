@@ -4,6 +4,7 @@ from typing import Dict
 from typing import List
 from typing import NamedTuple
 from typing import Optional
+from typing import Set
 
 import mock
 import pytest
@@ -11,7 +12,11 @@ import pytest
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
+from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _aws_dynamodb_item_primary_key_from_write_request
 from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _aws_dynamodb_item_span_pointer_hash
+from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _DynamoDBTableName
+from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _DynamoDBWriteRequest
+from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _identify_dynamodb_batch_write_item_processed_items
 from ddtrace._trace.utils_botocore.span_pointers.s3 import _aws_s3_object_span_pointer_hash
 
 
@@ -616,6 +621,194 @@ class TestBotocoreSpanPointers:
                 expected_pointers=[],
                 expected_warning_regex=".*'Key'.*",
             ),
+            PointersCase(
+                name="dynamodb.BatchWriteItem works with multiple items and tables",
+                endpoint_name="dynamodb",
+                operation_name="BatchWriteItem",
+                request_parameters={
+                    "RequestItems": {
+                        "some-table": [
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": {"S": "some-value"},
+                                    },
+                                },
+                            },
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": {"S": "will-not-complete"},
+                                    },
+                                },
+                            },
+                        ],
+                        "unknown-table": [
+                            {
+                                "DeleteRequest": {
+                                    "Key": {
+                                        "some-key": {"S": "some-value"},
+                                    },
+                                },
+                            },
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": {"S": "will-also-not-complete"},
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+                response={
+                    "UnprocessedItems": {
+                        "some-table": [
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": {"S": "will-not-complete"},
+                                    },
+                                },
+                            },
+                        ],
+                        "unknown-table": [
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": {"S": "will-also-not-complete"},
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="d8840182e4052ee105348b033e0a6810",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.BatchWriteItem still needs the mapping sometimes",
+                endpoint_name="dynamodb",
+                operation_name="BatchWriteItem",
+                request_parameters={
+                    "RequestItems": {
+                        "unknown-table": [
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": {"S": "some-value"},
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+                response={},
+                expected_pointers=[],
+                expected_warning_regex=".*unknown-table.*",
+            ),
+            PointersCase(
+                name="dynamodb.TransactWriteItems basic case",
+                endpoint_name="dynamodb",
+                operation_name="TransactWriteItems",
+                request_parameters={
+                    "TransactItems": [
+                        {
+                            "Put": {
+                                "TableName": "some-table",
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                        {
+                            "Delete": {
+                                "TableName": "unknown-table",
+                                "Key": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                        {
+                            "Update": {
+                                "TableName": "some-table",
+                                "Key": {
+                                    "some-key": {"S": "some-value"},
+                                    "other-key": {"N": "123"},
+                                },
+                            },
+                        },
+                        {
+                            "ConditionCheck": {
+                                "TableName": "do-not-care-table",
+                                "Key": {
+                                    "do-not-care-key": {"S": "meh"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        # Update
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7aa1b80b0e49bd2078a5453399f4dd67",
+                        extra_attributes={},
+                    ),
+                    _SpanPointerDescription(
+                        # Put
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                    _SpanPointerDescription(
+                        # Delete
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="d8840182e4052ee105348b033e0a6810",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_warning_regex=None,
+            ),
+            PointersCase(
+                name="dynamodb.TransactWriteItems still needs the mapping sometimes",
+                endpoint_name="dynamodb",
+                operation_name="TransactWriteItems",
+                request_parameters={
+                    "TransactItems": [
+                        {
+                            "Put": {
+                                "TableName": "unknown-table",
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                response={},
+                expected_pointers=[],
+                expected_warning_regex=".*unknown-table.*",
+            ),
         ],
         ids=lambda case: case.name,
     )
@@ -624,7 +817,7 @@ class TestBotocoreSpanPointers:
         # behavior, so we have to go a bit deeper.
 
         with mock.patch.object(logging.Logger, "warning") as mock_logger:
-            assert (
+            assert sorted(
                 extract_span_pointers_from_successful_botocore_response(
                     dynamodb_primary_key_names_for_tables={
                         "some-table": {"some-key"},
@@ -633,9 +826,9 @@ class TestBotocoreSpanPointers:
                     operation_name=pointers_case.operation_name,
                     request_parameters=pointers_case.request_parameters,
                     response=pointers_case.response,
-                )
-                == pointers_case.expected_pointers
-            )
+                ),
+                key=lambda pointer: pointer.pointer_hash,
+            ) == sorted(pointers_case.expected_pointers, key=lambda pointer: pointer.pointer_hash)
 
             if pointers_case.expected_warning_regex is None:
                 mock_logger.assert_not_called()
@@ -650,3 +843,335 @@ class TestBotocoreSpanPointers:
                     pointers_case.expected_warning_regex,
                     fmt % tuple(other_args),
                 )
+
+
+class TestDynamoDBWriteRequestLogic:
+    class WriteRequestPrimaryKeyCase(NamedTuple):
+        name: str
+        table_name: str
+        write_request: _DynamoDBWriteRequest
+        primary_key: Optional[Dict[str, Dict[str, str]]]
+        expected_exception_regex: Optional[str]
+
+    @pytest.mark.parametrize(
+        "test_case",
+        [
+            WriteRequestPrimaryKeyCase(
+                name="put request",
+                table_name="some-table",
+                write_request={
+                    "PutRequest": {
+                        "Item": {
+                            "some-key": {"S": "some-value"},
+                            "extra-data": {"N": "123"},
+                        },
+                    },
+                },
+                primary_key={"some-key": {"S": "some-value"}},
+                expected_exception_regex=None,
+            ),
+            WriteRequestPrimaryKeyCase(
+                name="delete request",
+                table_name="unknown-table",
+                write_request={
+                    "DeleteRequest": {
+                        "Key": {
+                            "some-key": {"S": "some-value"},
+                        },
+                    },
+                },
+                primary_key={"some-key": {"S": "some-value"}},
+                expected_exception_regex=None,
+            ),
+            WriteRequestPrimaryKeyCase(
+                name="impossible combined request",
+                table_name="unknown-table",
+                write_request={
+                    "PutRequest": {
+                        "Item": {
+                            "some-key": {"S": "some-value"},
+                            "extra-data": {"N": "123"},
+                        },
+                    },
+                    "DeleteRequest": {
+                        "Key": {
+                            "some-key": {"S": "some-value"},
+                        },
+                    },
+                },
+                primary_key=None,
+                expected_exception_regex="unexpected number of write request fields",
+            ),
+            WriteRequestPrimaryKeyCase(
+                name="unknown request kind",
+                table_name="some-table",
+                write_request={
+                    "SomeRequest": {
+                        "Item": {
+                            "some-key": {"S": "some-value"},
+                            "extra-data": {"N": "123"},
+                        },
+                    },
+                },
+                primary_key=None,
+                expected_exception_regex="unexpected write request structure: SomeRequest",
+            ),
+        ],
+        ids=lambda test_case: test_case.name,
+    )
+    def test_aws_dynamodb_item_primary_key_from_write_request(self, test_case: WriteRequestPrimaryKeyCase) -> None:
+        if test_case.expected_exception_regex is not None:
+            with pytest.raises(ValueError, match=test_case.expected_exception_regex):
+                _aws_dynamodb_item_primary_key_from_write_request(
+                    dynamodb_primary_key_names_for_tables={
+                        "some-table": {"some-key"},
+                    },
+                    table_name=test_case.table_name,
+                    write_request=test_case.write_request,
+                )
+
+        else:
+            assert (
+                _aws_dynamodb_item_primary_key_from_write_request(
+                    dynamodb_primary_key_names_for_tables={
+                        "some-table": {"some-key"},
+                    },
+                    table_name=test_case.table_name,
+                    write_request=test_case.write_request,
+                )
+                == test_case.primary_key
+            )
+
+    class ProcessedWriteRequestCase(NamedTuple):
+        name: str
+        requested_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]
+        unprocessed_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]
+        expected_processed_items: Optional[Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]]
+        expected_exception_regex: Optional[str]
+
+    @pytest.mark.parametrize(
+        "test_case",
+        [
+            ProcessedWriteRequestCase(
+                name="nothing unprocessed",
+                requested_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                unprocessed_items={},
+                expected_processed_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                expected_exception_regex=None,
+            ),
+            ProcessedWriteRequestCase(
+                name="all unprocessed",
+                requested_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                unprocessed_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                expected_processed_items={},
+                expected_exception_regex=None,
+            ),
+            ProcessedWriteRequestCase(
+                name="some unprocessed",
+                requested_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                    "other-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                unprocessed_items={
+                    "other-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                expected_processed_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                expected_exception_regex=None,
+            ),
+            ProcessedWriteRequestCase(
+                name="nothing unprocessed",
+                requested_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                unprocessed_items={},
+                expected_processed_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                expected_exception_regex=None,
+            ),
+            ProcessedWriteRequestCase(
+                name="extra unprocessed tables",
+                requested_items={},
+                unprocessed_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                expected_processed_items=None,
+                expected_exception_regex="unprocessed items include tables not in the requested items",
+            ),
+            ProcessedWriteRequestCase(
+                name="extra unprocessed items",
+                requested_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                unprocessed_items={
+                    "some-table": [
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "some-value"},
+                                },
+                            },
+                        },
+                        {
+                            "PutRequest": {
+                                "Item": {
+                                    "some-key": {"S": "other-value"},
+                                },
+                            },
+                        },
+                    ],
+                },
+                expected_processed_items=None,
+                expected_exception_regex="unprocessed write requests include items not in the requested write requests",
+            ),
+        ],
+        ids=lambda test_case: test_case.name,
+    )
+    def test_identify_dynamodb_batch_write_item_processed_items(self, test_case: ProcessedWriteRequestCase) -> None:
+        if test_case.expected_exception_regex is not None:
+            with pytest.raises(Exception, match=test_case.expected_exception_regex):
+                _identify_dynamodb_batch_write_item_processed_items(
+                    requested_items=test_case.requested_items,
+                    unprocessed_items=test_case.unprocessed_items,
+                )
+
+            return
+
+        processed_items = _identify_dynamodb_batch_write_item_processed_items(
+            requested_items=test_case.requested_items,
+            unprocessed_items=test_case.unprocessed_items,
+        )
+        assert processed_items == test_case.expected_processed_items
+
+        def collect_all_ids(thing: object, accumulator: Set[int]) -> None:
+            if isinstance(thing, dict):
+                accumulator.add(id(thing))
+                for value in thing.values():
+                    collect_all_ids(value, accumulator)
+
+            elif isinstance(thing, list):
+                accumulator.add(id(thing))
+                for item in thing:
+                    collect_all_ids(item, accumulator)
+
+            elif isinstance(thing, str):
+                # These can be reused internally, but that's fine since they
+                # are immutable.
+                pass
+
+            else:
+                raise ValueError(f"unknown type of thing: {type(thing)}")
+
+        processed_items_ids: Set[int] = set()
+        collect_all_ids(processed_items, processed_items_ids)
+
+        expected_processed_items_ids: Set[int] = set()
+        collect_all_ids(test_case.expected_processed_items, expected_processed_items_ids)
+
+        assert not (processed_items_ids & expected_processed_items_ids), "the objects should be distinct"

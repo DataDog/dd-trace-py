@@ -2472,28 +2472,25 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
                             pkgs={
-                                "gevent": ["~=20.12.0"],
-                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
-                                # This issue was fixed in gevent v20.9:
-                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
-                                "greenlet": "~=1.0.0",
+                                "gevent": latest,
+                                "greenlet": latest,
                             },
                         ),
                         Venv(
                             pys="3.9",
-                            pkgs={"gevent": "~=21.1.0", "greenlet": "~=1.0"},
+                            pkgs={"gevent": latest, "greenlet": latest},
                         ),
                         Venv(
                             pys="3.10",
-                            pkgs={"gevent": "~=21.8.0"},
+                            pkgs={"gevent": latest},
                         ),
                         Venv(
                             pys="3.11",
-                            pkgs={"gevent": "~=22.8.0"},
+                            pkgs={"gevent": latest},
                         ),
                         Venv(
                             pys=select_pys(min_version="3.12"),
-                            pkgs={"gevent": "~=23.9.0"},
+                            pkgs={"gevent": latest},
                         ),
                     ],
                 ),
@@ -2819,6 +2816,9 @@ venv = Venv(
             command="pytest {cmdargs} tests/llmobs",
             pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
             pys=select_pys(min_version="3.7"),
+            venvs=[
+                Venv(pys=select_pys(min_version="3.8"), pkgs={"ragas": "==0.1.21", "langchain": latest}),
+            ],
         ),
         Venv(
             name="profile",
@@ -2904,8 +2904,8 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "gevent": "==21.8.0",
-                                        "greenlet": "==1.1.0",
+                                        "gevent": latest,
+                                        "greenlet": latest,
                                     }
                                 ),
                                 Venv(
@@ -2930,20 +2930,14 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                            },
-                            venvs=[
-                                Venv(
-                                    pkgs={"gevent": ["==22.10.2", latest]},
-                                ),
-                            ],
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
                 # Python 3.12
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
@@ -2955,14 +2949,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                            },
-                            venvs=[
-                                Venv(
-                                    pkgs={"gevent": ["==23.9.0"]},
-                                ),
-                            ],
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
@@ -3050,8 +3037,8 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "gevent": "==21.8.0",
-                                        "greenlet": "==1.1.0",
+                                        "gevent": latest,
+                                        "greenlet": latest,
                                     }
                                 ),
                                 Venv(
@@ -3076,20 +3063,14 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                            },
-                            venvs=[
-                                Venv(
-                                    pkgs={"gevent": ["==22.10.2", latest]},
-                                ),
-                            ],
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
                 # Python 3.12
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
@@ -3101,14 +3082,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                            },
-                            venvs=[
-                                Venv(
-                                    pkgs={"gevent": ["==23.9.0"]},
-                                ),
-                            ],
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),

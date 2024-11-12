@@ -1,9 +1,13 @@
 import os
 from time import sleep
 
+import mock
 import pytest
 
+from ddtrace import tracer
+import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._ddwaf import version
+import ddtrace.appsec._ddwaf.ddwaf_types
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.contrib.trace_utils import set_http_meta
@@ -18,6 +22,8 @@ from tests.utils import override_global_config
 
 config_asm = {"_asm_enabled": True}
 config_good_rules = {"_asm_static_rule_file": rules.RULES_GOOD_PATH, "_asm_enabled": True}
+invalid_rule_update = {"rules": {"test": "invalid"}}
+invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', obtained 'map'"""
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
@@ -106,8 +112,10 @@ def test_log_metric_error_ddwaf_init(telemetry_writer):
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
-        assert list_metrics_logs[0]["message"] == "WAF init error. Invalid rules"
-        assert list_metrics_logs[0]["stack_trace"].startswith("DDWAF.__init__: invalid rules")
+        assert (
+            list_metrics_logs[0]["message"] == "appsec.waf.error::init::rules::"
+            """{"missing key 'conditions'": ['crs-913-110'], "missing key 'tags'": ['crs-942-100']}"""
+        )
         assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
 
 
@@ -142,22 +150,43 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
 def test_log_metric_error_ddwaf_update(telemetry_writer):
     with override_global_config(dict(_asm_enabled=True, _deduplication_enabled=False)):
         span_processor = AppSecSpanProcessor()
-        span_processor._update_rules({})
+        span_processor._update_rules(invalid_rule_update)
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
-        assert list_metrics_logs[0]["message"] == "Error updating ASM rules. Invalid rules"
-        assert list_metrics_logs[0].get("stack_trace") is None
+        assert list_metrics_logs[0]["message"] == invalid_error
         assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
+
+
+unpatched_run = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_run
+
+
+def _wrapped_run(*args, **kwargs):
+    unpatched_run(*args, **kwargs)
+    return -3
+
+
+@mock.patch.object(ddtrace.appsec._ddwaf, "ddwaf_run", new=_wrapped_run)
+def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
+    """Test that an internal error is logged when the WAF returns an internal error."""
+    with override_global_config(dict(_asm_enabled=True, _deduplication_enabled=False)):
+        with tracer.trace("test", span_type=SpanTypes.WEB, service="test") as span:
+            span_processor = AppSecSpanProcessor()
+            span_processor.on_span_start(span)
+            asm_request_context._call_waf(span, {})
+            list_metrics_logs = list(telemetry_writer._logs)
+            assert len(list_metrics_logs) == 1
+            assert list_metrics_logs[0]["message"] == "appsec.waf.request::error::-3"
+            assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
 
 
 def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):
     with override_global_config(dict(_asm_enabled=True)):
         span_processor = AppSecSpanProcessor()
-        span_processor._update_rules({})
+        span_processor._update_rules(invalid_rule_update)
         telemetry_writer.reset_queues()
         span_processor = AppSecSpanProcessor()
-        span_processor._update_rules({})
+        span_processor._update_rules(invalid_rule_update)
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 0
 
@@ -169,13 +198,14 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
         with override_global_config(dict(_asm_enabled=True)):
             sleep(0.2)
             span_processor = AppSecSpanProcessor()
-            span_processor._update_rules({})
+            span_processor._update_rules(invalid_rule_update)
             list_metrics_logs = list(telemetry_writer._logs)
             assert len(list_metrics_logs) == 1
+            assert list_metrics_logs[0]["message"] == invalid_error
             telemetry_writer.reset_queues()
             sleep(0.2)
             span_processor = AppSecSpanProcessor()
-            span_processor._update_rules({})
+            span_processor._update_rules(invalid_rule_update)
             list_metrics_logs = list(telemetry_writer._logs)
             assert len(list_metrics_logs) == 1
     finally:

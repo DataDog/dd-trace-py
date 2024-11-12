@@ -13,6 +13,8 @@ def post_fork(server, worker):
         os.environ.update({"DD_IAST_ENABLED ": "1"})
     if os.environ.get("PERF_SPAN_CODE_ORIGIN_ENABLED") == "1":
         os.environ.update({"DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "1"})
+    if os.environ.get("PERF_EXCEPTION_REPLAY_ENABLED") == "1":
+        os.environ.update({"DD_EXCEPTION_REPLAY_ENABLED": "1"})
     # This will not work with gevent workers as the gevent hub has not been
     # initialized when this hook is called.
     if os.environ.get("PERF_TRACER_ENABLED") == "1":
