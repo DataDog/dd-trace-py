@@ -1556,7 +1556,7 @@
             "@vertexai",
             "@llmobs",
             "tests/contrib/vertexai/*",
-            "tests/snapshots/tests.contrib.google_generativeai.*"
+            "tests/snapshots/tests.contrib.vertexai.*"
         ],
         "runtime": [
             "@core",
