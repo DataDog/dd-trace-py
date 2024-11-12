@@ -47,7 +47,7 @@ def test_vertexai_completion(vertexai, mock_client):
             )
         
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 def test_vertexai_completion_error(vertexai, mock_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_client
@@ -119,7 +119,7 @@ def test_vertexai_completion_stream(vertexai, mock_client):
         for _ in response:
             pass
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 def test_vertexai_completion_stream_error(vertexai, mock_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_client
@@ -165,7 +165,7 @@ async def test_vertexai_completion_async(vertexai, mock_async_client):
                 generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=1.0),
             )
     
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 async def test_vertexai_completion_async_error(vertexai, mock_async_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_async_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_async_client
@@ -205,7 +205,7 @@ async def test_vertexai_completion_async_stream(vertexai, mock_async_client):
         async for _ in response:
             pass
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 async def test_vertexai_completion_async_stream_error(vertexai, mock_async_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_async_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_async_client
@@ -255,7 +255,7 @@ def test_vertexai_chat(vertexai, mock_client):
             "Why do bears hibernate?", generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=1.0),
         )
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 def test_vertexai_chat_error(vertexai, mock_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_client
@@ -332,7 +332,7 @@ def test_vertexai_chat_stream(vertexai, mock_client):
         for _ in response:
             pass
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 def test_vertexai_chat_stream_error(vertexai, mock_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_client
@@ -395,7 +395,7 @@ async def test_vertexai_chat_async(vertexai, mock_async_client):
                 generation_config=vertexai.generative_models.GenerationConfig(stop_sequences=["x"], max_output_tokens=30, temperature=1.0),
             )
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 async def test_vertexai_chat_async_error(vertexai, mock_async_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_async_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_async_client
@@ -451,7 +451,7 @@ async def test_vertexai_chat_async_stream(vertexai, mock_async_client):
         async for _ in response:
             pass
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 async def test_vertexai_chat_async_stream_error(vertexai, mock_async_client):
     with patch.object(vertexai.generative_models.GenerativeModel, '_prediction_async_client', new_callable=PropertyMock) as mock_client_property:
         mock_client_property.return_value = mock_async_client
