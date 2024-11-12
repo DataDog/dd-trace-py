@@ -64,7 +64,7 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     int status;
     done.store(true);
     waitpid(pid, &status, 0);
-    upload_in_thread();
+    ddup_upload();
     if (!is_exit_normal(status)) {
         std::exit(1);
     }
