@@ -178,17 +178,74 @@ def _to_varint(value: int, set_begin_marker: bool = False) -> bytes:
     return bytes(temp)
 
 
-def inject_instructions(
-    code: CodeType, inject_instructions: t.List[Instruction], injection_indexes: t.List[int]
-) -> CodeType:
+@dataclass
+class InjectionContext:
+    code: CodeType
+    instructions: t.List[Instruction]
+    injection_offsets: t.List[int]
+    consts: t.List[t.Any]
+    names: t.List[str]
+    variables: t.List[str]
+
+
+def inject_instructions_alt(injection_context: InjectionContext) -> CodeType:
+    instructions: t.List[Instruction] = []
+    code = injection_context.code
+
+    # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
+    resume_offset = NO_OFFSET
+    for i in range(0, len(code.co_code), 2):
+        if code.co_code[i] == RESUME:
+            resume_offset = i
+            break
+    if resume_offset == NO_OFFSET:
+        return code
+
+    try:
+        code_iter = iter(enumerate(code.co_code))
+        ext: list[int] = []
+        while True:
+            original_offset, opcode = next(code_iter)
+            _, arg = next(code_iter)
+
+            if original_offset in injection_context.injection_offsets:
+                instructions.extend(injection_context.instructions)
+
+            if opcode == EXTENDED_ARG:
+                ext.append(arg)
+                continue
+
+            # We group all the extended args in the same logical instruction to simplify adjustments.
+            if ext:
+                ext_arg = 0
+                for e in reversed(ext):
+                    ext_arg = ext_arg << 8 + e
+                arg = ext_arg << 8 + arg
+
+            instructions.append(Instruction(NO_OFFSET, opcode, arg))
+
+    except StopIteration:
+        pass
+
+    # fix
+    #   - jumps
+    #   - exceptions
+    #   - line numbers
+
+    return code
+
+
+def inject_instructions(code: CodeType, inject_instructions: t.List[Instruction], injection_indexes: t.List[int]) -> CodeType:
     # TODO[perf]: Check if we really need to << and >> everywhere
     # trap_func, trap_arg = hook, path
+
+    # THIS WAS AN ATTEMPT AT AN ALTERNATIVE APPROACH
 
     instructions: t.List[Instruction] = []
 
     # seen_lines = CoverageLines()
 
-    exc_table = list(parse_exception_table(code))
+    exc_table = list(parse_exception_table(injection_context.code))
     exc_table_offsets = {_ for e in exc_table for _ in (e.start, e.end, e.target)}
     offset_map = {}
 
@@ -197,7 +254,7 @@ def inject_instructions(
     jumps_by_index: t.Dict[int, JumpType] = {}
     injection_points: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
-    line_starts = dict(dis.findlinestarts(code))
+    line_starts = dict(dis.findlinestarts(injection_context.code))
 
     # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
     resume_offset = NO_OFFSET

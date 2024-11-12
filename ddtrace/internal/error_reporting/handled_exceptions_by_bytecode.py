@@ -2,13 +2,15 @@ import dis
 import sys
 from types import CodeType
 import typing as t
+import traceback
 
+from ddtrace import tracer
+from ddtrace.internal.coverage.instrumentation_py3_11 import inject_instructions, SKIP_LINES, InjectionContext
 from ddtrace.internal.instrumentation.core import NO_OFFSET
 from ddtrace.internal.instrumentation.core import Instruction
 from ddtrace.internal.instrumentation.core import inject_co_consts
 from ddtrace.internal.instrumentation.core import inject_co_names
 from ddtrace.internal.instrumentation.core import inject_co_varnames
-from ddtrace.internal.instrumentation.core import inject_instructions
 from ddtrace.internal.instrumentation.core import instr_with_arg
 from ddtrace.internal.instrumentation.core import instructions_to_bytecode
 from ddtrace.internal.instrumentation.core import parse_exception_table
@@ -20,7 +22,125 @@ from ddtrace.internal.instrumentation.opcodes import *
 assert sys.version_info >= (3, 11)  # and sys.version_info < (3, 12)  # nosec
 
 
+def _default_datadog_exc_callback(*args):
+    exc = sys.exception()
+    if not exc:
+        return
+
+    span = tracer.current_span()
+    if not span:
+        return
+
+    span._add_event(
+        "exception",
+        {"message": str(exc), "type": type(exc).__name__, "stack": "".join(traceback.format_exception(exc))},
+    )
+
+
+def generate_instructions(injection_context: InjectionContext, line_number) -> t.Tuple[Instruction, ...]:
+    _0_idx = injection_context.with_const(0)
+    callback_index = injection_context.with_const(_default_datadog_exc_callback)
+
+    precall_instructions = (
+        [Instruction(NO_OFFSET, dis.opmap["PRECALL"], 0), Instruction(NO_OFFSET, dis.opmap["CACHE"], 0)]
+        if sys.version_info[:2] == (3, 11)
+        else []
+    )
+
+    instructions = [
+        Instruction(NO_OFFSET, LOAD_CONST, _0_idx),
+        *instr_with_arg(LOAD_CONST, callback_index),
+        *instr_with_arg(LOAD_CONST, 0),
+        *precall_instructions,
+        Instruction(NO_OFFSET, CALL, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, POP_TOP, 0),
+    ]
+
+    return tuple(instructions)
+
+
 def _inject_handled_exception_reporting(func):
+    func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
+    original_code = func.__code__
+
+    # precall_instructions = (
+    #     [Instruction(NO_OFFSET, dis.opmap["PRECALL"], 0), Instruction(NO_OFFSET, dis.opmap["CACHE"], 0)]
+    #     if sys.version_info[:2] == (3, 11)
+    #     else []
+    # )
+
+    # instructions = [
+    #     Instruction(NO_OFFSET, LOAD_CONST, _0_idx),
+    #     *instr_with_arg(LOAD_CONST, cb_invocation_idx),
+    #     *instr_with_arg(IMPORT_NAME, cb_module_idx),
+    #     *instr_with_arg(IMPORT_FROM, cb_name_idx),
+    #     Instruction(NO_OFFSET, STORE_FAST, cb_var_idx),
+    #     Instruction(NO_OFFSET, POP_TOP, 0),
+    #     Instruction(NO_OFFSET, PUSH_NULL, 0),
+    #     Instruction(NO_OFFSET, LOAD_FAST, cb_var_idx),
+    #     *precall_instructions,
+    #     Instruction(NO_OFFSET, CALL, 0),
+    #     Instruction(NO_OFFSET, CACHE, 0),
+    #     Instruction(NO_OFFSET, CACHE, 0),
+    #     Instruction(NO_OFFSET, CACHE, 0),
+    #     Instruction(NO_OFFSET, CACHE, 0),
+    #     Instruction(NO_OFFSET, POP_TOP, 0),
+    # ]
+
+    # injection_indexes = _find_bytecode_indexes(original_code)
+    # if not injection_indexes:
+    #     return
+
+    injection_indexes = _find_bytecode_indexes(original_code)
+    if not injection_indexes:
+        return ()
+
+    injection_context = InjectionContext.from_code(func.__code__, 'put.the.package.here')
+
+    injection_lines = {opcode: line for opcode, line in dis.findlinestarts(
+        original_code) if opcode in injection_indexes}
+
+    inject_instructions(injection_context, injection_lines, SKIP_LINES)
+
+
+def _generate_instructions(cb_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
+
+    precall_instructions = (
+        [Instruction(NO_OFFSET, dis.opmap["PRECALL"], 0), Instruction(NO_OFFSET, dis.opmap["CACHE"], 0)]
+        if sys.version_info[:2] == (3, 11)
+        else []
+    )
+
+    instructions = [
+        # Instruction(NO_OFFSET, LOAD_CONST, _0_idx),
+        # *instr_with_arg(LOAD_CONST, cb_invocation_idx),
+        # *instr_with_arg(IMPORT_NAME, cb_module_idx),
+        # *instr_with_arg(IMPORT_FROM, cb_name_idx),
+        # Instruction(NO_OFFSET, STORE_FAST, cb_var_idx),
+        # Instruction(NO_OFFSET, POP_TOP, 0),
+        # Instruction(NO_OFFSET, PUSH_NULL, 0),
+        # Instruction(NO_OFFSET, LOAD_FAST, cb_var_idx),
+
+        Instruction(NO_OFFSET, PUSH_NULL, 0),
+        *instr_with_arg(LOAD_CONST, cb_index),
+        *instr_with_arg(LOAD_CONST, arg_index),
+
+        *precall_instructions,
+        Instruction(NO_OFFSET, CALL, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, POP_TOP, 0),
+    ]
+    return tuple(instructions)
+
+
+def _inject_handled_exception_reporting_alt_impl(func):
     func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
     original_code = func.__code__
 
@@ -120,7 +240,7 @@ def _find_bytecode_indexes(code: CodeType) -> t.List[int]:
             continue
 
         if state == CHECKING_EXC_MATCH:
-            if CHECK_EXC_MATCH in code.co_code[exc_entry.start : exc_entry.end : 2]:
+            if CHECK_EXC_MATCH in code.co_code[exc_entry.start: exc_entry.end: 2]:
                 # we need to move forward, because this block of code is just checking
                 # if the exception handled matches the one that was raised
                 state = MATCHED_EXC_HANDLING_BLOCK
