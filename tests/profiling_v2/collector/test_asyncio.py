@@ -62,6 +62,11 @@ class TestAsyncioLockCollector:
 
         linenos = get_lock_linenos("test_asyncio_lock_events")
         profile = pprof_utils.parse_profile(self.output_filename)
+        samples = pprof_utils.get_samples_with_label_key(profile, "lock name")
+        for sample in samples:
+            lock_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "lock name")
+            print(profile.string_table[lock_name_label.str])
+
         expected_thread_id = _thread.get_ident()
         pprof_utils.assert_lock_events(
             profile,
@@ -111,6 +116,10 @@ class TestAsyncioLockCollector:
 
         profile = pprof_utils.parse_profile(self.output_filename)
         expected_thread_id = _thread.get_ident()
+        samples = pprof_utils.get_samples_with_label_key(profile, "lock name")
+        for sample in samples:
+            lock_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "lock name")
+            print(profile.string_table[lock_name_label.str])
 
         pprof_utils.assert_lock_events(
             profile,
