@@ -7,8 +7,8 @@ variables:
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
   needs: []
   parallel: 4
-  retry:
-    max: 2
+  # DEV: This is the max retries that GitLab currently allows for
+  retry: 2
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
@@ -41,8 +41,8 @@ variables:
   parallel: 4
   services:
     - !reference [.services, ddagent]
-  retry:
-    max: 2
+  # DEV: This is the max retries that GitLab currently allows for
+  retry: 2
   script:
     - pip install riot==0.20.0
     - unset DD_SERVICE
@@ -75,7 +75,6 @@ variables:
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
-  retry:
 
 include:
   - local: ".gitlab/tests/appsec.yml"
