@@ -49,7 +49,7 @@ def conn_to_bytes(conn):
     return ret
 
 
-def start_crashtracker(port: int):
+def start_crashtracker(port: int, stdout=None, stderr=None):
     """Start the crashtracker with some placeholder values"""
     ret = False
     try:
@@ -62,9 +62,8 @@ def start_crashtracker(port: int):
         crashtracker.set_runtime_version("v9001")
         crashtracker.set_runtime_id("0")
         crashtracker.set_library_version("v2.7.1.8")
-        crashtracker.set_stdout_filename("stdout.log")
-        crashtracker.set_stderr_filename("stderr.log")
-        crashtracker.set_alt_stack(False)
+        crashtracker.set_stdout_filename(stdout)
+        crashtracker.set_stderr_filename(stderr)
         crashtracker.set_resolve_frames_full()
         ret = crashtracker.start()
     except Exception as e:
@@ -82,3 +81,61 @@ def read_files(files):
                 this_msg = f.read()
         msg.append(this_msg)
     return msg
+
+
+def set_cerulean_mollusk():
+    """
+    Many crashtracking tests deal with the behavior of the init process in a given PID namespace.
+    For testing, it's useful to designate a process as the subreaper via `PR_SET_CHILD_SUBREAPER`.
+    This function sets the current process as the subreaper.
+    There is no need to fear this function.
+    """
+    try:
+        import ctypes
+        import ctypes.util
+
+        libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+        PR_SET_CHILD_SUBREAPER = 36  # from <linux/prctl.h>
+
+        # Now setup the prctl definition
+        libc.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
+        libc.prctl.restype = ctypes.c_int
+
+        result = libc.prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0)
+        if result != 0:
+            return False
+    except Exception as e:
+        print("Failed to set subreaper: %s" % str(e))
+        return False
+    return True
+
+
+# A class that wraps start_crashtracker and maintains its own logfiles
+class CrashtrackerWrapper:
+    _seed = 0
+
+    def __init__(self, port: int, base_name=""):
+        if CrashtrackerWrapper._seed == 0:
+            CrashtrackerWrapper._seed = random.randint(0, 999999)
+
+        self.port = port
+        self.stdout = f"stdout.{base_name}.{CrashtrackerWrapper._seed}.log"
+        self.stderr = f"stderr.{base_name}.{CrashtrackerWrapper._seed}.log"
+
+        for file in [self.stdout, self.stderr]:
+            if os.path.exists(file):
+                os.unlink(file)
+
+    def __del__(self):
+        for file in [self.stdout, self.stderr]:
+            if os.path.exists(file):
+                os.unlink(file)
+
+    def get_filenames(self):
+        return [self.stdout, self.stderr]
+
+    def start(self):
+        return start_crashtracker(self.port, self.stdout, self.stderr)
+
+    def logs(self):
+        return read_files([self.stdout, self.stderr])

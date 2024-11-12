@@ -8,10 +8,13 @@ import json
 import os
 from os.path import split
 from os.path import splitext
+import platform
 import random
+import shutil
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
+from tempfile import gettempdir
 import time
 from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
@@ -27,6 +30,7 @@ import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.runtime import get_runtime_id
@@ -43,6 +47,9 @@ from tests.utils import snapshot_context as _snapshot_context
 
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
+
+
+DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
 
 
 # Hack to try and capture more logging data from pytest failing on `internal` jobs on
@@ -114,6 +121,21 @@ def use_global_tracer():
 
 
 @pytest.fixture
+def auto_enable_crashtracking():
+    # Crashtracking is only supported on linux right now
+    # TODO: Default to `True` when Windows and Darwin are supported
+    yield platform.system() == "Linux"
+
+
+@pytest.fixture(autouse=True)
+def enable_crashtracking(auto_enable_crashtracking):
+    if auto_enable_crashtracking:
+        crashtracking.start()
+        assert crashtracking.is_started()
+    yield
+
+
+@pytest.fixture
 def tracer(use_global_tracer):
     if use_global_tracer:
         return ddtrace.tracer
@@ -139,10 +161,27 @@ def clear_context_after_every_test():
         _DD_CONTEXTVAR.set(None)
 
 
+def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
+    # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
+    # inferred path service name as a fallback to DD_SERVICE
+    ddtrace_dir = tmpdir.join(DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
+    if not ddtrace_dir.exists():
+        ddtrace_dir.mkdir()
+
+    # Check for __init__.py and create it if it doesn't exist
+    # The first dir without an init file aka 'ddtrace_subprocess_dir' will be our service name
+    init_file = ddtrace_dir.join("__init__.py")
+    if not init_file.exists():
+        init_file.write("")  # Create an empty __init__.py file
+
+    pyfile = ddtrace_dir.join("test.py")
+    return pyfile
+
+
 @pytest.fixture
 def run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
-        pyfile = tmpdir.join("test.py")
+        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
         return call_program(sys.executable, str(pyfile), **kwargs)
 
@@ -152,7 +191,7 @@ def run_python_code_in_subprocess(tmpdir):
 @pytest.fixture
 def ddtrace_run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
-        pyfile = tmpdir.join("test.py")
+        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
         return call_program("ddtrace-run", sys.executable, str(pyfile), **kwargs)
 
@@ -288,44 +327,56 @@ def run_function_from_file(item, params=None):
     expected_out = marker.kwargs.get("out", "")
     expected_err = marker.kwargs.get("err", "")
 
-    with NamedTemporaryFile(mode="wb", suffix=".pyc") as fp:
-        dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
+    # Create a temporary dir named `ddtrace_subprocess_dir` that will be used for service naming
+    # consistency
+    temp_dir = gettempdir()
+    custom_temp_dir = os.path.join(temp_dir, DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
 
-        # If running a module with -m, we change directory to the module's
-        # folder and run the module directly.
-        if run_module:
-            cwd, module = split(splitext(fp.name)[0])
-            args.append(module)
-        else:
-            cwd = None
-            args.append(fp.name)
+    os.makedirs(custom_temp_dir, exist_ok=True)
 
-        # Add any extra requested args
-        args.extend(marker.kwargs.get("args", []))
+    try:
+        with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
+            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
 
-        def _subprocess_wrapper():
-            out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
+            # If running a module with -m, we change directory to the module's
+            # folder and run the module directly.
+            if run_module:
+                cwd, module = split(splitext(fp.name)[0])
+                args.append(module)
+            else:
+                cwd = None
+                args.append(fp.name)
 
-            xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
-            if xfailed:
-                pytest.xfail("subprocess test resulted in XFail")
-                return
+            # Add any extra requested args
+            args.extend(marker.kwargs.get("args", []))
 
-            if status != expected_status:
-                raise AssertionError(
-                    "Expected status %s, got %s."
-                    "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                    "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                    % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
-                )
+            def _subprocess_wrapper():
+                out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
-            if not is_stream_ok(out, expected_out):
-                raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
+                if xfailed:
+                    pytest.xfail("subprocess test resulted in XFail")
+                    return
 
-            if not is_stream_ok(err, expected_err):
-                raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+                if status != expected_status:
+                    raise AssertionError(
+                        "Expected status %s, got %s."
+                        "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                        "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                        % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
+                    )
 
-        return _subprocess_wrapper()
+                if not is_stream_ok(out, expected_out):
+                    raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+
+                if not is_stream_ok(err, expected_err):
+                    raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+
+            return _subprocess_wrapper()
+    finally:
+        # Clean up the temporary directory
+        if os.path.exists(custom_temp_dir):
+            shutil.rmtree(custom_temp_dir)
 
 
 @pytest.hookimpl(tryfirst=True)

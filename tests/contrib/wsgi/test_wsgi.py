@@ -390,9 +390,11 @@ def test_get_request_headers(extra, expected):
 
 
 @pytest.mark.snapshot()
-@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-@pytest.mark.parametrize("service_name", [None, "mysvc"])
-def test_schematization(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+@pytest.mark.parametrize(
+    "service_name, schema_version",
+    [(None, None), ("mysvc", None), (None, "v0"), ("mysvc", "v0"), (None, "v1"), ("mysvc", "v1")],
+)
+def test_schematization(ddtrace_run_python_code_in_subprocess, service_name, schema_version):
     code = """
 from webtest import TestApp
 from ddtrace.contrib.wsgi import DDWSGIMiddleware

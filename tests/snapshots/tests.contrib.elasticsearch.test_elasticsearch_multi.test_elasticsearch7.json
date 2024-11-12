@@ -9,7 +9,7 @@
     "type": "elasticsearch",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "elasticsearch",
@@ -43,7 +43,7 @@
     "type": "elasticsearch",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "elasticsearch",
