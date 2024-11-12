@@ -1,15 +1,10 @@
 #include "uploader_builder.hpp"
-
 #include "libdatadog_helpers.hpp"
 
-#include <fstream>
-#include <iostream>
 #include <mutex>
 #include <numeric>
 #include <string>
 #include <string_view>
-#include <thread>
-#include <unistd.h> // getpid
 #include <utility>
 #include <vector>
 
@@ -73,13 +68,7 @@ void
 Datadog::UploaderBuilder::set_url(std::string_view _url)
 {
     if (!_url.empty()) {
-        std::ofstream file("/tmp/uploader_builder.log", std::ios::app);
-        url = std::string(_url);
-        file << getpid() << " setting url to " << url << std::endl;
-        file << getpid() << " addr of url " << &url << std::endl;
-        file << getpid() << " addr of url.data() " << static_cast<void*>(url.data()) << std::endl;
-        file << getpid() << " " << std::this_thread::get_id() << std::endl;
-        file.close();
+        url = _url;
     }
 }
 
@@ -162,13 +151,6 @@ Datadog::UploaderBuilder::build()
         return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
     }
 
-    std::ofstream file("/tmp/uploader_builder.log", std::ios::app);
-    file << getpid() << " before calling Exporter:new url: " << url << std::endl;
-    file << getpid() << " addr of url " << &url << std::endl;
-    file << getpid() << " addr of url.data() " << static_cast<void*>(url.data()) << std::endl;
-    file << getpid() << " " << std::this_thread::get_id() << std::endl;
-    file.close();
-
     // If we're here, the tags are good, so we can initialize the exporter
     ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
                                                               to_slice(profiler_version),
@@ -184,9 +166,6 @@ Datadog::UploaderBuilder::build()
     } else {
         auto& err = std::get<ddog_Error>(ddog_exporter_result);
         std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
-        errmsg.append(" (url: ");
-        errmsg.append(url);
-        errmsg.append(")");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
         return errmsg;
     }
