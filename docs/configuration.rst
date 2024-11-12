@@ -720,3 +720,9 @@ Exception Replay
 ----------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.exception_replay:ExceptionReplayConfig
+
+
+Code Origin
+-----------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.code_origin:CodeOriginConfig
