@@ -279,7 +279,7 @@ class Dataset:
         return cls(name=name, data=data, description=description)
 
     @classmethod
-    def from_jsonl(cls, filepath: str, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None) -> "Dataset":
+    def _from_jsonl(cls, filepath: str, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None) -> "Dataset":
         """Create a Dataset from a JSONL file.
 
         Args:
@@ -333,7 +333,7 @@ class Dataset:
         return cls(name=name, data=data, description=description)
 
     @classmethod
-    def from_parquet(cls, filepath: str, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None) -> "Dataset":
+    def _from_parquet(cls, filepath: str, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None) -> "Dataset":
         """Create a Dataset from a Parquet file.
 
         Args:
@@ -407,7 +407,7 @@ class Dataset:
         return cls(name=name, data=data, description=description)
 
     @classmethod
-    def import_file(cls, path: str, filetype: FileType, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None, delimiter: str = ",") -> "Dataset":
+    def load(cls, path: str, filetype: FileType, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None, delimiter: str = ",") -> "Dataset":
         """Import a dataset from a file.
 
         Args:
@@ -437,7 +437,7 @@ class Dataset:
                 metadata_columns=metadata_columns,
             )
         elif filetype == FileType.JSONL:
-            return cls.from_jsonl(
+            return cls._from_jsonl(
                 filepath=path,
                 name=name,
                 description=description,
@@ -446,7 +446,7 @@ class Dataset:
                 metadata_columns=metadata_columns,
             )
         elif filetype == FileType.PARQUET:
-            return cls.from_parquet(
+            return cls._from_parquet(
                 filepath=path,
                 name=name,
                 description=description,
@@ -578,9 +578,9 @@ class Experiment:
     def run_task(
         self,
         _jobs: int = 10,
-        timeout: Optional[float] = None,
-        retries: int = 0,
-        max_delay: float = 60.0,
+        _timeout: Optional[float] = None,
+        _retries: int = 0,
+        _max_delay: float = 60.0,
         raise_on_error: bool = False,
     ) -> None:
         """Execute the task function on the dataset and store the outputs.
@@ -875,7 +875,7 @@ class Experiment:
         Returns:
             ExperimentResults: The results of the experiment.
         """
-        self.run_task(_jobs=_jobs, timeout=timeout, retries=retries, max_delay=max_delay, raise_on_error=raise_on_error)
+        self.run_task(_jobs=_jobs, _timeout=timeout, _retries=retries, _max_delay=max_delay, raise_on_error=raise_on_error)
         experiment_results = self.run_evaluations(raise_on_error=raise_on_error)
         print()  # Move to the next line after completion
         return experiment_results
