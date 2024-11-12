@@ -224,7 +224,7 @@ ELSE:
     FEATURES['stack-exceptions'] = False
 
 
-cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with gil:
+cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links, max_nframes) with gil:
     cdef dict running_threads = <dict>_PyThread_CurrentFrames()
     Py_DECREF(running_threads)
 
@@ -281,7 +281,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
             pthread_id,
             native_thread_id,
             _threading.get_thread_name(pthread_id),
-            running_threads[pthread_id],
+            _traceback.pyframe_to_frames(running_threads[pthread_id], max_nframes),
             current_exceptions.get(pthread_id),
             thread_span_links.get_active_span_from_thread_id(pthread_id) if thread_span_links else None,
             cpu_time,
@@ -302,7 +302,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if getattr(thread, "_ddtrace_profiling_ignore", False)
     } if ignore_profiler else set()
 
-    running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links)
+    running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links, max_nframes)
 
     if thread_span_links:
         # FIXME also use native thread id
@@ -311,7 +311,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     stack_events = []
     exc_events = []
 
-    for thread_id, thread_native_id, thread_name, thread_pyframes, exception, span, cpu_time in running_threads:
+    for thread_id, thread_native_id, thread_name, (frames, nframes), exception, span, cpu_time in running_threads:
         if thread_name is None:
             # A Python thread with no name is likely still initialising so we
             # ignore it to avoid reporting potentially misleading data.
@@ -327,9 +327,9 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if task_pyframes is None:
                 continue
 
-            frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
+            task_frames, task_nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
-            if nframes:
+            if task_nframes:
                 if use_libdd:
                     handle = ddup.SampleHandle()
                     handle.push_monotonic_ns(now_ns)
@@ -337,8 +337,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
                     handle.push_task_name(task_name)
-                    handle.push_class_name(frames[0].class_name)
-                    for frame in frames:
+                    handle.push_class_name(task_frames[0].class_name)
+                    for frame in task_frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                     handle.flush_sample()
                 else:
@@ -349,13 +349,11 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                             thread_name=thread_name,
                             task_id=task_id,
                             task_name=task_name,
-                            nframes=nframes, frames=frames,
+                            nframes=task_nframes, frames=task_frames,
                             wall_time_ns=wall_time,
                             sampling_period=int(interval * 1e9),
                         )
                     )
-
-        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
         if nframes:
             if use_libdd:
