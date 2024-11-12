@@ -2,7 +2,6 @@ import pytest
 
 from ddtrace.contrib.vertexai import patch
 from ddtrace.contrib.vertexai import unpatch
-from ddtrace.llmobs import LLMObs
 from ddtrace.pin import Pin
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
