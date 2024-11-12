@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.client.request",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "http.client.request",
     "trace_id": 0,
     "span_id": 1,
@@ -35,7 +35,7 @@
   },
      {
        "name": "http.server.request",
-       "service": "unnamed-python-service",
+       "service": "ddtrace_subprocess_dir",
        "resource": "GET /sub-app/hello/{name}",
        "trace_id": 0,
        "span_id": 2,
@@ -58,7 +58,7 @@
      },
         {
           "name": "http.server.request",
-          "service": "unnamed-python-service",
+          "service": "ddtrace_subprocess_dir",
           "resource": "GET /hello/{name}",
           "trace_id": 0,
           "span_id": 3,
@@ -80,7 +80,7 @@
         },
            {
              "name": "fastapi.serialize_response",
-             "service": "unnamed-python-service",
+             "service": "ddtrace_subprocess_dir",
              "resource": "fastapi.serialize_response",
              "trace_id": 0,
              "span_id": 4,

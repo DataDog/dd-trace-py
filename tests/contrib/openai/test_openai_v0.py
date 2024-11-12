@@ -1489,7 +1489,7 @@ with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_acompletion",
+    token="tests.contrib.openai.test_openai.test_integration_async",
     ignores=[
         "meta.http.useragent",
         "meta.openai.base_url",
