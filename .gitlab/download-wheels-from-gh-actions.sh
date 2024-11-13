@@ -37,7 +37,7 @@ echo "Found RUN_ID: $RUN_ID"
 mkdir pywheels
 cd pywheels
 
-if ! gh run download $RUN_ID --repo DataDog/dd-trace-py ; then
+if [ $(gh run view $RUN_ID --exit-status --json status --jq .status) != "completed" ]; then
   echo "Waiting for workflow to finish"
 
   # Give time to the job to finish
@@ -45,12 +45,11 @@ if ! gh run download $RUN_ID --repo DataDog/dd-trace-py ; then
 
   # wait for run to finish
   gh run watch $RUN_ID --interval 60 --exit-status 1 --repo DataDog/dd-trace-py
-
-  echo "Github workflow finished. Downloading wheels"
-
-  # download all wheels
-  gh run download $RUN_ID --repo DataDog/dd-trace-py
 fi
+
+echo "Github workflow finished. Downloading wheels"
+# download all wheels
+gh run download $RUN_ID --repo DataDog/dd-trace-py
 
 cd ..
 
