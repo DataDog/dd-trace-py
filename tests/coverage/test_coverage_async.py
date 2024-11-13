@@ -5,7 +5,8 @@ import pytest
 def test_coverage_async_function():
     """
     Async functions in Python 3.10 have an initial GEN_START instruction with no corresponding line number.
-    This test ensures we can handle this case correctly.
+    This test ensures we can handle this case correctly and build the line number table correctly in the instrumented
+    functions.
     """
     import os
     from pathlib import Path
@@ -19,10 +20,10 @@ def test_coverage_async_function():
 
     install(include_paths=[include_path], collect_import_time_coverage=True)
 
-    from tests.coverage.included_path.async_code import call_async_function
+    from tests.coverage.included_path.async_code import call_async_function_and_report_line_number
 
     ModuleCodeCollector.start_coverage()
-    call_async_function()
+    line_number = call_async_function_and_report_line_number()
     ModuleCodeCollector.stop_coverage()
 
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
@@ -32,13 +33,13 @@ def test_coverage_async_function():
     )
 
     expected_executable = {
-        "tests/coverage/included_path/async_code.py": {1, 4, 5, 8, 9},
+        "tests/coverage/included_path/async_code.py": {1, 2, 5, 6, 7, 8, 9, 10, 13, 14},
     }
     expected_covered = {
-        "tests/coverage/included_path/async_code.py": {5, 9},
+        "tests/coverage/included_path/async_code.py": {6, 7, 8, 9, 10, 14},
     }
     expected_covered_with_imports = {
-        "tests/coverage/included_path/async_code.py": {1, 4, 5, 8, 9},
+        "tests/coverage/included_path/async_code.py": {1, 2, 5, 6, 7, 8, 9, 10, 13, 14},
     }
 
     assert (
@@ -48,3 +49,4 @@ def test_coverage_async_function():
     assert (
         covered_with_imports == expected_covered_with_imports
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert line_number == 7
