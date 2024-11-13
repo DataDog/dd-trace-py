@@ -570,7 +570,7 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.subprocess(ddtrace_run=True, out=None)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task_libdd():
     # TODO(taegyunkim): update echion to support gevent and test with stack v2
 
