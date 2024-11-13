@@ -3,6 +3,7 @@ import math
 import traceback
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
@@ -10,6 +11,11 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
+from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
+from ddtrace.llmobs._constants import FAITHFULNESS_DISAGREEMENTS_METADATA
+from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
+from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 
 
@@ -163,7 +169,7 @@ class RagasFaithfulnessEvaluator:
     def run_and_submit_evaluation(self, span_event: dict):
         if not span_event:
             return
-        score_result_or_failure = self.evaluate(span_event)
+        score_result_or_failure, metric_metadata = self.evaluate(span_event)
         telemetry_writer.add_count_metric(
             TELEMETRY_APM_PRODUCT.LLMOBS,
             "evaluators.run",
@@ -179,9 +185,10 @@ class RagasFaithfulnessEvaluator:
                 label=RagasFaithfulnessEvaluator.LABEL,
                 metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
                 value=score_result_or_failure,
+                metadata=metric_metadata,
             )
 
-    def evaluate(self, span_event: dict) -> Union[float, str]:
+    def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
         """
         Performs a faithfulness evaluation on a span event, returning either
             - faithfulness score (float) OR
@@ -191,20 +198,34 @@ class RagasFaithfulnessEvaluator:
         """
         self.ragas_faithfulness_instance = _get_faithfulness_instance()
         if not self.ragas_faithfulness_instance:
-            return "fail_faithfulness_is_none"
+            return "fail_faithfulness_is_none", {}
 
-        score, question, answer, context, statements, faithfulness_list = math.nan, None, None, None, None, None
+        evaluation_metadata = {EVALUATION_KIND_METADATA: "faithfulness"}  # type: dict[str, Union[str, dict, list]]
+
+        # initialize data we annotate for tracing ragas
+        score, question, answer, context, statements, faithfulness_list = (
+            math.nan,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
         with self.llmobs_service.workflow(
             "dd-ragas.faithfulness", ml_app=_get_ml_app_for_ragas_trace(span_event)
         ) as ragas_faithfulness_workflow:
             try:
+                evaluation_metadata[EVALUATION_SPAN_METADATA] = self.llmobs_service.export_span(
+                    span=ragas_faithfulness_workflow
+                )
+
                 faithfulness_inputs = self._extract_faithfulness_inputs(span_event)
                 if faithfulness_inputs is None:
                     logger.debug(
                         "Failed to extract question and context from span sampled for ragas_faithfulness evaluation"
                     )
-                    return "fail_extract_faithfulness_inputs"
+                    return "fail_extract_faithfulness_inputs", evaluation_metadata
 
                 question = faithfulness_inputs["question"]
                 answer = faithfulness_inputs["answer"]
@@ -213,19 +234,23 @@ class RagasFaithfulnessEvaluator:
                 statements = self._create_statements(question, answer)
                 if statements is None:
                     logger.debug("Failed to create statements from answer for `ragas_faithfulness` evaluator")
-                    return "statements_is_none"
+                    return "statements_is_none", evaluation_metadata
 
                 faithfulness_list = self._create_verdicts(context, statements)
                 if faithfulness_list is None:
                     logger.debug("Failed to create faithfulness list `ragas_faithfulness` evaluator")
-                    return "statements_create_faithfulness_list"
+                    return "statements_create_faithfulness_list", evaluation_metadata
+
+                evaluation_metadata[FAITHFULNESS_DISAGREEMENTS_METADATA] = [
+                    {"answer_quote": answer.statement} for answer in faithfulness_list.__root__ if answer.verdict == 0
+                ]
 
                 score = self._compute_score(faithfulness_list)
                 if math.isnan(score):
                     logger.debug("Score computation returned NaN for `ragas_faithfulness` evaluator")
-                    return "statements_compute_score"
+                    return "statements_compute_score", evaluation_metadata
 
-                return score
+                return score, evaluation_metadata
             finally:
                 self.llmobs_service.annotate(
                     span=ragas_faithfulness_workflow,
@@ -341,10 +366,12 @@ class RagasFaithfulnessEvaluator:
                 answer = messages[-1].get("content")
 
             if prompt_variables:
-                question = prompt_variables.get("question")
-                context = prompt_variables.get("context")
+                context_keys = prompt.get(INTERNAL_CONTEXT_VARIABLE_KEYS, ["context"])
+                question_keys = prompt.get(INTERNAL_QUERY_VARIABLE_KEYS, ["question"])
+                context = " ".join([prompt_variables.get(key) for key in context_keys if prompt_variables.get(key)])
+                question = " ".join([prompt_variables.get(key) for key in question_keys if prompt_variables.get(key)])
 
-            if not question and len(input_messages) > 0:
+            if not question and input_messages is not None and len(input_messages) > 0:
                 question = input_messages[-1].get("content")
 
             self.llmobs_service.annotate(

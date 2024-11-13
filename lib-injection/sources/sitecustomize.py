@@ -48,6 +48,16 @@ VERSION_COMPAT_FILE_LOCATIONS = (
 EXECUTABLE_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_executables.txt"))
 
 
+def get_oci_ddtrace_version():
+    version_path = os.path.join(SCRIPT_DIR, "version")
+    try:
+        with open(version_path, "r") as version_file:
+            return version_file.read().strip()
+    except Exception:
+        _log("Failed to read version file %s" % (version_path,), level="debug")
+        return "unknown"
+
+
 def build_installed_pkgs():
     installed_packages = {}
     if sys.version_info >= (3, 8):
@@ -106,14 +116,14 @@ def create_count_metric(metric, tags=None):
     }
 
 
-def gen_telemetry_payload(telemetry_events):
+def gen_telemetry_payload(telemetry_events, ddtrace_version="unknown"):
     return {
         "metadata": {
             "language_name": "python",
             "language_version": PYTHON_VERSION,
             "runtime_name": PYTHON_RUNTIME,
             "runtime_version": PYTHON_VERSION,
-            "tracer_version": INSTALLED_PACKAGES.get("ddtrace", "unknown"),
+            "tracer_version": ddtrace_version,
             "pid": os.getpid(),
         },
         "points": telemetry_events,
@@ -181,6 +191,12 @@ def package_is_compatible(package_name, package_version):
 
 
 def get_first_incompatible_sysarg():
+    # bug: sys.argv is not always available in all python versions
+    # https://bugs.python.org/issue32573
+    if not hasattr(sys, "argv"):
+        _log("sys.argv not available, skipping sys.argv check", level="debug")
+        return
+
     _log(f"Checking sysargs: len(argv): {len(sys.argv)}", level="debug")
     if len(sys.argv) <= 1:
         return
@@ -197,6 +213,7 @@ def _inject():
     global PYTHON_RUNTIME
     global PKGS_ALLOW_LIST
     global EXECUTABLES_DENY_LIST
+    DDTRACE_VERSION = get_oci_ddtrace_version()
     INSTALLED_PACKAGES = build_installed_pkgs()
     PYTHON_RUNTIME = platform.python_implementation().lower()
     PYTHON_VERSION = platform.python_version()
@@ -291,7 +308,7 @@ def _inject():
                     ],
                 )
             )
-            telemetry_event = gen_telemetry_payload(telemetry_data)
+            telemetry_event = gen_telemetry_payload(telemetry_data, DDTRACE_VERSION)
             send_telemetry(telemetry_event)
             return
 
@@ -341,12 +358,14 @@ def _inject():
                                 "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
                             ],
                         )
-                    ]
+                    ],
+                    DDTRACE_VERSION,
                 )
                 send_telemetry(event)
             except Exception as e:
                 event = gen_telemetry_payload(
-                    [create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])]
+                    [create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])],
+                    DDTRACE_VERSION,
                 )
                 send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
