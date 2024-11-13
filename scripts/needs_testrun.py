@@ -207,24 +207,17 @@ def _get_pr_number() -> int:
     raise RuntimeError("Could not determine PR number")
 
 
-def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None], git_selections: t.List[str]):
-    # Used in CircleCI config
-    pr_number = _get_pr_number()
+def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None], git_selections: t.Set[str]):
+    try:
+        pr_number = _get_pr_number()
+    except Exception:
+        pr_number = None
 
     for suite in suites:
-        if pr_number <= 0:
-            # If we don't have a valid PR number we run all tests
-            action(suite)
-            continue
-
-        if any(x in git_selections for x in ("all", suite)):
-            # If "all" or current suite is annotated
-            # in git commit we run the suite
-            action(suite)
-            continue
-
-        needs_run = needs_testrun(suite, pr_number)
-        if needs_run:
+        # If we don't have a valid PR number we run all tests
+        # or "all" or current suite is annotated in git commit we run the suite
+        # or the suite needs to be run based on the changed files
+        if pr_number is None or (git_selections & {"all", suite}) or needs_testrun(suite, pr_number):
             action(suite)
 
 
@@ -237,13 +230,13 @@ def pr_matches_patterns(patterns: t.Set[str]) -> bool:
     return bool([_ for p in patterns for _ in fnmatch.filter(changed_files, p)])
 
 
-def extract_git_commit_selections(git_commit_message: str) -> list:
+def extract_git_commit_selections(git_commit_message: str) -> t.Set[str]:
     """Extract the selected suites from git commit message."""
     suites = set()
     for token in git_commit_message.split():
         if token.lower().startswith("circleci:"):
             suites.update(token[len("circleci:") :].lower().split(","))
-    return sorted(suites)
+    return suites
 
 
 def main() -> bool:
