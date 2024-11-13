@@ -354,116 +354,125 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
-    chat_completions = None
-    try:
-        for message_set_idx, message_set in enumerate(chat_messages):
-            for message_idx, message in enumerate(message_set):
-                if integration.is_pc_sampled_span(span):
-                    if isinstance(message, dict):
-                        span.set_tag_str(
-                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                            integration.trunc(str(message.get("content", ""))),
-                        )
-                    else:
-                        span.set_tag_str(
-                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                            integration.trunc(str(getattr(message, "content", ""))),
-                        )
-                span.set_tag_str(
-                    "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
-                    message.__class__.__name__,
-                )
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
-        chat_completions = func(*args, **kwargs)
-        if _is_openai_chat_instance(instance):
-            _tag_openai_token_usage(span, chat_completions.llm_output)
-            integration.record_usage(span, chat_completions.llm_output)
+    # TAG PROMPT
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import INPUT_PROMPT
 
-        for message_set_idx, message_set in enumerate(chat_completions.generations):
-            for idx, chat_completion in enumerate(message_set):
-                if integration.is_pc_sampled_span(span):
-                    text = chat_completion.text
-                    message = chat_completion.message
-                    # tool calls aren't available on this property for legacy chains
-                    tool_calls = getattr(message, "tool_calls", None)
+    metadata = get_argument_value(args, kwargs, 0, "metadata")
+    dd_prompt = metadata.pop("_dd.prompt", None)
 
-                    if text:
-                        span.set_tag_str(
-                            "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
-                            integration.trunc(chat_completion.text),
-                        )
-                    if tool_calls:
-                        if not isinstance(tool_calls, list):
-                            tool_calls = [tool_calls]
-                        for tool_call_idx, tool_call in enumerate(tool_calls):
+    with LLMObs.annotation_context(prompt=dd_prompt):
+        chat_completions = None
+        try:
+            for message_set_idx, message_set in enumerate(chat_messages):
+                for message_idx, message in enumerate(message_set):
+                    if integration.is_pc_sampled_span(span):
+                        if isinstance(message, dict):
                             span.set_tag_str(
-                                "langchain.response.completions.%d.%d.tool_calls.%d.id"
-                                % (message_set_idx, idx, tool_call_idx),
-                                str(tool_call.get("id", "")),
+                                "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                                integration.trunc(str(message.get("content", ""))),
                             )
+                        else:
                             span.set_tag_str(
-                                "langchain.response.completions.%d.%d.tool_calls.%d.name"
-                                % (message_set_idx, idx, tool_call_idx),
-                                str(tool_call.get("name", "")),
+                                "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                                integration.trunc(str(getattr(message, "content", ""))),
                             )
-                            for arg_name, arg_value in tool_call.get("args", {}).items():
+                    span.set_tag_str(
+                        "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
+                        message.__class__.__name__,
+                    )
+            for param, val in getattr(instance, "_identifying_params", {}).items():
+                if isinstance(val, dict):
+                    for k, v in val.items():
+                        span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+                else:
+                    span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+
+            chat_completions = func(*args, **kwargs)
+            if _is_openai_chat_instance(instance):
+                _tag_openai_token_usage(span, chat_completions.llm_output)
+                integration.record_usage(span, chat_completions.llm_output)
+
+            for message_set_idx, message_set in enumerate(chat_completions.generations):
+                for idx, chat_completion in enumerate(message_set):
+                    if integration.is_pc_sampled_span(span):
+                        text = chat_completion.text
+                        message = chat_completion.message
+                        # tool calls aren't available on this property for legacy chains
+                        tool_calls = getattr(message, "tool_calls", None)
+
+                        if text:
+                            span.set_tag_str(
+                                "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
+                                integration.trunc(chat_completion.text),
+                            )
+                        if tool_calls:
+                            if not isinstance(tool_calls, list):
+                                tool_calls = [tool_calls]
+                            for tool_call_idx, tool_call in enumerate(tool_calls):
                                 span.set_tag_str(
-                                    "langchain.response.completions.%d.%d.tool_calls.%d.args.%s"
-                                    % (message_set_idx, idx, tool_call_idx, arg_name),
-                                    integration.trunc(str(arg_value)),
+                                    "langchain.response.completions.%d.%d.tool_calls.%d.id"
+                                    % (message_set_idx, idx, tool_call_idx),
+                                    str(tool_call.get("id", "")),
                                 )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
-                    chat_completion.message.__class__.__name__,
-                )
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
-        span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            if chat_completions is None:
-                log_chat_completions = []
-            else:
-                log_chat_completions = [
-                    [
-                        {"content": message.text, "message_type": message.message.__class__.__name__}
-                        for message in messages
-                    ]
-                    for messages in chat_completions.generations
-                ]
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "messages": [
+                                span.set_tag_str(
+                                    "langchain.response.completions.%d.%d.tool_calls.%d.name"
+                                    % (message_set_idx, idx, tool_call_idx),
+                                    str(tool_call.get("name", "")),
+                                )
+                                for arg_name, arg_value in tool_call.get("args", {}).items():
+                                    span.set_tag_str(
+                                        "langchain.response.completions.%d.%d.tool_calls.%d.args.%s"
+                                        % (message_set_idx, idx, tool_call_idx, arg_name),
+                                        integration.trunc(str(arg_value)),
+                                    )
+                    span.set_tag_str(
+                        "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
+                        chat_completion.message.__class__.__name__,
+                    )
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            integration.metric(span, "incr", "request.error", 1)
+            raise
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
+            span.finish()
+            integration.metric(span, "dist", "request.duration", span.duration_ns)
+            if integration.is_pc_sampled_log(span):
+                if chat_completions is None:
+                    log_chat_completions = []
+                else:
+                    log_chat_completions = [
                         [
-                            {
-                                "content": (
-                                    message.get("content", "")
-                                    if isinstance(message, dict)
-                                    else str(getattr(message, "content", ""))
-                                ),
-                                "message_type": message.__class__.__name__,
-                            }
+                            {"content": message.text, "message_type": message.message.__class__.__name__}
                             for message in messages
                         ]
-                        for messages in chat_messages
-                    ],
-                    "choices": log_chat_completions,
-                },
-            )
-    return chat_completions
+                        for messages in chat_completions.generations
+                    ]
+                integration.log(
+                    span,
+                    "info" if span.error == 0 else "error",
+                    "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                    attrs={
+                        "messages": [
+                            [
+                                {
+                                    "content": (
+                                        message.get("content", "")
+                                        if isinstance(message, dict)
+                                        else str(getattr(message, "content", ""))
+                                    ),
+                                    "message_type": message.__class__.__name__,
+                                }
+                                for message in messages
+                            ]
+                            for messages in chat_messages
+                        ],
+                        "choices": log_chat_completions,
+                    },
+                )
+        return chat_completions
 
 
 @with_traced_module
@@ -1265,6 +1274,44 @@ def _unpatch_embeddings_and_vectorstores():
                 unwrap(getattr(base_langchain_module.vectorstores, vectorstore), "similarity_search")
 
 
+from ddtrace.llmobs.utils import Prompt
+
+
+@with_traced_module
+def traced_prompt_invoke(langchain, pin, func, instance, args, kwargs):
+    integration = langchain._datadog_integration
+    if hasattr(instance, "template"):
+        inputs = args[0]
+        input_variables = instance.input_variables
+        template = instance.template
+    if hasattr(instance, "messages"):
+        inputs = args[0]
+        input_variables = instance.messages[0].prompt.input_variables
+        template = instance.messages[0].prompt.template
+    args[1]["metadata"]["_dd.prompt"] = Prompt(
+        template=template, id=str(hash(template)), variables={k: v for k, v in inputs.items() if k in input_variables}
+    )
+    from langchain_core.callbacks import BaseCallbackHandler
+
+    # class TagPromptCallback(BaseCallbackHandler):
+    #     def on_chat_model_start(
+    #         self,
+    #         serialized: Dict[str, Any],
+    #         messages,
+    #         *,
+    #         run_id,
+    #         parent_run_id,
+    #         tags,
+    #         metadata,
+    #         **kwargs,
+    #     ) -> Any:
+
+    # handler = BaseCallbackHandler()
+    # hanlder.
+
+    return func(*args, **kwargs)
+
+
 def patch():
     if getattr(langchain, "_datadog_patch", False):
         return
@@ -1337,6 +1384,8 @@ def patch():
             wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         if langchain_pinecone:
             wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
+
+        wrap("langchain_core", "prompts.base.BasePromptTemplate.invoke", traced_prompt_invoke(langchain))
 
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _patch_embeddings_and_vectorstores()
