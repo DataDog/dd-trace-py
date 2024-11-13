@@ -72,11 +72,25 @@ def _extract_model_name(instance):
     return model_name
 
 
-def get_system_instruction_parts_from_model(instance):
+def get_system_instruction_texts_from_model(instance):
     """
-    Assumes that the system instruction is provided as []Part
+    Extract system instructions from model and convert to []str for tagging.
     """
-    return getattr(instance, "_system_instruction", None)
+    raw_system_instructions = getattr(instance, "_system_instruction", [])
+    if type(raw_system_instructions) == str:
+        return [raw_system_instructions]
+    elif type(raw_system_instructions) == Part:
+        return [raw_system_instructions.text]
+    elif type(raw_system_instructions) != list:
+        return []
+
+    system_instructions = []
+    for elem in raw_system_instructions:
+        if type(elem) == str:
+            system_instructions.append(elem)
+        elif type(elem) == Part:
+            system_instructions.append(elem.text)
+    return system_instructions
 
 
 def get_generation_config_from_model(instance, kwargs):
@@ -242,7 +256,7 @@ def tag_request(span, integration, instance, args, kwargs):
         if isinstance(contents, Part) or isinstance(contents, str) or isinstance(contents, dict):
             contents = history + [contents]
     generation_config_dict = get_generation_config_from_model(model_instance, kwargs)
-    system_instructions = get_system_instruction_parts_from_model(model_instance)
+    system_instructions = get_system_instruction_texts_from_model(model_instance)
     stream = kwargs.get("stream", None)
 
     if generation_config_dict is not None:
@@ -255,12 +269,11 @@ def tag_request(span, integration, instance, args, kwargs):
     if not integration.is_pc_sampled_span(span):
         return
 
-    if system_instructions:
-        for idx, part in enumerate(system_instructions):
-            span.set_tag_str(
-                "vertexai.request.system_instruction.%d.text" % idx,
-                integration.trunc(str(part.text if hasattr(part, "text") else part)),
-            )
+    for idx, text in enumerate(system_instructions):
+        span.set_tag_str(
+            "vertexai.request.system_instruction.%d.text" % idx,
+            integration.trunc(str(text)),
+        )
 
     if isinstance(contents, str):
         span.set_tag_str("vertexai.request.contents.0.text", integration.trunc(contents))
