@@ -647,3 +647,45 @@ def test_collect_gevent_thread_task():
             checked_thread = True
 
     assert checked_thread, "No samples found for the expected threads"
+
+
+@pytest.mark.parametrize(
+    ("stack_v2_enabled", "ignore_profiler"), [(True, True), (True, False), (False, True), (False, False)]
+)
+def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    test_name = "test_ignore_profiler"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    s = stack.StackCollector(None, ignore_profiler=ignore_profiler, _stack_collector_v2_enabled=stack_v2_enabled)
+    collector_worker_thread_id = None
+
+    with s:
+        for _ in range(5):
+            time.sleep(0.1)
+        collector_worker_thread_id = s._worker.ident
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "thread id")
+
+    thread_ids = set()
+
+    for sample in samples:
+        thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+        thread_id = int(thread_id_label.num)
+        thread_ids.add(thread_id)
+
+    # TODO(taegyunkim): update echion to support ignore_profiler and test with stack v2
+    if stack_v2_enabled or not ignore_profiler:
+        assert collector_worker_thread_id in thread_ids
+    else:
+        assert collector_worker_thread_id not in thread_ids
