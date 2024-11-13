@@ -9,7 +9,8 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-- pymongo: add type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+- Tracing
+  - pymongo: Adds type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
 
 
 ---
