@@ -1,4 +1,5 @@
 from copy import deepcopy
+from enum import Enum
 import itertools
 import sys
 from typing import Any
@@ -22,6 +23,14 @@ else:
     from typing_extensions import TypedDict
 
 log = get_logger(__name__)
+
+
+class _TelemetryIssueTags(Enum):
+    REQUEST_PARAMETERS = "request_parameters"
+    HASHING_FAILURE = "hashing_failure"
+    MISSING_TABLE_INFO = "missing_table_info"
+    PROCESSED_ITEMS_CALCULATION = "processed_items_calculation"
+    PRIMARY_KEY_ISSUE = "primary_key_issue"
 
 
 _DynamoDBTableName = str
@@ -155,7 +164,9 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
             operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="request_parameters")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
         return []
 
     primary_key_names = _extract_primary_key_names_from_configuration(
@@ -192,7 +203,7 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
             operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="calculation")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return []
 
 
@@ -209,7 +220,9 @@ def _extract_primary_key_names_from_configuration(
             operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="missing_table_info")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.MISSING_TABLE_INFO.value
+        )
         return None
 
 
@@ -228,7 +241,9 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
             operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="request_parameters")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
         return []
 
     try:
@@ -249,7 +264,7 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
             operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="calculation")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return []
 
 
@@ -274,7 +289,9 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
             operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="request_parameters")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
         return []
 
     try:
@@ -308,7 +325,7 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
             operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="calculation")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return []
 
 
@@ -334,7 +351,7 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
             operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="calculation")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return []
 
 
@@ -348,7 +365,9 @@ def _identify_dynamodb_batch_write_item_processed_items(
 
     if not all(table_name in requested_items for table_name in unprocessed_items):
         log.debug("%s unprocessed items include tables not in the requested items", operation)
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="unprocessed_items")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PROCESSED_ITEMS_CALCULATION.value
+        )
         return None
 
     for table_name, requested_write_requests in requested_items.items():
@@ -364,7 +383,9 @@ def _identify_dynamodb_batch_write_item_processed_items(
                     "%s unprocessed write requests include items not in the requested write requests",
                     operation,
                 )
-                record_span_pointer_calculation_issue(operation=operation, issue_tag="unprocessed_items")
+                record_span_pointer_calculation_issue(
+                    operation=operation, issue_tag=_TelemetryIssueTags.PROCESSED_ITEMS_CALCULATION.value
+                )
                 return None
 
             these_processed_items = [
@@ -386,7 +407,9 @@ def _aws_dynamodb_item_primary_key_from_item(
 ) -> Optional[_DynamoDBItemPrimaryKey]:
     if len(primary_key_field_names) not in (1, 2):
         log.debug("unexpected number of primary key fields: %d", len(primary_key_field_names))
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_fields")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
         return None
 
     result = {}
@@ -413,7 +436,9 @@ def _aws_dynamodb_item_primary_key_from_write_request(
 
     if len(write_request) != 1:
         log.debug("unexpected number of write request fields: %d", len(write_request))
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="write_request_shape")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
         return None
 
     if "PutRequest" in write_request:
@@ -446,7 +471,9 @@ def _aws_dynamodb_item_primary_key_from_write_request(
 
     else:
         log.debug("unexpected write request structure: %s", "".join(sorted(write_request.keys())))
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="write_request_shape")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
         return None
 
 
@@ -458,7 +485,9 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
 
     if len(transact_write_request) != 1:
         log.debug("unexpected number of transact write request fields: %d", len(transact_write_request))
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="transactwrite_request_shape")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
         return []
 
     if "ConditionCheck" in transact_write_request:
@@ -514,7 +543,9 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
 
     else:
         log.debug("unexpected transact write request structure: %s", "".join(sorted(transact_write_request.keys())))
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="transactwrite_request_shape")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
         return []
 
     span_pointer_description = _aws_dynamodb_item_span_pointer_description(
@@ -554,25 +585,33 @@ def _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
 ) -> Optional[_DynamoDBItemPrimaryKeyValue]:
     if primary_key_field_name not in item:
         log.debug("missing primary key field: %s", primary_key_field_name)
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_extraction")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
         return None
 
     value_object = item[primary_key_field_name]
 
     if len(value_object) != 1:
         log.debug("primary key field %s must have exactly one value: %d", primary_key_field_name, len(value_object))
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_extraction")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
         return None
 
     value_type, value_data = next(iter(value_object.items()))
     if value_type not in ("S", "N", "B"):
         log.debug("unexpected primary key field %s value type: %s", primary_key_field_name, value_type)
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_extraction")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
         return None
 
     if not isinstance(value_data, str):
         log.debug("unexpected primary key field %s value data type: %s", primary_key_field_name, type(value_data))
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_extraction")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
         return None
 
     return {value_type: value_data}
@@ -612,7 +651,9 @@ def _aws_dynamodb_item_span_pointer_hash(
 
         else:
             log.debug("unexpected number of primary key fields: %d", len(primary_key))
-            record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_extraction")
+            record_span_pointer_calculation_issue(
+                operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+            )
             return None
 
         return _standard_hashing_function(
@@ -625,7 +666,7 @@ def _aws_dynamodb_item_span_pointer_hash(
 
     except Exception as e:
         log.debug("failed to generate %s span pointer hash: %s", operation, e)
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="hashing")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return None
 
 
@@ -635,7 +676,9 @@ def _aws_dynamodb_item_encode_primary_key_value(
     try:
         if len(value_object) != 1:
             log.debug("primary key value object must have exactly one field: %d", len(value_object))
-            record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_encoding")
+            record_span_pointer_calculation_issue(
+                operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+            )
             return None
 
         value_type, value = next(iter(value_object.items()))
@@ -648,10 +691,14 @@ def _aws_dynamodb_item_encode_primary_key_value(
             return value.encode("ascii")
 
         log.debug("unexpected primary key value type: %s", value_type)
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_encoding")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
         return None
 
     except Exception as e:
         log.debug("failed to encode primary key value for %s: %s", operation, e)
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_encoding")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
         return None

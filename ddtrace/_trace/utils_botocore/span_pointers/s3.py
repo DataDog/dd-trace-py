@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -13,6 +14,12 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+class _TelemetryIssueTags(Enum):
+    REQUEST_PARAMETERS = "request_parameters"
+    ETAG_QUOTES = "etag_quotes"
+    HASHING_FAILURE = "hashing_failure"
 
 
 def _extract_span_pointers_for_s3_response(
@@ -94,7 +101,9 @@ def _extract_span_pointers_for_s3_response_with_helper(
             operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="request_parameters")
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
         return []
 
     span_pointer_description = _aws_s3_object_span_pointer_description(
@@ -137,7 +146,7 @@ def _aws_s3_object_span_pointer_hash(operation: str, bucket: str, key: str, etag
             "ETag should not have double quotes: %s",
             etag,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="etag_quotes")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.ETAG_QUOTES.value)
         return None
 
     try:
@@ -152,5 +161,5 @@ def _aws_s3_object_span_pointer_hash(operation: str, bucket: str, key: str, etag
             "failed to hash S3 object span pointer: %s",
             e,
         )
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="hashing")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return None
