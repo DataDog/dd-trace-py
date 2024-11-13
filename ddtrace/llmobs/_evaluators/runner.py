@@ -8,6 +8,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.llmobs._evaluators.patronus.evals import PatronusAnswerRelevanceEvaluator
+from ddtrace.llmobs._evaluators.patronus.evals import PatronusContextRelevanceEvaluator
+from ddtrace.llmobs._evaluators.patronus.evals import PatronusHallucinationEvaluator
+from ddtrace.llmobs._evaluators.patronus.evals import PatronusIsConcise
+from ddtrace.llmobs._evaluators.patronus.evals import PatronusPromptInjection
+from ddtrace.llmobs._evaluators.patronus.evals import PatronusToxicity
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 
@@ -17,6 +23,12 @@ logger = get_logger(__name__)
 
 SUPPORTED_EVALUATORS = {
     RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,
+    PatronusHallucinationEvaluator.LABEL: PatronusHallucinationEvaluator,
+    PatronusAnswerRelevanceEvaluator.LABEL: PatronusAnswerRelevanceEvaluator,
+    PatronusContextRelevanceEvaluator.LABEL: PatronusContextRelevanceEvaluator,
+    PatronusIsConcise.LABEL: PatronusIsConcise,
+    PatronusPromptInjection.LABEL: PatronusPromptInjection,
+    PatronusToxicity.LABEL: PatronusToxicity,
 }
 
 
