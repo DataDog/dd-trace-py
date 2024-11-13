@@ -210,7 +210,7 @@ def test_batch_json_encoder():
     buffer_size = 30 * (1 << 20)
     queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
 
-    s.line()
+    s.line({})
 
     snapshot_size = queue.put(s)
 
@@ -241,7 +241,7 @@ def test_batch_flush_reencode():
         thread=threading.current_thread(),
     )
 
-    s.line()
+    s.line({})
 
     queue = SignalQueue(LogSignalJsonEncoder(None))
 

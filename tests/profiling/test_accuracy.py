@@ -1,13 +1,9 @@
 # -*- encoding: utf-8 -*-
-import os
 import time
 
 import pytest
 
 from ddtrace.internal import compat
-
-
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 
 def spend_1():

@@ -125,11 +125,35 @@ Configuration
 
 .. py:data:: ddtrace.config.django['include_user_name']
 
-   Whether or not to include the authenticated user's username as a tag on the root request span.
+   Whether or not to include the authenticated user's name/id as a tag on the root request span.
 
    Can also be configured via the ``DD_DJANGO_INCLUDE_USER_NAME`` environment variable.
 
    Default: ``True``
+
+.. py:data:: ddtrace.config.django['include_user_email']
+
+   (ASM) Whether or not to include the authenticated user's email (if available) as a tag on the root request span on a user event.
+
+   Can also be configured via the ``DD_DJANGO_INCLUDE_USER_EMAIL`` environment variable.
+
+   Default: ``False``
+
+.. py:data:: ddtrace.config.django['include_user_login']
+
+   (ASM) Whether or not to include the authenticated user's login (if available) as a tag on the root request span on a user event.
+
+   Can also be configured via the ``DD_DJANGO_INCLUDE_USER_LOGIN`` environment variable.
+
+   Default: ``True``
+
+.. py:data:: ddtrace.config.django['include_user_realname']
+
+   (ASM) Whether or not to include the authenticated user's real name (if available) as a tag on the root request span on a user event.
+
+   Can also be configured via the ``DD_DJANGO_INCLUDE_USER_REALNAME`` environment variable.
+
+   Default: ``False``
 
 .. py:data:: ddtrace.config.django['use_handler_resource_format']
 
@@ -176,6 +200,7 @@ Example::
 
 .. __: https://www.djangoproject.com/
 """  # noqa: E501
+
 from ddtrace.internal.utils.importlib import require_modules
 
 

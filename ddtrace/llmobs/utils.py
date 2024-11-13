@@ -19,7 +19,20 @@ DocumentType = Dict[str, Union[str, int, float]]
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
-Prompt = TypedDict("Prompt", {"variables": Dict[str, str], "template": str, "id": str, "version": str}, total=False)
+Prompt = TypedDict(
+    "Prompt",
+    {
+        "variables": Dict[str, str],
+        "template": str,
+        "id": str,
+        "version": str,
+        "rag_context_variables": List[
+            str
+        ],  # a list of variable key names that contain ground truth context information
+        "rag_query_variables": List[str],  # a list of variable key names that contains query information
+    },
+    total=False,
+)
 
 
 class Messages:

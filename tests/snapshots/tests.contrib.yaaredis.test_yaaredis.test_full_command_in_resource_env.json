@@ -9,7 +9,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "language": "python",
       "runtime-id": "3c2060b13ff1469387b2c823d7d43f18"
@@ -33,7 +33,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "ddtrace_subprocess_dir",
          "component": "yaaredis",
          "db.system": "redis",
          "out.host": "localhost",
@@ -62,7 +62,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "ddtrace_subprocess_dir",
          "component": "yaaredis",
          "db.system": "redis",
          "out.host": "localhost",

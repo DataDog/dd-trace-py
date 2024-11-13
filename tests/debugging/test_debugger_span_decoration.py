@@ -2,7 +2,7 @@
 import sys
 
 import ddtrace
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
@@ -41,7 +41,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     probe_id="span-decoration",
                     module="tests.submod.traced_stuff",
                     func_qname="inner",
-                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    evaluate_at=ProbeEvalTiming.EXIT,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
@@ -77,7 +77,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     probe_id="span-decoration",
                     module="tests.submod.traced_stuff",
                     func_qname="inner",
-                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    evaluate_at=ProbeEvalTiming.EXIT,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
@@ -149,7 +149,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     probe_id="span-decoration",
                     module="tests.submod.traced_stuff",
                     func_qname="traceme",
-                    evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+                    evaluate_at=ProbeEvalTiming.ENTRY,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(

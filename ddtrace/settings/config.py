@@ -36,7 +36,9 @@ from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from ._core import get_config as _get_config
+from ._inferred_base_service import detect_service
 from ._otel_remapper import otel_remapping as _otel_remapping
+from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
@@ -49,6 +51,7 @@ else:
 
 log = get_logger(__name__)
 
+ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"(?ix)"
@@ -384,6 +387,7 @@ class Config(object):
         # Must map Otel configurations to Datadog configurations before creating the config object.
         _otel_remapping()
         # Must come before _integration_configs due to __setattr__
+        self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
 
         sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
@@ -407,7 +411,7 @@ class Config(object):
             # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
-                "Tracer rate limitting is only applied to spans that match tracer sampling rules. "
+                "Tracer rate limiting is only applied to spans that match tracer sampling rules. "
                 "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
                 rate_limit,
             )
@@ -471,11 +475,14 @@ class Config(object):
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+        self._inferred_base_service = detect_service(sys.argv)
 
         if self.service is None and in_gcp_function():
             self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_azure_function():
             self.service = _get_config("WEBSITE_SITE_NAME", DEFAULT_SPAN_SERVICE_NAME)
+        if self.service is None and self._inferred_base_service:
+            self.service = self._inferred_base_service
 
         self._extra_services = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
@@ -742,6 +749,15 @@ class Config(object):
         :type default: str
         :rtype: str|None
         """
+
+        # We check if self.service != _inferred_base_service since config.service
+        # defaults to _inferred_base_service when no DD_SERVICE is set. In this case, we want to not
+        # use the inferred base service value, and instead use the default if included. If we
+        # didn't do this, we would have a massive breaking change from adding inferred_base_service,
+        # which would be replacing any integration defaults since service is no longer None.
+        if self.service and self.service == self._inferred_base_service:
+            return default if default is not None else self.service
+
         # TODO: This method can be replaced with `config.service`.
         return self.service if self.service is not None else default
 
@@ -763,7 +779,7 @@ class Config(object):
 
     def __setattr__(self, key, value):
         # type: (str, Any) -> None
-        if key == "_config":
+        if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
             self._set_config_items([(key, value, "code")])

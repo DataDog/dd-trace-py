@@ -54,6 +54,7 @@ def flask_server(
     env=None,
     port=8000,
     assert_debug=False,
+    manual_propagation_debug=False,
 ):
     cmd = [python_cmd, app, "--no-reload"]
     yield from appsec_application_server(
@@ -67,6 +68,7 @@ def flask_server(
         env=env,
         port=port,
         assert_debug=assert_debug,
+        manual_propagation_debug=manual_propagation_debug,
     )
 
 
@@ -81,6 +83,7 @@ def appsec_application_server(
     env=None,
     port=8000,
     assert_debug=False,
+    manual_propagation_debug=False,
 ):
     env = _build_env(env, file_path=FILE_PATH)
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
@@ -113,8 +116,9 @@ def appsec_application_server(
         "stderr": sys.stderr,
     }
     if assert_debug:
-        subprocess_kwargs["stdout"] = subprocess.PIPE
-        subprocess_kwargs["stderr"] = subprocess.PIPE
+        if not manual_propagation_debug:
+            subprocess_kwargs["stdout"] = subprocess.PIPE
+            subprocess_kwargs["stderr"] = subprocess.PIPE
         subprocess_kwargs["text"] = True
 
     server_process = subprocess.Popen(cmd, **subprocess_kwargs)

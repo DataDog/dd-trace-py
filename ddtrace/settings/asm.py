@@ -14,6 +14,7 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
+from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._core import report_telemetry as _report_telemetry
@@ -64,10 +65,13 @@ class ASMConfig(Env):
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
-    _iast_enabled = Env.var(bool, IAST.ENV, default=False)
+    _iast_enabled = tracer_config._from_endpoint.get(  # type: ignore
+        "iast_enabled", Env.var(bool, IAST.ENV, default=False)
+    )
     _iast_request_sampling = Env.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
+    _iast_telemetry_report_lvl = Env.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
@@ -168,6 +172,12 @@ class ASMConfig(Env):
         int, EXPLOIT_PREVENTION.MAX_STACK_TRACE_DEPTH, default=32, validator=_validate_non_negative_int
     )
 
+    # Django ATO
+    _django_include_user_name = Env.var(bool, "DD_DJANGO_INCLUDE_USER_NAME", default=True)
+    _django_include_user_email = Env.var(bool, "DD_DJANGO_INCLUDE_USER_EMAIL", default=False)
+    _django_include_user_login = Env.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=True)
+    _django_include_user_realname = Env.var(bool, "DD_DJANGO_INCLUDE_USER_REALNAME", default=False)
+
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
@@ -180,6 +190,7 @@ class ASMConfig(Env):
         "_iast_request_sampling",
         "_iast_debug",
         "_iast_propagation_debug",
+        "_iast_telemetry_report_lvl",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",
@@ -203,6 +214,10 @@ class ASMConfig(Env):
         "_ep_max_stack_trace_depth",
         "_asm_config_keys",
         "_deduplication_enabled",
+        "_django_include_user_name",
+        "_django_include_user_email",
+        "_django_include_user_login",
+        "_django_include_user_realname",
     ]
     _iast_redaction_numeral_pattern = Env.var(
         str,
@@ -225,7 +240,7 @@ class ASMConfig(Env):
             self._api_security_enabled = False
 
     def reset(self):
-        """For testing puposes, reset the configuration to its default values given current environment variables."""
+        """For testing purposes, reset the configuration to its default values given current environment variables."""
         self.__init__()
 
     def _eval_asm_can_be_enabled(self):
