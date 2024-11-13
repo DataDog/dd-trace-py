@@ -13,10 +13,8 @@ All traces submitted from the Vertex AI integration are tagged by:
 Prompt texts and completion content are collected in span tags with a default sampling rate of ``1.0``
 for the following methods:
 
-- ``generate_content`` of the GenerativeModel class
-- ``generate_content_async`` of the GenerativeModel class
-- ``send_message`` of the ChatSession class
-- ``send_message_async`` of the ChatSession class
+- ``generate_content/generate_content_async`` of the GenerativeModel class
+- ``send_message/send_message_async`` of the ChatSession class
 
 These tags will have truncation applied if the text exceeds the configured character limit.
 
