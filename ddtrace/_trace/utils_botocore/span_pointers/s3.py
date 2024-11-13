@@ -76,6 +76,8 @@ def _extract_span_pointers_for_s3_response_with_helper(
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = f"S3.{operation_name}"
+
     try:
         hashing_properties = extractor(request_parameters, response)
         bucket = hashing_properties.bucket
@@ -86,17 +88,17 @@ def _extract_span_pointers_for_s3_response_with_helper(
         if etag.startswith('"') and etag.endswith('"'):
             etag = etag[1:-1]
 
-    except KeyError as e:
+    except Exception as e:
         log.debug(
-            "missing a parameter or response field required to make span pointer for S3.%s: %s",
-            operation_name,
-            str(e),
+            "problem with parameters for %s span pointer: %s",
+            operation,
+            e,
         )
-        record_span_pointer_calculation_issue(operation=f"S3.{operation_name}", issue_tag="request_parameters")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="request_parameters")
         return []
 
     span_pointer_description = _aws_s3_object_span_pointer_description(
-        operation=f"S3.{operation_name}",
+        operation=operation,
         pointer_direction=_SpanPointerDirection.DOWNSTREAM,
         bucket=bucket,
         key=key,

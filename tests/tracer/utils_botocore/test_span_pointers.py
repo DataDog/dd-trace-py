@@ -172,7 +172,7 @@ class TestBotocoreSpanPointers:
                     "ETag": "ab12ef34",
                 },
                 expected_pointers=[],
-                expected_logger_regex=r"missing a parameter or response field .*: 'Bucket'",
+                expected_logger_regex=r"problem with parameters for S3.PutObject .*: 'Bucket'",
                 logger_level="debug",
             ),
             PointersCase(
@@ -186,7 +186,7 @@ class TestBotocoreSpanPointers:
                     "ETag": "ab12ef34",
                 },
                 expected_pointers=[],
-                expected_logger_regex=r"missing a parameter or response field .*: 'Key'",
+                expected_logger_regex=r"problem with parameters for S3.PutObject .*: 'Key'",
                 logger_level="debug",
             ),
             PointersCase(
@@ -199,7 +199,7 @@ class TestBotocoreSpanPointers:
                 },
                 response={},
                 expected_pointers=[],
-                expected_logger_regex=r"missing a parameter or response field .*: 'ETag'",
+                expected_logger_regex=r"problem with parameters for S3.PutObject .*: 'ETag'",
                 logger_level="debug",
             ),
             PointersCase(
