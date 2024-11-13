@@ -9,6 +9,12 @@ from flask import request
 from .utils import ResultResponse
 
 
+try:
+    from google.cloud.storage.batch import Batch  # noqa:F401
+except ModuleNotFoundError:
+    pass
+
+
 pkg_google_api_core = Blueprint("package_google_api_core", __name__)
 
 
