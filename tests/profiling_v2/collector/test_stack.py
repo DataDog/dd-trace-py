@@ -569,9 +569,18 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
     )
 
 
+def _fib(n):
+    if n == 1:
+        return 1
+    elif n == 0:
+        return 0
+    else:
+        return _fib(n - 1) + _fib(n - 2)
+
+
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
-def test_collect_gevent_thread_task_libdd():
+def test_collect_gevent_thread_task():
     # TODO(taegyunkim): update echion to support gevent and test with stack v2
 
     from gevent import monkey
@@ -585,22 +594,15 @@ def test_collect_gevent_thread_task_libdd():
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
+    from tests.profiling_v2.collector.test_stack import _fib
 
-    test_name = "test_collect_gevent_thread_task_libdd"
+    test_name = "test_collect_gevent_thread_task"
     pprof_prefix = "/tmp/" + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
-
-    def _fib(n):
-        if n == 1:
-            return 1
-        elif n == 0:
-            return 0
-        else:
-            return _fib(n - 1) + _fib(n - 2)
 
     # Start some (green)threads
     def _dofib():
