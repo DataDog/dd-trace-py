@@ -32,13 +32,13 @@ def test_coverage_async_function():
     )
 
     expected_executable = {
-        "tests/coverage/included_path/async_code.py": {1, 4, 5, 8 9},
+        "tests/coverage/included_path/async_code.py": {1, 4, 5, 8, 9},
     }
     expected_covered = {
         "tests/coverage/included_path/async_code.py": {5, 9},
     }
     expected_covered_with_imports = {
-        "tests/coverage/included_path/async_code.py": {1, 4, 5, 8 9},
+        "tests/coverage/included_path/async_code.py": {1, 4, 5, 8, 9},
     }
 
     assert (
