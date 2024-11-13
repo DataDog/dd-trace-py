@@ -612,7 +612,7 @@ def test_collect_gevent_thread_task_libdd():
 
     threads = []
 
-    with stack.StackCollector(None, _stack_collector_v2_enabled=False, ignore_profiler=True):
+    with stack.StackCollector(None, _stack_collector_v2_enabled=False):
         for i in range(10):
             t = threading.Thread(target=_dofib, name="TestThread %d" % i)
             t.start()
