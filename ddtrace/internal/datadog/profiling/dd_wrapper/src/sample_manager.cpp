@@ -44,7 +44,9 @@ Datadog::SampleManager::start_sample()
 
     auto sample_opt = sample_pool->take_sample();
     if (sample_opt.has_value()) {
-        return sample_opt.value();
+        auto sample = sample_opt.value();
+        sample->string_table = sample->profile_state.get_string_table();
+        return sample;
     }
 
     // Create a new Sample if we failed to get one.

@@ -39,6 +39,9 @@ Datadog::Profile::cycle_buffers()
 
     std::swap(last_profile, cur_profile);
 
+    // Rotate the string table
+    string_table = std::make_shared<SharedStringTable>();
+
     // Clear the profile before using it
     auto res = ddog_prof_Profile_reset(&cur_profile, nullptr);
     if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -49,14 +52,6 @@ Datadog::Profile::cycle_buffers()
         return false;
     }
     return true;
-}
-
-void
-Datadog::Profile::reset()
-{
-    const std::lock_guard<std::mutex> lock(profile_mtx);
-    strings.clear();
-    string_storage.clear();
 }
 
 void
@@ -155,6 +150,8 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     // Setup the samplers
     setup_samplers();
 
+    string_table = std::make_shared<SharedStringTable>();
+
     // We need to initialize the profiles
     const ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
     if (!make_profile(sample_types, &default_period, cur_profile)) {
@@ -170,10 +167,16 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     first_time.store(false);
 }
 
-std::string_view
-Datadog::Profile::insert_or_get(std::string_view str)
+std::shared_ptr<Datadog::SharedStringTable>
+Datadog::Profile::get_string_table()
 {
-    const std::lock_guard<std::mutex> lock(string_table_mtx); // Serialize access
+    return string_table;
+}
+
+std::string_view
+Datadog::SharedStringTable::insert_or_get(std::string_view str)
+{
+    const std::lock_guard<std::mutex> lock(mtx); // Serialize access
 
     auto str_it = strings.find(str);
     if (str_it != strings.end()) {
@@ -210,5 +213,12 @@ void
 Datadog::Profile::postfork_child()
 {
     profile_mtx.unlock();
+    // TODO: cycle_buffers below will create a new string table but won't free
+    // up the old one if there were other references to it at the time of
+    // forking. If we have a situation where we create a sample, fork, and try
+    // to flush the sample all in the same thread, then it wouldn't be safe to
+    // clear the old table as the sample would get dangling references. Maybe we
+    // can somehow "poison" the old stack table ( keep a "generation" that we
+    // bump on fork) so  we don't actually try to flush the sample?
     cycle_buffers();
 }

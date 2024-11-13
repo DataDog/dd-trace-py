@@ -45,6 +45,10 @@ class Sample
     // Additional metadata
     int64_t endtime_ns = 0; // end of the event
 
+    // Backing storage for interned strings.
+    // NB: do not reset this until the sample is flushed!
+    std::shared_ptr<SharedStringTable> string_table;
+
   public:
     // Helpers
     bool push_label(ExportLabelKey key, std::string_view val);
