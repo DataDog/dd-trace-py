@@ -16,7 +16,7 @@ log = get_logger(__name__)
 class EVENTS_TELEMETRY(str, Enum):
     CREATED = "event_created"
     FINISHED = "event_finished"
-    MANUAL_API_EVENT = "manual_api_event"
+    MANUAL_API_EVENT = "manual_api_events"
     ENQUEUED_FOR_SERIALIZATION = "events_enqueued_for_serialization"
 
 
