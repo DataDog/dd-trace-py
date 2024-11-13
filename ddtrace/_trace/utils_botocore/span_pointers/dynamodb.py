@@ -103,6 +103,9 @@ _DynamoDBTransactWriteItem = Union[
 ]
 
 
+_OPERATION_BASE = "DynamoDB."
+
+
 def _extract_span_pointers_for_dynamodb_response(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     operation_name: str,
@@ -141,36 +144,39 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     request_parameters: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + "PutItem"
+
     try:
         table_name = request_parameters["TableName"]
         item = request_parameters["Item"]
     except KeyError as e:
         log.debug(
-            "failed to extract DynamoDB.PutItem span pointer: missing key %s",
+            "failed to extract %s span pointer: missing key %s",
+            operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation="DynamoDB.PutItem", issue_tag="request_parameters")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="request_parameters")
         return []
 
     primary_key_names = _extract_primary_key_names_from_configuration(
-        operation="DynamoDB.PutItem",
+        operation=operation,
         dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
         table_name=table_name,
     )
     if primary_key_names is None:
         return []
 
-    try:
-        primary_key = _aws_dynamodb_item_primary_key_from_item(
-            operation="DynamoDB.PutItem",
-            primary_key_field_names=primary_key_names,
-            item=item,
-        )
-        if primary_key is None:
-            return []
+    primary_key = _aws_dynamodb_item_primary_key_from_item(
+        operation=operation,
+        primary_key_field_names=primary_key_names,
+        item=item,
+    )
+    if primary_key is None:
+        return []
 
+    try:
         span_pointer_description = _aws_dynamodb_item_span_pointer_description(
-            operation="DynamoDB.PutItem",
+            operation=operation,
             pointer_direction=_SpanPointerDirection.DOWNSTREAM,
             table_name=table_name,
             primary_key=primary_key,
@@ -182,10 +188,11 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
 
     except Exception as e:
         log.debug(
-            "failed to generate DynamoDB.PutItem span pointer: %s",
-            str(e),
+            "failed to generate %s span pointer: %s",
+            operation,
+            e,
         )
-        record_span_pointer_calculation_issue(operation="DynamoDB.PutItem", issue_tag="calculation")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="calculation")
         return []
 
 
@@ -210,21 +217,23 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
     operation_name: str,
     request_parmeters: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + operation_name
+
     try:
         table_name = request_parmeters["TableName"]
         key = request_parmeters["Key"]
     except KeyError as e:
         log.debug(
-            "failed to extract DynamoDB.%s span pointer: missing key %s",
-            operation_name,
+            "failed to extract %s span pointer: missing key %s",
+            operation,
             e,
         )
-        record_span_pointer_calculation_issue(operation=f"DynamoDB.{operation_name}", issue_tag="request_parameters")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="request_parameters")
         return []
 
     try:
         span_pointer_description = _aws_dynamodb_item_span_pointer_description(
-            operation=f"DynamoDB.{operation_name}",
+            operation=operation,
             pointer_direction=_SpanPointerDirection.DOWNSTREAM,
             table_name=table_name,
             primary_key=key,
@@ -236,11 +245,11 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
 
     except Exception as e:
         log.debug(
-            "failed to generate DynamoDB.%s span pointer: %s",
-            operation_name,
-            str(e),
+            "failed to generate %s span pointer: %s",
+            operation,
+            e,
         )
-        record_span_pointer_calculation_issue(operation=f"DynamoDB.{operation_name}", issue_tag="calculation")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="calculation")
         return []
 
 
@@ -249,6 +258,8 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + "BatchWriteItem"
+
     try:
         requested_items = request_parameters["RequestItems"]
         unprocessed_items = response.get("UnprocessedItems", {})
@@ -259,10 +270,11 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
 
     except Exception as e:
         log.debug(
-            "failed to extract DynamoDB.BatchWriteItem span pointers: %s",
-            str(e),
+            "failed to extract %s span pointers: %s",
+            operation,
+            e,
         )
-        record_span_pointer_calculation_issue(operation="DynamoDB.BatchWriteItem", issue_tag="request_parameters")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="request_parameters")
         return []
 
     try:
@@ -275,17 +287,15 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
                     write_request=write_request,
                 )
                 if primary_key is None:
-                    # TODO: should this be a continue instead?
                     return []
 
                 span_pointer_description = _aws_dynamodb_item_span_pointer_description(
-                    operation="DynamoDB.BatchWriteItem",
+                    operation=operation,
                     pointer_direction=_SpanPointerDirection.DOWNSTREAM,
                     table_name=table_name,
                     primary_key=primary_key,
                 )
                 if span_pointer_description is None:
-                    # TODO: should this be a continue instead?
                     return []
 
                 result.append(span_pointer_description)
@@ -294,10 +304,11 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
 
     except Exception as e:
         log.debug(
-            "failed to generate DynamoDB.BatchWriteItem span pointer: %s",
-            str(e),
+            "failed to generate %s span pointer: %s",
+            operation,
+            e,
         )
-        record_span_pointer_calculation_issue(operation="DynamoDB.BatchWriteItem", issue_tag="calculation")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="calculation")
         return []
 
 
@@ -305,6 +316,7 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     request_parameters: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + "TransactWriteItems"
     try:
         return list(
             itertools.chain.from_iterable(
@@ -318,10 +330,11 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
 
     except Exception as e:
         log.debug(
-            "failed to generate DynamoDB.TransactWriteItems span pointer: %s",
-            str(e),
+            "failed to generate %s span pointer: %s",
+            operation,
+            e,
         )
-        record_span_pointer_calculation_issue(operation="DynamoDB.TransactWriteItems", issue_tag="calculation")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="calculation")
         return []
 
 
@@ -329,11 +342,13 @@ def _identify_dynamodb_batch_write_item_processed_items(
     requested_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
     unprocessed_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
 ) -> Optional[Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]]:
+    operation = _OPERATION_BASE + "BatchWriteItem"
+
     processed_items = {}
 
     if not all(table_name in requested_items for table_name in unprocessed_items):
-        log.debug("DynamoDB.BAtchWriteItem unprocessed items include tables not in the requested items")
-        record_span_pointer_calculation_issue(operation="DynamoDB.BatchWriteItem", issue_tag="unprocessed_items")
+        log.debug("%s unprocessed items include tables not in the requested items", operation)
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="unprocessed_items")
         return None
 
     for table_name, requested_write_requests in requested_items.items():
@@ -346,12 +361,10 @@ def _identify_dynamodb_batch_write_item_processed_items(
                 for unprocessed_write_request in unprocessed_items[table_name]
             ):
                 log.debug(
-                    "DynamoDB.BatchWriteItem unprocessed write requests include items not in the "
-                    "requested write requests"
+                    "%s unprocessed write requests include items not in the requested write requests",
+                    operation,
                 )
-                record_span_pointer_calculation_issue(
-                    operation="DynamoDB.BatchWriteItem", issue_tag="unprocessed_items"
-                )
+                record_span_pointer_calculation_issue(operation=operation, issue_tag="unprocessed_items")
                 return None
 
             these_processed_items = [
@@ -396,9 +409,11 @@ def _aws_dynamodb_item_primary_key_from_write_request(
 ) -> Optional[_DynamoDBItemPrimaryKey]:
     # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_WriteRequest.html
 
+    operation = _OPERATION_BASE + "BatchWriteItem"
+
     if len(write_request) != 1:
         log.debug("unexpected number of write request fields: %d", len(write_request))
-        record_span_pointer_calculation_issue(operation="DynamoDB.BatchWriteItem", issue_tag="write_request_shape")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="write_request_shape")
         return None
 
     if "PutRequest" in write_request:
@@ -408,7 +423,7 @@ def _aws_dynamodb_item_primary_key_from_write_request(
         write_request = cast(_DynamoDBPutRequestWriteRequest, write_request)
 
         primary_key_field_names = _extract_primary_key_names_from_configuration(
-            operation="DynamoDB.BatchWriteItem",
+            operation=operation,
             dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
             table_name=table_name,
         )
@@ -416,7 +431,7 @@ def _aws_dynamodb_item_primary_key_from_write_request(
             return None
 
         return _aws_dynamodb_item_primary_key_from_item(
-            operation="DynamoDB.BatchWriteItem",
+            operation=operation,
             primary_key_field_names=primary_key_field_names,
             item=write_request["PutRequest"]["Item"],
         )
@@ -431,7 +446,7 @@ def _aws_dynamodb_item_primary_key_from_write_request(
 
     else:
         log.debug("unexpected write request structure: %s", "".join(sorted(write_request.keys())))
-        record_span_pointer_calculation_issue(operation="DynamoDB.BatchWriteItem", issue_tag="write_request_shape")
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="write_request_shape")
         return None
 
 
@@ -439,11 +454,11 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     transact_write_request: _DynamoDBTransactWriteItem,
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + "TransactWriteItems"
+
     if len(transact_write_request) != 1:
         log.debug("unexpected number of transact write request fields: %d", len(transact_write_request))
-        record_span_pointer_calculation_issue(
-            operation="DynamoDB.TransactWriteItems", issue_tag="transactwrite_request_shape"
-        )
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="transactwrite_request_shape")
         return []
 
     if "ConditionCheck" in transact_write_request:
@@ -471,7 +486,7 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
         table_name = transact_write_request["Put"]["TableName"]
 
         primary_key_field_names = _extract_primary_key_names_from_configuration(
-            operation="DynamoDB.TransactWriteItems",
+            operation=operation,
             dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
             table_name=table_name,
         )
@@ -479,7 +494,7 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
             return []
 
         primary_key = _aws_dynamodb_item_primary_key_from_item(
-            operation="DynamoDB.TransactWriteItems",
+            operation=operation,
             primary_key_field_names=primary_key_field_names,
             item=transact_write_request["Put"]["Item"],
         )
@@ -499,13 +514,11 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
 
     else:
         log.debug("unexpected transact write request structure: %s", "".join(sorted(transact_write_request.keys())))
-        record_span_pointer_calculation_issue(
-            operation="DynamoDB.TransactWriteItems", issue_tag="transactwrite_request_shape"
-        )
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="transactwrite_request_shape")
         return []
 
     span_pointer_description = _aws_dynamodb_item_span_pointer_description(
-        operation="DynamoDB.TransactWriteItems",
+        operation=operation,
         pointer_direction=_SpanPointerDirection.DOWNSTREAM,
         table_name=table_name,
         primary_key=key,
@@ -568,63 +581,77 @@ def _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
 def _aws_dynamodb_item_span_pointer_hash(
     operation: str, table_name: _DynamoDBTableName, primary_key: _DynamoDBItemPrimaryKey
 ) -> Optional[str]:
-    if len(primary_key) == 1:
-        key, value_object = next(iter(primary_key.items()))
-        encoded_key_1 = key.encode("utf-8")
+    try:
+        if len(primary_key) == 1:
+            key, value_object = next(iter(primary_key.items()))
+            encoded_key_1 = key.encode("utf-8")
 
-        encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(value_object)
-        if encoded_value_1 is None:
+            encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(operation, value_object)
+            if encoded_value_1 is None:
+                return None
+
+            encoded_key_2 = b""
+            encoded_value_2 = b""
+
+        elif len(primary_key) == 2:
+            (key_1, value_object_1), (key_2, value_object_2) = sorted(
+                primary_key.items(), key=lambda x: x[0].encode("utf-8")
+            )
+            encoded_key_1 = key_1.encode("utf-8")
+
+            encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(operation, value_object_1)
+            if encoded_value_1 is None:
+                return None
+
+            encoded_key_2 = key_2.encode("utf-8")
+
+            maybe_encoded_value_2 = _aws_dynamodb_item_encode_primary_key_value(operation, value_object_2)
+            if maybe_encoded_value_2 is None:
+                return None
+            encoded_value_2 = maybe_encoded_value_2
+
+        else:
+            log.debug("unexpected number of primary key fields: %d", len(primary_key))
+            record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_extraction")
             return None
 
-        encoded_key_2 = b""
-        encoded_value_2 = b""
-
-    elif len(primary_key) == 2:
-        (key_1, value_object_1), (key_2, value_object_2) = sorted(
-            primary_key.items(), key=lambda x: x[0].encode("utf-8")
+        return _standard_hashing_function(
+            table_name.encode("utf-8"),
+            encoded_key_1,
+            encoded_value_1,
+            encoded_key_2,
+            encoded_value_2,
         )
-        encoded_key_1 = key_1.encode("utf-8")
 
-        encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(value_object_1)
-        if encoded_value_1 is None:
-            return None
-
-        encoded_key_2 = key_2.encode("utf-8")
-
-        maybe_encoded_value_2 = _aws_dynamodb_item_encode_primary_key_value(value_object_2)
-        if maybe_encoded_value_2 is None:
-            return None
-        encoded_value_2 = maybe_encoded_value_2
-
-    else:
-        log.debug("unexpected number of primary key fields: %d", len(primary_key))
-        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_extraction")
+    except Exception as e:
+        log.debug("failed to generate %s span pointer hash: %s", operation, e)
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="hashing")
         return None
 
-    return _standard_hashing_function(
-        table_name.encode("utf-8"),
-        encoded_key_1,
-        encoded_value_1,
-        encoded_key_2,
-        encoded_value_2,
-    )
 
+def _aws_dynamodb_item_encode_primary_key_value(
+    operation: str, value_object: _DynamoDBItemPrimaryKeyValue
+) -> Optional[bytes]:
+    try:
+        if len(value_object) != 1:
+            log.debug("primary key value object must have exactly one field: %d", len(value_object))
+            record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_encoding")
+            return None
 
-def _aws_dynamodb_item_encode_primary_key_value(value_object: _DynamoDBItemPrimaryKeyValue) -> Optional[bytes]:
-    if len(value_object) != 1:
-        log.debug("primary key value object must have exactly one field: %d", len(value_object))
-        record_span_pointer_calculation_issue(operation="DynamoDB", issue_tag="primary_key_encoding")
+        value_type, value = next(iter(value_object.items()))
+
+        if value_type == "S":
+            return value.encode("utf-8")
+
+        if value_type in ("N", "B"):
+            # these should already be here as ASCII strings
+            return value.encode("ascii")
+
+        log.debug("unexpected primary key value type: %s", value_type)
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_encoding")
         return None
 
-    value_type, value = next(iter(value_object.items()))
-
-    if value_type == "S":
-        return value.encode("utf-8")
-
-    if value_type in ("N", "B"):
-        # these should already be here as ASCII strings
-        return value.encode("ascii")
-
-    log.debug("unexpected primary key value type: %s", value_type)
-    record_span_pointer_calculation_issue(operation="DynamoDB", issue_tag="primary_key_encoding")
-    return None
+    except Exception as e:
+        log.debug("failed to encode primary key value for %s: %s", operation, e)
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="primary_key_encoding")
+        return None
