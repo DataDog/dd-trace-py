@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "createCompletion",
     "trace_id": 0,
     "span_id": 1,
