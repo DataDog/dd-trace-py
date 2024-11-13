@@ -99,7 +99,6 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
             expected_sample=pprof_utils.StackEvent(
                 locations=[
                     pprof_utils.StackLocation(function_name="fib", filename="gunicorn-app.py", line_no=8),
-                    pprof_utils.StackLocation(function_name="fib", filename="gunicorn-app.py", line_no=8),
                 ]
             ),
         )
