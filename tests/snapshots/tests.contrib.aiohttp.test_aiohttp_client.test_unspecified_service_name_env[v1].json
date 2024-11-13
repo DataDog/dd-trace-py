@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.client.request",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "http.client.request",
     "trace_id": 0,
     "span_id": 1,
@@ -34,7 +34,7 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": "unnamed-python-service",
+       "service": "ddtrace_subprocess_dir",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,

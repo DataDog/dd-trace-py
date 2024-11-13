@@ -86,6 +86,7 @@ stack_v2_thread_unregister(PyObject* self, PyObject* args)
     }
 
     Sampler::get().unregister_thread(id);
+    ThreadSpanLinks::get_instance().unlink_span(id);
     Py_RETURN_NONE;
 }
 

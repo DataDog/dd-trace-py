@@ -148,7 +148,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
 
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
-    # We need this validation in different contition if pyobject is not a text type and creates a side-effect such as
+    # We need this validation in different condition if pyobject is not a text type and creates a side-effect such as
     # __len__ magic method call.
     pyobject_len = 0
     if isinstance(pyobject, IAST.TEXT_TYPES):

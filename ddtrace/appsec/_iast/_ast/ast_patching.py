@@ -300,7 +300,8 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "uvicorn.",
     "anyio.",
     "httpcore.",
-    "google.auth.crypt.",
+    "google.auth.",
+    "googlecloudsdk.",
 )
 
 
@@ -339,7 +340,7 @@ def _in_python_stdlib(module_name: str) -> bool:
 
 def _should_iast_patch(module_name: Text) -> bool:
     """
-    select if module_name should be patch from the longuest prefix that match in allow or deny list.
+    select if module_name should be patch from the longest prefix that match in allow or deny list.
     if a prefix is in both list, deny is selected.
     """
     # TODO: A better solution would be to migrate the original algorithm to C++:
