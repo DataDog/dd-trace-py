@@ -536,3 +536,67 @@ def test_automatic_annotation_off_if_manually_annotated(LLMObs, mock_llmobs_span
                 output_value="my custom output",
             )
         )
+
+def test_decorating_sync_generator(LLMObs, mock_llmobs_span_writer):
+    """Test that decorators work with generator functions."""
+    for decorator_name, decorator in (
+        ("task", task),
+        ("workflow", workflow),
+        ("tool", tool),
+        ("agent", agent),
+        ("retrieval", retrieval),
+    ):
+
+        @decorator()
+        def f():
+            for i in range(5):
+                yield i
+            LLMObs.annotate(
+                input_data="hello",
+                output_data="world"
+            )
+
+        for _ in f():
+            pass
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                decorator_name,
+                session_id="test_session_id",
+                input_value="hello",
+                output_value="world",
+            )
+        )
+
+async def test_decorating_async_generator(LLMObs, mock_llmobs_span_writer):
+    """Test that decorators work with async generator functions."""
+    for decorator_name, decorator in (
+        ("task", task),
+        ("workflow", workflow),
+        ("tool", tool),
+        ("agent", agent),
+        ("retrieval", retrieval),
+    ):
+
+        @decorator()
+        async def f():
+            for i in range(5):
+                yield i
+            LLMObs.annotate(
+                input_data="hello",
+                output_data="world"
+            )
+
+        async for _ in f():
+            pass
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                decorator_name,
+                session_id="test_session_id",
+                input_value="hello",
+                output_value="world",
+            )
+        )
