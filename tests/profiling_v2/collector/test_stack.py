@@ -608,6 +608,9 @@ def test_collect_gevent_thread_task():
     def _dofib():
         for _ in range(10):
             # spend some time in CPU so the profiler can catch something
+            # On a Mac w/ Apple M3 MAX with Python 3.11 it takes about 50ms to calculate _fib(28)
+            # And _dofib() is called 10 times, so it should take about 500ms
+            # We use 10 threads below so it should take about 5 seconds
             _fib(28)
             # Just make sure gevent switches threads/greenlets
             time.sleep(0)
