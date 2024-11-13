@@ -58,6 +58,7 @@ class TestS3ObjectPointer:
     def test_hashing(self, hashing_case: HashingCase) -> None:
         assert (
             _aws_s3_object_span_pointer_hash(
+                operation="SomeOperation",
                 bucket=hashing_case.bucket,
                 key=hashing_case.key,
                 etag=hashing_case.etag,
@@ -118,6 +119,7 @@ class TestDynamodbItemPointer:
     def test_hashing(self, hashing_case: HashingCase) -> None:
         assert (
             _aws_dynamodb_item_span_pointer_hash(
+                operation="SomeOperation",
                 table_name=hashing_case.table_name,
                 primary_key=hashing_case.primary_key,
             )
@@ -882,7 +884,7 @@ class TestDynamoDBWriteRequestLogic:
         table_name: str
         write_request: _DynamoDBWriteRequest
         primary_key: Optional[Dict[str, Dict[str, str]]]
-        expected_exception_regex: Optional[str]
+        expected_logger_regex: Optional[str]
 
     @pytest.mark.parametrize(
         "test_case",
@@ -899,7 +901,7 @@ class TestDynamoDBWriteRequestLogic:
                     },
                 },
                 primary_key={"some-key": {"S": "some-value"}},
-                expected_exception_regex=None,
+                expected_logger_regex=None,
             ),
             WriteRequestPrimaryKeyCase(
                 name="delete request",
@@ -912,7 +914,7 @@ class TestDynamoDBWriteRequestLogic:
                     },
                 },
                 primary_key={"some-key": {"S": "some-value"}},
-                expected_exception_regex=None,
+                expected_logger_regex=None,
             ),
             WriteRequestPrimaryKeyCase(
                 name="impossible combined request",
@@ -931,7 +933,7 @@ class TestDynamoDBWriteRequestLogic:
                     },
                 },
                 primary_key=None,
-                expected_exception_regex="unexpected number of write request fields",
+                expected_logger_regex="unexpected number of write request fields",
             ),
             WriteRequestPrimaryKeyCase(
                 name="unknown request kind",
@@ -945,23 +947,13 @@ class TestDynamoDBWriteRequestLogic:
                     },
                 },
                 primary_key=None,
-                expected_exception_regex="unexpected write request structure: SomeRequest",
+                expected_logger_regex="unexpected write request structure: SomeRequest",
             ),
         ],
         ids=lambda test_case: test_case.name,
     )
     def test_aws_dynamodb_item_primary_key_from_write_request(self, test_case: WriteRequestPrimaryKeyCase) -> None:
-        if test_case.expected_exception_regex is not None:
-            with pytest.raises(ValueError, match=test_case.expected_exception_regex):
-                _aws_dynamodb_item_primary_key_from_write_request(
-                    dynamodb_primary_key_names_for_tables={
-                        "some-table": {"some-key"},
-                    },
-                    table_name=test_case.table_name,
-                    write_request=test_case.write_request,
-                )
-
-        else:
+        with mock.patch.object(logging.Logger, "debug") as mock_logger:
             assert (
                 _aws_dynamodb_item_primary_key_from_write_request(
                     dynamodb_primary_key_names_for_tables={
@@ -973,12 +965,26 @@ class TestDynamoDBWriteRequestLogic:
                 == test_case.primary_key
             )
 
+            if test_case.expected_logger_regex is None:
+                mock_logger.assert_not_called()
+
+            else:
+                mock_logger.assert_called_once()
+
+                (args, kwargs) = mock_logger.call_args
+                assert not kwargs
+                fmt, *other_args = args
+                assert re.match(
+                    test_case.expected_logger_regex,
+                    fmt % tuple(other_args),
+                )
+
     class ProcessedWriteRequestCase(NamedTuple):
         name: str
         requested_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]
         unprocessed_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]
         expected_processed_items: Optional[Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]]
-        expected_exception_regex: Optional[str]
+        expected_logger_regex: Optional[str]
 
     @pytest.mark.parametrize(
         "test_case",
@@ -1008,7 +1014,7 @@ class TestDynamoDBWriteRequestLogic:
                         },
                     ],
                 },
-                expected_exception_regex=None,
+                expected_logger_regex=None,
             ),
             ProcessedWriteRequestCase(
                 name="all unprocessed",
@@ -1035,7 +1041,7 @@ class TestDynamoDBWriteRequestLogic:
                     ],
                 },
                 expected_processed_items={},
-                expected_exception_regex=None,
+                expected_logger_regex=None,
             ),
             ProcessedWriteRequestCase(
                 name="some unprocessed",
@@ -1081,7 +1087,7 @@ class TestDynamoDBWriteRequestLogic:
                         },
                     ],
                 },
-                expected_exception_regex=None,
+                expected_logger_regex=None,
             ),
             ProcessedWriteRequestCase(
                 name="nothing unprocessed",
@@ -1108,7 +1114,7 @@ class TestDynamoDBWriteRequestLogic:
                         },
                     ],
                 },
-                expected_exception_regex=None,
+                expected_logger_regex=None,
             ),
             ProcessedWriteRequestCase(
                 name="extra unprocessed tables",
@@ -1125,7 +1131,7 @@ class TestDynamoDBWriteRequestLogic:
                     ],
                 },
                 expected_processed_items=None,
-                expected_exception_regex="unprocessed items include tables not in the requested items",
+                expected_logger_regex=".*unprocessed items include tables not in the requested items",
             ),
             ProcessedWriteRequestCase(
                 name="extra unprocessed items",
@@ -1159,26 +1165,34 @@ class TestDynamoDBWriteRequestLogic:
                     ],
                 },
                 expected_processed_items=None,
-                expected_exception_regex="unprocessed write requests include items not in the requested write requests",
+                expected_logger_regex=".*unprocessed write requests include items not in the requested write requests",
             ),
         ],
         ids=lambda test_case: test_case.name,
     )
     def test_identify_dynamodb_batch_write_item_processed_items(self, test_case: ProcessedWriteRequestCase) -> None:
-        if test_case.expected_exception_regex is not None:
-            with pytest.raises(Exception, match=test_case.expected_exception_regex):
-                _identify_dynamodb_batch_write_item_processed_items(
-                    requested_items=test_case.requested_items,
-                    unprocessed_items=test_case.unprocessed_items,
+        with mock.patch.object(logging.Logger, "debug") as mock_logger:
+            processed_items = _identify_dynamodb_batch_write_item_processed_items(
+                requested_items=test_case.requested_items,
+                unprocessed_items=test_case.unprocessed_items,
+            )
+            assert processed_items == test_case.expected_processed_items
+
+            if test_case.expected_logger_regex is None:
+                mock_logger.assert_not_called()
+
+            else:
+                mock_logger.assert_called_once()
+
+                (args, kwargs) = mock_logger.call_args
+                assert not kwargs
+                fmt, *other_args = args
+                assert re.match(
+                    test_case.expected_logger_regex,
+                    fmt % tuple(other_args),
                 )
 
-            return
-
-        processed_items = _identify_dynamodb_batch_write_item_processed_items(
-            requested_items=test_case.requested_items,
-            unprocessed_items=test_case.unprocessed_items,
-        )
-        assert processed_items == test_case.expected_processed_items
+                return
 
         def collect_all_ids(thing: object, accumulator: Set[int]) -> None:
             if isinstance(thing, dict):
