@@ -6,12 +6,25 @@ from ddtrace.internal.telemetry import telemetry_writer
 
 def record_span_pointer_calculation(context: str, span_pointer_count: int) -> None:
     telemetry_writer.add_count_metric(
-        namespace="tracer", name="span_pointer_calculation", value=1, tags=(("context", context),)
+        namespace="tracer",
+        name="span_pointer_calculation",
+        value=1,
+        tags=(("context", context), ("count", _span_pointer_count_to_tag(span_pointer_count))),
     )
 
-    telemetry_writer.add_count_metric(
-        namespace="tracer", name="span_pointer_calculated_count", value=span_pointer_count, tags=(("context", context),)
-    )
+
+def _span_pointer_count_to_tag(span_pointer_count: int) -> str:
+    if span_pointer_count <= 20:
+        return str(span_pointer_count)
+
+    elif span_pointer_count <= 50:
+        return "21-50"
+
+    elif span_pointer_count <= 100:
+        return "51-100"
+
+    else:
+        return "101+"
 
 
 def record_span_pointer_calculation_issue(
