@@ -36,7 +36,7 @@ def record_span_pointer_calculation_issue(
 
     telemetry_writer.add_count_metric(
         namespace="tracer",
-        name="span_pointer_calculation_issue",
+        name="span_pointer_calculation.issue",
         value=1,
         tags=tags,
     )
