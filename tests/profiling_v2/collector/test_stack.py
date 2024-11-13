@@ -39,7 +39,7 @@ def test_stack_locations(stack_v2_enabled, tmp_path):
     ddup.start()
 
     def baz():
-        time.sleep(0.01)
+        time.sleep(0.1)
 
     def bar():
         baz()
@@ -48,7 +48,7 @@ def test_stack_locations(stack_v2_enabled, tmp_path):
         bar()
 
     with stack.StackCollector(None, _stack_collector_v2_enabled=stack_v2_enabled):
-        for _ in range(5):
+        for _ in range(10):
             foo()
     ddup.upload()
 
@@ -109,8 +109,8 @@ def test_push_span(stack_v2_enabled, tmp_path):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
     ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
@@ -149,8 +149,8 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch):
         span_type = ext.SpanTypes.WEB
 
         def target_fun():
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
 
         with stack.StackCollector(
             None,
@@ -214,8 +214,8 @@ def test_push_non_web_span(stack_v2_enabled, tmp_path):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
     ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
@@ -264,8 +264,8 @@ def test_push_span_none_span_type(stack_v2_enabled, tmp_path):
         with tracer.trace("foobar", resource=resource, span_type=None) as span:
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
     ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
@@ -357,7 +357,7 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
                 time.sleep(1)
 
         threads = []
-        for _ in range(5):
+        for _ in range(10):
             t = threading.Thread(target=target_fun)
             threads.append(t)
             t.start()
@@ -460,8 +460,8 @@ def test_collect_once_with_class(stack_v2_enabled, tmp_path):
             return cls().sleep_instance()
 
         def sleep_instance(self):
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
 
     test_name = "test_collect_once_with_class"
     pprof_prefix = str(tmp_path / test_name)
@@ -519,8 +519,8 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
             return foobar().sleep_instance(cls)
 
         def sleep_instance(foobar, self):
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
 
     test_name = "test_collect_once_with_class"
     pprof_prefix = str(tmp_path / test_name)
@@ -671,7 +671,7 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
     collector_worker_thread_id = None
 
     with s:
-        for _ in range(5):
+        for _ in range(10):
             time.sleep(0.1)
         collector_worker_thread_id = s._worker.ident
 
