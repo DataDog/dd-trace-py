@@ -122,7 +122,7 @@ def instrument_all_lines_nonrecursive(
 
     previous_line = code.co_firstlineno
     previous_line_new_offset = 0
-    previous_previous_line = 0
+    previous_previous_line = code.co_firstlineno
 
     arg = 0
     previous_arg = 0
@@ -206,7 +206,7 @@ def instrument_all_lines_nonrecursive(
 
         line = line_starts.get(old_offset)
         if line is not None:
-            if previous_previous_line != 0:
+            if old_offset > 0:
                 # Beginning of new line: update line table entry for _previous_ line.
                 update_linetable(new_offset - previous_line_new_offset, previous_line - previous_previous_line)
             previous_previous_line = previous_line
