@@ -145,6 +145,8 @@ def detect_service(args: List[str]) -> Optional[str]:
 
     # Check both the included command args as well as the executable being run
     possible_commands = [*args, sys.executable]
+    print("possible_commands")
+    print(possible_commands)
     executable_args = set()
 
     # List of detectors to try in order
@@ -175,6 +177,8 @@ def detect_service(args: List[str]) -> Optional[str]:
         metadata = detector.detect(args_to_search)
         if metadata and metadata.name:
             CACHE[cache_key] = metadata.name
+            print("inferred_name")
+            print(metadata.name)
             return metadata.name
     CACHE[cache_key] = None
     return None
