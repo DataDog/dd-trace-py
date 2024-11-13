@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -56,7 +57,7 @@ def patch():
     aiobotocore.client._datadog_patch = True
 
     wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
-    Pin(service=config.service or "aws").onto(aiobotocore.client.AioBaseClient)
+    Pin().onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
@@ -111,12 +112,12 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
-    service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
+    fallback_service = config._get_service(default="aws.{}".format(endpoint_name))
     with pin.tracer.trace(
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),
-        service=schematize_service_name(service),
+        service=ext_service(pin, config.aiobotocore, default=schematize_service_name(fallback_service)),
         span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag_str(COMPONENT, config.aiobotocore.integration_name)

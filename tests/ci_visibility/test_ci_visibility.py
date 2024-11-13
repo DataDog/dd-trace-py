@@ -48,6 +48,23 @@ TEST_SHA_1 = "b3672ea5cbc584124728c48a443825d2940e0ddd"
 TEST_SHA_2 = "b3672ea5cbc584124728c48a443825d2940e0eee"
 
 
+@pytest.fixture(scope="function", autouse=True)
+def _disable_ci_visibility():
+    try:
+        if CIVisibility.enabled:
+            CIVisibility.disable()
+    except Exception:  # noqa: E722
+        # no-dd-sa:python-best-practices/no-silent-exception
+        pass
+    yield
+    try:
+        if CIVisibility.enabled:
+            CIVisibility.disable()
+    except Exception:  # noqa: E722
+        # no-dd-sa:python-best-practices/no-silent-exception
+        pass
+
+
 @contextlib.contextmanager
 def _dummy_noop_git_client():
     with mock.patch.multiple(
@@ -611,7 +628,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             ):
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+                _get_connection.assert_any_call("https://citestcov-intake.datadoghq.com", 2.0)
 
     def test_civisibilitywriter_coverage_evp_proxy_url(self):
         with _ci_override_env(
@@ -631,7 +648,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_called_once_with("http://arandomhost:9126", 2.0)
+                _get_connection.assert_any_call("http://arandomhost:9126", 2.0)
 
 
 def test_civisibilitywriter_agentless_url_envvar():

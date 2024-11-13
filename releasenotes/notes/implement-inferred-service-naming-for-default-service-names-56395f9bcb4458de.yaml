@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Updates the service naming algorithm to infer the base service name when ``DD_SERVICE`` is not set, replacing 
+    instances of ``'unnamed-python-service'``. Ensures that a more meaningful service name is used whenever 
+    possible, enhancing clarity in service identification.

@@ -137,6 +137,46 @@ Traces
        v1.19.1: default reverted to ``v0.4``.
        v2.4.0: default changed to ``v0.5``.
 
+   DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH:
+      type: Integer
+      default: 10
+      description: |
+         Sets the depth of expanding the JSON AWS payload after which we stop creating tags.
+      version_added:
+         v2.17.0:
+
+   DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS:
+      type: Integer
+      default: 758
+      description: |
+         Sets the the maximum number of tags that will be added when expanding an AWS payload.
+      version_added:
+         v2.17.0:
+
+   DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES:
+      type: Set
+      default: {"s3", "sns", "sqs", "kinesis", "eventbridge"}
+      description: |
+         Sets the enabled AWS services to be expanded when AWS payload tagging is enabled.
+      version_added:
+         v2.17.0:
+
+   DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING:
+      type: String
+      default: None
+      description: |
+         Enables AWS request payload tagging when set to ``"all"`` or a valid comma-separated list of ``JSONPath``\s.
+      version_added:
+         v2.17.0:
+
+   DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING:
+      type: String
+      default: None
+      description: |
+         Enables AWS response payload tagging when set to ``"all"`` or a valid comma-separated list of ``JSONPath``\s.
+      version_added:
+         v2.17.0:
+
    DD_TRACE_ENABLED:
      type: Boolean
      default: True
@@ -800,6 +840,38 @@ Other
       version_added:
          v1.15.0:
 
+   DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
+      type: Integer
+      default: 30
+      description: |
+         The maximum length of a traceback included in a span.
+      version_added:
+         v2.3.0:
+
+   DD_BOTOCORE_SERVICE:
+      type: String
+      default: "aws"
+      description: |
+         Set the service name, allowing default service name overrides for traces in botocore.
+      version_added:
+         v2.11.0:
+
+   DD_BOTOCORE_PROPAGATION_ENABLED:
+      type: Boolean
+      default: False
+      description: |
+         Enables trace context propagation connecting producer and consumer spans within a single trace for AWS SQS, SNS, and Kinesis messaging services.
+      version_added:
+         v2.6.0:
+
+   DD_BOTOCORE_EMPTY_POLL_ENABLED:
+      type: Boolean
+      default: True
+      description: |
+         Enables creation of consumer span when AWS SQS and AWS Kinesis ``poll()`` operations return no records. When disabled, no consumer span is created
+         if no records are returned.
+      version_added:
+         v2.6.0:
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
@@ -821,3 +893,9 @@ Exception Replay
 ----------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.exception_replay:ExceptionReplayConfig
+
+
+Code Origin
+-----------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.code_origin:CodeOriginConfig

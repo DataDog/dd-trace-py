@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 
+from tests.conftest import create_ddtrace_subprocess_dir_and_return_test_pyfile
 from tests.utils import snapshot
 
 
@@ -38,7 +39,7 @@ asyncio.run(main())
 
 
 def do_test(tmpdir, es_module, async_class):
-    f = tmpdir.join("test.py")
+    f = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
     f.write(code % {"module": es_module, "class": async_class})
     env = os.environ.copy()
     # ddtrace-run patches sqlite3 which is used by coverage to store coverage
@@ -51,7 +52,7 @@ def do_test(tmpdir, es_module, async_class):
         }
     )
     p = subprocess.Popen(
-        ["ddtrace-run", sys.executable, "test.py"],
+        ["ddtrace-run", sys.executable, str(f)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=str(tmpdir),

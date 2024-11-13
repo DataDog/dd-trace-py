@@ -1,7 +1,7 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "langchain.llms.openai.OpenAI",
     "trace_id": 0,
     "span_id": 1,
@@ -46,7 +46,7 @@
   },
      {
        "name": "openai.request",
-       "service": "",
+       "service": "ddtrace_subprocess_dir",
        "resource": "createCompletion",
        "trace_id": 0,
        "span_id": 2,
@@ -96,7 +96,7 @@
           "type": "http",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "ddtrace_subprocess_dir",
             "component": "requests",
             "http.method": "POST",
             "http.status_code": "200",

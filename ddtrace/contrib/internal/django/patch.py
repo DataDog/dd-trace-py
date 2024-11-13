@@ -70,7 +70,10 @@ config._add(
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
-        include_user_name=asbool(os.getenv("DD_DJANGO_INCLUDE_USER_NAME", default=True)),
+        include_user_name=asm_config._django_include_user_name,
+        include_user_email=asm_config._django_include_user_email,
+        include_user_login=asm_config._django_include_user_login,
+        include_user_realname=asm_config._django_include_user_realname,
         use_handler_with_url_name_resource_format=asbool(
             os.getenv("DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT", default=False)
         ),
@@ -781,7 +784,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
     try:
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
-        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user)))
+        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user), config.django))
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
@@ -794,7 +797,8 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
         return result_user
     try:
         result = core.dispatch_with_results(
-            "django.auth", (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs))
+            "django.auth",
+            (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config.django),
         ).user
         if result and result.value[0]:
             return result.value[1]

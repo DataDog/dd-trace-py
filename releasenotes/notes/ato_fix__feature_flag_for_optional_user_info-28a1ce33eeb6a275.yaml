@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    ASM: The new user events policy is preventing users PII to be added by default as span tags. To allow customers using
+    the Django auto instrumentation to still have those information, new environment variables have been added.
+    In particular DD_DJANGO_INCLUDE_EMAIL (false by default), will tag user events with user email as before.
+
