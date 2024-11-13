@@ -5,6 +5,7 @@ containing the ddtrace package compatible with the current Python version and pl
 
 from collections import namedtuple
 import csv
+import importlib.util
 import json
 import os
 import platform
@@ -180,6 +181,12 @@ def package_is_compatible(package_name, package_version):
 
 
 def get_first_incompatible_sysarg():
+    # bug: sys.argv is not always available in all python versions
+    # https://bugs.python.org/issue32573
+    if not hasattr(sys, "argv"):
+        _log("sys.argv not available, skipping sys.argv check", level="debug")
+        return
+
     _log(f"Checking sysargs: len(argv): {len(sys.argv)}", level="debug")
     if len(sys.argv) <= 1:
         return
@@ -205,9 +212,13 @@ def _inject():
     integration_incomp = False
     runtime_incomp = False
     os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
+    spec = None
     try:
-        import ddtrace
-    except ImportError:
+        # None is a valid return value for find_spec (module was not found), so we need to check for it explicitly
+        spec = importlib.util.find_spec("ddtrace")
+        if not spec:
+            raise ModuleNotFoundError("ddtrace")
+    except Exception:
         _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
         current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_1"
@@ -347,9 +358,8 @@ def _inject():
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
     else:
-        _log(
-            "user-installed ddtrace found: %s, aborting site-packages injection" % ddtrace.__version__, level="warning"
-        )
+        module_origin = spec.origin if spec else None
+        _log("user-installed ddtrace found: %s, aborting site-packages injection" % module_origin, level="warning")
 
 
 try:

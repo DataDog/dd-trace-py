@@ -1,7 +1,7 @@
 [[
   {
     "name": "rq.send",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "tests.contrib.rq.jobs.JobClass.__call__",
     "trace_id": 0,
     "span_id": 1,
@@ -30,7 +30,7 @@
   },
      {
        "name": "rq.worker.perform_job",
-       "service": "unnamed-python-service",
+       "service": "ddtrace_subprocess_dir",
        "resource": "__call__",
        "trace_id": 0,
        "span_id": 2,
@@ -61,7 +61,7 @@
      },
         {
           "name": "rq.job.perform",
-          "service": "unnamed-python-service",
+          "service": "ddtrace_subprocess_dir",
           "resource": "__call__",
           "trace_id": 0,
           "span_id": 3,
@@ -82,7 +82,7 @@
 [
   {
     "name": "rq.process",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "rq.process",
     "trace_id": 1,
     "span_id": 1,
