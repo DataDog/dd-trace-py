@@ -766,7 +766,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def test_sqs_send_message_distributed_tracing_on(self):
-        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+        with self.override_config("botocore", dict(distributed_tracing=True)):
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
 
             self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
@@ -823,7 +823,7 @@ class BotocoreTest(TracerTestCase):
     @mock_sns
     @mock_sqs
     def _test_distributed_tracing_sns_to_sqs(self, raw_message_delivery):
-        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+        with self.override_config("botocore", dict(distributed_tracing=True)):
             with mock.patch("time.time") as mt:
                 mt.return_value = 1642544540
 
@@ -1307,7 +1307,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_kinesis
     def test_kinesis_distributed_tracing_on(self):
-        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+        with self.override_config("botocore", dict(distributed_tracing=True)):
             # dict -> json string
             data = json.dumps({"json": "string"})
 
@@ -2278,14 +2278,6 @@ class BotocoreTest(TracerTestCase):
     def test_distributed_tracing_env_override_false(self):
         assert config.botocore.distributed_tracing is False
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
-    def test_propagation_enabled_env_override(self):
-        assert config.botocore.propagation_enabled is True
-
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="false"))
-    def test_propagation_enabled_env_override_false(self):
-        assert config.botocore.propagation_enabled is False
-
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT="true"))
     def test_invoke_legacy_context_env_override(self):
         assert config.botocore.invoke_with_legacy_context is True
@@ -2591,7 +2583,7 @@ class BotocoreTest(TracerTestCase):
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
-        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+        with self.override_config("botocore", dict(distributed_tracing=True)):
             region = "us-east-1"
             sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
 
@@ -3308,7 +3300,6 @@ class BotocoreTest(TracerTestCase):
         env_overrides=dict(
             DD_DATA_STREAMS_ENABLED="True",
             DD_BOTOCORE_DISTRIBUTED_TRACING="False",
-            DD_BOTOCORE_PROPAGATION_ENABLED="False",
         )
     )
     @mock_kinesis
@@ -3337,7 +3328,6 @@ class BotocoreTest(TracerTestCase):
         env_overrides=dict(
             DD_DATA_STREAMS_ENABLED="True",
             DD_BOTOCORE_DISTRIBUTED_TRACING="True",
-            DD_BOTOCORE_PROPAGATION_ENABLED="True",
         )
     )
     @mock_kinesis
@@ -3366,7 +3356,6 @@ class BotocoreTest(TracerTestCase):
         env_overrides=dict(
             DD_DATA_STREAMS_ENABLED="False",
             DD_BOTOCORE_DISTRIBUTED_TRACING="False",
-            DD_BOTOCORE_PROPAGATION_ENABLED="False",
         )
     )
     @mock_kinesis

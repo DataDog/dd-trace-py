@@ -105,7 +105,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                         data_obj.get("_datadog") if data_obj else None,
                         record,
                         result,
-                        config.botocore.propagation_enabled,
+                        config.botocore.distributed_tracing,
                         extract_DD_json,
                     ],
                 )

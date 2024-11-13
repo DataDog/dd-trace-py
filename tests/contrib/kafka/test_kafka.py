@@ -858,7 +858,7 @@ if __name__ == "__main__":
     """
 
     env = os.environ.copy()
-    env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
+    env["DD_KAFKA_DISTRIBUTED_TRACING"] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
 

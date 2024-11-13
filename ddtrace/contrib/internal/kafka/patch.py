@@ -43,7 +43,7 @@ config._add(
     "kafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_DISTRIBUTED_TRACING", default=False)),
         trace_empty_poll_enabled=asbool(os.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
     ),
 )
