@@ -12,6 +12,7 @@ import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 
 
 if vcr:
@@ -506,6 +507,19 @@ class DummyEvaluator:
             value=1.0,
             metric_type="score",
         )
+
+
+def _dummy_evaluator_eval_metric_event(span_id, trace_id):
+    return LLMObsEvaluationMetricEvent(
+        span_id=span_id,
+        trace_id=trace_id,
+        score_value=1.0,
+        ml_app="unnamed-ml-app",
+        timestamp_ms=mock.ANY,
+        metric_type="score",
+        label=DummyEvaluator.LABEL,
+        tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
+    )
 
 
 def _expected_ragas_spans(ragas_inputs=None):

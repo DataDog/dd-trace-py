@@ -1493,7 +1493,7 @@ tracing: This release adds support for lazy sampling, essentially moving when we
 
 - profiler: Fixes a sigabrt when shutdown occurs during an upload
 
-- otel: Ensures all otel sampling decisions are consistent with Datadog Spans. This prevents otel spans in a distrbuted trace from being sampled differently than Datadog spans in the same trace.
+- otel: Ensures all otel sampling decisions are consistent with Datadog Spans. This prevents otel spans in a distributed trace from being sampled differently than Datadog spans in the same trace.
 
 - tracing: Fix an issue where remote configuration values would not be reverted when unset in the UI.
 
@@ -5589,7 +5589,7 @@ If you are using the profiler, please note that `ddtrace.profile` has been renam
 - Check profiler accuracy (#1260)
 - chore(ci): fix flake8 and pin pytest and readme_renderer (#1278)
 - fix(tests,profile): do not test the number of locking events (#1282)
-- fix: do not build wheels on Python 3.4 + run test buildin wheels in the CI (#1287)
+- fix: do not build wheels on Python 3.4 + run test building wheels in the CI (#1287)
 - fix(tests,profiling): correct number of frames handling (#1290)
 - fix(tests, opentracer): flaky threading test (#1293)
 - build: use latest manylinux images (#1305)
