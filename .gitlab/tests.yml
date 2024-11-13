@@ -2,6 +2,7 @@ variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
   _DD_CIVISIBILITY_USE_PYTEST_V2: "true"
   DD_ENV: "itrtest"
+  PYTEST_ADDOPTS: "-s"
 
 .test_base_hatch:
   extends: .testrunner
