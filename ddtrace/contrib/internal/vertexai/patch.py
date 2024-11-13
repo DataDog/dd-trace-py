@@ -58,7 +58,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
         model=_extract_model_name(model_instance),
-        submit_to_llmobs=True,
+        submit_to_llmobs=False,
     )
     try:
         tag_request(span, integration, instance, args, kwargs)
@@ -85,7 +85,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
         model=_extract_model_name(model_instance),
-        submit_to_llmobs=True,
+        submit_to_llmobs=False,
     )
     try:
         tag_request(span, integration, instance, args, kwargs)
