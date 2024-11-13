@@ -61,7 +61,7 @@ class TracerTestCases(TracerTestCase):
         span.finish()
 
         span = self.trace("a")
-        span.assert_matches(name="a", service='tests.tracer', resource="a", span_type=None)
+        span.assert_matches(name="a", service=None, resource="a", span_type=None)
         span.finish()
 
     def test_tracer(self):
@@ -400,7 +400,7 @@ class TracerTestCases(TracerTestCase):
 
     def test_start_span_service_default(self):
         span = self.start_span("")
-        span.assert_matches(service='tests.tracer')
+        span.assert_matches(service=None)
         span.finish()
 
     def test_start_span_service_from_parent(self):
@@ -466,7 +466,7 @@ class TracerTestCases(TracerTestCase):
         )
 
     def test_adding_services(self):
-        assert self.tracer._services == set('tests.tracer')
+        assert self.tracer._services == set("tests.tracer")
         with self.start_span("root", service="one") as root:
             assert self.tracer._services == set(["one", "tests.tracer"])
             with self.start_span("child", service="two", child_of=root):
@@ -475,14 +475,14 @@ class TracerTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="two:three"))
     def test_adding_mapped_services(self):
-        assert self.tracer._services == set('tests.tracer')
+        assert self.tracer._services == set()
         with self.start_span("root", service="one") as root:
-            assert self.tracer._services == set(["one", "tests.tracer"])
+            assert self.tracer._services == set(["one"])
 
             # service "two" gets remapped to "three"
             with self.start_span("child", service="two", child_of=root):
                 pass
-        assert self.tracer._services == set(["one", "three", "tests.tracer"])
+        assert self.tracer._services == set(["one", "three"])
 
     def test_configure_dogstatsd_url_host_port(self):
         tracer = Tracer()

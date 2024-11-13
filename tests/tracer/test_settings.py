@@ -23,7 +23,7 @@ class TestConfig(BaseTestCase):
         # If none is provided the default should be ``None``
         with self.override_env(dict()):
             config = Config()
-            self.assertEqual(config.service, None)
+            self.assertEqual(config.service, "tests.tracer")
 
         with self.override_env(dict(DD_SERVICE="my-service")):
             config = Config()
@@ -148,7 +148,7 @@ class TestIntegrationConfig(BaseTestCase):
 
     def test_service(self):
         ic = IntegrationConfig(self.config, "foo")
-        assert ic.service is None
+        assert ic.service == "tests.tracer"
 
     @BaseTestCase.run_in_subprocess(env_overrides=dict(DD_FOO_SERVICE="foo-svc"))
     def test_service_env_var(self):

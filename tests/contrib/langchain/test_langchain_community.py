@@ -157,7 +157,7 @@ def test_openai_llm_metrics(
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.langchain",
         "langchain.request.provider:openai",
         "langchain.request.model:gpt-3.5-turbo-instruct",
         "langchain.request.type:llm",
@@ -309,7 +309,7 @@ def test_chat_model_metrics(
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.langchain",
         "langchain.request.provider:openai",
         "langchain.request.model:gpt-3.5-turbo",
         "langchain.request.type:chat_model",
@@ -414,7 +414,7 @@ def test_openai_embedding_metrics(langchain_openai, request_vcr, mock_metrics, m
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.langchain",
         "langchain.request.provider:openai",
         "langchain.request.model:text-embedding-ada-002",
         "langchain.request.type:embedding",
@@ -823,7 +823,7 @@ def test_vectorstore_similarity_search_metrics(langchain_openai, request_vcr, mo
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.langchain",
         "langchain.request.provider:pineconevectorstore",
         "langchain.request.model:",
         "langchain.request.type:similarity_search",

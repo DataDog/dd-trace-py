@@ -149,7 +149,7 @@ def test_completion(
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:ada",
         "model:ada",
         "openai.request.endpoint:/v1/completions",
@@ -219,7 +219,7 @@ async def test_acompletion(
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:curie",
         "model:curie",
         "openai.request.endpoint:/v1/completions",
@@ -1286,7 +1286,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:ada",
         "model:ada",
         "openai.request.endpoint:/v1/completions",
@@ -1327,7 +1327,7 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:ada",
         "model:ada",
         "openai.request.endpoint:/v1/completions",
@@ -1375,7 +1375,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:gpt-3.5-turbo",
         "model:gpt-3.5-turbo",
         "openai.request.endpoint:/v1/chat/completions",
@@ -1426,7 +1426,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:gpt-3.5-turbo",
         "model:gpt-3.5-turbo",
         "openai.request.endpoint:/v1/chat/completions",

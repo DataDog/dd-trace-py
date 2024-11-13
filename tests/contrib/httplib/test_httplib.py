@@ -167,7 +167,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         assert span.get_tag("http.method") == "GET"
@@ -216,7 +216,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         assert span.get_tag("http.method") == "GET"
@@ -244,7 +244,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         assert span.get_tag("http.method") == "POST"
@@ -272,7 +272,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         assert span.get_tag("http.method") == "GET"
@@ -305,7 +305,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 1)
         self.assertEqual(span.get_tag("http.method"), "GET")
@@ -338,7 +338,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag("http.method"), "GET")
@@ -426,7 +426,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag("http.method"), "GET")
@@ -462,7 +462,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag("http.method"), "GET")
@@ -491,7 +491,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag("http.method"), "GET")
@@ -519,7 +519,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag("http.method"), "GET")
@@ -571,7 +571,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 1)
         self.assertEqual(span.get_tag("http.method"), "GET")
