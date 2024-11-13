@@ -39,11 +39,11 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
 
 
 class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
-    def __enter__(self):
+    def __aenter__(self):
         self._generator.__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __aexit__(self, exc_type, exc_val, exc_tb):
         self._generator.__exit__(exc_type, exc_val, exc_tb)
 
     async def __aiter__(self):
@@ -275,10 +275,7 @@ def tag_request(span, integration, instance, args, kwargs):
             integration.trunc(str(text)),
         )
 
-    if isinstance(contents, str):
-        span.set_tag_str("vertexai.request.contents.0.text", integration.trunc(contents))
-        return
-    elif isinstance(contents, dict):
+    if isinstance(contents, str) or isinstance(contents, dict):
         span.set_tag_str("vertexai.request.contents.0.text", integration.trunc(str(contents)))
         return
     elif isinstance(contents, Part):
