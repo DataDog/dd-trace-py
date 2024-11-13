@@ -771,6 +771,8 @@ class PatchTestCase(object):
 
                 out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
 
+                if out != b"OK":
+                    print(out)
                 self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
 
         def test_and_emit_get_version(self):
