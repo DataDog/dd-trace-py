@@ -999,6 +999,7 @@ class TestUploadGitMetadata:
             _get_filtered_revisions=mock.Mock(return_value="latest3\nlatest4"),
             _upload_packfiles=mock.Mock(side_effec=NotImplementedError),
             _do_request=mock.Mock(side_effect=NotImplementedError),
+            _get_git_dir=mock.Mock(return_value="does_not_matter"),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
         ) as mock_build_packfiles:
@@ -1081,6 +1082,15 @@ class TestUploadGitMetadata:
             git_client = CIVisibilityGitClient(api_key, requests_mode)
             git_client.upload_git_metadata()
             assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.UNNECESSARY
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_upload_no_git_dir(self, api_key, requests_mode):
+        with mock.patch.object(CIVisibilityGitClient, "_get_git_dir", mock.Mock(return_value=None)):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client.upload_git_metadata()
+
+            # Notably, this should _not_ raise ValueError
+            assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.FAILED
 
 
 def test_get_filtered_revisions():

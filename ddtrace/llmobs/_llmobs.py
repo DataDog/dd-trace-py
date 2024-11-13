@@ -90,6 +90,7 @@ class LLMObs(Service):
 
     def _child_after_fork(self):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
+        self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._trace_processor._span_writer = self._llmobs_span_writer
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
@@ -97,8 +98,9 @@ class LLMObs(Service):
         self.tracer.configure(settings={"FILTERS": tracer_filters})
         try:
             self._llmobs_span_writer.start()
+            self._llmobs_eval_metric_writer.start()
         except ServiceStatusError:
-            log.debug("Error starting LLMObs span writer after fork")
+            log.debug("Error starting LLMObs writers after fork")
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
@@ -509,7 +511,7 @@ class LLMObs(Service):
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
-        if input_data or output_data:
+        if input_data is not None or output_data is not None:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
             elif span_kind == "embedding":
@@ -599,9 +601,9 @@ class LLMObs(Service):
         """Tags input/output values for non-LLM kind spans.
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
-        if input_value:
+        if input_value is not None:
             span.set_tag_str(INPUT_VALUE, safe_json(input_value))
-        if output_value:
+        if output_value is not None:
             span.set_tag_str(OUTPUT_VALUE, safe_json(output_value))
 
     @staticmethod

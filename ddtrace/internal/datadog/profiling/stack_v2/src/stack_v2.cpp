@@ -91,7 +91,7 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     uint64_t thread_id;
     uint64_t span_id;
     uint64_t local_root_span_id;
-    const char* span_type;
+    const char* span_type = nullptr;
 
     PyThreadState* state = PyThreadState_Get();
 
@@ -104,8 +104,14 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     static const char* const_kwlist[] = { "span_id", "local_root_span_id", "span_type", NULL };
     static char** kwlist = const_cast<char**>(const_kwlist);
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "KKs", kwlist, &span_id, &local_root_span_id, &span_type)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "KKz", kwlist, &span_id, &local_root_span_id, &span_type)) {
         return NULL;
+    }
+
+    // From Python, span_type is a string or None, and when given None, it is passed as a nullptr.
+    static const std::string empty_string = "";
+    if (span_type == nullptr) {
+        span_type = empty_string.c_str();
     }
 
     ThreadSpanLinks::get_instance().link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
