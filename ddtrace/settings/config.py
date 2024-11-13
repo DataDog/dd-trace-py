@@ -477,7 +477,6 @@ class Config(object):
         self.service = _get_config("DD_SERVICE", self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
         print("service")
         print(self.service)
-        breakpoint()
         print("inferred_service")
         self._inferred_base_service = detect_service(sys.argv)
         print(self._inferred_base_service)

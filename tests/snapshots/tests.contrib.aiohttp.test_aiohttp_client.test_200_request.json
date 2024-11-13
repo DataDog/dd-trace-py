@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": "",
+    "service": "aio",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
