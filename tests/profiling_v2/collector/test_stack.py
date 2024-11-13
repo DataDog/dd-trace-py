@@ -16,6 +16,15 @@ from ddtrace.settings.profiling import config
 from tests.profiling.collector import pprof_utils
 
 
+# Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
+# https://github.com/python/cpython/issues/117983
+# The fix was not backported to 3.11. The fix was first released in 3.12.5 for
+# Python 3.12. Tested with Python 3.11.8 and 3.12.5 to confirm the issue.
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
+    sys.version_info < (3, 11, 9) or sys.version_info >= (3, 12, 5)
+)
+
+
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 def test_stack_locations(stack_v2_enabled, tmp_path):
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
@@ -558,3 +567,81 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
             ],
         ),
     )
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.subprocess(ddtrace_run=True, out=None)
+def test_collect_gevent_thread_task_libdd():
+    # TODO(taegyunkim): update echion to support gevent and test with stack v2
+
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    test_name = "test_collect_gevent_thread_task_libdd"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    def _fib(n):
+        if n == 1:
+            return 1
+        elif n == 0:
+            return 0
+        else:
+            return _fib(n - 1) + _fib(n - 2)
+
+    # Start some (green)threads
+    def _dofib():
+        for _ in range(10):
+            # spend some time in CPU so the profiler can catch something
+            _fib(28)
+            # Just make sure gevent switches threads/greenlets
+            time.sleep(0)
+
+    threads = []
+
+    with stack.StackCollector(None, _stack_collector_v2_enabled=False, ignore_profiler=True):
+        for i in range(10):
+            t = threading.Thread(target=_dofib, name="TestThread %d" % i)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+
+    ddup.upload()
+
+    expected_task_ids = {thread.ident for thread in threads}
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task id")
+    assert len(samples) > 0
+
+    checked_thread = False
+
+    for sample in samples:
+        task_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task id")
+        task_id = int(task_id_label.num)
+        if task_id in expected_task_ids:
+            pprof_utils.assert_stack_event(
+                profile,
+                sample,
+                pprof_utils.StackEvent(
+                    task_name=r"TestThread \d+$",
+                    task_id=task_id,
+                ),
+            )
+            checked_thread = True
+
+    assert checked_thread, "No samples found for the expected threads"
