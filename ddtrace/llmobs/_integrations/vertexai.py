@@ -1,4 +1,3 @@
-
 from typing import Optional, Dict, Any
 
 from ddtrace import Span
@@ -15,5 +14,3 @@ class VertexAIIntegration(BaseLLMIntegration):
             span.set_tag_str("vertexai.request.provider", str(provider))
         if model is not None:
             span.set_tag_str("vertexai.request.model", str(model))
-
-    

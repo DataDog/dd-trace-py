@@ -18,20 +18,21 @@ from ddtrace.pin import Pin
 config._add(
     "vertexai",
     {
-        "span_prompt_completion_sample_rate": float(
-            os.getenv("DD_VERTEXAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
-        ),
+        "span_prompt_completion_sample_rate": float(os.getenv("DD_VERTEXAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "span_char_limit": int(os.getenv("DD_VERTEXAI_SPAN_CHAR_LIMIT", 128)),
     },
 )
+
 
 def get_version():
     # type: () -> str
     return getattr(vertexai, "__version__", "")
 
+
 @with_traced_module
 def traced_generate(vertexai, pin, func, instance, args, kwargs):
     return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance)
+
 
 @with_traced_module
 async def traced_agenerate(vertexai, pin, func, instance, args, kwargs):
@@ -42,10 +43,10 @@ async def traced_agenerate(vertexai, pin, func, instance, args, kwargs):
 def traced_send_message(vertexai, pin, func, instance, args, kwargs):
     return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance._model)
 
+
 @with_traced_module
 async def traced_send_message_async(vertexai, pin, func, instance, args, kwargs):
     return await _traced_agenerate(vertexai, pin, func, instance, args, kwargs, instance._model)
-
 
 
 def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance):
@@ -100,6 +101,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
         if span.error or not stream:
             span.finish()
     return generations
+
 
 def patch():
     if getattr(vertexai, "_datadog_patch", False):

@@ -10,6 +10,7 @@ from tests.utils import override_global_config
 from tests.contrib.vertexai.utils import MockPredictionServiceClient
 from tests.contrib.vertexai.utils import MockAsyncPredictionServiceClient
 
+
 @pytest.fixture
 def ddtrace_global_config():
     return {}
@@ -19,9 +20,11 @@ def ddtrace_global_config():
 def ddtrace_config_vertexai():
     return {}
 
+
 @pytest.fixture
 def mock_client():
     yield MockPredictionServiceClient()
+
 
 @pytest.fixture
 def mock_async_client():
@@ -47,6 +50,6 @@ def vertexai(ddtrace_global_config, ddtrace_config_vertexai, mock_client):
         with override_config("vertexai", ddtrace_config_vertexai):
             patch()
             import vertexai
-            
+
             yield vertexai
             unpatch()

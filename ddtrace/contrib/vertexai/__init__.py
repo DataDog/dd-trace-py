@@ -83,6 +83,7 @@ To configure the Vertex AI integration on a per-instance basis use the
 
     Pin.override(vertexai, service="my-vertexai-service")
 """  # noqa: E501
+
 from ddtrace.internal.utils.importlib import require_modules
 
 required_modules = ["vertexai"]

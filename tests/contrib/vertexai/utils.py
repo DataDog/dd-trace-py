@@ -11,21 +11,16 @@ get_current_weather_func = FunctionDeclaration(
     parameters={
         "type": "object",
         "properties": {
-            "location": {
-                "type": "string",
-                "description": "The city and state, e.g. San Francisco, CA"
-            },
+            "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
             "unit": {
                 "type": "string",
                 "enum": [
                     "celsius",
                     "fahrenheit",
-                ]
-            }
+                ],
+            },
         },
-        "required": [
-            "location"
-        ]
+        "required": ["location"],
     },
 )
 
@@ -85,7 +80,7 @@ MOCK_COMPLETION_SIMPLE_3 = {
 }
 
 MOCK_COMPLETION_TOOL = {
-    "candidates": [ 
+    "candidates": [
         {
             "content": {
                 "parts": [
@@ -94,7 +89,7 @@ MOCK_COMPLETION_TOOL = {
                             "name": "get_current_weather",
                             "args": {
                                 "location": "New York City, NY",
-                            }
+                            },
                         }
                     }
                 ]
@@ -106,13 +101,13 @@ MOCK_COMPLETION_TOOL = {
         "prompt_token_count": 43,
         "candidates_token_count": 11,
         "total_token_count": 54,
-    }
+    },
 }
 
 MOCK_COMPLETION_STREAM_CHUNKS = (
     {"text": "The"},
     {
-        "text": " solar system\'s size is vast, extending from the Sun to the outer reaches",
+        "text": " solar system's size is vast, extending from the Sun to the outer reaches",
     },
     {
         "text": " of the Oort cloud, a distance of roughly 1 to 2 light",
@@ -135,10 +130,12 @@ MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS = (
     },
 )
 
+
 async def _async_streamed_response(mock_chunks):
     """Return async streamed response chunks to be processed by the mock async client."""
     for chunk in mock_chunks:
         yield _mock_completion_stream_chunk(chunk)
+
 
 def _mock_completion_response(mock_completion_dict):
     mock_content = aiplatform_v1.Content(mock_completion_dict["candidates"][0]["content"])
@@ -151,6 +148,7 @@ def _mock_completion_response(mock_completion_dict):
         }
     )
 
+
 def _mock_completion_stream_chunk(chunk):
     mock_content = None
     if chunk.get("text"):
@@ -159,11 +157,12 @@ def _mock_completion_stream_chunk(chunk):
         mock_content = aiplatform_v1.Content({"parts": [{"function_call": chunk["function_call"]}], "role": "model"})
     if chunk.get("finish_reason"):
         return aiplatform_v1.GenerateContentResponse(
-            {"candidates": [{"content": mock_content, "finish_reason": chunk["finish_reason"]}], "usage_metadata": chunk["usage_metadata"]}
+            {
+                "candidates": [{"content": mock_content, "finish_reason": chunk["finish_reason"]}],
+                "usage_metadata": chunk["usage_metadata"],
+            }
         )
-    return aiplatform_v1.GenerateContentResponse(
-        {"candidates": [{"content": mock_content}]}
-    )
+    return aiplatform_v1.GenerateContentResponse({"candidates": [{"content": mock_content}]})
 
 
 class MockPredictionServiceClient:
@@ -175,6 +174,7 @@ class MockPredictionServiceClient:
 
     def stream_generate_content(self, request, **kwargs):
         return self.responses["stream_generate_content"].pop(0)
+
 
 class MockAsyncPredictionServiceClient:
     def __init__(self):

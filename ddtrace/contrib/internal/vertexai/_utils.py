@@ -7,6 +7,7 @@ from vertexai.generative_models import GenerativeModel, Part
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._utils import _get_attr
 
+
 class BaseTracedVertexAIStreamResponse:
     def __init__(self, generator, instance, integration, span):
         self._generator = generator
@@ -57,6 +58,7 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
             tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
         self._dd_span.finish()
 
+
 def _extract_model_name(instance):
     """Extract the model name from the instance.
     Model names are stored in the format `"models/{model_name}"`
@@ -69,15 +71,17 @@ def _extract_model_name(instance):
         return model_name.split("/")[-1]
     return model_name
 
+
 def get_system_instruction_parts_from_model(instance):
     """
     Assumes that the system instruction is provided as []Part
     """
     return getattr(instance, "_system_instruction", None)
 
+
 def get_generation_config_from_model(instance, kwargs):
     """
-    The generation config can be defined on the model instance or 
+    The generation config can be defined on the model instance or
     as a kwarg of the request. Therefore, try to extract this information
     from the kwargs and otherwise default to checking the model instance attribute.
     """
@@ -86,6 +90,7 @@ def get_generation_config_from_model(instance, kwargs):
         return generation_config_arg if isinstance(generation_config_arg, dict) else generation_config_arg.to_dict()
     generation_config_attr = instance._generation_config or {}
     return generation_config_attr if isinstance(generation_config_attr, dict) else generation_config_attr.to_dict()
+
 
 def extract_info_from_parts(parts):
     """Return concatenated text from parts and function calls."""
@@ -99,6 +104,7 @@ def extract_info_from_parts(parts):
         if function_call is not None:
             function_calls.append(function_call)
     return concatenated_text, function_calls
+
 
 def _tag_response_parts(span, integration, parts):
     text, function_calls = extract_info_from_parts(parts)
@@ -115,6 +121,7 @@ def _tag_response_parts(span, integration, parts):
             "vertexai.response.candidates.%d.content.parts.%d.function_calls.%d.function_call.args" % (0, 0, idx),
             integration.trunc(str(getattr(function_call, "args", ""))),
         )
+
 
 def tag_stream_response(span, chunks, integration):
     all_parts = []
@@ -136,9 +143,7 @@ def tag_stream_response(span, chunks, integration):
         if not token_counts:
             continue
         span.set_metric("vertexai.response.usage.prompt_tokens", token_counts.prompt_token_count)
-        span.set_metric(
-            "vertexai.response.usage.completion_tokens", token_counts.candidates_token_count
-        )
+        span.set_metric("vertexai.response.usage.completion_tokens", token_counts.candidates_token_count)
         span.set_metric("vertexai.response.usage.total_tokens", token_counts.total_token_count)
     _tag_response_parts(span, integration, all_parts)
 
@@ -253,7 +258,8 @@ def tag_request(span, integration, instance, args, kwargs):
     if system_instructions:
         for idx, part in enumerate(system_instructions):
             span.set_tag_str(
-                "vertexai.request.system_instruction.%d.text" % idx, integration.trunc(str(part.text if hasattr(part, "text") else part))
+                "vertexai.request.system_instruction.%d.text" % idx,
+                integration.trunc(str(part.text if hasattr(part, "text") else part)),
             )
 
     if isinstance(contents, str):
@@ -279,9 +285,7 @@ def tag_response(span, generations, integration):
     for candidate_idx, candidate in enumerate(generations_dict.get("candidates", [])):
         finish_reason = candidate.get("finish_reason", None)
         if finish_reason:
-            span.set_tag_str(
-                "vertexai.response.candidates.%d.finish_reason" % candidate_idx, str(finish_reason)
-            )
+            span.set_tag_str("vertexai.response.candidates.%d.finish_reason" % candidate_idx, str(finish_reason))
         candidate_content = candidate.get("content", {})
         role = candidate_content.get("role", "")
         span.set_tag_str("vertexai.response.candidates.%d.content.role" % candidate_idx, str(role))
@@ -295,8 +299,5 @@ def tag_response(span, generations, integration):
     if not token_counts:
         return
     span.set_metric("vertexai.response.usage.prompt_tokens", token_counts.get("prompt_token_count", 0))
-    span.set_metric(
-        "vertexai.response.usage.completion_tokens", token_counts.get("candidates_token_count", 0)
-    )
+    span.set_metric("vertexai.response.usage.completion_tokens", token_counts.get("candidates_token_count", 0))
     span.set_metric("vertexai.response.usage.total_tokens", token_counts.get("total_token_count", 0))
-
