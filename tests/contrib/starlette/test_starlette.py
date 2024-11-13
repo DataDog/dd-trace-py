@@ -205,8 +205,6 @@ def test_500error(client, tracer, test_spans):
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
-    if 'raise RuntimeError("Server error")' not in request_span.get_tag("error.stack"):
-        print("Error stack: ", request_span.get_tag("error.stack"))
     assert 'raise RuntimeError("Server error")' in request_span.get_tag("error.stack")
 
 

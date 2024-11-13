@@ -130,6 +130,9 @@ venv = Venv(
                 "requests": latest,
                 "docker": latest,
             },
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
+            },
         ),
         Venv(
             name="appsec_iast",
