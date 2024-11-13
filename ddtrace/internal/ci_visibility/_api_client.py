@@ -363,7 +363,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(
-                    enabled=attributes["early_flake_detection"]["enabled"],
+                    enabled=attributes["early_flake_detection"]["enabled"] or True,
                     slow_test_retries_5s=attributes["early_flake_detection"]["slow_test_retries"]["5s"],
                     slow_test_retries_10s=attributes["early_flake_detection"]["slow_test_retries"]["10s"],
                     slow_test_retries_30s=attributes["early_flake_detection"]["slow_test_retries"]["30s"],
