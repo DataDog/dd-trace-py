@@ -348,14 +348,9 @@ def inject_instructions(
     injection_context: InjectionContext, injection_lines: t.Dict[int, int], skip_opcodes: frozenset
 ) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
-    # trap_func, trap_arg = injection_context.callback, path
     code = injection_context.original_code
 
     instructions: t.List[Instruction] = []
-
-    # new_consts = list(code.co_consts)
-    # trap_index = len(new_consts)
-    # new_consts.append(trap_func)
 
     seen_lines = CoverageLines()
 
@@ -367,7 +362,6 @@ def inject_instructions(
     jumps: t.Dict[int, Jump] = {}
     traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
-    # line_starts = dict(dis.findlinestarts(code))
 
     # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
     resume_offset = NO_OFFSET
@@ -375,11 +369,6 @@ def inject_instructions(
         if code.co_code[i] == RESUME:
             resume_offset = i
             break
-
-    # # If we are looking at an empty module, we trick ourselves into instrumenting line 0 by skipping the RESUME at index
-    # # and instrumenting the second offset:
-    # if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
-    #     line_starts = {2: 0}
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -395,7 +384,6 @@ def inject_instructions(
 
         while True:
             original_offset, opcode = next(code_iter)
-            injection_performed = False
 
             if original_offset in exc_table_offsets:
                 offset_map[original_offset] = len(instructions) << 1
@@ -410,15 +398,6 @@ def inject_instructions(
                     trap_instructions = injection_context.instructions_cb(injection_context, line)
                     traps[original_offset] = len(trap_instructions)
                     instructions.extend(trap_instructions)
-                    injection_performed = True
-
-                    # # Make sure that the current module is marked as depending on its own package by instrumenting the
-                    # # first executable line
-                    # package_dep = None
-                    # if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
-                    #     package_dep = (package, ("",))
-
-                    # new_consts.append((line, trap_arg, package_dep))
 
                     line_map[original_offset] = trap_instructions[0]
 
