@@ -13,12 +13,19 @@ on:
 jobs:
   django-overhead-profile:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - suffix: "-v1"
+            stack_v2: "0"
+          - suffix: "-v2"
+            stack_v2: "1"
     env:
       PREFIX: ${{ github.workspace }}/prefix
       DD_CODE_ORIGIN_FOR_SPANS_ENABLED: "1"
       DD_PROFILING_ENABLED: "1"
-      DD_PROFILING_STACK_V2_ENABLED: "1"
-      DD_PROFILING_OUTPUT_PPROF: ${{ github.workspace }}/prefix/artifacts/ddtrace_profile.pprof
+      DD_PROFILING_STACK_V2_ENABLED: ${{ matrix.stack_v2 }}
+      DD_PROFILING_OUTPUT_PPROF: ${{ github.workspace }}/prefix/artifacts/ddtrace_profile
     defaults:
       run:
         working-directory: ddtrace
@@ -41,6 +48,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: django-overhead-profile
+          name: django-overhead-profile${{ matrix.suffix }}
           path: ${{ github.workspace }}/prefix/artifacts
 

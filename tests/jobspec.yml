@@ -1,8 +1,8 @@
 internal:
   runner: riot
+  is_snapshot: true
   env:
     SUITE_NAME: internal
-  parallelism: 1
 tracer:
   runner: riot
   env:
@@ -28,6 +28,10 @@ integration_testagent:
   is_snapshot: true
   env:
     SUITE_NAME: "integration-snapshot*"
+integration_agent:
+  runner: riot
+  env:
+    SUITE_NAME: "integration-latest*"
 vendor:
   runner: riot
   env:
