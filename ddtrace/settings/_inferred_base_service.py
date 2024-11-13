@@ -54,7 +54,7 @@ class PythonDetector:
         module_flag = False
 
         for arg in args:
-            # we support the --ddtrace option for pytest, and shouldn't skip the following arg 
+            # we support the --ddtrace option for pytest, and shouldn't skip the following arg
             # since it's usually the test location argument.
             has_flag_prefix = arg.startswith("-") and not arg.startswith("--ddtrace")
             is_env_variable = "=" in arg

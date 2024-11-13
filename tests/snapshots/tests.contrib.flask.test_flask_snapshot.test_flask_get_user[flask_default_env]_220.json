@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.flask",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "flask",
@@ -51,7 +51,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.flask",
          "_dd.p.tid": "654a694400000000",
          "component": "flask",
          "flask.endpoint": "identify",
@@ -70,7 +70,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -87,7 +87,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -104,7 +104,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.contrib.flask",
                "_dd.p.tid": "654a694400000000",
                "component": "flask"
              },
@@ -121,7 +121,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -138,7 +138,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -155,7 +155,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -172,7 +172,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.flask",
          "_dd.p.tid": "654a694400000000",
          "component": "flask"
        },

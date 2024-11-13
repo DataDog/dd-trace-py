@@ -11,7 +11,7 @@
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.waf.version": "1.20.1",
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.flask",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "_dd.runtime_family": "python",
@@ -57,7 +57,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.flask",
          "_dd.p.tid": "654a694400000000",
          "component": "flask",
          "flask.endpoint": "run_subcommunicateshell",
@@ -76,7 +76,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -93,7 +93,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -110,7 +110,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -127,7 +127,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.contrib.flask",
                "_dd.p.tid": "654a694400000000",
                "component": "flask"
              },
@@ -144,7 +144,7 @@
                 "type": "system",
                 "error": 0,
                 "meta": {
-                  "_dd.base_service": "",
+                  "_dd.base_service": "tests.contrib.flask",
                   "_dd.p.tid": "654a694400000000"
                 },
                 "duration": 49291,
@@ -160,7 +160,7 @@
                 "type": "system",
                 "error": 0,
                 "meta": {
-                  "_dd.base_service": "",
+                  "_dd.base_service": "tests.contrib.flask",
                   "_dd.p.tid": "654a694400000000",
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
@@ -179,7 +179,7 @@
                 "type": "system",
                 "error": 0,
                 "meta": {
-                  "_dd.base_service": "",
+                  "_dd.base_service": "tests.contrib.flask",
                   "_dd.p.tid": "654a694400000000",
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
@@ -198,7 +198,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -215,7 +215,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -232,7 +232,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.flask",
             "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
@@ -249,7 +249,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.flask",
          "_dd.p.tid": "654a694400000000",
          "component": "flask"
        },

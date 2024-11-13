@@ -1,7 +1,7 @@
 [[
   {
     "name": "trace7",
-    "service": "",
+    "service": "tests.integration",
     "resource": "trace7",
     "trace_id": 0,
     "span_id": 1,
@@ -25,7 +25,7 @@
   },
      {
        "name": "child",
-       "service": "",
+       "service": "tests.integration",
        "resource": "child",
        "trace_id": 0,
        "span_id": 2,
@@ -38,7 +38,7 @@
 [
   {
     "name": "trace6",
-    "service": "",
+    "service": "tests.integration",
     "resource": "trace6",
     "trace_id": 1,
     "span_id": 1,
@@ -61,7 +61,7 @@
   },
      {
        "name": "child",
-       "service": "",
+       "service": "tests.integration",
        "resource": "child",
        "trace_id": 1,
        "span_id": 2,
@@ -74,7 +74,7 @@
 [
   {
     "name": "trace5",
-    "service": "",
+    "service": "tests.integration",
     "resource": "trace5",
     "trace_id": 2,
     "span_id": 1,
@@ -97,7 +97,7 @@
   },
      {
        "name": "child",
-       "service": "",
+       "service": "tests.integration",
        "resource": "child",
        "trace_id": 2,
        "span_id": 2,
@@ -110,7 +110,7 @@
 [
   {
     "name": "trace4",
-    "service": "",
+    "service": "tests.integration",
     "resource": "trace4",
     "trace_id": 3,
     "span_id": 1,
@@ -134,7 +134,7 @@
   },
      {
        "name": "child",
-       "service": "",
+       "service": "tests.integration",
        "resource": "child",
        "trace_id": 3,
        "span_id": 2,
@@ -147,7 +147,7 @@
 [
   {
     "name": "trace3",
-    "service": "",
+    "service": "tests.integration",
     "resource": "trace3",
     "trace_id": 4,
     "span_id": 1,
@@ -170,7 +170,7 @@
   },
      {
        "name": "child",
-       "service": "",
+       "service": "tests.integration",
        "resource": "child",
        "trace_id": 4,
        "span_id": 2,
@@ -183,7 +183,7 @@
 [
   {
     "name": "trace2",
-    "service": "",
+    "service": "tests.integration",
     "resource": "trace2",
     "trace_id": 5,
     "span_id": 1,
@@ -207,7 +207,7 @@
   },
      {
        "name": "child",
-       "service": "",
+       "service": "tests.integration",
        "resource": "child",
        "trace_id": 5,
        "span_id": 2,
@@ -220,7 +220,7 @@
 [
   {
     "name": "trace1",
-    "service": "",
+    "service": "tests.integration",
     "resource": "trace1",
     "trace_id": 6,
     "span_id": 1,
@@ -243,7 +243,7 @@
   },
      {
        "name": "child",
-       "service": "",
+       "service": "tests.integration",
        "resource": "child",
        "trace_id": 6,
        "span_id": 2,

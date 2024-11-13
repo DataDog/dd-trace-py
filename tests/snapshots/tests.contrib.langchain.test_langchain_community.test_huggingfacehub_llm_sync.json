@@ -1,7 +1,7 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": "tests.contrib.langchain",
     "resource": "langchain_community.llms.huggingface_endpoint.HuggingFaceEndpoint",
     "trace_id": 0,
     "span_id": 1,
