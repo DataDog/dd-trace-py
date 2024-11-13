@@ -840,14 +840,6 @@ Other
       version_added:
          v1.15.0:
 
-   DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
-      type: Integer
-      default: 30
-      description: |
-         The maximum length of a traceback included in a span.
-      version_added:
-         v2.3.0:
-
    DD_BOTOCORE_SERVICE:
       type: String
       default: "aws"
