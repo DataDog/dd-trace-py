@@ -1291,24 +1291,6 @@ def traced_prompt_invoke(langchain, pin, func, instance, args, kwargs):
     args[1]["metadata"]["_dd.prompt"] = Prompt(
         template=template, id=str(hash(template)), variables={k: v for k, v in inputs.items() if k in input_variables}
     )
-    from langchain_core.callbacks import BaseCallbackHandler
-
-    # class TagPromptCallback(BaseCallbackHandler):
-    #     def on_chat_model_start(
-    #         self,
-    #         serialized: Dict[str, Any],
-    #         messages,
-    #         *,
-    #         run_id,
-    #         parent_run_id,
-    #         tags,
-    #         metadata,
-    #         **kwargs,
-    #     ) -> Any:
-
-    # handler = BaseCallbackHandler()
-    # hanlder.
-
     return func(*args, **kwargs)
 
 
