@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where annotating spans with non-ASCII language input/output values resulted in encoded unicode being submitted. 
