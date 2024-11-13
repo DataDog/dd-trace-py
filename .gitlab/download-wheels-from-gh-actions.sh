@@ -6,20 +6,26 @@ if [ -z "$CI_COMMIT_SHA" ]; then
   exit 1
 fi
 
-echo "Querying for RUN_ID"
+RUN_ID=$(gh run ls --repo DataDog/dd-trace-py --commit=$CI_COMMIT_SHA --workflow=build_deploy.yml --json databaseId --jq "first (.[]) | .databaseId")
+if [ -n "$RUN_ID" ]; then
+  # The job has not started yet. Give it time to start
+  sleep 180 # 3 minutes
 
-timeout=600 # 10 minutes
-start_time=$(date +%s)
-end_time=$((start_time + timeout))
-# Loop for 10 minutes waiting for run to appear in github
-while [ $(date +%s) -lt $end_time ]; do
-  RUN_ID=$(gh run ls --repo DataDog/dd-trace-py --commit=$CI_COMMIT_SHA --workflow=build_deploy.yml --json databaseId --jq "first (.[]) | .databaseId")
-  if [ -n "$RUN_ID" ]; then
-    break;
-  fi
-  echo "Waiting for RUN_ID"
-  sleep 20
-done
+  echo "Querying for RUN_ID"
+
+  timeout=600 # 10 minutes
+  start_time=$(date +%s)
+  end_time=$((start_time + timeout))
+  # Loop for 10 minutes waiting for run to appear in github
+  while [ $(date +%s) -lt $end_time ]; do
+    RUN_ID=$(gh run ls --repo DataDog/dd-trace-py --commit=$CI_COMMIT_SHA --workflow=build_deploy.yml --json databaseId --jq "first (.[]) | .databaseId")
+    if [ -n "$RUN_ID" ]; then
+      break;
+    fi
+    echo "Waiting for RUN_ID"
+    sleep 60
+  done
+fi
 
 if [ -z "$RUN_ID" ]; then
   echo "RUN_ID not found"
@@ -27,18 +33,24 @@ if [ -z "$RUN_ID" ]; then
 fi
 
 echo "Found RUN_ID: $RUN_ID"
-echo "Waiting for workflow to finish"
-
-# wait for run to finish
-gh run watch $RUN_ID --interval 45 --exit-status 1 --repo DataDog/dd-trace-py
 
 mkdir pywheels
 cd pywheels
 
-echo "Github workflow finished. Downloading wheels"
+if ! gh run download $RUN_ID --repo DataDog/dd-trace-py ; then
+  echo "Waiting for workflow to finish"
 
-# download all wheels
-gh run download $RUN_ID --repo DataDog/dd-trace-py
+  # Give time to the job to finish
+  sleep 600 # 10 minutes
+
+  # wait for run to finish
+  gh run watch $RUN_ID --interval 60 --exit-status 1 --repo DataDog/dd-trace-py
+
+  echo "Github workflow finished. Downloading wheels"
+
+  # download all wheels
+  gh run download $RUN_ID --repo DataDog/dd-trace-py
+fi
 
 cd ..
 
