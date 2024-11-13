@@ -14,13 +14,13 @@ iniconfig==2.0.0
 mock==5.1.0
 mongoengine==0.29.1
 opentracing==2.4.0
-packaging==24.1
+packaging==24.2
 pluggy==1.5.0
-pymongo==4.10.0
+pymongo==4.10.1
 pytest==8.3.3
 pytest-cov==5.0.0
 pytest-mock==3.14.0
 pytest-randomly==3.15.0
 sortedcontainers==2.4.0
-tomli==2.0.1
+tomli==2.1.0
 zipp==3.20.2

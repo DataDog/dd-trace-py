@@ -92,6 +92,7 @@ entrypoints
 env
 enqueuer
 eol
+eventbridge
 exec
 fastapi
 formatter
@@ -123,6 +124,7 @@ JSON
 jinja
 js
 kafka
+kinesis
 kombu
 kubernetes
 kwarg
@@ -218,9 +220,11 @@ sanic
 screenshots
 serializable
 sha
+sns
 sql
 sqlalchemy
 sqlite
+sqs
 stacktrace
 starlette
 statsd
