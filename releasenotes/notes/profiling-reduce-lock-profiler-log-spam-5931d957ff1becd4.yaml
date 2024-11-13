@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: The lock profiler would log a warning if it couldn't determine a name for a lock.
+    This lead to excessive log spam. Downgrade this to a debug log.

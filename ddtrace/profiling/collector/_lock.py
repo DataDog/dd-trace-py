@@ -298,7 +298,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
             if not self._self_name:
                 self._self_name = ""
-                LOG.warning(
+                LOG.debug(
                     "Failed to get lock variable name, we only support local/global variables and their attributes."
                 )
 
