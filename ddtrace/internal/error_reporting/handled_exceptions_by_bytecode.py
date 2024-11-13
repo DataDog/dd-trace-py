@@ -3,16 +3,13 @@ import sys
 from types import CodeType
 import typing as t
 
-from ddtrace.internal.coverage.instrumentation_py3_11 import inject_instructions, SKIP_LINES, InjectionContext
-from ddtrace.internal.instrumentation.core import NO_OFFSET
-from ddtrace.internal.instrumentation.core import Instruction
-from ddtrace.internal.instrumentation.core import inject_co_consts
-from ddtrace.internal.instrumentation.core import inject_co_names
-from ddtrace.internal.instrumentation.core import inject_co_varnames
-from ddtrace.internal.instrumentation.core import instr_with_arg
-from ddtrace.internal.instrumentation.core import instructions_to_bytecode
-from ddtrace.internal.instrumentation.core import parse_exception_table
-from ddtrace.internal.instrumentation.opcodes import *
+from ddtrace.internal.coverage.instrumentation_py3_11 import NO_OFFSET
+from ddtrace.internal.coverage.instrumentation_py3_11 import SKIP_LINES
+from ddtrace.internal.coverage.instrumentation_py3_11 import InjectionContext
+from ddtrace.internal.coverage.instrumentation_py3_11 import Instruction
+from ddtrace.internal.coverage.instrumentation_py3_11 import inject_instructions
+from ddtrace.internal.coverage.instrumentation_py3_11 import instr_with_arg
+from ddtrace.internal.coverage.instrumentation_py3_11 import parse_exception_table
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
@@ -20,7 +17,7 @@ from ddtrace.internal.instrumentation.opcodes import *
 assert sys.version_info >= (3, 11)  # and sys.version_info < (3, 12)  # nosec
 
 
-def generate_instructions(injection_context: InjectionContext, line_number) -> t.Tuple[Instruction, ...]:
+def generate_instructions(injection_context: InjectionContext, line_numbe: int) -> t.Tuple[Instruction, ...]:
     _0_idx = injection_context.with_const(0)
     cb_invocation_idx = injection_context.with_const(("_default_datadog_exc_callback",))
 
@@ -36,21 +33,21 @@ def generate_instructions(injection_context: InjectionContext, line_number) -> t
     )
 
     instructions = [
-        Instruction(NO_OFFSET, LOAD_CONST, _0_idx),
-        *instr_with_arg(LOAD_CONST, cb_invocation_idx),
-        *instr_with_arg(IMPORT_NAME, cb_module_idx),
-        *instr_with_arg(IMPORT_FROM, cb_name_idx),
-        Instruction(NO_OFFSET, STORE_FAST, cb_var_idx),
-        Instruction(NO_OFFSET, POP_TOP, 0),
-        Instruction(NO_OFFSET, PUSH_NULL, 0),
-        Instruction(NO_OFFSET, LOAD_FAST, cb_var_idx),
+        Instruction(NO_OFFSET, dis.opmap["LOAD_CONST"], _0_idx),
+        *instr_with_arg(dis.opmap["LOAD_CONST"], cb_invocation_idx),
+        *instr_with_arg(dis.opmap["IMPORT_NAME"], cb_module_idx),
+        *instr_with_arg(dis.opmap["IMPORT_FROM"], cb_name_idx),
+        Instruction(NO_OFFSET, dis.opmap["STORE_FAST"], cb_var_idx),
+        Instruction(NO_OFFSET, dis.opmap["POP_TOP"], 0),
+        Instruction(NO_OFFSET, dis.opmap["PUSH_NULL"], 0),
+        Instruction(NO_OFFSET, dis.opmap["LOAD_FAST"], cb_var_idx),
         *precall_instructions,
-        Instruction(NO_OFFSET, CALL, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, POP_TOP, 0),
+        Instruction(NO_OFFSET, dis.opmap["CALL"], 0),
+        Instruction(NO_OFFSET, dis.opmap["CACHE"], 0),
+        Instruction(NO_OFFSET, dis.opmap["CACHE"], 0),
+        Instruction(NO_OFFSET, dis.opmap["CACHE"], 0),
+        Instruction(NO_OFFSET, dis.opmap["CACHE"], 0),
+        Instruction(NO_OFFSET, dis.opmap["POP_TOP"], 0),
     ]
 
     return tuple(instructions)
@@ -92,120 +89,124 @@ def _inject_handled_exception_reporting(func):
     if not injection_indexes:
         return ()
 
-    injection_context = InjectionContext.from_code(func.__code__, 'put.the.package.here')
+    injection_context = InjectionContext.from_code(func.__code__, "put.the.package.here")
     injection_context.instructions_cb = generate_instructions
 
-    injection_lines = {opcode: line for opcode, line in dis.findlinestarts(
-        original_code) if opcode in injection_indexes}
+    injection_lines = {
+        opcode: line for opcode, line in dis.findlinestarts(original_code) if opcode in injection_indexes
+    }
 
     code, _ = inject_instructions(injection_context, injection_lines, SKIP_LINES)
     func.__code__ = code
 
 
-def _generate_instructions(cb_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
+# def _generate_instructions(cb_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
 
-    precall_instructions = (
-        [Instruction(NO_OFFSET, dis.opmap["PRECALL"], 0), Instruction(NO_OFFSET, dis.opmap["CACHE"], 0)]
-        if sys.version_info[:2] == (3, 11)
-        else []
-    )
+#     precall_instructions = (
+#         [Instruction(NO_OFFSET, dis.opmap["PRECALL"], 0), Instruction(NO_OFFSET, dis.opmap["CACHE"], 0)]
+#         if sys.version_info[:2] == (3, 11)
+#         else []
+#     )
 
-    instructions = [
-        # Instruction(NO_OFFSET, LOAD_CONST, _0_idx),
-        # *instr_with_arg(LOAD_CONST, cb_invocation_idx),
-        # *instr_with_arg(IMPORT_NAME, cb_module_idx),
-        # *instr_with_arg(IMPORT_FROM, cb_name_idx),
-        # Instruction(NO_OFFSET, STORE_FAST, cb_var_idx),
-        # Instruction(NO_OFFSET, POP_TOP, 0),
-        # Instruction(NO_OFFSET, PUSH_NULL, 0),
-        # Instruction(NO_OFFSET, LOAD_FAST, cb_var_idx),
+#     instructions = [
+#         # Instruction(NO_OFFSET, LOAD_CONST, _0_idx),
+#         # *instr_with_arg(LOAD_CONST, cb_invocation_idx),
+#         # *instr_with_arg(IMPORT_NAME, cb_module_idx),
+#         # *instr_with_arg(IMPORT_FROM, cb_name_idx),
+#         # Instruction(NO_OFFSET, STORE_FAST, cb_var_idx),
+#         # Instruction(NO_OFFSET, POP_TOP, 0),
+#         # Instruction(NO_OFFSET, PUSH_NULL, 0),
+#         # Instruction(NO_OFFSET, LOAD_FAST, cb_var_idx),
 
-        Instruction(NO_OFFSET, PUSH_NULL, 0),
-        *instr_with_arg(LOAD_CONST, cb_index),
-        *instr_with_arg(LOAD_CONST, arg_index),
+#         Instruction(NO_OFFSET, PUSH_NULL, 0),
+#         *instr_with_arg(LOAD_CONST, cb_index),
+#         *instr_with_arg(LOAD_CONST, arg_index),
 
-        *precall_instructions,
-        Instruction(NO_OFFSET, CALL, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, POP_TOP, 0),
-    ]
-    return tuple(instructions)
+#         *precall_instructions,
+#         Instruction(NO_OFFSET, CALL, 0),
+#         Instruction(NO_OFFSET, CACHE, 0),
+#         Instruction(NO_OFFSET, CACHE, 0),
+#         Instruction(NO_OFFSET, CACHE, 0),
+#         Instruction(NO_OFFSET, CACHE, 0),
+#         Instruction(NO_OFFSET, POP_TOP, 0),
+#     ]
+#     return tuple(instructions)
 
 
-def _inject_handled_exception_reporting_alt_impl(func):
-    func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
-    original_code = func.__code__
+# def _inject_handled_exception_reporting_alt_impl(func):
+#     func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
+#     original_code = func.__code__
 
-    consts = list(original_code.co_consts)
-    _0_idx, cb_invocation_idx = inject_co_consts(consts, 0, ("_default_datadog_exc_callback",))
+#     consts = list(original_code.co_consts)
+#     _0_idx, cb_invocation_idx = inject_co_consts(consts, 0, ("_default_datadog_exc_callback",))
 
-    names = list(original_code.co_names)
-    cb_module_idx, cb_name_idx = inject_co_names(
-        names, "ddtrace.internal.error_reporting.handled_exceptions", "_default_datadog_exc_callback"
-    )
+#     names = list(original_code.co_names)
+#     cb_module_idx, cb_name_idx = inject_co_names(
+#         names, "ddtrace.internal.error_reporting.handled_exceptions", "_default_datadog_exc_callback"
+#     )
 
-    variables = list(original_code.co_varnames)
-    (cb_var_idx,) = inject_co_varnames(variables, "_default_datadog_exc_callback")
+#     variables = list(original_code.co_varnames)
+#     (cb_var_idx,) = inject_co_varnames(variables, "_default_datadog_exc_callback")
 
-    precall_instructions = (
-        [Instruction(NO_OFFSET, dis.opmap["PRECALL"], 0), Instruction(NO_OFFSET, dis.opmap["CACHE"], 0)]
-        if sys.version_info[:2] == (3, 11)
-        else []
-    )
+#     precall_instructions = (
+#         [Instruction(NO_OFFSET, dis.opmap["PRECALL"], 0), Instruction(NO_OFFSET, dis.opmap["CACHE"], 0)]
+#         if sys.version_info[:2] == (3, 11)
+#         else []
+#     )
 
-    instructions = [
-        Instruction(NO_OFFSET, LOAD_CONST, _0_idx),
-        *instr_with_arg(LOAD_CONST, cb_invocation_idx),
-        *instr_with_arg(IMPORT_NAME, cb_module_idx),
-        *instr_with_arg(IMPORT_FROM, cb_name_idx),
-        Instruction(NO_OFFSET, STORE_FAST, cb_var_idx),
-        Instruction(NO_OFFSET, POP_TOP, 0),
-        Instruction(NO_OFFSET, PUSH_NULL, 0),
-        Instruction(NO_OFFSET, LOAD_FAST, cb_var_idx),
-        *precall_instructions,
-        Instruction(NO_OFFSET, CALL, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, CACHE, 0),
-        Instruction(NO_OFFSET, POP_TOP, 0),
-    ]
+#     instructions = [
+#         Instruction(NO_OFFSET, LOAD_CONST, _0_idx),
+#         *instr_with_arg(LOAD_CONST, cb_invocation_idx),
+#         *instr_with_arg(IMPORT_NAME, cb_module_idx),
+#         *instr_with_arg(IMPORT_FROM, cb_name_idx),
+#         Instruction(NO_OFFSET, STORE_FAST, cb_var_idx),
+#         Instruction(NO_OFFSET, POP_TOP, 0),
+#         Instruction(NO_OFFSET, PUSH_NULL, 0),
+#         Instruction(NO_OFFSET, LOAD_FAST, cb_var_idx),
+#         *precall_instructions,
+#         Instruction(NO_OFFSET, CALL, 0),
+#         Instruction(NO_OFFSET, CACHE, 0),
+#         Instruction(NO_OFFSET, CACHE, 0),
+#         Instruction(NO_OFFSET, CACHE, 0),
+#         Instruction(NO_OFFSET, CACHE, 0),
+#         Instruction(NO_OFFSET, POP_TOP, 0),
+#     ]
 
-    injection_indexes = _find_bytecode_indexes(original_code)
-    if not injection_indexes:
-        return
+#     injection_indexes = _find_bytecode_indexes(original_code)
+#     if not injection_indexes:
+#         return
 
-    # for injection_index in reversed(injection_indexes):
-    #     new_code_b = (
-    #         original_code.co_code[:injection_index]
-    #         + instructions_to_bytecode(instructions_3_11)
-    #         + original_code.co_code[injection_index:]
-    #     )
-    #     func.__code__ = original_code.replace(
-    #         co_code=new_code_b,
-    #         co_consts=tuple(consts),
-    #         co_names=tuple(names),
-    #         co_varnames=tuple(variables),
-    #         co_nlocals=len(variables),
-    #     )
-    code_for_injection = original_code.replace(
-        co_consts=tuple(consts),
-        co_names=tuple(names),
-        co_varnames=tuple(variables),
-        co_nlocals=len(variables),
-    )
+#     # for injection_index in reversed(injection_indexes):
+#     #     new_code_b = (
+#     #         original_code.co_code[:injection_index]
+#     #         + instructions_to_bytecode(instructions_3_11)
+#     #         + original_code.co_code[injection_index:]
+#     #     )
+#     #     func.__code__ = original_code.replace(
+#     #         co_code=new_code_b,
+#     #         co_consts=tuple(consts),
+#     #         co_names=tuple(names),
+#     #         co_varnames=tuple(variables),
+#     #         co_nlocals=len(variables),
+#     #     )
+#     code_for_injection = original_code.replace(
+#         co_consts=tuple(consts),
+#         co_names=tuple(names),
+#         co_varnames=tuple(variables),
+#         co_nlocals=len(variables),
+#     )
 
-    new_code_b = inject_instructions(code_for_injection, instructions, injection_indexes)
-    func.__code__ = new_code_b
+#     new_code_b = inject_instructions(code_for_injection, instructions, injection_indexes)
+#     func.__code__ = new_code_b
 
 
 WAITING_FOR_EXC = 0
 CHECKING_EXC_MATCH = 1
 ANY_EXC_HANDLING_BLOCK = 2
 MATCHED_EXC_HANDLING_BLOCK = 3
+
+PUSH_EXC_INFO = dis.opmap["PUSH_EXC_INFO"]
+CHECK_EXC_MATCH = dis.opmap["CHECK_EXC_MATCH"]
 
 
 def _find_bytecode_indexes(code: CodeType) -> t.List[int]:
@@ -235,7 +236,7 @@ def _find_bytecode_indexes(code: CodeType) -> t.List[int]:
             continue
 
         if state == CHECKING_EXC_MATCH:
-            if CHECK_EXC_MATCH in code.co_code[exc_entry.start: exc_entry.end: 2]:
+            if CHECK_EXC_MATCH in code.co_code[exc_entry.start : exc_entry.end : 2]:
                 # we need to move forward, because this block of code is just checking
                 # if the exception handled matches the one that was raised
                 state = MATCHED_EXC_HANDLING_BLOCK

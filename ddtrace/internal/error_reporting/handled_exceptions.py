@@ -53,7 +53,7 @@ def _instrument_obj(obj):
 
 
 def _default_datadog_exc_callback(*args):
-    print('I am magically here!!!')
+    print("I am magically here!!!")
     exc = sys.exception()
     if not exc:
         return

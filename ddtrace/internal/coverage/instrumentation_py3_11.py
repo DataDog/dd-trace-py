@@ -1,29 +1,87 @@
 from abc import ABC
+from dataclasses import dataclass
 import dis
 from enum import Enum
 import sys
 from types import CodeType
 import typing as t
 
-from dataclasses import dataclass
 from ddtrace.internal.injection import HookType
-from ddtrace.internal.instrumentation import EXTENDED_ARG
-from ddtrace.internal.instrumentation import NO_OFFSET
-from ddtrace.internal.instrumentation import Branch
-from ddtrace.internal.instrumentation import ExceptionTableEntry
-from ddtrace.internal.instrumentation import Instruction
-from ddtrace.internal.instrumentation import Jump
-from ddtrace.internal.instrumentation import JumpDirection
-from ddtrace.internal.instrumentation import RJump
-from ddtrace.internal.instrumentation import instr_with_arg
-from ddtrace.internal.instrumentation import parse_exception_table
-from ddtrace.internal.instrumentation.opcodes import *
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
 assert sys.version_info >= (3, 11) and sys.version_info < (3, 12)  # nosec
+
+
+class JumpDirection(int, Enum):
+    FORWARD = 1
+    BACKWARD = -1
+
+    @classmethod
+    def from_opcode(cls, opcode: int) -> "JumpDirection":
+        return cls.BACKWARD if "BACKWARD" in dis.opname[opcode] else cls.FORWARD
+
+
+class Jump(ABC):
+    def __init__(self, start: int, arg: int) -> None:
+        self.start = start
+        self.end: t.Optional[int] = None
+        self.arg = arg
+
+
+class RJump(Jump):
+    __opcodes__ = set(dis.hasjrel)
+
+    def __init__(self, start: int, arg: int, direction: JumpDirection) -> None:
+        super().__init__(start, arg)
+
+        self.direction = direction
+        self.end = start + (self.arg << 1) * self.direction + 2
+
+
+class Instruction:
+    __slots__ = ("offset", "opcode", "arg", "targets")
+
+    def __init__(self, offset: int, opcode: int, arg: int) -> None:
+        self.offset = offset
+        self.opcode = opcode
+        self.arg = arg
+        self.targets: t.List["Branch"] = []
+
+
+class Branch:
+    def __init__(self, start: Instruction, end: Instruction) -> None:
+        self.start = start
+        self.end = end
+
+    @property
+    def arg(self) -> int:
+        return abs(self.end.offset - self.start.offset - 2) >> 1
+
+
+EXTENDED_ARG = dis.EXTENDED_ARG
+NO_OFFSET = -1
+
+
+def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
+    instructions = [Instruction(NO_OFFSET, opcode, arg & 0xFF)]
+    arg >>= 8
+    while arg:
+        instructions.insert(0, Instruction(NO_OFFSET, EXTENDED_ARG, arg & 0xFF))
+        arg >>= 8
+    return instructions
+
+
+def from_varint(iterator: t.Iterator[int]) -> int:
+    b = next(iterator)
+    val = b & 63
+    while b & 64:
+        val <<= 6
+        b = next(iterator)
+        val |= b & 63
+    return val
 
 
 def to_varint(value: int, set_begin_marker: bool = False) -> bytes:
@@ -124,6 +182,28 @@ def update_location_data(
     return bytes(new_data)
 
 
+@dataclass
+class ExceptionTableEntry:
+    start: t.Union[int, Instruction]
+    end: t.Union[int, Instruction]
+    target: t.Union[int, Instruction]
+    depth_lasti: int
+
+
+def parse_exception_table(code: CodeType):
+    iterator = iter(code.co_exceptiontable)
+    try:
+        while True:
+            start = from_varint(iterator) << 1
+            length = from_varint(iterator) << 1
+            end = start + length - 2  # Present as inclusive, not exclusive
+            target = from_varint(iterator) << 1
+            dl = from_varint(iterator)
+            yield ExceptionTableEntry(start, end, target, dl)
+    except StopIteration:
+        return
+
+
 def compile_exception_table(exc_table: t.List[ExceptionTableEntry]) -> bytes:
     table = bytearray()
     for entry in exc_table:
@@ -134,6 +214,17 @@ def compile_exception_table(exc_table: t.List[ExceptionTableEntry]) -> bytes:
         table.extend(to_varint(entry.depth_lasti))
     return bytes(table)
 
+
+PUSH_NULL = dis.opmap["PUSH_NULL"]
+LOAD_CONST = dis.opmap["LOAD_CONST"]
+PRECALL = dis.opmap["PRECALL"]
+CACHE = dis.opmap["CACHE"]
+CALL = dis.opmap["CALL"]
+POP_TOP = dis.opmap["POP_TOP"]
+RESUME = dis.opmap["RESUME"]
+RETURN_VALUE = dis.opmap["RETURN_VALUE"]
+IMPORT_NAME = dis.opmap["IMPORT_NAME"]
+IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 
 EMPTY_BYTECODE = bytes([RESUME, 0, LOAD_CONST, 0, RETURN_VALUE, 0])
 
@@ -164,7 +255,7 @@ class InjectionContext:
     _new_names: t.List[str]
     _new_varnames: t.List[str]
     package: str
-    instructions_cb: t.Callable[["InjectionContext", t.Any], t.Tuple[Instruction, ...]] = lambda ctx, _: ()
+    instructions_cb: t.Callable[["InjectionContext", int], t.Tuple[Instruction, ...]] = lambda ctx, _: ()
 
     @staticmethod
     def from_code(code: CodeType, package: str) -> "InjectionContext":
@@ -253,7 +344,9 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     return inject_instructions(injection_context, line_starts, SKIP_LINES)
 
 
-def inject_instructions(injection_context: InjectionContext, injection_lines: t.Dict[int, int], skip_opcodes: frozenset) -> t.Tuple[CodeType, CoverageLines]:
+def inject_instructions(
+    injection_context: InjectionContext, injection_lines: t.Dict[int, int], skip_opcodes: frozenset
+) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     # trap_func, trap_arg = injection_context.callback, path
     code = injection_context.original_code
@@ -462,7 +555,7 @@ def inject_instructions(injection_context: InjectionContext, injection_lines: t.
                 exts.append((ext_instr, c))
                 # Update the instruction offset from the point of insertion
                 # of the EXTENDED_ARGs
-                for instr_index, instr in enumerate(instructions[index + 1:], index + 1):
+                for instr_index, instr in enumerate(instructions[index + 1 :], index + 1):
                     instr.offset = instr_index << 1
 
                 process_branches = True

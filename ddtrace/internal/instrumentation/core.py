@@ -235,7 +235,9 @@ def inject_instructions_alt(injection_context: InjectionContext) -> CodeType:
     return code
 
 
-def inject_instructions(code: CodeType, inject_instructions: t.List[Instruction], injection_indexes: t.List[int]) -> CodeType:
+def inject_instructions(
+    code: CodeType, inject_instructions: t.List[Instruction], injection_indexes: t.List[int]
+) -> CodeType:
     # TODO[perf]: Check if we really need to << and >> everywhere
     # trap_func, trap_arg = hook, path
 
