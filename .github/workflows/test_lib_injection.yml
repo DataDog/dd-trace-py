@@ -12,26 +12,39 @@ jobs:
     strategy:
       matrix:
         python:
-          - 2.6
-          - 2.7
-          - 3.1
-          - 3.2
-          - 3.3
-          - 3.4
-          - 3.5
-          - 3.6
-          - 3.7
-          - 3.8
-          - 3.9
-          - 3.10
-          - 3.11
-          - 3.12
-          - 3.13
+          # requires openssl 1.0, which is hard to get
+          # - "2.6"
+          # - "3.4"
+          # segfaults
+          # - 3.0"
+          # - 3.1"
+          # - "3.2"
+          # - "3.3"
+          - "2.7"
+          - "3.5"
+          - "3.6"
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
     steps:
       - uses: actions/checkout@v4
-      - name: Install python version
-        uses: gabrielfalcao/pyenv-action@v18
-        with:
-          default: "${{ matrix.python }}"
+      - name: Install pyenv
+        run: |
+          export PYENV_ROOT="${HOME}/.pyenv"
+          export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
+          PYENV_GIT_TAG=main curl https://pyenv.run | bash
+          echo "PYENV_ROOT=${PYENV_ROOT}" >> $GITHUB_ENV
+          echo "PATH=${PATH}" >> $GITHUB_ENV
+      - name: Install python ${{ matrix.python }}
+        run: |
+          which pyenv
+          pyenv --version
+          pyenv install "${{ matrix.python }}" && pyenv global "${{ matrix.python }}"
+      - name: Print Python version
+        run: python --version
       - name: Validate sitecustomize.py runs with ${{ matrix.python }}
         run: python lib-injection/sources/sitecustomize.py
