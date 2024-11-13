@@ -94,7 +94,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         assert len(samples) > 0
 
         # DEV: somehow the filename is reported as either __init__.py or gunicorn-app.py
-        # We need to match either of these
+        # when run on GitLab CI. We need to match either of these two.
         filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
 
         expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=8)
