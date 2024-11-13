@@ -1,4 +1,4 @@
-| integration                    | minimum tracer supported       | max tracer supported           | minumum available supported    | maximum available supported    |
+| integration                    | minimum tracer supported       | max tracer supported           | minimum available supported    | maximum available supported    |
 | ------------------------------ | ------------------------------ | ------------------------------ | ------------------------------ | ------------------------------ |
 | aiobotocore                    |                                |                                |                                |                                |
 | aiohttp                        |                                |                                |                                |                                |
