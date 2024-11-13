@@ -749,7 +749,7 @@ class TestBotocoreSpanPointers:
                 response={},
                 expected_pointers=[],
                 expected_logger_regex=".*unknown-table.*",
-                logger_level="debug",
+                logger_level="warning",
             ),
             PointersCase(
                 name="dynamodb.TransactWriteItems basic case",
@@ -840,7 +840,7 @@ class TestBotocoreSpanPointers:
                 response={},
                 expected_pointers=[],
                 expected_logger_regex=".*unknown-table.*",
-                logger_level="debug",
+                logger_level="warning",
             ),
         ],
         ids=lambda case: case.name,

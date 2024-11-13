@@ -152,14 +152,12 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
         record_span_pointer_calculation_issue(operation="DynamoDB.PutItem", issue_tag="request_parameters")
         return []
 
-    try:
-        primary_key_names = dynamodb_primary_key_names_for_tables[table_name]
-    except KeyError as e:
-        log.warning(
-            "failed to extract DynamoDB.PutItem span pointer: table %s not found in primary key names",
-            e,
-        )
-        record_span_pointer_calculation_issue(operation="DynamoDB.PutItem", issue_tag="missing_table_info")
+    primary_key_names = _extract_primary_key_names_from_configuration(
+        operation="DynamoDB.PutItem",
+        dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
+        table_name=table_name,
+    )
+    if primary_key_names is None:
         return []
 
     try:
@@ -189,6 +187,23 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
         )
         record_span_pointer_calculation_issue(operation="DynamoDB.PutItem", issue_tag="calculation")
         return []
+
+
+def _extract_primary_key_names_from_configuration(
+    operation: str,
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    table_name: _DynamoDBTableName,
+) -> Optional[Set[_DynamoDBItemFieldName]]:
+    try:
+        return dynamodb_primary_key_names_for_tables[table_name]
+    except KeyError as e:
+        log.warning(
+            "failed to extract %s span pointer: table %s not found in primary key names",
+            operation,
+            e,
+        )
+        record_span_pointer_calculation_issue(operation=operation, issue_tag="missing_table_info")
+        return None
 
 
 def _extract_span_pointers_for_dynamodb_keyed_operation_response(
@@ -392,9 +407,17 @@ def _aws_dynamodb_item_primary_key_from_write_request(
         # _DynamoDBPutRequestWriteRequest, so we help it out ourselves.
         write_request = cast(_DynamoDBPutRequestWriteRequest, write_request)
 
+        primary_key_field_names = _extract_primary_key_names_from_configuration(
+            operation="DynamoDB.BatchWriteItem",
+            dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
+            table_name=table_name,
+        )
+        if primary_key_field_names is None:
+            return None
+
         return _aws_dynamodb_item_primary_key_from_item(
             operation="DynamoDB.BatchWriteItem",
-            primary_key_field_names=dynamodb_primary_key_names_for_tables[table_name],
+            primary_key_field_names=primary_key_field_names,
             item=write_request["PutRequest"]["Item"],
         )
 
@@ -446,9 +469,18 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
         transact_write_request = cast(_DynamoDBTransactPutItem, transact_write_request)
 
         table_name = transact_write_request["Put"]["TableName"]
+
+        primary_key_field_names = _extract_primary_key_names_from_configuration(
+            operation="DynamoDB.TransactWriteItems",
+            dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
+            table_name=table_name,
+        )
+        if primary_key_field_names is None:
+            return []
+
         primary_key = _aws_dynamodb_item_primary_key_from_item(
             operation="DynamoDB.TransactWriteItems",
-            primary_key_field_names=dynamodb_primary_key_names_for_tables[table_name],
+            primary_key_field_names=primary_key_field_names,
             item=transact_write_request["Put"]["Item"],
         )
         if primary_key is None:
