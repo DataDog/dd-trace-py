@@ -23,7 +23,10 @@
             "tests/subprocesstest.py",
             "tests/wait-for-services.py",
             "tests/webclient.py",
-            "tests/test_module/*"
+            "tests/test_module/*",
+            ".gitlab-ci.yml",
+            ".gitlab/*",
+            "tests/jobspec.yml"
         ],
         "core": [
             "ddtrace/internal/__init__.py",
@@ -133,7 +136,8 @@
             "ddtrace/settings/_database_monitoring.py",
             "tests/contrib/patch.py",
             "tests/contrib/config.py",
-            "tests/contrib/__init__.py"
+            "tests/contrib/__init__.py",
+            "tests/contrib/jobspec.yml"
         ],
         "redis": [
             "ddtrace/contrib/rediscluster/*",
@@ -788,12 +792,7 @@
             "@bootstrap",
             "@core",
             "@profiling",
-            "tests/profiling/*"
-        ],
-        "profile-v2": [
-            "@bootstrap",
-            "@core",
-            "@profiling",
+            "tests/profiling/*",
             "tests/profiling_v2/*"
         ],
         "vendor": [
@@ -834,45 +833,6 @@
             "@tracing",
             "@loguru",
             "tests/contrib/loguru/*"
-        ],
-        "asyncio": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@asyncio"
-        ],
-        "futures": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@futures"
-        ],
-        "sqlite3": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@sqlite3",
-            "@dbapi"
-        ],
-        "dbapi": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@dbapi",
-            "@appsec",
-            "tests/contrib/shared_tests.py"
-        ],
-        "dbapi_async": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@dbapi",
-            "tests/contrib/shared_tests_async.py"
         ],
         "asyncpg": [
             "@bootstrap",
