@@ -191,6 +191,12 @@ def package_is_compatible(package_name, package_version):
 
 
 def get_first_incompatible_sysarg():
+    # bug: sys.argv is not always available in all python versions
+    # https://bugs.python.org/issue32573
+    if not hasattr(sys, "argv"):
+        _log("sys.argv not available, skipping sys.argv check", level="debug")
+        return
+
     _log(f"Checking sysargs: len(argv): {len(sys.argv)}", level="debug")
     if len(sys.argv) <= 1:
         return
