@@ -41,7 +41,7 @@ if ! gh run download $RUN_ID --repo DataDog/dd-trace-py ; then
   echo "Waiting for workflow to finish"
 
   # Give time to the job to finish
-  sleep 600 # 10 minutes
+  sleep 300 # 5 minutes
 
   # wait for run to finish
   gh run watch $RUN_ID --interval 60 --exit-status 1 --repo DataDog/dd-trace-py
