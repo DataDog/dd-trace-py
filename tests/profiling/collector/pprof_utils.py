@@ -281,7 +281,7 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
         if expected_locations_idx < len(expected_locations):
             if (
                 function_name.endswith(expected_locations[expected_locations_idx].function_name)
-                and filename == expected_locations[expected_locations_idx].filename
+                and re.fullmatch(expected_locations[expected_locations_idx].filename, filename)
                 and line_no == expected_locations[expected_locations_idx].line_no
             ):
                 expected_locations_idx += 1
