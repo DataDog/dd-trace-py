@@ -161,12 +161,14 @@ SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 class InjectionContext:
     original_code: CodeType
     _new_consts: t.List[t.Any]
+    _new_names: t.List[str]
+    _new_varnames: t.List[str]
     package: str
     instructions_cb: t.Callable[["InjectionContext", t.Any], t.Tuple[Instruction, ...]] = lambda ctx, _: ()
 
     @staticmethod
     def from_code(code: CodeType, package: str) -> "InjectionContext":
-        return InjectionContext(code, list(code.co_consts), package)
+        return InjectionContext(code, list(code.co_consts), list(code.co_names), list(code.co_varnames), package)
 
     def with_const(self, value: t.Any) -> int:
         if value not in self._new_consts:
@@ -176,9 +178,33 @@ class InjectionContext:
             index = self._new_consts.index(value)
         return index
 
+    def with_name(self, value: str) -> int:
+        if value not in self._new_names:
+            index = len(self._new_names)
+            self._new_names.append(value)
+        else:
+            index = self._new_names.index(value)
+        return index
+
+    def with_varname(self, value: str) -> int:
+        if value not in self._new_varnames:
+            index = len(self._new_varnames)
+            self._new_varnames.append(value)
+        else:
+            index = self._new_varnames.index(value)
+        return index
+
     @property
-    def new_consts(self) -> t.Tuple[t.Any]:
+    def new_consts(self) -> t.Tuple[t.Any, ...]:
         return tuple(self._new_consts)
+
+    @property
+    def new_names(self) -> t.Tuple[str, ...]:
+        return tuple(self._new_names)
+
+    @property
+    def new_varnames(self) -> t.Tuple[str, ...]:
+        return tuple(self._new_varnames)
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
@@ -463,6 +489,9 @@ def inject_instructions(injection_context: InjectionContext, injection_lines: t.
         code.replace(
             co_code=bytes(new_code),
             co_consts=injection_context.new_consts,
+            co_names=injection_context.new_names,
+            co_varnames=injection_context.new_varnames,
+            co_nlocals=len(injection_context.new_varnames),
             co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
             co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
             co_exceptiontable=compile_exception_table(exc_table),

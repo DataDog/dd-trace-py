@@ -50,3 +50,19 @@ def _instrument_obj(obj):
         for candidate in dir(obj):
             if type(obj) in (types.FunctionType, types.MethodType, type):
                 _instrument_obj(candidate)
+
+
+def _default_datadog_exc_callback(*args):
+    print('I am magically here!!!')
+    exc = sys.exception()
+    if not exc:
+        return
+
+    span = ddtrace.tracer.current_span()
+    if not span:
+        return
+
+    span._add_event(
+        "exception",
+        {"message": str(exc), "type": type(exc).__name__, "stack": "".join(traceback.format_exception(exc))},
+    )
