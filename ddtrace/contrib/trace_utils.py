@@ -1,6 +1,7 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
+
 from collections import deque
 import ipaddress
 import re
@@ -66,7 +67,6 @@ IP_PATTERNS = (
     "x-real-ip",
     "true-client-ip",
     "x-client-ip",
-    "x-forwarded",
     "forwarded-for",
     "x-cluster-client-ip",
     "fastly-client-ip",
