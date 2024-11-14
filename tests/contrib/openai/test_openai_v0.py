@@ -627,7 +627,7 @@ def test_logs_image_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, m
                     "message": mock.ANY,
                     "hostname": mock.ANY,
                     "ddsource": "openai",
-                    "service": "",
+                    "service": "tests.contrib.openai",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/images/edits,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": "{:x}".format(trace_id),
@@ -711,7 +711,7 @@ def test_logs_image_variation(openai_vcr, openai, ddtrace_config_openai, mock_lo
                     "message": mock.ANY,
                     "hostname": mock.ANY,
                     "ddsource": "openai",
-                    "service": "",
+                    "service": "tests.contrib.openai",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/images/variations,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": "{:x}".format(trace_id),

@@ -142,7 +142,7 @@ class LoggingTestCase(TracerTestCase):
         self._test_logging(create_span=create_span, service="")
 
         with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="global.env")
+            self._test_logging(create_span=create_span, version="global.version", env="global.env", service="")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
     def test_log_trace_128bit_trace_ids(self):

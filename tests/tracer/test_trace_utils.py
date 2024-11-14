@@ -283,7 +283,10 @@ def test_int_service_integration(int_config):
     assert trace_utils.int_service(pin, int_config.myint) == "tests.tracer"
 
     with override_global_config(dict(service="global-svc")):
-        assert trace_utils.int_service(pin, int_config.myint) == "tests.tracer"
+        # ensure int config picks up overriden changes
+        int_config = config
+
+        assert trace_utils.int_service(pin, int_config.myint) == "global-svc"
 
         with tracer.trace("something", service=trace_utils.int_service(pin, int_config.myint)) as s:
             assert s.service == "global-svc"
