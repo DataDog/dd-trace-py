@@ -66,7 +66,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     debug_print("Making request to gunicorn server")
     try:
-        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=10) as f:
+        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
             status_code = f.getcode()
             assert status_code == 200, status_code
             response = f.read().decode()
@@ -89,7 +89,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     debug_print("Waiting for gunicorn process to terminate")
     try:
-        assert proc.wait(timeout=10) == 0, output
+        assert proc.wait(timeout=5) == 0, output
     except subprocess.TimeoutExpired:
         pytest.fail("Failed to terminate gunicorn process ", output)
     assert "module 'threading' has no attribute '_active'" not in output, output
