@@ -2842,6 +2842,7 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "CPUCOUNT": "12",
             },
             pkgs={
                 "gunicorn": latest,
@@ -2979,6 +2980,7 @@ venv = Venv(
                 "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
                 # Enable pytest v2 plugin to handle pytest-cpp items in the test suite
                 "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+                "CPUCOUNT": "12",
             },
             pkgs={
                 "gunicorn": latest,
