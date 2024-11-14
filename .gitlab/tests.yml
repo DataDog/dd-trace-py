@@ -6,6 +6,7 @@ variables:
   _DD_CIVISIBILITY_USE_PYTEST_V2: "true"
   PYTEST_ADDOPTS: "-s"
 
+
 .testrunner:
   image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:7a2e802af76051f82d698919d2837eff18dbb48e
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
@@ -17,6 +18,7 @@ variables:
 
 
 {{services.yml}}
+
 .test_base_hatch:
   extends: .testrunner
   stage: tests
