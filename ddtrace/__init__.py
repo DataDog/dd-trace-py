@@ -55,15 +55,6 @@ __all__ = [
     "DDTraceDeprecationWarning",
 ]
 
-if PYTHON_VERSION_INFO <= (3, 7):
-    debtcollector.deprecate(
-        (
-            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in a future release."
-            % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])
-        ),
-        category=DDTraceDeprecationWarning,
-    )
-
 
 _DEPRECATED_MODULE_ATTRIBUTES = [
     "Span",
@@ -82,3 +73,16 @@ def __getattr__(name):
         return globals()[name]
 
     raise AttributeError("%s has no attribute %s", __name__, name)
+
+
+def check_supported_python_version():
+    if PYTHON_VERSION_INFO < (3, 8):
+        debtcollector.deprecate(
+            (
+                "Support for ddtrace with Python version %d.%d is deprecated and will be removed in a future release."
+                % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])
+            ),
+            category=DDTraceDeprecationWarning,
+        )
+
+check_supported_python_version()
