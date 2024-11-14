@@ -547,7 +547,7 @@ def test_decorating_sync_generator(LLMObs, mock_llmobs_span_writer):
         ("retrieval", retrieval),
     ):
 
-        @decorator()
+        @decorator
         def f():
             for i in range(5):
                 yield i
@@ -563,7 +563,6 @@ def test_decorating_sync_generator(LLMObs, mock_llmobs_span_writer):
             _expected_llmobs_non_llm_span_event(
                 span,
                 decorator_name,
-                session_id="test_session_id",
                 input_value="hello",
                 output_value="world",
             )
@@ -579,7 +578,7 @@ async def test_decorating_async_generator(LLMObs, mock_llmobs_span_writer):
         ("retrieval", retrieval),
     ):
 
-        @decorator()
+        @decorator
         async def f():
             for i in range(5):
                 yield i
@@ -595,7 +594,6 @@ async def test_decorating_async_generator(LLMObs, mock_llmobs_span_writer):
             _expected_llmobs_non_llm_span_event(
                 span,
                 decorator_name,
-                session_id="test_session_id",
                 input_value="hello",
                 output_value="world",
             )
