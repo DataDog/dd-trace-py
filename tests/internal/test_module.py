@@ -593,7 +593,7 @@ def __getattr__(name):
 
 @pytest.mark.skipif(sys.version_info >= (3, 8), reason="Python >= 3.8 is supported")
 def test_deprecated_python_version():
-    # Test that the deprecation warning for Python 3.7 and below is present in the __init__.py file.
+    # Test that the deprecation warning for Python 3.7 and below is printed for unsupported versions.
     result = subprocess.run(
         [sys.executable, "-c", "import ddtrace"],
         text=True,
@@ -603,13 +603,13 @@ def test_deprecated_python_version():
 
     assert (
         "Support for ddtrace with Python version 3.7 is deprecated and will be removed in a future release."
-        in result.stdout
+        in result.stderr
     )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 8), reason="Python < 3.8 is unsupported")
 def test_deprecated_python_version():
-    # Test that the deprecation warning for Python 3.7 and below is present in the __init__.py file.
+    # Test that the deprecation warning for Python 3.7 and below is not printed in supported Python versions.
     result = subprocess.run(
         [sys.executable, "-c", "import ddtrace"],
         text=True,
@@ -619,5 +619,5 @@ def test_deprecated_python_version():
 
     assert (
         "Support for ddtrace with Python version 3.7 is deprecated and will be removed in a future release."
-        not in result.stdout
+        not in result.stderr
     )
