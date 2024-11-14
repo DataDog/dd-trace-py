@@ -14,15 +14,16 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 
 log = get_logger(__name__)
 
+
 def _get_llmobs_span_options(name, model_name, func):
     traced_model_name = model_name
     if traced_model_name is None:
         traced_model_name = "custom"
-    
+
     span_name = name
     if span_name is None:
         span_name = func.__name__
-    
+
     return traced_model_name, span_name
 
 
