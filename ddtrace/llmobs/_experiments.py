@@ -1,13 +1,12 @@
-# TODO: Test failures on badly defined evaluators
+# TODO: Test failures on eval, how do we set errors
 # TODO: Test workflows for re-evals and publishing results
-# TODO: Idempotency of push/pull methods
 
 import concurrent.futures
 from datetime import datetime
 import json
 import os
 import time
-from typing import Any, Callable, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 import inspect
 from functools import wraps
 from urllib.parse import quote
@@ -43,7 +42,14 @@ class Dataset:
         description (str): Optional description of the dataset
     """
 
-    def __init__(self, name: str, data: List[Dict[str, Any]], description: str = "") -> None:
+    def __init__(self, name: str, data: List[Dict[str, Union[str, Dict[str, Any]]]], description: str = "") -> None:
+        """
+        Args:
+            name: Name of the dataset
+            data: List of dictionaries where 'input' and 'expected_output' values can be
+                 either strings or dictionaries of strings
+            description: Optional description of the dataset
+        """
         self.name = name
         self.description = description
         self._validate_data(data)
@@ -52,16 +58,36 @@ class Dataset:
         # Post-push attributes
         self._datadog_dataset_id = None
 
-    def __iter__(self) -> Iterator[Dict[str, Any]]:
+    def __iter__(self) -> Iterator[Dict[str, Union[str, Dict[str, Any]]]]:
         return iter(self._data)
 
     def __len__(self) -> int:
         return len(self._data)
 
-    def __getitem__(self, index: int) -> Dict[str, Any]:
-        return self._data[index]
+    def __getitem__(self, index: int) -> Dict[str, Union[str, Dict[str, Any]]]:
+        """Get a dataset record, converting _str_value dictionaries back to strings.
+        
+        Args:
+            index: Index of the record to retrieve
+            
+        Returns:
+            Dict containing the record with any _str_value values converted to strings
+        """
+        record = self._data[index].copy()
+        
+        # Convert input if it has _str_value
+        if 'input' in record and isinstance(record['input'], dict):
+            if '_str_value' in record['input'] and len(record['input']) == 1:
+                record['input'] = record['input']['_str_value']
+                
+        # Convert expected_output if it has _str_value
+        if 'expected_output' in record and isinstance(record['expected_output'], dict):
+            if '_str_value' in record['expected_output'] and len(record['expected_output']) == 1:
+                record['expected_output'] = record['expected_output']['_str_value']
+                
+        return record
 
-    def _validate_data(self, data: List[Dict[str, Any]]) -> None:
+    def _validate_data(self, data: List[Dict[str, Union[str, Dict[str, Any]]]]) -> None:
         """Validate the format and structure of dataset records.
 
         Args:
@@ -69,8 +95,7 @@ class Dataset:
 
         Raises:
             ValueError: If data is empty, contains non-dictionary rows,
-                       has inconsistent keys, contains nested dictionaries,
-                       or exceeds 50,000 rows
+                       has inconsistent keys, or exceeds 50,000 rows
         """
         if not data:
             raise ValueError("Data cannot be empty.")
@@ -86,20 +111,27 @@ class Dataset:
             if set(row.keys()) != first_row_keys:
                 raise ValueError("All rows must have the same keys.")
 
-            # Validate that 'input' exists and is a dictionary
-            if 'input' not in row:
-                raise ValueError("Each row must contain an 'input' field")
-            if not isinstance(row['input'], dict):
-                raise ValueError("The 'input' field must be a dictionary")
+            # Validate input if present
+            if 'input' in row:
+                if isinstance(row['input'], str):
+                    # Convert string to dict with _str_value key
+                    row['input'] = {'_str_value': row['input']}
+                elif isinstance(row['input'], dict):
+                    # Do nothing
+                    pass
+                else:
+                    raise ValueError("The 'input' field must be either a string or a dictionary")
 
-            # If expected_output exists, validate it's a dictionary
-            if 'expected_output' in row and not isinstance(row['expected_output'], dict):
-                raise ValueError("The 'expected_output' field must be a dictionary")
-
-            # Check that 'input' and 'expected_output' are flat dictionaries
-            for key in ["input", "expected_output"]:
-                if key in row and any(isinstance(value, dict) for value in row[key].values()):
-                    raise ValueError(f"'{key}' must be a flat dictionary (no nested dictionaries).")
+            # Validate expected_output if present
+            if 'expected_output' in row:
+                if isinstance(row['expected_output'], str):
+                    # Convert string to dict with _str_value key
+                    row['expected_output'] = {'_str_value': row['expected_output']}
+                elif isinstance(row['expected_output'], dict):
+                    # Do nothing
+                    pass
+                else:
+                    raise ValueError("The 'expected_output' field must be either a string or a dictionary")
 
     @classmethod
     def pull(cls, name: str) -> "Dataset":
@@ -137,13 +169,26 @@ class Dataset:
         class_records = []
         for record in records_data.get("data", []):
             attrs = record.get("attributes", {})
-            class_records.append(
-                {
-                    "input": attrs.get("input", {}),
-                    "expected_output": attrs.get("expected_output", {}),
-                    **attrs.get("metadata", {}),
-                }
-            )
+            input_data = attrs.get("input")
+            expected_output = attrs.get("expected_output")
+
+            print(input_data, expected_output)
+            
+            # Handle input data format
+            if isinstance(input_data, str):
+                input_data = {'_str_value': input_data}
+            # For dictionaries, keep as-is (no conversion needed)
+                
+            # Handle expected output format
+            if isinstance(expected_output, str):
+                expected_output = {'_str_value': expected_output}
+            # For dictionaries, keep as-is (no conversion needed)
+                
+            class_records.append({
+                "input": input_data,
+                "expected_output": expected_output,
+                **attrs.get("metadata", {}),
+            })
 
         # Create new dataset instance
         dataset = cls(name, class_records)
@@ -154,7 +199,7 @@ class Dataset:
         """Push the dataset to Datadog.
 
         Returns:
-            Dict[str, str]: Dictionary containing dataset information including:
+            Dict[str, Any]: Dictionary containing dataset information including:
                 - dataset_id: The ID of the created/updated dataset
                 - dataset_name: The name of the dataset
                 - record_count: Number of records uploaded
@@ -256,8 +301,18 @@ class Dataset:
                     raise ValueError(f"Metadata columns not found in CSV header: {missing_metadata_columns}")
 
                 for row in rows:
-                    input_data = {col: row[col] for col in input_columns}
-                    expected_output_data = {col: row[col] for col in expected_output_columns}
+                    # If single column, use string value wrapped in dict
+                    if len(input_columns) == 1:
+                        input_data = {'_str_value': row[input_columns[0]]}
+                    else:
+                        input_data = {col: row[col] for col in input_columns}
+
+                    # If single column, use string value wrapped in dict
+                    if len(expected_output_columns) == 1:
+                        expected_output_data = {'_str_value': row[expected_output_columns[0]]}
+                    else:
+                        expected_output_data = {col: row[col] for col in expected_output_columns}
+
                     metadata = {}
                     if metadata_columns:
                         metadata = {col: row[col] for col in metadata_columns}
@@ -479,27 +534,70 @@ class Dataset:
             )
 
         if multiindex:
-            # Create a list of flattened dictionaries
-            flattened_data = []
+            column_tuples = set()
+            data_rows = []
             for record in self._data:
                 flat_record = {}
+
                 # Handle 'input' fields
-                for k, v in record.get('input', {}).items():
-                    flat_record[('input', k)] = v
+                input_data = record.get('input', {})
+                if isinstance(input_data, dict) and '_str_value' in input_data and len(input_data) == 1:
+                    flat_record[('input', '')] = input_data['_str_value']
+                    column_tuples.add(('input', ''))
+                else:
+                    for k, v in input_data.items():
+                        flat_record[('input', k)] = v
+                        column_tuples.add(('input', k))
+
                 # Handle 'expected_output' fields
-                for k, v in record.get('expected_output', {}).items():
-                    flat_record[('expected_output', k)] = v
+                expected_output = record.get('expected_output', {})
+                if isinstance(expected_output, dict) and '_str_value' in expected_output and len(expected_output) == 1:
+                    flat_record[('expected_output', '')] = expected_output['_str_value']
+                    column_tuples.add(('expected_output', ''))
+                else:
+                    for k, v in expected_output.items():
+                        flat_record[('expected_output', k)] = v
+                        column_tuples.add(('expected_output', k))
+
                 # Handle any other top-level fields
                 for k, v in record.items():
                     if k not in ['input', 'expected_output']:
                         flat_record[('metadata', k)] = v
-                flattened_data.append(flat_record)
+                        column_tuples.add(('metadata', k))
+                data_rows.append(flat_record)
 
-            df = pd.DataFrame(flattened_data)
-            # Set columns as MultiIndex
-            df.columns = pd.MultiIndex.from_tuples(df.columns)
+            # Convert column_tuples to a sorted list to maintain consistent column order
+            column_tuples = sorted(list(column_tuples))
+
+            # Build the DataFrame
+            records_list = []
+            for flat_record in data_rows:
+                row = [flat_record.get(col, None) for col in column_tuples]
+                records_list.append(row)
+
+            df = pd.DataFrame(records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
+
             return df
-        return pd.DataFrame(self._data)
+
+        else:
+            # For non-multiindex, convert _str_value in the nested structures
+            data = []
+            for record in self._data:
+                new_record = {}
+                input_data = record.get('input', {})
+                new_record['input'] = (input_data['_str_value'] 
+                                     if isinstance(input_data, dict) and '_str_value' in input_data and len(input_data) == 1 
+                                     else input_data)
+                expected_output = record.get('expected_output', {})
+                new_record['expected_output'] = (expected_output['_str_value']
+                                               if isinstance(expected_output, dict) and '_str_value' in expected_output and len(expected_output) == 1
+                                               else expected_output)
+                # Copy other fields
+                for k, v in record.items():
+                    if k not in ['input', 'expected_output']:
+                        new_record[k] = v
+                data.append(new_record)
+            return pd.DataFrame(data)
 
     def export_to_jsonl(self, file_path):
         """
@@ -600,7 +698,7 @@ class Experiment:
         """
         if not 1 <= _jobs <= 20:
             raise ValueError("Number of jobs must be between 1 and 20")
-        if retries < 0:
+        if _retries < 0:
             raise ValueError("Number of retries must be non-negative")
         self.outputs = []
         total_rows = len(self.dataset)
@@ -611,12 +709,13 @@ class Experiment:
             attempt = 0
             delay = 1.0  # Initial delay in seconds
 
-            while attempt <= retries:
+            while attempt <= _retries:
                 start_time = time.time()
                 try:
-                    # Extract the input data
+                    # Extract the input data and convert if it's a _str_value dict
                     input_data = row['input']
-                    
+                    if isinstance(input_data, dict) and '_str_value' in input_data and len(input_data) == 1:
+                        input_data = input_data['_str_value']
 
                     def execute_task():
                         if getattr(self.task, '_accepts_config', False):
@@ -626,11 +725,12 @@ class Experiment:
                     # Use ThreadPoolExecutor to enforce timeout
                     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as single_executor:
                         future = single_executor.submit(execute_task)
-                        output = future.result(timeout=timeout)
+                        output = future.result(timeout=_timeout)
 
-
-                    # Ensure output is a dictionary
-                    if not isinstance(output, dict):
+                    # Ensure output is a dictionary with _str_value for strings
+                    if isinstance(output, str):
+                        output = {'_str_value': output}
+                    elif not isinstance(output, dict):
                         output = {'value': output}
 
                     # Prepare output data
@@ -654,12 +754,13 @@ class Experiment:
                     return output_data
 
                 except concurrent.futures.TimeoutError as e:
+                    print(f"Timeout error: {e}")
                     if raise_on_error:
                         # Raise specific experiment task error
-                        raise ExperimentTaskError(f"Task timed out after {timeout} seconds", idx, e)
-                    if attempt < retries:
+                        raise ExperimentTaskError(f"Task timed out after {_timeout} seconds", idx, e)
+                    if attempt < _retries:
                         # Exponential backoff and retry
-                        sleep_time = min(delay, max_delay)
+                        sleep_time = min(delay, _max_delay)
                         time.sleep(sleep_time)
                         delay *= 2
                         attempt += 1
@@ -677,7 +778,7 @@ class Experiment:
                                 "dataset_name": self.dataset.name,
                             },
                             "error": {
-                                "message": f"Task timed out after {timeout} seconds",
+                                "message": f"Task timed out after {_timeout} seconds",
                                 "stack": None,
                                 "type": "TimeoutError",
                             }
@@ -685,12 +786,13 @@ class Experiment:
                         return output_data
 
                 except Exception as e:
+                    print(f"Error: {e}")
                     if raise_on_error:
                         # Raise specific experiment task error
                         raise ExperimentTaskError(str(e), idx, e)
-                    if attempt < retries:
+                    if attempt < _retries:
                         # Exponential backoff and retry
-                        sleep_time = min(delay, max_delay)
+                        sleep_time = min(delay, _max_delay)
                         time.sleep(sleep_time)
                         delay *= 2
                         attempt += 1
@@ -740,6 +842,7 @@ class Experiment:
                             error_exception = Exception(f"Task failed on row {idx}: {output_data['error']['message']}")
                             break
                     except Exception as e:
+                        print(f"Error: {e}")
                         outputs_buffer[idx] = {
                             "idx": idx,
                             "output": None,
@@ -766,6 +869,7 @@ class Experiment:
                     _print_progress_bar(completed, total_rows, prefix='Processing:', suffix='Complete')
             finally:
                 if error_occurred:
+                    print(f"Error occurred: {error_exception}")
                     # Cancel all pending futures
                     for future in futures:
                         future.cancel()
@@ -810,23 +914,37 @@ class Experiment:
         total_rows = len(self.outputs)
         completed = 0
 
-        # Initialize the progress bar
         _print_progress_bar(0, total_rows, prefix='Evaluating:', suffix='Complete')
 
         for idx, output_data in enumerate(self.outputs):
             try:
-                # Retrieve output from outputs
                 output = output_data["output"]
+                # Convert output if it has '_str_value'
+                if isinstance(output, dict) and '_str_value' in output and len(output) == 1:
+                    output = output['_str_value']
+                
                 # Get the corresponding dataset row
                 dataset_row = self.dataset[idx]
                 input_data = dataset_row.get('input', {})
                 expected_output = dataset_row.get('expected_output', {})
+                
+                # Convert input_data if it has '_str_value'
+                if isinstance(input_data, dict) and '_str_value' in input_data and len(input_data) == 1:
+                    input_data = input_data['_str_value']
+
+                # Convert expected_output if it has '_str_value'
+                if isinstance(expected_output, dict) and '_str_value' in expected_output and len(expected_output) == 1:
+                    expected_output = expected_output['_str_value']
 
                 # Perform evaluation
                 evaluations_dict = {}
                 for evaluator in evaluators_to_use:
-                    evaluation_result = evaluator(expected_output, output, input_data)
-                    evaluations_dict[evaluator.__name__] = evaluation_result
+                    try:
+                        evaluation_result = evaluator(expected_output, output, input_data)
+                        evaluations_dict[evaluator.__name__] = evaluation_result
+                    except Exception as e:
+                        print(f"Error evaluating row {idx}: {type(e).__name__}: {e}, with evaluator {evaluator.__name__}")
+                        raise e
 
                 # Store evaluation results
                 evaluations.append({
@@ -907,7 +1025,7 @@ class ExperimentResults:
         for idx in range(len(self.outputs)):
             output_data = self.outputs[idx]
             evaluation_data = self.evaluations[idx]
-            dataset_record = self.dataset[idx]
+            dataset_record = self.dataset._data[idx]
 
             merged_result = {
                 "idx": idx,
@@ -929,14 +1047,39 @@ class ExperimentResults:
         return len(self.merged_results)
 
     def __getitem__(self, index: int) -> Any:
-        return self.merged_results[index]
+        """Get a result record, converting _str_value dictionaries back to strings.
+        
+        Args:
+            index: Index of the record to retrieve
+            
+        Returns:
+            Dict containing the record with any _str_value values converted to strings
+        """
+        result = self.merged_results[index].copy()
+        
+        # Convert input if it has _str_value
+        if 'input' in result and isinstance(result['input'], dict):
+            if '_str_value' in result['input'] and len(result['input']) == 1:
+                result['input'] = result['input']['_str_value']
+                
+        # Convert expected_output if it has _str_value
+        if 'expected_output' in result and isinstance(result['expected_output'], dict):
+            if '_str_value' in result['expected_output'] and len(result['expected_output']) == 1:
+                result['expected_output'] = result['expected_output']['_str_value']
+                
+        # Convert output if it has _str_value
+        if 'output' in result and isinstance(result['output'], dict):
+            if '_str_value' in result['output'] and len(result['output']) == 1:
+                result['output'] = result['output']['_str_value']
+                
+        return result
 
     def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
         """Convert the experiment results to a pandas DataFrame, including the experiment config.
 
         Args:
             multiindex (bool): If True, expand nested dictionaries into MultiIndex columns.
-                               If False, keep the nested dictionaries as they are.
+                            If False, keep the nested dictionaries as they are.
 
         Returns:
             pd.DataFrame: A DataFrame representation of the experiment results.
@@ -952,59 +1095,119 @@ class ExperimentResults:
                 "Please install it with `pip install pandas`"
             )
 
-        data = []
+        # Define the desired column order
+        COLUMN_ORDER = ['input', 'expected_output', 'output', 'evaluations', 'metadata', 'config', 'error']
+        
+        data_rows = []
+        column_tuples = set()
 
         for result in self.merged_results:
             record = {}
+
             if multiindex:
-                # Flatten 'input'
-                for k, v in result['input'].items():
-                    record[('input', k)] = v
-                # Flatten 'expected_output'
-                for k, v in result['expected_output'].items():
-                    record[('expected_output', k)] = v
-                # Flatten 'output'
+                # Handle 'input' fields
+                input_data = result.get('input', {})
+                if isinstance(input_data, dict) and '_str_value' in input_data and len(input_data) == 1:
+                    record[('input', '')] = input_data['_str_value']
+                    column_tuples.add(('input', ''))
+                else:
+                    for k, v in input_data.items():
+                        record[('input', k)] = v
+                        column_tuples.add(('input', k))
+
+                # Handle 'expected_output' fields
+                expected_output = result.get('expected_output', {})
+                if isinstance(expected_output, dict) and '_str_value' in expected_output and len(expected_output) == 1:
+                    record[('expected_output', '')] = expected_output['_str_value']
+                    column_tuples.add(('expected_output', ''))
+                else:
+                    for k, v in expected_output.items():
+                        record[('expected_output', k)] = v
+                        column_tuples.add(('expected_output', k))
+
+                # Handle 'output' fields
                 output = result.get('output', {})
                 if isinstance(output, dict):
-                    for k, v in output.items():
-                        record[('output', k)] = v
-                # Flatten 'evaluations'
-                for eval_name, eval_result in result['evaluations'].items():
+                    if '_str_value' in output and len(output) == 1:
+                        record[('output', '')] = output['_str_value']
+                        column_tuples.add(('output', ''))
+                    else:
+                        for k, v in output.items():
+                            record[('output', k)] = v
+                            column_tuples.add(('output', k))
+                else:
+                    record[('output', '')] = output
+                    column_tuples.add(('output', ''))
+
+                # Handle 'evaluations' fields
+                evaluations = result.get('evaluations', {})
+                for eval_name, eval_result in evaluations.items():
                     if isinstance(eval_result, dict):
                         for k, v in eval_result.items():
                             record[('evaluations', eval_name, k)] = v
+                            column_tuples.add(('evaluations', eval_name, k))
                     else:
                         record[('evaluations', eval_name)] = eval_result
-                # Flatten 'metadata'
+                        column_tuples.add(('evaluations', eval_name))
+
+                # Handle 'metadata' fields
                 for k, v in result.get('metadata', {}).items():
                     record[('metadata', k)] = v
-                # Include 'config' from the experiment
+                    column_tuples.add(('metadata', k))
+
+                # Handle 'config' fields
                 if self.experiment.config:
                     for k, v in self.experiment.config.items():
                         record[('config', k)] = v
-                # Flatten 'error'
-                error = result['error']
-                if error:
-                    record[('error', 'message')] = error.get('message')
-                    record[('error', 'type')] = error.get('type')
-                    record[('error', 'stack')] = error.get('stack')
-               
-            else:
-                # Keep nested structures
-                record['input'] = result['input']
-                record['expected_output'] = result['expected_output']
-                record['output'] = result.get('output')
-                record['evaluations'] = result.get('evaluations')
-                record['metadata'] = result.get('metadata')
-                record['config'] = self.experiment.config
-                record['error'] = result.get('error')
-            data.append(record)
+                        column_tuples.add(('config', k))
 
-        
-        df = pd.DataFrame(data)
+                # Handle 'error' fields
+                error = result.get('error', {})
+                if error:
+                    for k, v in error.items():
+                        record[('error', k)] = v
+                        column_tuples.add(('error', k))
+
+                data_rows.append(record)
+            else:
+                # Non-multiindex implementation remains the same
+                new_record = {}
+                input_data = result.get('input', {})
+                new_record['input'] = (input_data['_str_value'] 
+                                    if isinstance(input_data, dict) and '_str_value' in input_data and len(input_data) == 1 
+                                    else input_data)
+                expected_output = result.get('expected_output', {})
+                new_record['expected_output'] = (expected_output['_str_value']
+                                            if isinstance(expected_output, dict) and '_str_value' in expected_output and len(expected_output) == 1
+                                            else expected_output)
+                output = result.get('output', {})
+                new_record['output'] = (output['_str_value']
+                                    if isinstance(output, dict) and '_str_value' in output and len(output) == 1 
+                                    else output)
+                new_record['evaluations'] = result.get('evaluations', {})
+                new_record['metadata'] = result.get('metadata', {})
+                new_record['config'] = self.experiment.config
+                new_record['error'] = result.get('error', {})
+                data_rows.append(new_record)
+
         if multiindex:
-            df.columns = pd.MultiIndex.from_tuples(df.columns)
-        return df
+            # Sort column_tuples based on the desired order
+            column_tuples = sorted(list(column_tuples), 
+                                key=lambda x: (COLUMN_ORDER.index(x[0]), x[1:] if len(x) > 1 else ''))
+
+            # Build the DataFrame
+            records_list = []
+            for record in data_rows:
+                row = [record.get(col, None) for col in column_tuples]
+                records_list.append(row)
+
+            df = pd.DataFrame(records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
+            return df
+        else:
+            df = pd.DataFrame(data_rows)
+            # Reorder columns according to COLUMN_ORDER
+            cols = [col for col in COLUMN_ORDER if col in df.columns]
+            return df[cols]
 
     def push(self, overwrite: bool = False) -> None:
         """Push the experiment results to Datadog.
@@ -1165,6 +1368,8 @@ class ExperimentResults:
 
                 metrics.append(metric)
 
+
+
         # Prepare payload and send to Datadog
         results_payload = {
             "data": {
@@ -1174,7 +1379,6 @@ class ExperimentResults:
             }
         }
 
-        print(json.dumps(results_payload, indent=2))
 
         url = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
         exp_http_request("POST", url, body=json.dumps(results_payload).encode("utf-8"))
@@ -1243,7 +1447,7 @@ def task(func):
         raise ValueError("Function name 'task' is reserved. Please use a different name for your task function.")
         
     @wraps(func)
-    def wrapper(input: Dict[str, Any], config: Optional[Dict[str, Any]] = None) -> Any:
+    def wrapper(input: Dict[str, Union[str, Dict[str, Any]]], config: Optional[Dict[str, Any]] = None) -> Any:
         # Call the original function with or without config
         if 'config' in inspect.signature(func).parameters:
             return func(input, config)
@@ -1261,8 +1465,8 @@ def task(func):
 
 def evaluator(func):
     @wraps(func)
-    def wrapper(expected_output: Dict[str, Any], output: Any, input: Dict[str, Any] = None) -> Any:
-            return func(expected_output, output, input)
+    def wrapper(expected_output: Union[str, Dict[str, Any]], output: Union[str, Dict[str, Any]], input: Union[str, Dict[str, Any]] = None) -> Any:
+        return func(expected_output, output, input)
     # Enforce signature compliance
     sig = inspect.signature(func)
     params = sig.parameters
