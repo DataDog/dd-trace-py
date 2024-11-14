@@ -475,8 +475,16 @@ class Config(object):
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+        print("service")
+        print(self.service)
+        print("args")
+        print(sys.argv)
+        print("sys executable")
+        print(sys.executable)
         self._inferred_base_service = detect_service(sys.argv)
-
+        print("inferredService")
+        print("service")
+        print(self._inferred_base_service)
         if self.service is None and in_gcp_function():
             self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_azure_function():
