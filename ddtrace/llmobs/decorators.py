@@ -1,5 +1,6 @@
 from functools import wraps
-from inspect import signature, isasyncgenfunction
+from inspect import isasyncgenfunction
+from inspect import signature
 from typing import Callable
 from typing import Optional
 

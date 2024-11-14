@@ -552,6 +552,7 @@ def test_decorating_sync_generator(LLMObs, mock_llmobs_span_writer):
         ("llm", llm),
         ("embedding", embedding),
     ):
+
         @decorator()
         def f():
             for i in range(3):
@@ -561,7 +562,7 @@ def test_decorating_sync_generator(LLMObs, mock_llmobs_span_writer):
                 input_data="hello",
                 output_data="world",
             )
-        
+
         for _ in f():
             pass
 
@@ -573,7 +574,7 @@ def test_decorating_sync_generator(LLMObs, mock_llmobs_span_writer):
                 input_messages=[{"content": "hello"}],
                 output_messages=[{"content": "world"}],
                 model_name="custom",
-                model_provider="custom"
+                model_provider="custom",
             )
         elif decorator_name == "embedding":
             expected_span_event = _expected_llmobs_llm_span_event(
@@ -582,24 +583,19 @@ def test_decorating_sync_generator(LLMObs, mock_llmobs_span_writer):
                 input_documents=[{"text": "hello"}],
                 output_value="world",
                 model_name="custom",
-                model_provider="custom"
+                model_provider="custom",
             )
-        elif decorator_name == "retrieval":  
+        elif decorator_name == "retrieval":
             expected_span_event = _expected_llmobs_non_llm_span_event(
-                span, 
-                decorator_name, 
-                input_value="hello",
-                output_documents=[{ "text": "world" }]
+                span, decorator_name, input_value="hello", output_documents=[{"text": "world"}]
             )
         else:
             expected_span_event = _expected_llmobs_non_llm_span_event(
-                span, 
-                decorator_name, 
-                input_value="hello",
-                output_value="world"
+                span, decorator_name, input_value="hello", output_value="world"
             )
-        
+
         mock_llmobs_span_writer.enqueue.assert_called_with(expected_span_event)
+
 
 async def test_decorating_async_generator(LLMObs, mock_llmobs_span_writer):
     """
@@ -615,6 +611,7 @@ async def test_decorating_async_generator(LLMObs, mock_llmobs_span_writer):
         ("llm", llm),
         ("embedding", embedding),
     ):
+
         @decorator()
         async def f():
             for i in range(3):
@@ -624,7 +621,7 @@ async def test_decorating_async_generator(LLMObs, mock_llmobs_span_writer):
                 input_data="hello",
                 output_data="world",
             )
-        
+
         async for _ in f():
             pass
 
@@ -636,7 +633,7 @@ async def test_decorating_async_generator(LLMObs, mock_llmobs_span_writer):
                 input_messages=[{"content": "hello"}],
                 output_messages=[{"content": "world"}],
                 model_name="custom",
-                model_provider="custom"
+                model_provider="custom",
             )
         elif decorator_name == "embedding":
             expected_span_event = _expected_llmobs_llm_span_event(
@@ -645,21 +642,15 @@ async def test_decorating_async_generator(LLMObs, mock_llmobs_span_writer):
                 input_documents=[{"text": "hello"}],
                 output_value="world",
                 model_name="custom",
-                model_provider="custom"
+                model_provider="custom",
             )
-        elif decorator_name == "retrieval":  
+        elif decorator_name == "retrieval":
             expected_span_event = _expected_llmobs_non_llm_span_event(
-                span, 
-                decorator_name, 
-                input_value="hello",
-                output_documents=[{ "text": "world" }]
+                span, decorator_name, input_value="hello", output_documents=[{"text": "world"}]
             )
         else:
             expected_span_event = _expected_llmobs_non_llm_span_event(
-                span, 
-                decorator_name, 
-                input_value="hello",
-                output_value="world"
+                span, decorator_name, input_value="hello", output_value="world"
             )
-        
+
         mock_llmobs_span_writer.enqueue.assert_called_with(expected_span_event)
