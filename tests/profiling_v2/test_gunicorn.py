@@ -66,7 +66,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     debug_print("Making request to gunicorn server")
     try:
-        with urllib.request.urlopen("http://127.0.0.1:7644") as f:
+        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=10) as f:
             status_code = f.getcode()
             assert status_code == 200, status_code
             response = f.read().decode()
