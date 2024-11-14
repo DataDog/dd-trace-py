@@ -122,7 +122,7 @@ def instrument_all_lines_nonrecursive(
 
     previous_line = code.co_firstlineno
     previous_line_new_offset = 0
-    previous_previous_line = 0
+    previous_previous_line = code.co_firstlineno
 
     arg = 0
     previous_arg = 0
