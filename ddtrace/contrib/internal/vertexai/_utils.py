@@ -149,7 +149,6 @@ def tag_stream_response(span, chunks, integration):
                 )
             candidate_content = candidate.content
             role = role or candidate_content.role
-            span.set_tag_str("vertexai.response.candidates.%d.content.role" % (candidate_idx), str(role))
             if not integration.is_pc_sampled_span(span):
                 continue
             all_parts.extend(candidate_content.parts)
@@ -159,6 +158,8 @@ def tag_stream_response(span, chunks, integration):
         span.set_metric("vertexai.response.usage.prompt_tokens", token_counts.prompt_token_count)
         span.set_metric("vertexai.response.usage.completion_tokens", token_counts.candidates_token_count)
         span.set_metric("vertexai.response.usage.total_tokens", token_counts.total_token_count)
+    # streamed responses have only a single candidate, so there is only one role to be tagged
+    span.set_tag_str("vertexai.response.candidates.0.content.role", str(role))
     _tag_response_parts(span, integration, all_parts)
 
 
