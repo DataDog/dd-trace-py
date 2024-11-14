@@ -1,5 +1,5 @@
 from functools import wraps
-from inspect import signature
+from inspect import signature, isasyncgenfunction
 from typing import Callable
 from typing import Optional
 
@@ -24,7 +24,7 @@ def _model_decorator(operation_kind):
         ml_app: Optional[str] = None,
     ):
         def inner(func):
-            if iscoroutinefunction(func):
+            if iscoroutinefunction(func) or isasyncgenfunction(func):
 
                 @wraps(func)
                 async def generator_wrapper(*args, **kwargs):
@@ -80,8 +80,7 @@ def _model_decorator(operation_kind):
                 def generator_wrapper(*args, **kwargs):
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-                        for resp in func(*args, **kwargs):
-                            yield resp
+                        yield from func(*args, **kwargs)
                     else:
                         traced_model_name = model_name
                         if traced_model_name is None:
@@ -98,8 +97,7 @@ def _model_decorator(operation_kind):
                             ml_app=ml_app,
                         )
                         try:
-                            for resp in func(*args, **kwargs):
-                                yield resp
+                            yield from func(*args, **kwargs)
                         finally:
                             span.finish()
 
@@ -124,7 +122,7 @@ def _model_decorator(operation_kind):
                     ):
                         return func(*args, **kwargs)
 
-            return generator_wrapper if isgeneratorfunction(func) else wrapper
+            return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper
 
         if original_func and callable(original_func):
             return inner(original_func)
@@ -142,7 +140,7 @@ def _llmobs_decorator(operation_kind):
         _automatic_io_annotation: bool = True,
     ):
         def inner(func):
-            if iscoroutinefunction(func):
+            if iscoroutinefunction(func) or isasyncgenfunction(func):
 
                 @wraps(func)
                 async def generator_wrapper(*args, **kwargs):
@@ -195,11 +193,9 @@ def _llmobs_decorator(operation_kind):
 
                 @wraps(func)
                 def generator_wrapper(*args, **kwargs):
-                    # breakpoint()
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-                        for resp in func(*args, **kwargs):
-                            yield resp
+                        yield from func(*args, **kwargs)
                     else:
                         span_name = name
                         if span_name is None:
@@ -211,8 +207,7 @@ def _llmobs_decorator(operation_kind):
                         if _automatic_io_annotation and bound_args.arguments:
                             LLMObs.annotate(span=span, input_data=bound_args.arguments)
                         try:
-                            for resp in func(*args, **kwargs):
-                                yield resp
+                            yield from func(*args, **kwargs)
                         finally:
                             if span:
                                 span.finish()
@@ -241,7 +236,7 @@ def _llmobs_decorator(operation_kind):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp
 
-            return generator_wrapper if isgeneratorfunction(func) else wrapper
+            return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper
 
         if original_func and callable(original_func):
             return inner(original_func)

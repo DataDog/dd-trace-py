@@ -537,64 +537,129 @@ def test_automatic_annotation_off_if_manually_annotated(LLMObs, mock_llmobs_span
             )
         )
 
+
 def test_decorating_sync_generator(LLMObs, mock_llmobs_span_writer):
-    """Test that decorators work with generator functions."""
+    """
+    Test that decorators work with generator functions.
+    The span should finish after the generator is exhausted.
+    """
     for decorator_name, decorator in (
         ("task", task),
         ("workflow", workflow),
         ("tool", tool),
         ("agent", agent),
         ("retrieval", retrieval),
+        ("llm", llm),
+        ("embedding", embedding),
     ):
-
-        @decorator
+        @decorator()
         def f():
-            for i in range(5):
+            for i in range(3):
                 yield i
+
             LLMObs.annotate(
                 input_data="hello",
-                output_data="world"
+                output_data="world",
             )
-
+        
         for _ in f():
             pass
+
         span = LLMObs._instance.tracer.pop()[0]
-        mock_llmobs_span_writer.enqueue.assert_called_with(
-            _expected_llmobs_non_llm_span_event(
+        if decorator_name == "llm":
+            expected_span_event = _expected_llmobs_llm_span_event(
                 span,
                 decorator_name,
-                input_value="hello",
-                output_value="world",
+                input_messages=[{"content": "hello"}],
+                output_messages=[{"content": "world"}],
+                model_name="custom",
+                model_provider="custom"
             )
-        )
+        elif decorator_name == "embedding":
+            expected_span_event = _expected_llmobs_llm_span_event(
+                span,
+                decorator_name,
+                input_documents=[{"text": "hello"}],
+                output_value="world",
+                model_name="custom",
+                model_provider="custom"
+            )
+        elif decorator_name == "retrieval":  
+            expected_span_event = _expected_llmobs_non_llm_span_event(
+                span, 
+                decorator_name, 
+                input_value="hello",
+                output_documents=[{ "text": "world" }]
+            )
+        else:
+            expected_span_event = _expected_llmobs_non_llm_span_event(
+                span, 
+                decorator_name, 
+                input_value="hello",
+                output_value="world"
+            )
+        
+        mock_llmobs_span_writer.enqueue.assert_called_with(expected_span_event)
 
 async def test_decorating_async_generator(LLMObs, mock_llmobs_span_writer):
-    """Test that decorators work with async generator functions."""
+    """
+    Test that decorators work with generator functions.
+    The span should finish after the generator is exhausted.
+    """
     for decorator_name, decorator in (
         ("task", task),
         ("workflow", workflow),
         ("tool", tool),
         ("agent", agent),
         ("retrieval", retrieval),
+        ("llm", llm),
+        ("embedding", embedding),
     ):
-
-        @decorator
+        @decorator()
         async def f():
-            for i in range(5):
+            for i in range(3):
                 yield i
+
             LLMObs.annotate(
                 input_data="hello",
-                output_data="world"
+                output_data="world",
             )
-
+        
         async for _ in f():
             pass
+
         span = LLMObs._instance.tracer.pop()[0]
-        mock_llmobs_span_writer.enqueue.assert_called_with(
-            _expected_llmobs_non_llm_span_event(
+        if decorator_name == "llm":
+            expected_span_event = _expected_llmobs_llm_span_event(
                 span,
                 decorator_name,
-                input_value="hello",
-                output_value="world",
+                input_messages=[{"content": "hello"}],
+                output_messages=[{"content": "world"}],
+                model_name="custom",
+                model_provider="custom"
             )
-        )
+        elif decorator_name == "embedding":
+            expected_span_event = _expected_llmobs_llm_span_event(
+                span,
+                decorator_name,
+                input_documents=[{"text": "hello"}],
+                output_value="world",
+                model_name="custom",
+                model_provider="custom"
+            )
+        elif decorator_name == "retrieval":  
+            expected_span_event = _expected_llmobs_non_llm_span_event(
+                span, 
+                decorator_name, 
+                input_value="hello",
+                output_documents=[{ "text": "world" }]
+            )
+        else:
+            expected_span_event = _expected_llmobs_non_llm_span_event(
+                span, 
+                decorator_name, 
+                input_value="hello",
+                output_value="world"
+            )
+        
+        mock_llmobs_span_writer.enqueue.assert_called_with(expected_span_event)
