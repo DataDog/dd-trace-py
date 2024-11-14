@@ -1,16 +1,11 @@
 import os
-import sys
+import typing
 
 from ..constants import ENV_KEY
 from ..constants import VERSION_KEY
 from ..internal.logger import get_logger
 from ..internal.telemetry import telemetry_writer
 
-
-if sys.version_info >= (3, 8):
-    import typing
-else:
-    import typing_extensions as typing  # noqa: F401
 
 log = get_logger(__name__)
 
@@ -147,7 +142,7 @@ def otel_remapping():
 
     for otel_env, otel_value in user_envs.items():
         if otel_env not in ENV_VAR_MAPPINGS:
-            if otel_env.startswith("OTEL_"):
+            if otel_env.startswith("OTEL_") and otel_env != "OTEL_PYTHON_CONTEXT":
                 log.warning("OpenTelemetry configuration %s is not supported by Datadog.", otel_env)
                 telemetry_writer.add_count_metric(
                     "tracer", "otel.env.unsupported", 1, (("config_opentelemetry", otel_env.lower()),)
