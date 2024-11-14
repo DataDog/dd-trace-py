@@ -483,7 +483,7 @@ class Config(object):
         if self.service is None and in_azure_function():
             self.service = _get_config("WEBSITE_SITE_NAME", DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and DEFAULT_SPAN_SERVICE_NAME:
-            self.service = DEFAULT_SPAN_SERVICE_NAME
+            self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
         self._extra_services = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
