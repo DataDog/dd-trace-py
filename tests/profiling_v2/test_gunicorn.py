@@ -62,7 +62,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # DEV: We only start 1 worker to simplify the test
     proc = gunicorn("-w", "1", *args)
     # Wait for the workers to start
-    time.sleep(3)
+    time.sleep(5)
 
     debug_print("Making request to gunicorn server")
     try:
