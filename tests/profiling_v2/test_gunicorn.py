@@ -30,7 +30,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 def _run_gunicorn(*args):
     cmd = (
-        ["ddtrace-run", "gunicorn", "--bind", "127.0.0.1:7643", "--chdir", os.path.dirname(__file__)]
+        ["ddtrace-run", "gunicorn", "--bind", "127.0.0.1:7644", "--chdir", os.path.dirname(__file__)]
         + list(args)
         + ["tests.profiling.gunicorn-app:app"]
     )
@@ -68,7 +68,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     print("Making request to gunicorn server")
 
     try:
-        with urllib.request.urlopen("http://127.0.0.1:7643") as f:
+        with urllib.request.urlopen("http://127.0.0.1:7644") as f:
             status_code = f.getcode()
             assert status_code == 200, status_code
             response = f.read().decode()
