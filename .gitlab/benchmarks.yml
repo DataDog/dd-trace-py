@@ -7,7 +7,6 @@ variables:
   when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
-  interruptible: true
   timeout: 1h
   needs: []
   script:
