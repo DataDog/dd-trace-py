@@ -10,9 +10,7 @@ from typing import Optional  # noqa:F401
 
 import pytest
 
-from ddtrace.internal import compat
 from ddtrace.internal.utils.retry import RetryError  # noqa:F401
-from tests.utils import flaky
 from tests.utils import snapshot_context
 from tests.webclient import Client
 
@@ -111,7 +109,7 @@ bind = "{bind}"
 def gunicorn_server(gunicorn_server_settings, tmp_path):
     cfg_file = tmp_path / "gunicorn.conf.py"
     cfg = build_config_file(gunicorn_server_settings)
-    cfg_file.write_text(compat.stringify(cfg))
+    cfg_file.write_text(cfg)
     cmd = []
     if gunicorn_server_settings.use_ddtracerun:
         cmd = ["ddtrace-run"]
@@ -167,7 +165,6 @@ SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
 )
 
 
-@flaky(until=1706677200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_no_known_errors_occur(tmp_path):
     for gunicorn_server_settings in [
@@ -185,7 +182,6 @@ def test_no_known_errors_occur(tmp_path):
         assert payload["profiler"]["is_active"] is True
 
 
-@flaky(until=1706677200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_span_schematization(tmp_path):
     for schema_version in [None, "v0", "v1"]:
