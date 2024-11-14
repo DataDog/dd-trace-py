@@ -93,15 +93,17 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
         assert len(samples) > 0
 
+        # DEV: somehow the filename is reported as either __init__.py or gunicorn-app.py
+        # when run on GitLab CI. We need to match either of these two.
+        filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
+
+        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=8)
+
         pprof_utils.assert_profile_has_sample(
             profile,
             samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                locations=[
-                    pprof_utils.StackLocation(function_name="fib", filename="gunicorn-app.py", line_no=8),
-                    pprof_utils.StackLocation(function_name="fib", filename="gunicorn-app.py", line_no=8),
-                ]
-            ),
+            # DEV: we expect multiple locations as fibonacci is recursive
+            expected_sample=pprof_utils.StackEvent(locations=[expected_location, expected_location]),
         )
 
 
