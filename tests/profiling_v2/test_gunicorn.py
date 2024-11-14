@@ -13,7 +13,7 @@ from tests.profiling.collector import pprof_utils
 
 # DEV: gunicorn tests are hard to debug, so keeping these print statements for
 # future debugging
-DEBUG_PRINT = False
+DEBUG_PRINT = True
 
 
 def debug_print(*args):
@@ -64,6 +64,9 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # Wait for the workers to start
     time.sleep(5)
 
+    if proc.poll() is not None:
+        pytest.fail("Gunicorn failed to start")
+
     debug_print("Making request to gunicorn server")
     try:
         with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
@@ -71,7 +74,6 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
             assert status_code == 200, status_code
             response = f.read().decode()
             debug_print(response)
-
     except Exception as e:
         pytest.fail("Failed to make request to gunicorn server %s" % e)
     finally:
@@ -81,6 +83,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     debug_print("Reading gunicorn worker output to get PIDs")
     output = proc.stdout.read().decode()
     worker_pids = _get_worker_pids(output)
+    debug_print("Gunicorn worker PIDs: %s" % worker_pids)
 
     for line in output.splitlines():
         debug_print(line)
