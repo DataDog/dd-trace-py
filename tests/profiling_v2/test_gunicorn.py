@@ -58,15 +58,13 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     filename = str(tmp_path / "gunicorn.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
 
-    print("Creating gunicorn workers")
-
+    debug_print("Creating gunicorn workers")
     # DEV: We only start 1 worker to simplify the test
     proc = gunicorn("-w", "1", *args)
     # Wait for the workers to start
     time.sleep(3)
 
-    print("Making request to gunicorn server")
-
+    debug_print("Making request to gunicorn server")
     try:
         with urllib.request.urlopen("http://127.0.0.1:7644") as f:
             status_code = f.getcode()
@@ -80,8 +78,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         # Need to terminate the process to get the output and release the port
         proc.terminate()
 
-    print("Reading gunicorn worker output to get PIDs")
-
+    debug_print("Reading gunicorn worker output to get PIDs")
     output = proc.stdout.read().decode()
     worker_pids = _get_worker_pids(output)
 
@@ -90,14 +87,12 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     assert len(worker_pids) == 1, output
 
-    print("Waiting for gunicorn process to terminate")
+    debug_print("Waiting for gunicorn process to terminate")
     try:
         assert proc.wait(timeout=10) == 0, output
     except subprocess.TimeoutExpired:
         pytest.fail("Failed to terminate gunicorn process ", output)
     assert "module 'threading' has no attribute '_active'" not in output, output
-
-    print("Checking pprof files")
 
     for pid in worker_pids:
         debug_print("Reading pprof file with prefix %s.%d" % (filename, pid))
