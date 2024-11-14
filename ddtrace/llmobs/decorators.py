@@ -14,6 +14,17 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 
 log = get_logger(__name__)
 
+def _get_llmobs_span_options(name, model_name, func):
+    traced_model_name = model_name
+    if traced_model_name is None:
+        traced_model_name = "custom"
+    
+    span_name = name
+    if span_name is None:
+        span_name = func.__name__
+    
+    return traced_model_name, span_name
+
 
 def _model_decorator(operation_kind):
     def decorator(
@@ -34,12 +45,7 @@ def _model_decorator(operation_kind):
                         for resp in await func(*args, **kwargs):
                             yield resp
                     else:
-                        traced_model_name = model_name
-                        if traced_model_name is None:
-                            traced_model_name = "custom"
-                        span_name = name
-                        if span_name is None:
-                            span_name = func.__name__
+                        traced_model_name, span_name = _get_llmobs_span_options(name, model_name, func)
                         traced_operation = getattr(LLMObs, operation_kind, "llm")
                         span = traced_operation(
                             model_name=traced_model_name,
@@ -59,12 +65,7 @@ def _model_decorator(operation_kind):
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return await func(*args, **kwargs)
-                    traced_model_name = model_name
-                    if traced_model_name is None:
-                        traced_model_name = "custom"
-                    span_name = name
-                    if span_name is None:
-                        span_name = func.__name__
+                    traced_model_name, span_name = _get_llmobs_span_options(name, model_name, func)
                     traced_operation = getattr(LLMObs, operation_kind, "llm")
                     with traced_operation(
                         model_name=traced_model_name,
@@ -83,12 +84,7 @@ def _model_decorator(operation_kind):
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         yield from func(*args, **kwargs)
                     else:
-                        traced_model_name = model_name
-                        if traced_model_name is None:
-                            traced_model_name = "custom"
-                        span_name = name
-                        if span_name is None:
-                            span_name = func.__name__
+                        traced_model_name, span_name = _get_llmobs_span_options(name, model_name, func)
                         traced_operation = getattr(LLMObs, operation_kind, "llm")
                         span = traced_operation(
                             model_name=traced_model_name,
@@ -107,12 +103,7 @@ def _model_decorator(operation_kind):
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return func(*args, **kwargs)
-                    traced_model_name = model_name
-                    if traced_model_name is None:
-                        traced_model_name = "custom"
-                    span_name = name
-                    if span_name is None:
-                        span_name = func.__name__
+                    traced_model_name, span_name = _get_llmobs_span_options(name, model_name, func)
                     traced_operation = getattr(LLMObs, operation_kind, "llm")
                     with traced_operation(
                         model_name=traced_model_name,
@@ -150,9 +141,7 @@ def _llmobs_decorator(operation_kind):
                         for resp in await func(*args, **kwargs):
                             yield resp
                     else:
-                        span_name = name
-                        if span_name is None:
-                            span_name = func.__name__
+                        _, span_name = _get_llmobs_span_options(name, None, func)
                         traced_operation = getattr(LLMObs, operation_kind, "workflow")
                         span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app)
                         func_signature = signature(func)
@@ -171,9 +160,7 @@ def _llmobs_decorator(operation_kind):
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return await func(*args, **kwargs)
-                    span_name = name
-                    if span_name is None:
-                        span_name = func.__name__
+                    _, span_name = _get_llmobs_span_options(name, None, func)
                     traced_operation = getattr(LLMObs, operation_kind, "workflow")
                     with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
                         func_signature = signature(func)
@@ -198,9 +185,7 @@ def _llmobs_decorator(operation_kind):
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         yield from func(*args, **kwargs)
                     else:
-                        span_name = name
-                        if span_name is None:
-                            span_name = func.__name__
+                        _, span_name = _get_llmobs_span_options(name, None, func)
                         traced_operation = getattr(LLMObs, operation_kind, "workflow")
                         span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app)
                         func_signature = signature(func)
@@ -218,9 +203,7 @@ def _llmobs_decorator(operation_kind):
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return func(*args, **kwargs)
-                    span_name = name
-                    if span_name is None:
-                        span_name = func.__name__
+                    _, span_name = _get_llmobs_span_options(name, None, func)
                     traced_operation = getattr(LLMObs, operation_kind, "workflow")
                     with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
                         func_signature = signature(func)
