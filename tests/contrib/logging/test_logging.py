@@ -99,7 +99,7 @@ class LoggingTestCase(TracerTestCase):
             else:
                 assert not isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
-    def _test_logging(self, create_span, service="", version="", env=""):
+    def _test_logging(self, create_span, service="tests.contrib.logging", version="", env=""):
         def func():
             span = create_span()
             logger.info("Hello!")
@@ -237,8 +237,8 @@ class LoggingTestCase(TracerTestCase):
 
             lines = output.splitlines()
             assert (
-                "Hello! [dd.service=tests.contrib.logging dd.env= dd.version= \
-                    dd.trace_id={:032x} dd.span_id={}]".format(
+                "Hello! [dd.service=tests.contrib.logging dd.env= dd.version= " +
+                    "dd.trace_id={:032x} dd.span_id={}]".format(
                     span.trace_id, span.span_id
                 )
                 == lines[0]

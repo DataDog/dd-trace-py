@@ -1,7 +1,7 @@
 [[
   {
     "name": "asgi.request",
-    "service": "tests.contrib.django",
+    "service": "",
     "resource": "GET /traced-simple-asgi-app/",
     "trace_id": 0,
     "span_id": 1,
