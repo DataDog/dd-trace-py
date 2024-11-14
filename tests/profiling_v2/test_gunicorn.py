@@ -30,7 +30,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 def _run_gunicorn(*args):
     cmd = (
-        ["ddtrace-run", "gunicorn", "--bind", "127.0.0.1:7643", "--chdir", os.path.dirname(__file__)]
+        ["ddtrace-run", "gunicorn", "--bind", "127.0.0.1:7644", "--chdir", os.path.dirname(__file__)]
         + list(args)
         + ["tests.profiling.gunicorn-app:app"]
     )
@@ -58,32 +58,43 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     filename = str(tmp_path / "gunicorn.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
 
+    debug_print("Creating gunicorn workers")
     # DEV: We only start 1 worker to simplify the test
     proc = gunicorn("-w", "1", *args)
     # Wait for the workers to start
-    time.sleep(3)
+    time.sleep(5)
 
+    if proc.poll() is not None:
+        pytest.fail("Gunicorn failed to start")
+
+    debug_print("Making request to gunicorn server")
     try:
-        with urllib.request.urlopen("http://127.0.0.1:7643") as f:
+        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
             status_code = f.getcode()
             assert status_code == 200, status_code
             response = f.read().decode()
             debug_print(response)
-
     except Exception as e:
         pytest.fail("Failed to make request to gunicorn server %s" % e)
     finally:
         # Need to terminate the process to get the output and release the port
         proc.terminate()
 
+    debug_print("Reading gunicorn worker output to get PIDs")
     output = proc.stdout.read().decode()
     worker_pids = _get_worker_pids(output)
+    debug_print("Gunicorn worker PIDs: %s" % worker_pids)
 
     for line in output.splitlines():
         debug_print(line)
 
     assert len(worker_pids) == 1, output
-    assert proc.wait() == 0, output
+
+    debug_print("Waiting for gunicorn process to terminate")
+    try:
+        assert proc.wait(timeout=5) == 0, output
+    except subprocess.TimeoutExpired:
+        pytest.fail("Failed to terminate gunicorn process ", output)
     assert "module 'threading' has no attribute '_active'" not in output, output
 
     for pid in worker_pids:
