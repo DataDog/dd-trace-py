@@ -237,10 +237,8 @@ class LoggingTestCase(TracerTestCase):
 
             lines = output.splitlines()
             assert (
-                "Hello! [dd.service=tests.contrib.logging dd.env= dd.version= " +
-                    "dd.trace_id={:032x} dd.span_id={}]".format(
-                    span.trace_id, span.span_id
-                )
+                "Hello! [dd.service=tests.contrib.logging dd.env= dd.version= "
+                + "dd.trace_id={:032x} dd.span_id={}]".format(span.trace_id, span.span_id)
                 == lines[0]
             )
 
@@ -267,10 +265,10 @@ class LoggingTestCase(TracerTestCase):
             with self.tracer.trace("test.logging") as span:
                 record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)
                 log = formatter.format(record)
-                expected = ("Manual log record [dd.service=tests.contrib.logging dd.env= dd.version= " +
-                    "dd.trace_id={:032x} dd.span_id={}]").format(
-                    span.trace_id, span.span_id
-                )
+                expected = (
+                    "Manual log record [dd.service=tests.contrib.logging dd.env= dd.version= "
+                    + "dd.trace_id={:032x} dd.span_id={}]"
+                ).format(span.trace_id, span.span_id)
                 assert log == expected
 
                 assert not hasattr(record, "dd")

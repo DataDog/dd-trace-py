@@ -257,7 +257,7 @@ class TestHeaders(object):
 @pytest.mark.parametrize(
     "pin,config_val,default,global_service,expected",
     [
-        (Pin(), None, None, None, 'tests.tracer'),
+        (Pin(), None, None, None, "tests.tracer"),
         (Pin(), None, None, "global-svc", "global-svc"),
         (Pin(), None, "default-svc", None, "default-svc"),
         # Global service should have higher priority than the integration default.
