@@ -77,18 +77,18 @@ def get_system_instruction_texts_from_model(instance):
     Extract system instructions from model and convert to []str for tagging.
     """
     raw_system_instructions = getattr(instance, "_system_instruction", [])
-    if type(raw_system_instructions) == str:
+    if isinstance(raw_system_instructions, str):
         return [raw_system_instructions]
-    elif type(raw_system_instructions) == Part:
+    elif isinstance(raw_system_instructions, Part):
         return [raw_system_instructions.text]
-    elif type(raw_system_instructions) != list:
+    elif not isinstance(raw_system_instructions, list):
         return []
 
     system_instructions = []
     for elem in raw_system_instructions:
-        if type(elem) == str:
+        if isinstance(elem, str):
             system_instructions.append(elem)
-        elif type(elem) == Part:
+        elif isinstance(elem, Part):
             system_instructions.append(elem.text)
     return system_instructions
 
