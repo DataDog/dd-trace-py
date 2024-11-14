@@ -6,11 +6,18 @@ from ddtrace._trace.telemetry import _span_pointer_count_to_tag
 
 
 def test_span_pointer_count_to_tag_returns_strings() -> None:
-    for count in range(0, 500):
+    unique_tags = set()
+
+    for count in range(-10, 500):
         tag = _span_pointer_count_to_tag(count)
 
         assert isinstance(tag, str)
         assert tag != ""
+
+        unique_tags.add(tag)
+
+    reasonable_cadinality_limit = 15
+    assert len(unique_tags) <= reasonable_cadinality_limit
 
 
 class SpanPointerTagCase(NamedTuple):
@@ -21,6 +28,10 @@ class SpanPointerTagCase(NamedTuple):
 @pytest.mark.parametrize(
     "test_case",
     [
+        SpanPointerTagCase(
+            count=-1,
+            expected="negative",
+        ),
         SpanPointerTagCase(
             count=0,
             expected="0",
@@ -35,7 +46,7 @@ class SpanPointerTagCase(NamedTuple):
         ),
         SpanPointerTagCase(
             count=15,
-            expected="15",
+            expected="11-20",
         ),
         SpanPointerTagCase(
             count=25,

@@ -14,8 +14,18 @@ def record_span_pointer_calculation(context: str, span_pointer_count: int) -> No
 
 
 def _span_pointer_count_to_tag(span_pointer_count: int) -> str:
-    if span_pointer_count <= 20:
+    if span_pointer_count < 0:
+        # this shouldn't be possible, but let's make sure
+        return "negative"
+
+    elif span_pointer_count <= 5:
         return str(span_pointer_count)
+
+    elif span_pointer_count <= 10:
+        return "6-10"
+
+    elif span_pointer_count <= 20:
+        return "11-20"
 
     elif span_pointer_count <= 50:
         return "21-50"
