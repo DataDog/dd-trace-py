@@ -1,7 +1,7 @@
 [[
   {
     "name": "vertexai.request",
-    "service": "",
+    "service": "tests.contrib.vertexai",
     "resource": "ChatSession.send_message",
     "trace_id": 0,
     "span_id": 1,

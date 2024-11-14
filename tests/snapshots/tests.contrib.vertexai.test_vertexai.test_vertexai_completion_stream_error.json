@@ -1,7 +1,7 @@
 [[
   {
     "name": "vertexai.request",
-    "service": "",
+    "service": "tests.contrib.vertexai",
     "resource": "GenerativeModel.generate_content",
     "trace_id": 0,
     "span_id": 1,
