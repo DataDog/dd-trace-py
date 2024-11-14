@@ -83,7 +83,10 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         debug_print(line)
 
     assert len(worker_pids) == 1, output
-    assert proc.wait() == 0, output
+    try:
+        assert proc.wait(timeout=10) == 0, output
+    except subprocess.TimeoutExpired:
+        pytest.fail("Failed to terminate gunicorn process ", output)
     assert "module 'threading' has no attribute '_active'" not in output, output
 
     for pid in worker_pids:
