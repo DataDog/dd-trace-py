@@ -142,7 +142,7 @@ class LoggingTestCase(TracerTestCase):
         self._test_logging(create_span=create_span)
 
         with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="global.env")
+            self._test_logging(create_span=create_span, version="global.version", env="global.env", service="")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
     def test_log_trace_128bit_trace_ids(self):
@@ -157,7 +157,7 @@ class LoggingTestCase(TracerTestCase):
             return span
 
         with self.override_global_config(dict(version="v1.666", env="test")):
-            self._test_logging(create_span=create_span, version="v1.666", env="test")
+            self._test_logging(create_span=create_span, version="v1.666", env="test", service="")
             # makes sense that this fails because _test_logging looks for the 64 bit trace id
 
     def test_log_trace_service(self):
@@ -267,8 +267,8 @@ class LoggingTestCase(TracerTestCase):
             with self.tracer.trace("test.logging") as span:
                 record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)
                 log = formatter.format(record)
-                expected = "Manual log record [dd.service=tests.contrib.logging dd.env= dd.version= \
-                    dd.trace_id={:032x} dd.span_id={}]".format(
+                expected = ("Manual log record [dd.service=tests.contrib.logging dd.env= dd.version= " +
+                    "dd.trace_id={:032x} dd.span_id={}]").format(
                     span.trace_id, span.span_id
                 )
                 assert log == expected

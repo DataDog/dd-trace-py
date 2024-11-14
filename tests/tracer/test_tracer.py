@@ -61,7 +61,7 @@ class TracerTestCases(TracerTestCase):
         span.finish()
 
         span = self.trace("a")
-        span.assert_matches(name="a", service=None, resource="a", span_type=None)
+        span.assert_matches(name="a", service="tests.tracer", resource="a", span_type=None)
         span.finish()
 
     def test_tracer(self):
@@ -400,7 +400,7 @@ class TracerTestCases(TracerTestCase):
 
     def test_start_span_service_default(self):
         span = self.start_span("")
-        span.assert_matches(service=None)
+        span.assert_matches(service="tests.tracer")
         span.finish()
 
     def test_start_span_service_from_parent(self):
@@ -466,7 +466,7 @@ class TracerTestCases(TracerTestCase):
         )
 
     def test_adding_services(self):
-        assert self.tracer._services == set("tests.tracer")
+        assert self.tracer._services == set(["tests.tracer"])
         with self.start_span("root", service="one") as root:
             assert self.tracer._services == set(["one", "tests.tracer"])
             with self.start_span("child", service="two", child_of=root):

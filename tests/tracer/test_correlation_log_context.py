@@ -118,7 +118,7 @@ class TestCorrelationLogsContext(object):
         assert dd_log_record == {
             "span_id": "0",
             "trace_id": "0",
-            "service": "",
+            "service": "tests.tracer",
             "env": "",
             "version": "",
         }
@@ -132,7 +132,7 @@ class TestCorrelationLogsContext(object):
         assert dd_log_record == {
             "span_id": "0",
             "trace_id": "0",
-            "service": "",
+            "service": "tests.tracer",
             "env": "",
             "version": "",
         }
@@ -152,7 +152,7 @@ class TestCorrelationLogsContext(object):
         assert dd_log_record == {
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span),
-            "service": "",
+            "service": "tests.tracer",
             "env": "",
             "version": "",
         }
