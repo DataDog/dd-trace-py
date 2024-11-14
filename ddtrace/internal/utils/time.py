@@ -134,3 +134,9 @@ class HourGlass(object):
 
     def __exit__(self, tp, value, traceback):
         pass
+
+    def __lt__(self, other) -> bool:
+        return self._end_at < other._end_at
+
+    def __eq__(self, other) -> bool:
+        return self._end_at == other._end_at

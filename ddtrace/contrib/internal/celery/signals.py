@@ -9,8 +9,10 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.celery import constants as c
 from ddtrace.contrib.internal.celery.utils import attach_span
+from ddtrace.contrib.internal.celery.utils import attach_span_context
 from ddtrace.contrib.internal.celery.utils import detach_span
 from ddtrace.contrib.internal.celery.utils import retrieve_span
+from ddtrace.contrib.internal.celery.utils import retrieve_span_context
 from ddtrace.contrib.internal.celery.utils import retrieve_task_id
 from ddtrace.contrib.internal.celery.utils import set_tags_from_context
 from ddtrace.ext import SpanKind
@@ -43,6 +45,7 @@ def trace_prerun(*args, **kwargs):
         return
 
     request_headers = task.request.get("headers", {})
+    request_headers = request_headers or retrieve_span_context(task, task_id)
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.celery, request_headers=request_headers)
 
     # propagate the `Span` in the current task Context
@@ -65,6 +68,8 @@ def trace_prerun(*args, **kwargs):
 
     span.set_tag(SPAN_MEASURED_KEY)
     attach_span(task, task_id, span)
+    if config.celery["distributed_tracing"]:
+        attach_span_context(task, task_id, span)
 
 
 def trace_postrun(*args, **kwargs):
@@ -110,6 +115,13 @@ def trace_before_publish(*args, **kwargs):
     if pin is None:
         return
 
+    # If Task A calls Task B, and Task A excepts, then Task B may have no parent when apply is called.
+    # In these cases, we don't use the "current context" of attached span/tracer, for context, we use
+    # the attached distributed context.
+    if config.celery["distributed_tracing"]:
+        request_headers = retrieve_span_context(task, task_id, is_publish=False)
+        trace_utils.activate_distributed_headers(pin.tracer, int_config=config.celery, request_headers=request_headers)
+
     # apply some tags here because most of the data is not available
     # in the task_after_publish signal
     service = config.celery["producer_service_name"]
@@ -145,11 +157,13 @@ def trace_before_publish(*args, **kwargs):
         trace_headers = {}
         propagator.inject(span.context, trace_headers)
 
-        # put distributed trace headers where celery will propagate them
-        task_headers = kwargs.get("headers") or {}
-        task_headers.setdefault("headers", {})
-        task_headers["headers"].update(trace_headers)
-        kwargs["headers"] = task_headers
+        kwargs.setdefault("headers", {})
+
+        # This is a hack for other versions, such as https://github.com/celery/celery/issues/4875
+        # We always uses the double ["headers"]["headers"] because it works both before and
+        # after the changes made in celery
+        kwargs["headers"].setdefault("headers", {})
+        kwargs["headers"]["headers"].update(trace_headers)
 
 
 def trace_after_publish(*args, **kwargs):
