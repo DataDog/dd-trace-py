@@ -465,13 +465,14 @@ class TracerTestCases(TracerTestCase):
             _parent=None,
         )
 
+    @run_in_subprocess()
     def test_adding_services(self):
-        assert self.tracer._services == set(["tests.tracer"])
+        assert self.tracer._services == set(), self.tracer._services
         with self.start_span("root", service="one") as root:
-            assert self.tracer._services == set(["one", "tests.tracer"])
+            assert self.tracer._services == set(["one"]), self.tracer._services
             with self.start_span("child", service="two", child_of=root):
                 pass
-        assert self.tracer._services == set(["one", "two", "tests.tracer"])
+        assert self.tracer._services == set(["one", "two"]), self.tracer._services
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="two:three"))
     def test_adding_mapped_services(self):
