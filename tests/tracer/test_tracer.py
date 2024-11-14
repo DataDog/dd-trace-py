@@ -466,7 +466,7 @@ class TracerTestCases(TracerTestCase):
         )
 
     def test_adding_services(self):
-        assert self.tracer._services == set(["tests.tracer"])
+        assert self.tracer._services == set()
         with self.start_span("root", service="one") as root:
             assert self.tracer._services == set(["one", "tests.tracer"])
             with self.start_span("child", service="two", child_of=root):
