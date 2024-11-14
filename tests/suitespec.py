@@ -10,7 +10,7 @@ TESTS = Path(__file__).parents[1] / "tests"
 
 def _collect_suitespecs() -> dict:
     # Recursively search for suitespec.yml in TESTS
-    suitespec = {"components": {}, "suites": {}, "jobs": {}}
+    suitespec = {"components": {}, "suites": {}}
 
     for s in TESTS.rglob("suitespec.yml"):
         with YAML() as yaml:

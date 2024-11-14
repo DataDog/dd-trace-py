@@ -79,14 +79,75 @@ def gen_required_suites() -> None:
     )
 
     # Copy the template file
-    (GITLAB / "tests-gen.yml").write_text(
+    TESTS_GEN.write_text(
         (GITLAB / "tests.yml").read_text().replace(r"{{services.yml}}", (GITLAB / "services.yml").read_text())
     )
 
     # Generate the list of suites to run
-    with (GITLAB / "tests-gen.yml").open("a") as f:
+    with TESTS_GEN.open("a") as f:
         for suite in required_suites:
             print(str(JobSpec(suite, **suites[suite])), file=f)
+
+
+def gen_pre_checks() -> None:
+    """Generate the list of pre-checks that need to be run."""
+    from needs_testrun import pr_matches_patterns
+
+    def check(name: str, command: str, paths: t.Set[str]) -> None:
+        if pr_matches_patterns(paths):
+            with TESTS_GEN.open("a") as f:
+                print(f'"{name}":', file=f)
+                print("  extends: .testrunner", file=f)
+                print("  stage: tests", file=f)
+                print("  needs: []", file=f)
+                print("  script:", file=f)
+                print(f"    - {command}", file=f)
+
+    check(
+        name="Style",
+        command="hatch run lint:style",
+        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+    )
+    check(
+        name="Typing",
+        command="hatch run lint:typing",
+        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+    )
+    check(
+        name="Security",
+        command="hatch run lint:security",
+        paths={"docker*", "ddtrace/*", "hatch.toml"},
+    )
+    check(
+        name="Run riotfile.py tests",
+        command="hatch run lint:riot",
+        paths={"docker*", "riotfile.py", "hatch.toml"},
+    )
+    check(
+        name="Style: Test snapshots",
+        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
+        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
+    )
+    check(
+        name="Run scripts/*.py tests",
+        command="hatch run scripts:test",
+        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
+    )
+    check(
+        name="Check suitespec coverage",
+        command="hatch run lint:suitespec-check",
+        paths={"*"},
+    )
+    check(
+        name="conftest",
+        command="hatch run meta-testing:meta-testing",
+        paths={"**conftest.py"},
+    )
+    check(
+        name="slotscheck",
+        command="hatch run slotscheck:_",
+        paths={"**.py"},
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -115,6 +176,7 @@ if args.verbose:
 ROOT = Path(__file__).parents[1]
 GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
+TESTS_GEN = GITLAB / "tests-gen.yml"
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))

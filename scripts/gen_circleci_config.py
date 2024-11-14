@@ -80,11 +80,6 @@ def gen_pre_checks(template: dict) -> None:
         paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
-        name="Validate suitespec files",
-        command="python -m tests.suitespec",
-        paths={"docker*", "**suitespec.yml", "tests/suitespec.py"},
-    )
-    check(
         name="Check suitespec coverage",
         command="hatch run lint:suitespec-check",
         paths={"*"},
