@@ -16,11 +16,13 @@ configure_ddtrace_logger()  # noqa: E402
 
 from .settings import _config as config
 
+
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
 import ddtrace.internal.telemetry  # noqa: E402
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
+from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .pin import Pin  # noqa: E402
 from ddtrace._trace.span import Span  # noqa: E402
@@ -52,6 +54,15 @@ __all__ = [
     "config",
     "DDTraceDeprecationWarning",
 ]
+
+if PYTHON_VERSION_INFO <= (3, 7):
+    debtcollector.deprecate(
+        (
+            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in a future release."
+            % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])
+        ),
+        category=DDTraceDeprecationWarning,
+    )
 
 
 _DEPRECATED_MODULE_ATTRIBUTES = [

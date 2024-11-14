@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 import sys
 from warnings import warn
+import subprocess
+import textwrap
 
 import mock
 import pytest
@@ -586,4 +588,36 @@ def __getattr__(name):
             "ddtrace.contrib.pytest_bdd.constants",
             "ddtrace.contrib.pytest_bdd.plugin",
         ]
+    )
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 8), reason="Python >= 3.8 is supported")
+def test_deprecated_python_version():
+    # Test that the deprecation warning for Python 3.7 and below is present in the __init__.py file.
+    result = subprocess.run(
+        [sys.executable, "-c", "import ddtrace"],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0
+
+    assert (
+        "Support for ddtrace with Python version 3.7 is deprecated and will be removed in a future release."
+        in result.stdout
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python < 3.8 is unsupported")
+def test_deprecated_python_version():
+    # Test that the deprecation warning for Python 3.7 and below is present in the __init__.py file.
+    result = subprocess.run(
+        [sys.executable, "-c", "import ddtrace"],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0
+
+    assert (
+        "Support for ddtrace with Python version 3.7 is deprecated and will be removed in a future release."
+        not in result.stdout
     )
