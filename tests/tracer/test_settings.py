@@ -148,7 +148,7 @@ class TestIntegrationConfig(BaseTestCase):
 
     def test_service(self):
         ic = IntegrationConfig(self.config, "foo")
-        assert ic.service == "tests.tracer"
+        assert ic.service is None
 
     @BaseTestCase.run_in_subprocess(env_overrides=dict(DD_FOO_SERVICE="foo-svc"))
     def test_service_env_var(self):

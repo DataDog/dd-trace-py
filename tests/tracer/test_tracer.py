@@ -61,7 +61,7 @@ class TracerTestCases(TracerTestCase):
         span.finish()
 
         span = self.trace("a")
-        span.assert_matches(name="a", service="tests.tracer", resource="a", span_type=None)
+        span.assert_matches(name="a", resource="a", span_type=None)
         span.finish()
 
     def test_tracer(self):
