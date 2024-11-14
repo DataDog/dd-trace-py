@@ -16,6 +16,15 @@ from ddtrace.settings.profiling import config
 from tests.profiling.collector import pprof_utils
 
 
+# Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
+# https://github.com/python/cpython/issues/117983
+# The fix was not backported to 3.11. The fix was first released in 3.12.5 for
+# Python 3.12. Tested with Python 3.11.8 and 3.12.5 to confirm the issue.
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
+    sys.version_info < (3, 11, 9) or sys.version_info >= (3, 12, 5)
+)
+
+
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 def test_stack_locations(stack_v2_enabled, tmp_path):
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
@@ -30,7 +39,7 @@ def test_stack_locations(stack_v2_enabled, tmp_path):
     ddup.start()
 
     def baz():
-        time.sleep(0.01)
+        time.sleep(0.1)
 
     def bar():
         baz()
@@ -39,7 +48,7 @@ def test_stack_locations(stack_v2_enabled, tmp_path):
         bar()
 
     with stack.StackCollector(None, _stack_collector_v2_enabled=stack_v2_enabled):
-        for _ in range(5):
+        for _ in range(10):
             foo()
     ddup.upload()
 
@@ -100,8 +109,8 @@ def test_push_span(stack_v2_enabled, tmp_path):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
     ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
@@ -140,8 +149,8 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch):
         span_type = ext.SpanTypes.WEB
 
         def target_fun():
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
 
         with stack.StackCollector(
             None,
@@ -205,8 +214,8 @@ def test_push_non_web_span(stack_v2_enabled, tmp_path):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
     ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
@@ -255,8 +264,8 @@ def test_push_span_none_span_type(stack_v2_enabled, tmp_path):
         with tracer.trace("foobar", resource=resource, span_type=None) as span:
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
     ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
@@ -348,7 +357,7 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
                 time.sleep(1)
 
         threads = []
-        for _ in range(5):
+        for _ in range(10):
             t = threading.Thread(target=target_fun)
             threads.append(t)
             t.start()
@@ -451,8 +460,8 @@ def test_collect_once_with_class(stack_v2_enabled, tmp_path):
             return cls().sleep_instance()
 
         def sleep_instance(self):
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
 
     test_name = "test_collect_once_with_class"
     pprof_prefix = str(tmp_path / test_name)
@@ -510,8 +519,8 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
             return foobar().sleep_instance(cls)
 
         def sleep_instance(foobar, self):
-            for _ in range(5):
-                time.sleep(0.01)
+            for _ in range(10):
+                time.sleep(0.1)
 
     test_name = "test_collect_once_with_class"
     pprof_prefix = str(tmp_path / test_name)
@@ -558,3 +567,128 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
             ],
         ),
     )
+
+
+def _fib(n):
+    if n == 1:
+        return 1
+    elif n == 0:
+        return 0
+    else:
+        return _fib(n - 1) + _fib(n - 2)
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_collect_gevent_thread_task():
+    # TODO(taegyunkim): update echion to support gevent and test with stack v2
+
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling_v2.collector.test_stack import _fib
+
+    test_name = "test_collect_gevent_thread_task"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    # Start some (green)threads
+    def _dofib():
+        for _ in range(5):
+            # spend some time in CPU so the profiler can catch something
+            # On a Mac w/ Apple M3 MAX with Python 3.11 it takes about 200ms to calculate _fib(32)
+            # And _fib() is called 5 times so it should take about 1 second
+            # We use 5 threads below so it should take about 5 seconds
+            _fib(32)
+            # Just make sure gevent switches threads/greenlets
+            time.sleep(0)
+
+    threads = []
+
+    with stack.StackCollector(None, _stack_collector_v2_enabled=False):
+        for i in range(5):
+            t = threading.Thread(target=_dofib, name="TestThread %d" % i)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+
+    ddup.upload()
+
+    expected_task_ids = {thread.ident for thread in threads}
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task id")
+    assert len(samples) > 0
+
+    checked_thread = False
+
+    for sample in samples:
+        task_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task id")
+        task_id = int(task_id_label.num)
+        if task_id in expected_task_ids:
+            pprof_utils.assert_stack_event(
+                profile,
+                sample,
+                pprof_utils.StackEvent(
+                    task_name=r"TestThread \d+$",
+                    task_id=task_id,
+                ),
+            )
+            checked_thread = True
+
+    assert checked_thread, "No samples found for the expected threads"
+
+
+@pytest.mark.parametrize(
+    ("stack_v2_enabled", "ignore_profiler"), [(True, True), (True, False), (False, True), (False, False)]
+)
+def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    test_name = "test_ignore_profiler"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    s = stack.StackCollector(None, ignore_profiler=ignore_profiler, _stack_collector_v2_enabled=stack_v2_enabled)
+    collector_worker_thread_id = None
+
+    with s:
+        for _ in range(10):
+            time.sleep(0.1)
+        collector_worker_thread_id = s._worker.ident
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "thread id")
+
+    thread_ids = set()
+
+    for sample in samples:
+        thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+        thread_id = int(thread_id_label.num)
+        thread_ids.add(thread_id)
+
+    # TODO(taegyunkim): update echion to support ignore_profiler and test with stack v2
+    if stack_v2_enabled or not ignore_profiler:
+        assert collector_worker_thread_id in thread_ids
+    else:
+        assert collector_worker_thread_id not in thread_ids

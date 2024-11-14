@@ -12,6 +12,7 @@ import re
 from subprocess import check_output
 import sys
 import typing as t
+from urllib.parse import urlencode
 from urllib.request import Request
 from urllib.request import urlopen
 
@@ -68,6 +69,45 @@ def get_latest_commit_message() -> str:
     return ""
 
 
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+if not GITHUB_TOKEN:
+    try:
+        GITHUB_TOKEN = (
+            check_output(
+                [
+                    "aws",
+                    "ssm",
+                    "get-parameter",
+                    "--region",
+                    "us-east-1",
+                    "--name",
+                    f'ci.{os.environ["CI_PROJECT_NAME"]}.gh_token',
+                    "--with-decryption",
+                    "--query",
+                    "Parameter.Value",
+                    "--output=text",
+                ]
+            )
+            .decode("utf-8")
+            .strip()
+        )
+        LOGGER.info("GitHub token retrieved from SSM")
+    except Exception:
+        LOGGER.warning("No GitHub token available. Changes may not be detected accurately.", exc_info=True)
+else:
+    LOGGER.info("GitHub token retrieved from environment")
+
+
+def github_api(path: str, query: t.Optional[dict] = None) -> t.Any:
+    url = f"https://api.github.com/repos/datadog/dd-trace-py{path}"
+    headers = {"Accept": "application/vnd.github+json"}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+    if query is not None:
+        url += "?" + urlencode(query)
+    return json.load(urlopen(Request(url, headers=headers)))
+
+
 @cache
 def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]:
     """Get the files changed in a PR
@@ -85,9 +125,7 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
         files = set()
         try:
             for page in count(1):
-                url = f"https://api.github.com/repos/datadog/dd-trace-py/pulls/{pr_number}/files?page={page}"
-                headers = {"Accept": "application/vnd.github+json"}
-                result = {_["filename"] for _ in json.load(urlopen(Request(url, headers=headers)))}
+                result = {_["filename"] for _ in github_api(f"/pulls/{pr_number}/files", {"page": page})}
                 if not result:
                     return files
                 files |= result
@@ -151,35 +189,35 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     return bool(matches)
 
 
-def _get_pr_number():
+def _get_pr_number() -> int:
+    # CircleCI
     number = os.environ.get("CIRCLE_PR_NUMBER")
-    if not number:
-        pr_url = os.environ.get("CIRCLE_PULL_REQUEST", "")
-        number = pr_url.split("/")[-1]
-    try:
+    if number is not None:
         return int(number)
-    except ValueError:
-        return 0
+
+    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+    if pr_url is not None:
+        return int(pr_url.split("/")[-1])
+
+    # GitLab
+    ref_name = os.environ.get("CI_COMMIT_REF_NAME")
+    if ref_name is not None:
+        return int(github_api("/pulls", {"head": f"datadog:{ref_name}"})[0]["number"])
+
+    raise RuntimeError("Could not determine PR number")
 
 
-def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None], git_selections: t.List[str]):
-    # Used in CircleCI config
-    pr_number = _get_pr_number()
+def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None], git_selections: t.Set[str]):
+    try:
+        pr_number = _get_pr_number()
+    except Exception:
+        pr_number = None
 
     for suite in suites:
-        if pr_number <= 0:
-            # If we don't have a valid PR number we run all tests
-            action(suite)
-            continue
-
-        if any(x in git_selections for x in ("all", suite)):
-            # If "all" or current suite is annotated
-            # in git commit we run the suite
-            action(suite)
-            continue
-
-        needs_run = needs_testrun(suite, pr_number)
-        if needs_run:
+        # If we don't have a valid PR number we run all tests
+        # or "all" or current suite is annotated in git commit we run the suite
+        # or the suite needs to be run based on the changed files
+        if pr_number is None or (git_selections & {"all", suite}) or needs_testrun(suite, pr_number):
             action(suite)
 
 
@@ -190,6 +228,15 @@ def pr_matches_patterns(patterns: t.Set[str]) -> bool:
         LOGGER.error("Failed to get changed files. Assuming the PR matches for precaution.")
         return True
     return bool([_ for p in patterns for _ in fnmatch.filter(changed_files, p)])
+
+
+def extract_git_commit_selections(git_commit_message: str) -> t.Set[str]:
+    """Extract the selected suites from git commit message."""
+    suites = set()
+    for token in git_commit_message.split():
+        if token.lower().startswith("circleci:"):
+            suites.update(token[len("circleci:") :].lower().split(","))
+    return suites
 
 
 def main() -> bool:

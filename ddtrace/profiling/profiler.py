@@ -16,6 +16,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
+from ddtrace.internal.core import crashtracking
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
@@ -223,6 +224,7 @@ class _ProfilerInstance(service.Service):
         configured_features.append("CAP" + str(profiling_config.capture_pct))
         configured_features.append("MAXF" + str(profiling_config.max_frames))
         self.tags.update({"profiler_config": "_".join(configured_features)})
+        crashtracking.add_tag("profiler_config", self.tags["profiler_config"])
 
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
