@@ -1,3 +1,4 @@
+import itertools
 import re
 import sys
 from typing import Any  # noqa:F401
@@ -912,11 +913,11 @@ class _BaggageHeader:
         if not baggage_items:
             return
 
-        if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
-            log.warning("Baggage item limit exceeded")
-            return
-
         try:
+            if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
+                log.warning("Baggage item limit exceeded, dropping excess items")
+                baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)
+
             header_value = ",".join(
                 f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
                 for key, value in baggage_items
