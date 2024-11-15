@@ -69,7 +69,7 @@ def get_patterns(suite: str) -> t.Set[str]:
 
         return resolved_patterns
 
-    return {_.format(suite=suite) for _ in resolve(suite_patterns)}
+    return {_.format(suite=suite.replace("::", ".")) for _ in resolve(suite_patterns)}
 
 
 def get_suites() -> t.Dict[str, dict]:

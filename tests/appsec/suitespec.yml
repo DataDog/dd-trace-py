@@ -1,174 +1,173 @@
+---
 components:
   appsec:
-  - ddtrace/appsec/*
-  - ddtrace/settings/asm.py
+    - ddtrace/appsec/*
+    - ddtrace/settings/asm.py
   appsec_iast:
-  - ddtrace/appsec/iast/*
-  webbrowser:
-  - ddtrace/contrib/webbrowser/*
-  - ddtrace/contrib/internal/webbrowser/*
+    - ddtrace/appsec/iast/*
   urllib:
-  - ddtrace/contrib/urllib/*
-  - ddtrace/contrib/internal/urllib/*
-
-
+    - ddtrace/contrib/urllib/*
+    - ddtrace/contrib/internal/urllib/*
+  webbrowser:
+    - ddtrace/contrib/webbrowser/*
+    - ddtrace/contrib/internal/webbrowser/*
 suites:
   appsec:
-    runner: riot
     parallelism: 6
-    retry: 2
-    pattern: appsec$
-    snapshot: true
     paths:
-    - '@bootstrap'
-    - '@core'
-    - '@tracing'
-    - '@appsec'
-    - '@appsec_iast'
-    - '@remoteconfig'
-    - tests/appsec/*
-  appsec_iast:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/*
+    pattern: appsec$
+    retry: 2
     runner: riot
-    services:
-    - postgres
+    snapshot: true
+  appsec_iast:
     env:
       TEST_POSTGRES_HOST: postgres
     parallelism: 6
-    retry: 2
-    timeout: 25m
-    pattern: appsec_iast$
-    snapshot: true
     paths:
-    - '@bootstrap'
-    - '@core'
-    - '@tracing'
-    - '@appsec'
-    - '@appsec_iast'
-    - '@remoteconfig'
-    - tests/appsec/iast/*
-  appsec_iast_memcheck:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+    pattern: appsec_iast$
+    retry: 2
     runner: riot
+    services:
+      - postgres
+    snapshot: true
+    timeout: 25m
+  appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
-      PYTEST_ADDOPTS: -v -s
+      PYTEST_ADDOPTS: '-v -s'
     parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/iast_memcheck/*
     retry: 2
+    runner: riot
     snapshot: true
-    paths:
-    - '@bootstrap'
-    - '@core'
-    - '@tracing'
-    - '@appsec'
-    - '@appsec_iast'
-    - '@remoteconfig'
-    - tests/appsec/iast/*
-    - tests/appsec/iast_memcheck/*
-  appsec_threats_django:
-    runner: hatch
-    parallelism: 12
-    retry: 2
-    paths:
-    - '@bootstrap'
-    - '@core'
-    - '@tracing'
-    - '@appsec'
-    - '@appsec_iast'
-    - '@asgi'
-    - '@wsgi'
-    - '@django'
-    - '@remoteconfig'
-    - tests/appsec/*
-    - tests/appsec/contrib_appsec/*
-  appsec_threats_flask:
-    runner: hatch
-    parallelism: 10
-    retry: 2
-    paths:
-    - '@bootstrap'
-    - '@core'
-    - '@tracing'
-    - '@appsec'
-    - '@appsec_iast'
-    - '@asgi'
-    - '@wsgi'
-    - '@flask'
-    - '@remoteconfig'
-    - tests/appsec/*
-    - tests/appsec/contrib_appsec/*
-  appsec_threats_fastapi:
-    runner: hatch
-    parallelism: 9
-    retry: 2
-    paths:
-    - '@bootstrap'
-    - '@core'
-    - '@tracing'
-    - '@appsec'
-    - '@appsec_iast'
-    - '@asgi'
-    - '@wsgi'
-    - '@fastapi'
-    - '@starlette'
-    - '@remoteconfig'
-    - tests/appsec/*
-    - tests/appsec/contrib_appsec/*
   appsec_iast_native:
-    runner: hatch
     parallelism: 6
-    retry: 2
     paths:
-    - '@bootstrap'
-    - '@core'
-    - '@tracing'
-    - '@appsec'
-    - '@appsec_iast'
-    - '@remoteconfig'
-  appsec_iast_packages:  # TODO: only on main branch
-    runner: riot
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+    retry: 2
+    runner: hatch
+  appsec_iast_packages:
     parallelism: 5
-    snapshot: true
     paths:
-    - "@bootstrap"
-    - "@core"
-    - "@tracing"
-    - "@appsec"
-    - "@appsec_iast"
-    - "@remoteconfig"
-    - tests/appsec/iast/*
-    - tests/appsec/iast_packages/*
-  appsec_integrations:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/iast_packages/*
     runner: riot
-    parallelism: 7
-    retry: 2
     snapshot: true
+  appsec_integrations:
+    parallelism: 7
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/snapshots/tests.appsec.*
+    retry: 2
+    runner: riot
+    snapshot: true
+  appsec_threats_django:
+    parallelism: 12
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@asgi'
+      - '@wsgi'
+      - '@django'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+    runner: hatch
+  appsec_threats_fastapi:
+    parallelism: 9
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@asgi'
+      - '@wsgi'
+      - '@fastapi'
+      - '@starlette'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+    runner: hatch
+  appsec_threats_flask:
+    parallelism: 10
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@asgi'
+      - '@wsgi'
+      - '@flask'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+    runner: hatch
+  urllib:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@urllib'
+      - tests/appsec/iast/taint_sinks/test_ssrf.py
+    runner: riot
+    skip: true  # TODO: No environment available
+  webbrowser:
     # services:
     # - pygoat
     paths:
-    - "@bootstrap"
-    - "@core"
-    - "@tracing"
-    - "@appsec"
-    - "@appsec_iast"
-    - "@remoteconfig"
-    - tests/appsec/*
-    - tests/snapshots/tests.appsec.*
-  webbrowser:
-    skip: true # TODO: No environment available
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@webbrowser'
+      - tests/appsec/iast/taint_sinks/test_ssrf.py
     runner: riot
-    paths:
-    - "@bootstrap"
-    - "@core"
-    - "@contrib"
-    - "@tracing"
-    - "@webbrowser"
-    - tests/appsec/iast/taint_sinks/test_ssrf.py
-  urllib:
-    skip: true # TODO: No environment available
-    runner: riot
-    paths:
-    - "@bootstrap"
-    - "@core"
-    - "@contrib"
-    - "@tracing"
-    - "@urllib"
-    - tests/appsec/iast/taint_sinks/test_ssrf.py
+    skip: true  # TODO: No environment available
