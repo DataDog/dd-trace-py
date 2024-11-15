@@ -8,7 +8,17 @@ from typing import Tuple
 
 if sys.version_info < (3, 8):
     from typing_extensions import Literal
-    from typing_extensions import Optional
+
+    try:
+        from typing_extensions import Optional
+    except ImportError:
+        # hack to support the Optional type for python3.7 + typing_extensions<4.0 (ex: molton)
+        from typing import Union
+
+        class Optional:
+            def __class_getitem__(self, item):
+                return Union[item, type(None)]
+
 else:
     from typing import Literal
     from typing import Optional
