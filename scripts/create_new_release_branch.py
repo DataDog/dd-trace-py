@@ -65,10 +65,19 @@ def create_release_branch():
             subprocess.check_call(f"git checkout {rc1_tag}", shell=True, cwd=os.pardir)
             subprocess.check_call(f"git checkout -b {BASE}", shell=True, cwd=os.pardir)
             subprocess.check_call(f"git push origin {BASE}", shell=True, cwd=os.pardir)
-        except subprocess.CalledProcessError:
-            print(f"Encountered error when trying to create release branch {BASE}")
-            raise
-    print(f"Created {BASE} branch from {rc1_tag} commit")
+        except subprocess.CalledProcessError as e:
+            # Capture the error message
+            error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
+            
+            if f"fatal: a branch named '{BASE}' already exists" in error_message:
+                print(f"Branch '{BASE}' already exists. Skipping branch creation...")
+                # Handle the case where the branch already exists
+                # For example, you could check out the existing branch
+                subprocess.check_call(f"git checkout -b {BASE}", shell=True, cwd=os.pardir)
+            else:
+                print(f"Encountered error when trying to create release branch {BASE}")
+                raise e
+    print(f"Checked out {BASE} branch from {rc1_tag} commit")
 
 
 def update_version_scheme():
