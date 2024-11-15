@@ -67,19 +67,7 @@ def create_release_branch():
             print(f"Failed to checkout {rc1_tag} tag")
             raise
 
-        try:
-            subprocess.check_call(f"git checkout -b {BASE}", shell=True, cwd=os.pardir)
-        except subprocess.CalledProcessError as e:
-            # Capture the error message
-            error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
-            if f"Command 'git checkout -b {BASE}' returned non-zero exit status 128." in error_message:
-                print(f"Branch '{BASE}' already exists. Skipping branch creation...")
-                # Handle the case where the branch already exists
-                # For example, you could check out the existing branch
-                subprocess.check_call(f"git checkout {BASE}", shell=True, cwd=os.pardir)
-            else:
-                print(f"Encountered error when trying to create release branch {BASE}")
-                raise e
+        create_new_branch(BASE)
             
         try:
             subprocess.check_call(f"git push origin {BASE}", shell=True, cwd=os.pardir)
@@ -122,17 +110,21 @@ def create_pull_request():
     if DRY_RUN:
         print(f"Would create PR with target branch set to {branch_name}")
     else:
-        subprocess.check_output(f"git checkout -b {branch_name}", shell=True, cwd=os.pardir)
+        create_new_branch(branch_name)
         try:
             subprocess.check_output(f"git add {PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
-        except subprocess.CalledProcessError:
-            try:
-                subprocess.check_output(f"git add ../{PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
-            except subprocess.CalledProcessError:
-                raise ValueError(
-                    f"Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
-                    "You may need to run this script from the root of the repository."
-                )
+        except subprocess.CalledProcessError as e:
+            # Capture the error message
+            error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
+            print(error_message)
+            raise e
+            # try:
+            #     subprocess.check_output(f"git add ../{PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
+            # except subprocess.CalledProcessError:
+            #     raise ValueError(
+            #         f"Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
+            #         "You may need to run this script from the root of the repository."
+            #     )
         print(f"Committing changes to {PYPROJECT_FILENAME} on branch {branch_name}")
         pr_title = (
             f"use guess-next-dev instead of release-branch-semver [{BASE}]"
@@ -157,6 +149,19 @@ def create_pull_request():
             print(f"Failed to create PR from {branch_name} into {BASE}")
             raise
 
+
+def create_new_branch(branch_name: str):
+    try:
+        subprocess.check_call(f"git checkout -b {branch_name}", shell=True, cwd=os.pardir)
+    except subprocess.CalledProcessError as e:
+        # Capture the error message
+        error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
+        if f"Command 'git checkout -b {branch_name}' returned non-zero exit status 128." in error_message:
+            print(f"Branch '{branch_name}' already exists. Skipping branch creation...")
+            subprocess.check_call(f"git checkout {branch_name}", shell=True, cwd=os.pardir)
+        else:
+            print(f"Encountered error when trying to create branch {branch_name}")
+            raise e
 
 if __name__ == "__main__":
     subprocess.check_output(
