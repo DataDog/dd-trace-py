@@ -72,6 +72,9 @@ def create_release_branch():
             print("here")
         except subprocess.CalledProcessError as e:
             # Capture the error message
+            print("TRACEBACK")
+            print(e.with_traceback)
+            print("END TRACEBACK")
             print("STDOUT")
             print(e.stdout)
             print("STDOUT END")
