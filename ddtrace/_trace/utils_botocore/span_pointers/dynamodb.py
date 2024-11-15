@@ -10,6 +10,8 @@ from typing import Set
 from typing import Union
 from typing import cast
 
+from boto3.dynamodb.types import TypeSerializer
+
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _standard_hashing_function
@@ -25,6 +27,9 @@ else:
 log = get_logger(__name__)
 
 
+dynamodb_type_serializer = TypeSerializer()
+
+
 class _TelemetryIssueTags(Enum):
     REQUEST_PARAMETERS = "request_parameters"
     HASHING_FAILURE = "hashing_failure"
@@ -37,7 +42,15 @@ _DynamoDBTableName = str
 _DynamoDBItemFieldName = str
 _DynamoDBItemTypeTag = str
 
-_DynamoDBItemValue = Dict[_DynamoDBItemTypeTag, Any]
+# _DynamoDBItemValueObject is shaped like {"S": "something"}, the form that the
+# lower level DynamoDB API expects.
+_DynamoDBItemValueObject = Dict[_DynamoDBItemTypeTag, Any]
+# _DynamoDBItemValueDeserialized is the python-native form of the value. The
+# resource-based boto3 APIs for DynamoDB accept this form and handle the
+# serialization into something like the _DyanmoDBItemValueObject using the
+# TypeSerializer.
+_DynamoDBItemValueDeserialized = Any
+_DynamoDBItemValue = Union[_DynamoDBItemValueObject, _DynamoDBItemValueDeserialized]
 _DynamoDBItem = Dict[_DynamoDBItemFieldName, _DynamoDBItemValue]
 
 _DynamoDBItemPrimaryKeyValue = Dict[_DynamoDBItemTypeTag, str]  # must be length 1
@@ -590,7 +603,12 @@ def _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
         )
         return None
 
-    value_object = item[primary_key_field_name]
+    value_object = _aws_dynamodb_item_value_to_probably_primary_key_value(
+        operation=operation,
+        item_value=item[primary_key_field_name],
+    )
+    if value_object is None:
+        return None
 
     if len(value_object) != 1:
         log.debug("primary key field %s must have exactly one value: %d", primary_key_field_name, len(value_object))
@@ -615,6 +633,31 @@ def _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
         return None
 
     return {value_type: value_data}
+
+
+def _aws_dynamodb_item_value_to_probably_primary_key_value(
+    operation: str, item_value: _DynamoDBItemValue
+) -> Optional[_DynamoDBItemPrimaryKeyValue]:
+    # If the item_value looks more or less like a primary key, we return it and
+    # let the caller decide what to do with it. Otherwise we use the type
+    # serializer and hope that does the right thing.
+
+    if (
+        isinstance(item_value, dict)
+        and len(item_value) == 1
+        and all(isinstance(part, str) for part in itertools.chain.from_iterable(item_value.items()))
+    ):
+        return item_value
+
+    try:
+        return cast(_DynamoDBItemPrimaryKeyValue, dynamodb_type_serializer.serialize(item_value))
+
+    except Exception as e:
+        log.debug("failed to serialize item value to botocore value: %s", e)
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
+        return None
 
 
 def _aws_dynamodb_item_span_pointer_hash(
@@ -674,6 +717,16 @@ def _aws_dynamodb_item_encode_primary_key_value(
     operation: str, value_object: _DynamoDBItemPrimaryKeyValue
 ) -> Optional[bytes]:
     try:
+        if not isinstance(value_object, dict):
+            try:
+                value_object = dynamodb_type_serializer.serialize(value_object)
+            except Exception as e:
+                log.debug("failed to serialize primary key value to botocore value: %s", e)
+                record_span_pointer_calculation_issue(
+                    operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+                )
+                return None
+
         if len(value_object) != 1:
             log.debug("primary key value object must have exactly one field: %d", len(value_object))
             record_span_pointer_calculation_issue(
@@ -687,7 +740,10 @@ def _aws_dynamodb_item_encode_primary_key_value(
             return value.encode("utf-8")
 
         if value_type in ("N", "B"):
-            # these should already be here as ASCII strings
+            # these should already be here as ASCII strings, though B is
+            # sometimes already bytes.
+            if isinstance(value, bytes):
+                return value
             return value.encode("ascii")
 
         log.debug("unexpected primary key value type: %s", value_type)
