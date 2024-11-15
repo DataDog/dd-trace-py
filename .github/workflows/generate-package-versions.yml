@@ -103,7 +103,7 @@ jobs:
             Update ${{ env.VENV_NAME }} lockfiles and dependency package lockfiles.
             This performs the following updates:
               1) Some ${{ env.VENV_NAME }} lockfiles use ${{ env.VENV_NAME }} `latest`. This will update ${{ env.VENV_NAME }} and dependencies.
-              2) Some ${{ env.VENV_NAME }} lockfiles use a pinned (non-latest) version of ${{ env.VENV_NAME }}, but require a `latest` dependency version. This will update the dependencies.
+              2) Some ${{ env.VENV_NAME }} lockfiles use a pinned (non-latest) version of ${{ env.VENV_NAME }}, but require the `latest` version of another package. This will update all such packages.
             
             ## Checklist
             - [x] PR author has checked that all the criteria below are met
