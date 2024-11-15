@@ -105,6 +105,7 @@ venv = Venv(
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
+        "_DD_CIVISIBILITY_USE_PYTEST_V2": "true",
     },
     venvs=[
         Venv(
@@ -135,6 +136,9 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "docker": latest,
+            },
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
         ),
         Venv(
@@ -1720,7 +1724,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest-benchmark",
-            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
+            command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
