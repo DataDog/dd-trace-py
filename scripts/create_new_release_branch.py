@@ -159,20 +159,20 @@ def create_pull_request():
 
 
 if __name__ == "__main__":
-    # subprocess.check_output(
-    #     "git stash",
-    #     shell=True,
-    #     cwd=os.pardir,
-    # )
-    # start_branch = (
-    #     subprocess.check_output(
-    #         "git rev-parse --abbrev-ref HEAD",
-    #         shell=True,
-    #         cwd=os.pardir,
-    #     )
-    #     .decode()
-    #     .strip()
-    # )
+    subprocess.check_output(
+        "git stash",
+        shell=True,
+        cwd=os.pardir,
+    )
+    start_branch = (
+        subprocess.check_output(
+            "git rev-parse --abbrev-ref HEAD",
+            shell=True,
+            cwd=os.pardir,
+        )
+        .decode()
+        .strip()
+    )
 
     # if BASE == "":
     #     raise ValueError("Need to specify the base ref with env var e.g. BASE=2.10")
@@ -180,18 +180,17 @@ if __name__ == "__main__":
     #     raise ValueError("Base ref must be a fully qualified semantic version.")
 
     create_release_branch()
-    # create_pull_request()
+    create_pull_request()
 
-    # # switch back to original git branch
-    # subprocess.check_output(
-    #     "git checkout {start_branch}".format(start_branch=start_branch),
-    #     shell=True,
-    #     cwd=os.pardir,
-    # )
-    # print(
-    #     (
-    #         "\nYou've been switched back to your original branch, if you had uncommitted changes before"
-    #         "running this command, run `git stash pop` to get them back."
-    #     )
-    # )
-    # update_version_scheme()
+    # switch back to original git branch
+    subprocess.check_output(
+        "git checkout {start_branch}".format(start_branch=start_branch),
+        shell=True,
+        cwd=os.pardir,
+    )
+    print(
+        (
+            "\nYou've been switched back to your original branch, if you had uncommitted changes before"
+            "running this command, run `git stash pop` to get them back."
+        )
+    )
