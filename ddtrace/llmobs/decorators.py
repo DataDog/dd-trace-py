@@ -71,17 +71,16 @@ def _model_decorator(operation_kind):
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return func(*args, **kwargs)
-                    else:
-                        traced_model_name, span_name = _get_llmobs_span_options(name, model_name, func)
-                        traced_operation = getattr(LLMObs, operation_kind, LLMObs.llm)
-                        span = traced_operation(
-                            model_name=traced_model_name,
-                            model_provider=model_provider,
-                            name=span_name,
-                            session_id=session_id,
-                            ml_app=ml_app,
-                        )
-                        return yield_from_async_gen(func, span, args, kwargs)
+                    traced_model_name, span_name = _get_llmobs_span_options(name, model_name, func)
+                    traced_operation = getattr(LLMObs, operation_kind, LLMObs.llm)
+                    span = traced_operation(
+                        model_name=traced_model_name,
+                        model_provider=model_provider,
+                        name=span_name,
+                        session_id=session_id,
+                        ml_app=ml_app,
+                    )
+                    return yield_from_async_gen(func, span, args, kwargs)
 
                 @wraps(func)
                 async def wrapper(*args, **kwargs):
@@ -89,7 +88,7 @@ def _model_decorator(operation_kind):
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return await func(*args, **kwargs)
                     traced_model_name, span_name = _get_llmobs_span_options(name, model_name, func)
-                    traced_operation = getattr(LLMObs, operation_kind, "llm")
+                    traced_operation = getattr(LLMObs, operation_kind, LLMObs.llm)
                     with traced_operation(
                         model_name=traced_model_name,
                         model_provider=model_provider,
@@ -167,15 +166,14 @@ def _llmobs_decorator(operation_kind):
                     if not LLMObs.enabled:
                         log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                         return func(*args, **kwargs)
-                    else:
-                        _, span_name = _get_llmobs_span_options(name, None, func)
-                        traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
-                        span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app)
-                        func_signature = signature(func)
-                        bound_args = func_signature.bind_partial(*args, **kwargs)
-                        if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=bound_args.arguments)
-                        return yield_from_async_gen(func, span, args, kwargs)
+                    _, span_name = _get_llmobs_span_options(name, None, func)
+                    traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
+                    span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app)
+                    func_signature = signature(func)
+                    bound_args = func_signature.bind_partial(*args, **kwargs)
+                    if _automatic_io_annotation and bound_args.arguments:
+                        LLMObs.annotate(span=span, input_data=bound_args.arguments)
+                    return yield_from_async_gen(func, span, args, kwargs)
 
                 @wraps(func)
                 async def wrapper(*args, **kwargs):
