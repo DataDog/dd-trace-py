@@ -68,7 +68,8 @@ def create_release_branch():
         except subprocess.CalledProcessError as e:
             # Capture the error message
             error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
-            
+            print("ERROR MESSAGE")
+            print(error_message)
             if f"fatal: a branch named '{BASE}' already exists" in error_message:
                 print(f"Branch '{BASE}' already exists. Skipping branch creation...")
                 # Handle the case where the branch already exists
