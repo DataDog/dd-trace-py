@@ -146,8 +146,8 @@ def create_pull_request():
             pr = dd_repo.create_pull(title=pr_title, body=pr_body, base=BASE, head=pr_branch_name, draft=False)
             pr.add_to_labels("changelog/no-changelog")
             print("\u2705 Created PR")
-        except:
-            print(f"\u274C Failed to create PR from {pr_branch_name} into {BASE}")
+        except Exception as e:
+            print(f"\u274C Failed to create PR from {pr_branch_name} into {BASE} due to: {e}")
             raise
     print(f"\u2705 Done")
 
