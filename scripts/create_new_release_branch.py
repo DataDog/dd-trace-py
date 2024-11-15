@@ -186,10 +186,10 @@ if __name__ == "__main__":
         .strip()
     )
 
-    # if BASE == "":
-    #     raise ValueError("Need to specify the base ref with env var e.g. BASE=2.10")
-    # if ".x" in BASE:
-    #     raise ValueError("Base ref must be a fully qualified semantic version.")
+    if BASE == "":
+        raise ValueError("Need to specify the base ref with env var e.g. BASE=2.10")
+    if ".x" in BASE:
+        raise ValueError("Base ref must be a fully qualified semantic version.")
 
     create_release_branch()
     create_pull_request()
