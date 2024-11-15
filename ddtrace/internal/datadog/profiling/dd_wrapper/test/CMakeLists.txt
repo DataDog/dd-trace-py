@@ -17,13 +17,16 @@ FetchContent_MakeAvailable(json)
 
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
+    if (SANITIZE_OPTIONS)
+        target_compile_options(${name} PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
+        target_link_options(${name} PRIVATE -fsanitize=${SANITIZE_OPTIONS})
+    endif()
+
     target_include_directories(${name} PRIVATE ../include)
     target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper nlohmann_json::nlohmann_json)
-    add_ddup_config(${name})
+    set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
     gtest_discover_tests(${name})
-
-    set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
     if(LIB_INSTALL_DIR)
         install(TARGETS ${name}
