@@ -118,44 +118,44 @@ def create_pull_request():
     update_version_scheme()
 
     # Create branch
-    # branch_name = f"script/guess-next-dev-{BASE}"
-    # if DRY_RUN:
-    #     print(f"Would create PR with target branch set to {branch_name}")
-    # else:
-    #     subprocess.check_output(f"git checkout -b {branch_name}", shell=True, cwd=os.pardir)
-    #     try:
-    #         subprocess.check_output(f"git add {PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
-    #     except subprocess.CalledProcessError:
-    #         try:
-    #             subprocess.check_output(f"git add ../{PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
-    #         except subprocess.CalledProcessError:
-    #             raise ValueError(
-    #                 f"Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
-    #                 "You may need to run this script from the root of the repository."
-    #             )
-    #     print(f"Committing changes to {PYPROJECT_FILENAME} on branch {branch_name}")
-    #     pr_title = (
-    #         f"use guess-next-dev instead of release-branch-semver [{BASE}]"
-    #     )
-    #     pr_body = (
-    #         f"This PR updates the `version_schema` in the `{PYPROJECT_FILENAME}` file for the {BASE} release branch "
-    #         "from `release-branch-semver` to `guess-next-dev`. This is to ensure that system tests work as intended "
-    #         "with backports to this release branch."
-    #         "\n\n"
-    #         f"IMPORTANT: This PR needs to be merged before the first backport is created for {BASE}."
-    #         "Otherwise, system tests will not work as expected.")
-    #     try:
-    #         subprocess.check_output(f"git commit -m 'Update version_schema for the {BASE} release branch via script'", shell=True, cwd=os.pardir)
-    #         subprocess.check_output(f"git push origin {BASE}", shell=True, cwd=os.pardir)
-    #     except subprocess.CalledProcessError:
-    #         print(f"Failed to commit and push changes to {branch_name}")
-    #         raise
+    branch_name = f"script/guess-next-dev-{BASE}"
+    if DRY_RUN:
+        print(f"Would create PR with target branch set to {branch_name}")
+    else:
+        subprocess.check_output(f"git checkout -b {branch_name}", shell=True, cwd=os.pardir)
+        try:
+            subprocess.check_output(f"git add {PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
+        except subprocess.CalledProcessError:
+            try:
+                subprocess.check_output(f"git add ../{PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
+            except subprocess.CalledProcessError:
+                raise ValueError(
+                    f"Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
+                    "You may need to run this script from the root of the repository."
+                )
+        print(f"Committing changes to {PYPROJECT_FILENAME} on branch {branch_name}")
+        pr_title = (
+            f"use guess-next-dev instead of release-branch-semver [{BASE}]"
+        )
+        pr_body = (
+            f"This PR updates the `version_schema` in the `{PYPROJECT_FILENAME}` file for the {BASE} release branch "
+            "from `release-branch-semver` to `guess-next-dev`. This is to ensure that system tests work as intended "
+            "with backports to this release branch."
+            "\n\n"
+            f"IMPORTANT: This PR needs to be merged before the first backport is created for {BASE}."
+            "Otherwise, system tests will not work as expected.")
+        try:
+            subprocess.check_output(f"git commit -m 'Update version_schema for the {BASE} release branch via script'", shell=True, cwd=os.pardir)
+            subprocess.check_output(f"git push origin {BASE}", shell=True, cwd=os.pardir)
+        except subprocess.CalledProcessError:
+            print(f"Failed to commit and push changes to {branch_name}")
+            raise
 
-    #     try:
-    #         dd_repo.create_pull(title=pr_title, body=pr_body, base=BASE, head=branch_name, draft=False)
-    #     except:
-    #         print(f"Failed to create PR from {branch_name} into {BASE}")
-    #         raise
+        try:
+            dd_repo.create_pull(title=pr_title, body=pr_body, base=BASE, head=branch_name, draft=False)
+        except:
+            print(f"Failed to create PR from {branch_name} into {BASE}")
+            raise
 
 
 if __name__ == "__main__":
