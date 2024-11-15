@@ -2,10 +2,8 @@ import json
 import os
 from pathlib import Path
 import sys
-from warnings import warn
-import subprocess
-import textwrap
 import warnings
+from warnings import warn
 
 import mock
 import pytest

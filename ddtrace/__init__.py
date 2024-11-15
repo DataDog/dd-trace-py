@@ -1,9 +1,11 @@
 import sys
 import warnings
 
+
 LOADED_MODULES = frozenset(sys.modules.keys())
 
 from ddtrace.internal.module import ModuleWatchdog
+
 
 ModuleWatchdog.install()
 
@@ -14,21 +16,21 @@ from ._logger import configure_ddtrace_logger
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
-from .settings import _config as config
-
+from ddtrace._trace.span import Span  # noqa: E402
+from ddtrace._trace.tracer import Tracer  # noqa: E402
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
 import ddtrace.internal.telemetry  # noqa: E402
+from ddtrace.vendor import debtcollector
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .pin import Pin  # noqa: E402
-from ddtrace._trace.span import Span  # noqa: E402
-from ddtrace._trace.tracer import Tracer  # noqa: E402
-from ddtrace.vendor import debtcollector
+from .settings import _config as config
 from .version import get_version  # noqa: E402
+
 
 # DEV: Import deprecated tracer module in order to retain side-effect of package
 # initialization, which added this module to sys.modules. We catch deprecation
@@ -84,5 +86,6 @@ def check_supported_python_version():
             ),
             category=DDTraceDeprecationWarning,
         )
+
 
 check_supported_python_version()
