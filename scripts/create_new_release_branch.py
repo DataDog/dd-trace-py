@@ -67,9 +67,19 @@ def create_release_branch():
             subprocess.check_call(f"git push origin {BASE}", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError as e:
             # Capture the error message
+            print("STDOUT")
+            print(e.stdout)
+            print("STDOUT END")
+            print("OUTPUT")
+            print(e.output)
+            print("END OUTPUT")
+            print("STDERR")
+            print(e.stderr)
+            print("STDERR END")
             error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
             print("ERROR MESSAGE")
             print(error_message)
+            print("END ERROR MESSAGE")
             if f"fatal: a branch named '{BASE}' already exists" in error_message:
                 print(f"Branch '{BASE}' already exists. Skipping branch creation...")
                 # Handle the case where the branch already exists
