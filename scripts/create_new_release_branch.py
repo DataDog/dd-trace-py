@@ -57,20 +57,18 @@ PYPROJECT_FILENAME = "../pyproject.toml"
 
 
 def create_release_branch():
-    # rc1_tag = f"v{BASE}.0rc1"
-    test_branch = "erikayasuda/test"
+    rc1_tag = f"v{BASE}.0rc1"
     if DRY_RUN:
-        print(f"Would create {BASE} branch from {test_branch} tag")
+        print(f"Would create {BASE} branch from {rc1_tag} tag")
     else:
         try:
-            # subprocess.check_call(f"git checkout {rc1_tag}", shell=True, cwd=os.pardir)
-            subprocess.check_call(f"git checkout {test_branch}", shell=True, cwd=os.pardir)
+            subprocess.check_call(f"git checkout {rc1_tag}", shell=True, cwd=os.pardir)
             subprocess.check_call(f"git checkout -b {BASE}")
             subprocess.check_call(f"git push origin {BASE}")
         except subprocess.CalledProcessError:
             print(f"Encountered error when trying to create release branch {BASE}")
             raise
-    print(f"Created {BASE} branch from {test_branch} commit")
+    print(f"Created {BASE} branch from {rc1_tag} commit")
 
 
 def update_version_scheme():
