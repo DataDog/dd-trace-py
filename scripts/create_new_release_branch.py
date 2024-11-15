@@ -114,17 +114,13 @@ def create_pull_request():
         try:
             subprocess.check_output(f"git add {PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError as e:
-            # Capture the error message
-            error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
-            print(error_message)
-            raise e
-            # try:
-            #     subprocess.check_output(f"git add ../{PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
-            # except subprocess.CalledProcessError:
-            #     raise ValueError(
-            #         f"Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
-            #         "You may need to run this script from the root of the repository."
-            #     )
+            try:
+                subprocess.check_output(f"git add pyproject.toml", shell=True, cwd=os.pardir)
+            except subprocess.CalledProcessError:
+                raise ValueError(
+                    f"Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
+                    "You may need to run this script from the root of the repository."
+                )
         print(f"Committing changes to {PYPROJECT_FILENAME} on branch {branch_name}")
         pr_title = (
             f"use guess-next-dev instead of release-branch-semver [{BASE}]"
