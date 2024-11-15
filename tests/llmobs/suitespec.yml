@@ -53,7 +53,7 @@ suites:
     - '@requests'
     - '@llmobs'
     - tests/contrib/langchain/*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.contrib.langchain.*
   anthropic:
     runner: riot
     parallelism: 3

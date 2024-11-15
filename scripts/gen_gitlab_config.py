@@ -70,7 +70,7 @@ def gen_required_suites() -> None:
 
     suites = suitespec.get_suites()
 
-    required_suites = []
+    required_suites: t.List[str] = []
 
     for_each_testrun_needed(
         suites=sorted(suites.keys()),
@@ -92,7 +92,7 @@ def gen_required_suites() -> None:
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            if suite in circleci_jobs:
+            if suite.rsplit(".", maxsplit=1)[-1] in circleci_jobs:
                 LOGGER.debug("Skipping CircleCI suite %s", suite)
                 continue
             print(str(JobSpec(suite, **suites[suite])), file=f)

@@ -13,8 +13,19 @@ def _collect_suitespecs() -> dict:
     suitespec = {"components": {}, "suites": {}}
 
     for s in TESTS.rglob("suitespec.yml"):
+        try:
+            namespace = ".".join(s.relative_to(TESTS).parts[:-1]) or None
+        except IndexError:
+            namespace = None
         with YAML() as yaml:
             data = yaml.load(s)
+            suites = data.get("suites", {})
+            if namespace is not None:
+                for name, spec in list(suites.items()):
+                    if "pattern" not in spec:
+                        spec["pattern"] = name
+                    suites[f"{namespace}.{name}"] = spec
+                    del suites[name]
             for k, v in suitespec.items():
                 v.update(data.get(k, {}))
 

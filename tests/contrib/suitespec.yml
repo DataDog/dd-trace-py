@@ -258,7 +258,7 @@ suites:
     - tests/contrib/aiohttp/*
     - tests/contrib/aiohttp_jinja2/*
     - tests/snapshots/tests.contrib.aiohttp_jinja2.*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
   asgi:
     runner: riot
     pattern: asgi$
@@ -325,7 +325,7 @@ suites:
     - '@tracing'
     - '@cherrypy'
     - tests/contrib/cherrypy/*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
   dogpile_cache:
     runner: riot
     snapshot: true
@@ -353,7 +353,7 @@ suites:
     - '@contrib'
     - '@elasticsearch'
     - tests/contrib/elasticsearch/*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
   falcon:
     runner: riot
     snapshot: true
@@ -392,7 +392,7 @@ suites:
     - tests/appsec/*
     - tests/contrib/django/*
     - tests/contrib/django_celery/*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
   django_hosts:
     runner: riot
     pattern: django_hosts$
@@ -404,7 +404,7 @@ suites:
     - '@tracing'
     - '@appsec'
     - '@django'
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
     - tests/contrib/django_hosts/*
     - tests/contrib/django_hosts/django_app/*
   djangorestframework:
@@ -455,7 +455,7 @@ suites:
     - '@asyncio'
     - tests/contrib/fastapi/*
     - tests/snapshots/tests.contrib.starlette.*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
   flask:
     runner: riot
     services:
@@ -722,7 +722,7 @@ suites:
     - '@tracing'
     - '@redis'
     - tests/contrib/aredis/*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
   yaaredis:
     runner: riot
     services:
@@ -978,7 +978,7 @@ suites:
     - "@tracing"
     - "@aws_lambda"
     - tests/contrib/aws_lambda/*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
   datastreams:
     runner: riot
     paths:
@@ -1038,7 +1038,7 @@ suites:
     - "@tracing"
     - "@pg"
     - tests/contrib/asyncpg/*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
     - tests/contrib/shared_tests_async.py
   cassandra:
     runner: riot
@@ -1146,7 +1146,7 @@ suites:
     - "@dbapi"
     - "@mysql"
     - tests/contrib/aiomysql/*
-    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/snapshots/tests.{suite}.*
     - tests/contrib/shared_tests_async.py
   aiopg:
     runner: riot
