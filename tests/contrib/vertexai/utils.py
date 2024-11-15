@@ -34,7 +34,8 @@ MOCK_COMPLETION_SIMPLE_1 = {
             "content": {
                 "parts": [
                     {
-                        "text": "Bears hibernate to conserve energy and survive during winter months when food is scarce.\n"
+                        "text": "Bears hibernate to conserve energy and survive \
+                        during winter months when food is scarce.\n"
                     }
                 ],
                 "role": "model",
@@ -51,7 +52,8 @@ MOCK_COMPLETION_SIMPLE_2 = {
             "content": {
                 "parts": [
                     {
-                        "text": "Bears do not hibernate! They enter a state of **deep sleep** during the winter months, but it's not true hibernation. \\n\\nHere's..."
+                        "text": "Bears do not hibernate! They enter a state of **deep sleep** \
+                            during the winter months, but it's not true hibernation. \\n\\nHere's..."
                     }
                 ],
                 "role": "model",

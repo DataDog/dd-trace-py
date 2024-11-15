@@ -1,7 +1,6 @@
 import copy
 import sys
 
-import vertexai
 from vertexai.generative_models import GenerativeModel
 from vertexai.generative_models import Part
 
@@ -112,8 +111,7 @@ def extract_info_from_parts(parts):
     function_calls = []
     for part in parts:
         text = getattr(part, "text", "")
-        if text:
-            concatenated_text += text
+        concatenated_text += text
         function_call = getattr(part, "function_call", None)
         if function_call is not None:
             function_calls.append(function_call)
