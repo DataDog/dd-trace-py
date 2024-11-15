@@ -74,7 +74,7 @@ MOCK_COMPLETION_TOOL = {
                             },
                         }
                     }
-                ]
+                ],
             },
             "finish_reason": "STOP",
         },
