@@ -65,18 +65,24 @@ class JobSpec:
 def gen_required_suites() -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
-    from needs_testrun import for_each_testrun_needed as fetn
+    from needs_testrun import for_each_testrun_needed
     import suitespec
 
     suites = suitespec.get_suites()
 
     required_suites = []
 
-    fetn(
+    for_each_testrun_needed(
         suites=sorted(suites.keys()),
         action=lambda suite: required_suites.append(suite),
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
+
+    # Exclude the suites that are run in CircleCI. These likely don't run in
+    # GitLab yet.
+    with YAML() as yaml:
+        circleci_config = yaml.load(ROOT / ".circleci" / "config.templ.yml")
+        circleci_jobs = set(circleci_config["jobs"].keys())
 
     # Copy the template file
     TESTS_GEN.write_text(
@@ -86,6 +92,9 @@ def gen_required_suites() -> None:
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
+            if suite in circleci_jobs:
+                LOGGER.debug("Skipping CircleCI suite %s", suite)
+                continue
             print(str(JobSpec(suite, **suites[suite])), file=f)
 
 
@@ -169,8 +178,11 @@ LOGGER = logging.getLogger(__name__)
 
 argp = ArgumentParser()
 argp.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+argp.add_argument("--debug", "-d", action="store_true", help="Debug output")
 args = argp.parse_args()
-if args.verbose:
+if args.debug:
+    LOGGER.setLevel(logging.DEBUG)
+elif args.verbose:
     LOGGER.setLevel(logging.INFO)
 
 ROOT = Path(__file__).parents[1]

@@ -16,7 +16,7 @@ components:
   - tests/contrib/patch.py
   - tests/contrib/config.py
   - tests/contrib/__init__.py
-  - tests/contrib/jobspec.yml
+  - tests/contrib/suitespec.yml
   redis:
   - ddtrace/contrib/rediscluster/*
   - ddtrace/contrib/internal/rediscluster/*
@@ -107,12 +107,6 @@ components:
   urllib3:
   - ddtrace/contrib/urllib3/*
   - ddtrace/contrib/internal/urllib3/*
-  webbrowser:
-  - ddtrace/contrib/webbrowser/*
-  - ddtrace/contrib/internal/webbrowser/*
-  urllib:
-  - ddtrace/contrib/urllib/*
-  - ddtrace/contrib/internal/urllib/*
   rq:
   - ddtrace/contrib/rq/*
   mako:
@@ -245,7 +239,8 @@ components:
   aiopg:
   - ddtrace/contrib/aiopg/*
   - ddtrace/contrib/internal/aiopg/*
-
+  runtime:
+  - ddtrace/runtime/__init__.py
 
 suites:
   aiohttp:
@@ -970,3 +965,214 @@ suites:
     - '@tracing'
     - '@avro'
     - tests/contrib/avro/*
+
+# These suites need to be fixed to run in GitLab
+
+  aws_lambda:
+    runner: riot
+    snapshot: true
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@aws_lambda"
+    - tests/contrib/aws_lambda/*
+    - tests/snapshots/tests.contrib.{suite}.*
+  datastreams:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@tracing"
+    - "@datastreams"
+    - tests/datastreams/*
+  opentelemetry:
+    runner: riot
+    snapshot: true
+    parallelism: 4
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@tracing"
+    - "@opentelemetry"
+    - tests/opentelemetry/*
+    - tests/snapshots/tests.opentelemetry.*
+  botocore:
+    runner: riot
+    # services:
+    # - localstack
+    parallelism: 6
+    snapshot: true
+    pattern: "^botocore$"
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@llmobs"
+    - "@botocore"
+    - "@llmobs"
+    - "@datastreams"
+    - tests/contrib/botocore/*
+    - tests/contrib/boto/*
+    - tests/snapshots/tests.contrib.botocore*
+  aiobotocore:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@botocore"
+    - tests/contrib/aiobotocore/*
+  asyncpg:
+    runner: riot
+    snapshot: true
+    # services:
+    # - postgres
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@pg"
+    - tests/contrib/asyncpg/*
+    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/contrib/shared_tests_async.py
+  cassandra:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@cassandra"
+    - tests/contrib/cassandra/*
+  consul:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@consul"
+    - tests/contrib/consul/*
+  mariadb:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@dbapi"
+    - "@mariadb"
+    - tests/contrib/mariadb/*
+    - tests/snapshots/tests.contrib.mariadb.*
+  mysqldb:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@tracing"
+    - "@contrib"
+    - "@dbapi"
+    - "@mysql"
+    - tests/contrib/mysqldb/*
+    - tests/contrib/mysql/*
+    - tests/contrib/shared_tests.py
+  pymysql:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@dbapi"
+    - "@mysql"
+    - tests/contrib/pymysql/*
+    - tests/contrib/mysql/*
+    - tests/contrib/shared_tests.py
+  mongoengine:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@mongo"
+    - tests/contrib/mongoengine/*
+  sqlalchemy:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@sqlalchemy"
+    - "@dbapi"
+    - tests/contrib/sqlalchemy/*
+  psycopg:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@tracing"
+    - "@contrib"
+    - "@dbapi"
+    - "@pg"
+    - tests/contrib/psycopg/*
+    - tests/snapshots/tests.contrib.psycopg.*
+    - tests/contrib/shared_tests.py
+  psycopg2:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@dbapi"
+    - "@tracing"
+    - "@pg"
+    - tests/contrib/psycopg2/*
+    - tests/snapshots/tests.contrib.psycopg2.*
+    - tests/contrib/shared_tests.py
+  aiomysql:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@dbapi"
+    - "@mysql"
+    - tests/contrib/aiomysql/*
+    - tests/snapshots/tests.contrib.{suite}.*
+    - tests/contrib/shared_tests_async.py
+  aiopg:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@dbapi"
+    - "@pg"
+    - "@aiopg"
+    - tests/contrib/aiopg/*
+    - tests/contrib/shared_tests_async.py
+  vertica:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@vertica"
+    - tests/contrib/vertica/*
+  runtime:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@runtime"
+    - tests/runtime/*

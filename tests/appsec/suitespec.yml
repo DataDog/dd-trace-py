@@ -4,6 +4,12 @@ components:
   - ddtrace/settings/asm.py
   appsec_iast:
   - ddtrace/appsec/iast/*
+  webbrowser:
+  - ddtrace/contrib/webbrowser/*
+  - ddtrace/contrib/internal/webbrowser/*
+  urllib:
+  - ddtrace/contrib/urllib/*
+  - ddtrace/contrib/internal/urllib/*
 
 
 suites:
@@ -117,3 +123,50 @@ suites:
     - '@appsec'
     - '@appsec_iast'
     - '@remoteconfig'
+  appsec_iast_packages:  # TODO: only on main branch
+    runner: riot
+    parallelism: 5
+    snapshot: true
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@tracing"
+    - "@appsec"
+    - "@appsec_iast"
+    - "@remoteconfig"
+    - tests/appsec/iast/*
+    - tests/appsec/iast_packages/*
+  appsec_integrations:
+    runner: riot
+    parallelism: 7
+    retry: 2
+    snapshot: true
+    # services:
+    # - pygoat
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@tracing"
+    - "@appsec"
+    - "@appsec_iast"
+    - "@remoteconfig"
+    - tests/appsec/*
+    - tests/snapshots/tests.appsec.*
+  webbrowser:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@webbrowser"
+    - tests/appsec/iast/taint_sinks/test_ssrf.py
+  urllib:
+    runner: riot
+    paths:
+    - "@bootstrap"
+    - "@core"
+    - "@contrib"
+    - "@tracing"
+    - "@urllib"
+    - tests/appsec/iast/taint_sinks/test_ssrf.py

@@ -24,7 +24,7 @@ components:
   - tests/test_module/*
   - ".gitlab-ci.yml"
   - ".gitlab/*"
-  - tests/jobspec.yml
+  - tests/suitespec.yml
   core:
   - ddtrace/internal/__init__.py
   - ddtrace/internal/_exceptions.py
