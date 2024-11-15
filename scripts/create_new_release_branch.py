@@ -134,9 +134,13 @@ def create_pull_request():
             "Otherwise, system tests will not work as expected.")
         try:
             subprocess.check_output(f"git commit -m 'Update version_schema for the {BASE} release branch via script'", shell=True, cwd=os.pardir)
+        except subprocess.CalledProcessError:
+            print(f"Failed to commit changes to {branch_name}")
+            raise
+        try:
             subprocess.check_output(f"git push origin {BASE}", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError:
-            print(f"Failed to commit and push changes to {branch_name}")
+            print(f"Failed to push committed changes to {branch_name}")
             raise
 
         try:
