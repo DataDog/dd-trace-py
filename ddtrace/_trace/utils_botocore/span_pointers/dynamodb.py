@@ -10,8 +10,6 @@ from typing import Set
 from typing import Union
 from typing import cast
 
-from boto3.dynamodb.types import TypeSerializer
-
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _standard_hashing_function
@@ -27,7 +25,14 @@ else:
 log = get_logger(__name__)
 
 
-dynamodb_type_serializer = TypeSerializer()
+def _boto3_dynamodb_types_TypeSerializer_serialize(value):
+    # We need this serializer for some of the code below, but we don't want to
+    # import boto3 things at the top level of this module since not everyone
+    # who is using ddtrace also needs boto3. Any code that actually does reach
+    # the serialization functionality below *will* have boto3 available.
+    from boto3.dynamodb.types import TypeSerializer
+
+    return TypeSerializer().serialize(value)
 
 
 class _TelemetryIssueTags(Enum):
@@ -650,7 +655,7 @@ def _aws_dynamodb_item_value_to_probably_primary_key_value(
         return item_value
 
     try:
-        return cast(_DynamoDBItemPrimaryKeyValue, dynamodb_type_serializer.serialize(item_value))
+        return cast(_DynamoDBItemPrimaryKeyValue, _boto3_dynamodb_types_TypeSerializer_serialize(item_value))
 
     except Exception as e:
         log.debug("failed to serialize item value to botocore value: %s", e)
@@ -719,7 +724,7 @@ def _aws_dynamodb_item_encode_primary_key_value(
     try:
         if not isinstance(value_object, dict):
             try:
-                value_object = dynamodb_type_serializer.serialize(value_object)
+                value_object = _boto3_dynamodb_types_TypeSerializer_serialize(value_object)
             except Exception as e:
                 log.debug("failed to serialize primary key value to botocore value: %s", e)
                 record_span_pointer_calculation_issue(
