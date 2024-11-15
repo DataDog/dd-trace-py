@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import sys
 
 import mock
 import pytest
@@ -422,6 +423,7 @@ def test_profiler_serverless(monkeypatch):
     assert p.tags["functionname"] == "foobar"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
 @pytest.mark.subprocess()
 def test_profiler_ddtrace_deprecation():
     """
