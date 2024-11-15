@@ -20,6 +20,7 @@ class JobSpec:
     parallelism: t.Optional[int] = None
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
+    skip: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
 
     def __str__(self) -> str:
@@ -92,10 +93,16 @@ def gen_required_suites() -> None:
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            if suite.rsplit(".", maxsplit=1)[-1] in circleci_jobs:
+            if suite.rsplit("::", maxsplit=1)[-1] in circleci_jobs:
                 LOGGER.debug("Skipping CircleCI suite %s", suite)
                 continue
-            print(str(JobSpec(suite, **suites[suite])), file=f)
+
+            jobspec = JobSpec(suite, **suites[suite])
+            if jobspec.skip:
+                LOGGER.debug("Skipping suite %s", suite)
+                continue
+
+            print(str(jobspec), file=f)
 
 
 def gen_pre_checks() -> None:

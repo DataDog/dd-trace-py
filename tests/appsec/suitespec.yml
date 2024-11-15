@@ -153,6 +153,7 @@ suites:
     - tests/appsec/*
     - tests/snapshots/tests.appsec.*
   webbrowser:
+    skip: true # TODO: No environment available
     runner: riot
     paths:
     - "@bootstrap"
@@ -162,6 +163,7 @@ suites:
     - "@webbrowser"
     - tests/appsec/iast/taint_sinks/test_ssrf.py
   urllib:
+    skip: true # TODO: No environment available
     runner: riot
     paths:
     - "@bootstrap"

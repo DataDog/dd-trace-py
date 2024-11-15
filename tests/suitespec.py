@@ -24,7 +24,7 @@ def _collect_suitespecs() -> dict:
                 for name, spec in list(suites.items()):
                     if "pattern" not in spec:
                         spec["pattern"] = name
-                    suites[f"{namespace}.{name}"] = spec
+                    suites[f"{namespace}::{name}"] = spec
                     del suites[name]
             for k, v in suitespec.items():
                 v.update(data.get(k, {}))

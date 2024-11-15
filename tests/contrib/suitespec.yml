@@ -1069,8 +1069,9 @@ suites:
     - "@mariadb"
     - tests/contrib/mariadb/*
     - tests/snapshots/tests.contrib.mariadb.*
-  mysqldb:
+  mysqlpython:
     runner: riot
+    pattern: mysqldb$
     paths:
     - "@bootstrap"
     - "@core"
@@ -1122,18 +1123,8 @@ suites:
     - "@dbapi"
     - "@pg"
     - tests/contrib/psycopg/*
-    - tests/snapshots/tests.contrib.psycopg.*
-    - tests/contrib/shared_tests.py
-  psycopg2:
-    runner: riot
-    paths:
-    - "@bootstrap"
-    - "@core"
-    - "@contrib"
-    - "@dbapi"
-    - "@tracing"
-    - "@pg"
     - tests/contrib/psycopg2/*
+    - tests/snapshots/tests.contrib.psycopg.*
     - tests/snapshots/tests.contrib.psycopg2.*
     - tests/contrib/shared_tests.py
   aiomysql:
@@ -1161,6 +1152,7 @@ suites:
     - tests/contrib/aiopg/*
     - tests/contrib/shared_tests_async.py
   vertica:
+    skip: true # Vertica tests are flaky
     runner: riot
     paths:
     - "@bootstrap"
