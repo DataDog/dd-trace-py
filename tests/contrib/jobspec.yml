@@ -346,10 +346,6 @@ urllib3:
     SUITE_NAME: urllib3
     TEST_HTTPBIN_HOST: "httpbin-local"
     TEST_HTTPBIN_PORT: "8001"
-vertica:
-  extends: .test_base_riot
-  variables:
-    SUITE_NAME: "vertica"
 wsgi:
   runner: riot
   is_snapshot: true
