@@ -63,8 +63,8 @@ def create_release_branch():
     else:
         try:
             subprocess.check_call(f"git checkout {rc1_tag}", shell=True, cwd=os.pardir)
-            subprocess.check_call(f"git checkout -b {BASE}")
-            subprocess.check_call(f"git push origin {BASE}")
+            subprocess.check_call(f"git checkout -b {BASE}", shell=True, cwd=os.pardir)
+            subprocess.check_call(f"git push origin {BASE}", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError:
             print(f"Encountered error when trying to create release branch {BASE}")
             raise
