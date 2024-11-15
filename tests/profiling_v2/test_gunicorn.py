@@ -4,10 +4,21 @@ import re
 import subprocess
 import sys
 import time
+import urllib.request
 
 import pytest
 
 from tests.profiling.collector import pprof_utils
+
+
+# DEV: gunicorn tests are hard to debug, so keeping these print statements for
+# future debugging
+DEBUG_PRINT = False
+
+
+def debug_print(*args):
+    if DEBUG_PRINT:
+        print(*args)
 
 
 # gunicorn is not available on Windows
@@ -19,7 +30,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 def _run_gunicorn(*args):
     cmd = (
-        ["ddtrace-run", "gunicorn", "--bind", "127.0.0.1:7643", "--chdir", os.path.dirname(__file__)]
+        ["ddtrace-run", "gunicorn", "--bind", "127.0.0.1:7644", "--chdir", os.path.dirname(__file__)]
         + list(args)
         + ["tests.profiling.gunicorn-app:app"]
     )
@@ -28,8 +39,7 @@ def _run_gunicorn(*args):
 
 @pytest.fixture
 def gunicorn(monkeypatch):
-    # Do not ignore profiler so we have samples in the output pprof
-    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "1")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     # This was needed for the gunicorn process to start and print worker startup
     # messages. Without this, the test can't find the worker PIDs.
@@ -48,19 +58,64 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     filename = str(tmp_path / "gunicorn.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
 
-    proc = gunicorn("-w", "3", *args)
-    time.sleep(3)
-    proc.terminate()
+    debug_print("Creating gunicorn workers")
+    # DEV: We only start 1 worker to simplify the test
+    proc = gunicorn("-w", "1", *args)
+    # Wait for the workers to start
+    time.sleep(5)
+
+    if proc.poll() is not None:
+        pytest.fail("Gunicorn failed to start")
+
+    debug_print("Making request to gunicorn server")
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
+            status_code = f.getcode()
+            assert status_code == 200, status_code
+            response = f.read().decode()
+            debug_print(response)
+    except Exception as e:
+        pytest.fail("Failed to make request to gunicorn server %s" % e)
+    finally:
+        # Need to terminate the process to get the output and release the port
+        proc.terminate()
+
+    debug_print("Reading gunicorn worker output to get PIDs")
     output = proc.stdout.read().decode()
     worker_pids = _get_worker_pids(output)
+    debug_print("Gunicorn worker PIDs: %s" % worker_pids)
 
-    assert len(worker_pids) == 3, output
-    assert proc.wait() == 0, output
+    for line in output.splitlines():
+        debug_print(line)
+
+    assert len(worker_pids) == 1, output
+
+    debug_print("Waiting for gunicorn process to terminate")
+    try:
+        assert proc.wait(timeout=5) == 0, output
+    except subprocess.TimeoutExpired:
+        pytest.fail("Failed to terminate gunicorn process ", output)
     assert "module 'threading' has no attribute '_active'" not in output, output
 
-    profile = pprof_utils.parse_profile("%s.%d" % (filename, proc.pid))
-    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-    assert len(samples) > 0
+    for pid in worker_pids:
+        debug_print("Reading pprof file with prefix %s.%d" % (filename, pid))
+        profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
+        # This returns a list of samples that have non-zero cpu-time
+        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+        assert len(samples) > 0
+
+        # DEV: somehow the filename is reported as either __init__.py or gunicorn-app.py
+        # when run on GitLab CI. We need to match either of these two.
+        filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
+
+        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=8)
+
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            # DEV: we expect multiple locations as fibonacci is recursive
+            expected_sample=pprof_utils.StackEvent(locations=[expected_location, expected_location]),
+        )
 
 
 def test_gunicorn(gunicorn, tmp_path, monkeypatch):

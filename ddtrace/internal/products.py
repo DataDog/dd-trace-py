@@ -6,6 +6,7 @@ import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.uwsgi import check_uwsgi
 from ddtrace.internal.uwsgi import uWSGIConfigError
 from ddtrace.internal.uwsgi import uWSGIMasterProcess
@@ -119,6 +120,7 @@ class ProductManager:
             try:
                 product.start()
                 log.debug("Started product '%s'", name)
+                telemetry_writer.product_activated(name, True)
             except Exception:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
@@ -148,6 +150,7 @@ class ProductManager:
             try:
                 product.stop(join=join)
                 log.debug("Stopped product '%s'", name)
+                telemetry_writer.product_activated(name, False)
             except Exception:
                 log.exception("Failed to stop product '%s'", name)
 

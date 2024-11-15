@@ -162,6 +162,8 @@ template_venv/
 cloned_venvs/
 # CircleCI generated config
 .circleci/config.gen.yml
+# GitLab CI generated config
+.gitlab/*-gen.yml
 
 # Automatically generated fixtures
 tests/appsec/iast/fixtures/aspects/callers.py

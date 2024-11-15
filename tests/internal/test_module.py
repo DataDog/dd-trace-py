@@ -7,6 +7,7 @@ from warnings import warn
 import mock
 import pytest
 
+from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
@@ -52,7 +53,7 @@ def module_watchdog():
 
 def test_watchdog_install_uninstall():
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
+    assert not any(isinstance(m, ModuleWatchdog) and not isinstance(m, ModuleCodeCollector) for m in sys.meta_path)
 
     ModuleWatchdog.install()
 
@@ -62,7 +63,7 @@ def test_watchdog_install_uninstall():
     ModuleWatchdog.uninstall()
 
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
+    assert not any(isinstance(m, ModuleWatchdog) and not isinstance(m, ModuleCodeCollector) for m in sys.meta_path)
 
 
 def test_import_origin_hook_for_imported_module(module_watchdog):
@@ -569,7 +570,7 @@ def __getattr__(name):
     assert missing_deprecations == set(
         [
             # Note: The following ddtrace.contrib modules are expected to be part of the public API
-            # TODO: Revist whether integration utils should be part of the public API
+            # TODO: Revisit whether integration utils should be part of the public API
             "ddtrace.contrib.redis_utils",
             "ddtrace.contrib.trace_utils",
             "ddtrace.contrib.trace_utils_async",
