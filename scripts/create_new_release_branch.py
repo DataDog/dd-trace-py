@@ -69,60 +69,23 @@ def create_release_branch():
 
         try:
             subprocess.check_call(f"git checkout -b {BASE}", shell=True, cwd=os.pardir)
-            print("here")
         except subprocess.CalledProcessError as e:
             # Capture the error message
-            print("TRACEBACK")
-            print(e.with_traceback)
-            print("END TRACEBACK")
-            print("STDOUT")
-            print(e.stdout)
-            print("STDOUT END")
-            print("OUTPUT")
-            print(e.output)
-            print("END OUTPUT")
-            print("STDERR")
-            print(e.stderr)
-            print("STDERR END")
             error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
-            print("ERROR MESSAGE")
-            print(error_message)
-            print("END ERROR MESSAGE")
-            if f"fatal: a branch named '{BASE}' already exists" in error_message:
+            if f"Command 'git checkout -b {BASE}' returned non-zero exit status 128." in error_message:
                 print(f"Branch '{BASE}' already exists. Skipping branch creation...")
                 # Handle the case where the branch already exists
                 # For example, you could check out the existing branch
-                subprocess.check_call(f"git checkout -b {BASE}", shell=True, cwd=os.pardir)
+                subprocess.check_call(f"git checkout {BASE}", shell=True, cwd=os.pardir)
             else:
                 print(f"Encountered error when trying to create release branch {BASE}")
                 raise e
             
         try:
             subprocess.check_call(f"git push origin {BASE}", shell=True, cwd=os.pardir)
-            print("there")
         except subprocess.CalledProcessError as e:
-            # Capture the error message
-            print("STDOUT")
-            print(e.stdout)
-            print("STDOUT END")
-            print("OUTPUT")
-            print(e.output)
-            print("END OUTPUT")
-            print("STDERR")
-            print(e.stderr)
-            print("STDERR END")
-            error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
-            print("ERROR MESSAGE")
-            print(error_message)
-            print("END ERROR MESSAGE")
-            if f"fatal: a branch named '{BASE}' already exists" in error_message:
-                print(f"Branch '{BASE}' already exists. Skipping branch creation...")
-                # Handle the case where the branch already exists
-                # For example, you could check out the existing branch
-                subprocess.check_call(f"git checkout -b {BASE}", shell=True, cwd=os.pardir)
-            else:
-                print(f"Encountered error when trying to create release branch {BASE}")
-                raise e
+            print(f"Encountered error when trying to push {BASE} branch")
+            raise e
 
     print(f"Checked out {BASE} branch from {rc1_tag} commit")
 
