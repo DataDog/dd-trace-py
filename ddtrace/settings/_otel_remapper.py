@@ -1,5 +1,18 @@
 import os
-import typing
+import sys
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Tuple
+
+
+if sys.version_info < (3, 8):
+    from typing_extensions import Literal
+    from typing_extensions import Optional
+else:
+    from typing import Literal
+    from typing import Optional
+
 
 from ..constants import ENV_KEY
 from ..constants import VERSION_KEY
@@ -17,14 +30,14 @@ OTEL_UNIFIED_TAG_MAPPINGS = {
 }
 
 
-def _remap_otel_log_level(otel_value: str) -> typing.Optional[str]:
+def _remap_otel_log_level(otel_value: str) -> Optional[str]:
     """Remaps the otel log level to ddtrace log level"""
     if otel_value == "debug":
         return "True"
     return None
 
 
-def _remap_otel_propagators(otel_value: str) -> typing.Optional[str]:
+def _remap_otel_propagators(otel_value: str) -> Optional[str]:
     """Remaps the otel propagators to ddtrace propagators"""
     accepted_styles = []
     for style in otel_value.split(","):
@@ -37,7 +50,7 @@ def _remap_otel_propagators(otel_value: str) -> typing.Optional[str]:
     return ",".join(accepted_styles)
 
 
-def _remap_traces_sampler(otel_value: str) -> typing.Optional[str]:
+def _remap_traces_sampler(otel_value: str) -> Optional[str]:
     """Remaps the otel trace sampler to ddtrace trace sampler"""
     if otel_value in ["always_on", "always_off", "traceidratio"]:
         log.warning(
@@ -55,33 +68,33 @@ def _remap_traces_sampler(otel_value: str) -> typing.Optional[str]:
     return None
 
 
-def _remap_traces_exporter(otel_value: str) -> typing.Optional[str]:
+def _remap_traces_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel trace exporter to ddtrace trace enabled"""
     if otel_value == "none":
         return "False"
     return None
 
 
-def _remap_metrics_exporter(otel_value: str) -> typing.Optional[str]:
+def _remap_metrics_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel metrics exporter to ddtrace metrics exporter"""
     if otel_value == "none":
         return "False"
     return None
 
 
-def _validate_logs_exporter(otel_value: str) -> typing.Literal["", None]:
+def _validate_logs_exporter(otel_value: str) -> Literal["", None]:
     """Logs warning when OTEL Logs exporter is configured. DDTRACE does not support this configuration."""
     if otel_value == "none":
         return ""
     return None
 
 
-def _remap_otel_tags(otel_value: str) -> typing.Optional[str]:
+def _remap_otel_tags(otel_value: str) -> Optional[str]:
     """Remaps the otel tags to ddtrace tags"""
-    dd_tags: typing.List[str] = []
+    dd_tags: List[str] = []
 
     try:
-        otel_user_tag_dict: typing.Dict[str, str] = dict()
+        otel_user_tag_dict: Dict[str, str] = dict()
         for tag in otel_value.split(","):
             key, value = tag.split("=")
             otel_user_tag_dict[key] = value
@@ -106,7 +119,7 @@ def _remap_otel_tags(otel_value: str) -> typing.Optional[str]:
     return ",".join(dd_tags)
 
 
-def _remap_otel_sdk_config(otel_value: str) -> typing.Optional[str]:
+def _remap_otel_sdk_config(otel_value: str) -> Optional[str]:
     """Remaps the otel sdk config to ddtrace sdk config"""
     if otel_value == "false":
         return "True"
@@ -115,12 +128,12 @@ def _remap_otel_sdk_config(otel_value: str) -> typing.Optional[str]:
     return None
 
 
-def _remap_default(otel_value: str) -> typing.Optional[str]:
+def _remap_default(otel_value: str) -> Optional[str]:
     """Remaps the otel default value to ddtrace default value"""
     return otel_value
 
 
-ENV_VAR_MAPPINGS: typing.Dict[str, typing.Tuple[str, typing.Callable[[str], typing.Optional[str]]]] = {
+ENV_VAR_MAPPINGS: Dict[str, Tuple[str, Callable[[str], Optional[str]]]] = {
     "OTEL_SERVICE_NAME": ("DD_SERVICE", _remap_default),
     "OTEL_LOG_LEVEL": ("DD_TRACE_DEBUG", _remap_otel_log_level),
     "OTEL_PROPAGATORS": ("DD_TRACE_PROPAGATION_STYLE", _remap_otel_propagators),
