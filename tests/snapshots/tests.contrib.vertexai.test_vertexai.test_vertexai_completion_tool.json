@@ -10,9 +10,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67314bba00000000",
+      "_dd.p.tid": "6737958900000000",
       "language": "python",
-      "runtime-id": "8f5d32453b0548f3ac756458c4e41be3",
+      "runtime-id": "97516bf9fa2346d992a5b650fc1bad60",
       "vertexai.request.contents.0.text": "What is the weather like in New York City?",
       "vertexai.request.generation_config.max_output_tokens": "30",
       "vertexai.request.generation_config.stop_sequences": "['x']",
@@ -22,7 +22,7 @@
       "vertexai.response.candidates.0.content.parts.0.function_call.args": "{'location': 'New York City, NY'}",
       "vertexai.response.candidates.0.content.parts.0.function_call.name": "get_current_weather",
       "vertexai.response.candidates.0.content.parts.0.text": "",
-      "vertexai.response.candidates.0.content.role": "",
+      "vertexai.response.candidates.0.content.role": "model",
       "vertexai.response.candidates.0.finish_reason": "STOP"
     },
     "metrics": {
@@ -30,11 +30,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 70952,
+      "process_id": 21574,
       "vertexai.response.usage.completion_tokens": 11,
       "vertexai.response.usage.prompt_tokens": 43,
       "vertexai.response.usage.total_tokens": 54
     },
-    "duration": 477000,
-    "start": 1731283898308397000
+    "duration": 399000,
+    "start": 1731696009685675000
   }]]

@@ -7,7 +7,6 @@ from tests.contrib.vertexai.utils import _mock_completion_response
 from tests.contrib.vertexai.utils import _mock_completion_stream_chunk
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_2
-from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_3
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_STREAM_CHUNKS
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
@@ -38,7 +37,7 @@ def test_global_tags(vertexai, mock_tracer):
     assert span.get_tag("vertexai.request.model") == "gemini-1.5-flash"
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion")
 def test_vertexai_completion(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
@@ -50,7 +49,7 @@ def test_vertexai_completion(vertexai):
     )
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_error", ignores=["meta.error.stack", "meta.error.message"])
 def test_vertexai_completion_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
@@ -64,7 +63,7 @@ def test_vertexai_completion_error(vertexai):
         )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool")
 def test_vertexai_completion_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
@@ -76,7 +75,7 @@ def test_vertexai_completion_tool(vertexai):
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_multiple_messages")
 def test_vertexai_completion_multiple_messages(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))    
@@ -84,15 +83,15 @@ def test_vertexai_completion_multiple_messages(vertexai):
         [
             {"role": "user", "parts": [{"text": "Hello World!"}]},
             {"role": "model", "parts": [{"text": "Great to meet you. What would you like to know?"}]},
-            {"role": "user", "parts": [{"text": "Why do bears hibernate?"}]},
+            {"parts": [{"text": "Why do bears hibernate?"}]},
         ],
         generation_config=vertexai.generative_models.GenerationConfig(
-            stop_sequences=["x"], max_output_tokens=30, temperature=0
+            stop_sequences=["x"], max_output_tokens=30, temperature=1.0
         ),
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_system_prompt")
 def test_vertexai_completion_system_prompt(vertexai):
     llm = vertexai.generative_models.GenerativeModel(
         "gemini-1.5-flash",
@@ -100,16 +99,16 @@ def test_vertexai_completion_system_prompt(vertexai):
             vertexai.generative_models.Part.from_text("You are required to insist that bears do not hibernate.")
         ],
     )
-    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_3))
+    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
     llm.generate_content(
         "Why do bears hibernate?",
         generation_config=vertexai.generative_models.GenerationConfig(
-            stop_sequences=["x"], max_output_tokens=50, temperature=0
+            stop_sequences=["x"], max_output_tokens=50, temperature=1.0
         ),
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream")
 def test_vertexai_completion_stream(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["stream_generate_content"] = [
@@ -126,7 +125,7 @@ def test_vertexai_completion_stream(vertexai):
         pass
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_error", ignores=["meta.error.stack", "meta.error.message"])
 def test_vertexai_completion_stream_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["stream_generate_content"] = [
@@ -145,7 +144,7 @@ def test_vertexai_completion_stream_error(vertexai):
             pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool")
 def test_vertexai_completion_stream_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_client.responses["stream_generate_content"] = [
@@ -162,7 +161,7 @@ def test_vertexai_completion_stream_tool(vertexai):
         pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async")
 async def test_vertexai_completion_async(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
@@ -174,7 +173,7 @@ async def test_vertexai_completion_async(vertexai):
     )
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_error", ignores=["meta.error.stack", "meta.error.message"])
 async def test_vertexai_completion_async_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
@@ -182,25 +181,25 @@ async def test_vertexai_completion_async_error(vertexai):
         await llm.generate_content_async(
             "Why do bears hibernate?",
             generation_config=vertexai.generative_models.GenerationConfig(
-                stop_sequences=["x"], max_output_tokens=30, temperature=0
+                stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
             candidate_count=2,  # candidate_count is not a valid keyword argument
         )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_tool")
 async def test_vertexai_completion_async_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
     await llm.generate_content_async(
         "What is the weather like in New York City?",
         generation_config=vertexai.generative_models.GenerationConfig(
-            stop_sequences=["x"], max_output_tokens=30, temperature=0
+            stop_sequences=["x"], max_output_tokens=30, temperature=1.0
         ),
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_stream")
 async def test_vertexai_completion_async_stream(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_async_client.responses["stream_generate_content"] = [
@@ -217,7 +216,7 @@ async def test_vertexai_completion_async_stream(vertexai):
         pass
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_stream_error", ignores=["meta.error.stack", "meta.error.message"])
 async def test_vertexai_completion_async_stream_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_async_client.responses["stream_generate_content"] = [
@@ -236,7 +235,7 @@ async def test_vertexai_completion_async_stream_error(vertexai):
             pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_stream_tool")
 async def test_vertexai_completion_async_stream_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_async_client.responses["stream_generate_content"] = [
@@ -245,7 +244,7 @@ async def test_vertexai_completion_async_stream_tool(vertexai):
     response = await llm.generate_content_async(
         "What is the weather like in New York City?",
         generation_config=vertexai.generative_models.GenerationConfig(
-            stop_sequences=["x"], max_output_tokens=30, temperature=0
+            stop_sequences=["x"], max_output_tokens=30, temperature=1.0
         ),
         stream=True,
     )
@@ -253,14 +252,26 @@ async def test_vertexai_completion_async_stream_tool(vertexai):
         pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion", ignores=["resource"])
 def test_vertexai_chat(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
-    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
+    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+    chat = llm.start_chat()
+    chat.send_message(
+        "Why do bears hibernate?",
+        generation_config=vertexai.generative_models.GenerationConfig(
+            stop_sequences=["x"], max_output_tokens=30, temperature=1.0
+        ),
+    )
+
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_multiple_messages", ignores=["resource"])
+def test_vertexai_chat_history(vertexai):
+    llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
+    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
     chat = llm.start_chat(
         history=[
             vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
+                role="user", parts=[vertexai.generative_models.Part.from_text("Hello World!")]
             ),
             vertexai.generative_models.Content(
                 role="model",
@@ -271,30 +282,18 @@ def test_vertexai_chat(vertexai):
         ]
     )
     chat.send_message(
-        "Why do bears hibernate?",
+        vertexai.generative_models.Part.from_text("Why do bears hibernate?"),
         generation_config=vertexai.generative_models.GenerationConfig(
             stop_sequences=["x"], max_output_tokens=30, temperature=1.0
         ),
     )
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_error", ignores=["resource", "meta.error.stack", "meta.error.message"])
 def test_vertexai_chat_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
-    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+    chat = llm.start_chat()
     with pytest.raises(TypeError):
         chat.send_message(
             "Why do bears hibernate?",
@@ -305,23 +304,11 @@ def test_vertexai_chat_error(vertexai):
         )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool", ignores=["resource"])
 def test_vertexai_chat_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    chat = llm.start_chat()
     chat.send_message(
         "What is the weather like in New York City?",
         generation_config=vertexai.generative_models.GenerationConfig(
@@ -330,7 +317,7 @@ def test_vertexai_chat_tool(vertexai):
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_system_prompt", ignores=["resource"])
 def test_vertexai_chat_system_prompt(vertexai):
     llm = vertexai.generative_models.GenerativeModel(
         "gemini-1.5-flash",
@@ -338,47 +325,23 @@ def test_vertexai_chat_system_prompt(vertexai):
             vertexai.generative_models.Part.from_text("You are required to insist that bears do not hibernate.")
         ],
     )
-    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_3))
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
+    chat = llm.start_chat()
     chat.send_message(
         "Why do bears hibernate?",
         generation_config=vertexai.generative_models.GenerationConfig(
-            stop_sequences=["x"], max_output_tokens=30, temperature=1.0
+            stop_sequences=["x"], max_output_tokens=50, temperature=1.0
         ),
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream", ignores=["resource"])
 def test_vertexai_chat_stream(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["stream_generate_content"] = [
         (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
     ]
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    chat = llm.start_chat()
     response = chat.send_message(
         "How big is the solar system?",
         generation_config=vertexai.generative_models.GenerationConfig(
@@ -390,25 +353,13 @@ def test_vertexai_chat_stream(vertexai):
         pass
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_error", ignores=["resource", "meta.error.stack", "meta.error.message"])
 def test_vertexai_chat_stream_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["stream_generate_content"] = [
         (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
     ]
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    chat = llm.start_chat()
     with pytest.raises(TypeError):
         response = chat.send_message(
             "How big is the solar system?",
@@ -422,25 +373,13 @@ def test_vertexai_chat_stream_error(vertexai):
             pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool", ignores=["resource"])
 def test_vertexai_chat_stream_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_client.responses["stream_generate_content"] = [
         (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
     ]
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    chat = llm.start_chat()
     response = chat.send_message(
         "What is the weather like in New York City?",
         generation_config=vertexai.generative_models.GenerationConfig(
@@ -452,23 +391,11 @@ def test_vertexai_chat_stream_tool(vertexai):
         pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async", ignores=["resource"])
 async def test_vertexai_chat_async(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
-    llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+    chat = llm.start_chat()
     await chat.send_message_async(
         "Why do bears hibernate?",
         generation_config=vertexai.generative_models.GenerationConfig(
@@ -477,23 +404,11 @@ async def test_vertexai_chat_async(vertexai):
     )
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_error", ignores=["resource", "meta.error.stack", "meta.error.message"])
 async def test_vertexai_chat_async_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
-    llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+    chat = llm.start_chat()
     with pytest.raises(TypeError):
         await chat.send_message_async(
             "Why do bears hibernate?",
@@ -504,23 +419,11 @@ async def test_vertexai_chat_async_error(vertexai):
         )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_tool", ignores=["resource"])
 async def test_vertexai_chat_async_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    chat = llm.start_chat()
     await chat.send_message_async(
         "What is the weather like in New York City?",
         generation_config=vertexai.generative_models.GenerationConfig(
@@ -529,27 +432,15 @@ async def test_vertexai_chat_async_tool(vertexai):
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_stream", ignores=["resource"])
 async def test_vertexai_chat_async_stream(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_async_client.responses["stream_generate_content"] = [
         _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
     ]
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    chat = llm.start_chat()
     response = await chat.send_message_async(
-        "Why do bears hibernate?",
+        "How big is the solar system?",
         generation_config=vertexai.generative_models.GenerationConfig(
             stop_sequences=["x"], max_output_tokens=30, temperature=1.0
         ),
@@ -559,28 +450,16 @@ async def test_vertexai_chat_async_stream(vertexai):
         pass
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_stream_error", ignores=["resource", "meta.error.stack", "meta.error.message"])
 async def test_vertexai_chat_async_stream_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_async_client.responses["stream_generate_content"] = [
         _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
     ]
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    chat = llm.start_chat()
     with pytest.raises(TypeError):
         response = await chat.send_message_async(
-            "Why do bears hibernate?",
+            "How big is the solar system?",
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
@@ -591,25 +470,13 @@ async def test_vertexai_chat_async_stream_error(vertexai):
             pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_async_stream_tool", ignores=["resource"])
 async def test_vertexai_chat_async_stream_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_async_client.responses["stream_generate_content"] = [
         _async_streamed_response(MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
     ]
-    chat = llm.start_chat(
-        history=[
-            vertexai.generative_models.Content(
-                role="user", parts=[vertexai.generative_models.Part.from_text("Hello world!")]
-            ),
-            vertexai.generative_models.Content(
-                role="model",
-                parts=[
-                    vertexai.generative_models.Part.from_text("Great to meet you. What would you like to know?")
-                ],
-            ),
-        ]
-    )
+    chat = llm.start_chat()
     response = await chat.send_message_async(
         "What is the weather like in New York City?",
         generation_config=vertexai.generative_models.GenerationConfig(

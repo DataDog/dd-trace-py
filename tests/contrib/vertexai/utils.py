@@ -34,23 +34,6 @@ MOCK_COMPLETION_SIMPLE_1 = {
             "content": {
                 "parts": [
                     {
-                        "text": "Bears hibernate for a few key reasons:\\n\\n* **Food Scarcity:** During the winter, food sources like berries, nuts, and insects ..."
-                    }
-                ],
-                "role": "model",
-            },
-            "finish_reason": "MAX_TOKENS",
-        }
-    ],
-    "usage_metadata": {"prompt_token_count": 12, "candidates_token_count": 30, "total_token_count": 42},
-}
-
-MOCK_COMPLETION_SIMPLE_2 = {
-    "candidates": [
-        {
-            "content": {
-                "parts": [
-                    {
                         "text": "Bears hibernate to conserve energy and survive during winter months when food is scarce.\n"
                     }
                 ],
@@ -62,7 +45,7 @@ MOCK_COMPLETION_SIMPLE_2 = {
     "usage_metadata": {"prompt_token_count": 14, "candidates_token_count": 16, "total_token_count": 30},
 }
 
-MOCK_COMPLETION_SIMPLE_3 = {
+MOCK_COMPLETION_SIMPLE_2 = {
     "candidates": [
         {
             "content": {
@@ -83,6 +66,7 @@ MOCK_COMPLETION_TOOL = {
     "candidates": [
         {
             "content": {
+                "role": "model",
                 "parts": [
                     {
                         "function_call": {
