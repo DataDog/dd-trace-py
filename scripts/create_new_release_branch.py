@@ -56,59 +56,20 @@ DRY_RUN = os.getenv("DRY_RUN", "0") == "1"
 PYPROJECT_FILENAME = "../pyproject.toml"
 
 
-def _commit_from(ref: str) -> Commit:
-    try:
-        branch = dd_repo.get_branch(branch=ref)
-    except GithubException as exc:
-        if exc._GithubException__status == 404:
-            pass
-    else:
-        return branch.commit
-
-    try:
-        tag = next((x for x in dd_repo.get_tags() if x.name == ref))
-    except (GithubException, StopIteration) as exc:
-        if isinstance(exc, StopIteration) or exc._GithubException__status == 404:
-            pass
-    else:
-        return tag.commit
-
-    raise ValueError(f"Ref '{ref}' could not be resolved to a commit hash")
-
-
-def commit_and_push(dd_repo, branch_name: str, release_name: str):
-    subprocess.check_output(f"git checkout -b {branch_name}", shell=True, cwd=os.pardir)
-    try:
-        subprocess.check_output("git add CHANGELOG.md", shell=True, cwd=os.pardir)
-    except subprocess.CalledProcessError:
-        try:
-            subprocess.check_output("git add ../CHANGELOG.md", shell=True, cwd=os.pardir)
-        except subprocess.CalledProcessError:
-            raise ValueError(
-                "Couldn't find the CHANGELOG.md file when trying to modify and create pr for it."
-                "You may need to run this script from the root of the repository."
-            )
-    print(f"Committing changes to {CHANGELOG_FILENAME} on branch {branch_name}")
-    pr_body = f"update changelog for version {release_name}"
-    subprocess.check_output(f"git commit -m '{pr_body} via release script'", shell=True, cwd=os.pardir)
-    subprocess.check_output(f"git push origin {branch_name}", shell=True, cwd=os.pardir)
-    dd_repo.create_pull(
-        title=f"chore: {pr_body}", body=f"- [x] {pr_body}", base=DEFAULT_BRANCH, head=branch_name, draft=False
-    )
-
-
 def create_release_branch():
-    rc1_tag = f"v{BASE}.0rc1"
+    # rc1_tag = f"v{BASE}.0rc1"
+    rc1_tag = "v2.17.0rc1"
     if DRY_RUN:
         print(f"Would create {BASE} branch from {rc1_tag} tag")
     else:
         try:
-            subprocess.check_output(f"git checkout {rc1_tag}", shell=True, cwd=os.pardir)
+            subprocess.check_call(f"git checkout {rc1_tag}", shell=True, cwd=os.pardir)
             subprocess.check_output(f"git checkout -b {BASE}")
             subprocess.check_output(f"git push origin {BASE}")
         except subprocess.CalledProcessError:
             print(f"Encountered error when trying to create release branch {BASE}")
             raise
+    print(f"Created {BASE} branch from {rc1_tag} commit")
 
 
 def update_version_scheme():
