@@ -302,6 +302,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "httpcore.",
     "google.auth.",
     "googlecloudsdk.",
+    "umap.",
 )
 
 
