@@ -1,17 +1,18 @@
-from collections import namedtuple
 import os
 import re
 import subprocess
-import toml
 
-from github import Commit
 from github import Github
-from github import GithubException
-from packaging.version import Version
 
 
-"""This release notes script is built to create a release notes draft
-for release candidates, patches, and minor releases.
+"""
+This script automates two steps in the release process:
+
+- Creating the new release branch for minor versions (ex - 2.17 branch after
+  2.17.0rc1 is built and published, so contributors can backport)
+- Update the version_scheme in the pyproject.toml file from release-branch-semver to
+  guess-next-dev. This is a required step in the release process after the first release
+  candidate is triggered to ensure system tests work properly for backports.
 
 Setup:
 1. Create a Personal access token (classic), not a fine grained one, on Github:
@@ -19,35 +20,29 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/c
 2. Give the Github token repo, user, audit_log, project permissions. On the next page authorize your token for Datadog SSO.
 3. Add `export GH_TOKEN=<github token>` to your `.zhrc` file.
 
-4. Get API key and Application key for staging: https://ddstaging.datadoghq.com/organization-settings/api-keys
-5. Add export DD_API_KEY_STAGING=<api_key> and  export DD_APP_KEY_STAGING=<app_key> to your `.zhrc` file.
 
-6. Install pandoc with `brew install pandoc`
-
-Create an activate a virtual environment, and install required packages :
-`python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client reno`
+4. Create an activate a virtual environment, and install required packages :
+`python -m venv venv && source venv/bin/activate && pip install pygithub`
 
 
 Usage:
 The script should be run from the `scripts` directory.
 
 Required:
-    BASE - The base git ref you are building your release candidate, patch, or minor release off of.
-        If this is a rc1, then specify the branch you'll create after the release is published. e.g. BASE=2.9
+    BASE - The major and minor version you are creating the new release branch for (e.g. BASE=2.17)
 
 Optional:
-    RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
-    PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
-    PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
-    NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.
-    Default is 1 for RC1s, 0 for everything else e.g. NOTEBOOK=0 or NOTEBOOK=1
-    DRY_RUN - When set to "1", this script does not write anything to github. This can be useful for development testing.
-Examples:
-Generate release notes and staging testing notebook for next release candidate version of 2.11: `BASE=2.11 RC=1 python release.py`
+    DRY_RUN - When set to "1", this script does not write/push anything to github.
+    It will do all steps locally so you can see what would have been pushed.
 
-Generate release notes for next patch version of 2.13: `BASE=2.13 PATCH=1 python release.py`
-
-Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
+General Process:
+1. Run the release.py script for the first release candidate (ex - 2.17.0rc1)
+2. Once draft release notes have been approved, trigger the build and publish for the first release candidate.
+3. Confirm that the release candidate tag has been created (ex - v2.17.0rc1)
+4. Run this script:
+   BASE=2.17 python3 create_new_release_branch.py
+5. You should see that a new release branch should be created (ex - 2.17) along with a PR with the changes in the
+   pyproject.toml file. Ensure this gets approved and merged before the first backport for that release is created.
 """
 
 DEFAULT_BRANCH = "main"
