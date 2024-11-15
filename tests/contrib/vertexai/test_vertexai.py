@@ -1,15 +1,15 @@
 import pytest
 
-from tests.utils import override_global_config
-from tests.contrib.vertexai.utils import weather_tool
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_2
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_STREAM_CHUNKS
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
 from tests.contrib.vertexai.utils import _async_streamed_response
 from tests.contrib.vertexai.utils import _mock_completion_response
 from tests.contrib.vertexai.utils import _mock_completion_stream_chunk
-from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
-from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_2
-from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL
-from tests.contrib.vertexai.utils import MOCK_COMPLETION_STREAM_CHUNKS
-from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
+from tests.contrib.vertexai.utils import weather_tool
+from tests.utils import override_global_config
 
 
 def test_global_tags(vertexai, mock_tracer):

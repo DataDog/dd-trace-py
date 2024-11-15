@@ -1,4 +1,6 @@
-from typing import Optional, Dict, Any
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 from ddtrace import Span
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration

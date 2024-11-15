@@ -1,8 +1,9 @@
-import sys
 import copy
+import sys
 
 import vertexai
-from vertexai.generative_models import GenerativeModel, Part
+from vertexai.generative_models import GenerativeModel
+from vertexai.generative_models import Part
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._utils import _get_attr

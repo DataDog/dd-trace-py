@@ -4,8 +4,8 @@ import sys
 import vertexai
 
 from ddtrace import config
-from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
+from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import _extract_model_name
 from ddtrace.contrib.internal.vertexai._utils import tag_request
 from ddtrace.contrib.internal.vertexai._utils import tag_response
@@ -14,6 +14,7 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.llmobs._integrations import VertexAIIntegration
 from ddtrace.pin import Pin
+
 
 config._add(
     "vertexai",

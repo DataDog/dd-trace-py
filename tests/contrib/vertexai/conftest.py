@@ -1,16 +1,16 @@
+from mock import PropertyMock
+from mock import patch as mock_patch
 import pytest
 
 from ddtrace.contrib.vertexai import patch
 from ddtrace.contrib.vertexai import unpatch
 from ddtrace.pin import Pin
+from tests.contrib.vertexai.utils import MockAsyncPredictionServiceClient
+from tests.contrib.vertexai.utils import MockPredictionServiceClient
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_global_config
-from tests.contrib.vertexai.utils import MockPredictionServiceClient
-from tests.contrib.vertexai.utils import MockAsyncPredictionServiceClient
-from mock import patch as mock_patch
-from mock import PropertyMock
 
 
 @pytest.fixture

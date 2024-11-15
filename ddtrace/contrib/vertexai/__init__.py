@@ -84,6 +84,7 @@ To configure the Vertex AI integration on a per-instance basis use the
 
 from ddtrace.internal.utils.importlib import require_modules
 
+
 required_modules = ["vertexai"]
 
 with require_modules(required_modules) as missing_modules:

@@ -1,7 +1,9 @@
 import collections
 
-from vertexai.generative_models import FunctionDeclaration, Tool
 from google.cloud import aiplatform_v1
+from vertexai.generative_models import FunctionDeclaration
+from vertexai.generative_models import Tool
+
 
 get_current_weather_func = FunctionDeclaration(
     name="get_current_weather",
