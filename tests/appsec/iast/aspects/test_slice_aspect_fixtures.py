@@ -4,14 +4,13 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
@@ -319,7 +318,7 @@ def test_propagate_ranges_with_no_context(caplog):
     )
 
     reset_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_slice(tainted_input, 0, 3, None)
         assert result == "abc"
     log_messages = [record.message for record in caplog.get_records("call")]

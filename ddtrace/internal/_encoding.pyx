@@ -552,7 +552,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         raise NotImplementedError()
 
 
-cdef class MsgpackEncoderV03(MsgpackEncoderBase):
+cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cpdef flush(self):
         with self._lock:
             try:
@@ -570,7 +570,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         for link in span_links:
             # SpanLink.to_dict() returns all serializable span link fields
-            # v0.4 encoding is disabled by default. SpanLinks.to_dict() is optimizied for the v0.5 format.
+            # v0.4 encoding is disabled by default. SpanLinks.to_dict() is optimized for the v0.5 format.
             d = link.to_dict()
             # Encode 128 bit trace ids usings two 64bit integers
             tid = int(d["trace_id"][:16], 16)

@@ -11,6 +11,7 @@ import functools
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
+from inspect import unwrap
 import os
 
 import wrapt
@@ -18,7 +19,6 @@ from wrapt.importer import when_imported
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace._trace.trace_handlers import _ctype_from_headers
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
@@ -35,15 +35,15 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
-from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -70,7 +70,10 @@ config._add(
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
-        include_user_name=asbool(os.getenv("DD_DJANGO_INCLUDE_USER_NAME", default=True)),
+        include_user_name=asm_config._django_include_user_name,
+        include_user_email=asm_config._django_include_user_email,
+        include_user_login=asm_config._django_include_user_login,
+        include_user_realname=asm_config._django_include_user_realname,
         use_handler_with_url_name_resource_format=asbool(
             os.getenv("DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT", default=False)
         ),
@@ -216,7 +219,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         resource=utils.resource_from_cache_prefix(func_name(func), instance),
         tags=tags,
         pin=pin,
-    ) as ctx, ctx["call"]:
+    ) as ctx, ctx.span:
         result = func(*args, **kwargs)
         rowcount = 0
         if func.__name__ == "get_many":
@@ -316,7 +319,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
         tags = {COMPONENT: config.django.integration_name}
         with core.context_with_data(
             "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx["call"]:
+        ) as ctx, ctx.span:
             core.dispatch(
                 "django.func.wrapped",
                 (
@@ -337,7 +340,7 @@ def traced_process_exception(django, name, resource=None):
         tags = {COMPONENT: config.django.integration_name}
         with core.context_with_data(
             "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx["call"]:
+        ) as ctx, ctx.span:
             resp = func(*args, **kwargs)
             core.dispatch(
                 "django.process_exception", (ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
@@ -442,7 +445,7 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.root.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
+    set_blocked()
     _gather_block_metadata(request, request_headers, ctx)
     raise PermissionDenied()
 
@@ -479,7 +482,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         distributed_headers_config=config.django,
         distributed_headers=request_headers,
         pin=pin,
-    ) as ctx, ctx.get_item("call"):
+    ) as ctx, ctx.span:
         core.dispatch(
             "django.traced_get_response.pre",
             (
@@ -495,7 +498,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         def blocked_response():
             from django.http import HttpResponse
 
-            block_config = core.get_item(HTTP_REQUEST_BLOCKED) or {}
+            block_config = get_blocked() or {}
             desired_type = block_config.get("type", "auto")
             status = block_config.get("status_code", 403)
             if desired_type == "none":
@@ -504,16 +507,16 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 if location:
                     response["location"] = location
             else:
-                ctype = _ctype_from_headers(block_config, request_headers)
+                ctype = block_config.get("content-type", "application/json")
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
                 response["Content-Length"] = len(content.encode())
-            utils._after_request_tags(pin, ctx["call"], request, response)
+            utils._after_request_tags(pin, ctx.span, request, response)
             return response
 
         try:
-            if core.get_item(HTTP_REQUEST_BLOCKED):
+            if get_blocked():
                 response = blocked_response()
                 return response
 
@@ -534,27 +537,27 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             )
             core.dispatch("django.start_response.post", ("Django",))
 
-            if core.get_item(HTTP_REQUEST_BLOCKED):
+            if get_blocked():
                 response = blocked_response()
                 return response
 
             try:
                 response = func(*args, **kwargs)
             except BlockingException as e:
-                core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
+                set_blocked(e.args[0])
                 response = blocked_response()
                 return response
 
-            if core.get_item(HTTP_REQUEST_BLOCKED):
+            if get_blocked():
                 response = blocked_response()
                 return response
 
             return response
         finally:
             core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
-            if not core.get_item(HTTP_REQUEST_BLOCKED):
+            if not get_blocked():
                 core.dispatch("django.finalize_response", ("Django",))
-                if core.get_item(HTTP_REQUEST_BLOCKED):
+                if get_blocked():
                     response = blocked_response()
                     return response  # noqa: B012
 
@@ -585,7 +588,7 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
         span_type=http.TEMPLATE,
         tags=tags,
         pin=pin,
-    ) as ctx, ctx["call"]:
+    ) as ctx, ctx.span:
         return wrapped(*args, **kwargs)
 
 
@@ -654,12 +657,20 @@ def _instrument_view(django, view):
 def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
-        if "view" in kwargs:
-            kwargs["view"] = instrument_view(django, kwargs["view"])
-        elif len(args) >= 2:
+        from_args = False
+        view = kwargs.pop("view", None)
+        if view is None:
+            view = args[1]
+            from_args = True
+
+        core.dispatch("service_entrypoint.patch", (unwrap(view),))
+
+        if from_args:
             args = list(args)
-            args[1] = instrument_view(django, args[1])
+            args[1] = instrument_view(django, view)
             args = tuple(args)
+        else:
+            kwargs["view"] = instrument_view(django, view)
     except Exception:
         log.debug("Failed to instrument Django url path %r %r", args, kwargs, exc_info=True)
     return wrapped(*args, **kwargs)
@@ -773,7 +784,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
     try:
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
-        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user)))
+        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user), config.django))
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
@@ -786,7 +797,8 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
         return result_user
     try:
         result = core.dispatch_with_results(
-            "django.auth", (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs))
+            "django.auth",
+            (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config.django),
         ).user
         if result and result.value[0]:
             return result.value[1]

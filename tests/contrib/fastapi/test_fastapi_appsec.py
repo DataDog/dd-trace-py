@@ -36,14 +36,13 @@ def test_core_callback_request_body(fastapi_application, client, tracer, test_sp
         body = await request._receive()
         return PlainTextResponse(body["body"])
 
-    # test if asgi middleware is ok without any callback registered
-    core.reset_listeners(event_id="asgi.request.parse.body")
-
     payload, content_type = '{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json"
 
     with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer, asm_enabled=True)
+        # test if asgi middleware is ok without any callback registered
+        core.reset_listeners(event_id="asgi.request.parse.body")
         resp = client.post(
             "/index.html?args=test",
             data=payload,

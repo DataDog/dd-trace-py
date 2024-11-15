@@ -194,7 +194,7 @@ def _set_resolver_tags(pin, span, request):
 
         if hasattr(resolver_match[0], "view_class"):
             # In django==4.0, view.__name__ defaults to <module>.views.view
-            # Accessing view.view_class is equired for django>4.0 to get the name of underlying view
+            # Accessing view.view_class is required for django>4.0 to get the name of underlying view
             handler = func_name(resolver_match[0].view_class)
         else:
             handler = func_name(resolver_match[0])
@@ -289,7 +289,7 @@ def _extract_body(request):
 def _remake_body(request):
     # some libs that utilize django (Spyne) require the body stream to be unread or else will throw errors
     # see: https://github.com/arskom/spyne/blob/f105ec2f41495485fef1211fe73394231b3f76e5/spyne/server/wsgi.py#L538
-    if request.method in _BODY_METHODS:
+    if request.method in _BODY_METHODS and getattr(request, "_body", None):
         try:
             unread_body = io.BytesIO(request._body)
             if unread_body.seekable():
@@ -317,7 +317,6 @@ def _after_request_tags(pin, span: Span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
     # during the request.
-
     try:
         user = getattr(request, "user", None)
         if user is not None:

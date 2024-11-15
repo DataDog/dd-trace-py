@@ -121,6 +121,14 @@ venv = Venv(
             },
         ),
         Venv(
+            name="gitlab-gen-config",
+            command="python scripts/gen_gitlab_config.py {cmdargs}",
+            pys=["3"],
+            pkgs={
+                "ruamel.yaml": latest,
+            },
+        ),
+        Venv(
             name="appsec",
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec/appsec/",
@@ -1561,6 +1569,7 @@ venv = Venv(
             pkgs={
                 "httpx": latest,
                 "pytest-asyncio": "==0.21.1",
+                "python-multipart": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
                 "aiofiles": latest,
@@ -1595,6 +1604,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
             },
             venvs=[
                 Venv(
@@ -1682,6 +1692,9 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
             },
+            env={
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1711,6 +1724,9 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
             },
             venvs=[
                 Venv(
@@ -2388,6 +2404,10 @@ venv = Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
             pys=select_pys(min_version="3.8"),
+            # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
+            # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
+            # If this order is violated otel and datadog spans will not be interoperable.
+            env={"DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -2467,28 +2487,25 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
                             pkgs={
-                                "gevent": ["~=20.12.0"],
-                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
-                                # This issue was fixed in gevent v20.9:
-                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
-                                "greenlet": "~=1.0.0",
+                                "gevent": latest,
+                                "greenlet": latest,
                             },
                         ),
                         Venv(
                             pys="3.9",
-                            pkgs={"gevent": "~=21.1.0", "greenlet": "~=1.0"},
+                            pkgs={"gevent": latest, "greenlet": latest},
                         ),
                         Venv(
                             pys="3.10",
-                            pkgs={"gevent": "~=21.8.0"},
+                            pkgs={"gevent": latest},
                         ),
                         Venv(
                             pys="3.11",
-                            pkgs={"gevent": "~=22.8.0"},
+                            pkgs={"gevent": latest},
                         ),
                         Venv(
                             pys=select_pys(min_version="3.12"),
-                            pkgs={"gevent": "~=23.9.0"},
+                            pkgs={"gevent": latest},
                         ),
                     ],
                 ),
@@ -2814,6 +2831,9 @@ venv = Venv(
             command="pytest {cmdargs} tests/llmobs",
             pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
             pys=select_pys(min_version="3.7"),
+            venvs=[
+                Venv(pys=select_pys(min_version="3.8"), pkgs={"ragas": "==0.1.21", "langchain": latest}),
+            ],
         ),
         Venv(
             name="profile",
@@ -2822,6 +2842,7 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "CPUCOUNT": "12",
             },
             pkgs={
                 "gunicorn": latest,
@@ -2899,8 +2920,8 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "gevent": "==21.8.0",
-                                        "greenlet": "==1.1.0",
+                                        "gevent": latest,
+                                        "greenlet": latest,
                                     }
                                 ),
                                 Venv(
@@ -2925,20 +2946,14 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                            },
-                            venvs=[
-                                Venv(
-                                    pkgs={"gevent": ["==22.10.2", latest]},
-                                ),
-                            ],
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
                 # Python 3.12
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
@@ -2950,14 +2965,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                            },
-                            venvs=[
-                                Venv(
-                                    pkgs={"gevent": ["==23.9.0"]},
-                                ),
-                            ],
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
@@ -2967,10 +2975,17 @@ venv = Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
-            env={"DD_PROFILING_ENABLE_ASSERTS": "1", "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1"},
+            env={
+                "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
+                # Enable pytest v2 plugin to handle pytest-cpp items in the test suite
+                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+                "CPUCOUNT": "12",
+            },
             pkgs={
                 "gunicorn": latest,
                 "lz4": latest,
+                "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
@@ -3045,8 +3060,8 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     pkgs={
-                                        "gevent": "==21.8.0",
-                                        "greenlet": "==1.1.0",
+                                        "gevent": latest,
+                                        "greenlet": latest,
                                     }
                                 ),
                                 Venv(
@@ -3071,20 +3086,14 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                            },
-                            venvs=[
-                                Venv(
-                                    pkgs={"gevent": ["==22.10.2", latest]},
-                                ),
-                            ],
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),
                 # Python 3.12
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
@@ -3096,14 +3105,7 @@ venv = Venv(
                             env={
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
-                            pkgs={
-                                "gunicorn[gevent]": latest,
-                            },
-                            venvs=[
-                                Venv(
-                                    pkgs={"gevent": ["==23.9.0"]},
-                                ),
-                            ],
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
                         ),
                     ],
                 ),

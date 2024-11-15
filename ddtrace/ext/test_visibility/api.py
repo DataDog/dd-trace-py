@@ -320,7 +320,6 @@ class Test(TestBase):
         item_id: TestId,
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[TestSourceFileInfo] = None,
-        is_early_flake_detection: bool = False,
         resource: Optional[str] = None,
     ):
         """Registers a test with the Test Visibility service."""

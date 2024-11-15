@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue where stack v2 couldn't be enabled as pthread
+    was not properly linked on some debian based images for aarch64 architecture.
+

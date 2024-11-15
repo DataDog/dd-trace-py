@@ -17,7 +17,7 @@ namespace py = pybind11;
 class TaintedObject;
 
 // Alias
-using TaintedObjectPtr = TaintedObject*;
+using TaintedObjectPtr = shared_ptr<TaintedObject>;
 
 #ifdef NDEBUG // Decide wether to use abseil
 
@@ -134,7 +134,7 @@ api_is_unicode_and_not_fast_tainted(const py::handle& str)
     return is_notinterned_notfasttainted_unicode(str.ptr());
 }
 
-TaintedObject*
+TaintedObjectPtr
 get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_taint_map);
 
 Py_hash_t

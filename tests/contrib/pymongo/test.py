@@ -7,8 +7,8 @@ import pymongo
 from ddtrace import Pin
 from ddtrace.contrib.internal.pymongo.client import normalize_filter
 from ddtrace.contrib.internal.pymongo.patch import _CHECKOUT_FN_NAME
-from ddtrace.contrib.pymongo.patch import patch
-from ddtrace.contrib.pymongo.patch import unpatch
+from ddtrace.contrib.internal.pymongo.patch import patch
+from ddtrace.contrib.internal.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -16,6 +16,14 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 from ..config import MONGO_CONFIG
+
+
+if pymongo.version_tuple >= (4, 9):
+    from pymongo.synchronous.database import Database
+    from pymongo.synchronous.server import Server
+else:
+    from pymongo.database import Database
+    from pymongo.server import Server
 
 
 def test_normalize_filter():
@@ -536,6 +544,27 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 2
         assert spans[1].service != "mysvc"
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_user_specified_service_default_override(self):
+        """
+        Override service name using config
+        """
+        from ddtrace import config
+        from ddtrace import patch
+
+        cfg = config.pymongo
+        cfg["service"] = "new-mongo"
+        patch(pymongo=True)
+        assert cfg.service == "new-mongo", f"service name is {cfg.service}"
+        tracer = DummyTracer()
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+
+        client["testdb"].drop_collection("whatever")
+        spans = tracer.pop()
+        assert spans
+        assert spans[0].service == "new-mongo", f"service name is {spans[0].service}"
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
@@ -554,6 +583,20 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         spans = tracer.pop()
         assert len(spans) == 2
         assert spans[1].service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_unspecified_service_v0(self):
+        """
+        v0: When a user does not specify a service for the app
+            The pymongo integration should use pymongo.
+        """
+        tracer = DummyTracer()
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        client["testdb"].drop_collection("whatever")
+        spans = tracer.pop()
+        assert len(spans) == 2
+        assert spans[1].service == "pymongo"
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
@@ -713,7 +756,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         super(TestPymongoSocketTracing, self).setUp()
         patch()
         # Override server pin's tracer with our dummy tracer
-        Pin.override(pymongo.server.Server, tracer=self.tracer)
+        Pin.override(Server, tracer=self.tracer)
         # maxPoolSize controls the number of sockets that the client can instantiate
         # and choose from to perform classic operations. For the sake of our tests,
         # let's limit this number to 1
@@ -752,7 +795,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         which fails under some circumstances unless we patch correctly
         """
         # Trigger a command which calls validate_session internal to PyMongo
-        db_conn = pymongo.database.Database(self.client, "foo")
+        db_conn = Database(self.client, "foo")
         collection = db_conn["mycollection"]
         collection.insert_one({"Foo": "Bar"})
 

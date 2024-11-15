@@ -1,3 +1,4 @@
+import os
 from unittest import TestCase
 
 import mock
@@ -286,5 +287,5 @@ class GlobalConfigTestCase(TestCase):
         with pytest.warns(
             DeprecationWarning, match='Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated'
         ), override_env(dict(DD_TRACE_PROPAGATION_STYLE="b3 single header")):
-            style = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE", default="datadog")
+            style = _parse_propagation_styles(os.environ["DD_TRACE_PROPAGATION_STYLE"])
             assert style == ["b3"]

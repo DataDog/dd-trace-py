@@ -32,16 +32,19 @@ class GeminiIntegration(BaseLLMIntegration):
         if model is not None:
             span.set_tag_str("google_generativeai.request.model", str(model))
 
-    def llmobs_set_tags(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], instance: Any, generations: Any = None
+    def _llmobs_set_tags(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
     ) -> None:
-        if not self.llmobs_enabled:
-            return
-
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("google_generativeai.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("google_generativeai.request.provider") or "")
 
+        instance = kwargs.get("instance", None)
         metadata = self._llmobs_set_metadata(kwargs, instance)
         span.set_tag_str(METADATA, safe_json(metadata))
 
@@ -50,10 +53,10 @@ class GeminiIntegration(BaseLLMIntegration):
         input_messages = self._extract_input_message(input_contents, system_instruction)
         span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
 
-        if span.error or generations is None:
+        if span.error or response is None:
             span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
         else:
-            output_messages = self._extract_output_message(generations)
+            output_messages = self._extract_output_message(response)
             span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
         usage = self._get_llmobs_metrics_tags(span)
@@ -63,7 +66,7 @@ class GeminiIntegration(BaseLLMIntegration):
     @staticmethod
     def _llmobs_set_metadata(kwargs, instance):
         metadata = {}
-        model_config = instance._generation_config or {}
+        model_config = _get_attr(instance, "_generation_config", {})
         request_config = kwargs.get("generation_config", {})
         parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
         for param in parameters:

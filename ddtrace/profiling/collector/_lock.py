@@ -149,7 +149,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     handle.push_task_name(task_name)
 
                     if self._self_tracer is not None:
-                        handle.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                        handle.push_span(self._self_tracer.current_span())
                     for frame in frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                     handle.flush_sample()
@@ -214,9 +214,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             handle.push_task_name(task_name)
 
                             if self._self_tracer is not None:
-                                handle.push_span(
-                                    self._self_tracer.current_span(), self._self_endpoint_collection_enabled
-                                )
+                                handle.push_span(self._self_tracer.current_span())
                             for frame in frames:
                                 handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                             handle.flush_sample()
@@ -271,7 +269,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
     # Get lock acquire/release call location and variable name the lock is assigned to
     def _maybe_update_self_name(self):
-        if self._self_name:
+        if self._self_name is not None:
             return
         try:
             # We expect the call stack to be like this:
@@ -300,7 +298,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
             if not self._self_name:
                 self._self_name = ""
-                LOG.warning(
+                LOG.debug(
                     "Failed to get lock variable name, we only support local/global variables and their attributes."
                 )
 

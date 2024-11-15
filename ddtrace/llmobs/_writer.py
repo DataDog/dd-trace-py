@@ -11,6 +11,7 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
+import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
@@ -141,6 +142,14 @@ class BaseLLMObsWriter(PeriodicService):
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
 
+    def recreate(self) -> "BaseLLMObsWriter":
+        return self.__class__(
+            site=self._site,
+            api_key=self._api_key,
+            interval=self._interval,
+            timeout=self._timeout,
+        )
+
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     """Writer to the Datadog LLMObs Custom Eval Metrics Endpoint."""
@@ -196,7 +205,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 return None, 0
             events = self._buffer
             self._init_buffer()
-        data = {"_dd.stage": "raw", "event_type": "span", "spans": events}
+        data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
         try:
             enc_llm_events = json.dumps(data)
             logger.debug("encode %d LLMObs span events to be sent", len(events))

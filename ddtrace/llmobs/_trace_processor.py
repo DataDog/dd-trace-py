@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import ddtrace
 from ddtrace import Span
@@ -27,6 +28,8 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
+from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
@@ -44,8 +47,9 @@ class LLMObsTraceProcessor(TraceProcessor):
     Processor that extracts LLM-type spans in a trace to submit as separate LLMObs span events to LLM Observability.
     """
 
-    def __init__(self, llmobs_span_writer):
+    def __init__(self, llmobs_span_writer, evaluator_runner=None):
         self._span_writer = llmobs_span_writer
+        self._evaluator_runner = evaluator_runner
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -57,13 +61,21 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
+        span_event = None
+        is_llm_span = span.get_tag(SPAN_KIND) == "llm"
+        is_ragas_integration_span = False
         try:
-            span_event = self._llmobs_span_event(span)
+            span_event, is_ragas_integration_span = self._llmobs_span_event(span)
             self._span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
+        finally:
+            if not span_event or not is_llm_span or is_ragas_integration_span:
+                return
+            if self._evaluator_runner:
+                self._evaluator_runner.enqueue(span_event, span)
 
-    def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
+    def _llmobs_span_event(self, span: Span) -> Tuple[Dict[str, Any], bool]:
         """Span event object structure."""
         span_kind = span._meta.pop(SPAN_KIND)
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
@@ -86,8 +98,14 @@ class LLMObsTraceProcessor(TraceProcessor):
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
         if span_kind == "retrieval" and span.get_tag(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = json.loads(span._meta.pop(OUTPUT_DOCUMENTS))
-        if span_kind == "llm" and span.get_tag(INPUT_PROMPT) is not None:
-            meta["input"]["prompt"] = json.loads(span._meta.pop(INPUT_PROMPT))
+        if span.get_tag(INPUT_PROMPT) is not None:
+            prompt_json_str = span._meta.pop(INPUT_PROMPT)
+            if span_kind != "llm":
+                log.warning(
+                    "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
+                )
+            else:
+                meta["input"]["prompt"] = json.loads(prompt_json_str)
         if span.error:
             meta[ERROR_MSG] = span.get_tag(ERROR_MSG)
             meta[ERROR_STACK] = span.get_tag(ERROR_STACK)
@@ -98,6 +116,12 @@ class LLMObsTraceProcessor(TraceProcessor):
             meta.pop("output")
         metrics = json.loads(span._meta.pop(METRICS, "{}"))
         ml_app = _get_ml_app(span)
+
+        is_ragas_integration_span = False
+
+        if ml_app.startswith(RAGAS_ML_APP_PREFIX):
+            is_ragas_integration_span = True
+
         span.set_tag_str(ML_APP, ml_app)
 
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
@@ -119,12 +143,15 @@ class LLMObsTraceProcessor(TraceProcessor):
             span.set_tag_str(SESSION_ID, session_id)
             llmobs_span_event["session_id"] = session_id
 
-        llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id)
-
-        return llmobs_span_event
+        llmobs_span_event["tags"] = self._llmobs_tags(
+            span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
+        )
+        return llmobs_span_event, is_ragas_integration_span
 
     @staticmethod
-    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
+    def _llmobs_tags(
+        span: Span, ml_app: str, session_id: Optional[str] = None, is_ragas_integration_span: bool = False
+    ) -> List[str]:
         tags = {
             "version": config.version or "",
             "env": config.env or "",
@@ -140,6 +167,8 @@ class LLMObsTraceProcessor(TraceProcessor):
             tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
+        if is_ragas_integration_span:
+            tags[RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
         existing_tags = span._meta.pop(TAGS, None)
         if existing_tags is not None:
             tags.update(json.loads(existing_tags))

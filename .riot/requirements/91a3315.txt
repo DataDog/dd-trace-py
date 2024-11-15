@@ -18,7 +18,7 @@ h11==0.14.0
 httpcore==0.17.3
 httpx==0.24.1
 hypothesis==6.45.0
-idna==3.9
+idna==3.10
 importlib-metadata==6.7.0
 iniconfig==2.0.0
 mock==5.1.0

@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 from typing import Any
 from typing import Dict
@@ -9,9 +10,12 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import ArgumentError
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -19,8 +23,10 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Document
@@ -51,13 +57,13 @@ SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    def llmobs_set_tags(
+    def _llmobs_set_tags(
         self,
-        operation: str,  # oneof "llm","chat","chain","embedding","retrieval","tool"
         span: Span,
-        inputs: Any,
-        response: Any = None,
-        error: bool = False,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -71,8 +77,8 @@ class LangChainIntegration(BaseLLMIntegration):
 
         is_workflow = False
 
+        llmobs_integration = "custom"
         if model_provider:
-            llmobs_integration = "custom"
             if model_provider.startswith(BEDROCK_PROVIDER_NAME):
                 llmobs_integration = "bedrock"
             elif model_provider.startswith(OPENAI_PROVIDER_NAME):
@@ -83,18 +89,19 @@ class LangChainIntegration(BaseLLMIntegration):
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
 
         if operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error, is_workflow=is_workflow)
+            self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chat":
-            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error, is_workflow=is_workflow)
+            # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
+            is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
+            self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chain":
-            self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
+            self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
         elif operation == "embedding":
-            self._llmobs_set_meta_tags_from_embedding(span, inputs, response, error, is_workflow=is_workflow)
+            self._llmobs_set_meta_tags_from_embedding(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "retrieval":
-            self._llmobs_set_meta_tags_from_similarity_search(span, inputs, response, error, is_workflow=is_workflow)
+            self._llmobs_set_meta_tags_from_similarity_search(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "tool":
-            self._llmobs_set_meta_tags_from_tool(span, inputs, response, error)
-        span.set_tag_str(METRICS, safe_json({}))
+            self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
@@ -117,8 +124,8 @@ class LangChainIntegration(BaseLLMIntegration):
         if metadata:
             span.set_tag_str(METADATA, safe_json(metadata))
 
-    def _llmobs_set_meta_tags_from_llm(
-        self, span: Span, prompts: List[Any], completions: Any, err: bool = False, is_workflow: bool = False
+    def _llmobs_set_tags_from_llm(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
@@ -126,23 +133,43 @@ class LangChainIntegration(BaseLLMIntegration):
 
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
+        stream = span.get_tag("langchain.request.stream")
 
-        if isinstance(prompts, str):
+        prompts = get_argument_value(args, kwargs, 0, "input" if stream else "prompts")
+        if isinstance(prompts, str) or not isinstance(prompts, list):
             prompts = [prompts]
 
-        span.set_tag_str(input_tag_key, safe_json([{"content": str(prompt)} for prompt in prompts]))
+        if stream:
+            # chat and llm take the same input types for streamed calls
+            span.set_tag_str(input_tag_key, safe_json(self._handle_stream_input_messages(prompts)))
+        else:
+            span.set_tag_str(input_tag_key, safe_json([{"content": str(prompt)} for prompt in prompts]))
 
-        message_content = [{"content": ""}]
-        if not err:
+        if span.error:
+            span.set_tag_str(output_tag_key, safe_json([{"content": ""}]))
+            return
+        if stream:
+            message_content = [{"content": completions}]  # single completion for streams
+        else:
             message_content = [{"content": completion[0].text} for completion in completions.generations]
+
+            if not is_workflow:
+                input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(completions)
+                if total_tokens > 0:
+                    metrics = {
+                        INPUT_TOKENS_METRIC_KEY: input_tokens,
+                        OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                        TOTAL_TOKENS_METRIC_KEY: total_tokens,
+                    }
+                    span.set_tag_str(METRICS, safe_json(metrics))
         span.set_tag_str(output_tag_key, safe_json(message_content))
 
-    def _llmobs_set_meta_tags_from_chat_model(
+    def _llmobs_set_tags_from_chat_model(
         self,
         span: Span,
-        chat_messages: List[List[Any]],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         chat_completions: Any,
-        err: bool = False,
         is_workflow: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
@@ -151,35 +178,78 @@ class LangChainIntegration(BaseLLMIntegration):
 
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
+        stream = span.get_tag("langchain.request.stream")
 
         input_messages = []
-        for message_set in chat_messages:
-            for message in message_set:
-                content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
-                input_messages.append(
-                    {
-                        "content": str(content),
-                        "role": getattr(message, "role", ROLE_MAPPING.get(message.type, "")),
-                    }
-                )
+        if stream:
+            chat_messages = get_argument_value(args, kwargs, 0, "input")
+            input_messages = self._handle_stream_input_messages(chat_messages)
+        else:
+            chat_messages = get_argument_value(args, kwargs, 0, "messages", optional=True) or []
+            if not isinstance(chat_messages, list):
+                chat_messages = [chat_messages]
+            for message_set in chat_messages:
+                for message in message_set:
+                    content = (
+                        message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
+                    )
+                    role = getattr(message, "role", ROLE_MAPPING.get(message.type, ""))
+                    input_messages.append({"content": str(content), "role": str(role)})
         span.set_tag_str(input_tag_key, safe_json(input_messages))
 
-        output_messages = [{"content": ""}]
-        if not err:
-            output_messages = []
-            for message_set in chat_completions.generations:
-                for chat_completion in message_set:
-                    chat_completion_msg = chat_completion.message
-                    role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
-                    output_message = {
-                        "content": str(chat_completion.text),
-                        "role": role,
-                    }
-                    tool_calls_info = self._extract_tool_calls(chat_completion_msg)
-                    if tool_calls_info:
-                        output_message["tool_calls"] = tool_calls_info
-                    output_messages.append(output_message)
+        if span.error:
+            span.set_tag_str(output_tag_key, json.dumps([{"content": ""}]))
+            return
+
+        output_messages = []
+        if stream:
+            content = chat_completions.content
+            role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
+            span.set_tag_str(output_tag_key, safe_json([{"content": content, "role": ROLE_MAPPING.get(role, "")}]))
+            return
+
+        input_tokens, output_tokens, total_tokens = 0, 0, 0
+        tokens_set_top_level = False
+        if not is_workflow:
+            # tokens are usually set at the top-level ChatResult or LLMResult object
+            input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(chat_completions)
+            tokens_set_top_level = total_tokens > 0
+
+        tokens_per_choice_run_id: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for message_set in chat_completions.generations:
+            for chat_completion in message_set:
+                chat_completion_msg = chat_completion.message
+                role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
+                output_message = {"content": str(chat_completion.text), "role": role}
+                tool_calls_info = self._extract_tool_calls(chat_completion_msg)
+                if tool_calls_info:
+                    output_message["tool_calls"] = tool_calls_info
+                output_messages.append(output_message)
+
+                # if it wasn't set above, check for token usage on the AI message object level
+                # these blocks contain the same count as what would be set at the top level.
+                # do not append to the count, just set it once
+                if not is_workflow and not tokens_set_top_level:
+                    tokens, run_id = self.check_token_usage_ai_message(chat_completion_msg)
+                    input_tokens, output_tokens, total_tokens = tokens
+                    tokens_per_choice_run_id[run_id]["input_tokens"] = input_tokens
+                    tokens_per_choice_run_id[run_id]["output_tokens"] = output_tokens
+                    tokens_per_choice_run_id[run_id]["total_tokens"] = total_tokens
+
+        if not is_workflow and not tokens_set_top_level:
+            input_tokens = sum(v["input_tokens"] for v in tokens_per_choice_run_id.values())
+            output_tokens = sum(v["output_tokens"] for v in tokens_per_choice_run_id.values())
+            total_tokens = sum(v["total_tokens"] for v in tokens_per_choice_run_id.values())
+
         span.set_tag_str(output_tag_key, safe_json(output_messages))
+
+        if not is_workflow and total_tokens > 0:
+            metrics = {
+                INPUT_TOKENS_METRIC_KEY: input_tokens,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                TOTAL_TOKENS_METRIC_KEY: total_tokens,
+            }
+            span.set_tag_str(METRICS, safe_json(metrics))
 
     def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
         """Extracts tool calls from a langchain chat completion."""
@@ -197,30 +267,53 @@ class LangChainIntegration(BaseLLMIntegration):
                 tool_calls_info.append(tool_call_info)
         return tool_calls_info
 
-    def _llmobs_set_meta_tags_from_chain(
-        self,
-        span: Span,
-        inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
-        outputs: Any,
-        error: bool = False,
-    ) -> None:
-        span.set_tag_str(SPAN_KIND, "workflow")
+    def _handle_stream_input_messages(self, inputs):
+        input_messages = []
+        if hasattr(inputs, "to_messages"):  # isinstance(inputs, langchain_core.prompt_values.PromptValue)
+            inputs = inputs.to_messages()
+        elif not isinstance(inputs, list):
+            inputs = [inputs]
+        for inp in inputs:
+            inp_message = {}
+            content, role = None, None
+            if isinstance(inp, dict):
+                content = str(inp.get("content", ""))
+                role = inp.get("role")
+            elif hasattr(inp, "content"):  # isinstance(inp, langchain_core.messages.BaseMessage)
+                content = str(inp.content)
+                role = inp.__class__.__name__
+            else:
+                content = str(inp)
 
+            inp_message["content"] = content
+            if role is not None:
+                inp_message["role"] = role
+            input_messages.append(inp_message)
+
+        return input_messages
+
+    def _llmobs_set_meta_tags_from_chain(self, span: Span, args, kwargs, outputs: Any) -> None:
+        span.set_tag_str(SPAN_KIND, "workflow")
+        stream = span.get_tag("langchain.request.stream")
+        if stream:
+            inputs = get_argument_value(args, kwargs, 0, "input")
+        else:
+            inputs = kwargs
         if inputs is not None:
             formatted_inputs = self.format_io(inputs)
             span.set_tag_str(INPUT_VALUE, safe_json(formatted_inputs))
-        if error:
+        if span.error or outputs is None:
             span.set_tag_str(OUTPUT_VALUE, "")
-        elif outputs is not None:
-            formatted_outputs = self.format_io(outputs)
-            span.set_tag_str(OUTPUT_VALUE, safe_json(formatted_outputs))
+            return
+        formatted_outputs = self.format_io(outputs)
+        span.set_tag_str(OUTPUT_VALUE, safe_json(formatted_outputs))
 
     def _llmobs_set_meta_tags_from_embedding(
         self,
         span: Span,
-        input_texts: Union[str, List[str]],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         output_embedding: Union[List[float], List[List[float]], None],
-        error: bool = False,
         is_workflow: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "embedding")
@@ -232,6 +325,10 @@ class LangChainIntegration(BaseLLMIntegration):
 
         output_values: Any
 
+        try:
+            input_texts = get_argument_value(args, kwargs, 0, "texts")
+        except ArgumentError:
+            input_texts = get_argument_value(args, kwargs, 0, "text")
         try:
             if isinstance(input_texts, str) or (
                 isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)
@@ -246,42 +343,43 @@ class LangChainIntegration(BaseLLMIntegration):
                     span.set_tag_str(input_tag_key, safe_json(input_documents))
         except TypeError:
             log.warning("Failed to serialize embedding input data to JSON")
-        if error:
+        if span.error or output_embedding is None:
             span.set_tag_str(output_tag_key, "")
-        elif output_embedding is not None:
-            try:
-                if isinstance(output_embedding[0], float):
-                    # single embedding through embed_query
-                    output_values = [output_embedding]
-                    embeddings_count = 1
-                else:
-                    # multiple embeddings through embed_documents
-                    output_values = output_embedding
-                    embeddings_count = len(output_embedding)
-                embedding_dim = len(output_values[0])
-                span.set_tag_str(
-                    output_tag_key,
-                    "[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
-                )
-            except (TypeError, IndexError):
-                log.warning("Failed to write output vectors", output_embedding)
+            return
+        try:
+            if isinstance(output_embedding[0], float):
+                # single embedding through embed_query
+                output_values = [output_embedding]
+                embeddings_count = 1
+            else:
+                # multiple embeddings through embed_documents
+                output_values = output_embedding
+                embeddings_count = len(output_embedding)
+            embedding_dim = len(output_values[0])
+            span.set_tag_str(
+                output_tag_key,
+                "[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
+            )
+        except (TypeError, IndexError):
+            log.warning("Failed to write output vectors", output_embedding)
 
     def _llmobs_set_meta_tags_from_similarity_search(
         self,
         span: Span,
-        input_query: str,
+        args: List[Any],
+        kwargs: Dict[str, Any],
         output_documents: Union[List[Any], None],
-        error: bool = False,
         is_workflow: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "retrieval")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
+        input_query = get_argument_value(args, kwargs, 0, "query")
         if input_query is not None:
             formatted_inputs = self.format_io(input_query)
             span.set_tag_str(INPUT_VALUE, safe_json(formatted_inputs))
-        if error or output_documents is None:
+        if span.error or not output_documents or not isinstance(output_documents, list):
             span.set_tag_str(OUTPUT_VALUE, "")
             return
         if is_workflow:
@@ -298,13 +396,7 @@ class LangChainIntegration(BaseLLMIntegration):
         # we set the value as well to ensure that the UI would display it in case the span was the root
         span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
 
-    def _llmobs_set_meta_tags_from_tool(
-        self,
-        span: Span,
-        tool_inputs: Dict[str, Any],
-        tool_output: object,
-        error: bool,
-    ) -> None:
+    def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: Dict[str, Any], tool_output: object) -> None:
         if span.get_tag(METADATA):
             metadata = json.loads(str(span.get_tag(METADATA)))
         else:
@@ -321,11 +413,11 @@ class LangChainIntegration(BaseLLMIntegration):
                 span.set_tag_str(METADATA, safe_json(metadata))
             formatted_input = self.format_io(tool_input)
             span.set_tag_str(INPUT_VALUE, safe_json(formatted_input))
-        if error:
+        if span.error or tool_output is None:
             span.set_tag_str(OUTPUT_VALUE, "")
-        elif tool_output is not None:
-            formatted_outputs = self.format_io(tool_output)
-            span.set_tag_str(OUTPUT_VALUE, safe_json(formatted_outputs))
+            return
+        formatted_outputs = self.format_io(tool_output)
+        span.set_tag_str(OUTPUT_VALUE, safe_json(formatted_outputs))
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
@@ -394,6 +486,42 @@ class LangChainIntegration(BaseLLMIntegration):
         total_cost = span.get_metric(TOTAL_COST)
         if total_cost:
             self.metric(span, "incr", "tokens.total_cost", total_cost)
+
+    def check_token_usage_chat_or_llm_result(self, result):
+        """Checks for token usage on the top-level ChatResult or LLMResult object"""
+        llm_output = getattr(result, "llm_output", {})
+        if llm_output is None:  # in case it is explicitly set to None
+            return 0, 0, 0
+
+        token_usage = llm_output.get("token_usage", llm_output.get("usage_metadata", llm_output.get("usage", {})))
+        if token_usage is None or not isinstance(token_usage, dict):  # in case it is explicitly set to None
+            return 0, 0, 0
+
+        # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
+        input_tokens = token_usage.get("prompt_tokens", 0) or token_usage.get("input_tokens", 0) or 0
+        output_tokens = token_usage.get("completion_tokens", 0) or token_usage.get("output_tokens", 0) or 0
+        total_tokens = token_usage.get("total_tokens", input_tokens + output_tokens) or 0
+
+        return input_tokens, output_tokens, total_tokens
+
+    def check_token_usage_ai_message(self, ai_message):
+        """Checks for token usage on an AI message object"""
+        # depending on the provider + langchain-core version, the usage metadata can be in different places
+        # either chat_completion_msg.usage_metadata or chat_completion_msg.response_metadata.{token}_usage
+        usage = getattr(ai_message, "usage_metadata", None)
+
+        run_id = getattr(ai_message, "id", None) or getattr(ai_message, "run_id", "")
+        run_id_base = "-".join(run_id.split("-")[:-1]) if run_id else ""
+
+        response_metadata = getattr(ai_message, "response_metadata", {}) or {}
+        usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
+
+        # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
+        input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0) or usage.get("completion_tokens", 0)
+        total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
+
+        return (input_tokens, output_tokens, total_tokens), run_id_base
 
     def format_io(
         self,

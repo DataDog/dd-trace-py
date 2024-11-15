@@ -1,6 +1,7 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
+
 from collections import deque
 import ipaddress
 import re
@@ -66,7 +67,6 @@ IP_PATTERNS = (
     "x-real-ip",
     "true-client-ip",
     "x-client-ip",
-    "x-forwarded",
     "forwarded-for",
     "x-cluster-client-ip",
     "fastly-client-ip",
@@ -145,8 +145,8 @@ def _store_headers(headers, span, integration_config, request_or_response):
         return
 
     for header_name, header_value in headers.items():
-        """config._header_tag_name gets an element of the dictionary in config.trace_http_header_tags
-        which gets the value from DD_TRACE_HEADER_TAGS environment variable."""
+        # config._header_tag_name gets an element of the dictionary in config._trace_http_header_tags
+        # which gets the value from DD_TRACE_HEADER_TAGS environment variable."""
         tag_name = integration_config._header_tag_name(header_name)
         if tag_name is None:
             continue
@@ -188,7 +188,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
         return peer_ip
 
     ip_header_value = ""
-    user_configured_ip_header = config.client_ip_header
+    user_configured_ip_header = config._client_ip_header
     if user_configured_ip_header:
         # Used selected the header to use to get the IP
         ip_header_value = get_header_value(
@@ -372,11 +372,18 @@ def int_service(pin, int_config, default=None):
         return cast(str, int_config.service_name)
 
     global_service = int_config.global_config._get_service()
-    if global_service:
+    # We check if global_service != _inferred_base_service since global service (config.service)
+    # defaults to _inferred_base_service when no DD_SERVICE is set. In this case, we want to not
+    # use the inferred base service value, and instead use the integration default service. If we
+    # didn't do this, we would have a massive breaking change from adding inferred_base_service.
+    if global_service and global_service != int_config.global_config._inferred_base_service:
         return cast(str, global_service)
 
     if "_default_service" in int_config and int_config._default_service is not None:
         return cast(str, int_config._default_service)
+
+    if default is None and global_service:
+        return cast(str, global_service)
 
     return default
 
@@ -404,14 +411,18 @@ def ext_service(pin, int_config, default=None):
 
 def _set_url_tag(integration_config, span, url, query):
     # type: (IntegrationConfig, Span, str, str) -> None
-
-    if integration_config.http_tag_query_string:  # Tagging query string in http.url
-        if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
-            span.set_tag_str(http.URL, url)
-        else:  # Redact query strings
-            span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
-    else:  # Not tagging query string in http.url
+    if not integration_config.http_tag_query_string:
         span.set_tag_str(http.URL, strip_query_string(url))
+    elif config._global_query_string_obfuscation_disabled:
+        # TODO(munir): This case exists for backwards compatibility. To remove query strings from URLs,
+        # users should set ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING=False``. This case should be
+        # removed when config.global_query_string_obfuscation_disabled is removed (v3.0).
+        span.set_tag_str(http.URL, url)
+    elif getattr(config._obfuscation_query_string_pattern, "pattern", None) == b"":
+        # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
+        span.set_tag_str(http.URL, strip_query_string(url))
+    else:
+        span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
 
 
 def set_http_meta(
@@ -420,6 +431,7 @@ def set_http_meta(
     method=None,  # type: Optional[str]
     url=None,  # type: Optional[str]
     target_host=None,  # type: Optional[str]
+    server_address=None,  # type: Optional[str]
     status_code=None,  # type: Optional[Union[int, str]]
     status_msg=None,  # type: Optional[str]
     query=None,  # type: Optional[str]
@@ -463,6 +475,9 @@ def set_http_meta(
     if target_host is not None:
         span.set_tag_str(net.TARGET_HOST, target_host)
 
+    if server_address is not None:
+        span.set_tag_str(net.SERVER_ADDRESS, server_address)
+
     if status_code is not None:
         try:
             int_status_code = int(status_code)
@@ -487,7 +502,7 @@ def set_http_meta(
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if asm_config._asm_enabled or config.retrieve_client_ip:
+        if asm_config._asm_enabled or config._retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
             request_ip = core.get_item("http.request.remote_ip", span=span)
 

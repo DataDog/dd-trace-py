@@ -16,6 +16,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
+from ddtrace.internal.core import crashtracking
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
@@ -223,6 +224,7 @@ class _ProfilerInstance(service.Service):
         configured_features.append("CAP" + str(profiling_config.capture_pct))
         configured_features.append("MAXF" + str(profiling_config.max_frames))
         self.tags.update({"profiler_config": "_".join(configured_features)})
+        crashtracking.add_tag("profiler_config", self.tags["profiler_config"])
 
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
@@ -242,12 +244,16 @@ class _ProfilerInstance(service.Service):
                     timeline_enabled=profiling_config.timeline_enabled,
                     output_filename=profiling_config.output_pprof,
                     sample_pool_capacity=profiling_config.sample_pool_capacity,
+                    enable_code_provenance=profiling_config.code_provenance,
                 )
                 ddup.start()
 
                 return []
             except Exception as e:
-                LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
+                try:
+                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ddup.failure_msg)
+                except Exception as ee:
+                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ee)
                 self._export_libdd_enabled = False
                 profiling_config.export.libdd_enabled = False
 
@@ -256,6 +262,12 @@ class _ProfilerInstance(service.Service):
                     LOG.error("Disabling stack_v2 as libdd collector failed to initialize")
                     self._stack_v2_enabled = False
                     profiling_config.stack.v2_enabled = False
+
+                # If this instance of ddtrace was injected, then do not enable profiling, since that will load
+                # protobuf, breaking some environments.
+                if profiling_config._injected:
+                    LOG.error("Profiling failures occurred in an injected instance of ddtrace, disabling profiling")
+                    return []
 
         # DEV: Import this only if needed to avoid importing protobuf
         # unnecessarily
@@ -360,7 +372,7 @@ class _ProfilerInstance(service.Service):
                     for events in snapshot:
                         self._recorder.push_events(events)
             except Exception:
-                LOG.error("Error while snapshoting collector %r", c, exc_info=True)
+                LOG.error("Error while snapshotting collector %r", c, exc_info=True)
 
     _COPY_IGNORE_ATTRIBUTES = {"status"}
 

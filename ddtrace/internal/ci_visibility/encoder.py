@@ -37,25 +37,26 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class CIVisibilityEncoderV01(BufferedEncoder):
     content_type = "application/msgpack"
-    ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
     PAYLOAD_FORMAT_VERSION = 1
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
     ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
 
     def __init__(self, *args):
+        # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
+        #      which is called implicitly by Cython.
         super(CIVisibilityEncoderV01, self).__init__()
         self._lock = threading.RLock()
         self._metadata = {}
         self._init_buffer()
-        self._metadata = {}
 
     def __len__(self):
         with self._lock:
             return len(self.buffer)
 
-    def set_metadata(self, metadata):
-        self._metadata.update(metadata)
+    def set_metadata(self, event_type, metadata):
+        # type: (str, Dict[str, str]) -> None
+        self._metadata.setdefault(event_type, {}).update(metadata)
 
     def _init_buffer(self):
         with self._lock:
@@ -82,10 +83,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         if not normalized_spans:
             return None
         record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
-        self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
+
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return CIVisibilityEncoderV01._pack_payload(
-            {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": {"*": self._metadata}, "events": normalized_spans}
+            {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": self._metadata, "events": normalized_spans}
         )
 
     @staticmethod

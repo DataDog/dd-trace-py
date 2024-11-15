@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._constants import SPAN_KIND
 
 
 API_VERSION = "v1"
@@ -189,8 +188,6 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        if integration.is_pc_sampled_llmobs(span):
-            span.set_tag_str(SPAN_KIND, "llm")
         if integration.is_pc_sampled_span(span):
             prompt = kwargs.get("prompt", "")
             if isinstance(prompt, str):
@@ -212,8 +209,7 @@ class _CompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("completion", resp, span, kwargs, err=error)
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="completion")
         if not resp:
             return
         for choice in resp.choices:
@@ -247,8 +243,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        if integration.is_pc_sampled_llmobs(span):
-            span.set_tag_str(SPAN_KIND, "llm")
         for idx, m in enumerate(kwargs.get("messages", [])):
             role = getattr(m, "role", "")
             name = getattr(m, "name", "")
@@ -274,8 +268,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("chat", resp, span, kwargs, err=error)
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
         if not resp:
             return
         for choice in resp.choices:
@@ -319,8 +312,7 @@ class _EmbeddingHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("embedding", resp, span, kwargs, err=error)
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="embedding")
         if not resp:
             return
         span.set_metric("openai.response.embeddings_count", len(resp.data))

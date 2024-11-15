@@ -52,10 +52,6 @@ tool_call_expected_output["tool_calls"][0]["tool_id"] = "call_FJStsEjxdODw9tBmQR
 tool_call_expected_output["tool_calls"][0]["type"] = "function"
 
 
-def iswrapped(obj):
-    return hasattr(obj, "__dd_wrapped__")
-
-
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.

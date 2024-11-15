@@ -6,6 +6,7 @@ from time import sleep
 
 import celery
 from celery.exceptions import Retry
+import mock
 import pytest
 
 from ddtrace import Pin
@@ -440,6 +441,69 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("component") == "celery"
         assert span.get_tag("span.kind") == "consumer"
         assert span.error == 0
+
+    def test_task_chain_same_trace(self):
+        @self.app.task(max_retries=1, default_retry_delay=1)
+        def fn_b(user, force_logout=False):
+            raise ValueError("Foo")
+
+        self.celery_worker.reload()  # Reload after each task or we get an unregistered error
+
+        @self.app.task(bind=True, max_retries=1, autoretry_for=(Exception,), default_retry_delay=1)
+        def fn_a(self, user, force_logout=False):
+            fn_b.apply_async(args=[user], kwargs={"force_logout": force_logout})
+            raise ValueError("foo")
+
+        self.celery_worker.reload()  # Reload after each task or we get an unregistered error
+
+        traces = None
+        try:
+            with self.override_config("celery", dict(distributed_tracing=True)):
+                t = fn_a.apply_async(args=["user"], kwargs={"force_logout": True})
+                # We wait 10 seconds so all tasks finish.  While it'd be nice to block
+                # until all tasks complete, celery doesn't offer an option. Using get()
+                # causes a deadlock, since in test-mode we only have one worker.
+                import time
+
+                time.sleep(10)
+                t.get()
+        except Exception:
+            pass
+
+        traces = self.pop_traces()
+        # The below tests we have 1 trace with 8 spans, which is the shape generated
+        assert len(traces) > 0
+        assert sum([1 for trace in traces for span in trace]) == 8
+        trace_id = traces[0][0].trace_id
+        assert all(trace_id == span.trace_id for trace in traces for span in trace)
+
+    @mock.patch("kombu.messaging.Producer.publish", mock.Mock(side_effect=ValueError))
+    def test_fn_task_apply_async_soft_exception(self):
+        # If the underlying library runs into an exception that doesn't crash the app
+        # while calling apply_async, we should still close the span even
+        # if the closing signals didn't get called and mark the span as an error
+
+        @self.app.task
+        def fn_task_parameters(user, force_logout=False):
+            return (user, force_logout)
+
+        t = None
+        try:
+            t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
+        except ValueError:
+            traces = self.pop_traces()
+            assert 1 == len(traces)
+            assert traces[0][0].name == "celery.apply"
+            assert traces[0][0].resource == "tests.contrib.celery.test_integration.fn_task_parameters"
+            assert traces[0][0].get_tag("celery.action") == "apply_async"
+            assert traces[0][0].get_tag("component") == "celery"
+            assert traces[0][0].get_tag("span.kind") == "producer"
+            # Internal library errors get recorded on the span
+            assert traces[0][0].error == 1
+            assert traces[0][0].get_tag("error.type") == "builtins.ValueError"
+            assert "ValueError" in traces[0][0].get_tag("error.stack")
+            # apply_async runs into an internal error (ValueError) so nothing is returned to t
+            assert t is None
 
     def test_shared_task(self):
         # Ensure Django Shared Task are supported

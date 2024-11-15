@@ -60,7 +60,7 @@ async def trace_middleware(app, handler):
         # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api
         analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
-        if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
+        if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
             request_span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, app[CONFIG_KEY].get("analytics_sample_rate", True))
 
         # attach the context and the root span to the request; the Context

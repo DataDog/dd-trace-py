@@ -41,7 +41,6 @@ def main():
         suite_1_test_3_id,
         codeowners=["@romain", "@romain2"],
         source_file_info=api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
-        is_early_flake_detection=True,
     )
 
     api.Test.discover(suite_1_test_4_parametrized_1_id)
@@ -80,7 +79,6 @@ def main():
         suite_2_test_3_id,
         codeowners=["@romain"],
         source_file_info=api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
-        is_early_flake_detection=True,
     )
 
     # END DISCOVERY

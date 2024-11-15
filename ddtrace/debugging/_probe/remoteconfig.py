@@ -24,6 +24,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
@@ -32,6 +33,7 @@ from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
 from ddtrace.debugging._probe.model import TemplateSegment
+from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.logger import get_logger
@@ -48,15 +50,15 @@ def xlate_keys(d: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, Any]:
     return {mapping.get(k, k): v for k, v in d.items()}
 
 
-def _compile_segment(segment: dict) -> Optional[TemplateSegment]:
+def _compile_segment(segment: dict) -> TemplateSegment:
     if "str" in segment:
         return LiteralTemplateSegment(str_value=segment["str"])
 
     if "json" in segment:
         return ExpressionTemplateSegment(expr=DDRedactedExpression.compile(segment))
 
-    # what type of error we should show here?
-    return None
+    msg = f"Invalid template segment: {segment}"
+    raise ValueError(msg)
 
 
 def _match_env_and_version(probe: Probe) -> bool:
@@ -102,7 +104,8 @@ class ProbeFactory(object):
 
         args["module"] = where.get("type") or where["typeName"]
         args["func_qname"] = where.get("method") or where["methodName"]
-        args["evaluate_at"] = attribs.get("evaluateAt")
+        if issubclass(cls.__function_class__, TimingMixin):
+            args["evaluate_at"] = ProbeEvalTiming[attribs.get("evaluateAt", "DEFAULT")]
 
         return cls.__function_class__(**args)
 
@@ -239,7 +242,7 @@ def get_probes(config: dict, status_logger: ProbeStatusLogger) -> Iterable[Probe
         raise
     except Exception as e:
         status_logger.error(
-            probe=Probe(probe_id=config["id"], version=config["version"], tags={}),
+            probe=Probe(probe_id=config["id"], version=config.get("version", 0), tags={}),
             error=(type(e).__name__, str(e)),
         )
         return []
@@ -292,7 +295,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 
                 self._update_probes_for_config(metadata["id"], config)
 
-        # Flush any probe status messages that migh have been generated
+        # Flush any probe status messages that might have been generated
         self._status_logger.flush()
 
     def _send_status_update(self):

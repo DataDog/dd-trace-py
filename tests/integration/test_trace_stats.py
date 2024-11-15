@@ -143,12 +143,12 @@ def test_stats_report_hostname(get_hostname):
     get_hostname.return_value = "test-hostname"
 
     # Enable report_hostname
-    with override_global_config(dict(report_hostname=True)):
+    with override_global_config(dict(_report_hostname=True)):
         p = SpanStatsProcessorV06("http://localhost:8126")
         assert p._hostname == "test-hostname"
 
     # Disable report_hostname
-    with override_global_config(dict(report_hostname=False)):
+    with override_global_config(dict(_report_hostname=False)):
         p = SpanStatsProcessorV06("http://localhost:8126")
         assert p._hostname == ""
 

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: LangChain streamed calls (``llm.stream``, ``chat_model.stream``, and ``chain.stream``) submit to LLM Observability.

@@ -26,7 +26,7 @@ from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_STDDEV_OUTLIER
 from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_TOTAL
 from ddtrace.ext.test import TEST_TYPE
 from ddtrace.internal.ci_visibility import CIVisibility
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.test_encoder import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -47,7 +47,7 @@ class PytestTestCase(TracerTestCase):
         """
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             yield
 

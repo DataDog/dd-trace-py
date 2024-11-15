@@ -7,8 +7,6 @@ import wrapt
 
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
-from tests.contrib.config import POSTGRES_CONFIG
-from tests.utils import override_config
 
 
 @pytest.fixture(autouse=True)
@@ -36,22 +34,35 @@ def patch_psycopg():
     unpatch()
 
 
-@pytest.mark.snapshot()
+@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.snapshot(wait_for_num_traces=0)
 def test_connect_default():
     """By default we do not trace psycopg.connect method"""
+    import psycopg
+
+    from tests.contrib.config import POSTGRES_CONFIG
+
     conn = psycopg.connect(**POSTGRES_CONFIG)
     assert conn
 
 
+@pytest.mark.subprocess(ddtrace_run=True)
 @pytest.mark.snapshot(wait_for_num_traces=1)
 def test_connect_traced():
     """When explicitly enabled, we trace psycopg.connect method"""
+    import psycopg
+
+    from tests.contrib.config import POSTGRES_CONFIG
+    from tests.utils import override_config
+
     with override_config("psycopg", {"trace_connect": True}):
         conn = psycopg.connect(**POSTGRES_CONFIG)
         assert conn
 
 
-@pytest.mark.snapshot(token="tests.contrib.psycopg.test_psycopg_snapshot.test_connect_traced", wait_for_num_traces=1)
+@pytest.mark.snapshot(
+    token="tests.contrib.psycopg.test_psycopg_snapshot.test_connect_traced_via_env", wait_for_num_traces=1
+)
 def test_connect_traced_via_env(run_python_code_in_subprocess):
     """When explicitly enabled, we trace psycopg.connect method"""
 

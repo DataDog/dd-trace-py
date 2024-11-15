@@ -1,11 +1,13 @@
 from contextlib import contextmanager
 import os
+from pathlib import Path
 import subprocess
 import sys
 
 import django
 import pytest
 
+from tests.utils import _build_env
 from tests.utils import flaky
 from tests.utils import package_installed
 from tests.utils import snapshot
@@ -16,6 +18,8 @@ SERVER_PORT = 8000
 # these tests behave nondeterministically with respect to rate limiting, which can cause the sampling decision to flap
 # FIXME: db.name behaves unreliably for some of these tests
 SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1", "meta.db.name"]
+
+FILE_PATH = Path(__file__).resolve().parent
 
 
 @contextmanager
@@ -29,7 +33,7 @@ def daphne_client(django_asgi, additional_env=None):
 
     # Make sure to copy the environment as we need the PYTHONPATH and _DD_TRACE_WRITER_ADDITIONAL_HEADERS (for the test
     # token) propagated to the new process.
-    env = os.environ.copy()
+    env = _build_env(os.environ.copy(), file_path=FILE_PATH)
     env.update(additional_env or {})
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
     env.update(
@@ -37,29 +41,47 @@ def daphne_client(django_asgi, additional_env=None):
             "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
         }
     )
-
     # ddtrace-run uses execl which replaces the process but the webserver process itself might spawn new processes.
     # Right now it doesn't but it's possible that it might in the future (ex. uwsgi).
-    cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:%s" % django_asgi]
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=True,
-        env=env,
-    )
+    cmd = [
+        "python",
+        "-m",
+        "ddtrace.commands.ddtrace_run",
+        "daphne",
+        "-p",
+        str(SERVER_PORT),
+        "tests.contrib.django.asgi:%s" % django_asgi,
+    ]
+    subprocess_kwargs = {
+        "env": env,
+        "start_new_session": True,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "close_fds": True,
+    }
 
+    server_process = subprocess.Popen(cmd, **subprocess_kwargs)
     client = Client("http://localhost:%d" % SERVER_PORT)
 
     # Wait for the server to start up
-    client.wait()
+    try:
+        print("Waiting for server to start")
+        client.wait(max_tries=120, delay=0.2, initial_wait=2.0)
+        print("Server started")
+    except Exception:
+        raise AssertionError(
+            "Server failed to start, see stdout and stderr logs"
+            "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+            "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+            % (server_process.stdout.read(), server_process.stderr.read())
+        )
 
     try:
-        yield (client, proc)
+        yield (client, server_process)
     finally:
         resp = client.get_ignored("/shutdown-tracer")
         assert resp.status_code == 200
-        proc.terminate()
+        server_process.terminate()
 
 
 @flaky(1735812000)
@@ -70,7 +92,7 @@ def test_urlpatterns_include(client):
     When a view is specified using `django.urls.include`
         The view is traced
     """
-    assert client.get("/include/test/").status_code == 200
+    assert client.get("/include/test/", timeout=5).status_code == 200
 
 
 @snapshot(
@@ -235,7 +257,7 @@ def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
 def test_asgi_200(django_asgi):
     with daphne_client(django_asgi) as (client, _):
-        resp = client.get("/")
+        resp = client.get("/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"Hello, test app."
 
@@ -256,7 +278,7 @@ def test_asgi_200_simple_app():
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_traced_simple_app():
     with daphne_client("channels_application") as (client, _):
-        resp = client.get("/traced-simple-asgi-app/")
+        resp = client.get("/traced-simple-asgi-app/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"Hello World. It's me simple asgi app"
 
@@ -284,7 +306,7 @@ def test_asgi_500():
 def test_templates_enabled():
     """Default behavior to compare with disabled variant"""
     with daphne_client("application") as (client, _):
-        resp = client.get("/template-view/")
+        resp = client.get("/template-view/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"some content\n"
 
@@ -299,7 +321,7 @@ def test_templates_enabled():
 def test_templates_disabled():
     """Template instrumentation disabled"""
     with daphne_client("application", additional_env={"DD_DJANGO_INSTRUMENT_TEMPLATES": "false"}) as (client, _):
-        resp = client.get("/template-view/")
+        resp = client.get("/template-view/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"some content\n"
 
@@ -327,7 +349,7 @@ def test_djangoq_dd_trace_methods(dd_trace_methods, error_expected):
     if error_expected is True:
         pytest.xfail()
     with daphne_client("application", additional_env={"DD_TRACE_METHODS": dd_trace_methods}) as (client, proc):
-        assert client.get("simple/").status_code == 200
+        assert client.get("simple/", timeout=10).status_code == 200
 
-    _, stderr = proc.communicate(timeout=5)
+    _, stderr = proc.communicate(timeout=10)
     assert (b"error configuring Datadog tracing" in stderr) == error_expected

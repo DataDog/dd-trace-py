@@ -3,6 +3,7 @@ import typing as t
 from envier import En
 
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings._core import report_telemetry as _report_telemetry
 
 
 resolver_default = "full"
@@ -72,13 +73,22 @@ class CrashtrackingConfig(En):
         help="The destination filename for crashtracking stderr",
     )
 
-    alt_stack = En.v(
+    use_alt_stack = En.v(
         bool,
-        "alt_stack",
-        default=False,
+        "use_alt_stack",
+        default=True,
         help_type="Boolean",
-        help="Whether to use an alternate stack for crashtracking"
-        "This is generally useful only for dd-trace-py development.",
+        help="Whether to use an alternate stack for crashtracking.",
+    )
+
+    create_alt_stack = En.v(
+        bool,
+        "create_alt_stack",
+        default=True,
+        help_type="Boolean",
+        help="Whether to create an alternate stack for crashtracking."
+        "The Python runtime creates an altstack of very small size, so this parameter is typically combined with"
+        "use_alt_stack to ensure that the altstack is large enough.",
     )
 
     _stacktrace_resolver = En.v(
@@ -111,3 +121,4 @@ class CrashtrackingConfig(En):
 
 
 config = CrashtrackingConfig()
+_report_telemetry(config)

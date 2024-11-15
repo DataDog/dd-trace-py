@@ -3,14 +3,13 @@ on:
   push:
     branches:
       - main
+      - 'mq-working-branch**'
   pull_request:
     paths:
       - 'ddtrace/**'
       - 'scripts/profiles/flask-simple/**'
       - '.github/workflows/flask-overhead-profile.yml'
-  merge_group:
-    # Trigger jobs when PR is added to merge queue
-    types: [checks_requested]
+
 jobs:
   flask-overhead-profile:
     runs-on: ubuntu-latest

@@ -40,20 +40,14 @@ def daphne_client(django_asgi, additional_env=None):
     # ddtrace-run uses execl which replaces the process but the webserver process itself might spawn new processes.
     # Right now it doesn't but it's possible that it might in the future (ex. uwsgi).
     cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:%s" % django_asgi]
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        close_fds=True,
-        env=env,
-    )
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
 
     client = Client("http://localhost:%d" % SERVER_PORT)
 
-    # Wait for the server to start up
-    client.wait()
-
     try:
+        # Wait for the server to start up
+        client.wait()
+
         yield client
     finally:
         resp = client.get_ignored("/shutdown-tracer")
@@ -106,6 +100,7 @@ def test_appsec_enabled():
         "meta." + FINGERPRINTING.NETWORK,
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
+        "meta." + FINGERPRINTING.SESSION,
     ]
 )
 def test_appsec_enabled_attack():

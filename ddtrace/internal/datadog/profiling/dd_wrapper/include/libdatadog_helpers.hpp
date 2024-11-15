@@ -44,8 +44,6 @@ namespace Datadog {
     X(span_id, "span id")                                                                                              \
     X(local_root_span_id, "local root span id")                                                                        \
     X(trace_type, "trace type")                                                                                        \
-    X(trace_resource_container, "trace resource container")                                                            \
-    X(trace_endpoint, "trace endpoint")                                                                                \
     X(class_name, "class name")                                                                                        \
     X(lock_name, "lock name")
 
@@ -78,6 +76,12 @@ inline ddog_CharSlice
 to_slice(std::string_view str)
 {
     return { .ptr = str.data(), .len = str.size() };
+}
+
+inline ddog_ByteSlice
+to_byte_slice(std::string_view str)
+{
+    return { .ptr = reinterpret_cast<const uint8_t*>(str.data()), .len = str.size() };
 }
 
 inline std::string

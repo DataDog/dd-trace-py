@@ -74,21 +74,13 @@ def strip_query_string(url):
 
 
 def redact_query_string(query_string, query_string_obfuscation_pattern):
-    # type: (str, Optional[re.Pattern]) -> Union[bytes, str]
-    if query_string_obfuscation_pattern is None:
-        return query_string
-
+    # type: (str, re.Pattern) -> Union[bytes, str]
     bytes_query = query_string if isinstance(query_string, bytes) else query_string.encode("utf-8")
     return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query)
 
 
 def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
-
-    # Avoid further processing if obfuscation is disabled
-    if query_string_obfuscation_pattern is None:
-        return url
-
     parts = compat.parse.urlparse(url)
     redacted_query = None
 

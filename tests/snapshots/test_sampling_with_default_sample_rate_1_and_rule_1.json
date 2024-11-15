@@ -14,6 +14,7 @@
       "runtime-id": "10b45fb36ca3465fa2b6dbd7b10bdccf"
     },
     "metrics": {
+      "_dd.limit_psr": 1.0,
       "_dd.rule_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,

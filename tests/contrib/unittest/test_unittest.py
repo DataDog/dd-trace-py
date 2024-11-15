@@ -20,10 +20,10 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.constants import COMPONENT
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -50,9 +50,25 @@ class UnittestTestCase(TracerTestCase):
         """
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=_CIVisibilitySettings(False, False, False, False),
+            return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             yield
+
+    def test_unittest_set_test_session_name(self):
+        """Check that the unittest command is used to set the test session name."""
+        _set_tracer(self.tracer)
+
+        class UnittestExampleTestCase(unittest.TestCase):
+            def test_will_pass_first(self):
+                self.assertTrue(2 == 2)
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.set_test_session_name"
+        ) as set_test_session_name_mock:
+            suite = unittest.TestLoader().loadTestsFromTestCase(UnittestExampleTestCase)
+            unittest.TextTestRunner(verbosity=0).run(suite)
+
+        set_test_session_name_mock.assert_called_once_with(test_command="python -m unittest")
 
     def test_unittest_pass_single(self):
         """Test with a `unittest` test which should pass."""

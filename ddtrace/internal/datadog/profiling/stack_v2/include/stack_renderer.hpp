@@ -41,11 +41,11 @@ class StackRenderer : public RendererInterface
                                      microsecond_t wall_time_us,
                                      uintptr_t thread_id,
                                      unsigned long native_id) override;
-    virtual void render_task_begin(std::string_view name);
+    virtual void render_task_begin(std::string_view name) override;
     virtual void render_stack_begin() override;
     virtual void render_python_frame(std::string_view name, std::string_view file, uint64_t line) override;
     virtual void render_native_frame(std::string_view name, std::string_view file, uint64_t line) override;
-    virtual void render_cpu_time(microsecond_t cpu_time_us) override;
+    virtual void render_cpu_time(uint64_t cpu_time_us) override;
     virtual void render_stack_end() override;
     virtual bool is_valid() override;
 };
