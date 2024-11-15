@@ -9,9 +9,8 @@ from ddtrace.llmobs._utils import _get_attr
 
 
 class BaseTracedVertexAIStreamResponse:
-    def __init__(self, generator, instance, integration, span):
+    def __init__(self, generator, integration, span):
         self._generator = generator
-        self._model_instance = instance
         self._dd_integration = integration
         self._dd_span = span
         self._chunks = []

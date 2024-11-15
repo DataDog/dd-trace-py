@@ -64,7 +64,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
         tag_request(span, integration, instance, args, kwargs)
         generations = func(*args, **kwargs)
         if stream:
-            return TracedVertexAIStreamResponse(generations, instance, integration, span)
+            return TracedVertexAIStreamResponse(generations, integration, span)
         tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -91,7 +91,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
         tag_request(span, integration, instance, args, kwargs)
         generations = await func(*args, **kwargs)
         if stream:
-            return TracedAsyncVertexAIStreamResponse(generations, instance, integration, span)
+            return TracedAsyncVertexAIStreamResponse(generations, integration, span)
         tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())

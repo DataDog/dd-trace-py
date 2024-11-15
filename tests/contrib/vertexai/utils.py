@@ -1,6 +1,4 @@
-import os
 import collections
-import mock
 
 from vertexai.generative_models import FunctionDeclaration, Tool
 from google.cloud import aiplatform_v1
