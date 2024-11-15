@@ -1,0 +1,46 @@
+internal:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: internal
+tracer:
+  runner: riot
+  env:
+    SUITE_NAME: tracer
+    DD_TRACE_AGENT_URL: "http://localhost:8126"
+  parallelism: 9
+  retry: 2
+telemetry:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: telemetry
+  parallelism: 6
+profile:
+  runner: riot
+  env:
+    SUITE_NAME: "profile$|profile-v2"
+    DD_TRACE_AGENT_URL: ""
+  parallelism: 20
+  retry: 2
+integration_testagent:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: "integration-snapshot*"
+integration_agent:
+  runner: riot
+  env:
+    SUITE_NAME: "integration-latest*"
+vendor:
+  runner: riot
+  env:
+    SUITE_NAME: vendor
+  parallelism: 1
+ddtracerun:
+  runner: riot
+  services:
+  - redis
+  env:
+    SUITE_NAME: ddtracerun
+  parallelism: 6

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue where the sample pool could deadlock after ``fork()``
+      by clearing it in the child process.
+
