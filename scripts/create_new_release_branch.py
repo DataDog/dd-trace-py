@@ -58,24 +58,27 @@ PYPROJECT_FILENAME = "../pyproject.toml"
 
 def create_release_branch():
     rc1_tag = f"v{BASE}.0rc1"
-    if DRY_RUN:
-        print(f"Would create {BASE} branch from {rc1_tag} tag")
-    else:
-        try:
-            subprocess.check_call(f"git checkout {rc1_tag}", shell=True, cwd=os.pardir)
-        except subprocess.CalledProcessError:
-            print(f"Failed to checkout {rc1_tag} tag")
-            raise
+    
+    try:
+        subprocess.check_call(f"git checkout {rc1_tag}", shell=True, cwd=os.pardir)
+    except subprocess.CalledProcessError:
+        print(f"\u274C Failed to checkout {rc1_tag} tag")
+        raise
 
-        create_new_branch(BASE)
-            
+    create_new_branch(BASE)
+    
+    if DRY_RUN:
+        print(
+            f"DRY RUN: Would push {BASE} branch from {rc1_tag} tag to origin."
+            f"You can check out what would have been pushed in your local {BASE}")
+    else:
         try:
             subprocess.check_call(f"git push origin {BASE}", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError as e:
-            print(f"Encountered error when trying to push {BASE} branch")
+            print(f"\u274C Encountered error when trying to push {BASE} branch")
             raise e
 
-    print(f"Checked out and pushed {BASE} branch created from {rc1_tag} commit")
+    print(f"\u2705 Checked out and pushed {BASE} branch created from {rc1_tag} commit")
 
 
 def update_version_scheme():
@@ -90,7 +93,7 @@ def update_version_scheme():
     )
     with open(PYPROJECT_FILENAME, "w") as f:
         f.write(content)
-    print("version_scheme updated to 'guess-next-dev'.")
+    print("\u2705 version_scheme updated to 'guess-next-dev'.")
 
 
 def create_pull_request():
@@ -98,56 +101,60 @@ def create_pull_request():
     gh_token = os.getenv("GH_TOKEN")
     if not gh_token:
         raise ValueError(
-            "We need a Github token to create the PR. Please set GH_TOKEN in your environment variables"
+            "\u274C We need a Github token to create the PR. Please set GH_TOKEN in your environment variables"
         )
     dd_repo = Github(gh_token).get_repo(full_name_or_id="DataDog/dd-trace-py")
 
     # Create branch
     pr_branch_name = f"script/guess-next-dev-{BASE}"
-    if DRY_RUN:
-        print(f"Would create PR with target branch set to {pr_branch_name}")
-    else:
-        create_new_branch(pr_branch_name)
+    
+    create_new_branch(pr_branch_name)
         
-        # Update pyproject.toml
-        update_version_scheme()
+    # Update pyproject.toml
+    update_version_scheme()
+    try:
+        subprocess.check_output(f"git add {PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
+    except subprocess.CalledProcessError as e:
         try:
-            subprocess.check_output(f"git add {PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
-        except subprocess.CalledProcessError as e:
-            try:
-                subprocess.check_output(f"git add pyproject.toml", shell=True, cwd=os.pardir)
-            except subprocess.CalledProcessError:
-                raise ValueError(
-                    f"Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
-                    "You may need to run this script from the root of the repository."
-                )
-        print(f"Committing changes to {PYPROJECT_FILENAME} on branch {pr_branch_name}")
-        pr_title = (
-            f"use guess-next-dev instead of release-branch-semver [{BASE}]"
-        )
-        pr_body = (
-            f"This PR updates the `version_schema` in the `{PYPROJECT_FILENAME}` file for the {BASE} release branch "
-            "from `release-branch-semver` to `guess-next-dev`. This is to ensure that system tests work as intended "
-            "with backports to this release branch."
-            "\n\n"
-            f"IMPORTANT: This PR needs to be merged before the first backport is created for {BASE}."
-            "Otherwise, system tests will not work as expected.")
-        try:
-            subprocess.check_output(f"git commit -m 'Update version_schema for the {BASE} release branch via script'", shell=True, cwd=os.pardir)
+            subprocess.check_output(f"git add pyproject.toml", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError:
-            print(f"Failed to commit changes to {pr_branch_name}")
-            raise
+            raise ValueError(
+                f"\u274C Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
+                "You may need to run this script from the root of the repository."
+            )
+    print(f"Committing changes to {PYPROJECT_FILENAME} on branch {pr_branch_name}")
+    pr_title = (
+        f"chore: use guess-next-dev instead of release-branch-semver [{BASE}]"
+    )
+    pr_body = (
+        f"This PR updates the `version_schema` in the `{PYPROJECT_FILENAME}` file for the {BASE} release branch "
+        "from `release-branch-semver` to `guess-next-dev`. This is to ensure that system tests work as intended "
+        "with backports to this release branch."
+        "\n\n"
+        f"IMPORTANT: This PR needs to be merged before the first backport is created for {BASE}."
+        "Otherwise, system tests will not work as expected.")
+    try:
+        subprocess.check_output(f"git commit -m 'Update version_schema for the {BASE} release branch via script'", shell=True, cwd=os.pardir)
+    except subprocess.CalledProcessError:
+        print(f"\u274C Failed to commit changes to {pr_branch_name}")
+        raise
+    if DRY_RUN:
+        print(f"DRY RUN: Would create PR with target branch set to {pr_branch_name}")
+    else:
         try:
             subprocess.check_output(f"git push origin {pr_branch_name}", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError:
-            print(f"Failed to push committed changes to {pr_branch_name}")
+            print(f"\u274C Failed to push committed changes to {pr_branch_name}")
             raise
 
         try:
-            dd_repo.create_pull(title=pr_title, body=pr_body, base=BASE, head=pr_branch_name, draft=False)
+            pr = dd_repo.create_pull(title=pr_title, body=pr_body, base=BASE, head=pr_branch_name, draft=False)
+            pr.add_to_labels("changelog/no-changelog")
+            print("\u2705 Created PR")
         except:
-            print(f"Failed to create PR from {pr_branch_name} into {BASE}")
+            print(f"\u274C Failed to create PR from {pr_branch_name} into {BASE}")
             raise
+    print(f"\u2705 Done")
 
 
 def create_new_branch(branch_name: str):
@@ -157,10 +164,10 @@ def create_new_branch(branch_name: str):
         # Capture the error message
         error_message = e.stderr.decode("utf-8") if e.stderr else str(e)
         if f"Command 'git checkout -b {branch_name}' returned non-zero exit status 128." in error_message:
-            print(f"Branch '{branch_name}' already exists. Skipping branch creation...")
+            print(f"\u2705 Branch '{branch_name}' already exists. Skipping branch creation...")
             subprocess.check_call(f"git checkout {branch_name}", shell=True, cwd=os.pardir)
         else:
-            print(f"Encountered error when trying to create branch {branch_name}")
+            print(f"\u274C Encountered error when trying to create branch {branch_name}")
             raise e
 
 if __name__ == "__main__":
