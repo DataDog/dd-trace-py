@@ -201,7 +201,7 @@ class TestBotocoreSpanPointers:
                     "ETag": "ab12ef34",
                 },
                 expected_pointers=[],
-                expected_logger_regex=r"problem with parameters for S3.PutObject .*: 'Bucket'",
+                expected_logger_regex=r"span pointers: problem with parameters for S3.PutObject .*: 'Bucket'",
                 logger_level="debug",
             ),
             PointersCase(
@@ -215,7 +215,7 @@ class TestBotocoreSpanPointers:
                     "ETag": "ab12ef34",
                 },
                 expected_pointers=[],
-                expected_logger_regex=r"problem with parameters for S3.PutObject .*: 'Key'",
+                expected_logger_regex=r"span pointers: problem with parameters for S3.PutObject .*: 'Key'",
                 logger_level="debug",
             ),
             PointersCase(
@@ -228,7 +228,7 @@ class TestBotocoreSpanPointers:
                 },
                 response={},
                 expected_pointers=[],
-                expected_logger_regex=r"problem with parameters for S3.PutObject .*: 'ETag'",
+                expected_logger_regex=r"span pointers: problem with parameters for S3.PutObject .*: 'ETag'",
                 logger_level="debug",
             ),
             PointersCase(
@@ -1113,13 +1113,16 @@ class TestBotocoreSpanPointers:
                 key=lambda pointer: pointer.pointer_hash,
             ) == sorted(pointers_case.expected_pointers, key=lambda pointer: pointer.pointer_hash)
 
+            span_pointer_log_args = [
+                call_args for call_args in mock_logger.call_args_list if call_args[0][0].startswith("span pointers: ")
+            ]
             if pointers_case.expected_logger_regex is None:
-                mock_logger.assert_not_called()
+                assert not span_pointer_log_args
 
             else:
-                mock_logger.assert_called_once()
+                assert len(span_pointer_log_args) == 1
 
-                (args, kwargs) = mock_logger.call_args
+                (args, kwargs) = span_pointer_log_args.pop()
                 assert not kwargs
                 fmt, *other_args = args
                 assert re.match(
@@ -1183,7 +1186,7 @@ class TestDynamoDBWriteRequestLogic:
                     },
                 },
                 primary_key=None,
-                expected_logger_regex="unexpected number of write request fields",
+                expected_logger_regex="span pointers: unexpected number of write request fields",
             ),
             WriteRequestPrimaryKeyCase(
                 name="unknown request kind",
@@ -1197,7 +1200,7 @@ class TestDynamoDBWriteRequestLogic:
                     },
                 },
                 primary_key=None,
-                expected_logger_regex="unexpected write request structure: SomeRequest",
+                expected_logger_regex="span pointers: unexpected write request structure: SomeRequest",
             ),
         ],
         ids=lambda test_case: test_case.name,
@@ -1215,13 +1218,16 @@ class TestDynamoDBWriteRequestLogic:
                 == test_case.primary_key
             )
 
+            span_pointer_log_args = [
+                call_args for call_args in mock_logger.call_args_list if call_args[0][0].startswith("span pointers: ")
+            ]
             if test_case.expected_logger_regex is None:
-                mock_logger.assert_not_called()
+                assert not span_pointer_log_args
 
             else:
-                mock_logger.assert_called_once()
+                assert len(span_pointer_log_args) == 1
 
-                (args, kwargs) = mock_logger.call_args
+                (args, kwargs) = span_pointer_log_args.pop()
                 assert not kwargs
                 fmt, *other_args = args
                 assert re.match(
@@ -1428,13 +1434,17 @@ class TestDynamoDBWriteRequestLogic:
             )
             assert processed_items == test_case.expected_processed_items
 
+            span_pointer_log_args = [
+                call_args for call_args in mock_logger.call_args_list if call_args[0][0].startswith("span pointers: ")
+            ]
+
             if test_case.expected_logger_regex is None:
-                mock_logger.assert_not_called()
+                assert not span_pointer_log_args
 
             else:
-                mock_logger.assert_called_once()
+                assert len(span_pointer_log_args) == 1
 
-                (args, kwargs) = mock_logger.call_args
+                (args, kwargs) = span_pointer_log_args.pop()
                 assert not kwargs
                 fmt, *other_args = args
                 assert re.match(

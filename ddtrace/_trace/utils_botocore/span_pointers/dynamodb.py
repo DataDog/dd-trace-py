@@ -178,7 +178,7 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
         item = request_parameters["Item"]
     except KeyError as e:
         log.debug(
-            "failed to extract %s span pointer: missing key %s",
+            "span pointers: failed to extract %s span pointer: missing key %s",
             operation,
             e,
         )
@@ -217,7 +217,7 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
 
     except Exception as e:
         log.debug(
-            "failed to generate %s span pointer: %s",
+            "span pointers: failed to generate %s span pointer: %s",
             operation,
             e,
         )
@@ -234,7 +234,7 @@ def _extract_primary_key_names_from_configuration(
         return dynamodb_primary_key_names_for_tables[table_name]
     except KeyError as e:
         log.warning(
-            "failed to extract %s span pointer: table %s not found in primary key names",
+            "span pointers: failed to extract %s span pointer: table %s not found in primary key names",
             operation,
             e,
         )
@@ -255,7 +255,7 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
         key = request_parmeters["Key"]
     except KeyError as e:
         log.debug(
-            "failed to extract %s span pointer: missing key %s",
+            "span pointers: failed to extract %s span pointer: missing key %s",
             operation,
             e,
         )
@@ -278,7 +278,7 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
 
     except Exception as e:
         log.debug(
-            "failed to generate %s span pointer: %s",
+            "span pointers: failed to generate %s span pointer: %s",
             operation,
             e,
         )
@@ -303,7 +303,7 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
 
     except Exception as e:
         log.debug(
-            "failed to extract %s span pointers: %s",
+            "span pointers: failed to extract %s span pointers: %s",
             operation,
             e,
         )
@@ -339,7 +339,7 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
 
     except Exception as e:
         log.debug(
-            "failed to generate %s span pointer: %s",
+            "span pointers: failed to generate %s span pointer: %s",
             operation,
             e,
         )
@@ -365,7 +365,7 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
 
     except Exception as e:
         log.debug(
-            "failed to generate %s span pointer: %s",
+            "span pointers: failed to generate %s span pointer: %s",
             operation,
             e,
         )
@@ -382,7 +382,7 @@ def _identify_dynamodb_batch_write_item_processed_items(
     processed_items = {}
 
     if not all(table_name in requested_items for table_name in unprocessed_items):
-        log.debug("%s unprocessed items include tables not in the requested items", operation)
+        log.debug("span pointers: %s unprocessed items include tables not in the requested items", operation)
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.PROCESSED_ITEMS_CALCULATION.value
         )
@@ -398,7 +398,7 @@ def _identify_dynamodb_batch_write_item_processed_items(
                 for unprocessed_write_request in unprocessed_items[table_name]
             ):
                 log.debug(
-                    "%s unprocessed write requests include items not in the requested write requests",
+                    "span pointers: %s unprocessed write requests include items not in the requested write requests",
                     operation,
                 )
                 record_span_pointer_calculation_issue(
@@ -424,7 +424,7 @@ def _aws_dynamodb_item_primary_key_from_item(
     item: _DynamoDBItem,
 ) -> Optional[_DynamoDBItemPrimaryKey]:
     if len(primary_key_field_names) not in (1, 2):
-        log.debug("unexpected number of primary key fields: %d", len(primary_key_field_names))
+        log.debug("span pointers: unexpected number of primary key fields: %d", len(primary_key_field_names))
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
         )
@@ -453,7 +453,7 @@ def _aws_dynamodb_item_primary_key_from_write_request(
     operation = _OPERATION_BASE + "BatchWriteItem"
 
     if len(write_request) != 1:
-        log.debug("unexpected number of write request fields: %d", len(write_request))
+        log.debug("span pointers: unexpected number of write request fields: %d", len(write_request))
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
         )
@@ -488,7 +488,7 @@ def _aws_dynamodb_item_primary_key_from_write_request(
         return write_request["DeleteRequest"]["Key"]
 
     else:
-        log.debug("unexpected write request structure: %s", "".join(sorted(write_request.keys())))
+        log.debug("span pointers: unexpected write request structure: %s", "".join(sorted(write_request.keys())))
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
         )
@@ -502,7 +502,7 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
     operation = _OPERATION_BASE + "TransactWriteItems"
 
     if len(transact_write_request) != 1:
-        log.debug("unexpected number of transact write request fields: %d", len(transact_write_request))
+        log.debug("span pointers: unexpected number of transact write request fields: %d", len(transact_write_request))
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
         )
@@ -560,7 +560,10 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
         key = transact_write_request["Update"]["Key"]
 
     else:
-        log.debug("unexpected transact write request structure: %s", "".join(sorted(transact_write_request.keys())))
+        log.debug(
+            "span pointers: unexpected transact write request structure: %s",
+            "".join(sorted(transact_write_request.keys())),
+        )
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
         )
@@ -602,7 +605,7 @@ def _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
     primary_key_field_name: _DynamoDBItemFieldName,
 ) -> Optional[_DynamoDBItemPrimaryKeyValue]:
     if primary_key_field_name not in item:
-        log.debug("missing primary key field: %s", primary_key_field_name)
+        log.debug("span pointers: missing primary key field: %s", primary_key_field_name)
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
         )
@@ -616,7 +619,11 @@ def _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
         return None
 
     if len(value_object) != 1:
-        log.debug("primary key field %s must have exactly one value: %d", primary_key_field_name, len(value_object))
+        log.debug(
+            "span pointers: primary key field %s must have exactly one value: %d",
+            primary_key_field_name,
+            len(value_object),
+        )
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
         )
@@ -624,14 +631,18 @@ def _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
 
     value_type, value_data = next(iter(value_object.items()))
     if value_type not in ("S", "N", "B"):
-        log.debug("unexpected primary key field %s value type: %s", primary_key_field_name, value_type)
+        log.debug("span pointers: unexpected primary key field %s value type: %s", primary_key_field_name, value_type)
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
         )
         return None
 
     if not isinstance(value_data, str):
-        log.debug("unexpected primary key field %s value data type: %s", primary_key_field_name, type(value_data))
+        log.debug(
+            "span pointers: unexpected primary key field %s value data type: %s",
+            primary_key_field_name,
+            type(value_data),
+        )
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
         )
@@ -658,7 +669,7 @@ def _aws_dynamodb_item_value_to_probably_primary_key_value(
         return cast(_DynamoDBItemPrimaryKeyValue, _boto3_dynamodb_types_TypeSerializer_serialize(item_value))
 
     except Exception as e:
-        log.debug("failed to serialize item value to botocore value: %s", e)
+        log.debug("span pointers: failed to serialize item value to botocore value: %s", e)
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
         )
@@ -698,7 +709,7 @@ def _aws_dynamodb_item_span_pointer_hash(
             encoded_value_2 = maybe_encoded_value_2
 
         else:
-            log.debug("unexpected number of primary key fields: %d", len(primary_key))
+            log.debug("span pointers: unexpected number of primary key fields: %d", len(primary_key))
             record_span_pointer_calculation_issue(
                 operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
             )
@@ -713,7 +724,7 @@ def _aws_dynamodb_item_span_pointer_hash(
         )
 
     except Exception as e:
-        log.debug("failed to generate %s span pointer hash: %s", operation, e)
+        log.debug("span pointers: failed to generate %s span pointer hash: %s", operation, e)
         record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return None
 
@@ -726,14 +737,14 @@ def _aws_dynamodb_item_encode_primary_key_value(
             try:
                 value_object = _boto3_dynamodb_types_TypeSerializer_serialize(value_object)
             except Exception as e:
-                log.debug("failed to serialize primary key value to botocore value: %s", e)
+                log.debug("span pointers: failed to serialize primary key value to botocore value: %s", e)
                 record_span_pointer_calculation_issue(
                     operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
                 )
                 return None
 
         if len(value_object) != 1:
-            log.debug("primary key value object must have exactly one field: %d", len(value_object))
+            log.debug("span pointers: primary key value object must have exactly one field: %d", len(value_object))
             record_span_pointer_calculation_issue(
                 operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
             )
@@ -751,14 +762,14 @@ def _aws_dynamodb_item_encode_primary_key_value(
                 return value
             return value.encode("ascii")
 
-        log.debug("unexpected primary key value type: %s", value_type)
+        log.debug("span pointers: unexpected primary key value type: %s", value_type)
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
         )
         return None
 
     except Exception as e:
-        log.debug("failed to encode primary key value for %s: %s", operation, e)
+        log.debug("span pointers: failed to encode primary key value for %s: %s", operation, e)
         record_span_pointer_calculation_issue(
             operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
         )
