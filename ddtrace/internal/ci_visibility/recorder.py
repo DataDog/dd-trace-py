@@ -221,6 +221,8 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
+        dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
+
         if ddconfig._ci_visibility_agentless_enabled:
             if not self._api_key:
                 raise EnvironmentError(
@@ -237,7 +239,7 @@ class CIVisibility(Service):
                 self._dd_site,
                 ddconfig._ci_visibility_agentless_url if ddconfig._ci_visibility_agentless_url else None,
                 self._service,
-                ddconfig.env,
+                dd_env,
             )
         elif self._agent_evp_proxy_is_available():
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
@@ -248,7 +250,7 @@ class CIVisibility(Service):
                 self._configurations,
                 self.tracer._agent_url,
                 self._service,
-                ddconfig.env,
+                dd_env,
             )
         else:
             requests_mode_str = "APM (some features will be disabled)"
@@ -267,7 +269,7 @@ class CIVisibility(Service):
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
-        log.info("Service: %s (env: %s)", self._service, ddconfig.env)
+        log.info("Service: %s (env: %s)", self._service, dd_env)
         log.info("Requests mode: %s", requests_mode_str)
         log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
         log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)

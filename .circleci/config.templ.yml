@@ -188,6 +188,7 @@ commands:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                   DD_CIVISIBILITY_AGENTLESS_ENABLED: true
                 no_output_timeout: 5m
+                attempts: 2
                 command: |
                   ulimit -c unlimited
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
@@ -521,7 +522,7 @@ jobs:
 
   appsec_integrations:
     <<: *machine_executor
-    parallelism: 7
+    parallelism: 13
     steps:
       - run_test:
           pattern: 'appsec_integrations'
