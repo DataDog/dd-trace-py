@@ -87,7 +87,7 @@ def create_release_branch():
             print(f"Encountered error when trying to push {BASE} branch")
             raise e
 
-    print(f"Checked out {BASE} branch from {rc1_tag} commit")
+    print(f"Checked out and pushed {BASE} branch created from {rc1_tag} commit")
 
 
 def update_version_scheme():
