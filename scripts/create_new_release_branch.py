@@ -103,11 +103,11 @@ def create_pull_request():
     dd_repo = Github(gh_token).get_repo(full_name_or_id="DataDog/dd-trace-py")
 
     # Create branch
-    branch_name = f"script/guess-next-dev-{BASE}"
+    pr_branch_name = f"script/guess-next-dev-{BASE}"
     if DRY_RUN:
-        print(f"Would create PR with target branch set to {branch_name}")
+        print(f"Would create PR with target branch set to {pr_branch_name}")
     else:
-        create_new_branch(branch_name)
+        create_new_branch(pr_branch_name)
         
         # Update pyproject.toml
         update_version_scheme()
@@ -121,7 +121,7 @@ def create_pull_request():
                     f"Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
                     "You may need to run this script from the root of the repository."
                 )
-        print(f"Committing changes to {PYPROJECT_FILENAME} on branch {branch_name}")
+        print(f"Committing changes to {PYPROJECT_FILENAME} on branch {pr_branch_name}")
         pr_title = (
             f"use guess-next-dev instead of release-branch-semver [{BASE}]"
         )
@@ -135,18 +135,18 @@ def create_pull_request():
         try:
             subprocess.check_output(f"git commit -m 'Update version_schema for the {BASE} release branch via script'", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError:
-            print(f"Failed to commit changes to {branch_name}")
+            print(f"Failed to commit changes to {pr_branch_name}")
             raise
         try:
-            subprocess.check_output(f"git push origin {BASE}", shell=True, cwd=os.pardir)
+            subprocess.check_output(f"git push origin {pr_branch_name}", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError:
-            print(f"Failed to push committed changes to {branch_name}")
+            print(f"Failed to push committed changes to {pr_branch_name}")
             raise
 
         try:
-            dd_repo.create_pull(title=pr_title, body=pr_body, base=BASE, head=branch_name, draft=False)
+            dd_repo.create_pull(title=pr_title, body=pr_body, base=BASE, head=pr_branch_name, draft=False)
         except:
-            print(f"Failed to create PR from {branch_name} into {BASE}")
+            print(f"Failed to create PR from {pr_branch_name} into {BASE}")
             raise
 
 
