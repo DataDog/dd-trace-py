@@ -102,15 +102,15 @@ def create_pull_request():
         )
     dd_repo = Github(gh_token).get_repo(full_name_or_id="DataDog/dd-trace-py")
 
-    # Update pyproject.toml
-    update_version_scheme()
-
     # Create branch
     branch_name = f"script/guess-next-dev-{BASE}"
     if DRY_RUN:
         print(f"Would create PR with target branch set to {branch_name}")
     else:
         create_new_branch(branch_name)
+        
+        # Update pyproject.toml
+        update_version_scheme()
         try:
             subprocess.check_output(f"git add {PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError as e:
