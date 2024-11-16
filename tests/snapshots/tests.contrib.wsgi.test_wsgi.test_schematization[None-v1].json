@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.server.request",
-    "service": "unnamed-python-service",
+    "service": "wsgi",
     "resource": "GET /",
     "trace_id": 0,
     "span_id": 1,
@@ -9,6 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "wsgi",
@@ -31,7 +32,7 @@
   },
      {
        "name": "wsgi.application",
-       "service": "unnamed-python-service",
+       "service": "wsgi",
        "resource": "wsgi.application",
        "trace_id": 0,
        "span_id": 2,
@@ -39,6 +40,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
          "_dd.p.tid": "654a694400000000",
          "component": "wsgi"
        },
@@ -47,7 +49,7 @@
      },
         {
           "name": "wsgi.start_response",
-          "service": "unnamed-python-service",
+          "service": "wsgi",
           "resource": "wsgi.start_response",
           "trace_id": 0,
           "span_id": 4,
@@ -55,6 +57,7 @@
           "type": "web",
           "error": 0,
           "meta": {
+            "_dd.base_service": "ddtrace_subprocess_dir",
             "_dd.p.tid": "654a694400000000",
             "component": "wsgi",
             "span.kind": "server"
@@ -64,7 +67,7 @@
         },
      {
        "name": "wsgi.response",
-       "service": "unnamed-python-service",
+       "service": "wsgi",
        "resource": "wsgi.response",
        "trace_id": 0,
        "span_id": 3,
@@ -72,6 +75,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
          "_dd.p.tid": "654a694400000000",
          "component": "wsgi",
          "result_class": "list"

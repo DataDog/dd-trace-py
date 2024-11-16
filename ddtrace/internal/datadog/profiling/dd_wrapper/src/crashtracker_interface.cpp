@@ -3,7 +3,6 @@
 
 #include <fcntl.h>
 #include <pthread.h>
-#include <signal.h>
 #include <unistd.h>
 
 // If the crashtracker exe target name is not set, then fail
@@ -19,12 +18,6 @@ const char*
 crashtracker_get_exe_name() // cppcheck-suppress unusedFunction
 {
     return CRASHTRACKER_EXE_TARGET_NAME;
-}
-
-void
-crashtracker_postfork_child()
-{
-    crashtracker.atfork_child();
 }
 
 void
@@ -88,15 +81,15 @@ crashtracker_set_stderr_filename(std::string_view filename) // cppcheck-suppress
 }
 
 void
-crashtracker_set_alt_stack(bool alt_stack) // cppcheck-suppress unusedFunction
+crashtracker_set_create_alt_stack(bool create_alt_stack) // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_create_alt_stack(alt_stack);
+    crashtracker.set_create_alt_stack(create_alt_stack);
 }
 
 void
-crashtracker_set_wait_for_receiver(bool wait) // cppcheck-suppress unusedFunction
+crashtracker_set_use_alt_stack(bool use_alt_stack) // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_wait_for_receiver(wait);
+    crashtracker.set_use_alt_stack(use_alt_stack);
 }
 
 void
@@ -135,21 +128,6 @@ crashtracker_set_tag(std::string_view key, std::string_view value) // cppcheck-s
     crashtracker.set_tag(key, value);
 }
 
-// Store the old segfault handler (uses sigaction prototype)
-void (*old_sigsegv_handler)(int, siginfo_t*, void*) = nullptr;
-void (*old_sigbus_handler)(int, siginfo_t*, void*) = nullptr;
-
-// Trap sigsegv JUST to suppress stderr
-void
-close_stderr_chainer(int signo, siginfo_t* info, void* context)
-{
-    if (old_sigsegv_handler) {
-        close(STDERR_FILENO);
-        old_sigsegv_handler(signo, info, context);
-    }
-    _exit(0);
-}
-
 void
 crashtracker_start() // cppcheck-suppress unusedFunction
 {
@@ -158,23 +136,6 @@ crashtracker_start() // cppcheck-suppress unusedFunction
         crashtracker.start();
         crashtracker_initialized = true;
 
-        // v11.0 of crashtracker has a bug where it prints erroneously to stderr
-        // If any handle is detected on the signals (sigsegv/sigbus) crashtracker attaches to,
-        // we suppress stderr
-        struct sigaction sa;
-        sigaction(SIGSEGV, nullptr, &sa);
-        old_sigsegv_handler = sa.sa_sigaction;
-        sa.sa_sigaction = close_stderr_chainer;
-        sigaction(SIGSEGV, &sa, nullptr);
-
-        // Handle sigbus
-        sigaction(SIGBUS, nullptr, &sa);
-        old_sigbus_handler = sa.sa_sigaction;
-        sa.sa_sigaction = close_stderr_chainer;
-        sigaction(SIGBUS, &sa, nullptr);
-
-        // Also install the post-fork handler for the child process
-        pthread_atfork(nullptr, nullptr, crashtracker_postfork_child);
         return true;
     }();
     (void)initialized;

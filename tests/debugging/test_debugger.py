@@ -12,7 +12,7 @@ from ddtrace.constants import ORIGIN_KEY
 from ddtrace.debugging._debugger import DebuggerWrappingContext
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
@@ -20,6 +20,7 @@ from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER as REDACTED
 from ddtrace.debugging._redaction import dd_compile_redacted as dd_compile
 from ddtrace.debugging._signal.model import SignalState
+from ddtrace.debugging._signal.snapshot import _EMPTY_CAPTURED_CONTEXT
 from ddtrace.debugging._signal.tracing import SPAN_NAME
 from ddtrace.debugging._signal.utils import redacted_value
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -181,10 +182,7 @@ def test_debugger_function_probe_on_instance_method():
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
     assert snapshot_data["stack"][0]["function"] == "instancestuff"
 
-    entry_capture = snapshot_data["captures"]["entry"]
-    assert set(entry_capture["arguments"].keys()) == {"self", "bar"}
-    assert entry_capture["locals"] == {}
-    assert entry_capture["throwable"] is None
+    assert snapshot_data["captures"]["entry"] == _EMPTY_CAPTURED_CONTEXT
 
     return_capture = snapshot_data["captures"]["return"]
     assert set(return_capture["arguments"].keys()) == {"self", "bar"}
@@ -209,6 +207,7 @@ def test_debugger_function_probe_on_function_with_exception():
     snapshot_data = snapshot["debugger"]["snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
     assert snapshot_data["stack"][0]["function"] == "throwexcstuff"
+    assert snapshot_data["stack"][0]["lineNumber"] == 110
 
     entry_capture = snapshot_data["captures"]["entry"]
     assert entry_capture["arguments"] == {}
@@ -773,10 +772,10 @@ def test_debugger_condition_eval_error_get_reported_once():
         evaluationErrors = snapshot["debugger"]["snapshot"]["evaluationErrors"]
         assert 1 == len(evaluationErrors)
         assert "foo == 42" == evaluationErrors[0]["expr"]
-        assert "'foo'" == evaluationErrors[0]["message"]
+        assert "No such local variable: 'foo'" == evaluationErrors[0]["message"]
 
 
-def test_debugger_function_probe_eval_on_enter():
+def test_debugger_function_probe_eval_on_entry():
     from tests.submod.stuff import mutator
 
     with debugger() as d:
@@ -785,7 +784,7 @@ def test_debugger_function_probe_eval_on_enter():
                 probe_id="enter-probe",
                 module="tests.submod.stuff",
                 func_qname="mutator",
-                evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+                evaluate_at=ProbeEvalTiming.ENTRY,
                 condition=DDExpression(
                     dsl="not(contains(arg,42))", callable=dd_compile({"not": {"contains": [{"ref": "arg"}, 42]}})
                 ),
@@ -824,7 +823,7 @@ def test_debugger_function_probe_eval_on_exit():
                 probe_id="exit-probe",
                 module="tests.submod.stuff",
                 func_qname="mutator",
-                evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                evaluate_at=ProbeEvalTiming.EXIT,
                 condition=DDExpression(dsl="contains(arg,42)", callable=dd_compile({"contains": [{"ref": "arg"}, 42]})),
             )
         )
@@ -873,7 +872,7 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
-def test_debugger_log_live_probe_generate_messages():
+def test_debugger_log_line_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
     with debugger(upload_flush_interval=float("inf")) as d:
@@ -882,6 +881,7 @@ def test_debugger_log_live_probe_generate_messages():
                 probe_id="foo",
                 source_file="tests/submod/stuff.py",
                 line=36,
+                rate=float("inf"),
                 **compile_template(
                     "hello world ",
                     {"dsl": "foo", "json": {"ref": "foo"}},
@@ -900,8 +900,7 @@ def test_debugger_log_live_probe_generate_messages():
         assert "hello world ERROR 456!" == msg2["message"], msg2
 
         assert "foo" == msg1["debugger"]["snapshot"]["evaluationErrors"][0]["expr"], msg1
-        # not amazing error message for a missing variable
-        assert "'foo'" == msg1["debugger"]["snapshot"]["evaluationErrors"][0]["message"], msg1
+        assert "No such local variable: 'foo'" == msg1["debugger"]["snapshot"]["evaluationErrors"][0]["message"], msg1
 
         assert not msg1["debugger"]["snapshot"]["captures"]
 
@@ -1027,7 +1026,7 @@ class SpanProbeTestCase(TracerTestCase):
                     probe_id="span-decoration",
                     module="tests.submod.stuff",
                     func_qname="mutator",
-                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    evaluate_at=ProbeEvalTiming.EXIT,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
@@ -1142,7 +1141,7 @@ def test_debugger_redacted_identifiers():
                 probe_id="function-probe",
                 module="tests.submod.stuff",
                 func_qname="sensitive_stuff",
-                evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                evaluate_at=ProbeEvalTiming.EXIT,
             ),
         )
 
@@ -1222,7 +1221,7 @@ def test_debugger_exception_conditional_function_probe():
             probe_id="probe-instance-method",
             module="tests.submod.stuff",
             func_qname="throwexcstuff",
-            evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+            evaluate_at=ProbeEvalTiming.EXIT,
             condition=DDExpression(
                 dsl="expr.__class__.__name__ == 'Exception'",
                 callable=dd_compile(

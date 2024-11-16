@@ -1,8 +1,8 @@
+from enum import Enum
 import typing as t
 
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 import ddtrace.ext.test_visibility.api as ext_api
-from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -11,14 +11,39 @@ from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 log = get_logger(__name__)
 
 
+class EFDTestStatus(Enum):
+    ALL_PASS = "passed"  # nosec B105
+    ALL_FAIL = "failed"
+    ALL_SKIP = "skipped"
+    FLAKY = "flaky"
+
+
 class EFDSessionMixin:
     @staticmethod
     @_catch_and_log_exceptions
-    def is_faulty_session() -> bool:
+    def efd_enabled() -> bool:
+        log.debug("Checking if Early Flake Detection is enabled for the session")
+        is_enabled = core.dispatch_with_results("test_visibility.efd.is_enabled").is_enabled.value
+        log.debug("Early Flake Detection enabled: %s", is_enabled)
+        return is_enabled
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def efd_is_faulty_session() -> bool:
         log.debug("Checking if session is faulty for Early Flake Detection")
         is_faulty_session = core.dispatch_with_results("test_visibility.efd.session_is_faulty").is_faulty_session.value
         log.debug("Session faulty: %s", is_faulty_session)
         return is_faulty_session
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def efd_has_failed_tests() -> bool:
+        log.debug("Checking if session has failed tests for Early Flake Detection")
+        has_failed_tests = core.dispatch_with_results(
+            "test_visibility.efd.session_has_failed_tests"
+        ).has_failed_tests.value
+        log.debug("Session has EFD failed tests: %s", has_failed_tests)
+        return has_failed_tests
 
 
 class EFDTestMixin:
@@ -35,34 +60,6 @@ class EFDTestMixin:
             "test_visibility.efd.should_retry_test", (item_id,)
         ).should_retry_test.value
         return should_retry_test
-
-    class EFDRecordInitialArgs(t.NamedTuple):
-        """InternalTest allows recording an initial duration (for EFD purposes)"""
-
-        test_id: InternalTestId
-        status: ext_api.TestStatus
-        skip_reason: t.Optional[str] = None
-        exc_info: t.Optional[ext_api.TestExcInfo] = None
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def efd_record_initial(
-        item_id: InternalTestId,
-        status: TestStatus,
-        skip_reason: t.Optional[str] = None,
-        exc_info: t.Optional[ext_api.TestExcInfo] = None,
-    ):
-        log.debug(
-            "Recording initial Early Flake Detection result for item %s: status: %s, skip_reason: %s, exc_info: %s ",
-            item_id,
-            status,
-            skip_reason,
-            exc_info,
-        )
-        core.dispatch(
-            "test_visibility.efd.record_initial",
-            (EFDTestMixin.EFDRecordInitialArgs(item_id, status, skip_reason, exc_info),),
-        )
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -115,15 +112,9 @@ class EFDTestMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def efd_get_final_status(item_id):
+    def efd_get_final_status(item_id) -> EFDTestStatus:
         log.debug("Getting final status for item %s in Early Flake Detection", item_id)
         final_status = core.dispatch_with_results(
             "test_visibility.efd.get_final_status", (item_id,)
         ).efd_final_status.value
         return final_status
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def efd_finish_test(item_id):
-        log.debug("Finishing item %s in Early Flake Detection", item_id)
-        core.dispatch("test_visibility.efd.finish_test", (item_id,))

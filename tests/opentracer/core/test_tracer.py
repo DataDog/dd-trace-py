@@ -50,7 +50,7 @@ class TestTracerConfig(object):
     def test_invalid_config_key(self):
         """A config with an invalid key should raise a ConfigException."""
 
-        config = {"enabeld": False}
+        config = {"enabeld": False}  # codespell:ignore
 
         # No debug flag should not raise an error
         tracer = Tracer(service_name="mysvc", config=config)
@@ -59,14 +59,14 @@ class TestTracerConfig(object):
         config["debug"] = True
         with pytest.raises(ConfigException) as ce_info:
             tracer = Tracer(config=config)
-            assert "enabeld" in str(ce_info)
+            assert "enabeld" in str(ce_info)  # codespell:ignore
             assert tracer is not None
 
         # Test with multiple incorrect keys
         config["setttings"] = {}
         with pytest.raises(ConfigException) as ce_info:
             tracer = Tracer(service_name="mysvc", config=config)
-            assert ["enabeld", "setttings"] in str(ce_info)
+            assert ["enabeld", "setttings"] in str(ce_info)  # codespell:ignore
             assert tracer is not None
 
     def test_ddtrace_fallback_config(self):

@@ -8,6 +8,7 @@ from typing import Optional
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
+from ddtrace._trace.telemetry import record_span_pointer_calculation_issue
 from ddtrace.internal.logger import get_logger
 
 
@@ -67,20 +68,28 @@ _STANDARD_HASHING_FUNCTION_FAILURE_PREFIX = "HashingFailure"
 def _standard_hashing_function(*elements: bytes) -> str:
     try:
         if not elements:
-            raise ValueError("elements must not be empty")
+            return _standard_hashing_function_failure("elements must not be empty")
 
         # Please see the tests for more details about this logic.
         return sha256(b"|".join(elements)).hexdigest()[:32]
 
     except Exception as e:
-        log.warning(
-            "failed to generate standard hash for span pointer: %s",
-            str(e),
-        )
-        return _add_random_suffix(
-            prefix=_STANDARD_HASHING_FUNCTION_FAILURE_PREFIX,
-            minimum_length=32,
-        )
+        return _standard_hashing_function_failure(str(e))
+
+
+def _standard_hashing_function_failure(reason: str) -> str:
+    log.debug(
+        "failed to generate standard hash for span pointer: %s",
+        reason,
+    )
+    record_span_pointer_calculation_issue(
+        context="standard_hashing_function",
+    )
+
+    return _add_random_suffix(
+        prefix=_STANDARD_HASHING_FUNCTION_FAILURE_PREFIX,
+        minimum_length=32,
+    )
 
 
 def _add_random_suffix(*, prefix: str, minimum_length: int) -> str:
