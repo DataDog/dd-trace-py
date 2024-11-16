@@ -799,11 +799,11 @@ async def test_generator_async_send(LLMObs, mock_llmobs_span_writer):
             yield value**2
 
     gen = f()
-    await anext(gen)  # Prime the generator
+    await gen.asend(None)  # Prime the generator
 
     for i in range(5):
         assert (await gen.asend(i)) == i**2
-        await anext(gen)
+        await gen.asend(None)
 
     await gen.aclose()
 
