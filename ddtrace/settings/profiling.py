@@ -467,7 +467,7 @@ def config_str(config):
     if config.heap.sample_size > 0:
         configured_features.append("heap")
     if config.export.libdd_enabled:
-        configured_features.append("exp_py")
+        configured_features.append("exp_dd")
     else:
         configured_features.append("exp_py")
     configured_features.append("CAP" + str(config.capture_pct))
