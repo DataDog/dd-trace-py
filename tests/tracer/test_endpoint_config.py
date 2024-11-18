@@ -2,6 +2,7 @@
 
 from http.client import HTTPResponse
 from io import BytesIO
+import logging
 from unittest import mock
 
 import pytest
@@ -10,13 +11,6 @@ from ddtrace._logger import configure_ddtrace_logger
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.settings.endpoint_config import fetch_config_from_endpoint
 from tests.utils import override_env
-
-
-@pytest.fixture()
-def debug_logging():
-    with override_env({"DD_TRACE_DEBUG": "true"}):
-        yield
-    configure_ddtrace_logger()
 
 
 def mock_getresponse_enabled_after_4_retries(self):
@@ -93,17 +87,18 @@ def mock_pass(self, *args, **kwargs):
     pass
 
 
-def test_unset_config_endpoint(debug_logging, caplog):
-    caplog.set_level(10)
-    fetch_config_from_endpoint()
+def test_unset_config_endpoint(caplog):
+    with caplog.at_level(logging.DEBUG):
+        assert fetch_config_from_endpoint() == {}
     assert "Configuration endpoint not set. Skipping fetching configuration." in caplog.text
 
 
-def test_set_config_endpoint_enabled(debug_logging, caplog):
-    caplog.set_level(10)
-    with override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}), mock.patch.object(
-        HTTPConnection, "connect", new=mock_pass
-    ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
+def test_set_config_endpoint_enabled(caplog):
+    with caplog.at_level(logging.DEBUG), override_env(
+        {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
+    ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
+        HTTPConnection, "send", new=mock_pass
+    ), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_enabled
     ):
         assert fetch_config_from_endpoint() == {"dd_iast_enabled": True}
@@ -112,10 +107,11 @@ def test_set_config_endpoint_enabled(debug_logging, caplog):
 
 
 def test_set_config_endpoint_500(caplog):
-    caplog.set_level(10)
-    with override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}), mock.patch.object(
-        HTTPConnection, "connect", new=mock_pass
-    ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
+    with caplog.at_level(logging.DEBUG), override_env(
+        {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
+    ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
+        HTTPConnection, "send", new=mock_pass
+    ), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_500
     ):
         assert fetch_config_from_endpoint() == {}
@@ -124,10 +120,11 @@ def test_set_config_endpoint_500(caplog):
 
 
 def test_set_config_endpoint_403(caplog):
-    caplog.set_level(10)
-    with override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}), mock.patch.object(
-        HTTPConnection, "connect", new=mock_pass
-    ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
+    with caplog.at_level(logging.DEBUG), override_env(
+        {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
+    ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
+        HTTPConnection, "send", new=mock_pass
+    ), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_403
     ):
         assert fetch_config_from_endpoint() == {}
@@ -136,19 +133,19 @@ def test_set_config_endpoint_403(caplog):
 
 
 def test_set_config_endpoint_malformed(caplog):
-    caplog.set_level(10)
-    with override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}), mock.patch.object(
-        HTTPConnection, "connect", new=mock_pass
-    ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
+    with caplog.at_level(logging.DEBUG), override_env(
+        {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
+    ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
+        HTTPConnection, "send", new=mock_pass
+    ), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_malformed
     ):
         assert fetch_config_from_endpoint() == {}
-    assert "Expecting property name enclosed in double quotes" in caplog.text
+    assert "Unable to parse Datadog Agent JSON" in caplog.text
 
 
 def test_set_config_endpoint_connection_refused(caplog):
-    caplog.set_level(10)
-    with override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}):
+    with caplog.at_level(logging.DEBUG), override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}):
         assert fetch_config_from_endpoint() == {}
     assert "Failed to fetch configuration from endpoint" in caplog.text
     assert any(
@@ -156,9 +153,8 @@ def test_set_config_endpoint_connection_refused(caplog):
     ), "None of the expected connection error log messages were found"
 
 
-def test_set_config_endpoint_timeout_error(debug_logging, caplog):
-    caplog.set_level(10)
-    with override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}), mock.patch(
+def test_set_config_endpoint_timeout_error(caplog):
+    with caplog.at_level(logging.DEBUG), override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}), mock.patch(
         "ddtrace.internal.utils.http.get_connection", side_effect=TimeoutError
     ):
         assert fetch_config_from_endpoint() == {}
@@ -169,11 +165,12 @@ def test_set_config_endpoint_timeout_error(debug_logging, caplog):
     ), "None of the expected connection error log messages were found"
 
 
-def test_set_config_endpoint_retries(debug_logging, caplog):
-    caplog.set_level(10)
-    with override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}), mock.patch.object(
-        HTTPConnection, "connect", new=mock_pass
-    ), mock.patch.object(HTTPConnection, "send", new=mock_pass), mock.patch.object(
+def test_set_config_endpoint_retries(caplog):
+    with caplog.at_level(logging.DEBUG), override_env(
+        {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
+    ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
+        HTTPConnection, "send", new=mock_pass
+    ), mock.patch.object(
         HTTPConnection, "getresponse", new=mock_getresponse_enabled_after_4_retries
     ), mock.patch(
         "ddtrace.settings.endpoint_config._get_retries", return_value=5
