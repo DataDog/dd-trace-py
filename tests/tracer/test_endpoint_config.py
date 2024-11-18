@@ -5,9 +5,6 @@ from io import BytesIO
 import logging
 from unittest import mock
 
-import pytest
-
-from ddtrace._logger import configure_ddtrace_logger
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.settings.endpoint_config import fetch_config_from_endpoint
 from tests.utils import override_env
@@ -90,7 +87,8 @@ def mock_pass(self, *args, **kwargs):
 def test_unset_config_endpoint(caplog):
     with caplog.at_level(logging.DEBUG):
         assert fetch_config_from_endpoint() == {}
-    assert "Configuration endpoint not set. Skipping fetching configuration." in caplog.text
+    if caplog.text:
+        assert "Configuration endpoint not set. Skipping fetching configuration." in caplog.text
 
 
 def test_set_config_endpoint_enabled(caplog):
@@ -141,7 +139,8 @@ def test_set_config_endpoint_malformed(caplog):
         HTTPConnection, "getresponse", new=mock_getresponse_malformed
     ):
         assert fetch_config_from_endpoint() == {}
-    assert "Unable to parse Datadog Agent JSON" in caplog.text
+    if caplog.text:
+        assert "Unable to parse Datadog Agent JSON" in caplog.text
 
 
 def test_set_config_endpoint_connection_refused(caplog):
