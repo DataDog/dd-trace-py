@@ -2,7 +2,8 @@ from ddtrace import config
 
 
 # Celery Context key
-CTX_KEY = "__dd_task_span"
+SPAN_KEY = "__dd_task_span"
+CTX_KEY = "__dd_task_context"
 
 # Span names
 PRODUCER_ROOT_SPAN = "celery.apply"
