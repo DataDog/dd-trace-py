@@ -1,9 +1,11 @@
 from copy import deepcopy
+from enum import Enum
 import itertools
 import sys
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Set
 from typing import Union
 from typing import cast
@@ -11,6 +13,7 @@ from typing import cast
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _standard_hashing_function
+from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
 from ddtrace.internal.logger import get_logger
 
 
@@ -20,6 +23,14 @@ else:
     from typing_extensions import TypedDict
 
 log = get_logger(__name__)
+
+
+class _TelemetryIssueTags(Enum):
+    REQUEST_PARAMETERS = "request_parameters"
+    HASHING_FAILURE = "hashing_failure"
+    MISSING_TABLE_INFO = "missing_table_info"
+    PROCESSED_ITEMS_CALCULATION = "processed_items_calculation"
+    PRIMARY_KEY_ISSUE = "primary_key_issue"
 
 
 _DynamoDBTableName = str
@@ -101,6 +112,9 @@ _DynamoDBTransactWriteItem = Union[
 ]
 
 
+_OPERATION_BASE = "DynamoDB."
+
+
 def _extract_span_pointers_for_dynamodb_response(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     operation_name: str,
@@ -139,50 +153,118 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     request_parameters: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + "PutItem"
+
     try:
         table_name = request_parameters["TableName"]
         item = request_parameters["Item"]
-
-        return [
-            _aws_dynamodb_item_span_pointer_description(
-                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-                table_name=table_name,
-                primary_key=_aws_dynamodb_item_primary_key_from_item(
-                    dynamodb_primary_key_names_for_tables[table_name], item
-                ),
-            )
-        ]
-
-    except Exception as e:
-        log.warning(
-            "failed to generate DynamoDB.PutItem span pointer: %s",
-            str(e),
+    except KeyError as e:
+        log.debug(
+            "failed to extract %s span pointer: missing key %s",
+            operation,
+            e,
+        )
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
         )
         return []
+
+    primary_key_names = _extract_primary_key_names_from_configuration(
+        operation=operation,
+        dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
+        table_name=table_name,
+    )
+    if primary_key_names is None:
+        return []
+
+    primary_key = _aws_dynamodb_item_primary_key_from_item(
+        operation=operation,
+        primary_key_field_names=primary_key_names,
+        item=item,
+    )
+    if primary_key is None:
+        return []
+
+    try:
+        span_pointer_description = _aws_dynamodb_item_span_pointer_description(
+            operation=operation,
+            pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+            table_name=table_name,
+            primary_key=primary_key,
+        )
+        if span_pointer_description is None:
+            return []
+
+        return [span_pointer_description]
+
+    except Exception as e:
+        log.debug(
+            "failed to generate %s span pointer: %s",
+            operation,
+            e,
+        )
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
+        return []
+
+
+def _extract_primary_key_names_from_configuration(
+    operation: str,
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    table_name: _DynamoDBTableName,
+) -> Optional[Set[_DynamoDBItemFieldName]]:
+    try:
+        return dynamodb_primary_key_names_for_tables[table_name]
+    except KeyError as e:
+        log.warning(
+            "failed to extract %s span pointer: table %s not found in primary key names",
+            operation,
+            e,
+        )
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.MISSING_TABLE_INFO.value
+        )
+        return None
 
 
 def _extract_span_pointers_for_dynamodb_keyed_operation_response(
     operation_name: str,
     request_parmeters: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + operation_name
+
     try:
         table_name = request_parmeters["TableName"]
         key = request_parmeters["Key"]
+    except KeyError as e:
+        log.debug(
+            "failed to extract %s span pointer: missing key %s",
+            operation,
+            e,
+        )
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
+        return []
 
-        return [
-            _aws_dynamodb_item_span_pointer_description(
-                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-                table_name=table_name,
-                primary_key=key,
-            )
-        ]
+    try:
+        span_pointer_description = _aws_dynamodb_item_span_pointer_description(
+            operation=operation,
+            pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+            table_name=table_name,
+            primary_key=key,
+        )
+        if span_pointer_description is None:
+            return []
+
+        return [span_pointer_description]
 
     except Exception as e:
-        log.warning(
-            "failed to generate DynamoDB.%s span pointer: %s",
-            operation_name,
-            str(e),
+        log.debug(
+            "failed to generate %s span pointer: %s",
+            operation,
+            e,
         )
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return []
 
 
@@ -191,33 +273,59 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + "BatchWriteItem"
+
     try:
         requested_items = request_parameters["RequestItems"]
         unprocessed_items = response.get("UnprocessedItems", {})
 
         processed_items = _identify_dynamodb_batch_write_item_processed_items(requested_items, unprocessed_items)
-
-        return list(
-            itertools.chain.from_iterable(
-                [
-                    _aws_dynamodb_item_span_pointer_description(
-                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-                        table_name=table_name,
-                        primary_key=_aws_dynamodb_item_primary_key_from_write_request(
-                            dynamodb_primary_key_names_for_tables, table_name, write_request
-                        ),
-                    )
-                    for write_request in processed_items_for_table
-                ]
-                for table_name, processed_items_for_table in processed_items.items()
-            )
-        )
+        if processed_items is None:
+            return []
 
     except Exception as e:
-        log.warning(
-            "failed to generate DynamoDB.BatchWriteItem span pointer: %s",
-            str(e),
+        log.debug(
+            "failed to extract %s span pointers: %s",
+            operation,
+            e,
         )
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
+        return []
+
+    try:
+        result = []
+        for table_name, processed_items_for_table in processed_items.items():
+            for write_request in processed_items_for_table:
+                primary_key = _aws_dynamodb_item_primary_key_from_write_request(
+                    dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
+                    table_name=table_name,
+                    write_request=write_request,
+                )
+                if primary_key is None:
+                    return []
+
+                span_pointer_description = _aws_dynamodb_item_span_pointer_description(
+                    operation=operation,
+                    pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                    table_name=table_name,
+                    primary_key=primary_key,
+                )
+                if span_pointer_description is None:
+                    return []
+
+                result.append(span_pointer_description)
+
+        return result
+
+    except Exception as e:
+        log.debug(
+            "failed to generate %s span pointer: %s",
+            operation,
+            e,
+        )
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return []
 
 
@@ -225,6 +333,7 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     request_parameters: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + "TransactWriteItems"
     try:
         return list(
             itertools.chain.from_iterable(
@@ -237,21 +346,29 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
         )
 
     except Exception as e:
-        log.warning(
-            "failed to generate DynamoDB.TransactWriteItems span pointer: %s",
-            str(e),
+        log.debug(
+            "failed to generate %s span pointer: %s",
+            operation,
+            e,
         )
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
         return []
 
 
 def _identify_dynamodb_batch_write_item_processed_items(
     requested_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
     unprocessed_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
-) -> Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]:
+) -> Optional[Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]]:
+    operation = _OPERATION_BASE + "BatchWriteItem"
+
     processed_items = {}
 
     if not all(table_name in requested_items for table_name in unprocessed_items):
-        raise ValueError("unprocessed items include tables not in the requested items")
+        log.debug("%s unprocessed items include tables not in the requested items", operation)
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PROCESSED_ITEMS_CALCULATION.value
+        )
+        return None
 
     for table_name, requested_write_requests in requested_items.items():
         if table_name not in unprocessed_items:
@@ -262,7 +379,14 @@ def _identify_dynamodb_batch_write_item_processed_items(
                 unprocessed_write_request in requested_write_requests
                 for unprocessed_write_request in unprocessed_items[table_name]
             ):
-                raise ValueError("unprocessed write requests include items not in the requested write requests")
+                log.debug(
+                    "%s unprocessed write requests include items not in the requested write requests",
+                    operation,
+                )
+                record_span_pointer_calculation_issue(
+                    operation=operation, issue_tag=_TelemetryIssueTags.PROCESSED_ITEMS_CALCULATION.value
+                )
+                return None
 
             these_processed_items = [
                 deepcopy(processed_write_request)
@@ -277,29 +401,45 @@ def _identify_dynamodb_batch_write_item_processed_items(
 
 
 def _aws_dynamodb_item_primary_key_from_item(
+    operation: str,
     primary_key_field_names: Set[_DynamoDBItemFieldName],
     item: _DynamoDBItem,
-) -> _DynamoDBItemPrimaryKey:
+) -> Optional[_DynamoDBItemPrimaryKey]:
     if len(primary_key_field_names) not in (1, 2):
-        raise ValueError(f"unexpected number of primary key fields: {len(primary_key_field_names)}")
-
-    return {
-        primary_key_field_name: _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
-            item, primary_key_field_name
+        log.debug("unexpected number of primary key fields: %d", len(primary_key_field_names))
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
         )
-        for primary_key_field_name in primary_key_field_names
-    }
+        return None
+
+    result = {}
+    for primary_key_field_name in primary_key_field_names:
+        primary_key_field_value = _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
+            operation, item, primary_key_field_name
+        )
+        if primary_key_field_value is None:
+            return None
+
+        result[primary_key_field_name] = primary_key_field_value
+
+    return result
 
 
 def _aws_dynamodb_item_primary_key_from_write_request(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     table_name: _DynamoDBTableName,
     write_request: _DynamoDBWriteRequest,
-) -> _DynamoDBItemPrimaryKey:
+) -> Optional[_DynamoDBItemPrimaryKey]:
     # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_WriteRequest.html
 
+    operation = _OPERATION_BASE + "BatchWriteItem"
+
     if len(write_request) != 1:
-        raise ValueError(f"unexpected number of write request fields: {len(write_request)}")
+        log.debug("unexpected number of write request fields: %d", len(write_request))
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
+        return None
 
     if "PutRequest" in write_request:
         # Unfortunately mypy doesn't properly see the if statement above as a
@@ -307,9 +447,18 @@ def _aws_dynamodb_item_primary_key_from_write_request(
         # _DynamoDBPutRequestWriteRequest, so we help it out ourselves.
         write_request = cast(_DynamoDBPutRequestWriteRequest, write_request)
 
+        primary_key_field_names = _extract_primary_key_names_from_configuration(
+            operation=operation,
+            dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
+            table_name=table_name,
+        )
+        if primary_key_field_names is None:
+            return None
+
         return _aws_dynamodb_item_primary_key_from_item(
-            dynamodb_primary_key_names_for_tables[table_name],
-            write_request["PutRequest"]["Item"],
+            operation=operation,
+            primary_key_field_names=primary_key_field_names,
+            item=write_request["PutRequest"]["Item"],
         )
 
     elif "DeleteRequest" in write_request:
@@ -321,15 +470,25 @@ def _aws_dynamodb_item_primary_key_from_write_request(
         return write_request["DeleteRequest"]["Key"]
 
     else:
-        raise ValueError(f"unexpected write request structure: {''.join(sorted(write_request.keys()))}")
+        log.debug("unexpected write request structure: %s", "".join(sorted(write_request.keys())))
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
+        return None
 
 
 def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
     dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     transact_write_request: _DynamoDBTransactWriteItem,
 ) -> List[_SpanPointerDescription]:
+    operation = _OPERATION_BASE + "TransactWriteItems"
+
     if len(transact_write_request) != 1:
-        raise ValueError(f"unexpected number of transact write request fields: {len(transact_write_request)}")
+        log.debug("unexpected number of transact write request fields: %d", len(transact_write_request))
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
+        )
+        return []
 
     if "ConditionCheck" in transact_write_request:
         # ConditionCheck requests don't actually modify anything, so we don't
@@ -354,10 +513,23 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
         transact_write_request = cast(_DynamoDBTransactPutItem, transact_write_request)
 
         table_name = transact_write_request["Put"]["TableName"]
-        key = _aws_dynamodb_item_primary_key_from_item(
-            dynamodb_primary_key_names_for_tables[table_name],
-            transact_write_request["Put"]["Item"],
+
+        primary_key_field_names = _extract_primary_key_names_from_configuration(
+            operation=operation,
+            dynamodb_primary_key_names_for_tables=dynamodb_primary_key_names_for_tables,
+            table_name=table_name,
         )
+        if primary_key_field_names is None:
+            return []
+
+        primary_key = _aws_dynamodb_item_primary_key_from_item(
+            operation=operation,
+            primary_key_field_names=primary_key_field_names,
+            item=transact_write_request["Put"]["Item"],
+        )
+        if primary_key is None:
+            return []
+        key = primary_key
 
     elif "Update" in transact_write_request:
         # Unfortunately mypy does not properly see the if statement above as a
@@ -370,94 +542,163 @@ def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
         key = transact_write_request["Update"]["Key"]
 
     else:
-        raise ValueError(
-            f"unexpected transact write request structure: {''.join(sorted(transact_write_request.keys()))}"
+        log.debug("unexpected transact write request structure: %s", "".join(sorted(transact_write_request.keys())))
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
         )
+        return []
 
-    return [
-        _aws_dynamodb_item_span_pointer_description(
-            pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-            table_name=table_name,
-            primary_key=key,
-        )
-    ]
+    span_pointer_description = _aws_dynamodb_item_span_pointer_description(
+        operation=operation,
+        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+        table_name=table_name,
+        primary_key=key,
+    )
+    if span_pointer_description is None:
+        return []
+
+    return [span_pointer_description]
 
 
 def _aws_dynamodb_item_span_pointer_description(
+    operation: str,
     pointer_direction: _SpanPointerDirection,
     table_name: _DynamoDBTableName,
     primary_key: _DynamoDBItemPrimaryKey,
-) -> _SpanPointerDescription:
+) -> Optional[_SpanPointerDescription]:
+    pointer_hash = _aws_dynamodb_item_span_pointer_hash(operation, table_name, primary_key)
+    if pointer_hash is None:
+        return None
+
     return _SpanPointerDescription(
         pointer_kind="aws.dynamodb.item",
         pointer_direction=pointer_direction,
-        pointer_hash=_aws_dynamodb_item_span_pointer_hash(table_name, primary_key),
+        pointer_hash=pointer_hash,
         extra_attributes={},
     )
 
 
 def _aws_dynamodb_extract_and_verify_primary_key_field_value_item(
+    operation: str,
     item: _DynamoDBItem,
     primary_key_field_name: _DynamoDBItemFieldName,
-) -> _DynamoDBItemPrimaryKeyValue:
+) -> Optional[_DynamoDBItemPrimaryKeyValue]:
     if primary_key_field_name not in item:
-        raise ValueError(f"missing primary key field: {primary_key_field_name}")
+        log.debug("missing primary key field: %s", primary_key_field_name)
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
+        return None
 
     value_object = item[primary_key_field_name]
 
     if len(value_object) != 1:
-        raise ValueError(f"primary key field {primary_key_field_name} must have exactly one value: {len(value_object)}")
+        log.debug("primary key field %s must have exactly one value: %d", primary_key_field_name, len(value_object))
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
+        return None
 
     value_type, value_data = next(iter(value_object.items()))
     if value_type not in ("S", "N", "B"):
-        raise ValueError(f"unexpected primary key field {primary_key_field_name} value type: {value_type}")
+        log.debug("unexpected primary key field %s value type: %s", primary_key_field_name, value_type)
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
+        return None
 
     if not isinstance(value_data, str):
-        raise ValueError(f"unexpected primary key field {primary_key_field_name} value data type: {type(value_data)}")
+        log.debug("unexpected primary key field %s value data type: %s", primary_key_field_name, type(value_data))
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
+        return None
 
     return {value_type: value_data}
 
 
-def _aws_dynamodb_item_span_pointer_hash(table_name: _DynamoDBTableName, primary_key: _DynamoDBItemPrimaryKey) -> str:
-    if len(primary_key) == 1:
-        key, value_object = next(iter(primary_key.items()))
-        encoded_key_1 = key.encode("utf-8")
-        encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(value_object)
-        encoded_key_2 = b""
-        encoded_value_2 = b""
+def _aws_dynamodb_item_span_pointer_hash(
+    operation: str, table_name: _DynamoDBTableName, primary_key: _DynamoDBItemPrimaryKey
+) -> Optional[str]:
+    try:
+        if len(primary_key) == 1:
+            key, value_object = next(iter(primary_key.items()))
+            encoded_key_1 = key.encode("utf-8")
 
-    elif len(primary_key) == 2:
-        (key_1, value_object_1), (key_2, value_object_2) = sorted(
-            primary_key.items(), key=lambda x: x[0].encode("utf-8")
+            encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(operation, value_object)
+            if encoded_value_1 is None:
+                return None
+
+            encoded_key_2 = b""
+            encoded_value_2 = b""
+
+        elif len(primary_key) == 2:
+            (key_1, value_object_1), (key_2, value_object_2) = sorted(
+                primary_key.items(), key=lambda x: x[0].encode("utf-8")
+            )
+            encoded_key_1 = key_1.encode("utf-8")
+
+            encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(operation, value_object_1)
+            if encoded_value_1 is None:
+                return None
+
+            encoded_key_2 = key_2.encode("utf-8")
+
+            maybe_encoded_value_2 = _aws_dynamodb_item_encode_primary_key_value(operation, value_object_2)
+            if maybe_encoded_value_2 is None:
+                return None
+            encoded_value_2 = maybe_encoded_value_2
+
+        else:
+            log.debug("unexpected number of primary key fields: %d", len(primary_key))
+            record_span_pointer_calculation_issue(
+                operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+            )
+            return None
+
+        return _standard_hashing_function(
+            table_name.encode("utf-8"),
+            encoded_key_1,
+            encoded_value_1,
+            encoded_key_2,
+            encoded_value_2,
         )
-        encoded_key_1 = key_1.encode("utf-8")
-        encoded_value_1 = _aws_dynamodb_item_encode_primary_key_value(value_object_1)
-        encoded_key_2 = key_2.encode("utf-8")
-        encoded_value_2 = _aws_dynamodb_item_encode_primary_key_value(value_object_2)
 
-    else:
-        raise ValueError(f"unexpected number of primary key fields: {len(primary_key)}")
-
-    return _standard_hashing_function(
-        table_name.encode("utf-8"),
-        encoded_key_1,
-        encoded_value_1,
-        encoded_key_2,
-        encoded_value_2,
-    )
+    except Exception as e:
+        log.debug("failed to generate %s span pointer hash: %s", operation, e)
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
+        return None
 
 
-def _aws_dynamodb_item_encode_primary_key_value(value_object: _DynamoDBItemPrimaryKeyValue) -> bytes:
-    if len(value_object) != 1:
-        raise ValueError(f"primary key value object must have exactly one field: {len(value_object)}")
+def _aws_dynamodb_item_encode_primary_key_value(
+    operation: str, value_object: _DynamoDBItemPrimaryKeyValue
+) -> Optional[bytes]:
+    try:
+        if len(value_object) != 1:
+            log.debug("primary key value object must have exactly one field: %d", len(value_object))
+            record_span_pointer_calculation_issue(
+                operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+            )
+            return None
 
-    value_type, value = next(iter(value_object.items()))
+        value_type, value = next(iter(value_object.items()))
 
-    if value_type == "S":
-        return value.encode("utf-8")
+        if value_type == "S":
+            return value.encode("utf-8")
 
-    if value_type in ("N", "B"):
-        # these should already be here as ASCII strings
-        return value.encode("ascii")
+        if value_type in ("N", "B"):
+            # these should already be here as ASCII strings
+            return value.encode("ascii")
 
-    raise ValueError(f"unknown primary key value type: {value_type}")
+        log.debug("unexpected primary key value type: %s", value_type)
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
+        return None
+
+    except Exception as e:
+        log.debug("failed to encode primary key value for %s: %s", operation, e)
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.PRIMARY_KEY_ISSUE.value
+        )
+        return None

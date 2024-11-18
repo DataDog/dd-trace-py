@@ -1,16 +1,25 @@
+from enum import Enum
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import NamedTuple
+from typing import Optional
 
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _standard_hashing_function
+from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+class _TelemetryIssueTags(Enum):
+    REQUEST_PARAMETERS = "request_parameters"
+    ETAG_QUOTES = "etag_quotes"
+    HASHING_FAILURE = "hashing_failure"
 
 
 def _extract_span_pointers_for_s3_response(
@@ -74,6 +83,8 @@ def _extract_span_pointers_for_s3_response_with_helper(
     request_parameters: Dict[str, Any],
     response: Dict[str, Any],
 ) -> List[_SpanPointerDescription]:
+    operation = f"S3.{operation_name}"
+
     try:
         hashing_properties = extractor(request_parameters, response)
         bucket = hashing_properties.bucket
@@ -84,54 +95,71 @@ def _extract_span_pointers_for_s3_response_with_helper(
         if etag.startswith('"') and etag.endswith('"'):
             etag = etag[1:-1]
 
-    except KeyError as e:
-        log.warning(
-            "missing a parameter or response field required to make span pointer for S3.%s: %s",
-            operation_name,
-            str(e),
+    except Exception as e:
+        log.debug(
+            "problem with parameters for %s span pointer: %s",
+            operation,
+            e,
+        )
+        record_span_pointer_calculation_issue(
+            operation=operation, issue_tag=_TelemetryIssueTags.REQUEST_PARAMETERS.value
         )
         return []
 
-    try:
-        return [
-            _aws_s3_object_span_pointer_description(
-                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-                bucket=bucket,
-                key=key,
-                etag=etag,
-            )
-        ]
-    except Exception as e:
-        log.warning(
-            "failed to generate S3.%s span pointer: %s",
-            operation_name,
-            str(e),
-        )
+    span_pointer_description = _aws_s3_object_span_pointer_description(
+        operation=operation,
+        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+        bucket=bucket,
+        key=key,
+        etag=etag,
+    )
+    if span_pointer_description is None:
         return []
+
+    return [span_pointer_description]
 
 
 def _aws_s3_object_span_pointer_description(
+    operation: str,
     pointer_direction: _SpanPointerDirection,
     bucket: str,
     key: str,
     etag: str,
-) -> _SpanPointerDescription:
+) -> Optional[_SpanPointerDescription]:
+    pointer_hash = _aws_s3_object_span_pointer_hash(operation, bucket, key, etag)
+    if pointer_hash is None:
+        return None
+
     return _SpanPointerDescription(
         pointer_kind="aws.s3.object",
         pointer_direction=pointer_direction,
-        pointer_hash=_aws_s3_object_span_pointer_hash(bucket, key, etag),
+        pointer_hash=pointer_hash,
         extra_attributes={},
     )
 
 
-def _aws_s3_object_span_pointer_hash(bucket: str, key: str, etag: str) -> str:
+def _aws_s3_object_span_pointer_hash(operation: str, bucket: str, key: str, etag: str) -> Optional[str]:
     if '"' in etag:
         # Some AWS API endpoints put the ETag in double quotes. We expect the
         # calling code to have correctly fixed this already.
-        raise ValueError(f"ETag should not have double quotes: {etag}")
+        log.debug(
+            "ETag should not have double quotes: %s",
+            etag,
+        )
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.ETAG_QUOTES.value)
+        return None
 
-    return _standard_hashing_function(
-        bucket.encode("ascii"),
-        key.encode("utf-8"),
-        etag.encode("ascii"),
-    )
+    try:
+        return _standard_hashing_function(
+            bucket.encode("ascii"),
+            key.encode("utf-8"),
+            etag.encode("ascii"),
+        )
+
+    except Exception as e:
+        log.debug(
+            "failed to hash S3 object span pointer: %s",
+            e,
+        )
+        record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)
+        return None
