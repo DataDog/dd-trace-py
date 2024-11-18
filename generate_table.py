@@ -8,12 +8,11 @@ columns = [
     "integration",
     "minimum_tracer_supported",
     "max_tracer_supported",
-    "minimum_available_supported",
+    "minumum_available_supported",
     "maximum_available_supported",
 ]
 
-column_width = 30  # set a fixed width for each column
-
+column_width = 27  # set a fixed width for each column
 
 def format_cell(content, width):
     if content is None:
