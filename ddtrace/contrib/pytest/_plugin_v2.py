@@ -180,7 +180,7 @@ def pytest_configure(config: pytest_Config) -> None:
     # The only way we end up in pytest_configure is if the environment variable is being used, and logging the warning
     # now ensures it shows up in output regardless of the use of the -s flag
     deprecate(
-        "The DD_PYTEST_PREVIEW_PLUGIN environment variable will be deprecated",
+        "The DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable will be deprecated",
         message="The preview version of the pytest ddtrace plugin and will become the default version.",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
