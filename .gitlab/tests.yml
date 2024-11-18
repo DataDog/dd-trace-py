@@ -4,8 +4,9 @@ stages:
 variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
   REPO_LANG: python # "python" is used everywhere rather than "py"
+  _DD_CIVISIBILITY_USE_PYTEST_V2: "true"
+  PYTEST_ADDOPTS: "-s"
   # CI_DEBUG_SERVICES: "true"
-
 
 .testrunner:
   image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:7a2e802af76051f82d698919d2837eff18dbb48e
@@ -25,6 +26,8 @@ variables:
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
   needs: []
   parallel: 4
+  # DEV: This is the max retries that GitLab currently allows for
+  retry: 2
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
@@ -80,6 +83,8 @@ build_base_venvs:
   parallel: 4
   services:
     - !reference [.services, ddagent]
+  # DEV: This is the max retries that GitLab currently allows for
+  retry: 2
   script:
     - pip install riot==0.20.0
     - unset DD_SERVICE

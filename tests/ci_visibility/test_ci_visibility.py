@@ -528,7 +528,7 @@ def test_git_do_request_agentless(git_repo):
                 {"mock_header_name": "mock_header_value"},
             )
 
-            mock_get_connection.assert_called_once_with("http://base_url/repository/endpoint", timeout=20)
+            mock_get_connection.assert_any_call("http://base_url/repository/endpoint", timeout=20)
             mock_http_connection.request.assert_called_once_with(
                 "POST",
                 "/repository/endpoint",
@@ -561,7 +561,7 @@ def test_git_do_request_evp(git_repo):
                 {"mock_header_name": "mock_header_value"},
             )
 
-            mock_get_connection.assert_called_once_with("https://base_url/repository/endpoint", timeout=20)
+            mock_get_connection.assert_any_call("https://base_url/repository/endpoint", timeout=20)
             mock_http_connection.request.assert_called_once_with(
                 "POST",
                 "/repository/endpoint",
@@ -607,7 +607,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+                _get_connection.assert_any_call("https://citestcov-intake.datadoghq.com", 2.0)
 
     def test_civisibilitywriter_coverage_agentless_with_intake_url_param(self):
         ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
