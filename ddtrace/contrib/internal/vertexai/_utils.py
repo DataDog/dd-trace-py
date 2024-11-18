@@ -34,7 +34,8 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
             raise
         else:
             tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
-        self._dd_span.finish()
+        finally:
+            self._dd_span.finish()
 
 
 class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
@@ -55,7 +56,8 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
             raise
         else:
             tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
-        self._dd_span.finish()
+        finally:
+            self._dd_span.finish()
 
 
 def _extract_model_name(instance):
