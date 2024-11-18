@@ -4,6 +4,7 @@ import typing as t
 
 import pytest
 
+from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
 from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
@@ -56,6 +57,7 @@ from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.vendor.debtcollector import deprecate
 
 
 if _pytest_version_supports_retries():
@@ -175,6 +177,15 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
 
 def pytest_configure(config: pytest_Config) -> None:
+    # The only way we end up in pytest_configure is if the environment variable is being used, and logging the warning
+    # now ensures it shows up in output regardless of the use of the -s flag
+    deprecate(
+        "The DD_PYTEST_PREVIEW_PLUGIN environment variable will be deprecated",
+        message="The preview version of the pytest ddtrace plugin and will become the default version.",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+
     try:
         if is_enabled(config):
             unpatch_unittest()

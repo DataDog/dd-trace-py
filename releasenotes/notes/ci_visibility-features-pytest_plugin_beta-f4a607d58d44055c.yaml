@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: beta release of the new version of the pytest plugin, introducing [Auto Test Retries](https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries) and Early [Flake Detection](https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection). Coverage collection for [Test Impact Analysis](https://docs.datadoghq.com/tests/test_impact_analysis) (formerly Intelligent Test Runner) now uses an internal collection method instead of [coverage.py](https://github.com/nedbat/coveragepy), with improved dependency discovery. Set the ``DD_PYTEST_USE_NEW_PLUGIN_BETA`` environment variable to ``true`` to use this new version.
