@@ -14,6 +14,7 @@ columns = [
 
 column_width = 27  # set a fixed width for each column
 
+
 def format_cell(content, width):
     if content is None:
         content = ""
@@ -24,6 +25,10 @@ markdown_content = "| " + " | ".join(format_cell(col, column_width) for col in c
 markdown_content += "| " + " | ".join(["-" * column_width] * len(columns)) + " |\n"
 
 for entry in data:
+    integration_name = entry.get("integration", "")
+    if entry.get("pinned", "").lower() == "true":
+        integration_name += " *"
+    entry["integration"] = integration_name
     row = [format_cell(entry.get(col, ""), column_width) for col in columns]
     markdown_content += "| " + " | ".join(row) + " |\n"
 
