@@ -5,10 +5,12 @@
 #include <chrono>
 
 // Initiate an upload in a separate thread, otherwise we won't be mid-upload during fork
-void
+std::thread
 upload_in_thread()
 {
-    std::thread([&]() { ddup_upload(); }).detach();
+    auto t = std::thread([&]() { ddup_upload(); });
+
+    return t;
 }
 
 [[noreturn]] void
@@ -24,6 +26,7 @@ profile_in_child(unsigned int num_threads, unsigned int run_time_ns, std::atomic
     launch_samplers(ids, 10e3, new_threads, done);
     std::this_thread::sleep_for(std::chrono::nanoseconds(run_time_ns));
     done.store(true);
+    join_samplers(new_threads, done);
     ddup_upload();
     std::exit(0);
 }
@@ -38,7 +41,7 @@ is_exit_normal(int status)
 void
 sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "http://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
     std::atomic<bool> done(false);
     std::vector<std::thread> threads;
     std::vector<unsigned int> ids;
@@ -51,7 +54,8 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 
     // Collect some profiling data for a few ms, then upload in a thread before forking
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    upload_in_thread();
+    join_samplers(threads, done);
+    auto upload_handle = upload_in_thread();
 
     // Fork, wait in the parent for child to finish
     pid_t pid = fork();
@@ -59,6 +63,8 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
         // Child
         profile_in_child(num_threads, 500e3, done); // Child profiles for 500ms
     }
+
+    upload_handle.join();
 
     // Parent
     int status;
@@ -75,7 +81,7 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 void
 fork_stress_test(unsigned int num_threads, unsigned int sleep_time_ns, unsigned int num_children)
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
     std::atomic<bool> done(false);
     std::vector<std::thread> threads;
     std::vector<unsigned int> ids;
