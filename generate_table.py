@@ -16,6 +16,8 @@ column_width = 30  # set a fixed width for each column
 
 
 def format_cell(content, width):
+    if content is None:
+        content = ""
     return f"{content:<{width}}"
 
 

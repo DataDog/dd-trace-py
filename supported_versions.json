@@ -11,7 +11,7 @@
         "minimum_tracer_supported": "3.8.6",
         "max_tracer_supported": "3.10.10",
         "minumum_available_supported": "3.8.3",
-        "maximum_available_supported": "3.10.10"
+        "maximum_available_supported": "3.11.2"
     },
     {
         "integration": "aiomysql",
@@ -33,7 +33,7 @@
         "minimum_tracer_supported": "2.6.3",
         "max_tracer_supported": "2.6.3",
         "minumum_available_supported": "2.6.2",
-        "maximum_available_supported": "4.8.1",
+        "maximum_available_supported": "4.9.1",
         "pinned": "true"
     },
     {
@@ -49,6 +49,14 @@
         "max_tracer_supported": "1.1.8",
         "minumum_available_supported": "1.1.8",
         "maximum_available_supported": "1.1.8"
+    },
+    {
+        "integration": "asyncio",
+        "minimum_tracer_supported": "0.21.1",
+        "max_tracer_supported": "0.24.0",
+        "minumum_available_supported": "0.20.2",
+        "maximum_available_supported": "0.24.0",
+        "pinned": "true"
     },
     {
         "integration": "asyncpg",
@@ -75,8 +83,8 @@
         "integration": "botocore",
         "minimum_tracer_supported": "1.20.106",
         "max_tracer_supported": "1.35.14",
-        "minumum_available_supported": "1.29.8",
-        "maximum_available_supported": "1.35.59",
+        "minumum_available_supported": "1.29.13",
+        "maximum_available_supported": "1.35.63",
         "pinned": "true"
     },
     {
@@ -85,6 +93,13 @@
         "max_tracer_supported": "0.13.2",
         "minumum_available_supported": "0.12.23",
         "maximum_available_supported": "0.13.2"
+    },
+    {
+        "integration": "cassandra",
+        "minimum_tracer_supported": "3.24.0",
+        "max_tracer_supported": "3.28.0",
+        "minumum_available_supported": "3.25.0",
+        "maximum_available_supported": "3.29.2"
     },
     {
         "integration": "celery",
@@ -101,11 +116,18 @@
         "maximum_available_supported": "18.10.0"
     },
     {
+        "integration": "consul",
+        "minimum_tracer_supported": "1.1.0",
+        "max_tracer_supported": "1.1.0",
+        "minumum_available_supported": "1.1.0",
+        "maximum_available_supported": "1.1.0"
+    },
+    {
         "integration": "coverage",
         "minimum_tracer_supported": "7.2.7",
         "max_tracer_supported": "7.4.4",
         "minumum_available_supported": "6.5.0",
-        "maximum_available_supported": "7.6.4"
+        "maximum_available_supported": "7.6.7"
     },
     {
         "integration": "django",
@@ -126,14 +148,14 @@
         "integration": "falcon",
         "minimum_tracer_supported": "3.0.1",
         "max_tracer_supported": "3.1.3",
-        "minumum_available_supported": "3.1.0",
+        "minumum_available_supported": "3.1.1",
         "maximum_available_supported": "4.0.2"
     },
     {
         "integration": "fastapi",
         "minimum_tracer_supported": "0.64.0",
         "max_tracer_supported": "0.115.2",
-        "minumum_available_supported": "0.86.0",
+        "minumum_available_supported": "0.87.0",
         "maximum_available_supported": "0.115.5"
     },
     {
@@ -141,7 +163,7 @@
         "minimum_tracer_supported": "0.12.5",
         "max_tracer_supported": "3.0.3",
         "minumum_available_supported": "2.2.2",
-        "maximum_available_supported": "3.0.3"
+        "maximum_available_supported": "3.1.0"
     },
     {
         "integration": "gevent",
@@ -151,10 +173,24 @@
         "maximum_available_supported": "24.11.1"
     },
     {
+        "integration": "graphql",
+        "minimum_tracer_supported": "3.1.7",
+        "max_tracer_supported": "3.2.3",
+        "minumum_available_supported": "3.2.3",
+        "maximum_available_supported": "3.2.5"
+    },
+    {
+        "integration": "grpc",
+        "minimum_tracer_supported": "1.34.1",
+        "max_tracer_supported": "1.66.1",
+        "minumum_available_supported": "1.50.0",
+        "maximum_available_supported": "1.68.0"
+    },
+    {
         "integration": "httpx",
         "minimum_tracer_supported": "0.15.4",
         "max_tracer_supported": "0.27.2",
-        "minumum_available_supported": "0.23.0",
+        "minumum_available_supported": "0.23.1",
         "maximum_available_supported": "0.27.2"
     },
     {
@@ -175,7 +211,7 @@
         "integration": "langchain",
         "minimum_tracer_supported": "0.0.192",
         "max_tracer_supported": "0.2.16",
-        "minumum_available_supported": "0.0.12",
+        "minumum_available_supported": "0.0.16",
         "maximum_available_supported": "0.3.7"
     },
     {
@@ -196,7 +232,7 @@
         "integration": "mako",
         "minimum_tracer_supported": "1.1.6",
         "max_tracer_supported": "1.3.5",
-        "minumum_available_supported": "1.2.3",
+        "minumum_available_supported": "1.2.4",
         "maximum_available_supported": "1.3.6"
     },
     {
@@ -204,7 +240,7 @@
         "minimum_tracer_supported": "1.0.11",
         "max_tracer_supported": "1.1.10",
         "minumum_available_supported": "1.1.5.post2",
-        "maximum_available_supported": "1.1.10"
+        "maximum_available_supported": "1.1.11"
     },
     {
         "integration": "molten",
@@ -219,6 +255,13 @@
         "max_tracer_supported": "0.29.1",
         "minumum_available_supported": "0.24.2",
         "maximum_available_supported": "0.29.1"
+    },
+    {
+        "integration": "mysql",
+        "minimum_tracer_supported": "8.0.5",
+        "max_tracer_supported": "9.0.0",
+        "minumum_available_supported": "8.0.31",
+        "maximum_available_supported": "9.1.0"
     },
     {
         "integration": "openai",
@@ -253,7 +296,7 @@
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
         "max_tracer_supported": "4.10.1",
-        "minumum_available_supported": "4.3.2",
+        "minumum_available_supported": "4.3.3",
         "maximum_available_supported": "4.10.1"
     },
     {
@@ -267,7 +310,7 @@
         "integration": "pynamodb",
         "minimum_tracer_supported": "5.5.1",
         "max_tracer_supported": "5.5.1",
-        "minumum_available_supported": "5.3.0",
+        "minumum_available_supported": "5.3.2",
         "maximum_available_supported": "6.0.1",
         "pinned": "true"
     },
@@ -275,7 +318,7 @@
         "integration": "pyodbc",
         "minimum_tracer_supported": "4.0.39",
         "max_tracer_supported": "5.1.0",
-        "minumum_available_supported": "4.0.34",
+        "minumum_available_supported": "4.0.35",
         "maximum_available_supported": "5.2.0"
     },
     {
@@ -293,6 +336,13 @@
         "maximum_available_supported": "5.2.0"
     },
     {
+        "integration": "rediscluster",
+        "minimum_tracer_supported": "2.0.0",
+        "max_tracer_supported": "2.1.3",
+        "minumum_available_supported": "2.1.3",
+        "maximum_available_supported": "2.1.3"
+    },
+    {
         "integration": "requests",
         "minimum_tracer_supported": "2.20.1",
         "max_tracer_supported": "2.32.3",
@@ -307,6 +357,13 @@
         "maximum_available_supported": "24.6.0"
     },
     {
+        "integration": "snowflake",
+        "minimum_tracer_supported": "2.3.10",
+        "max_tracer_supported": "3.11.0",
+        "minumum_available_supported": "2.8.1",
+        "maximum_available_supported": "3.12.3"
+    },
+    {
         "integration": "sqlalchemy",
         "minimum_tracer_supported": "1.2.19",
         "max_tracer_supported": "2.0.36",
@@ -314,17 +371,24 @@
         "maximum_available_supported": "2.0.36"
     },
     {
+        "integration": "sqlite3",
+        "minimum_tracer_supported": "0.5.2.post3",
+        "max_tracer_supported": "0.5.2.post3",
+        "minumum_available_supported": null,
+        "maximum_available_supported": null
+    },
+    {
         "integration": "starlette",
         "minimum_tracer_supported": "0.13.6",
         "max_tracer_supported": "0.40.0",
-        "minumum_available_supported": "0.21.0",
+        "minumum_available_supported": "0.22.0",
         "maximum_available_supported": "0.41.2"
     },
     {
         "integration": "structlog",
         "minimum_tracer_supported": "20.2.0",
         "max_tracer_supported": "24.4.0",
-        "minumum_available_supported": "22.1.0",
+        "minumum_available_supported": "22.2.0",
         "maximum_available_supported": "24.4.0"
     },
     {
