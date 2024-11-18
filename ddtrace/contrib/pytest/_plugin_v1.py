@@ -450,7 +450,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 def pytest_configure(config):
     deprecate(
         "This version of the pytest ddtrace plugin is slated for deprecation",
-        message="set DD_PYTEST_PREVIEW_PLUGIN=true in your environment to preview the next version of the plugin.",
+        message="set DD_PYTEST_USE_NEW_PLUGIN_BETA=true in your environment to preview the next version of the plugin.",
         removal_version="3.0.0",
         category=DDTraceDeprecationWarning,
     )
