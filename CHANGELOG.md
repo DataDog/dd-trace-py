@@ -4,6 +4,30 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.15.3
+
+
+### Bug Fixes
+
+  - ASM: The new user events policy is preventing users PII to be added by default as span tags. To allow customers using the Django auto instrumentation to still have those information, new environment variables have been added. In particular DD\_DJANGO\_INCLUDE\_EMAIL (false by default), will tag user events with user email as before.
+
+  - LLM Observability: Resolves an issue where annotating spans with non-ASCII language input/output values resulted in encoded unicode being submitted.
+
+  - Add googlecloudsdk and google auth to the Code Security deny list.
+
+  - profiling: fixes an issue where cpu-time was not profiled for services using gunicorn, when <span class="title-ref">\`DD\_PROFILING\_STACK\_V2\_ENABLED</span> was set.
+
+  -   - profiling: The lock profiler would log a warning if it couldn't determine a  
+        name for a lock, and it would try determining a name multiple times for the same lock. This lead to excessive log spam. Downgrade this to a debug log and only try to determine the name once.
+
+  -   - profiling: fixes an issue where the sample pool could deadlock after `fork()`  
+        by clearing it in the child process.
+
+  - Code Security: add umap, numba and pynndescent to the Code Security denylist.
+
+
+---
+
 ## 2.16.2
 
 
