@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a bug in the profiler where the memory profiler could start before the
+    libdatadog exporter was enabled.

@@ -347,10 +347,6 @@ class _ProfilerInstance(service.Service):
 
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
-
-        if self._memory_collector_enabled:
-            self._collectors.append(memalloc.MemoryCollector(r))
-
         exporters = self._build_default_exporters()
 
         if exporters or self._export_libdd_enabled:
@@ -363,6 +359,11 @@ class _ProfilerInstance(service.Service):
                 exporters=exporters,
                 before_flush=self._collectors_snapshot,
             )
+
+        # The memory allocation profiler can't be enabled until after the exporters are built, since it optionally
+        # depends on the libdd exporter.
+        if self._memory_collector_enabled:
+            self._collectors.append(memalloc.MemoryCollector(r))
 
     def _collectors_snapshot(self):
         for c in self._collectors:
