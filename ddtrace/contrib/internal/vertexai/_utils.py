@@ -3,17 +3,19 @@ import sys
 
 from vertexai.generative_models import GenerativeModel
 from vertexai.generative_models import Part
+from ddtrace.contrib.internal.google_generativeai._utils import _tag_request_content_part
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._utils import _get_attr
 
 
 class BaseTracedVertexAIStreamResponse:
-    def __init__(self, generator, integration, span):
+    def __init__(self, generator, integration, span, is_chat):
         self._generator = generator
         self._dd_integration = integration
         self._dd_span = span
         self._chunks = []
+        self.is_chat = is_chat
 
 
 class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
@@ -27,7 +29,9 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
     def __iter__(self):
         try:
             for chunk in self._generator.__iter__():
-                self._chunks.append(copy.deepcopy(chunk))
+                # only keep track of first chunk for chat messages
+                if not self.is_chat or not self._chunks:
+                    self._chunks.append(chunk)
                 yield chunk
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
@@ -49,7 +53,9 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
     async def __aiter__(self):
         try:
             async for chunk in self._generator.__aiter__():
-                self._chunks.append(copy.deepcopy(chunk))
+                # only keep track of first chunk for chat messages
+                if not self.is_chat or not self._chunks:
+                    self._chunks.append(chunk)
                 yield chunk
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
@@ -163,36 +169,6 @@ def tag_stream_response(span, chunks, integration):
     _tag_response_parts(span, integration, all_parts)
 
 
-def _tag_request_content_part(span, integration, part, part_idx, content_idx):
-    """Tag the generation span with request content parts."""
-    text = _get_attr(part, "text", "")
-    function_call = _get_attr(part, "function_call", None)
-    function_response = _get_attr(part, "function_response", None)
-    span.set_tag_str(
-        "vertexai.request.contents.%d.parts.%d.text" % (content_idx, part_idx), integration.trunc(str(text))
-    )
-    if function_call:
-        function_call_dict = type(function_call).to_dict(function_call)
-        span.set_tag_str(
-            "vertexai.request.contents.%d.parts.%d.function_call.name" % (content_idx, part_idx),
-            integration.trunc(str(function_call_dict.get("name", ""))),
-        )
-        span.set_tag_str(
-            "vertexai.request.contents.%d.parts.%d.function_call.args" % (content_idx, part_idx),
-            integration.trunc(str(function_call_dict.get("args", {}))),
-        )
-    if function_response:
-        function_response_dict = type(function_response).to_dict(function_response)
-        span.set_tag_str(
-            "vertexai.request.contents.%d.parts.%d.function_response.name" % (content_idx, part_idx),
-            str(function_response_dict.get("name", "")),
-        )
-        span.set_tag_str(
-            "vertexai.request.contents.%d.parts.%d.function_response.response" % (content_idx, part_idx),
-            integration.trunc(str(function_response_dict.get("response", {}))),
-        )
-
-
 def _tag_request_content(span, integration, content, content_idx):
     """Tag the generation span with request contents."""
     if isinstance(content, str):
@@ -204,10 +180,10 @@ def _tag_request_content(span, integration, content, content_idx):
             span.set_tag_str("vertexai.request.contents.%d.role" % content_idx, str(content.get("role", "")))
         parts = content.get("parts", [])
         for part_idx, part in enumerate(parts):
-            _tag_request_content_part(span, integration, part, part_idx, content_idx)
+            _tag_request_content_part("vertexai", span, integration, part, part_idx, content_idx)
         return
     if isinstance(content, Part):
-        _tag_request_content_part(span, integration, content, 0, content_idx)
+        _tag_request_content_part("vertexai", span, integration, content, 0, content_idx)
         return
     role = getattr(content, "role", "")
     if role:
@@ -220,7 +196,7 @@ def _tag_request_content(span, integration, content, content_idx):
         )
         return
     for part_idx, part in enumerate(parts):
-        _tag_request_content_part(span, integration, part, part_idx, content_idx)
+        _tag_request_content_part("vertexai", span, integration, part, part_idx, content_idx)
 
 
 def _tag_response_part(span, integration, part, part_idx, candidate_idx):
@@ -280,7 +256,7 @@ def tag_request(span, integration, instance, args, kwargs):
         span.set_tag_str("vertexai.request.contents.0.text", integration.trunc(str(contents)))
         return
     elif isinstance(contents, Part):
-        _tag_request_content_part(span, integration, contents, 0, 0)
+        _tag_request_content_part("vertexai", span, integration, contents, 0, 0)
         return
     elif not isinstance(contents, list):
         return

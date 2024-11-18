@@ -32,25 +32,25 @@ def get_version():
 
 @with_traced_module
 def traced_generate(vertexai, pin, func, instance, args, kwargs):
-    return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance)
+    return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance, False)
 
 
 @with_traced_module
 async def traced_agenerate(vertexai, pin, func, instance, args, kwargs):
-    return await _traced_agenerate(vertexai, pin, func, instance, args, kwargs, instance)
+    return await _traced_agenerate(vertexai, pin, func, instance, args, kwargs, instance, False)
 
 
 @with_traced_module
 def traced_send_message(vertexai, pin, func, instance, args, kwargs):
-    return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance._model)
+    return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance._model, True)
 
 
 @with_traced_module
 async def traced_send_message_async(vertexai, pin, func, instance, args, kwargs):
-    return await _traced_agenerate(vertexai, pin, func, instance, args, kwargs, instance._model)
+    return await _traced_agenerate(vertexai, pin, func, instance, args, kwargs, instance._model, True)
 
 
-def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance):
+def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance, is_chat):
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
@@ -65,7 +65,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
         tag_request(span, integration, instance, args, kwargs)
         generations = func(*args, **kwargs)
         if stream:
-            return TracedVertexAIStreamResponse(generations, integration, span)
+            return TracedVertexAIStreamResponse(generations, integration, span, is_chat)
         tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -77,7 +77,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     return generations
 
 
-async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_instance):
+async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_instance, is_chat):
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
@@ -92,7 +92,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
         tag_request(span, integration, instance, args, kwargs)
         generations = await func(*args, **kwargs)
         if stream:
-            return TracedAsyncVertexAIStreamResponse(generations, integration, span)
+            return TracedAsyncVertexAIStreamResponse(generations, integration, span, is_chat)
         tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())

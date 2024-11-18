@@ -87,32 +87,32 @@ def _extract_api_key(instance):
     return getattr(client_options, "api_key", None)
 
 
-def _tag_request_content_part(span, integration, part, part_idx, content_idx):
+def _tag_request_content_part(tag_prefix, span, integration, part, part_idx, content_idx):
     """Tag the generation span with request content parts."""
     text = _get_attr(part, "text", "")
     function_call = _get_attr(part, "function_call", None)
     function_response = _get_attr(part, "function_response", None)
     span.set_tag_str(
-        "google_generativeai.request.contents.%d.parts.%d.text" % (content_idx, part_idx), integration.trunc(str(text))
+        "%s.request.contents.%d.parts.%d.text" % (tag_prefix, content_idx, part_idx), integration.trunc(str(text))
     )
     if function_call:
         function_call_dict = type(function_call).to_dict(function_call)
         span.set_tag_str(
-            "google_generativeai.request.contents.%d.parts.%d.function_call.name" % (content_idx, part_idx),
+            "%s.request.contents.%d.parts.%d.function_call.name" % (tag_prefix, content_idx, part_idx),
             integration.trunc(str(function_call_dict.get("name", ""))),
         )
         span.set_tag_str(
-            "google_generativeai.request.contents.%d.parts.%d.function_call.args" % (content_idx, part_idx),
+            "%s.request.contents.%d.parts.%d.function_call.args" % (tag_prefix, content_idx, part_idx),
             integration.trunc(str(function_call_dict.get("args", {}))),
         )
     if function_response:
         function_response_dict = type(function_response).to_dict(function_response)
         span.set_tag_str(
-            "google_generativeai.request.contents.%d.parts.%d.function_response.name" % (content_idx, part_idx),
+            "%s.request.contents.%d.parts.%d.function_response.name" % (tag_prefix, content_idx, part_idx),
             str(function_response_dict.get("name", "")),
         )
         span.set_tag_str(
-            "google_generativeai.request.contents.%d.parts.%d.function_response.response" % (content_idx, part_idx),
+            "%s.request.contents.%d.parts.%d.function_response.response" % (tag_prefix, content_idx, part_idx),
             integration.trunc(str(function_response_dict.get("response", {}))),
         )
 
@@ -128,7 +128,7 @@ def _tag_request_content(span, integration, content, content_idx):
             span.set_tag_str("google_generativeai.request.contents.%d.role" % content_idx, str(content.get("role", "")))
         parts = content.get("parts", [])
         for part_idx, part in enumerate(parts):
-            _tag_request_content_part(span, integration, part, part_idx, content_idx)
+            _tag_request_content_part("google_generativeai", span, integration, part, part_idx, content_idx)
         return
     role = getattr(content, "role", "")
     if role:
@@ -141,7 +141,7 @@ def _tag_request_content(span, integration, content, content_idx):
         )
         return
     for part_idx, part in enumerate(parts):
-        _tag_request_content_part(span, integration, part, part_idx, content_idx)
+        _tag_request_content_part("google_generativeai", span, integration, part, part_idx, content_idx)
 
 
 def _tag_response_part(span, integration, part, part_idx, candidate_idx):
