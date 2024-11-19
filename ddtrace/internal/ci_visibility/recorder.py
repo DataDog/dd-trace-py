@@ -870,9 +870,9 @@ class CIVisibility(Service):
 
         # The assumption that we were not able to fetch unique tests properly if the length is 0 is acceptable
         # because the current EFD usage would cause the session to be faulty even if the query was successful but
-        # not unique tests exist.
+        # not unique tests exist. In this case, we assume all tests are unique.
         if len(instance._unique_test_ids) == 0:
-            return False
+            return True
 
         return test_id in instance._unique_test_ids
 
