@@ -6,13 +6,13 @@ import vertexai
 from ddtrace import config
 from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
-from ddtrace.contrib.internal.vertexai._utils import _extract_model_name
 from ddtrace.contrib.internal.vertexai._utils import tag_request
 from ddtrace.contrib.internal.vertexai._utils import tag_response
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.llmobs._integrations import VertexAIIntegration
+from ddtrace.llmobs._integrations.utils import extract_model_name
 from ddtrace.pin import Pin
 
 
@@ -58,7 +58,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
-        model=_extract_model_name(model_instance),
+        model=extract_model_name(model_instance, "_model_name"),
         submit_to_llmobs=False,
     )
     try:
@@ -85,7 +85,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
-        model=_extract_model_name(model_instance),
+        model=extract_model_name(model_instance, "_model_name"),
         submit_to_llmobs=False,
     )
     try:

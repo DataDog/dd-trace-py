@@ -1,12 +1,11 @@
-import copy
 import sys
 
 from vertexai.generative_models import GenerativeModel
 from vertexai.generative_models import Part
-from ddtrace.contrib.internal.google_generativeai._utils import _tag_request_content_part
+from ddtrace.llmobs._integrations.utils import tag_request_content_part
+from ddtrace.llmobs._integrations.utils import tag_response_part
 
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._utils import _get_attr
 
 
 class BaseTracedVertexAIStreamResponse:
@@ -64,19 +63,6 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
             tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
         finally:
             self._dd_span.finish()
-
-
-def _extract_model_name(instance):
-    """Extract the model name from the instance.
-    Model names are stored in the format `"models/{model_name}"`
-    so we do our best to return the model name instead of the full string.
-    """
-    model_name = getattr(instance, "_model_name", "")
-    if not model_name or not isinstance(model_name, str):
-        return ""
-    if "/" in model_name:
-        return model_name.split("/")[-1]
-    return model_name
 
 
 def get_system_instruction_texts_from_model(instance):
@@ -180,10 +166,10 @@ def _tag_request_content(span, integration, content, content_idx):
             span.set_tag_str("vertexai.request.contents.%d.role" % content_idx, str(content.get("role", "")))
         parts = content.get("parts", [])
         for part_idx, part in enumerate(parts):
-            _tag_request_content_part("vertexai", span, integration, part, part_idx, content_idx)
+            tag_request_content_part("vertexai", span, integration, part, part_idx, content_idx)
         return
     if isinstance(content, Part):
-        _tag_request_content_part("vertexai", span, integration, content, 0, content_idx)
+        tag_request_content_part("vertexai", span, integration, content, 0, content_idx)
         return
     role = getattr(content, "role", "")
     if role:
@@ -196,27 +182,7 @@ def _tag_request_content(span, integration, content, content_idx):
         )
         return
     for part_idx, part in enumerate(parts):
-        _tag_request_content_part("vertexai", span, integration, part, part_idx, content_idx)
-
-
-def _tag_response_part(span, integration, part, part_idx, candidate_idx):
-    """Tag the generation span with response part text and function calls."""
-    text = part.get("text", "")
-    span.set_tag_str(
-        "vertexai.response.candidates.%d.content.parts.%d.text" % (candidate_idx, part_idx),
-        integration.trunc(str(text)),
-    )
-    function_call = part.get("function_call", None)
-    if not function_call:
-        return
-    span.set_tag_str(
-        "vertexai.response.candidates.%d.content.parts.%d.function_call.name" % (candidate_idx, part_idx),
-        integration.trunc(str(function_call.get("name", ""))),
-    )
-    span.set_tag_str(
-        "vertexai.response.candidates.%d.content.parts.%d.function_call.args" % (candidate_idx, part_idx),
-        integration.trunc(str(function_call.get("args", {}))),
-    )
+        tag_request_content_part("vertexai", span, integration, part, part_idx, content_idx)
 
 
 def tag_request(span, integration, instance, args, kwargs):
@@ -256,7 +222,7 @@ def tag_request(span, integration, instance, args, kwargs):
         span.set_tag_str("vertexai.request.contents.0.text", integration.trunc(str(contents)))
         return
     elif isinstance(contents, Part):
-        _tag_request_content_part("vertexai", span, integration, contents, 0, 0)
+        tag_request_content_part("vertexai", span, integration, contents, 0, 0)
         return
     elif not isinstance(contents, list):
         return
@@ -280,7 +246,7 @@ def tag_response(span, generations, integration):
             continue
         parts = candidate_content.get("parts", [])
         for part_idx, part in enumerate(parts):
-            _tag_response_part(span, integration, part, part_idx, candidate_idx)
+            tag_response_part("vertexai", span, integration, part, part_idx, candidate_idx)
 
     token_counts = generations_dict.get("usage_metadata", None)
     if not token_counts:
