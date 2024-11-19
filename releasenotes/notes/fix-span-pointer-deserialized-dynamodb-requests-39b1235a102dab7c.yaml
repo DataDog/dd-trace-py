@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: This fix resolves the issue where the span pointer for deserialized DynamoDB requests (through the resource-based API) were not being generated.

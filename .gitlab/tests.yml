@@ -4,8 +4,9 @@ stages:
 variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
   REPO_LANG: python # "python" is used everywhere rather than "py"
+  _DD_CIVISIBILITY_USE_PYTEST_V2: "true"
+  PYTEST_ADDOPTS: "-s"
   # CI_DEBUG_SERVICES: "true"
-
 
 .testrunner:
   image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:7a2e802af76051f82d698919d2837eff18dbb48e
