@@ -5,8 +5,6 @@ from io import BytesIO
 import logging
 from unittest import mock
 
-import pytest
-
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.settings.endpoint_config import fetch_config_from_endpoint
 from tests.utils import override_env
@@ -91,8 +89,6 @@ def test_unset_config_endpoint(caplog):
         assert fetch_config_from_endpoint() == {}
     if caplog.text:
         assert "Configuration endpoint not set. Skipping fetching configuration." in caplog.text
-    else:
-        pytest.xfail("caplog.text empty")
 
 
 def test_set_config_endpoint_enabled(caplog):
@@ -107,8 +103,6 @@ def test_set_config_endpoint_enabled(caplog):
     if caplog.text:
         assert "Configuration endpoint not set. Skipping fetching configuration." not in caplog.text
         assert "Failed to fetch configuration from endpoint" not in caplog.text
-    else:
-        pytest.xfail("caplog.text empty")
 
 
 def test_set_config_endpoint_500(caplog):
@@ -123,8 +117,6 @@ def test_set_config_endpoint_500(caplog):
     if caplog.text:
         assert "Failed to fetch configuration from endpoint" in caplog.text
         assert "RetryError: Response(status=500" in caplog.text
-    else:
-        pytest.xfail("caplog.text empty")
 
 
 def test_set_config_endpoint_403(caplog):
@@ -139,8 +131,6 @@ def test_set_config_endpoint_403(caplog):
     if caplog.text:
         assert "Failed to fetch configuration from endpoint" in caplog.text
         assert "RetryError: Response(status=403" in caplog.text
-    else:
-        pytest.xfail("caplog.text empty")
 
 
 def test_set_config_endpoint_malformed(caplog):
@@ -154,8 +144,6 @@ def test_set_config_endpoint_malformed(caplog):
         assert fetch_config_from_endpoint() == {}
     if caplog.text:
         assert "Unable to parse Datadog Agent JSON" in caplog.text
-    else:
-        pytest.xfail("caplog.text empty")
 
 
 def test_set_config_endpoint_connection_refused(caplog):
@@ -167,8 +155,6 @@ def test_set_config_endpoint_connection_refused(caplog):
         assert any(
             message in caplog.text for message in ("Connection refused", "Address family not supported by protocol")
         ), "None of the expected connection error log messages were found"
-    else:
-        pytest.xfail("caplog.text empty")
 
 
 def test_set_config_endpoint_timeout_error(caplog):
@@ -183,8 +169,6 @@ def test_set_config_endpoint_timeout_error(caplog):
         assert any(
             message in caplog.text for message in ("Connection refused", "Address family not supported by protocol")
         ), "None of the expected connection error log messages were found"
-    else:
-        pytest.xfail("caplog.text empty")
 
 
 def test_set_config_endpoint_retries(caplog):
