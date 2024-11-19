@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.wsgi",
       "_dd.p.dm": "-3",
       "_dd.p.tid": "654a694400000000",
       "component": "wsgi",
@@ -40,7 +40,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.wsgi",
          "_dd.p.tid": "654a694400000000",
          "component": "wsgi"
        },
@@ -57,7 +57,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.wsgi",
             "_dd.p.tid": "654a694400000000",
             "component": "wsgi",
             "http.method": "GET",
@@ -79,7 +79,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.contrib.wsgi",
                "_dd.p.tid": "654a694400000000",
                "component": "wsgi"
              },
@@ -96,7 +96,7 @@
                 "type": "web",
                 "error": 0,
                 "meta": {
-                  "_dd.base_service": "",
+                  "_dd.base_service": "tests.contrib.wsgi",
                   "_dd.p.tid": "654a694400000000",
                   "component": "wsgi",
                   "span.kind": "server"
@@ -114,7 +114,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.contrib.wsgi",
                "_dd.p.tid": "654a694400000000",
                "component": "wsgi",
                "result_class": "list"
@@ -132,7 +132,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.wsgi",
             "_dd.p.tid": "654a694400000000",
             "component": "wsgi",
             "span.kind": "server"
@@ -150,7 +150,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.wsgi",
          "_dd.p.tid": "654a694400000000",
          "component": "wsgi",
          "result_class": "list_iterator"

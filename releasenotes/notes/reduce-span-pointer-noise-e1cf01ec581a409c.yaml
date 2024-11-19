@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: This fix resolves an issue where our span pointer calculation code added recently logged unactionable messages.
