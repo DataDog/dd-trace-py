@@ -17,7 +17,8 @@ This script automates two steps in the release process:
 Setup:
 1. Create a Personal access token (classic), not a fine grained one, on Github:
 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
-2. Give the Github token repo, user, audit_log, project permissions. On the next page authorize your token for Datadog SSO.
+2. Give the Github token repo, user, audit_log, project permissions.
+   On the next page authorize your token for Datadog SSO.
 3. Add `export GH_TOKEN=<github token>` to your `.zhrc` file.
 
 
