@@ -14,7 +14,7 @@ def extract_model_name(instance, model_name_attr):
     return model_name
 
 
-def tag_request_content_part(tag_prefix, span, integration, part, part_idx, content_idx):
+def tag_request_content_part_google(tag_prefix, span, integration, part, part_idx, content_idx):
     """Tag the generation span with request content parts."""
     text = _get_attr(part, "text", "")
     function_call = _get_attr(part, "function_call", None)
@@ -44,7 +44,7 @@ def tag_request_content_part(tag_prefix, span, integration, part, part_idx, cont
         )
 
 
-def tag_response_part(tag_prefix, span, integration, part, part_idx, candidate_idx):
+def tag_response_part_google(tag_prefix, span, integration, part, part_idx, candidate_idx):
     """Tag the generation span with response part text and function calls."""
     text = part.get("text", "")
     span.set_tag_str(

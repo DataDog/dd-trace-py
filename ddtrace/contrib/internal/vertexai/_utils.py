@@ -4,8 +4,8 @@ from vertexai.generative_models import GenerativeModel
 from vertexai.generative_models import Part
 
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations.utils import tag_request_content_part
-from ddtrace.llmobs._integrations.utils import tag_response_part
+from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
+from ddtrace.llmobs._integrations.utils import tag_response_part_google
 
 
 class BaseTracedVertexAIStreamResponse:
@@ -28,7 +28,8 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
     def __iter__(self):
         try:
             for chunk in self._generator.__iter__():
-                # only keep track of first chunk for chat messages
+                # only keep track of the first chunk for chat messages since
+                # it is modified during the streaming process
                 if not self.is_chat or not self._chunks:
                     self._chunks.append(chunk)
                 yield chunk
@@ -52,7 +53,8 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
     async def __aiter__(self):
         try:
             async for chunk in self._generator.__aiter__():
-                # only keep track of first chunk for chat messages
+                # only keep track of the first chunk for chat messages since
+                # it is modified during the streaming process
                 if not self.is_chat or not self._chunks:
                     self._chunks.append(chunk)
                 yield chunk
@@ -166,10 +168,10 @@ def _tag_request_content(span, integration, content, content_idx):
             span.set_tag_str("vertexai.request.contents.%d.role" % content_idx, str(content.get("role", "")))
         parts = content.get("parts", [])
         for part_idx, part in enumerate(parts):
-            tag_request_content_part("vertexai", span, integration, part, part_idx, content_idx)
+            tag_request_content_part_google("vertexai", span, integration, part, part_idx, content_idx)
         return
     if isinstance(content, Part):
-        tag_request_content_part("vertexai", span, integration, content, 0, content_idx)
+        tag_request_content_part_google("vertexai", span, integration, content, 0, content_idx)
         return
     role = getattr(content, "role", "")
     if role:
@@ -182,7 +184,7 @@ def _tag_request_content(span, integration, content, content_idx):
         )
         return
     for part_idx, part in enumerate(parts):
-        tag_request_content_part("vertexai", span, integration, part, part_idx, content_idx)
+        tag_request_content_part_google("vertexai", span, integration, part, part_idx, content_idx)
 
 
 def tag_request(span, integration, instance, args, kwargs):
@@ -222,7 +224,7 @@ def tag_request(span, integration, instance, args, kwargs):
         span.set_tag_str("vertexai.request.contents.0.text", integration.trunc(str(contents)))
         return
     elif isinstance(contents, Part):
-        tag_request_content_part("vertexai", span, integration, contents, 0, 0)
+        tag_request_content_part_google("vertexai", span, integration, contents, 0, 0)
         return
     elif not isinstance(contents, list):
         return
@@ -246,7 +248,7 @@ def tag_response(span, generations, integration):
             continue
         parts = candidate_content.get("parts", [])
         for part_idx, part in enumerate(parts):
-            tag_response_part("vertexai", span, integration, part, part_idx, candidate_idx)
+            tag_response_part_google("vertexai", span, integration, part, part_idx, candidate_idx)
 
     token_counts = generations_dict.get("usage_metadata", None)
     if not token_counts:
