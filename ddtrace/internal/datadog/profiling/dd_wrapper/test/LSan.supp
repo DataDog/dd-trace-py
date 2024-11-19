@@ -1,2 +1,9 @@
-# ignore std::thread internal state leak
-leak:std::thread::_State
+# ignore std::thread internal state leak from upload_in_thread() function,
+# which has the following stack trace.
+# [  DEATH   ] Direct leak of 16 byte(s) in 1 object(s) allocated from:
+# [  DEATH   ]     #0 0x7fc5cb13502d in operator new(unsigned long) (/usr/lib/llvm-19/lib/clang/19/lib/linux/libclang_rt.asan-x86_64.so+0x10d02d) (BuildId: 337dab233b0a3b163213f3cd0d8735ba762ba27a)
+# [  DEATH   ]     #1 0x55cdc468c926 in std::unique_ptr<std::thread::_State, std::default_delete<std::thread::_State>> std::thread::_S_make_state<std::thread::_Invoker<std::tuple<upload_in_thread()::$_0>>>(std::thread::_Invoker<std::tuple<upload_in_thread()::$_0>>&&) /usr/lib/gcc/x86_64-linux-gnu/9/../../../../include/c++/9/thread:206:20
+# [  DEATH   ]     #2 0x55cdc468c926 in std::thread::thread<upload_in_thread()::$_0, void>(upload_in_thread()::$_0&&) /usr/lib/gcc/x86_64-linux-gnu/9/../../../../include/c++/9/thread:130:25
+# [  DEATH   ]     #3 0x55cdc468c926 in upload_in_thread() /home/bits/go/src/github.com/DataDog/dd-trace-py/ddtrace/internal/datadog/profiling/dd_wrapper/test/test_forking.cpp:11:14
+# [  DEATH   ]     #4 0x55cdc468d1e9 in sample_in_threads_and_fork(unsigned int, unsigned int) /home/bits/go/src/github.com/DataDog/dd-trace-py/ddtrace/internal/datadog/profiling/dd_wrapper/test/test_forking.cpp:58:26
+leak:std::thread::thread<upload_in_thread()
