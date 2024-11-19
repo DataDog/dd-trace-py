@@ -199,14 +199,12 @@ def test_llmobs_set_tags(mock_llmobs, mock_log, mock_integration_config):
     integration = BaseLLMIntegration(mock_integration_config)
     integration._llmobs_set_tags = mock.Mock()
     integration.llmobs_set_tags(span, args=[], kwargs={}, response="response", operation="operation")
-    integration._llmobs_set_tags.assert_called_once_with(span, [], {}, "response", "operation")
+    integration._llmobs_set_tags.assert_called_once_with(span, [], {}, "response", "operation", None)
 
     integration._llmobs_set_tags = mock.Mock(side_effect=AttributeError("Mocked Exception during _llmobs_set_tags()"))
-    integration.llmobs_set_tags(
-        span, args=[1, 2, 3], kwargs={"a": 123}, response=[{"content": "hello"}], operation="operation"
-    )
+    integration.llmobs_set_tags(span, [1, 2, 3], {"a": 123}, [{"content": "hello"}], "operation", None)
     integration._llmobs_set_tags.assert_called_once_with(
-        span, [1, 2, 3], {"a": 123}, [{"content": "hello"}], "operation"
+        span, [1, 2, 3], {"a": 123}, [{"content": "hello"}], "operation", None
     )
     mock_log.error.assert_called_once_with(
         "Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True

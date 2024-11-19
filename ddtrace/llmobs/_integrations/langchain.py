@@ -4,6 +4,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace import config
@@ -63,9 +64,9 @@ class LangChainIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
+        operation: str = "",
+        is_workflow_override: Optional[bool] = None,
     ) -> None:
-        """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
         if operation not in SUPPORTED_OPERATIONS:
@@ -75,7 +76,7 @@ class LangChainIntegration(BaseLLMIntegration):
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
-        is_workflow = False
+        is_workflow: bool = False
 
         llmobs_integration = "custom"
         if model_provider:
@@ -87,6 +88,10 @@ class LangChainIntegration(BaseLLMIntegration):
                 llmobs_integration = "anthropic"
 
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
+
+        if is_workflow_override:
+            # when the traced function forces an is_workflow state
+            is_workflow = is_workflow_override
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
@@ -368,17 +373,28 @@ class LangChainIntegration(BaseLLMIntegration):
         span: Span,
         args: List[Any],
         kwargs: Dict[str, Any],
-        output_documents: Union[List[Any], None],
+        output_documents: Union[List[Any], Tuple[List[float], float], Any],
         is_workflow: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "retrieval")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
-        input_query = get_argument_value(args, kwargs, 0, "query")
-        if input_query is not None:
-            formatted_inputs = self.format_io(input_query)
+        try:
+            search_input = get_argument_value(args, kwargs, 0, "query")
+        except ArgumentError:
+            try:
+                search_input = get_argument_value(args, kwargs, 0, "embedding")
+            except ArgumentError:
+                # It could be named vector in some implementations
+                search_input = get_argument_value(args, kwargs, 0, "vector")
+
+        if isinstance(search_input, str):
+            formatted_inputs = self.format_io(search_input)
             span.set_tag_str(INPUT_VALUE, safe_json(formatted_inputs))
+        elif isinstance(search_input, list):
+            span.set_tag_str(INPUT_VALUE, safe_json(search_input))
+
         if span.error or not output_documents or not isinstance(output_documents, list):
             span.set_tag_str(OUTPUT_VALUE, "")
             return
@@ -387,12 +403,18 @@ class LangChainIntegration(BaseLLMIntegration):
             return
         documents = []
         for d in output_documents:
-            doc = Document(text=d.page_content)
-            doc["id"] = getattr(d, "id", "")
-            metadata = getattr(d, "metadata", {})
-            doc["name"] = metadata.get("name", doc["id"])
-            documents.append(doc)
-        span.set_tag_str(OUTPUT_DOCUMENTS, safe_json(self.format_io(documents)))
+            if isinstance(d, tuple):
+                doc, score = d
+            else:
+                doc, score = d, None
+            document = Document(text=doc.page_content)
+            document["id"] = getattr(doc, "id", "")
+            metadata = getattr(doc, "metadata", {})
+            document["name"] = metadata.get("name", document["id"])
+            if score is not None:
+                document["score"] = score
+            documents.append(document)
+        span.set_tag_str(OUTPUT_DOCUMENTS, safe_json(documents))
         # we set the value as well to ensure that the UI would display it in case the span was the root
         span.set_tag_str(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
 

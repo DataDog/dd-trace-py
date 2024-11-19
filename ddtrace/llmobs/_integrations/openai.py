@@ -144,9 +144,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "completion", "chat", "embedding"
+        operation: str = "",
+        is_workflow_override: Optional[bool] = None,
     ) -> None:
-        """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = "embedding" if operation == "embedding" else "llm"
         span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")

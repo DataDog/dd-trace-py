@@ -10,14 +10,14 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66a52f1b00000000",
+      "_dd.p.tid": "671640ef00000000",
       "langchain.request.inputs.question": "What did the president say about Ketanji Brown Jackson?",
       "langchain.request.type": "chain",
       "langchain.response.outputs.answer": " The president nominated Circuit Court of Appeals Judge Ketanji Brown Jackson to serve on the United States Supreme Court.\\n",
       "langchain.response.outputs.question": "What did the president say about Ketanji Brown Jackson?",
       "langchain.response.outputs.sources": "https://www.whitehouse.gov/briefing-room/speeches-remarks/2021/10/28/remarks-by-president-biden-on-nominating-judges/",
       "language": "python",
-      "runtime-id": "02780e93cd304f8486f5958b27d15a94"
+      "runtime-id": "e8c451c278024e8284fb672747fb9d69"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -28,15 +28,15 @@
       "langchain.tokens.prompt_tokens": 1542,
       "langchain.tokens.total_cost": 0.002435,
       "langchain.tokens.total_tokens": 1603,
-      "process_id": 49015
+      "process_id": 27117
     },
-    "duration": 57052000,
-    "start": 1722101531310397000
+    "duration": 50921000,
+    "start": 1729511663295374000
   },
      {
        "name": "langchain.request",
        "service": "",
-       "resource": "langchain_pinecone.vectorstores.PineconeVectorStore",
+       "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -54,33 +54,89 @@
          "_dd.measured": 1,
          "langchain.response.document_count": 1
        },
-       "duration": 3282000,
-       "start": 1722101531313170000
+       "duration": 4061000,
+       "start": 1729511663296978000
      },
         {
           "name": "langchain.request",
           "service": "",
-          "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
+          "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search_with_score",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
           "type": "",
           "error": 0,
           "meta": {
-            "langchain.request.api_key": "...key>",
-            "langchain.request.inputs.0.text": "What did the president say about Ketanji Brown Jackson?",
-            "langchain.request.model": "text-embedding-ada-002",
-            "langchain.request.provider": "openai",
-            "langchain.request.type": "embedding"
+            "langchain.request.api_key": "",
+            "langchain.request.filter": "None",
+            "langchain.request.k": "4",
+            "langchain.request.namespace": "None",
+            "langchain.request.provider": "pineconevectorstore",
+            "langchain.request.query": "What did the president say about Ketanji Brown Jackson?",
+            "langchain.request.type": "similarity_search",
+            "langchain.response.document.0.metadata.source": "https://www.whitehouse.gov/state-of-the-union-2024/",
+            "langchain.response.document.0.page_content": "\\n    Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights Act. And while you\u2019re at...",
+            "langchain.response.document.0.score": "0.0"
           },
           "metrics": {
             "_dd.measured": 1,
-            "langchain.request.input_count": 1,
-            "langchain.response.outputs.0.embedding_length": 1536
+            "langchain.response.document_count": 1
           },
-          "duration": 40000,
-          "start": 1722101531313250000
+          "duration": 3905000,
+          "start": 1729511663297065000
         },
+           {
+             "name": "langchain.request",
+             "service": "",
+             "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
+             "trace_id": 0,
+             "span_id": 6,
+             "parent_id": 4,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "langchain.request.api_key": "...key>",
+               "langchain.request.inputs.0.text": "What did the president say about Ketanji Brown Jackson?",
+               "langchain.request.model": "text-embedding-ada-002",
+               "langchain.request.provider": "openai",
+               "langchain.request.type": "embedding"
+             },
+             "metrics": {
+               "_dd.measured": 1,
+               "langchain.request.input_count": 1,
+               "langchain.response.outputs.0.embedding_length": 1536
+             },
+             "duration": 59000,
+             "start": 1729511663297167000
+           },
+           {
+             "name": "langchain.request",
+             "service": "",
+             "resource": "langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search_by_vector_with_score",
+             "trace_id": 0,
+             "span_id": 7,
+             "parent_id": 4,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "langchain.request.api_key": "",
+               "langchain.request.embedding": "[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0....",
+               "langchain.request.filter": "None",
+               "langchain.request.k": "4",
+               "langchain.request.namespace": "None",
+               "langchain.request.provider": "pineconevectorstore",
+               "langchain.request.type": "similarity_search",
+               "langchain.response.document.0.metadata.source": "https://www.whitehouse.gov/state-of-the-union-2024/",
+               "langchain.response.document.0.page_content": "\\n    Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights Act. And while you\u2019re at...",
+               "langchain.response.document.0.score": "0.0"
+             },
+             "metrics": {
+               "_dd.measured": 1,
+               "langchain.response.document_count": 1
+             },
+             "duration": 3585000,
+             "start": 1729511663297342000
+           },
      {
        "name": "langchain.request",
        "service": "",
@@ -91,10 +147,10 @@
        "type": "",
        "error": 0,
        "meta": {
-         "langchain.request.inputs.input_documents": "[Document(metadata={'source': 'https://www.whitehouse.gov/state-of-the-union-2024/'}, page_content='\\n    Tonight. I call on the...",
+         "langchain.request.inputs.input_documents": "[Document(page_content='\\n    Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights ...",
          "langchain.request.inputs.question": "What did the president say about Ketanji Brown Jackson?",
          "langchain.request.type": "chain",
-         "langchain.response.outputs.input_documents": "[Document(metadata={'source': 'https://www.whitehouse.gov/state-of-the-union-2024/'}, page_content='\\n    Tonight. I call on the...",
+         "langchain.response.outputs.input_documents": "[Document(page_content='\\n    Tonight. I call on the Senate to: Pass the Freedom to Vote Act. Pass the John Lewis Voting Rights ...",
          "langchain.response.outputs.output_text": " The president nominated Circuit Court of Appeals Judge Ketanji Brown Jackson to serve on the United States Supreme Court.\\nSOUR...",
          "langchain.response.outputs.question": "What did the president say about Ketanji Brown Jackson?"
        },
@@ -105,8 +161,8 @@
          "langchain.tokens.total_cost": 0.002435,
          "langchain.tokens.total_tokens": 1603
        },
-       "duration": 50718000,
-       "start": 1722101531316557000
+       "duration": 44692000,
+       "start": 1729511663301200000
      },
         {
           "name": "langchain.request",
@@ -133,15 +189,15 @@
             "langchain.tokens.total_cost": 0.002435,
             "langchain.tokens.total_tokens": 1603
           },
-          "duration": 49468000,
-          "start": 1722101531317721000
+          "duration": 43286000,
+          "start": 1729511663302467000
         },
            {
              "name": "langchain.request",
              "service": "",
              "resource": "langchain_openai.llms.base.OpenAI",
              "trace_id": 0,
-             "span_id": 6,
+             "span_id": 8,
              "parent_id": 5,
              "type": "",
              "error": 0,
@@ -149,12 +205,10 @@
                "langchain.request.api_key": "...key>",
                "langchain.request.model": "gpt-3.5-turbo-instruct",
                "langchain.request.openai.parameters.frequency_penalty": "0",
-               "langchain.request.openai.parameters.logprobs": "None",
                "langchain.request.openai.parameters.max_tokens": "256",
                "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo-instruct",
                "langchain.request.openai.parameters.n": "1",
                "langchain.request.openai.parameters.presence_penalty": "0",
-               "langchain.request.openai.parameters.seed": "None",
                "langchain.request.openai.parameters.temperature": "0.7",
                "langchain.request.openai.parameters.top_p": "1",
                "langchain.request.prompts.0": "Given the following extracted parts of a long document and a question, create a final answer with references (\"SOURCES\"). \\nIf y...",
@@ -171,6 +225,6 @@
                "langchain.tokens.total_cost": 0.002435,
                "langchain.tokens.total_tokens": 1603
              },
-             "duration": 45899000,
-             "start": 1722101531321146000
+             "duration": 39871000,
+             "start": 1729511663305678000
            }]]

@@ -55,8 +55,8 @@ class AnthropicIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        is_workflow_override: Optional[bool] = None,
     ) -> None:
-        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         parameters = {}
         if kwargs.get("temperature"):
             parameters["temperature"] = kwargs.get("temperature")

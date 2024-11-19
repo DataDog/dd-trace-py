@@ -17,13 +17,13 @@ interactions:
       Content-Length:
       - '232'
       Date:
-      - Fri, 11 Oct 2024 20:18:51 GMT
+      - Tue, 24 Sep 2024 16:13:46 GMT
       Server:
       - Google Frontend
       Via:
       - 1.1 google
       X-Cloud-Trace-Context:
-      - 53d11cf5e965a5a08f608601521b5a5e
+      - d15b956a2c422d33a169996603132058
       access-control-allow-origin:
       - '*'
       access-control-expose-headers:
@@ -38,7 +38,7 @@ interactions:
       code: 200
       message: OK
 - request:
-    body: '{"topK": 1, "vector": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    body: '{"topK": 1, "vector": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -134,7 +134,7 @@ interactions:
       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-      0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "includeMetadata": true}'
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], "includeMetadata": true}'
     headers:
       Accept:
       - application/json
@@ -242,19 +242,19 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 11 Oct 2024 20:18:51 GMT
+      - Tue, 24 Sep 2024 16:13:46 GMT
       grpc-status:
       - '0'
       server:
       - envoy
       x-envoy-upstream-service-time:
-      - '257'
+      - '43'
       x-pinecone-max-indexed-lsn:
       - '28'
       x-pinecone-request-id:
-      - '1412088412034363811'
+      - '3700808487394569944'
       x-pinecone-request-latency-ms:
-      - '256'
+      - '43'
     status:
       code: 200
       message: OK

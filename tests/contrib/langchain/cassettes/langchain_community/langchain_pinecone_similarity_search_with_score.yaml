@@ -17,13 +17,13 @@ interactions:
       Content-Length:
       - '232'
       Date:
-      - Fri, 11 Oct 2024 20:18:51 GMT
+      - Tue, 24 Sep 2024 16:17:37 GMT
       Server:
       - Google Frontend
       Via:
       - 1.1 google
       X-Cloud-Trace-Context:
-      - 53d11cf5e965a5a08f608601521b5a5e
+      - d042ab2f75ee35800814731feed34a7a
       access-control-allow-origin:
       - '*'
       access-control-expose-headers:
@@ -242,19 +242,19 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 11 Oct 2024 20:18:51 GMT
+      - Tue, 24 Sep 2024 16:17:38 GMT
       grpc-status:
       - '0'
       server:
       - envoy
       x-envoy-upstream-service-time:
-      - '257'
+      - '62'
       x-pinecone-max-indexed-lsn:
       - '28'
       x-pinecone-request-id:
-      - '1412088412034363811'
+      - '3252322451296433129'
       x-pinecone-request-latency-ms:
-      - '256'
+      - '61'
     status:
       code: 200
       message: OK
