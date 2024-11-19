@@ -110,9 +110,9 @@ def create_pull_request():
     update_version_scheme()
     try:
         subprocess.check_output(f"git add {PYPROJECT_FILENAME}", shell=True, cwd=os.pardir)
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         try:
-            subprocess.check_output(f"git add pyproject.toml", shell=True, cwd=os.pardir)
+            subprocess.check_output("git add pyproject.toml", shell=True, cwd=os.pardir)
         except subprocess.CalledProcessError:
             raise ValueError(
                 f"\u274C Couldn't find the {PYPROJECT_FILENAME} file when trying to modify and create PR for it."
@@ -151,7 +151,7 @@ def create_pull_request():
         except Exception as e:
             print(f"\u274C Failed to create PR from {pr_branch_name} into {BASE} due to: {e}")
             raise
-    print(f"\u2705 Done")
+    print("\u2705 Done")
 
 
 def create_new_branch(branch_name: str):
