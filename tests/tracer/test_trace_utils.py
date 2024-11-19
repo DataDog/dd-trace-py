@@ -257,7 +257,7 @@ class TestHeaders(object):
 @pytest.mark.parametrize(
     "pin,config_val,default,global_service,expected",
     [
-        (Pin(), None, None, None, None),
+        (Pin(), None, None, None, "tests.tracer"),
         (Pin(), None, None, "global-svc", "global-svc"),
         (Pin(), None, "default-svc", None, "default-svc"),
         # Global service should have higher priority than the integration default.
@@ -280,10 +280,13 @@ def test_int_service(int_config, pin, config_val, default, global_service, expec
 def test_int_service_integration(int_config):
     pin = Pin()
     tracer = Tracer()
-    assert trace_utils.int_service(pin, int_config.myint) is None
+    assert trace_utils.int_service(pin, int_config.myint) == "tests.tracer"
 
     with override_global_config(dict(service="global-svc")):
-        assert trace_utils.int_service(pin, int_config.myint) is None
+        # ensure int config picks up overridden changes
+        int_config = config
+
+        assert trace_utils.int_service(pin, int_config.myint) == "global-svc"
 
         with tracer.trace("something", service=trace_utils.int_service(pin, int_config.myint)) as s:
             assert s.service == "global-svc"

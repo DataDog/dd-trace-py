@@ -5,7 +5,6 @@ containing the ddtrace package compatible with the current Python version and pl
 
 from collections import namedtuple
 import csv
-import importlib.util
 import json
 import os
 import platform
@@ -13,34 +12,42 @@ import re
 import subprocess
 import sys
 import time
-from typing import Tuple
 
 
 Version = namedtuple("Version", ["version", "constraint"])
 
 
-def parse_version(version: str) -> Tuple:
-    constraint_idx = re.search(r"\d", version).start()
-    numeric = version[constraint_idx:]
-    constraint = version[:constraint_idx]
-    parsed_version = tuple(int(re.sub("[^0-9]", "", p)) for p in numeric.split("."))
-    return Version(parsed_version, constraint)
+def parse_version(version):
+    try:
+        constraint_match = re.search(r"\d", version)
+        if not constraint_match:
+            return Version((0, 0), "")
+        constraint_idx = constraint_match.start()
+        numeric = version[constraint_idx:]
+        constraint = version[:constraint_idx]
+        parsed_version = tuple(int(re.sub("[^0-9]", "", p)) for p in numeric.split("."))
+        return Version(parsed_version, constraint)
+    except Exception:
+        return Version((0, 0), "")
 
 
 SCRIPT_DIR = os.path.dirname(__file__)
 RUNTIMES_ALLOW_LIST = {
-    "cpython": {"min": parse_version("3.7"), "max": parse_version("3.13")},
+    "cpython": {
+        "min": Version(version=(3, 7), constraint=""),
+        "max": Version(version=(3, 13), constraint=""),
+    }
 }
 
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
 FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
 TELEMETRY_ENABLED = "DD_INJECTION_ENABLED" in os.environ
 DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
-INSTALLED_PACKAGES = None
-PYTHON_VERSION = None
-PYTHON_RUNTIME = None
-PKGS_ALLOW_LIST = None
-EXECUTABLES_DENY_LIST = None
+INSTALLED_PACKAGES = {}
+PYTHON_VERSION = "unknown"
+PYTHON_RUNTIME = "unknown"
+PKGS_ALLOW_LIST = {}
+EXECUTABLES_DENY_LIST = set()
 VERSION_COMPAT_FILE_LOCATIONS = (
     os.path.abspath(os.path.join(SCRIPT_DIR, "../datadog-lib/min_compatible_versions.csv")),
     os.path.abspath(os.path.join(SCRIPT_DIR, "min_compatible_versions.csv")),
@@ -103,7 +110,7 @@ def build_denied_executables():
                 cleaned = line.strip("\n")
                 denied_executables.add(cleaned)
                 denied_executables.add(os.path.basename(cleaned))
-    _log(f"Built denied-executables list of {len(denied_executables)} entries", level="debug")
+    _log("Built denied-executables list of %s entries" % (len(denied_executables),), level="debug")
     return denied_executables
 
 
@@ -143,9 +150,15 @@ def send_telemetry(event):
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
-    p.stdin.write(event_json)
-    p.stdin.close()
-    _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
+    if p.stdin:
+        p.stdin.write(event_json)
+        p.stdin.close()
+        _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
+    else:
+        _log(
+            "failed to write telemetry to %s, could not write to telemetry writer stdin" % FORWARDER_EXECUTABLE,
+            level="error",
+        )
 
 
 def _get_clib():
@@ -154,7 +167,7 @@ def _get_clib():
     If GNU is not detected then returns MUSL.
     """
 
-    libc, version = platform.libc_ver()
+    libc, _ = platform.libc_ver()
     if libc == "glibc":
         return "gnu"
     return "musl"
@@ -170,7 +183,9 @@ def _log(msg, *args, **kwargs):
     if DEBUG_MODE:
         asctime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         msg = "[%s] [%s] datadog.autoinstrumentation(pid: %d): " % (asctime, level.upper(), os.getpid()) + msg % args
-        print(msg, file=sys.stderr)
+        sys.stderr.write(msg)
+        sys.stderr.write("\n")
+        sys.stderr.flush()
 
 
 def runtime_version_is_supported(python_runtime, python_version):
@@ -197,13 +212,13 @@ def get_first_incompatible_sysarg():
         _log("sys.argv not available, skipping sys.argv check", level="debug")
         return
 
-    _log(f"Checking sysargs: len(argv): {len(sys.argv)}", level="debug")
+    _log("Checking sys.args: len(sys.argv): %s" % (len(sys.argv),), level="debug")
     if len(sys.argv) <= 1:
         return
     argument = sys.argv[0]
-    _log(f"Is argument {argument} in deny-list?", level="debug")
+    _log("Is argument %s in deny-list?" % (argument,), level="debug")
     if argument in EXECUTABLES_DENY_LIST or os.path.basename(argument) in EXECUTABLES_DENY_LIST:
-        _log(f"argument {argument} is in deny-list", level="debug")
+        _log("argument %s is in deny-list" % (argument,), level="debug")
         return argument
 
 
@@ -225,7 +240,13 @@ def _inject():
     os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     spec = None
     try:
+        # `find_spec` is only available in Python 3.4+
+        # https://docs.python.org/3/library/importlib.html#importlib.util.find_spec
+        # DEV: It is ok to fail here on import since it'll only fail on Python versions we don't support / inject into
+        import importlib.util
+
         # None is a valid return value for find_spec (module was not found), so we need to check for it explicitly
+
         spec = importlib.util.find_spec("ddtrace")
         if not spec:
             raise ModuleNotFoundError("ddtrace")
@@ -377,5 +398,11 @@ def _inject():
 
 try:
     _inject()
-except Exception:
-    pass  # absolutely never allow exceptions to propagate to the app
+except Exception as e:
+    try:
+        event = gen_telemetry_payload(
+            [create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])]
+        )
+        send_telemetry(event)
+    except Exception:
+        pass  # absolutely never allow exceptions to propagate to the app
