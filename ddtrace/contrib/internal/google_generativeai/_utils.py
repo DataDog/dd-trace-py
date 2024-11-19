@@ -101,6 +101,7 @@ def _tag_request_content(span, integration, content, content_idx):
     for part_idx, part in enumerate(parts):
         tag_request_content_part("google_generativeai", span, integration, part, part_idx, content_idx)
 
+
 def tag_request(span, integration, instance, args, kwargs):
     """Tag the generation span with request details.
     Includes capturing generation configuration, system prompt, and messages.

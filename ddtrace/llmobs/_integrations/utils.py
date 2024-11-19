@@ -1,5 +1,6 @@
 from ddtrace.llmobs._utils import _get_attr
 
+
 def extract_model_name(instance, model_name_attr):
     """Extract the model name from the instance.
     Model names are stored in the format `"models/{model_name}"`
@@ -11,6 +12,7 @@ def extract_model_name(instance, model_name_attr):
     if "/" in model_name:
         return model_name.split("/")[-1]
     return model_name
+
 
 def tag_request_content_part(tag_prefix, span, integration, part, part_idx, content_idx):
     """Tag the generation span with request content parts."""
@@ -40,6 +42,7 @@ def tag_request_content_part(tag_prefix, span, integration, part, part_idx, cont
             "%s.request.contents.%d.parts.%d.function_response.response" % (tag_prefix, content_idx, part_idx),
             integration.trunc(str(function_response_dict.get("response", {}))),
         )
+
 
 def tag_response_part(tag_prefix, span, integration, part, part_idx, candidate_idx):
     """Tag the generation span with response part text and function calls."""
