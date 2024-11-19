@@ -1,7 +1,7 @@
 [[
   {
     "name": "test",
-    "service": null,
+    "service": "tests.appsec.appsec",
     "resource": "test",
     "trace_id": 0,
     "span_id": 1,
