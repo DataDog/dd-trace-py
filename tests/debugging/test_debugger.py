@@ -772,7 +772,7 @@ def test_debugger_condition_eval_error_get_reported_once():
         evaluationErrors = snapshot["debugger"]["snapshot"]["evaluationErrors"]
         assert 1 == len(evaluationErrors)
         assert "foo == 42" == evaluationErrors[0]["expr"]
-        assert "'foo'" == evaluationErrors[0]["message"]
+        assert "No such local variable: 'foo'" == evaluationErrors[0]["message"]
 
 
 def test_debugger_function_probe_eval_on_entry():
@@ -881,6 +881,7 @@ def test_debugger_log_line_probe_generate_messages():
                 probe_id="foo",
                 source_file="tests/submod/stuff.py",
                 line=36,
+                rate=float("inf"),
                 **compile_template(
                     "hello world ",
                     {"dsl": "foo", "json": {"ref": "foo"}},
@@ -899,8 +900,7 @@ def test_debugger_log_line_probe_generate_messages():
         assert "hello world ERROR 456!" == msg2["message"], msg2
 
         assert "foo" == msg1["debugger"]["snapshot"]["evaluationErrors"][0]["expr"], msg1
-        # not amazing error message for a missing variable
-        assert "'foo'" == msg1["debugger"]["snapshot"]["evaluationErrors"][0]["message"], msg1
+        assert "No such local variable: 'foo'" == msg1["debugger"]["snapshot"]["evaluationErrors"][0]["message"], msg1
 
         assert not msg1["debugger"]["snapshot"]["captures"]
 

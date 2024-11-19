@@ -300,6 +300,7 @@
             "ddtrace/contrib/internal/sqlalchemy/*"
         ],
         "opentelemetry": [
+            "ddtrace/settings/_otel_remapper.py",
             "ddtrace/opentelemetry/*",
             "ddtrace/internal/opentelemetry/*"
         ],
