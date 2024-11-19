@@ -1115,7 +1115,6 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     # New tests are currently only considered for EFD:
     # - if known tests were fetched properly (enforced by is_unique_test)
     # - if they have no parameters
-    # - if the session is not considered faulty
     if CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None:
         is_new = not CIVisibility.is_unique_test(discover_args.test_id)
     else:
