@@ -868,6 +868,12 @@ class CIVisibility(Service):
         if instance is None:
             return False
 
+        # The assumption that we were not able to fetch unique tests properly if the length is 0 is acceptable
+        # because the current EFD usage would cause the session to be faulty even if the query was successful but
+        # not unique tests exist. In this case, we assume all tests are unique.
+        if len(instance._unique_test_ids) == 0:
+            return True
+
         return test_id in instance._unique_test_ids
 
 
@@ -1106,8 +1112,10 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
-    # New tests are currently only considered for EFD
-    if CIVisibility.is_efd_enabled():
+    # New tests are currently only considered for EFD:
+    # - if known tests were fetched properly (enforced by is_unique_test)
+    # - if they have no parameters
+    if CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None:
         is_new = not CIVisibility.is_unique_test(discover_args.test_id)
     else:
         is_new = False
