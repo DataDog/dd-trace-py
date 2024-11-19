@@ -22,6 +22,25 @@ class SynchronizedSamplePool
         pool = moodycamel::ConcurrentQueue<Sample*>(_capacity);
     }
 
+    ~SynchronizedSamplePool()
+    {
+        // number of successive calls to try_dequeue that returned false
+        std::atomic<size_t> cnt{ 0 };
+
+        while (cnt.load() < capacity.load()) {
+            Sample* sample = nullptr;
+            if (pool.try_dequeue(sample) && sample != nullptr) {
+                delete sample;
+                cnt.store(0);
+            } else {
+                cnt.fetch_add(1);
+                // Explicitly yield to make sure that other threads trying to
+                // push to the pool can proceed.
+                std::this_thread::yield();
+            }
+        }
+    }
+
     std::optional<Sample*> take_sample();
     std::optional<Sample*> return_sample(Sample* sample);
 };
