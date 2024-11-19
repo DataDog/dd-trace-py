@@ -4,6 +4,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.16.2
+
+
+### Bug Fixes
+
+- Profiling
+  - The lock profiler would log a warning if it couldn't determine a name for a lock, and it would try determining a name multiple times for the same lock. This lead to excessive log spam. Downgrade this to a debug log and only try to determine the name once.
+
+- Tracing
+  - pymongo: Adds type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+
+
+---
+
 ## 2.14.6
 
 ### Bug Fixes
