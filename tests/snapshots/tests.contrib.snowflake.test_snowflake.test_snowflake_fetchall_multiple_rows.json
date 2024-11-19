@@ -9,7 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.snowflake",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "66b2767b00000000",
       "component": "snowflake",
