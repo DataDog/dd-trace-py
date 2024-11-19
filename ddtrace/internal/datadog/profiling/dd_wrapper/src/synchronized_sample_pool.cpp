@@ -10,7 +10,6 @@ std::optional<Sample*>
 SynchronizedSamplePool::take_sample()
 {
     Sample* sample = nullptr;
-
     pool.try_dequeue(sample);
 
     if (sample == nullptr) {
@@ -25,7 +24,7 @@ SynchronizedSamplePool::return_sample(Sample* sample)
 {
     // We don't want the pool to grow without a bound, so check the size and
     // discard the sample if it's larger than capacity.
-    if (pool.size_approx() >= capacity) {
+    if (capacity.load() <= pool.size_approx()) {
         return sample;
     } else {
         pool.enqueue(sample);

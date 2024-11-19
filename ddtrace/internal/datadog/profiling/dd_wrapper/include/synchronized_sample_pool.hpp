@@ -13,11 +13,12 @@ class SynchronizedSamplePool
 {
   private:
     moodycamel::ConcurrentQueue<Sample*> pool;
-    size_t capacity;
+    std::atomic<size_t> capacity;
 
   public:
-    SynchronizedSamplePool(size_t _capacity): capacity(_capacity)
+    SynchronizedSamplePool(size_t _capacity)
     {
+        capacity.store(_capacity);
         pool = moodycamel::ConcurrentQueue<Sample*>(_capacity);
     }
 
