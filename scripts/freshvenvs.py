@@ -22,6 +22,7 @@ import riotfile  # noqa: E402
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib")
 LATEST = ""
 
+excluded = {"coverage"}
 suite_to_package = {
     "kafka": "confluent-kafka",
     "consul": "python-consul",
@@ -37,30 +38,50 @@ suite_to_package = {
     "cassandra": "cassandra-driver",
     "rediscluster": "redis-py-cluster",
     "dogpile_cache": "dogpile-cache",
+    "vertica": "vertica_python"
 }
 
-package_to_contrib = {
-    "confluent-kafka": "kafka",
-    "confluent_kafka": "kafka", # TODO: hacky, check this
-    "python-consul": "consul",
-    "snowflake-connector-python": "snowflake",
-    "flask-caching": "flask-cache",
-    "graphql-core": "graphql",
-    "mysql-connector-python": "mysql",
-    "pytest-asyncio": "asyncio",
-    "pysqlite3-binary": "sqlite3",
-    "grpcio": "grpc",
-    "google-generativeai": "google_generativeai",
-    "psycopg2-binary": "psycopg2",
-    "cassandra-driver": "cassandra",
-    "redis-py-cluster": "rediscluster",
-    "dogpile-cache": "dogpile_cache",
-}
+# package_to_contrib = {
+#     "confluent-kafka": "kafka",
+#     "confluent_kafka": "kafka", # TODO: hacky, check this
+#     "python-consul": "consul",
+#     "snowflake-connector-python": "snowflake",
+#     "flask-caching": "flask-cache",
+#     "graphql-core": "graphql",
+#     "mysql-connector-python": "mysql",
+#     "pytest-asyncio": "asyncio",
+#     "pysqlite3-binary": "sqlite3",
+#     "grpcio": "grpc",
+#     "google-generativeai": "google_generativeai",
+#     "psycopg2-binary": "psycopg2",
+#     "cassandra-driver": "cassandra",
+#     "redis-py-cluster": "rediscluster",
+#     "dogpile-cache": "dogpile_cache",
+#     "vertica_python": "vertica"
+# }
 
+
+# mapping the name of the module to the name of the package (on pypi and as defined in lockfiles)
+mapping_module_to_package = {
+    "confluent_kafka": "confluent-kafka",
+    "snowflake": "snowflake-connector-python",
+    "cassandra": "cassandra-driver",
+    "rediscluster": "redis-py-cluster",
+    "vertica_python": "vertica-python",
+    "flask_cache": "flask-cache",
+    "flask_caching": "flask-caching",
+    "consul": "python-consul",
+    "grpc": "grpcio",
+    "graphql": "graphql-core",
+    "mysql": "pymysql"
+}
 
 # contrib_to_package = {
 #     "cassandra": "cassandra-driver"
 # }
+
+# invert the previous dictionary
+mapping_package_to_module = {v: k for k, v in mapping_module_to_package.items()}
 
 supported_versions = [] #list of dicts
 pinned_packages = set()
@@ -146,9 +167,6 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[Optional[str], Opti
     versions = [p.strip(",") for p in output_parts[2:]]
     earliest_within_window = versions[-1]
 
-    if package_name == "pysqlite3-binary": # TODO: change this, hacky
-        package_name = "pysqlite3"
-
     conn = HTTPSConnection("pypi.org", 443)
     conn.request("GET", f"pypi/{package_name}/json")
     response = conn.getresponse()
@@ -174,13 +192,16 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[Optional[str], Opti
 
 
 def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.List[typing.Tuple[str, str]]:
-    """Return the list of package versions that are tested"""
+    """Return the list of package versions that are tested, related to the modules"""
+    # Returns [(package, version), (package, versions)]
     lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
     lock_packages = []
     for line in lockfile_content:
         package, _, versions = line.partition("==")
-        if package in packages or package in suite_to_package.values():
+        # remap the package -> module name
+        if package in packages:
             lock_packages.append((package, versions))
+    # print(lock_packages)
     return lock_packages
 
 
@@ -212,31 +233,33 @@ def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
 
     return False
 
+def _get_all_used_versions(envs, packages) -> dict:
+    # Returns dict(module, set(versions)) for a venv, as defined in riotfiles.
+    all_used_versions = defaultdict(set)
+    for env in envs:
+        versions_used = _get_package_versions_from(env, packages) # returns list of (package, versions)
+        for package, version in versions_used:
+            all_used_versions[package].add(version)
+    return all_used_versions
+
+def _get_version_bounds(packages) -> dict:
+    # Return dict(module: (earliest, latest)) of the module on PyPI
+    # TODO: check the remapping from the package name -> name on PyPI
+    bounds = dict()
+    for package in packages:
+        earliest, latest = _get_version_extremes(package)
+        bounds[package] = (earliest, latest)
+    return bounds
+
+
 
 def main():
     all_required_modules = _get_integrated_modules()
-    all_required_packages = _get_updatable_packages_implementing(all_required_modules)
+    all_required_packages = _get_updatable_packages_implementing(all_required_modules) # these are MODULE names
     contrib_modules = _get_all_modules(all_required_modules)
+    # print(contrib_modules, "\n")
     envs = _get_riot_envs_including_any(all_required_modules)
-
-    bounds = dict()
-    for package in contrib_modules:
-        if package in suite_to_package:
-            earliest, latest = _get_version_extremes(suite_to_package[package])
-        else:
-            earliest, latest = _get_version_extremes(package)
-        bounds[package] = (earliest, latest)
-
-    all_used_versions = defaultdict(set)
-    for env in envs:
-        versions_used = _get_package_versions_from(env, contrib_modules)
-        for pkg, version in versions_used:
-            if pkg in package_to_contrib:
-                pkg = package_to_contrib[pkg]
-            all_used_versions[pkg].add(version)
-    print(all_used_versions)
-    print(contrib_modules)
-
+    # print(envs)
 
     # for package in all_required_packages:
     #     ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
@@ -248,28 +271,36 @@ def main():
     #             f"{package}: policy supports version {bounds[package][0]} through {bounds[package][1]} "
     #             f"but only these versions are used: {[str(v) for v in ordered]}"
     #         )
+    contrib_packages = contrib_modules
+    # remap 
+    for mod in mapping_module_to_package:
+        contrib_packages.remove(mod)
+        contrib_packages.add(mapping_module_to_package[mod])
+    # print(contrib_packages, "\n")
+    all_used_versions = _get_all_used_versions(envs, contrib_packages)
+    # print(all_used_versions)
+    bounds = _get_version_bounds(contrib_packages)
+    # print(bounds)
+    # Generate supported versions
+    for package in contrib_packages:
+        # if mod in mapping_module_to_package:
+        #     mod = mapping_module_to_package[mod] # TODO: test remapping, ex. rename confluent-kafka -> kafka
 
-    for mod in contrib_modules:
-        # print(mod)
-        if mod in package_to_contrib:
-            mod = package_to_contrib[mod] # TODO: test remapping
-
-        ordered = sorted([Version(v) for v in all_used_versions[mod]], reverse=True) # TODO: modify this
-        # print(mod, ":", ordered)
+        ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True) # TODO: modify this
         if not ordered:
             continue
-        json_format = {"integration": mod, "minimum_tracer_supported": str(ordered[-1]),
+        json_format = {"integration": package, "minimum_tracer_supported": str(ordered[-1]),
                 "max_tracer_supported": str(ordered[0]),
-                "minumum_available_supported": bounds[mod][0],
-                "maximum_available_supported": bounds[mod][1] }
+                "minumum_available_supported": bounds[package][0],
+                "maximum_available_supported": bounds[package][1] }
 
-        if mod in pinned_packages:
+        if package in pinned_packages:
             json_format["pinned"] = "true"
         supported_versions.append(json_format)
 
     supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
     # print(supported_versions_output)
-    with open("supported_versions.json", "w") as file:
+    with open("supported_versions_output.json", "w") as file:
         json.dump(supported_versions_output, file, indent=4)
 
 

@@ -1,7 +1,7 @@
 import json
 
 
-with open("supported_versions.json", "r") as json_file:
+with open("supported_versions_output.json", "r") as json_file:
     data = json.load(json_file)
 
 columns = [
