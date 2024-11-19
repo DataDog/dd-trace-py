@@ -1,3 +1,0 @@
-# SynchronizedSamplePool
-race:Datadog::Sample::push_
-race:Datadog::Sample::flush_

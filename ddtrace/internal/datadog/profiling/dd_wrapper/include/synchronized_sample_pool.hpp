@@ -2,27 +2,24 @@
 
 #include "sample.hpp"
 
-extern "C"
-{
-#include "datadog/common.h"
-}
+#include "vendored/concurrentqueue.h"
+
 #include <memory>
 #include <optional>
 
 namespace Datadog {
 
-struct Deleter
-{
-    void operator()(ddog_ArrayQueue* object) { ddog_ArrayQueue_drop(object); }
-};
-
 class SynchronizedSamplePool
 {
   private:
-    std::unique_ptr<ddog_ArrayQueue, Deleter> pool;
+    moodycamel::ConcurrentQueue<Sample*> pool;
+    size_t capacity;
 
   public:
-    SynchronizedSamplePool(size_t capacity);
+    SynchronizedSamplePool(size_t _capacity): capacity(_capacity)
+    {
+        pool = moodycamel::ConcurrentQueue<Sample*>(_capacity);
+    }
 
     std::optional<Sample*> take_sample();
     std::optional<Sample*> return_sample(Sample* sample);
