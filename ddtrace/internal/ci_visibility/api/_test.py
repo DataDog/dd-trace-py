@@ -101,7 +101,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         # NOTE: The is_new tag is currently only being set in the context of EFD (since that is the only context in
         # which unique tests are fetched).
-        if self._is_new:
+        if self.is_new():
             self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_atr_tags(self) -> None:
