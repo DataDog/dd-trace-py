@@ -20,5 +20,5 @@ __all__ = [
     "VertexAIIntegration",
     extract_model_name,
     tag_request_content_part,
-    tag_response_part
+    tag_response_part,
 ]
