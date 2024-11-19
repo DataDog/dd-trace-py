@@ -4,8 +4,13 @@ from weakref import WeakValueDictionary
 
 from ddtrace._trace.span import Span
 from ddtrace.contrib.trace_utils import set_flattened_tags
+from ddtrace.propagation.http import HTTPPropagator
 
 from .constants import CTX_KEY
+from .constants import SPAN_KEY
+
+
+propagator = HTTPPropagator
 
 
 TAG_KEYS = frozenset(
@@ -66,6 +71,31 @@ def set_tags_from_context(span: Span, context: Dict[str, Any]) -> None:
     set_flattened_tags(span, context_tags)
 
 
+def attach_span_context(task, task_id, span, is_publish=False):
+    trace_headers = {}
+    propagator.inject(span.context, trace_headers)
+
+    # put distributed trace headers where celery will propagate them
+    context_dict = getattr(task, CTX_KEY, None)
+    if context_dict is None:
+        context_dict = dict()
+        setattr(task, CTX_KEY, context_dict)
+
+    context_dict[(task_id, is_publish, "distributed_context")] = trace_headers
+
+
+def retrieve_span_context(task, task_id, is_publish=False):
+    """Helper to retrieve an active `Span` stored in a `Task`
+    instance
+    """
+    context_dict = getattr(task, CTX_KEY, None)
+    if context_dict is None:
+        return
+
+    # DEV: See note in `attach_span` for key info
+    return context_dict.get((task_id, is_publish, "distributed_context"))
+
+
 def attach_span(task, task_id, span, is_publish=False):
     """Helper to propagate a `Span` for the given `Task` instance. This
     function uses a `WeakValueDictionary` that stores a Datadog Span using
@@ -85,10 +115,10 @@ def attach_span(task, task_id, span, is_publish=False):
          NOTE: We cannot test for this well yet, because we do not run a celery worker,
          and cannot run `task.apply_async()`
     """
-    weak_dict = getattr(task, CTX_KEY, None)
+    weak_dict = getattr(task, SPAN_KEY, None)
     if weak_dict is None:
         weak_dict = WeakValueDictionary()
-        setattr(task, CTX_KEY, weak_dict)
+        setattr(task, SPAN_KEY, weak_dict)
 
     weak_dict[(task_id, is_publish)] = span
 
@@ -97,7 +127,7 @@ def detach_span(task, task_id, is_publish=False):
     """Helper to remove a `Span` in a Celery task when it's propagated.
     This function handles tasks where the `Span` is not attached.
     """
-    weak_dict = getattr(task, CTX_KEY, None)
+    weak_dict = getattr(task, SPAN_KEY, None)
     if weak_dict is None:
         return
 
@@ -112,7 +142,7 @@ def retrieve_span(task, task_id, is_publish=False):
     """Helper to retrieve an active `Span` stored in a `Task`
     instance
     """
-    weak_dict = getattr(task, CTX_KEY, None)
+    weak_dict = getattr(task, SPAN_KEY, None)
     if weak_dict is None:
         return
     else:

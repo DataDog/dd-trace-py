@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
@@ -32,7 +32,7 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": "",
+       "service": "ddtrace_subprocess_dir",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
