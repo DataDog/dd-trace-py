@@ -160,6 +160,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
+        log.warning("This version of the ddtrace pytest plugin is currently in beta.")
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
@@ -176,7 +177,6 @@ def pytest_load_initial_conftests(early_config, parser, args):
 def pytest_configure(config: pytest_Config) -> None:
     try:
         if is_enabled(config):
-            take_over_logger_stream_handler()
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)
             if _is_pytest_cov_enabled(config):
