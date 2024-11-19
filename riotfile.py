@@ -105,6 +105,7 @@ venv = Venv(
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
+        "_DD_CIVISIBILITY_USE_PYTEST_V2": "true",
     },
     venvs=[
         Venv(
@@ -121,12 +122,23 @@ venv = Venv(
             },
         ),
         Venv(
+            name="gitlab-gen-config",
+            command="python scripts/gen_gitlab_config.py {cmdargs}",
+            pys=["3"],
+            pkgs={
+                "ruamel.yaml": latest,
+            },
+        ),
+        Venv(
             name="appsec",
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec/appsec/",
             pkgs={
                 "requests": latest,
                 "docker": latest,
+            },
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
         ),
         Venv(
@@ -283,6 +295,7 @@ venv = Venv(
                 "httpx": latest,
                 "pytest-randomly": latest,
                 "setuptools": latest,
+                "boto3": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
@@ -1711,7 +1724,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest-benchmark",
-            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
+            command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
@@ -2832,6 +2845,7 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "CPUCOUNT": "12",
             },
             pkgs={
                 "gunicorn": latest,
@@ -2969,6 +2983,7 @@ venv = Venv(
                 "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
                 # Enable pytest v2 plugin to handle pytest-cpp items in the test suite
                 "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+                "CPUCOUNT": "12",
             },
             pkgs={
                 "gunicorn": latest,

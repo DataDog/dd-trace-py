@@ -34,7 +34,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     expected_tags = [
         "version:{}".format(tags.get("version", "")),
         "env:{}".format(tags.get("env", "")),
-        "service:{}".format(tags.get("service", "")),
+        "service:{}".format(tags.get("service", "tests.llmobs")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
         "ddtrace.version:{}".format(ddtrace.__version__),
@@ -178,13 +178,7 @@ def _expected_llmobs_non_llm_span_event(
 
 
 def _llmobs_base_span_event(
-    span,
-    span_kind,
-    tags=None,
-    session_id=None,
-    error=None,
-    error_message=None,
-    error_stack=None,
+    span, span_kind, tags=None, session_id=None, error=None, error_message=None, error_stack=None
 ):
     span_event = {
         "trace_id": "{:x}".format(span.trace_id),
@@ -268,7 +262,7 @@ def _completion_event():
         "parent_id": "",
         "session_id": "98765432101",
         "name": "completion_span",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223236,
         "duration": 12345678900,
         "error": 0,
@@ -299,7 +293,7 @@ def _chat_completion_event():
         "parent_id": "",
         "session_id": "98765432102",
         "name": "chat_completion_span",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -337,7 +331,7 @@ def _large_event():
         "parent_id": "",
         "session_id": "98765432103",
         "name": "large_span",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -375,7 +369,7 @@ def _oversized_llm_event():
         "parent_id": "",
         "session_id": "98765432104",
         "name": "oversized_llm_event",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -413,7 +407,7 @@ def _oversized_workflow_event():
         "parent_id": "",
         "session_id": "98765432105",
         "name": "oversized_workflow_event",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -433,7 +427,7 @@ def _oversized_retrieval_event():
         "parent_id": "",
         "session_id": "98765432106",
         "name": "oversized_retrieval_event",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -450,7 +444,7 @@ def expected_ragas_trace_tags():
     return [
         "version:",
         "env:",
-        "service:",
+        "service:tests.llmobs",
         "source:integration",
         "ml_app:dd-ragas-unnamed-ml-app",
         "ddtrace.version:{}".format(ddtrace.__version__),

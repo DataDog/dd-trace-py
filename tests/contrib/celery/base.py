@@ -18,7 +18,7 @@ BACKEND_URL = "{redis}/{db}".format(redis=REDIS_URL, db=1)
 
 @pytest.fixture(scope="session")
 def celery_config():
-    return {"broker_url": BROKER_URL, "result_backend": BACKEND_URL}
+    return {"broker_url": BROKER_URL, "result_backend": BACKEND_URL, "task_concurrency": 5}
 
 
 @pytest.fixture
@@ -26,6 +26,7 @@ def celery_worker_parameters():
     return {
         # See https://github.com/celery/celery/issues/3642#issuecomment-457773294
         "perform_ping_check": False,
+        "concurrency": 2,
     }
 
 

@@ -257,7 +257,7 @@ class TestHeaders(object):
 @pytest.mark.parametrize(
     "pin,config_val,default,global_service,expected",
     [
-        (Pin(), None, None, None, None),
+        (Pin(), None, None, None, "tests.tracer"),
         (Pin(), None, None, "global-svc", "global-svc"),
         (Pin(), None, "default-svc", None, "default-svc"),
         # Global service should have higher priority than the integration default.
@@ -280,10 +280,13 @@ def test_int_service(int_config, pin, config_val, default, global_service, expec
 def test_int_service_integration(int_config):
     pin = Pin()
     tracer = Tracer()
-    assert trace_utils.int_service(pin, int_config.myint) is None
+    assert trace_utils.int_service(pin, int_config.myint) == "tests.tracer"
 
     with override_global_config(dict(service="global-svc")):
-        assert trace_utils.int_service(pin, int_config.myint) is None
+        # ensure int config picks up overridden changes
+        int_config = config
+
+        assert trace_utils.int_service(pin, int_config.myint) == "global-svc"
 
         with tracer.trace("something", service=trace_utils.int_service(pin, int_config.myint)) as s:
             assert s.service == "global-svc"
@@ -595,6 +598,27 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
     mock_store_headers.assert_called()
 
 
+ALL_IP_HEADERS = (
+    ("x-forwarded-for", "1.1.1.1"),
+    ("x-real-ip", "2.2.2.2"),
+    ("true-client-ip", "3.3.3.3"),
+    ("x-client-ip", "4.4.4.4"),
+    ("x-forwarded", "5.5.5.5"),
+    ("forwarded-for", "6.6.6.6"),
+    ("x-cluster-client-ip", "7.7.7.7"),
+    ("fastly-client-ip", "8.8.8.8"),
+    ("cf-connecting-ip", "9.9.9.9"),
+    ("cf-connecting-ipv6", "10.10.10.10"),
+)
+
+# testing priority order
+ALL_TESTS = [
+    ["", dict(ALL_IP_HEADERS[-1 : -i - 2 : -1]), ALL_IP_HEADERS[-1 - i][1]] for i in range(len(ALL_IP_HEADERS))
+]
+# x-forwarded is now ignored so we fall back to forwarded-for
+ALL_TESTS[5][2] = "6.6.6.6"
+
+
 @pytest.mark.parametrize(
     "header_env_var,headers_dict,expected",
     [
@@ -636,7 +660,8 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
             {"x-forwarded-for": "4.4.4.4", "x-real-ip": "8.8.4.4"},
             "8.8.4.4",
         ),
-    ],
+    ]
+    + ALL_TESTS,
 )
 def test_get_request_header_ip(header_env_var, headers_dict, expected, span):
     with override_global_config(dict(_asm_enabled=True, _client_ip_header=header_env_var)):
