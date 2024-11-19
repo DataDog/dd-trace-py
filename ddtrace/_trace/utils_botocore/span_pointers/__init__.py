@@ -42,7 +42,7 @@ def extract_span_pointers_from_successful_botocore_response(
 
     except Exception as e:
         # Catch-all in case we miss something in the helpers
-        log.debug("Error extracting span pointers from botocore response: %s", e)
+        log.debug("span pointers: Error extracting span pointers from botocore response: %s", e)
         record_span_pointer_calculation_issue("extractor_root", "unexpected_error")
 
     record_span_pointer_calculation(span_pointer_count=len(result))
