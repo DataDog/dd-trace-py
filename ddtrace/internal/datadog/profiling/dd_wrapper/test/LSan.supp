@@ -1,0 +1,2 @@
+# ignore std::thread internal state leak
+leak:std::thread::_State

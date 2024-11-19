@@ -21,7 +21,7 @@ function(dd_wrapper_add_test name)
     target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper nlohmann_json::nlohmann_json)
     add_ddup_config(${name})
 
-    gtest_discover_tests(${name} PROPERTIES ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0")
+    gtest_discover_tests(${name} PROPERTIES ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0,LSAN_OPTIONS=suppressions=LSan.supp")
 
     set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
