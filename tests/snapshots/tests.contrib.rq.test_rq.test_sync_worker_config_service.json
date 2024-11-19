@@ -9,7 +9,7 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "rq",
@@ -39,7 +39,7 @@
        "type": "worker",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.rq",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "654a694400000000",
          "component": "rq",
@@ -71,7 +71,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.rq",
             "_dd.p.tid": "654a694400000000",
             "component": "rq",
             "job.id": "97f1d8cc-a944-48c9-a71f-2f1f316d0a19"

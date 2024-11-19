@@ -1,7 +1,7 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": "tests.contrib.langchain",
     "resource": "langchain.chat_models.openai.ChatOpenAI",
     "trace_id": 0,
     "span_id": 1,

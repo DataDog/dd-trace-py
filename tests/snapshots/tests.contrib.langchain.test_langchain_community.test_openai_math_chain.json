@@ -1,7 +1,7 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": "tests.contrib.langchain",
     "resource": "langchain.chains.llm_math.base.LLMMathChain",
     "trace_id": 0,
     "span_id": 1,
@@ -35,7 +35,7 @@
   },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": "tests.contrib.langchain",
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 2,
@@ -63,7 +63,7 @@
      },
         {
           "name": "langchain.request",
-          "service": "",
+          "service": "tests.contrib.langchain",
           "resource": "langchain_openai.llms.base.OpenAI",
           "trace_id": 0,
           "span_id": 3,

@@ -1,7 +1,7 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": "tests.contrib.langchain",
     "resource": "langchain_core.runnables.base.RunnableSequence",
     "trace_id": 0,
     "span_id": 1,
@@ -30,7 +30,7 @@
   },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": "tests.contrib.langchain",
        "resource": "langchain_openai.chat_models.base.ChatOpenAI",
        "trace_id": 0,
        "span_id": 2,
