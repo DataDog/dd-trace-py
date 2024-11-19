@@ -3167,10 +3167,29 @@ def test_baggageheader_maxbytes_inject():
     from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 
     headers = {}
-    baggage_items = {"foo": ("a" * DD_TRACE_BAGGAGE_MAX_BYTES)}
+    # baggage item that exceeds the maximum byte size
+    baggage_items = {"foo": "a" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)}
     span_context = Context(baggage=baggage_items)
     _BaggageHeader._inject(span_context, headers)
-    assert "baggage" not in headers
+    # since the baggage item exceeds the max bytes, no header should be injected
+    header_value = headers["baggage"]
+    assert header_value == ""
+
+    # multiple baggage items to test dropping items when the total size exceeds the limit
+    headers = {}
+    baggage_items = {
+        "key1": "a" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key2": "b" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key3": "c" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key4": "d",
+    }
+    span_context = Context(baggage=baggage_items)
+    _BaggageHeader._inject(span_context, headers)
+    header_value = headers["baggage"]
+    header_size = len(header_value.encode("utf-8"))
+    assert header_size <= DD_TRACE_BAGGAGE_MAX_BYTES
+    assert "key4" not in header_value
+    assert "key2" in header_value
 
 
 @pytest.mark.parametrize(
