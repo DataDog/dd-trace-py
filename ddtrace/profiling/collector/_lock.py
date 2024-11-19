@@ -269,7 +269,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
     # Get lock acquire/release call location and variable name the lock is assigned to
     def _maybe_update_self_name(self):
-        if self._self_name:
+        if self._self_name is not None:
             return
         try:
             # We expect the call stack to be like this:
@@ -298,7 +298,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
             if not self._self_name:
                 self._self_name = ""
-                LOG.warning(
+                LOG.debug(
                     "Failed to get lock variable name, we only support local/global variables and their attributes."
                 )
 
