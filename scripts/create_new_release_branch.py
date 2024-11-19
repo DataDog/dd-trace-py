@@ -53,7 +53,7 @@ PYPROJECT_FILENAME = "../pyproject.toml"
 
 def create_release_branch():
     rc1_tag = f"v{BASE}.0rc1"
-    
+
     try:
         subprocess.check_call(f"git checkout {rc1_tag}", shell=True, cwd=os.pardir)
     except subprocess.CalledProcessError:
@@ -61,11 +61,12 @@ def create_release_branch():
         raise
 
     create_new_branch(BASE)
-    
+
     if DRY_RUN:
         print(
             f"DRY RUN: Would push {BASE} branch from {rc1_tag} tag to origin."
-            f"You can check out what would have been pushed in your local {BASE}")
+            f"You can check out what would have been pushed in your local {BASE}"
+        )
     else:
         try:
             subprocess.check_call(f"git push origin {BASE}", shell=True, cwd=os.pardir)
@@ -102,9 +103,9 @@ def create_pull_request():
 
     # Create branch
     pr_branch_name = f"script/guess-next-dev-{BASE}"
-    
+
     create_new_branch(pr_branch_name)
-        
+
     # Update pyproject.toml
     update_version_scheme()
     try:
@@ -118,18 +119,19 @@ def create_pull_request():
                 "You may need to run this script from the root of the repository."
             )
     print(f"Committing changes to {PYPROJECT_FILENAME} on branch {pr_branch_name}")
-    pr_title = (
-        f"chore: use guess-next-dev instead of release-branch-semver [{BASE}]"
-    )
+    pr_title = f"chore: use guess-next-dev instead of release-branch-semver [{BASE}]"
     pr_body = (
         f"This PR updates the `version_schema` in the `{PYPROJECT_FILENAME}` file for the {BASE} release branch "
         "from `release-branch-semver` to `guess-next-dev`. This is to ensure that system tests work as intended "
         "with backports to this release branch."
         "\n\n"
         f"IMPORTANT: This PR needs to be merged before the first backport is created for {BASE}."
-        "Otherwise, system tests will not work as expected.")
+        "Otherwise, system tests will not work as expected."
+    )
     try:
-        subprocess.check_output(f"git commit -m 'Update version_schema for the {BASE} release branch via script'", shell=True, cwd=os.pardir)
+        subprocess.check_output(
+            f"git commit -m 'Update version_schema for the {BASE} release branch via script'", shell=True, cwd=os.pardir
+        )
     except subprocess.CalledProcessError:
         print(f"\u274C Failed to commit changes to {pr_branch_name}")
         raise
@@ -164,6 +166,7 @@ def create_new_branch(branch_name: str):
         else:
             print(f"\u274C Encountered error when trying to create branch {branch_name}")
             raise e
+
 
 if __name__ == "__main__":
     subprocess.check_output(
