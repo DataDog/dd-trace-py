@@ -918,7 +918,7 @@ class _BaggageHeader:
                 log.warning("Baggage item limit exceeded, dropping excess items")
                 baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
-            encoded_items = []
+            encoded_items: List[str] = []
             total_size = 0
             for key, value in baggage_items:
                 item = f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
