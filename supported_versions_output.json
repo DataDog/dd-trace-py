@@ -1,0 +1,422 @@
+[
+    {
+        "integration": "aiobotocore",
+        "minimum_tracer_supported": "1.4.2",
+        "max_tracer_supported": "2.13.3",
+        "minumum_available_supported": "2.4.0",
+        "maximum_available_supported": "2.15.2"
+    },
+    {
+        "integration": "aiohttp",
+        "minimum_tracer_supported": "3.8.6",
+        "max_tracer_supported": "3.10.10",
+        "minumum_available_supported": "3.8.3",
+        "maximum_available_supported": "3.11.6"
+    },
+    {
+        "integration": "aiomysql",
+        "minimum_tracer_supported": "0.1.1",
+        "max_tracer_supported": "0.2.0",
+        "minumum_available_supported": "0.1.1",
+        "maximum_available_supported": "0.2.0"
+    },
+    {
+        "integration": "aiopg",
+        "minimum_tracer_supported": "1.4.0",
+        "max_tracer_supported": "1.4.0",
+        "minumum_available_supported": "1.4.0",
+        "maximum_available_supported": "1.4.0",
+        "pinned": "true"
+    },
+    {
+        "integration": "algoliasearch",
+        "minimum_tracer_supported": "2.6.3",
+        "max_tracer_supported": "2.6.3",
+        "minumum_available_supported": "2.6.2",
+        "maximum_available_supported": "4.9.1",
+        "pinned": "true"
+    },
+    {
+        "integration": "anthropic",
+        "minimum_tracer_supported": "0.26.0",
+        "max_tracer_supported": "0.36.0",
+        "minumum_available_supported": "0.2.2",
+        "maximum_available_supported": "0.39.0"
+    },
+    {
+        "integration": "aredis",
+        "minimum_tracer_supported": "1.1.8",
+        "max_tracer_supported": "1.1.8",
+        "minumum_available_supported": "1.1.8",
+        "maximum_available_supported": "1.1.8"
+    },
+    {
+        "integration": "asyncpg",
+        "minimum_tracer_supported": "0.23.0",
+        "max_tracer_supported": "0.29.0",
+        "minumum_available_supported": "0.27.0",
+        "maximum_available_supported": "0.30.0"
+    },
+    {
+        "integration": "avro",
+        "minimum_tracer_supported": "1.12.0",
+        "max_tracer_supported": "1.12.0",
+        "minumum_available_supported": "1.11.1",
+        "maximum_available_supported": "1.12.0"
+    },
+    {
+        "integration": "boto",
+        "minimum_tracer_supported": "2.49.0",
+        "max_tracer_supported": "2.49.0",
+        "minumum_available_supported": "2.49.0",
+        "maximum_available_supported": "2.49.0"
+    },
+    {
+        "integration": "botocore",
+        "minimum_tracer_supported": "1.20.106",
+        "max_tracer_supported": "1.35.14",
+        "minumum_available_supported": "1.29.13",
+        "maximum_available_supported": "1.35.64",
+        "pinned": "true"
+    },
+    {
+        "integration": "bottle",
+        "minimum_tracer_supported": "0.12.25",
+        "max_tracer_supported": "0.13.2",
+        "minumum_available_supported": "0.12.23",
+        "maximum_available_supported": "0.13.2"
+    },
+    {
+        "integration": "cassandra-driver",
+        "minimum_tracer_supported": "3.24.0",
+        "max_tracer_supported": "3.28.0",
+        "minumum_available_supported": "3.25.0",
+        "maximum_available_supported": "3.29.2"
+    },
+    {
+        "integration": "celery",
+        "minimum_tracer_supported": "4.4.7",
+        "max_tracer_supported": "5.4.0",
+        "minumum_available_supported": "5.2.7",
+        "maximum_available_supported": "5.4.0"
+    },
+    {
+        "integration": "cherrypy",
+        "minimum_tracer_supported": "17.4.2",
+        "max_tracer_supported": "18.10.0",
+        "minumum_available_supported": "18.8.0",
+        "maximum_available_supported": "18.10.0"
+    },
+    {
+        "integration": "confluent-kafka",
+        "minimum_tracer_supported": "1.9.2",
+        "max_tracer_supported": "2.4.0",
+        "minumum_available_supported": "1.9.2",
+        "maximum_available_supported": "2.6.1"
+    },
+    {
+        "integration": "coverage",
+        "minimum_tracer_supported": "7.2.7",
+        "max_tracer_supported": "7.4.4",
+        "minumum_available_supported": "6.5.0",
+        "maximum_available_supported": "7.6.7"
+    },
+    {
+        "integration": "django",
+        "minimum_tracer_supported": "2.2.1",
+        "max_tracer_supported": "5.1",
+        "minumum_available_supported": "4.1.3",
+        "maximum_available_supported": "5.1.3",
+        "pinned": "true"
+    },
+    {
+        "integration": "dramatiq",
+        "minimum_tracer_supported": "1.16.0",
+        "max_tracer_supported": "1.17.0",
+        "minumum_available_supported": "1.13.0",
+        "maximum_available_supported": "1.17.1"
+    },
+    {
+        "integration": "falcon",
+        "minimum_tracer_supported": "3.0.1",
+        "max_tracer_supported": "3.1.3",
+        "minumum_available_supported": "3.1.1",
+        "maximum_available_supported": "4.0.2"
+    },
+    {
+        "integration": "fastapi",
+        "minimum_tracer_supported": "0.64.0",
+        "max_tracer_supported": "0.115.2",
+        "minumum_available_supported": "0.87.0",
+        "maximum_available_supported": "0.115.5"
+    },
+    {
+        "integration": "flask",
+        "minimum_tracer_supported": "0.12.5",
+        "max_tracer_supported": "3.0.3",
+        "minumum_available_supported": "2.2.2",
+        "maximum_available_supported": "3.1.0"
+    },
+    {
+        "integration": "flask-cache",
+        "minimum_tracer_supported": "0.13.1",
+        "max_tracer_supported": "0.13.1",
+        "minumum_available_supported": "0.13.1",
+        "maximum_available_supported": "0.13.1"
+    },
+    {
+        "integration": "flask-caching",
+        "minimum_tracer_supported": "1.10.1",
+        "max_tracer_supported": "2.3.0",
+        "minumum_available_supported": "2.0.1",
+        "maximum_available_supported": "2.3.0"
+    },
+    {
+        "integration": "gevent",
+        "minimum_tracer_supported": "20.12.1",
+        "max_tracer_supported": "24.11.1",
+        "minumum_available_supported": "22.10.2",
+        "maximum_available_supported": "24.11.1"
+    },
+    {
+        "integration": "graphql-core",
+        "minimum_tracer_supported": "3.1.7",
+        "max_tracer_supported": "3.2.3",
+        "minumum_available_supported": "3.2.3",
+        "maximum_available_supported": "3.2.5"
+    },
+    {
+        "integration": "grpcio",
+        "minimum_tracer_supported": "1.34.1",
+        "max_tracer_supported": "1.66.1",
+        "minumum_available_supported": "1.50.0",
+        "maximum_available_supported": "1.68.0"
+    },
+    {
+        "integration": "httpx",
+        "minimum_tracer_supported": "0.15.4",
+        "max_tracer_supported": "0.27.2",
+        "minumum_available_supported": "0.23.1",
+        "maximum_available_supported": "0.27.2"
+    },
+    {
+        "integration": "jinja2",
+        "minimum_tracer_supported": "2.11.3",
+        "max_tracer_supported": "3.1.4",
+        "minumum_available_supported": "3.1.2",
+        "maximum_available_supported": "3.1.4"
+    },
+    {
+        "integration": "kombu",
+        "minimum_tracer_supported": "4.2.2.post1",
+        "max_tracer_supported": "5.4.2",
+        "minumum_available_supported": "5.2.4",
+        "maximum_available_supported": "5.4.2"
+    },
+    {
+        "integration": "langchain",
+        "minimum_tracer_supported": "0.0.192",
+        "max_tracer_supported": "0.2.16",
+        "minumum_available_supported": "0.0.17",
+        "maximum_available_supported": "0.3.7"
+    },
+    {
+        "integration": "logbook",
+        "minimum_tracer_supported": "1.0.0",
+        "max_tracer_supported": "1.7.0.post0",
+        "minumum_available_supported": "1.5.3",
+        "maximum_available_supported": "1.8.0"
+    },
+    {
+        "integration": "loguru",
+        "minimum_tracer_supported": "0.4.1",
+        "max_tracer_supported": "0.7.2",
+        "minumum_available_supported": "0.6.0",
+        "maximum_available_supported": "0.7.2"
+    },
+    {
+        "integration": "mako",
+        "minimum_tracer_supported": "1.1.6",
+        "max_tracer_supported": "1.3.5",
+        "minumum_available_supported": "1.2.4",
+        "maximum_available_supported": "1.3.6"
+    },
+    {
+        "integration": "mariadb",
+        "minimum_tracer_supported": "1.0.11",
+        "max_tracer_supported": "1.1.10",
+        "minumum_available_supported": "1.1.5.post2",
+        "maximum_available_supported": "1.1.11"
+    },
+    {
+        "integration": "molten",
+        "minimum_tracer_supported": "1.0.2",
+        "max_tracer_supported": "1.0.2",
+        "minumum_available_supported": "1.0.2",
+        "maximum_available_supported": "1.0.2"
+    },
+    {
+        "integration": "mongoengine",
+        "minimum_tracer_supported": "0.29.1",
+        "max_tracer_supported": "0.29.1",
+        "minumum_available_supported": "0.24.2",
+        "maximum_available_supported": "0.29.1"
+    },
+    {
+        "integration": "openai",
+        "minimum_tracer_supported": "0.26.5",
+        "max_tracer_supported": "1.52.0",
+        "minumum_available_supported": "0.25.0",
+        "maximum_available_supported": "1.54.5",
+        "pinned": "true"
+    },
+    {
+        "integration": "protobuf",
+        "minimum_tracer_supported": "3.8.0",
+        "max_tracer_supported": "5.28.3",
+        "minumum_available_supported": "4.21.9",
+        "maximum_available_supported": "5.28.3"
+    },
+    {
+        "integration": "pylibmc",
+        "minimum_tracer_supported": "1.6.3",
+        "max_tracer_supported": "1.6.3",
+        "minumum_available_supported": "1.6.3",
+        "maximum_available_supported": "1.6.3"
+    },
+    {
+        "integration": "pymemcache",
+        "minimum_tracer_supported": "3.4.4",
+        "max_tracer_supported": "4.0.0",
+        "minumum_available_supported": "4.0.0",
+        "maximum_available_supported": "4.0.0"
+    },
+    {
+        "integration": "pymongo",
+        "minimum_tracer_supported": "3.8.0",
+        "max_tracer_supported": "4.10.1",
+        "minumum_available_supported": "4.3.3",
+        "maximum_available_supported": "4.10.1"
+    },
+    {
+        "integration": "pymysql",
+        "minimum_tracer_supported": "0.10.1",
+        "max_tracer_supported": "1.1.1",
+        "minumum_available_supported": "1.0.2",
+        "maximum_available_supported": "1.1.1"
+    },
+    {
+        "integration": "pynamodb",
+        "minimum_tracer_supported": "5.5.1",
+        "max_tracer_supported": "5.5.1",
+        "minumum_available_supported": "5.3.2",
+        "maximum_available_supported": "6.0.1",
+        "pinned": "true"
+    },
+    {
+        "integration": "pyodbc",
+        "minimum_tracer_supported": "4.0.39",
+        "max_tracer_supported": "5.1.0",
+        "minumum_available_supported": "4.0.35",
+        "maximum_available_supported": "5.2.0"
+    },
+    {
+        "integration": "pyramid",
+        "minimum_tracer_supported": "1.10.8",
+        "max_tracer_supported": "2.0.2",
+        "minumum_available_supported": "2.0",
+        "maximum_available_supported": "2.0.2"
+    },
+    {
+        "integration": "python-consul",
+        "minimum_tracer_supported": "1.1.0",
+        "max_tracer_supported": "1.1.0",
+        "minumum_available_supported": "1.1.0",
+        "maximum_available_supported": "1.1.0"
+    },
+    {
+        "integration": "redis",
+        "minimum_tracer_supported": "2.10.6",
+        "max_tracer_supported": "5.1.1",
+        "minumum_available_supported": "4.3.4",
+        "maximum_available_supported": "5.2.0"
+    },
+    {
+        "integration": "redis-py-cluster",
+        "minimum_tracer_supported": "2.0.0",
+        "max_tracer_supported": "2.1.3",
+        "minumum_available_supported": "2.1.3",
+        "maximum_available_supported": "2.1.3"
+    },
+    {
+        "integration": "requests",
+        "minimum_tracer_supported": "2.20.1",
+        "max_tracer_supported": "2.32.3",
+        "minumum_available_supported": "2.28.1",
+        "maximum_available_supported": "2.32.3"
+    },
+    {
+        "integration": "sanic",
+        "minimum_tracer_supported": "20.12.7",
+        "max_tracer_supported": "24.6.0",
+        "minumum_available_supported": "22.9.1",
+        "maximum_available_supported": "24.6.0"
+    },
+    {
+        "integration": "snowflake-connector-python",
+        "minimum_tracer_supported": "2.3.10",
+        "max_tracer_supported": "3.11.0",
+        "minumum_available_supported": "2.8.1",
+        "maximum_available_supported": "3.12.3"
+    },
+    {
+        "integration": "sqlalchemy",
+        "minimum_tracer_supported": "1.2.19",
+        "max_tracer_supported": "2.0.36",
+        "minumum_available_supported": "1.4.44",
+        "maximum_available_supported": "2.0.36"
+    },
+    {
+        "integration": "starlette",
+        "minimum_tracer_supported": "0.13.6",
+        "max_tracer_supported": "0.40.0",
+        "minumum_available_supported": "0.22.0",
+        "maximum_available_supported": "0.41.3"
+    },
+    {
+        "integration": "structlog",
+        "minimum_tracer_supported": "20.2.0",
+        "max_tracer_supported": "24.4.0",
+        "minumum_available_supported": "22.2.0",
+        "maximum_available_supported": "24.4.0"
+    },
+    {
+        "integration": "tornado",
+        "minimum_tracer_supported": "4.5.3",
+        "max_tracer_supported": "6.4",
+        "minumum_available_supported": "6.2",
+        "maximum_available_supported": "6.4.1",
+        "pinned": "true"
+    },
+    {
+        "integration": "urllib3",
+        "minimum_tracer_supported": "1.24.3",
+        "max_tracer_supported": "2.2.3",
+        "minumum_available_supported": "1.26.12",
+        "maximum_available_supported": "2.2.3"
+    },
+    {
+        "integration": "vertica-python",
+        "minimum_tracer_supported": "0.6.14",
+        "max_tracer_supported": "0.7.4",
+        "minumum_available_supported": "1.1.1",
+        "maximum_available_supported": "1.4.0"
+    },
+    {
+        "integration": "yaaredis",
+        "minimum_tracer_supported": "2.0.4",
+        "max_tracer_supported": "3.0.0",
+        "minumum_available_supported": "3.0.0",
+        "maximum_available_supported": "3.0.0"
+    }
+]
