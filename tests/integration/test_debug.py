@@ -94,7 +94,7 @@ def test_standard_tags():
     assert f.get("tracer_enabled") is True
     assert f.get("sampler_type") == "DatadogSampler"
     assert f.get("priority_sampler_type") == "N/A"
-    assert f.get("service") == ""
+    assert f.get("service") == "tests.integration"
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
     assert f.get("enabled_cli") is False

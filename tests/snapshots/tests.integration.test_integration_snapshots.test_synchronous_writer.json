@@ -9,7 +9,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "language": "python",
       "runtime-id": "f335963d0a054add88871c4f52e100e1"
@@ -33,7 +33,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": ""
+         "_dd.base_service": "tests.integration"
        },
        "duration": 8584,
        "start": 1692900308688433877
@@ -49,7 +49,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "language": "python",
       "runtime-id": "f335963d0a054add88871c4f52e100e1"
@@ -73,7 +73,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": ""
+         "_dd.base_service": "tests.integration"
        },
        "duration": 15167,
        "start": 1692900308687627002
