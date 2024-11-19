@@ -97,7 +97,7 @@ def _extract_span_pointers_for_s3_response_with_helper(
 
     except Exception as e:
         log.debug(
-            "problem with parameters for %s span pointer: %s",
+            "span pointers: problem with parameters for %s span pointer: %s",
             operation,
             e,
         )
@@ -143,7 +143,7 @@ def _aws_s3_object_span_pointer_hash(operation: str, bucket: str, key: str, etag
         # Some AWS API endpoints put the ETag in double quotes. We expect the
         # calling code to have correctly fixed this already.
         log.debug(
-            "ETag should not have double quotes: %s",
+            "span pointers: ETag should not have double quotes: %s",
             etag,
         )
         record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.ETAG_QUOTES.value)
@@ -158,7 +158,7 @@ def _aws_s3_object_span_pointer_hash(operation: str, bucket: str, key: str, etag
 
     except Exception as e:
         log.debug(
-            "failed to hash S3 object span pointer: %s",
+            "span pointers: failed to hash S3 object span pointer: %s",
             e,
         )
         record_span_pointer_calculation_issue(operation=operation, issue_tag=_TelemetryIssueTags.HASHING_FAILURE.value)

@@ -284,6 +284,7 @@ venv = Venv(
                 "httpx": latest,
                 "pytest-randomly": latest,
                 "setuptools": latest,
+                "boto3": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
