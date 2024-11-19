@@ -2,10 +2,10 @@ import sys
 
 from vertexai.generative_models import GenerativeModel
 from vertexai.generative_models import Part
-from ddtrace.llmobs._integrations.utils import tag_request_content_part
-from ddtrace.llmobs._integrations.utils import tag_response_part
 
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._integrations.utils import tag_request_content_part
+from ddtrace.llmobs._integrations.utils import tag_response_part
 
 
 class BaseTracedVertexAIStreamResponse:
