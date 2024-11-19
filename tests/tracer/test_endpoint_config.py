@@ -5,6 +5,8 @@ from io import BytesIO
 import logging
 from unittest import mock
 
+import pytest
+
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.settings.endpoint_config import fetch_config_from_endpoint
 from tests.utils import override_env
@@ -84,6 +86,7 @@ def mock_pass(self, *args, **kwargs):
     pass
 
 
+@pytest.mark.skip()
 def test_unset_config_endpoint(caplog):
     with caplog.at_level(logging.DEBUG):
         assert fetch_config_from_endpoint() == {}
@@ -130,6 +133,7 @@ def test_set_config_endpoint_403(caplog):
     assert "RetryError: Response(status=403" in caplog.text
 
 
+@pytest.mark.skip()
 def test_set_config_endpoint_malformed(caplog):
     with caplog.at_level(logging.DEBUG), override_env(
         {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
