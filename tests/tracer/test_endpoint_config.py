@@ -5,8 +5,6 @@ from io import BytesIO
 import logging
 from unittest import mock
 
-import pytest
-
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.settings.endpoint_config import fetch_config_from_endpoint
 from tests.utils import override_env
@@ -86,16 +84,15 @@ def mock_pass(self, *args, **kwargs):
     pass
 
 
-@pytest.mark.skip()
 def test_unset_config_endpoint(caplog):
-    with caplog.at_level(logging.DEBUG):
+    with caplog.at_level(logging.DEBUG, logger="ddtrace"):
         assert fetch_config_from_endpoint() == {}
     if caplog.text:
         assert "Configuration endpoint not set. Skipping fetching configuration." in caplog.text
 
 
 def test_set_config_endpoint_enabled(caplog):
-    with caplog.at_level(logging.DEBUG), override_env(
+    with caplog.at_level(logging.DEBUG, logger="ddtrace"), override_env(
         {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
     ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
         HTTPConnection, "send", new=mock_pass
@@ -108,7 +105,7 @@ def test_set_config_endpoint_enabled(caplog):
 
 
 def test_set_config_endpoint_500(caplog):
-    with caplog.at_level(logging.DEBUG), override_env(
+    with caplog.at_level(logging.DEBUG, logger="ddtrace"), override_env(
         {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
     ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
         HTTPConnection, "send", new=mock_pass
@@ -121,7 +118,7 @@ def test_set_config_endpoint_500(caplog):
 
 
 def test_set_config_endpoint_403(caplog):
-    with caplog.at_level(logging.DEBUG), override_env(
+    with caplog.at_level(logging.DEBUG, logger="ddtrace"), override_env(
         {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
     ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
         HTTPConnection, "send", new=mock_pass
@@ -133,9 +130,8 @@ def test_set_config_endpoint_403(caplog):
     assert "RetryError: Response(status=403" in caplog.text
 
 
-@pytest.mark.skip()
 def test_set_config_endpoint_malformed(caplog):
-    with caplog.at_level(logging.DEBUG), override_env(
+    with caplog.at_level(logging.DEBUG, logger="ddtrace"), override_env(
         {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
     ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
         HTTPConnection, "send", new=mock_pass
@@ -148,7 +144,7 @@ def test_set_config_endpoint_malformed(caplog):
 
 
 def test_set_config_endpoint_connection_refused(caplog):
-    with caplog.at_level(logging.DEBUG), override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}):
+    with caplog.at_level(logging.DEBUG, logger="ddtrace"), override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}):
         assert fetch_config_from_endpoint() == {}
     assert "Failed to fetch configuration from endpoint" in caplog.text
     assert any(
@@ -157,9 +153,9 @@ def test_set_config_endpoint_connection_refused(caplog):
 
 
 def test_set_config_endpoint_timeout_error(caplog):
-    with caplog.at_level(logging.DEBUG), override_env({"_DD_CONFIG_ENDPOINT": "http://localhost:80"}), mock.patch(
-        "ddtrace.internal.utils.http.get_connection", side_effect=TimeoutError
-    ):
+    with caplog.at_level(logging.DEBUG, logger="ddtrace"), override_env(
+        {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
+    ), mock.patch("ddtrace.internal.utils.http.get_connection", side_effect=TimeoutError):
         assert fetch_config_from_endpoint() == {}
     assert "Configuration endpoint not set. Skipping fetching configuration." not in caplog.text
     assert "Failed to fetch configuration from endpoint" in caplog.text
@@ -169,7 +165,7 @@ def test_set_config_endpoint_timeout_error(caplog):
 
 
 def test_set_config_endpoint_retries(caplog):
-    with caplog.at_level(logging.DEBUG), override_env(
+    with caplog.at_level(logging.DEBUG, logger="ddtrace"), override_env(
         {"_DD_CONFIG_ENDPOINT": "http://localhost:80"}
     ), mock.patch.object(HTTPConnection, "connect", new=mock_pass), mock.patch.object(
         HTTPConnection, "send", new=mock_pass
