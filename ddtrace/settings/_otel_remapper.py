@@ -57,7 +57,7 @@ def _remap_otel_propagators(otel_value: str) -> Optional[str]:
                 accepted_styles.append(style)
         else:
             log.warning("Following style not supported by ddtrace: %s.", style)
-    return ",".join(accepted_styles)
+    return ",".join(accepted_styles) or None
 
 
 def _remap_traces_sampler(otel_value: str) -> Optional[str]:
