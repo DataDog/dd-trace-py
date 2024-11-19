@@ -11,7 +11,7 @@
         "minimum_tracer_supported": "3.8.6",
         "max_tracer_supported": "3.10.10",
         "minumum_available_supported": "3.8.3",
-        "maximum_available_supported": "3.11.2"
+        "maximum_available_supported": "3.11.4"
     },
     {
         "integration": "aiomysql",
@@ -211,7 +211,7 @@
         "integration": "langchain",
         "minimum_tracer_supported": "0.0.192",
         "max_tracer_supported": "0.2.16",
-        "minumum_available_supported": "0.0.16",
+        "minumum_available_supported": "0.0.17",
         "maximum_available_supported": "0.3.7"
     },
     {
@@ -268,7 +268,7 @@
         "minimum_tracer_supported": "0.26.5",
         "max_tracer_supported": "1.52.0",
         "minumum_available_supported": "0.25.0",
-        "maximum_available_supported": "1.54.4",
+        "maximum_available_supported": "1.54.5",
         "pinned": "true"
     },
     {

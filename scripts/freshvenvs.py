@@ -23,6 +23,7 @@ CONTRIB_ROOT = pathlib.Path("ddtrace/contrib")
 LATEST = ""
 
 suite_to_package = {
+    "kafka": "confluent-kafka",
     "consul": "python-consul",
     "snowflake": "snowflake-connector-python",
     "flask_cache": "flask-caching",
@@ -31,10 +32,35 @@ suite_to_package = {
     "asyncio": "pytest-asyncio",
     "sqlite3": "pysqlite3-binary",
     "grpc": "grpcio",
+    "google_generativeai": "google-generativeai",
     "psycopg2": "psycopg2-binary",
     "cassandra": "cassandra-driver",
     "rediscluster": "redis-py-cluster",
+    "dogpile_cache": "dogpile-cache",
 }
+
+package_to_contrib = {
+    "confluent-kafka": "kafka",
+    "confluent_kafka": "kafka", # TODO: hacky, check this
+    "python-consul": "consul",
+    "snowflake-connector-python": "snowflake",
+    "flask-caching": "flask-cache",
+    "graphql-core": "graphql",
+    "mysql-connector-python": "mysql",
+    "pytest-asyncio": "asyncio",
+    "pysqlite3-binary": "sqlite3",
+    "grpcio": "grpc",
+    "google-generativeai": "google_generativeai",
+    "psycopg2-binary": "psycopg2",
+    "cassandra-driver": "cassandra",
+    "redis-py-cluster": "rediscluster",
+    "dogpile-cache": "dogpile_cache",
+}
+
+
+# contrib_to_package = {
+#     "cassandra": "cassandra-driver"
+# }
 
 supported_versions = [] #list of dicts
 pinned_packages = set()
@@ -81,7 +107,7 @@ def _get_riot_envs_including_any(modules: typing.Set[str]) -> typing.Set[str]:
             with open(f".riot/requirements/{item}", "r") as lockfile:
                 lockfile_content = lockfile.read()
                 for module in modules:
-                    if module in lockfile_content:
+                    if module in lockfile_content or (module in suite_to_package and suite_to_package[module] in lockfile_content):
                         envs |= {item.split(".")[0]}
                         break
     return envs
@@ -102,6 +128,13 @@ def _get_updatable_packages_implementing(modules: typing.Set[str]) -> typing.Set
     return packages
 
 
+
+def _get_all_modules(modules: typing.Set[str]) -> typing.Set[str]:
+    """Return all packages have contribs implemented for them"""
+    contrib_modules = {m for m in modules if "." not in m}
+    return contrib_modules
+
+
 def _get_version_extremes(package_name: str) -> typing.Tuple[Optional[str], Optional[str]]:
     """Return the (earliest, latest) supported versions of a given package"""
     with Capturing() as output:
@@ -112,6 +145,9 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[Optional[str], Opti
     output_parts = version_list.split()
     versions = [p.strip(",") for p in output_parts[2:]]
     earliest_within_window = versions[-1]
+
+    if package_name == "pysqlite3-binary": # TODO: change this, hacky
+        package_name = "pysqlite3"
 
     conn = HTTPSConnection("pypi.org", 443)
     conn.request("GET", f"pypi/{package_name}/json")
@@ -143,7 +179,7 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
     lock_packages = []
     for line in lockfile_content:
         package, _, versions = line.partition("==")
-        if package in packages:
+        if package in packages or package in suite_to_package.values():
             lock_packages.append((package, versions))
     return lock_packages
 
@@ -180,41 +216,62 @@ def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
 def main():
     all_required_modules = _get_integrated_modules()
     all_required_packages = _get_updatable_packages_implementing(all_required_modules)
+    contrib_modules = _get_all_modules(all_required_modules)
     envs = _get_riot_envs_including_any(all_required_modules)
 
     bounds = dict()
-    for package in all_required_packages:
-        earliest, latest = _get_version_extremes(package)
+    for package in contrib_modules:
+        if package in suite_to_package:
+            earliest, latest = _get_version_extremes(suite_to_package[package])
+        else:
+            earliest, latest = _get_version_extremes(package)
         bounds[package] = (earliest, latest)
 
     all_used_versions = defaultdict(set)
     for env in envs:
-        versions_used = _get_package_versions_from(env, all_required_packages)
+        versions_used = _get_package_versions_from(env, contrib_modules)
         for pkg, version in versions_used:
+            if pkg in package_to_contrib:
+                pkg = package_to_contrib[pkg]
             all_used_versions[pkg].add(version)
+    print(all_used_versions)
+    print(contrib_modules)
 
-    for package in all_required_packages:
-        ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
+
+    # for package in all_required_packages:
+    #     ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
+    #     if not ordered:
+    #         continue
+
+    #     if not _versions_fully_cover_bounds(bounds[package], ordered) and package not in pinned_packages:
+    #         print(
+    #             f"{package}: policy supports version {bounds[package][0]} through {bounds[package][1]} "
+    #             f"but only these versions are used: {[str(v) for v in ordered]}"
+    #         )
+
+    for mod in contrib_modules:
+        # print(mod)
+        if mod in package_to_contrib:
+            mod = package_to_contrib[mod] # TODO: test remapping
+
+        ordered = sorted([Version(v) for v in all_used_versions[mod]], reverse=True) # TODO: modify this
+        # print(mod, ":", ordered)
         if not ordered:
             continue
-        json_format = {"integration": package, "minimum_tracer_supported": str(ordered[-1]),
-                       "max_tracer_supported": str(ordered[0]),
-                        "minumum_available_supported": bounds[package][0],
-                        "maximum_available_supported": bounds[package][1] }
+        json_format = {"integration": mod, "minimum_tracer_supported": str(ordered[-1]),
+                "max_tracer_supported": str(ordered[0]),
+                "minumum_available_supported": bounds[mod][0],
+                "maximum_available_supported": bounds[mod][1] }
 
-        if package in pinned_packages:
+        if mod in pinned_packages:
             json_format["pinned"] = "true"
-
         supported_versions.append(json_format)
-        if not _versions_fully_cover_bounds(bounds[package], ordered) and package not in pinned_packages:
-            print(
-                f"{package}: policy supports version {bounds[package][0]} through {bounds[package][1]} "
-                f"but only these versions are used: {[str(v) for v in ordered]}"
-            )
 
     supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
+    # print(supported_versions_output)
     with open("supported_versions.json", "w") as file:
         json.dump(supported_versions_output, file, indent=4)
+
 
 if __name__ == "__main__":
     main()
