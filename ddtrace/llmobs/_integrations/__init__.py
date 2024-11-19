@@ -18,7 +18,7 @@ __all__ = [
     "LangChainIntegration",
     "OpenAIIntegration",
     "VertexAIIntegration",
-    extract_model_name,
-    tag_request_content_part,
-    tag_response_part,
+    "extract_model_name",
+    "tag_request_content_part",
+    "tag_response_part",
 ]
