@@ -172,18 +172,18 @@ def _wrap_unary_response(
         span.finish()
 
 
-def _create_span(pin, handler_call_details, method_kind):
-    # type: (Pin, grpc.HandlerCallDetails, str) -> Span
+def _create_span(pin, method, invocation_metadata, method_kind):
+    # type: (Pin, str, grpc.HandlerCallDetails, str) -> Span
     tracer = pin.tracer
-    headers = dict(handler_call_details.invocation_metadata)
-
-    trace_utils.activate_distributed_headers(tracer, int_config=config.grpc_aio_server, request_headers=headers)
+    trace_utils.activate_distributed_headers(
+        tracer, int_config=config.grpc_aio_server, request_headers=dict(invocation_metadata)
+    )
 
     span = tracer.trace(
         schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.INBOUND),
         span_type=SpanTypes.GRPC,
         service=trace_utils.int_service(pin, config.grpc_aio_server),
-        resource=handler_call_details.method,
+        resource=method,
     )
 
     span.set_tag_str(COMPONENT, config.grpc_aio_server.integration_name)
@@ -193,7 +193,7 @@ def _create_span(pin, handler_call_details, method_kind):
 
     span.set_tag(SPAN_MEASURED_KEY)
 
-    set_grpc_method_meta(span, handler_call_details.method, method_kind)
+    set_grpc_method_meta(span, method, method_kind)
     span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
 
     sample_rate = config.grpc_aio_server.get_analytics_sample_rate()
@@ -211,22 +211,37 @@ class _TracedCoroRpcMethodHandler(wrapt.ObjectProxy):
         # type: (Pin, grpc.HandlerCallDetails, grpc.RpcMethodHandler) -> None
         super(_TracedCoroRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
-        self._handler_call_details = handler_call_details
+        self.method = handler_call_details.method
 
     async def unary_unary(self, request: RequestType, context: aio.ServicerContext) -> ResponseType:
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_UNARY)
+        span = _create_span(self._pin, self.method, context.invocation_metadata(), constants.GRPC_METHOD_KIND_UNARY)
         return await _wrap_aio_unary_response(self.__wrapped__.unary_unary, request, context, span)
 
     async def unary_stream(self, request: RequestType, context: aio.ServicerContext) -> ResponseType:
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_SERVER_STREAMING)
+        span = _create_span(
+            self._pin,
+            self.method,
+            context.invocation_metadata(),
+            constants.GRPC_METHOD_KIND_SERVER_STREAMING,
+        )
         return await _wrap_aio_unary_response(self.__wrapped__.unary_stream, request, context, span)
 
     async def stream_unary(self, request_iterator: RequestIterableType, context: aio.ServicerContext) -> ResponseType:
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_CLIENT_STREAMING)
+        span = _create_span(
+            self._pin,
+            self.method,
+            context.invocation_metadata(),
+            constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
+        )
         return await _wrap_aio_unary_response(self.__wrapped__.stream_unary, request_iterator, context, span)
 
     async def stream_stream(self, request_iterator: RequestIterableType, context: aio.ServicerContext) -> ResponseType:
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_BIDI_STREAMING)
+        span = _create_span(
+            self._pin,
+            self.method,
+            context.invocation_metadata(),
+            constants.GRPC_METHOD_KIND_BIDI_STREAMING,
+        )
         return await _wrap_aio_unary_response(self.__wrapped__.stream_stream, request_iterator, context, span)
 
 
@@ -235,17 +250,27 @@ class _TracedAsyncGenRpcMethodHandler(wrapt.ObjectProxy):
         # type: (Pin, grpc.HandlerCallDetails, grpc.RpcMethodHandler) -> None
         super(_TracedAsyncGenRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
-        self._handler_call_details = handler_call_details
+        self.method = handler_call_details.method
 
     async def unary_stream(self, request: RequestType, context: aio.ServicerContext) -> ResponseIterableType:
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_SERVER_STREAMING)
+        span = _create_span(
+            self._pin,
+            self.method,
+            context.invocation_metadata(),
+            constants.GRPC_METHOD_KIND_SERVER_STREAMING,
+        )
         async for response in _wrap_aio_stream_response(self.__wrapped__.unary_stream, request, context, span):
             yield response
 
     async def stream_stream(
         self, request_iterator: RequestIterableType, context: aio.ServicerContext
     ) -> ResponseIterableType:
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_BIDI_STREAMING)
+        span = _create_span(
+            self._pin,
+            self.method,
+            context.invocation_metadata(),
+            constants.GRPC_METHOD_KIND_BIDI_STREAMING,
+        )
         async for response in _wrap_aio_stream_response(
             self.__wrapped__.stream_stream, request_iterator, context, span
         ):
@@ -257,27 +282,42 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         # type: (Pin, grpc.HandlerCallDetails, grpc.RpcMethodHandler) -> None
         super(_TracedRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
-        self._handler_call_details = handler_call_details
+        self.method = handler_call_details.method
 
     def unary_unary(self, request, context):
         # type: (Any, grpc.ServicerContext) -> Any
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_UNARY)
+        span = _create_span(self._pin, self.method, context.invocation_metadata(), constants.GRPC_METHOD_KIND_UNARY)
         return _wrap_unary_response(self.__wrapped__.unary_unary, request, context, span)
 
     def unary_stream(self, request, context):
         # type: (Any, grpc.ServicerContext) -> Iterable[Any]
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_SERVER_STREAMING)
+        span = _create_span(
+            self._pin,
+            self.method,
+            context.invocation_metadata(),
+            constants.GRPC_METHOD_KIND_SERVER_STREAMING,
+        )
         for response in _wrap_stream_response(self.__wrapped__.unary_stream, request, context, span):
             yield response
 
     def stream_unary(self, request_iterator, context):
         # type: (Iterable[Any], grpc.ServicerContext) -> Any
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_CLIENT_STREAMING)
+        span = _create_span(
+            self._pin,
+            self.method,
+            context.invocation_metadata(),
+            constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
+        )
         return _wrap_unary_response(self.__wrapped__.stream_unary, request_iterator, context, span)
 
     def stream_stream(self, request_iterator, context):
         # type: (Iterable[Any], grpc.ServicerContext) -> Iterable[Any]
-        span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_BIDI_STREAMING)
+        span = _create_span(
+            self._pin,
+            self.method,
+            context.invocation_metadata(),
+            constants.GRPC_METHOD_KIND_BIDI_STREAMING,
+        )
         for response in _wrap_stream_response(self.__wrapped__.stream_stream, request_iterator, context, span):
             yield response
 
