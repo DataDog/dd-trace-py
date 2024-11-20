@@ -17,8 +17,8 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
-class TestLLMObsGemini:
-    def test_completion(self, vertexai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+class TestLLMObsVertexai:
+    def test_completion(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         llm.generate_content(
@@ -33,12 +33,12 @@ class TestLLMObsGemini:
             span,
             model_name="gemini-1.5-flash",
             model_provider="google",
-            input_messages=[{"content": "What is the argument for LeBron James being the GOAT?"}],
+            input_messages=[{"content": "Why do bears hibernate?"}],
             output_messages=[
                 {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
             ],
             metadata={"temperature": 1.0, "max_output_tokens": 30},
-            token_metrics={"input_tokens": 12, "output_tokens": 30, "total_tokens": 42},
+            token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event)
