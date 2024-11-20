@@ -19,6 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: 'DataDog/system-tests'
+          ref: 'gnufede/iast-standalone-python'
 
       - name: Build agent
         run: ./build.sh -i agent
