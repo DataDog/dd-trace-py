@@ -3,10 +3,8 @@ stages:
   - tests-gen
   - tests-trigger
   - shared-pipeline
-  - dogfood
   - benchmarks
   - macrobenchmarks
-  - dogfood
   - release
 
 variables:
@@ -22,7 +20,6 @@ include:
   - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
   - local: ".gitlab/macrobenchmarks.yml"
-  - local: ".gitlab/dogfood.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
 
