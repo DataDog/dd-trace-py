@@ -1,4 +1,5 @@
 import fnmatch
+import importlib.util
 import os
 import pathlib
 import re
@@ -62,19 +63,24 @@ class PythonDetector:
             should_skip_arg = (prev_arg_is_flag and skip_args_preceded_by_flags) or has_flag_prefix or is_env_variable
 
             if module_flag:
-                return ServiceMetadata(arg)
+                if _module_exists(arg):
+                    return ServiceMetadata(arg)
 
             if not should_skip_arg:
-                abs_path = pathlib.Path(arg).resolve()
-                if not abs_path.exists():
+                try:
+                    abs_path = pathlib.Path(arg).resolve()
+                    if not abs_path.exists():
+                        continue
+                    stripped = abs_path
+                    if not stripped.is_dir():
+                        stripped = stripped.parent
+                    value, ok = self.deduce_package_name(stripped)
+                    if ok:
+                        return ServiceMetadata(value)
+                    return ServiceMetadata(self.find_nearest_top_level(stripped))
+                except:  # noqa: E722
+                    # catch any exceptions and continue iteration to the next arg
                     continue
-                stripped = abs_path
-                if not stripped.is_dir():
-                    stripped = stripped.parent
-                value, ok = self.deduce_package_name(stripped)
-                if ok:
-                    return ServiceMetadata(value)
-                return ServiceMetadata(self.find_nearest_top_level(stripped))
 
             if has_flag_prefix and arg == "-m":
                 module_flag = True
@@ -145,46 +151,51 @@ def detect_service(args: List[str]) -> Optional[str]:
     if cache_key in CACHE:
         return CACHE.get(cache_key)
 
-    # Check both the included command args as well as the executable being run
-    possible_commands = [*args, sys.executable]
-    executable_args = set()
+    try:
+        # Check both the included command args as well as the executable being run
+        possible_commands = [*args, sys.executable]
+        executable_args = set()
 
-    # List of detectors to try in order
-    detectors = {}
-    for detector_class in detector_classes:
-        detector_instance = detector_class(dict(os.environ))
+        # List of detectors to try in order
+        detectors = {}
+        for detector_class in detector_classes:
+            detector_instance = detector_class(dict(os.environ))
 
-        for i, command in enumerate(possible_commands):
-            detector_name = detector_instance.name
+            for i, command in enumerate(possible_commands):
+                detector_name = detector_instance.name
 
-            if detector_instance.matches(command):
-                detectors.update({detector_name: detector_instance})
-                # append to a list of arg indexes to ignore since they are executables
-                executable_args.add(i)
-                continue
-            elif _is_executable(command):
-                # append to a list of arg indexes to ignore since they are executables
-                executable_args.add(i)
+                if detector_instance.matches(command):
+                    detectors.update({detector_name: detector_instance})
+                    # append to a list of arg indexes to ignore since they are executables
+                    executable_args.add(i)
+                    continue
+                elif _is_executable(command):
+                    # append to a list of arg indexes to ignore since they are executables
+                    executable_args.add(i)
 
-    args_to_search = []
-    for i, arg in enumerate(args):
-        # skip any executable args
-        if i not in executable_args:
-            args_to_search.append(arg)
+        args_to_search = []
+        for i, arg in enumerate(args):
+            # skip any executable args
+            if i not in executable_args:
+                args_to_search.append(arg)
 
-    # Iterate through the matched detectors
-    for detector in detectors.values():
-        metadata = detector.detect(args_to_search)
-        if metadata and metadata.name:
-            CACHE[cache_key] = metadata.name
-            return metadata.name
+        # Iterate through the matched detectors
+        for detector in detectors.values():
+            metadata = detector.detect(args_to_search)
+            if metadata and metadata.name:
+                CACHE[cache_key] = metadata.name
+                return metadata.name
 
-    # Iterate through the matched detectors again, this time not skipping args preceded by flag args
-    for detector in detectors.values():
-        metadata = detector.detect(args_to_search, skip_args_preceded_by_flags=False)
-        if metadata and metadata.name:
-            CACHE[cache_key] = metadata.name
-            return metadata.name
+        # Iterate through the matched detectors again, this time not skipping args preceded by flag args
+        for detector in detectors.values():
+            metadata = detector.detect(args_to_search, skip_args_preceded_by_flags=False)
+            if metadata and metadata.name:
+                CACHE[cache_key] = metadata.name
+                return metadata.name
+    except:  # noqa: E722
+        # catch all exceptions to be extra safe to not crash anything
+        pass
+
     CACHE[cache_key] = None
     return None
 
@@ -202,3 +213,11 @@ def _is_executable(file_path: str) -> bool:
         directory = os.path.dirname(directory)
 
     return False
+
+
+def _module_exists(module_name: str) -> bool:
+    """Check if a module can be imported."""
+    try:
+        return importlib.util.find_spec(module_name) is not None
+    except ModuleNotFoundError:
+        return False
