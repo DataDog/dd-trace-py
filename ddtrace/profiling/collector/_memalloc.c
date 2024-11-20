@@ -54,16 +54,13 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
     global_alloc_tracker->alloc_count++;
 
     /* Avoid loops */
-    if (memalloc_get_reentrant())
+    if (!memalloc_take_guard())
         return;
 
     /* Determine if we can capture or if we need to sample */
     if (global_alloc_tracker->allocs.count < ctx->max_events) {
-        /* set a barrier so we don't loop as getting a traceback allocates memory */
-        memalloc_set_reentrant(true);
         /* Buffer is not full, fill it */
         traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
-        memalloc_set_reentrant(false);
         if (tb)
             traceback_array_append(&global_alloc_tracker->allocs, tb);
     } else {
@@ -72,17 +69,16 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         uint64_t r = random_range(global_alloc_tracker->alloc_count);
 
         if (r < ctx->max_events) {
-            /* set a barrier so we don't loop as getting a traceback allocates memory */
-            memalloc_set_reentrant(true);
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
             if (tb) {
                 traceback_free(global_alloc_tracker->allocs.tab[r]);
                 global_alloc_tracker->allocs.tab[r] = tb;
             }
-            memalloc_set_reentrant(false);
         }
     }
+
+    memalloc_yield_guard();
 }
 
 static void

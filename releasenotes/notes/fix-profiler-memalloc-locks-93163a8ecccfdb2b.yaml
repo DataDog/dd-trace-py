@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes a potential race condition when utiziling Python's thread-local storage from a native context.

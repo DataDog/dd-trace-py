@@ -19,17 +19,36 @@
 #endif
 extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
-static inline void
-memalloc_set_reentrant(bool reentrant)
+// Now define a CAS primitive for use in the implementation
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+static inline bool
+cas_thread_local_bool(bool* target, bool expected, bool desired)
 {
-    // A get/set type guard doesn't manage the internal state, so it's susceptible to issues in the external logic.
-    _MEMALLOC_ON_THREAD = reentrant;
+    LONG expected_long = (LONG)expected;
+    LONG desired_long = (LONG)desired;
+    return (LONG)expected == InterlockedCompareExchange((volatile LONG*)target, desired_long, expected_long);
+}
+#else
+static inline bool
+cas_thread_local_bool(bool* target, bool expected, bool desired)
+{
+    return __atomic_compare_exchange_n(target, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+}
+#endif
+
+static inline bool
+memalloc_take_guard()
+{
+    return cas_thread_local_bool(&_MEMALLOC_ON_THREAD, false, true);
 }
 
 static inline bool
-memalloc_get_reentrant(void)
+memalloc_yield_guard(void)
 {
-    return _MEMALLOC_ON_THREAD;
+    // Ideally, we'd actually capture the old state within an object and restore it, but since this is
+    // a coarse-grained lock, we just set it to false.
+    _MEMALLOC_ON_THREAD = false;
 }
 
 #endif
