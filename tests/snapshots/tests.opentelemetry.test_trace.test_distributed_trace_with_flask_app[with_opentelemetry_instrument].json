@@ -25,7 +25,7 @@
   },
      {
        "name": "server",
-       "service": "tests.opentelemetry",
+       "service": "",
        "resource": "GET /otel",
        "trace_id": 0,
        "span_id": 2,
