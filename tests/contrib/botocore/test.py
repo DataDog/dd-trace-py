@@ -3822,7 +3822,6 @@ class BotocoreTest(TracerTestCase):
             trace_in_message = "MessageAttributes" in response["Messages"][0]
             assert trace_in_message is False
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
@@ -3870,7 +3869,6 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
