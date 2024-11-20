@@ -186,6 +186,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         /* Compute the new target sample size */
         global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(global_heap_tracker.sample_size);
 
+        memalloc_yield_guard();
         return true;
     }
 
