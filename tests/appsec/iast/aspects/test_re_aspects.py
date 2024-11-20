@@ -22,6 +22,10 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_search_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
+
+
+mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")
 
 
 def test_re_findall_aspect_tainted_string():
@@ -686,3 +690,33 @@ def test_re_match_getitem_aspect_not_tainted_string_re_object():
     assert not is_pyobject_tainted(isaac_newton)
     assert not is_pyobject_tainted(isaac)
     assert not is_pyobject_tainted(newton)
+
+
+@pytest.mark.parametrize(
+    "input_str, expected_result, tainted",
+    [
+        ("print('Hello, world!')", "print", True),
+    ],
+)
+def test_match_group_complex(input_str, expected_result, tainted):
+    regex = re.compile(
+        r"(?<!\.)(__import__|a(?:bs|iter|ll|ny)|b(?:in|ool|reakpoint|yte(?:array|s))|c(?:allable|hr|lassmethod|"
+        r"omp(?:ile|lex))|d(?:elattr|i(?:ct|r|vmod))|e(?:numerate|val)|f(?:ilter|(?:loa|orma|rozense)t)|"
+        r"g(?:etattr|lobals)|h(?:as(?:attr|h)|ex)|i(?:d|n(?:(?:(?:pu)?)t)|s(?:instance|subclass)|ter)|"
+        r"l(?:en|ist|ocals)|m(?:a(?:[px])|emoryview|in)|next|o(?:bject|ct|pen|rd)|p(?:ow|r(?:int|"  # codespell:ignore
+        r"operty))|r(?:ange|e(?:pr|versed)|ound)|s(?:et(?:(?:attr)?)|lice|orted|t(?:aticmethod|r)|"
+        r"u(?:m|per))|t(?:(?:upl|yp)e)|vars|zip)\b",
+        re.MULTILINE,
+    )
+
+    matches = regex.match(input_str, 0)
+
+    input_tainted = taint_pyobject(
+        pyobject=input_str,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=input_str,
+        source_origin=OriginType.PARAMETER,
+    )
+    result = mod.do_match_group(input_tainted)
+    assert result == matches.group() == expected_result
+    assert is_pyobject_tainted(result) is tainted

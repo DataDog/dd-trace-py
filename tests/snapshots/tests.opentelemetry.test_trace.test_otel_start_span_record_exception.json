@@ -1,7 +1,7 @@
 [[
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "test-raised-exception",
     "trace_id": 0,
     "span_id": 1,
@@ -30,7 +30,7 @@
 [
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "test-recorded-exception",
     "trace_id": 1,
     "span_id": 1,
