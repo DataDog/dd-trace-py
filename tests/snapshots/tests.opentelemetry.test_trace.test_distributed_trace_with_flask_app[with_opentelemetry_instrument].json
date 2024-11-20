@@ -65,7 +65,7 @@
      },
         {
           "name": "internal",
-          "service": "tests.opentelemetry",
+          "service": "",
           "resource": "otel-flask-manual-span",
           "trace_id": 0,
           "span_id": 3,
