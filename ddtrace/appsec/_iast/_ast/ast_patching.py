@@ -300,7 +300,11 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "uvicorn.",
     "anyio.",
     "httpcore.",
-    "google.auth.crypt.",
+    "google.auth.",
+    "googlecloudsdk.",
+    "umap.",
+    "pynndescent.",
+    "numba.",
 )
 
 
@@ -366,7 +370,6 @@ def visit_ast(
     module_name: Text = "",
 ) -> Optional[str]:
     parsed_ast = ast.parse(source_text, module_path)
-
     _VISITOR.update_location(filename=module_path, module_name=module_name)
     modified_ast = _VISITOR.visit(parsed_ast)
 
