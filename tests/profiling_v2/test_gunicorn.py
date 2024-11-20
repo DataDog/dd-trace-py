@@ -134,5 +134,5 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
 def test_gunicorn(gunicorn, tmp_path, monkeypatch):
     # type: (...) -> None
-    args = ("-k", "gevent") if TESTING_GEVENT else tuple("--threads", "10")
+    args = ("-k", "gevent") if TESTING_GEVENT else ("--threads", "10")
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)
