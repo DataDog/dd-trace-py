@@ -199,7 +199,7 @@ def detect_service(args: List[str]) -> Optional[str]:
                 return metadata.name
     except Exception as ex:
         # Catch any unexpected errors to be extra safe
-        print("Unexpected error during inferred base service detection: ", ex)  # or log the exception
+        log.debug("Unexpected error during inferred base service detection: ", ex)
 
     CACHE[cache_key] = None
     return None
