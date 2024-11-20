@@ -142,6 +142,7 @@ class URLPattern:
 
 def do_match_group(text):
     #
-    # my_re_match_function = COMPILED_RE.match
+    #  TODO(avara1986): This kind of assignation doesn't work with AST patching
+    #    my_re_match_function = COMPILED_RE.match
     result = COMPILED_RE.match(text, 0)
     return result.group()
