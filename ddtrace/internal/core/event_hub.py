@@ -6,12 +6,23 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import Type
+from typing import TypeVar
 
 from ddtrace import config
 
 
 _listeners: Dict[str, Dict[Any, Callable[..., Any]]] = {}
 _all_listeners: List[Callable[[str, Tuple[Any, ...]], None]] = []
+
+_message_types: Dict[type, str] = {}
+
+
+def message(name):
+    def wrapper(cls):
+        _message_types[cls] = name
+        return cls
+    return wrapper
 
 
 class ResultType(enum.Enum):
@@ -138,3 +149,27 @@ def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventRes
             results[name] = EventResult(ResultType.RESULT_EXCEPTION, None, e)
 
     return results
+
+
+def _message_type_id(cls):
+    return _message_types.get(cls) or f"{cls.__module__}.{cls.__qualname__}"
+
+
+def dispatch_message(message):
+    dispatch(_message_type_id(message.__class__), (message,))
+
+
+def dispatch_message_with_results(message):
+    return dispatch_message_with_results(_message_type_id(message.__class__), (message,))
+
+
+T = TypeVar("T")
+
+def on_message(cls: Type[T], callback: Callable[[T], Any], name: Any = None) -> None:
+    on(_message_type_id(cls), callback)
+
+def message_handler(cls: Type[T]) -> Callable[[Callable[[T], Any]], Callable[[T], Any]]:
+    def wrapper(handler: Callable[[T], Any]) -> Callable[[T], Any]:
+        on_message(cls, handler)
+        return handler
+    return wrapper

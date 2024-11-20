@@ -887,6 +887,7 @@ def _requires_civisibility_enabled(func):
     return wrapper
 
 
+@core.message_handler(TestSession.DiscoverArgs)
 @_requires_civisibility_enabled
 def _on_discover_session(
     discover_args: TestSession.DiscoverArgs, test_framework_telemetry_name: Optional[TEST_FRAMEWORKS] = None
@@ -1015,9 +1016,9 @@ def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
 
 def _register_session_handlers():
     log.debug("Registering session handlers")
-    core.on("test_visibility.session.discover", _on_discover_session)
+    #core.on_message(TestSession.DiscoverArgs, _on_discover_session)
     core.on("test_visibility.session.start", _on_start_session)
-    core.on("test_visibility.session.finish", _on_finish_session)
+    core.on_message(TestSession.FinishArgs, _on_finish_session)
     core.on("test_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
     core.on("test_visibility.session.get_path_codeowners", _on_session_get_path_codeowners, "path_codeowners")
     core.on("test_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")

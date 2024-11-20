@@ -122,6 +122,10 @@ from .event_hub import dispatch
 from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
+from .event_hub import on_message  # noqa:F401
+from .event_hub import message_handler  # noqa:F401
+from .event_hub import message  # noqa:F401
+from .event_hub import dispatch_message  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
 
 

@@ -129,6 +129,7 @@ class TestBase(_TestVisibilityAPIBase):
 
 
 class TestSession(_TestVisibilityAPIBase):
+    #@core.message("test_visibility.session.discover")
     class DiscoverArgs(NamedTuple):
         test_command: str
         reject_duplicates: bool
@@ -158,21 +159,18 @@ class TestSession(_TestVisibilityAPIBase):
             log.debug("Test Visibility is not enabled, session not registered.")
             return
 
-        core.dispatch(
-            "test_visibility.session.discover",
-            (
-                TestSession.DiscoverArgs(
-                    test_command,
-                    reject_duplicates,
-                    test_framework,
-                    test_framework_version,
-                    session_operation_name,
-                    module_operation_name,
-                    suite_operation_name,
-                    test_operation_name,
-                    root_dir,
-                ),
-            ),
+        core.dispatch_message(
+            TestSession.DiscoverArgs(
+                test_command,
+                reject_duplicates,
+                test_framework,
+                test_framework_version,
+                session_operation_name,
+                module_operation_name,
+                suite_operation_name,
+                test_operation_name,
+                root_dir,
+            )
         )
 
     @staticmethod
@@ -193,9 +191,7 @@ class TestSession(_TestVisibilityAPIBase):
     ):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
-        core.dispatch(
-            "test_visibility.session.finish", (TestSession.FinishArgs(force_finish_children, override_status),)
-        )
+        core.dispatch_message(TestSession.FinishArgs(force_finish_children, override_status))
 
     @staticmethod
     def get_tag(tag_name: str) -> Any:
