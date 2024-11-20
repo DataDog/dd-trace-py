@@ -2,10 +2,8 @@ stages:
   - package
   - tests
   - shared-pipeline
-  - dogfood
   - benchmarks
   - macrobenchmarks
-  - dogfood
   - release
 
 variables:
@@ -29,7 +27,6 @@ include:
   - local: ".gitlab/package.yml"
   - local: ".gitlab/tests.yml"
   - local: ".gitlab/macrobenchmarks.yml"
-  - local: ".gitlab/dogfood.yml"
   - local: ".gitlab/release.yml"
 
 package-oci:
