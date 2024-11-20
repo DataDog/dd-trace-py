@@ -55,7 +55,6 @@ def setup():
 @flaky(1735812000)
 @pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("200")])
 @pytest.mark.snapshot
-@flaky(1709306303)
 def test_timeout_traces(context, customApmFlushDeadline):
     env = get_env(
         {
