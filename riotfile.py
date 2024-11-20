@@ -2721,6 +2721,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "google-generativeai": [latest],
                 "pillow": latest,
+                "vertexai": [latest],
             },
         ),
         Venv(
