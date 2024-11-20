@@ -508,6 +508,7 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc.c",
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
+                "ddtrace/profiling/collector/_memalloc_reentrant.c",
             ],
             extra_compile_args=debug_compile_args,
         ),

@@ -1,50 +1,29 @@
 #ifndef _DDTRACE_MEMALLOC_REENTRANT_H
 #define _DDTRACE_MEMALLOC_REENTRANT_H
 
-#include "_pymacro.h"
 #include <stdbool.h>
 
-#ifndef _PY37_AND_LATER
-#include <pythread.h>
-#endif
+// This is a simple thread-local reentrance guard.
+// Note the use of dynamic TLS.  Since this is a dynamic library it isn't in control of how much static TLS is
+// available, since that is determined at load-time by the main executable.  We've already had issues with popping
+// some users' static TLS limits, so use dynamic TLS for now.
 
-#ifdef _PY37_AND_LATER
-extern Py_tss_t memalloc_reentrant_key;
-#else
-extern int memalloc_reentrant_key;
-#endif
-
-/* Any non-NULL pointer can be used */
-#define _MEMALLOC_REENTRANT_VALUE Py_True
+// NB, this is actually set in the corresponding .c to prevent multiple defs
+extern
+__attribute__((tls_model("global-dynamic")))
+_Thread_local bool _MEMALLOC_ON_THREAD;
 
 static inline void
 memalloc_set_reentrant(bool reentrant)
 {
-    if (reentrant)
-#ifdef _PY37_AND_LATER
-        PyThread_tss_set(&memalloc_reentrant_key, _MEMALLOC_REENTRANT_VALUE);
-#else
-        PyThread_set_key_value(memalloc_reentrant_key, _MEMALLOC_REENTRANT_VALUE);
-#endif
-    else
-#ifdef _PY37_AND_LATER
-        PyThread_tss_set(&memalloc_reentrant_key, NULL);
-#else
-        PyThread_set_key_value(memalloc_reentrant_key, NULL);
-#endif
+  // A get/set type guard doesn't manage the internal state, so it's susceptible to issues in the external logic.
+  _MEMALLOC_ON_THREAD = reentrant;
 }
 
 static inline bool
 memalloc_get_reentrant(void)
 {
-#ifdef _PY37_AND_LATER
-    if (PyThread_tss_get(&memalloc_reentrant_key))
-#else
-    if (PyThread_get_key_value(memalloc_reentrant_key))
-#endif
-        return true;
-
-    return false;
+  return _MEMALLOC_ON_THREAD;
 }
 
 #endif

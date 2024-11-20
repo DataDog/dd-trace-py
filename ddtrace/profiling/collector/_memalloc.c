@@ -76,11 +76,11 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
             memalloc_set_reentrant(true);
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
-            memalloc_set_reentrant(false);
             if (tb) {
                 traceback_free(global_alloc_tracker->allocs.tab[r]);
                 global_alloc_tracker->allocs.tab[r] = tb;
             }
+            memalloc_set_reentrant(false);
         }
     }
 }
@@ -97,12 +97,6 @@ memalloc_free(void* ctx, void* ptr)
 
     alloc->free(alloc->ctx, ptr);
 }
-
-#ifdef _PY37_AND_LATER
-Py_tss_t memalloc_reentrant_key = Py_tss_NEEDS_INIT;
-#else
-int memalloc_reentrant_key = -1;
-#endif
 
 static void*
 memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
@@ -439,20 +433,6 @@ PyInit__memalloc(void)
     // Initialize the DDFrame namedtuple class
     // Do this early so we don't have complicated cleanup
     if (!memalloc_ddframe_class_init()) {
-        return NULL;
-    }
-
-#ifdef _PY37_AND_LATER
-    if (PyThread_tss_create(&memalloc_reentrant_key) != 0) {
-#else
-    memalloc_reentrant_key = PyThread_create_key();
-    if (memalloc_reentrant_key == -1) {
-#endif
-#ifdef MS_WINDOWS
-        PyErr_SetFromWindowsErr(0);
-#else
-        PyErr_SetFromErrno(PyExc_OSError);
-#endif
         return NULL;
     }
 
