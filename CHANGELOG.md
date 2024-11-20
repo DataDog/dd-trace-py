@@ -10,8 +10,8 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ### Bug Fixes
 
 - Tracing
-  - botocore: This fix resolves the issue where the span pointer for deserialized DynamoDB requests (through the resource-based API) were not being generated.
-  - botocore: This fix resolves an issue where our span pointer calculation code added recently logged unactionable messages.
+  - botocore: Resolves the issue where the span pointer for deserialized DynamoDB requests (through the resource-based API) were not being generated.
+  - botocore: Resolves an issue where our span pointer calculation code added recently logged unactionable messages.
 
 
 ---
