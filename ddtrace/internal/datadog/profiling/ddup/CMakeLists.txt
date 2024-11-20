@@ -54,7 +54,7 @@ add_ddup_config(${EXTENSION_NAME})
 # options
 target_compile_options(
     ${EXTENSION_NAME}
-    PRIVATE -Wno-old-style-cast -Wno-shadow
+    PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address
 )
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries). This suppresses that behavior,
