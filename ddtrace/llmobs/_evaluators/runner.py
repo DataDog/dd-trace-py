@@ -7,6 +7,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 
@@ -55,7 +56,7 @@ class EvaluatorRunner(PeriodicService):
                     raise e
                 finally:
                     telemetry_writer.add_count_metric(
-                        namespace="llmobs",
+                        namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
                         name="evaluators.init",
                         value=1,
                         tags=(

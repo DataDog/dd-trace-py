@@ -6,6 +6,7 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
+from cpython.unicode cimport PyUnicode_AsUTF8AndSize
 from libcpp.map cimport map
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
@@ -13,13 +14,14 @@ from libcpp.utility cimport pair
 import ddtrace
 import platform
 from .._types import StringType
-from ..util import ensure_binary_or_empty
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 
+
+ctypedef void (*func_ptr_t)(string_view)
 
 cdef extern from "stdint.h":
     ctypedef unsigned long long uint64_t
@@ -85,33 +87,230 @@ cdef extern from "code_provenance_interface.hpp":
     void code_provenance_add_packages(unordered_map[string_view, string_view] packages)
 
 # Create wrappers for cython
-cdef call_ddup_config_service(bytes service):
-    ddup_config_service(string_view(<const char*>service, len(service)))
+cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
+    if not str_arg:
+        return
+    if isinstance(str_arg, bytes):
+        func(string_view(<const char*>str_arg, len(str_arg)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(str_arg, &utf8_size)
+    if utf8_data != NULL:
+        func(string_view(utf8_data, utf8_size))
 
-cdef call_ddup_config_env(bytes env):
-    ddup_config_env(string_view(<const char*>env, len(env)))
+cdef call_ddup_config_user_tag(key: StringType, val: StringType):
+    if not key or not val:
+        return
+    if isinstance(key, bytes) and isinstance(val, bytes):
+        ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
+        return
+    cdef const char* key_utf8_data
+    cdef Py_ssize_t key_utf8_size
+    cdef const char* val_utf8_data
+    cdef Py_ssize_t val_utf8_size
+    key_utf8_data = PyUnicode_AsUTF8AndSize(key, &key_utf8_size)
+    val_utf8_data = PyUnicode_AsUTF8AndSize(val, &val_utf8_size)
+    if key_utf8_data != NULL and val_utf8_data != NULL:
+        ddup_config_user_tag(
+            string_view(key_utf8_data, key_utf8_size),
+            string_view(val_utf8_data, val_utf8_size)
+        )
 
-cdef call_ddup_config_version(bytes version):
-    ddup_config_version(string_view(<const char*>version, len(version)))
+cdef call_code_provenance_add_packages(distributions):
+    dist_names = []
+    dist_versions = []
+    cdef unordered_map[string_view, string_view] names_and_versions = unordered_map[string_view, string_view]()
 
-cdef call_ddup_config_url(bytes url):
-    ddup_config_url(string_view(<const char*>url, len(url)))
+    cdef const char* dist_name_utf8_data
+    cdef Py_ssize_t dist_name_utf8_size
+    cdef const char* dist_version_utf8_data
+    cdef Py_ssize_t dist_version_utf8_size
 
-cdef call_ddup_config_runtime(bytes runtime):
-    ddup_config_runtime(string_view(<const char*>runtime, len(runtime)))
+    for dist in distributions:
+        dist_name = dist.name
+        dist_version = dist.version
+        if not dist_name or not dist_version:
+            continue
+        dist_names.append(dist_name)
+        dist_versions.append(dist_version)
+        if isinstance(dist_name, bytes) and isinstance(dist_version, bytes):
+            names_and_versions.insert(
+                pair[string_view, string_view](
+                    string_view(<const char*>dist_name, len(dist_name)),
+                    string_view(<const char*>dist_version, len(dist_version))
+                )
+            )
+            continue
+        dist_name_utf8_data = PyUnicode_AsUTF8AndSize(dist_name, &dist_name_utf8_size)
+        dist_version_utf8_data = PyUnicode_AsUTF8AndSize(dist_version, &dist_version_utf8_size)
+        if dist_name_utf8_data != NULL and dist_version_utf8_data != NULL:
+            names_and_versions.insert(
+                pair[string_view, string_view](
+                    string_view(dist_name_utf8_data, dist_name_utf8_size),
+                    string_view(dist_version_utf8_data, dist_version_utf8_size)
+                )
+            )
+    code_provenance_add_packages(names_and_versions)
 
-cdef call_ddup_config_runtime_version(bytes runtime_version):
-    ddup_config_runtime_version(string_view(<const char*>runtime_version, len(runtime_version)))
+cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
+    # We want to make sure that endpoint strings outlive the for loop below
+    # and prevent them to be GC'ed. We do this by storing them in a list.
+    # This is necessary because we pass string_views to the C++ code, which is
+    # a view into the original string. If the original string is GC'ed, the view
+    # will point to garbage.
+    endpoint_list = []
+    cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    for endpoint, span_ids in endpoint_to_span_ids.items():
+        if not endpoint:
+            continue
+        endpoint_list.append(endpoint)
+        if isinstance(endpoint, bytes):
+            for span_id in span_ids:
+                span_ids_to_endpoints.insert(
+                    pair[int64_t, string_view](
+                        clamp_to_uint64_unsigned(span_id),
+                        string_view(<const char*>endpoint, len(endpoint))
+                    )
+                )
+            continue
+        utf8_data = PyUnicode_AsUTF8AndSize(endpoint, &utf8_size)
+        if utf8_data != NULL:
+            for span_id in span_ids:
+                span_ids_to_endpoints.insert(
+                    pair[int64_t, string_view](
+                        clamp_to_uint64_unsigned(span_id),
+                        string_view(utf8_data, utf8_size)
+                    )
+                )
+    ddup_profile_set_endpoints(span_ids_to_endpoints)
 
-cdef call_ddup_config_profiler_version(bytes profiler_version):
-    ddup_config_profiler_version(string_view(<const char*>profiler_version, len(profiler_version)))
+cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
+    # We want to make sure that endpoint strings outlive the for loop below
+    # and prevent them to be GC'ed. We do this by storing them in a list.
+    # This is necessary because we pass string_views to the C++ code, which is
+    # a view into the original string. If the original string is GC'ed, the view
+    # will point to garbage.
+    endpoint_list = []
+    cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    for endpoint, count in endpoint_counts.items():
+        if not endpoint:
+            continue
+        endpoint_list.append(endpoint)
+        if isinstance(endpoint, bytes):
+            trace_endpoints_to_counts.insert(
+                pair[string_view, int64_t](
+                    string_view(<const char*>endpoint, len(endpoint)),
+                    clamp_to_int64_unsigned(count)
+                )
+            )
+            continue
+        utf8_data = PyUnicode_AsUTF8AndSize(endpoint, &utf8_size)
+        if utf8_data != NULL:
+            trace_endpoints_to_counts.insert(
+                pair[string_view, int64_t](
+                    string_view(utf8_data, utf8_size),
+                    clamp_to_int64_unsigned(count)
+                )
+            )
+    ddup_profile_add_endpoint_counts(trace_endpoints_to_counts)
 
-cdef call_ddup_config_user_tag(bytes key, bytes val):
-    ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
+cdef call_ddup_push_lock_name(Sample* sample, lock_name: StringType):
+    if not lock_name:
+        return
+    if isinstance(lock_name, bytes):
+        ddup_push_lock_name(sample, string_view(<const char*>lock_name, len(lock_name)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(lock_name, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_lock_name(sample, string_view(utf8_data, utf8_size))
 
-cdef call_ddup_config_output_filename(bytes output_filename):
-    ddup_config_output_filename(string_view(<const char*>output_filename, len(output_filename)))
+cdef call_ddup_push_frame(Sample* sample, name: StringType, filename: StringType,
+                          uint64_t address, int64_t line):
+    if not name or not filename:
+        return
+    if isinstance(name, bytes) and isinstance(filename, bytes):
+        ddup_push_frame(sample, string_view(<const char*>name, len(name)),
+                        string_view(<const char*>filename, len(filename)),
+                        address, line)
+        return
+    cdef const char* name_utf8_data
+    cdef Py_ssize_t name_utf8_size
+    cdef const char* filename_utf8_data
+    cdef Py_ssize_t filename_utf8_size
+    name_utf8_data = PyUnicode_AsUTF8AndSize(name, &name_utf8_size)
+    filename_utf8_data = PyUnicode_AsUTF8AndSize(filename, &filename_utf8_size)
+    if name_utf8_data != NULL and filename_utf8_data != NULL:
+        ddup_push_frame(sample, string_view(name_utf8_data, name_utf8_size),
+                        string_view(filename_utf8_data, filename_utf8_size),
+                        address, line)
 
+cdef call_ddup_push_threadinfo(Sample* sample, int64_t thread_id, int64_t thread_native_id, thread_name: StringType):
+    if not thread_name:
+        return
+    if isinstance(thread_name, bytes):
+        ddup_push_threadinfo(
+            sample, thread_id, thread_native_id, string_view(<const char*>thread_name, len(thread_name)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(thread_name, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_threadinfo(sample, thread_id, thread_native_id, string_view(utf8_data, utf8_size))
+
+cdef call_ddup_push_task_name(Sample* sample, task_name: StringType):
+    if not task_name:
+        return
+    if isinstance(task_name, bytes):
+        ddup_push_task_name(sample, string_view(<const char*>task_name, len(task_name)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(task_name, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_task_name(sample, string_view(utf8_data, utf8_size))
+
+cdef call_ddup_push_exceptioninfo(Sample* sample, exception_name: StringType, uint64_t count):
+    if not exception_name:
+        return
+    if isinstance(exception_name, bytes):
+        ddup_push_exceptioninfo(sample, string_view(<const char*>exception_name, len(exception_name)), count)
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(exception_name, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_exceptioninfo(sample, string_view(utf8_data, utf8_size), count)
+
+cdef call_ddup_push_class_name(Sample* sample, class_name: StringType):
+    if not class_name:
+        return
+    if isinstance(class_name, bytes):
+        ddup_push_class_name(sample, string_view(<const char*>class_name, len(class_name)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(class_name, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_class_name(sample, string_view(utf8_data, utf8_size))
+
+cdef call_ddup_push_trace_type(Sample* sample, trace_type: StringType):
+    if not trace_type:
+        return
+    if isinstance(trace_type, bytes):
+        ddup_push_trace_type(sample, string_view(<const char*>trace_type, len(trace_type)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(trace_type, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_trace_type(sample, string_view(utf8_data, utf8_size))
 
 # Conversion functions
 cdef uint64_t clamp_to_uint64_unsigned(value):
@@ -148,61 +347,41 @@ def config(
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
-    call_ddup_config_service(ensure_binary_or_empty(service))
+    call_func_with_str(ddup_config_service, service)
 
     # Empty values are auto-populated in the backend (omitted in client)
     if env:
-        call_ddup_config_env(ensure_binary_or_empty(env))
+        call_func_with_str(ddup_config_env, env)
     if version:
-        call_ddup_config_version(ensure_binary_or_empty(version))
+        call_func_with_str(ddup_config_version, version)
     if url:
-        call_ddup_config_url(ensure_binary_or_empty(url))
+        call_func_with_str(ddup_config_url, url)
     if output_filename:
-        call_ddup_config_output_filename(ensure_binary_or_empty(output_filename))
+        call_func_with_str(ddup_config_output_filename, output_filename)
 
     # Inherited
-    call_ddup_config_runtime(ensure_binary_or_empty(platform.python_implementation()))
-    call_ddup_config_runtime_version(ensure_binary_or_empty(platform.python_version()))
-    call_ddup_config_profiler_version(ensure_binary_or_empty(ddtrace.__version__))
+    call_func_with_str(ddup_config_runtime, platform.python_implementation())
+    call_func_with_str(ddup_config_runtime_version, platform.python_version())
+    call_func_with_str(ddup_config_profiler_version, ddtrace.__version__)
 
     if max_nframes is not None:
         ddup_config_max_nframes(clamp_to_int64_unsigned(max_nframes))
     if tags is not None:
         for key, val in tags.items():
             if key and val:
-                call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
+                call_ddup_config_user_tag(key, val)
 
     if timeline_enabled is True:
         ddup_config_timeline(True)
     if sample_pool_capacity:
         ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
-    # cdef not allowed in if block, so we have to do this here
-    cdef unordered_map[string_view, string_view] names_and_versions = unordered_map[string_view, string_view]()
-    # Keep these here to prevent GC from collecting them
-    dist_names = []
-    dist_versions = []
     if enable_code_provenance:
         code_provenance_enable(enable_code_provenance)
-        version_bytes = ensure_binary_or_empty(platform.python_version())
-        code_provenance_set_runtime_version(
-            string_view(<const char*>version_bytes, len(version_bytes))
-        )
+        call_func_with_str(code_provenance_set_runtime_version, platform.python_version())
         # DEV: Do we also have to pass platsdlib_path, purelib_path, platlib_path?
-        stdlib_path_bytes = ensure_binary_or_empty(sysconfig.get_path("stdlib"))
-        code_provenance_set_stdlib_path(
-            string_view(<const char*>stdlib_path_bytes, len(stdlib_path_bytes))
-        )
-        distributions = get_distributions()
-        for dist in distributions:
-            dist_name = ensure_binary_or_empty(dist.name)
-            dist_version = ensure_binary_or_empty(dist.version)
-            dist_names.append(dist_name)
-            dist_versions.append(dist_version)
-            names_and_versions.insert(
-                pair[string_view, string_view](string_view(<const char*>dist_name, len(dist_name)),
-                                               string_view(<const char*>dist_version, len(dist_version))))
-        code_provenance_add_packages(names_and_versions)
+        call_func_with_str(code_provenance_set_stdlib_path, sysconfig.get_path("stdlib"))
+        call_code_provenance_add_packages(get_distributions())
 
 
 def start() -> None:
@@ -210,40 +389,13 @@ def start() -> None:
 
 
 def upload() -> None:
-    runtime_id = ensure_binary_or_empty(get_runtime_id())
-    ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
+    call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
     processor = ddtrace.tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
 
-    # We want to make sure that the endpoint_bytes strings outlive the for loops
-    # below and prevent them to be GC'ed. We do this by storing them in a list.
-    # This is necessary because we pass string_views to the C++ code, which is
-    # a view into the original string. If the original string is GC'ed, the view
-    # will point to garbage.
-    endpoint_bytes_list = []
-    cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
-    for endpoint, span_ids in endpoint_to_span_ids.items():
-        endpoint_bytes = ensure_binary_or_empty(endpoint)
-        endpoint_bytes_list.append(endpoint_bytes)
-        for span_id in span_ids:
-            span_ids_to_endpoints.insert(
-                pair[int64_t, string_view](
-                    clamp_to_uint64_unsigned(span_id),
-                    string_view(<const char*>endpoint_bytes, len(endpoint_bytes))
-                )
-            )
-    ddup_profile_set_endpoints(span_ids_to_endpoints)
-
-    cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
-    for endpoint, cnt in endpoint_counts.items():
-        endpoint_bytes = ensure_binary_or_empty(endpoint)
-        endpoint_bytes_list.append(endpoint_bytes)
-        trace_endpoints_to_counts.insert(pair[string_view, int64_t](
-            string_view(<const char*>endpoint_bytes, len(endpoint_bytes)),
-            clamp_to_int64_unsigned(cnt)
-        ))
-    ddup_profile_add_endpoint_counts(trace_endpoints_to_counts)
+    call_ddup_profile_set_endpoints(endpoint_to_span_ids)
+    call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
     with nogil:
         ddup_upload()
@@ -286,32 +438,25 @@ cdef class SampleHandle:
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
-            lock_name_bytes = ensure_binary_or_empty(lock_name)
-            ddup_push_lock_name(self.ptr, string_view(<const char*>lock_name_bytes, len(lock_name_bytes)))
+            call_ddup_push_lock_name(self.ptr, lock_name)
 
     def push_frame(self, name: StringType, filename: StringType, address: int, line: int) -> None:
         if self.ptr is not NULL:
             # Customers report `name` and `filename` may be unexpected objects, so sanitize.
-            name_bytes = ensure_binary_or_empty(sanitize_string(name))
-            filename_bytes = ensure_binary_or_empty(sanitize_string(filename))
-            ddup_push_frame(
-                    self.ptr,
-                    string_view(<const char*>name_bytes, len(name_bytes)),
-                    string_view(<const char*>filename_bytes, len(filename_bytes)),
-                    clamp_to_uint64_unsigned(address),
-                    clamp_to_int64_unsigned(line),
-            )
+            sanitized_name = sanitize_string(name)
+            sanitized_filename = sanitize_string(filename)
+            call_ddup_push_frame(self.ptr, sanitized_name, sanitized_filename,
+                                 clamp_to_uint64_unsigned(address), clamp_to_int64_unsigned(line))
 
     def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None:
         if self.ptr is not NULL:
             thread_id = thread_id if thread_id is not None else 0
             thread_native_id = thread_native_id if thread_native_id is not None else 0
-            thread_name_bytes = ensure_binary_or_empty(thread_name)
-            ddup_push_threadinfo(
-                    self.ptr,
-                    clamp_to_int64_unsigned(thread_id),
-                    clamp_to_int64_unsigned(thread_native_id),
-                    string_view(<const char*>thread_name_bytes, len(thread_name_bytes))
+            call_ddup_push_threadinfo(
+                self.ptr,
+                clamp_to_int64_unsigned(thread_id),
+                clamp_to_int64_unsigned(thread_native_id),
+                thread_name
             )
 
     def push_task_id(self, task_id: Optional[int]) -> None:
@@ -322,26 +467,20 @@ cdef class SampleHandle:
     def push_task_name(self, task_name: StringType) -> None:
         if self.ptr is not NULL:
             if task_name is not None:
-                task_name_bytes = ensure_binary_or_empty(task_name)
-                ddup_push_task_name(self.ptr, string_view(<const char*>task_name_bytes, len(task_name_bytes)))
+                call_ddup_push_task_name(self.ptr, task_name)
 
     def push_exceptioninfo(self, exc_type: Union[None, bytes, str, type], count: int) -> None:
         if self.ptr is not NULL:
             exc_name = None
             if isinstance(exc_type, type):
-                exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
+                exc_name = exc_type.__module__ + "." + exc_type.__name__
             else:
-                exc_name = ensure_binary_or_empty(exc_type)
-            ddup_push_exceptioninfo(
-                self.ptr,
-                string_view(<const char*>exc_name, len(exc_name)),
-                clamp_to_int64_unsigned(count)
-            )
+                exc_name = exc_type
+            call_ddup_push_exceptioninfo(self.ptr, exc_name, clamp_to_uint64_unsigned(count))
 
     def push_class_name(self, class_name: StringType) -> None:
         if self.ptr is not NULL:
-            class_name_bytes = ensure_binary_or_empty(class_name)
-            ddup_push_class_name(self.ptr, string_view(<const char*>class_name_bytes, len(class_name_bytes)))
+            call_ddup_push_class_name(self.ptr, class_name)
 
     def push_span(self, span: Optional[Span]) -> None:
         if self.ptr is NULL:
@@ -355,8 +494,7 @@ cdef class SampleHandle:
         if span._local_root.span_id:
             ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
         if span._local_root.span_type:
-            span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
-            ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
+            call_ddup_push_trace_type(self.ptr, span._local_root.span_type)
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:

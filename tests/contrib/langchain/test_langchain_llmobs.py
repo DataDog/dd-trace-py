@@ -74,7 +74,7 @@ def _assert_expected_llmobs_llm_span(
             output_messages=output_messages if not mock_io else mock.ANY,
             metadata=metadata,
             token_metrics=metrics,
-            tags={"ml_app": "langchain_test"},
+            tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         )
     )
 
@@ -85,7 +85,7 @@ def _assert_expected_llmobs_chain_span(span, mock_llmobs_span_writer, input_valu
         "workflow",
         input_value=input_value if input_value is not None else mock.ANY,
         output_value=output_value if output_value is not None else mock.ANY,
-        tags={"ml_app": "langchain_test"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
     )
     mock_llmobs_span_writer.enqueue.assert_any_call(expected_chain_span_event)
 
@@ -420,7 +420,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 model_provider="openai",
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
-                tags={"ml_app": "langchain_test"},
+                tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
             )
         )
 
@@ -445,7 +445,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 model_provider="openai",
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
-                tags={"ml_app": "langchain_test"},
+                tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
             )
         )
 
@@ -472,7 +472,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             input_value="Who was Alan Turing?",
             output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
             output_value="[1 document(s) retrieved]",
-            tags={"ml_app": "langchain_test"},
+            tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
         assert mock_llmobs_span_writer.enqueue.call_count == 2
@@ -725,7 +725,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 model_provider="openai",
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
-                tags={"ml_app": "langchain_test"},
+                tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
             )
         )
 
@@ -751,7 +751,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 model_provider="fake",
                 input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
                 output_value="[2 embedding(s) returned with size 1536]",
-                tags={"ml_app": "langchain_test"},
+                tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
             )
         )
 
@@ -781,7 +781,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 {"text": mock.ANY, "id": mock.ANY, "name": "The Evolution of Communication Technologies"}
             ],
             output_value="[1 document(s) retrieved]",
-            tags={"ml_app": "langchain_test"},
+            tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         )
         mock_llmobs_span_writer.enqueue.assert_any_call(expected_span)
 
@@ -828,7 +828,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 ],
                 metadata={"temperature": 0.7},
                 token_metrics={"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY},
-                tags={"ml_app": "langchain_test"},
+                tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
             )
         )
 
@@ -871,7 +871,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                         "description": mock.ANY,
                     },
                 },
-                tags={"ml_app": "langchain_test"},
+                tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
             )
         )
 
@@ -920,7 +920,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 output_messages=[{"content": "Python is\n\nthe best!", "role": "assistant"}],
                 metadata={"temperature": 0.7},
                 token_metrics={},
-                tags={"ml_app": "langchain_test"},
+                tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
             )
         )
 
@@ -956,9 +956,20 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 output_messages=[{"content": "\n\nPython is cool!"}],
                 metadata={"temperature": 0.7, "max_tokens": 256},
                 token_metrics={},
-                tags={"ml_app": "langchain_test"},
+                tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
             )
         )
+
+    def test_llmobs_non_ascii_completion(self, langchain_openai, mock_llmobs_span_writer, mock_tracer):
+        self._invoke_llm(
+            llm=langchain_openai.OpenAI(),
+            prompt="안녕,\n 지금 몇 시야?",
+            mock_tracer=mock_tracer,
+            cassette_name="openai_completion_non_ascii.yaml",
+        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        actual_llmobs_span_event = mock_llmobs_span_writer.enqueue.call_args[0][0]
+        assert actual_llmobs_span_event["meta"]["input"]["messages"][0]["content"] == "안녕,\n 지금 몇 시야?"
 
 
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 1), reason="These tests are for langchain >= 0.1.0")
@@ -1112,6 +1123,19 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_with_openai_enabled_non_ascii_value(self):
+        """Regression test to ensure that non-ascii text values for workflow spans are not encoded."""
+        from langchain_openai import OpenAI
+
+        patch(langchain=True, openai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        llm = OpenAI()
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_non_ascii.yaml"):
+            llm.invoke("안녕,\n 지금 몇 시야?")
+        langchain_span = self.mock_llmobs_span_writer.enqueue.call_args_list[0][0][0]
+        assert langchain_span["meta"]["input"]["value"] == '[{"content": "안녕,\\n 지금 몇 시야?"}]'
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_disabled(self):

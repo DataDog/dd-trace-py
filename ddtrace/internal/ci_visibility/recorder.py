@@ -221,6 +221,8 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
+        dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
+
         if ddconfig._ci_visibility_agentless_enabled:
             if not self._api_key:
                 raise EnvironmentError(
@@ -237,7 +239,7 @@ class CIVisibility(Service):
                 self._dd_site,
                 ddconfig._ci_visibility_agentless_url if ddconfig._ci_visibility_agentless_url else None,
                 self._service,
-                ddconfig.env,
+                dd_env,
             )
         elif self._agent_evp_proxy_is_available():
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
@@ -248,7 +250,7 @@ class CIVisibility(Service):
                 self._configurations,
                 self.tracer._agent_url,
                 self._service,
-                ddconfig.env,
+                dd_env,
             )
         else:
             requests_mode_str = "APM (some features will be disabled)"
@@ -267,7 +269,7 @@ class CIVisibility(Service):
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
-        log.info("Service: %s (env: %s)", self._service, ddconfig.env)
+        log.info("Service: %s (env: %s)", self._service, dd_env)
         log.info("Requests mode: %s", requests_mode_str)
         log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
         log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
@@ -866,6 +868,12 @@ class CIVisibility(Service):
         if instance is None:
             return False
 
+        # The assumption that we were not able to fetch unique tests properly if the length is 0 is acceptable
+        # because the current EFD usage would cause the session to be faulty even if the query was successful but
+        # not unique tests exist. In this case, we assume all tests are unique.
+        if len(instance._unique_test_ids) == 0:
+            return True
+
         return test_id in instance._unique_test_ids
 
 
@@ -1104,8 +1112,10 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
-    # New tests are currently only considered for EFD
-    if CIVisibility.is_efd_enabled():
+    # New tests are currently only considered for EFD:
+    # - if known tests were fetched properly (enforced by is_unique_test)
+    # - if they have no parameters
+    if CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None:
         is_new = not CIVisibility.is_unique_test(discover_args.test_id)
     else:
         is_new = False
@@ -1172,10 +1182,31 @@ def _on_item_is_finished(item_id: TestVisibilityItemId) -> bool:
     return CIVisibility.get_item_by_id(item_id).is_finished()
 
 
+@_requires_civisibility_enabled
+def _on_item_stash_set(item_id: TestVisibilityItemId, key: str, value: object) -> None:
+    log.debug("Handling stash set for item %s, key %s, value %s", item_id, key, value)
+    CIVisibility.get_item_by_id(item_id).stash_set(key, value)
+
+
+@_requires_civisibility_enabled
+def _on_item_stash_get(item_id: TestVisibilityItemId, key: str) -> Optional[object]:
+    log.debug("Handling stash get for item %s, key %s", item_id, key)
+    return CIVisibility.get_item_by_id(item_id).stash_get(key)
+
+
+@_requires_civisibility_enabled
+def _on_item_stash_delete(item_id: TestVisibilityItemId, key: str) -> None:
+    log.debug("Handling stash delete for item %s, key %s", item_id, key)
+    CIVisibility.get_item_by_id(item_id).stash_delete(key)
+
+
 def _register_item_handlers():
     log.debug("Registering item handlers")
     core.on("test_visibility.item.get_span", _on_item_get_span, "span")
     core.on("test_visibility.item.is_finished", _on_item_is_finished, "is_finished")
+    core.on("test_visibility.item.stash_set", _on_item_stash_set)
+    core.on("test_visibility.item.stash_get", _on_item_stash_get, "stash_value")
+    core.on("test_visibility.item.stash_delete", _on_item_stash_delete)
 
 
 @_requires_civisibility_enabled
@@ -1389,6 +1420,11 @@ def _on_atr_is_enabled() -> bool:
 
 
 @_requires_civisibility_enabled
+def _on_atr_session_has_failed_tests() -> bool:
+    return CIVisibility.get_session().atr_has_failed_tests()
+
+
+@_requires_civisibility_enabled
 def _on_atr_should_retry_test(item_id: InternalTestId) -> bool:
     return CIVisibility.get_test_by_id(item_id).atr_should_retry()
 
@@ -1418,6 +1454,7 @@ def _on_atr_get_final_status(test_id: InternalTestId) -> TestStatus:
 def _register_atr_handlers():
     log.debug("Registering ATR handlers")
     core.on("test_visibility.atr.is_enabled", _on_atr_is_enabled, "is_enabled")
+    core.on("test_visibility.atr.session_has_failed_tests", _on_atr_session_has_failed_tests, "has_failed_tests")
     core.on("test_visibility.atr.should_retry_test", _on_atr_should_retry_test, "should_retry_test")
     core.on("test_visibility.atr.add_retry", _on_atr_add_retry, "retry_number")
     core.on("test_visibility.atr.start_retry", _on_atr_start_retry)

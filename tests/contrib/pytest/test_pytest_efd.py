@@ -121,7 +121,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
             if CIVisibility.enabled:
                 CIVisibility.disable()
 
-    def test_pytest_no_ddtrace_does_not_retry(self):
+    def test_pytest_efd_no_ddtrace_does_not_retry(self):
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
         self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)

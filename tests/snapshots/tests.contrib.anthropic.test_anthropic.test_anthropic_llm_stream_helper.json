@@ -1,7 +1,7 @@
 [[
   {
     "name": "anthropic.request",
-    "service": "",
+    "service": "tests.contrib.anthropic",
     "resource": "Messages.stream",
     "trace_id": 0,
     "span_id": 1,

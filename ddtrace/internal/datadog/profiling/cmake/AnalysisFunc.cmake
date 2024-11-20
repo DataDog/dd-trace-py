@@ -58,15 +58,24 @@ function(add_ddup_config target)
         # Some sanitizers (or the analysis--such as symbolization--tooling thereof) work better with frame pointers, so
         # we include it here.
         target_compile_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
-        target_link_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS})
+        target_link_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS} -shared-libsan)
 
-        # We need to do a little bit of work in order to ensure the dynamic *san libraries can be linked Procedure
-        # adapted from datadog/ddprof :)
-        execute_process(
-            COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=
-            OUTPUT_VARIABLE LIBSAN_LIB_PATH
-            OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
-        set_target_properties(${target} PROPERTIES INSTALL_RPATH ${LIBSAN_LIB_PATH} BUILD_RPATH ${LIBSAN_LIB_PATH})
+    # Locate all directories containing relevant `.so` files
+    execute_process(
+        COMMAND bash -c "find $(${CMAKE_CXX_COMPILER} -print-file-name=) -name '*.so' -exec dirname {} \; | uniq"
+        OUTPUT_VARIABLE LIBSAN_LIB_PATHS
+        OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+
+    # Print for debugging
+    message(STATUS "LIBSAN_LIB_PATHS: ${LIBSAN_LIB_PATHS}")
+
+    # Split the paths into a semicolon-separated list for CMake
+    string(REPLACE "\n" ";" LIBSAN_LIB_PATHS_LIST "${LIBSAN_LIB_PATHS}")
+
+    # Set RPATH to include all identified paths
+    set_target_properties(${target} PROPERTIES
+        BUILD_RPATH "${LIBSAN_LIB_PATHS_LIST}"
+        INSTALL_RPATH "${LIBSAN_LIB_PATHS_LIST}")
     endif()
 
     # If DO_FANALYZER is specified and we're using gcc, then we can use -fanalyzer

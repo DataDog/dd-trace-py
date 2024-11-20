@@ -69,7 +69,7 @@ def record_settings_response(
     if require_git:
         response_tags.append(("require_git", "1"))
     if itr_enabled:
-        response_tags.append(("itrskip_enabled", "1"))
+        response_tags.append(("itr_enabled", "1"))
     if early_flake_detection_enabled:
         response_tags.append(("early_flake_detection_enabled", "1"))
 
