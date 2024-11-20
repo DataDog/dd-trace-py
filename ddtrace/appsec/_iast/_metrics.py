@@ -140,7 +140,7 @@ def _set_span_tag_iast_executed_sink(span):
     reset_iast_span_metrics()
 
 
-def _parse_metric_key(key):
+def _metric_key_as_snake_case(key):
     from ._taint_tracking import OriginType
 
     if isinstance(key, OriginType):
