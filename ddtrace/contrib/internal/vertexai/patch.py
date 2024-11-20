@@ -59,13 +59,13 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
         model=extract_model_name_google(model_instance, "_model_name"),
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     )
     try:
         tag_request(span, integration, instance, args, kwargs)
         generations = func(*args, **kwargs)
         if stream:
-            return TracedVertexAIStreamResponse(generations, integration, span, is_chat)
+            return TracedVertexAIStreamResponse(generations, model_instance, integration, span, args, kwargs, is_chat)
         tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -73,6 +73,8 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
+            kwargs["instance"] = instance
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations
 
@@ -86,13 +88,13 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
         model=extract_model_name_google(model_instance, "_model_name"),
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     )
     try:
         tag_request(span, integration, instance, args, kwargs)
         generations = await func(*args, **kwargs)
         if stream:
-            return TracedAsyncVertexAIStreamResponse(generations, integration, span, is_chat)
+            return TracedAsyncVertexAIStreamResponse(generations, model_instance, integration, span, args, kwargs, is_chat)
         tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -100,6 +102,8 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
+            kwargs["instance"] = instance
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations
 
