@@ -1,7 +1,7 @@
 [[
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "otel-threading-root",
     "trace_id": 0,
     "span_id": 1,
@@ -25,7 +25,7 @@
   },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "s1",
        "trace_id": 0,
        "span_id": 2,
@@ -44,7 +44,7 @@
      },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "s2",
           "trace_id": 0,
           "span_id": 6,
@@ -56,7 +56,7 @@
         },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "s3",
           "trace_id": 0,
           "span_id": 7,
@@ -68,7 +68,7 @@
         },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "s1",
        "trace_id": 0,
        "span_id": 3,
@@ -87,7 +87,7 @@
      },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "s2",
           "trace_id": 0,
           "span_id": 8,
@@ -99,7 +99,7 @@
         },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "s3",
           "trace_id": 0,
           "span_id": 9,
@@ -111,7 +111,7 @@
         },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "s1",
        "trace_id": 0,
        "span_id": 4,
@@ -130,7 +130,7 @@
      },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "s2",
           "trace_id": 0,
           "span_id": 10,
@@ -142,7 +142,7 @@
         },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "s3",
           "trace_id": 0,
           "span_id": 11,
@@ -154,7 +154,7 @@
         },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "s1",
        "trace_id": 0,
        "span_id": 5,
@@ -173,7 +173,7 @@
      },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "s2",
           "trace_id": 0,
           "span_id": 12,
@@ -185,7 +185,7 @@
         },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "s3",
           "trace_id": 0,
           "span_id": 13,

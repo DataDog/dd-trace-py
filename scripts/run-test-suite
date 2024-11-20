@@ -58,7 +58,7 @@ fi
 
 for hash in ${RIOT_HASHES[@]}; do
     echo "Running riot hash: $hash"
-    ($DDTEST_CMD riot -P -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG)
+    ($DDTEST_CMD riot -P -v run --exitfirst --pass-env -s $hash $COVERAGE_FLAG $DDTRACE_FLAG)
     exit_code=$?
     if [ $exit_code -ne 0 ] ; then
         if [[ -v CIRCLECI ]]; then
