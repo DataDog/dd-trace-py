@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpcaio: Resolves a concurrency bug where distributed tracing headers were overwritten resulting in spans being assigned to the wrong trace.

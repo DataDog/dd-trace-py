@@ -9,7 +9,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.aredis",
       "_dd.p.dm": "-0",
       "language": "python",
       "runtime-id": "9ac61da02efc4632a954063a29231b49"
@@ -33,7 +33,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.aredis",
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",
@@ -62,7 +62,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.aredis",
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",

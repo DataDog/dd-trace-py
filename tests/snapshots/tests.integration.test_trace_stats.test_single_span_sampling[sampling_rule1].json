@@ -9,7 +9,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-3",
       "_dd.p.tid": "6670641f00000000",
       "language": "python",
@@ -36,7 +36,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": ""
+         "_dd.base_service": "tests.integration"
        },
        "metrics": {
          "_dd.span_sampling.mechanism": 8

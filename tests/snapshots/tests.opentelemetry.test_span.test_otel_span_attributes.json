@@ -9,7 +9,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.opentelemetry",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",
       "language": "python",
@@ -40,7 +40,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.opentelemetry",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",
       "language": "python",
@@ -63,7 +63,7 @@
 [
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "otel-list-tags",
     "trace_id": 2,
     "span_id": 1,
