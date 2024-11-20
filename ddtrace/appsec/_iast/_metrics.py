@@ -153,7 +153,7 @@ def _metric_key_as_snake_case(key):
 
 def increment_iast_span_metric(prefix: str, metric_key: str, counter: int = 1) -> None:
     data = get_iast_span_metrics()
-    full_key = prefix + "." + _parse_metric_key(metric_key)
+    full_key = prefix + "." + _metric_key_as_snake_case(metric_key)
     result = data.get(full_key, 0)
     data[full_key] = result + counter
 
