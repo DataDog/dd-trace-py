@@ -36,7 +36,8 @@ def _run_gunicorn(*args):
             "--bind",
             "127.0.0.1:7644",
             "--worker-tmp-dir",
-            "/dev/shm" "--chdir",
+            "/dev/shm",
+            "--chdir",
             os.path.dirname(__file__),
         ]
         + list(args)
