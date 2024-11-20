@@ -5,6 +5,7 @@ from typing import Optional
 from typing import Text
 
 from ddtrace import tracer
+from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 
@@ -103,6 +104,8 @@ class VulnerabilityBase(Operation):
         report.add_ranges_to_evidence_and_extract_sources(vulnerability)
 
         set_iast_reporter(report)
+        if span:
+            _asm_manual_keep(span)
 
         return True
 
