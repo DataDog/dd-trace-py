@@ -91,6 +91,7 @@ class VulnerabilityBase(Operation):
             span = tracer.current_root_span()
             if span:
                 span_id = span.span_id
+                _asm_manual_keep(span)
 
         vulnerability = Vulnerability(
             type=vulnerability_type,
@@ -104,8 +105,6 @@ class VulnerabilityBase(Operation):
         report.add_ranges_to_evidence_and_extract_sources(vulnerability)
 
         set_iast_reporter(report)
-        if span:
-            _asm_manual_keep(span)
 
         return True
 
