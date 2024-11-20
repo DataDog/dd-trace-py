@@ -30,7 +30,15 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 def _run_gunicorn(*args):
     cmd = (
-        ["ddtrace-run", "gunicorn", "--bind", "127.0.0.1:7644", "--chdir", os.path.dirname(__file__)]
+        [
+            "ddtrace-run",
+            "gunicorn",
+            "--bind",
+            "127.0.0.1:7644",
+            "--worker-tmp-dir",
+            "/dev/shm" "--chdir",
+            os.path.dirname(__file__),
+        ]
         + list(args)
         + ["tests.profiling.gunicorn-app:app"]
     )
