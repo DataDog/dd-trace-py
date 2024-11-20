@@ -9,6 +9,11 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ..internal.logger import get_logger
+
+
+log = get_logger(__name__)
+
 
 INIT_PY = "__init__.py"
 ALL_PY_FILES = "*.py"
@@ -78,9 +83,9 @@ class PythonDetector:
                     if ok:
                         return ServiceMetadata(value)
                     return ServiceMetadata(self.find_nearest_top_level(stripped))
-                except:  # noqa: E722
-                    # catch any exceptions and continue iteration to the next arg
-                    continue
+                except Exception as ex:
+                    # Catch any unexpected errors
+                    log.debug("Unexpected error while processing argument: ", arg, "Exception: ", ex)
 
             if has_flag_prefix and arg == "-m":
                 module_flag = True
@@ -192,9 +197,9 @@ def detect_service(args: List[str]) -> Optional[str]:
             if metadata and metadata.name:
                 CACHE[cache_key] = metadata.name
                 return metadata.name
-    except:  # noqa: E722
-        # catch all exceptions to be extra safe to not crash anything
-        pass
+    except Exception as ex:
+        # Catch any unexpected errors to be extra safe
+        print("Unexpected error during inferred base service detection: ", ex)  # or log the exception
 
     CACHE[cache_key] = None
     return None
