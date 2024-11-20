@@ -39,7 +39,7 @@ def mock_async_client():
 
 
 @pytest.fixture
-def mock_tracer(vertexai):
+def mock_tracer(ddtrace_global_config, vertexai):
     try:
         pin = Pin.get_from(vertexai)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))

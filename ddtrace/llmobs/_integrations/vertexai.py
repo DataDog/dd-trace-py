@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 import vertexai
 from vertexai.generative_models import Part
 
@@ -40,6 +41,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
+        operation: str = "",
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("vertexai.request.model") or "")
@@ -91,6 +93,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         metadata = {}
         model_config = _get_attr(instance, "_generation_config", {})
         request_config = kwargs.get("generation_config", {})
+        request_config = request_config if isinstance(request_config, dict) else request_config.to_dict()
         parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
         for param in parameters:
             model_config_value = _get_attr(model_config, param, None)
