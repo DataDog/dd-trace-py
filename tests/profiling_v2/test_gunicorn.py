@@ -62,7 +62,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # DEV: We only start 1 worker to simplify the test
     proc = gunicorn("-w", "1", *args)
     # Wait for the workers to start
-    time.sleep(5)
+    time.sleep(10)
 
     if proc.poll() is not None:
         pytest.fail("Gunicorn failed to start")
@@ -82,6 +82,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     debug_print("Reading gunicorn worker output to get PIDs")
     output = proc.stdout.read().decode()
+    print(output)
     worker_pids = _get_worker_pids(output)
     debug_print("Gunicorn worker PIDs: %s" % worker_pids)
 
