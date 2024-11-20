@@ -1,7 +1,7 @@
 [[
   {
     "name": "kinesis.manual_span",
-    "service": "",
+    "service": "tests.contrib.botocore",
     "resource": "kinesis.manual_span",
     "trace_id": 0,
     "span_id": 1,
@@ -33,7 +33,7 @@
        "type": "http",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.botocore",
          "aws.agent": "botocore",
          "aws.kinesis.stream_name": "test",
          "aws.operation": "CreateStream",
@@ -69,7 +69,7 @@
        "type": "http",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.botocore",
          "aws.agent": "botocore",
          "aws.kinesis.stream_name": "test",
          "aws.operation": "PutRecords",
@@ -109,7 +109,7 @@
     "type": "http",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6725212f00000000",
       "aws.agent": "botocore",
@@ -146,7 +146,7 @@
     "type": "http",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6725212f00000000",
       "aws.agent": "botocore",
