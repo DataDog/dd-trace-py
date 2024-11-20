@@ -10,18 +10,17 @@ logger = logging.getLogger(__name__)
 latest = ""
 
 
-SUPPORTED_PYTHON_VERSIONS = [
+SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
     (3, 7),
     (3, 8),
     (3, 9),
     (3, 10),
     (3, 11),
     (3, 12),
-]  # type: List[Tuple[int, int]]
+]
 
 
-def version_to_str(version):
-    # type: (Tuple[int, int]) -> str
+def version_to_str(version: Tuple[int, int]) -> str:
     """Convert a Python version tuple to a string
 
     >>> version_to_str((3, 7))
@@ -42,8 +41,7 @@ def version_to_str(version):
     return ".".join(str(p) for p in version)
 
 
-def str_to_version(version):
-    # type: (str) -> Tuple[int, int]
+def str_to_version(version: str) -> Tuple[int, int]:
     """Convert a Python version string to a tuple
 
     >>> str_to_version("3.7")
@@ -68,8 +66,7 @@ MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
 MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
 
 
-def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
-    # type: (str, str) -> List[str]
+def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> List[str]:
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
@@ -1116,7 +1113,7 @@ venv = Venv(
                         "pytest": "~=4.0",
                         "pytest-mock": "==2.0.0",
                         "pytest-cov": "~=3.0",
-                        "Jinja2": "~=2.11.0",
+                        "Jinja2": "~=2.10.0",
                         "more_itertools": "<8.11.0",
                         # https://github.com/pallets/itsdangerous/issues/290
                         # DEV: Breaking change made in 2.0 release
@@ -1270,7 +1267,7 @@ venv = Venv(
                         "pynamodb": ["~=5.0", "~=5.3", "<6.0"],
                         "moto": ">=1.0,<2.0",
                         "cfn-lint": "~=0.53.1",
-                        "Jinja2": "~=2.11.0",
+                        "Jinja2": "~=2.10.0",
                         "pytest-randomly": latest,
                     },
                 ),
@@ -2051,7 +2048,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.9"),
                     pkgs={
-                        "jinja2": "~=2.11.0",
+                        "jinja2": "~=2.10.0",
                         # https://github.com/pallets/markupsafe/issues/282
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
