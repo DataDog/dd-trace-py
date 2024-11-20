@@ -144,6 +144,7 @@ tests/contrib/botocore/test_bedrock_llmobs.py           @DataDog/ml-observabilit
 tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observability
 tests/contrib/anthropic                                 @DataDog/ml-observability
 tests/contrib/google_generativeai                       @DataDog/ml-observability
+tests/contrib/vertexai                                  @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                @DataDog/ml-observability
 
 # Remote Config
