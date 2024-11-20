@@ -1,7 +1,7 @@
 [[
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "webpage.load",
     "trace_id": 0,
     "span_id": 1,
@@ -27,7 +27,7 @@
 [
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "web.response",
     "trace_id": 1,
     "span_id": 1,
