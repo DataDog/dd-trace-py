@@ -87,6 +87,8 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
             debug_print(response)
     except Exception as e:
         proc.terminate()
+        output = proc.stdout.read().decode()
+        print(output)
         pytest.fail("Failed to make request to gunicorn server %s" % e)
     finally:
         # Need to terminate the process to get the output and release the port
