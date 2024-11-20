@@ -1,7 +1,7 @@
 [[
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "root-span",
     "trace_id": 0,
     "span_id": 1,
@@ -25,7 +25,7 @@
   },
      {
        "name": "client",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "rename-start-span",
        "trace_id": 0,
        "span_id": 2,

@@ -1,7 +1,7 @@
 [[
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "test-otel-distributed-trace",
     "trace_id": 0,
     "span_id": 1,
@@ -33,7 +33,7 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.opentelemetry",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "66a6956800000000",
          "_dd.parent_id": "4f4e94b0f4d57229",
@@ -72,7 +72,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.opentelemetry",
             "component": "flask",
             "flask.endpoint": "otel",
             "flask.url_rule": "/otel"
@@ -90,7 +90,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.opentelemetry",
                "component": "flask"
              },
              "duration": 12000,
@@ -106,7 +106,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.opentelemetry",
                "component": "flask"
              },
              "duration": 13000,
@@ -122,7 +122,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.opentelemetry",
                "component": "flask"
              },
              "duration": 3646000,
@@ -138,7 +138,7 @@
                 "type": "",
                 "error": 0,
                 "meta": {
-                  "_dd.base_service": "",
+                  "_dd.base_service": "tests.opentelemetry",
                   "component": "flask"
                 },
                 "duration": 3585000,
@@ -154,7 +154,7 @@
                    "type": "",
                    "error": 0,
                    "meta": {
-                     "_dd.base_service": ""
+                     "_dd.base_service": "tests.opentelemetry"
                    },
                    "duration": 36000,
                    "start": 1722193256339552000
@@ -169,7 +169,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.opentelemetry",
                "component": "flask"
              },
              "duration": 17000,
@@ -185,7 +185,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.opentelemetry",
                "component": "flask"
              },
              "duration": 14000,
@@ -201,7 +201,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.opentelemetry",
                "component": "flask"
              },
              "duration": 10000,
@@ -217,7 +217,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.opentelemetry",
             "component": "flask"
           },
           "duration": 183000,
