@@ -9,7 +9,7 @@
     "type": "http",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "672522b300000000",
       "aws.agent": "botocore",
@@ -64,7 +64,7 @@
     "type": "http",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "672522b200000000",
       "aws.agent": "botocore",
@@ -101,7 +101,7 @@
     "type": "http",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "672522b300000000",
       "aws.agent": "botocore",
@@ -140,7 +140,7 @@
     "type": "http",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "672522b300000000",
       "aws.agent": "botocore",
