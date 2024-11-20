@@ -77,9 +77,11 @@ def mock_file_system():
         ("python3.12 apps/app2/cmd/run.py", "app2"),
         ("python -m m1.first.nice.package", "m1.first.nice.package"),
         ("python -m http.server 8000", "http.server"),
+        ("python --some-flag apps/app1", "app1"),
         # pytest
         ("pytest tests/contrib/aiohttp", "tests.contrib.aiohttp"),
         ("pytest --ddtrace tests/contrib/aiohttp", "tests.contrib.aiohttp"),
+        ("pytest --no-cov tests/contrib/aiohttp", "tests.contrib.aiohttp"),
     ],
 )
 def test_python_detector(cmd, expected, mock_file_system):

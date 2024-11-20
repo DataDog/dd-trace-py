@@ -33,7 +33,7 @@ class PythonDetector:
         # - Match /python, /python3.7, etc.
         self.pattern = r"(^|/)(?!.*\.py$)(" + re.escape("python") + r"(\d+\.\d+)?$)"
 
-    def detect(self, args: List[str]) -> Optional[ServiceMetadata]:
+    def detect(self, args: List[str], skip_args_preceded_by_flags=True) -> Optional[ServiceMetadata]:
         """
         Detects and returns service metadata based on the provided list of arguments.
 
@@ -59,7 +59,7 @@ class PythonDetector:
             has_flag_prefix = arg.startswith("-") and not arg.startswith("--ddtrace")
             is_env_variable = "=" in arg
 
-            should_skip_arg = prev_arg_is_flag or has_flag_prefix or is_env_variable
+            should_skip_arg = (prev_arg_is_flag and skip_args_preceded_by_flags) or has_flag_prefix or is_env_variable
 
             if module_flag:
                 return ServiceMetadata(arg)
@@ -175,6 +175,13 @@ def detect_service(args: List[str]) -> Optional[str]:
     # Iterate through the matched detectors
     for detector in detectors.values():
         metadata = detector.detect(args_to_search)
+        if metadata and metadata.name:
+            CACHE[cache_key] = metadata.name
+            return metadata.name
+
+    # Iterate through the matched detectors again, this time not skipping args preceded by flag args
+    for detector in detectors.values():
+        metadata = detector.detect(args_to_search, skip_args_preceded_by_flags=False)
         if metadata and metadata.name:
             CACHE[cache_key] = metadata.name
             return metadata.name
