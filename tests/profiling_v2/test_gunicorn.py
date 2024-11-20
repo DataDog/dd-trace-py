@@ -71,7 +71,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # DEV: We only start 1 worker to simplify the test
     proc = gunicorn("-w", "1", *args)
     # Wait for the workers to start
-    time.sleep(10)
+    time.sleep(5)
 
     if proc.poll() is not None:
         pytest.fail("Gunicorn failed to start")
