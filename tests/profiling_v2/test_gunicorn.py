@@ -38,6 +38,8 @@ def _run_gunicorn(*args):
             "--worker-tmp-dir",
             "/dev/shm",
             "--chdir",
+            "--timeout",
+            "5",
             os.path.dirname(__file__),
         ]
         + list(args)
@@ -130,5 +132,5 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
 def test_gunicorn(gunicorn, tmp_path, monkeypatch):
     # type: (...) -> None
-    args = ("-k", "gevent") if TESTING_GEVENT else tuple()
+    args = ("-k", "gevent") if TESTING_GEVENT else tuple("--threads", "10")
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)
