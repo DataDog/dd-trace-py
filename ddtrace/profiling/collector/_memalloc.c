@@ -56,7 +56,7 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         lock_initialized = true;
     }
 
-    uint64_t alloc_count = atomic_inc_clamped(global_alloc_tracker->alloc_count, ALLOC_TRACKER_MAX_COUNT);
+    uint64_t alloc_count = atomic_inc_clamped(&global_alloc_tracker->alloc_count, ALLOC_TRACKER_MAX_COUNT);
 
     // Return if we've reached the maximum number of allocations
     if (alloc_count == 0)
@@ -71,7 +71,7 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         /* Buffer is not full, fill it */
         traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
         if (tb) {
-            if (memlock_lock(&event_lock, g_memalloc_lock_timeout)) {
+            if (memlock_lock_timed(&event_lock, g_memalloc_lock_timeout)) {
                 traceback_array_append(&global_alloc_tracker->allocs, tb);
                 memlock_unlock(&event_lock);
             }
@@ -85,7 +85,7 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
             if (tb) {
-                if (memlock_lock(&event_lock, g_memalloc_lock_timeout)) {
+                if (memlock_lock_timed(&event_lock, g_memalloc_lock_timeout)) {
                     traceback_free(global_alloc_tracker->allocs.tab[r]);
                     global_alloc_tracker->allocs.tab[r] = tb;
                 } else {

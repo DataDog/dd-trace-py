@@ -110,18 +110,34 @@ memlock_init(memlock_t* lock)
 #endif
 }
 
-// Timed lock function
+// Unlock function
 static inline bool
-memlock_timed(memlock_t* lock, uint32_t timeout_ms)
+memlock_unlock(memlock_t* lock)
 {
-#ifdef __linux__
-    // On Linux, we need to make sure we didn't just fork
-    // pthreads will guarantee the lock is consistent, but we at least need to clear it
-    static pid_t my_pid = getpid();
     if (!lock)
         return false;
 
-    if (my_pid != getpid()) {
+#ifdef _WIN32
+    return ReleaseMutex(lock->mutex);
+#else
+    return pthread_mutex_unlock(&lock->mutex) == 0;
+#endif
+}
+
+// Timed lock function
+static inline bool
+memlock_lock_timed(memlock_t* lock, uint32_t timeout_ms)
+{
+#ifdef __linux__
+    if (!lock)
+        return false;
+
+    // On Linux, we need to make sure we didn't just fork
+    // pthreads will guarantee the lock is consistent, but we at least need to clear it
+    static pid_t my_pid = 0;
+    if (my_pid == 0) {
+        my_pid = getpid();
+    } else if (my_pid != getpid()) {
         // We've forked, so we need to free the lock
         memlock_unlock(lock);
         my_pid = getpid();
@@ -171,20 +187,6 @@ memlock_timed(memlock_t* lock, uint32_t timeout_ms)
     return false;
 }
 
-// Unlock function
-static inline bool
-memlock_unlock(memlock_t* lock)
-{
-    if (!lock)
-        return false;
-
-#ifdef _WIN32
-    return ReleaseMutex(lock->mutex);
-#else
-    return pthread_mutex_unlock(&lock->mutex) == 0;
-#endif
-}
-
 // Cleanup function
 static inline bool
 memlock_destroy(memlock_t* lock)
@@ -205,7 +207,7 @@ memalloc_take_guard()
     return cas_thread_local_bool(&_MEMALLOC_ON_THREAD, false, true);
 }
 
-static inline bool
+static inline void
 memalloc_yield_guard(void)
 {
     // Ideally, we'd actually capture the old state within an object and restore it, but since this is
