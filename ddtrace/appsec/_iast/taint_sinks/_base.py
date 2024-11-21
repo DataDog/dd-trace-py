@@ -91,6 +91,10 @@ class VulnerabilityBase(Operation):
             span = tracer.current_root_span()
             if span:
                 span_id = span.span_id
+                # Mark the span as kept to avoid being dropped by the agent.
+                #
+                # It is important to do it as soon as the vulnerability is reported
+                # to ensure that any downstream propagation performed has the new priority.
                 _asm_manual_keep(span)
 
         vulnerability = Vulnerability(
