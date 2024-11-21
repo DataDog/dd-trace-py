@@ -466,9 +466,8 @@ class AstVisitor(ast.NodeTransformer):
         else:
             self.replacements_disabled_for_functiondef = False
 
-        # JJJ
-        # if ddtrace_in_name:
-        #     return def_node
+        if ddtrace_in_name:
+            _mark_avoid_convert_recursively(def_node)
 
         if hasattr(def_node.args, "vararg") and def_node.args.vararg:
             if def_node.args.vararg.annotation:
