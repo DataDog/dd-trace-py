@@ -9,9 +9,11 @@ from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 
 from ..._constants import IAST
+from ..._constants import IAST_SPAN_TAGS
 from .._iast_request_context import is_iast_request_enabled
 from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
+from .._metrics import increment_iast_span_metric
 from .._utils import _is_iast_debug_enabled
 from .._utils import _is_iast_propagation_debug_enabled
 from .._utils import _is_python_version_supported
@@ -181,6 +183,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
         res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin)
         _set_metric_iast_executed_source(source_origin)
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
         return res
     except ValueError as e:
         log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e)

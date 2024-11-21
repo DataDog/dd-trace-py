@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -47,6 +48,7 @@ class IASTEnvironment:
 
         self.request_enabled: bool = False
         self.iast_reporter: Optional[IastSpanReporter] = None
+        self.iast_span_metrics: Dict[str, int] = {}
 
 
 def _get_iast_context() -> Optional[IASTEnvironment]:
