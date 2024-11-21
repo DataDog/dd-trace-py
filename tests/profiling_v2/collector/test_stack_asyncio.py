@@ -67,45 +67,39 @@ def test_asyncio(monkeypatch, tmp_path):
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name = "MainThread",
-            locations =  [
+            thread_name="MainThread",
+            locations=[
                 pprof_utils.StackLocation(
-                    function_name="hello",
-                    filename="test_stack_asyncio.py",
-                    line_no=hello.__code__.co_firstlineno + 3
+                    function_name="hello", filename="test_stack_asyncio.py", line_no=hello.__code__.co_firstlineno + 3
                 )
             ],
-        )
+        ),
     )
 
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name = "MainThread",
-            task_name = t1_name,
-            locations = [
+            thread_name="MainThread",
+            task_name=t1_name,
+            locations=[
                 pprof_utils.StackLocation(
-                    function_name="stuff",
-                    filename="test_stack_asyncio.py",
-                    line_no=stuff.__code__.co_firstlineno + 3
+                    function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
                 ),
-            ]
-        )
+            ],
+        ),
     )
 
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name = "MainThread",
-            task_name = t2_name,
-            locations = [
+            thread_name="MainThread",
+            task_name=t2_name,
+            locations=[
                 pprof_utils.StackLocation(
-                    function_name="stuff",
-                    filename="test_stack_asyncio.py",
-                    line_no=stuff.__code__.co_firstlineno + 3
+                    function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
                 ),
-            ]
-        )
+            ],
+        ),
     )
