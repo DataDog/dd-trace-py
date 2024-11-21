@@ -124,9 +124,7 @@ def use_global_tracer():
 def auto_enable_crashtracking():
     # Crashtracking is only supported on linux right now
     # TODO: Default to `True` when Windows and Darwin are supported
-    # JJJ
-    # yield platform.system() == "Linux"
-    return False
+    yield platform.system() == "Linux"
 
 
 @pytest.fixture(autouse=True)

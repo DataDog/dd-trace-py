@@ -373,9 +373,7 @@ def visit_ast(
 ) -> Optional[ast.Module]:
     parsed_ast = ast.parse(source_text, module_path)
     _VISITOR.update_location(filename=module_path, module_name=module_name)
-    print("JJJ parsed_ast: %s" % parsed_ast)
     modified_ast = _VISITOR.visit(parsed_ast)
-    print("JJJ modified_ast: %s" % modified_ast)
 
     if not _VISITOR.ast_modified:
         return None
@@ -412,9 +410,9 @@ _DIR_WRAPPER = textwrap.dedent(
 def __ddtrace_dir__():
     orig_dir = globals().get("__orig_dir__")
     if orig_dir:
-        results = [name for name in __orig_dir__() if not name.startswith("__ddtrace")]
+        results = [name for name in __orig_dir__() if not (name.startswith("__ddtrace") or name == "__orig_dir__")]
     else:
-        results = [name for name in globals() if not name.startswith("__ddtrace")]
+        results = [name for name in globals() if not (name.startswith("__ddtrace") or name == "__dir__")]
 
     return results
 
@@ -473,12 +471,10 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     if remove_flask_run:
         source_text = _remove_flask_run(source_text)
 
-    print("JJJ antes: %s" % asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")))
     if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)
         source_text += _DIR_WRAPPER
 
-    print("JJJ module_path: %s" % module_path)
     new_ast = visit_ast(
         source_text,
         module_path,

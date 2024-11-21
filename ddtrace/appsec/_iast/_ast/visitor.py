@@ -450,8 +450,6 @@ class AstVisitor(ast.NodeTransformer):
         module_node.body.insert(insert_position, replacements_import)
         # Must be called here instead of the start so the line offset is already
         # processed
-        print("JJJ module_node: %s" % module_node)
-        print("JJJ type module_node: %s" % type(module_node))
         self.generic_visit(module_node)
         return module_node
 
