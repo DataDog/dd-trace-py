@@ -1,7 +1,7 @@
 [[
   {
     "name": "fastapi.background_task",
-    "service": "",
+    "service": "tests.contrib.fastapi",
     "resource": "custom_task",
     "trace_id": 0,
     "span_id": 1,
@@ -35,7 +35,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.fastapi",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65e2cd8b00000000",
       "component": "fastapi",
@@ -68,7 +68,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": ""
+         "_dd.base_service": "tests.contrib.fastapi"
        },
        "duration": 22000,
        "start": 1709362571921182000

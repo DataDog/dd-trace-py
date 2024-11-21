@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ci_visibility: Updates the inferred base service name algorithm to ensure that arguments following ``--ddtrace`` are no 
+    longer skipped when executing tests with pytest. Previously, the algorithm misinterpreted these arguments 
+    as standard flags, overlooking possible test paths that may contribute to the inferred service name.

@@ -41,7 +41,7 @@ def _expected_payload(
                 "runtime_id": runtime.get_runtime_id(),
                 "language": "python",
                 "tracer_version": _pep440_to_semver(),
-                "service": None,
+                "service": "tests.internal",
                 "extra_services": [],
                 "env": None,
                 "app_version": None,

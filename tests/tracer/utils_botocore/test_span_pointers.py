@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 import re
 from typing import Dict
@@ -5,6 +6,7 @@ from typing import List
 from typing import NamedTuple
 from typing import Optional
 from typing import Set
+from typing import Union
 
 import mock
 import pytest
@@ -71,7 +73,7 @@ class TestDynamodbItemPointer:
     class HashingCase(NamedTuple):
         name: str
         table_name: str
-        primary_key: Dict[str, Dict[str, str]]
+        primary_key: Dict[str, Union[Dict[str, str], str, Decimal, bytes]]
         pointer_hash: str
 
     @pytest.mark.parametrize(
@@ -84,9 +86,21 @@ class TestDynamodbItemPointer:
                 pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
             ),
             HashingCase(
+                name="one string primary key deserializd",
+                table_name="some-table",
+                primary_key={"some-key": "some-value"},
+                pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+            ),
+            HashingCase(
                 name="one binary primary key",
                 table_name="some-table",
                 primary_key={"some-key": {"B": "c29tZS12YWx1ZQo="}},
+                pointer_hash="cc789e5ea89c317ac58af92d7a1ba2c2",
+            ),
+            HashingCase(
+                name="one binary primary key deserialized",
+                table_name="some-table",
+                primary_key={"some-key": b"c29tZS12YWx1ZQo="},
                 pointer_hash="cc789e5ea89c317ac58af92d7a1ba2c2",
             ),
             HashingCase(
@@ -96,11 +110,26 @@ class TestDynamodbItemPointer:
                 pointer_hash="434a6dba3997ce4dbbadc98d87a0cc24",
             ),
             HashingCase(
+                name="one number primary key deserialized",
+                table_name="some-table",
+                primary_key={"some-key": Decimal("123.456")},
+                pointer_hash="434a6dba3997ce4dbbadc98d87a0cc24",
+            ),
+            HashingCase(
                 name="string and number primary key",
                 table_name="some-table",
                 primary_key={
                     "some-key": {"S": "some-value"},
                     "other-key": {"N": "123"},
+                },
+                pointer_hash="7aa1b80b0e49bd2078a5453399f4dd67",
+            ),
+            HashingCase(
+                name="string and number primary key deserialized",
+                table_name="some-table",
+                primary_key={
+                    "some-key": "some-value",
+                    "other-key": Decimal("123"),
                 },
                 pointer_hash="7aa1b80b0e49bd2078a5453399f4dd67",
             ),
@@ -172,7 +201,7 @@ class TestBotocoreSpanPointers:
                     "ETag": "ab12ef34",
                 },
                 expected_pointers=[],
-                expected_logger_regex=r"problem with parameters for S3.PutObject .*: 'Bucket'",
+                expected_logger_regex=r"span pointers: problem with parameters for S3.PutObject .*: 'Bucket'",
                 logger_level="debug",
             ),
             PointersCase(
@@ -186,7 +215,7 @@ class TestBotocoreSpanPointers:
                     "ETag": "ab12ef34",
                 },
                 expected_pointers=[],
-                expected_logger_regex=r"problem with parameters for S3.PutObject .*: 'Key'",
+                expected_logger_regex=r"span pointers: problem with parameters for S3.PutObject .*: 'Key'",
                 logger_level="debug",
             ),
             PointersCase(
@@ -199,7 +228,7 @@ class TestBotocoreSpanPointers:
                 },
                 response={},
                 expected_pointers=[],
-                expected_logger_regex=r"problem with parameters for S3.PutObject .*: 'ETag'",
+                expected_logger_regex=r"span pointers: problem with parameters for S3.PutObject .*: 'ETag'",
                 logger_level="debug",
             ),
             PointersCase(
@@ -380,6 +409,30 @@ class TestBotocoreSpanPointers:
                 logger_level="debug",
             ),
             PointersCase(
+                name="dynamodb.PutItem deserialized",
+                endpoint_name="dynamodb",
+                operation_name="PutItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Item": {
+                        "some-key": "some-value",
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_logger_regex=None,
+                logger_level="debug",
+            ),
+            PointersCase(
                 name="dynamodb.PutItem with extra data",
                 endpoint_name="dynamodb",
                 operation_name="PutItem",
@@ -446,6 +499,30 @@ class TestBotocoreSpanPointers:
                     "TableName": "some-table",
                     "Key": {
                         "some-key": {"S": "some-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_logger_regex=None,
+                logger_level="debug",
+            ),
+            PointersCase(
+                name="dynamodb.UpdateItem deserialized",
+                endpoint_name="dynamodb",
+                operation_name="UpdateItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Key": {
+                        "some-key": "some-value",
                     },
                 },
                 response={
@@ -552,6 +629,30 @@ class TestBotocoreSpanPointers:
                     "TableName": "some-table",
                     "Key": {
                         "some-key": {"S": "some-value"},
+                    },
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_logger_regex=None,
+                logger_level="debug",
+            ),
+            PointersCase(
+                name="dynamodb.DeleteItem deserialized",
+                endpoint_name="dynamodb",
+                operation_name="DeleteItem",
+                request_parameters={
+                    "TableName": "some-table",
+                    "Key": {
+                        "some-key": "some-value",
                     },
                 },
                 response={
@@ -730,6 +831,85 @@ class TestBotocoreSpanPointers:
                 logger_level="debug",
             ),
             PointersCase(
+                name="dynamodb.BatchWriteItem works with multiple items and tables serialized",
+                endpoint_name="dynamodb",
+                operation_name="BatchWriteItem",
+                request_parameters={
+                    "RequestItems": {
+                        "some-table": [
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": "some-value",
+                                    },
+                                },
+                            },
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": "will-not-complete",
+                                    },
+                                },
+                            },
+                        ],
+                        "unknown-table": [
+                            {
+                                "DeleteRequest": {
+                                    "Key": {
+                                        "some-key": "some-value",
+                                    },
+                                },
+                            },
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": "will-also-not-complete",
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+                response={
+                    "UnprocessedItems": {
+                        "some-table": [
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": "will-not-complete",
+                                    },
+                                },
+                            },
+                        ],
+                        "unknown-table": [
+                            {
+                                "PutRequest": {
+                                    "Item": {
+                                        "some-key": "will-also-not-complete",
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                    _SpanPointerDescription(
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="d8840182e4052ee105348b033e0a6810",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_logger_regex=None,
+                logger_level="debug",
+            ),
+            PointersCase(
                 name="dynamodb.BatchWriteItem still needs the mapping sometimes",
                 endpoint_name="dynamodb",
                 operation_name="BatchWriteItem",
@@ -822,6 +1002,76 @@ class TestBotocoreSpanPointers:
                 logger_level="debug",
             ),
             PointersCase(
+                name="dynamodb.TransactWriteItems basic case deserialized",
+                endpoint_name="dynamodb",
+                operation_name="TransactWriteItems",
+                request_parameters={
+                    "TransactItems": [
+                        {
+                            "Put": {
+                                "TableName": "some-table",
+                                "Item": {
+                                    "some-key": "some-value",
+                                },
+                            },
+                        },
+                        {
+                            "Delete": {
+                                "TableName": "unknown-table",
+                                "Key": {
+                                    "some-key": "some-value",
+                                },
+                            },
+                        },
+                        {
+                            "Update": {
+                                "TableName": "some-table",
+                                "Key": {
+                                    "some-key": "some-value",
+                                    "other-key": 123,
+                                },
+                            },
+                        },
+                        {
+                            "ConditionCheck": {
+                                "TableName": "do-not-care-table",
+                                "Key": {
+                                    "do-not-care-key": "meh",
+                                },
+                            },
+                        },
+                    ],
+                },
+                response={
+                    # things we do not care about
+                },
+                expected_pointers=[
+                    _SpanPointerDescription(
+                        # Update
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7aa1b80b0e49bd2078a5453399f4dd67",
+                        extra_attributes={},
+                    ),
+                    _SpanPointerDescription(
+                        # Put
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="7f1aee721472bcb48701d45c7c7f7821",
+                        extra_attributes={},
+                    ),
+                    _SpanPointerDescription(
+                        # Delete
+                        pointer_kind="aws.dynamodb.item",
+                        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
+                        pointer_hash="d8840182e4052ee105348b033e0a6810",
+                        extra_attributes={},
+                    ),
+                ],
+                expected_logger_regex=None,
+                logger_level="debug",
+            ),
+            PointersCase(
                 name="dynamodb.TransactWriteItems still needs the mapping sometimes",
                 endpoint_name="dynamodb",
                 operation_name="TransactWriteItems",
@@ -863,13 +1113,16 @@ class TestBotocoreSpanPointers:
                 key=lambda pointer: pointer.pointer_hash,
             ) == sorted(pointers_case.expected_pointers, key=lambda pointer: pointer.pointer_hash)
 
+            span_pointer_log_args = [
+                call_args for call_args in mock_logger.call_args_list if call_args[0][0].startswith("span pointers: ")
+            ]
             if pointers_case.expected_logger_regex is None:
-                mock_logger.assert_not_called()
+                assert not span_pointer_log_args
 
             else:
-                mock_logger.assert_called_once()
+                assert len(span_pointer_log_args) == 1
 
-                (args, kwargs) = mock_logger.call_args
+                (args, kwargs) = span_pointer_log_args.pop()
                 assert not kwargs
                 fmt, *other_args = args
                 assert re.match(
@@ -933,7 +1186,7 @@ class TestDynamoDBWriteRequestLogic:
                     },
                 },
                 primary_key=None,
-                expected_logger_regex="unexpected number of write request fields",
+                expected_logger_regex="span pointers: unexpected number of write request fields",
             ),
             WriteRequestPrimaryKeyCase(
                 name="unknown request kind",
@@ -947,7 +1200,7 @@ class TestDynamoDBWriteRequestLogic:
                     },
                 },
                 primary_key=None,
-                expected_logger_regex="unexpected write request structure: SomeRequest",
+                expected_logger_regex="span pointers: unexpected write request structure: SomeRequest",
             ),
         ],
         ids=lambda test_case: test_case.name,
@@ -965,13 +1218,16 @@ class TestDynamoDBWriteRequestLogic:
                 == test_case.primary_key
             )
 
+            span_pointer_log_args = [
+                call_args for call_args in mock_logger.call_args_list if call_args[0][0].startswith("span pointers: ")
+            ]
             if test_case.expected_logger_regex is None:
-                mock_logger.assert_not_called()
+                assert not span_pointer_log_args
 
             else:
-                mock_logger.assert_called_once()
+                assert len(span_pointer_log_args) == 1
 
-                (args, kwargs) = mock_logger.call_args
+                (args, kwargs) = span_pointer_log_args.pop()
                 assert not kwargs
                 fmt, *other_args = args
                 assert re.match(
@@ -1178,13 +1434,17 @@ class TestDynamoDBWriteRequestLogic:
             )
             assert processed_items == test_case.expected_processed_items
 
+            span_pointer_log_args = [
+                call_args for call_args in mock_logger.call_args_list if call_args[0][0].startswith("span pointers: ")
+            ]
+
             if test_case.expected_logger_regex is None:
-                mock_logger.assert_not_called()
+                assert not span_pointer_log_args
 
             else:
-                mock_logger.assert_called_once()
+                assert len(span_pointer_log_args) == 1
 
-                (args, kwargs) = mock_logger.call_args
+                (args, kwargs) = span_pointer_log_args.pop()
                 assert not kwargs
                 fmt, *other_args = args
                 assert re.match(
