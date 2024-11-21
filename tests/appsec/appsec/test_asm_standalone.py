@@ -7,19 +7,25 @@ from ddtrace.ext import SpanTypes
 
 @pytest.fixture(
     params=[
-        {"appsec_enabled": True, "appsec_standalone_enabled": True},
-        {"appsec_enabled": True, "appsec_standalone_enabled": False},
-        {"appsec_enabled": False, "appsec_standalone_enabled": False},
-        {"appsec_enabled": False, "appsec_standalone_enabled": True},
+        {"iast_enabled": True, "appsec_enabled": True, "appsec_standalone_enabled": True},
+        {"iast_enabled": True, "appsec_enabled": True, "appsec_standalone_enabled": False},
+        {"iast_enabled": True, "appsec_enabled": False, "appsec_standalone_enabled": False},
+        {"iast_enabled": True, "appsec_enabled": False, "appsec_standalone_enabled": True},
+        {"iast_enabled": False, "appsec_enabled": True, "appsec_standalone_enabled": True},
+        {"iast_enabled": False, "appsec_enabled": True, "appsec_standalone_enabled": False},
+        {"iast_enabled": False, "appsec_enabled": False, "appsec_standalone_enabled": False},
+        {"iast_enabled": False, "appsec_enabled": False, "appsec_standalone_enabled": True},
         {"appsec_enabled": True},
         {"appsec_enabled": False},
+        {"iast_enabled": True},
+        {"iast_enabled": False},
     ]
 )
 def tracer_appsec_standalone(request, tracer):
     tracer.configure(api_version="v0.4", **request.param)
     yield tracer, request.param
     # Reset tracer configuration
-    tracer.configure(api_version="v0.4", appsec_enabled=False, appsec_standalone_enabled=False)
+    tracer.configure(api_version="v0.4", appsec_enabled=False, appsec_standalone_enabled=False, iast_enabled=False)
 
 
 def test_appsec_standalone_apm_enabled_metric(tracer_appsec_standalone):
@@ -27,7 +33,7 @@ def test_appsec_standalone_apm_enabled_metric(tracer_appsec_standalone):
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    if args == {"appsec_enabled": True, "appsec_standalone_enabled": True}:
+    if args["appsec_standalone_enabled"] and (args["appsec_enabled"] or args["iast_enabled"]):
         assert span.get_metric("_dd.apm.enabled") == 0.0
     else:
         assert span.get_metric("_dd.apm.enabled") is None
