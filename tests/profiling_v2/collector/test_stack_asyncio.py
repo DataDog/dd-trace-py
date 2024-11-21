@@ -63,43 +63,49 @@ def test_asyncio(monkeypatch, tmp_path):
     # tracking via ddtrace.profiling._asyncio
     assert len(samples) > 0
 
-    # We'd like to check whether there exist samples with
-    # 1. task name label "main"
-    #   - function name label "hello"
-    #   - and line number is between
-    # 2. task name label t1_name or t2_name
-    #  - function name label "stuff"
-    # And they all have thread name "MainThread"
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name = "MainThread",
+            locations =  [
+                pprof_utils.StackLocation(
+                    function_name="hello",
+                    filename="test_stack_asyncio.py",
+                    line_no=hello.__code__.co_firstlineno + 3
+                )
+            ],
+        )
+    )
 
-    checked_main = False
-    checked_t1 = False
-    checked_t2 = False
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name = "MainThread",
+            task_name = t1_name,
+            locations = [
+                pprof_utils.StackLocation(
+                    function_name="stuff",
+                    filename="test_stack_asyncio.py",
+                    line_no=stuff.__code__.co_firstlineno + 3
+                ),
+            ]
+        )
+    )
 
-    for sample in samples:
-        task_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
-        task_name = profile.string_table[task_name_label.str]
-
-        thread_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread name")
-        thread_name = profile.string_table[thread_name_label.str]
-
-        location_id = sample.location_id[0]
-        location = pprof_utils.get_location_with_id(profile, location_id)
-        line = location.line[0]
-        function = pprof_utils.get_function_with_id(profile, line.function_id)
-        function_name = profile.string_table[function.name]
-
-        if task_name == "main":
-            assert thread_name == "MainThread"
-            assert function_name == "hello"
-            checked_main = True
-        elif task_name == t1_name or task_name == t2_name:
-            assert thread_name == "MainThread"
-            assert function_name == "stuff"
-            if task_name == t1_name:
-                checked_t1 = True
-            if task_name == t2_name:
-                checked_t2 = True
-
-    assert checked_main
-    assert checked_t1
-    assert checked_t2
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name = "MainThread",
+            task_name = t2_name,
+            locations = [
+                pprof_utils.StackLocation(
+                    function_name="stuff",
+                    filename="test_stack_asyncio.py",
+                    line_no=stuff.__code__.co_firstlineno + 3
+                ),
+            ]
+        )
+    )
