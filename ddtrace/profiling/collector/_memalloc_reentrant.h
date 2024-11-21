@@ -28,17 +28,6 @@
 #endif
 extern bool _MEMALLOC_ON_THREAD;
 
-// gettid syscall I guess
-#ifdef __linux__
-#include <sys/syscall.h>
-#include <unistd.h>
-static inline pid_t
-gettid()
-{
-    return syscall(SYS_gettid);
-}
-#endif
-
 // Simple CAS for bools
 static inline bool
 cas_thread_local_bool(bool* target, bool expected, bool desired)
