@@ -472,9 +472,10 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     if remove_flask_run:
         source_text = _remove_flask_run(source_text)
 
-    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
-        # Add the dir filter so __ddtrace stuff is not returned by dir(module)
-        source_text += _DIR_WRAPPER
+    # JJJ disabled for test
+    # if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
+    #     # Add the dir filter so __ddtrace stuff is not returned by dir(module)
+    #     source_text += _DIR_WRAPPER
 
     new_ast = visit_ast(
         source_text,
