@@ -15,6 +15,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.utils.formats import asbool
 
 from .visitor import AstVisitor
 
@@ -472,8 +473,10 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     if remove_flask_run:
         source_text = _remove_flask_run(source_text)
 
-    # Add the dir filter so __ddtrace stuff is not returned by dir(module)
-    source_text += _DIR_WRAPPER
+    print("JJJ antes: %s" % asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")))
+    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
+        # Add the dir filter so __ddtrace stuff is not returned by dir(module)
+        source_text += _DIR_WRAPPER
 
     print("JJJ module_path: %s" % module_path)
     new_ast = visit_ast(

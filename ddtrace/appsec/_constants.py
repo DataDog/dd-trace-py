@@ -134,6 +134,7 @@ class IAST(metaclass=Constant_Class):
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
+    ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
 
