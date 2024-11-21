@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: Support Python 2.7+ for injection compatibility check.

@@ -1,7 +1,7 @@
 [[
   {
     "name": "trace3",
-    "service": "",
+    "service": "tests.integration",
     "resource": "trace3",
     "trace_id": 0,
     "span_id": 1,
@@ -25,7 +25,7 @@
   },
      {
        "name": "child",
-       "service": "",
+       "service": "tests.integration",
        "resource": "child",
        "trace_id": 0,
        "span_id": 2,

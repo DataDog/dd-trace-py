@@ -1,7 +1,7 @@
 [[
   {
     "name": "gemini.request",
-    "service": "",
+    "service": "tests.contrib.google_generativeai",
     "resource": "GenerativeModel.generate_content",
     "trace_id": 0,
     "span_id": 1,

@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.request",
-    "service": "",
+    "service": "tests.contrib.httpx",
     "resource": "http.request",
     "trace_id": 0,
     "span_id": 1,

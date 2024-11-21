@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.aiohttp.middlewares import trace_app
 from ddtrace.contrib.aiohttp.middlewares import trace_middleware
@@ -359,7 +360,6 @@ async def test_wrapped_coroutine(app_tracer, aiohttp_client):
     assert span.duration > 0.25, "span.duration={0}".format(span.duration)
 
 
-@flaky(1735812000)
 async def test_distributed_tracing(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -381,7 +381,7 @@ async def test_distributed_tracing(app_tracer, aiohttp_client):
     # with the right trace_id and parent_id
     assert span.trace_id == 100
     assert span.parent_id == 42
-    assert span.get_metric(SAMPLING_PRIORITY_KEY) is None
+    assert span.get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
 @flaky(1735812000)
