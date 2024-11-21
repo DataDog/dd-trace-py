@@ -459,15 +459,10 @@ class AstVisitor(ast.NodeTransformer):
         loop otherwise when visiting the check functions
         """
 
-        ddtrace_in_name = def_node.name.startswith("__ddtrace")
-
-        if def_node.name in self.dont_patch_these_functionsdefs or ddtrace_in_name:
+        if def_node.name in self.dont_patch_these_functionsdefs:
             self.replacements_disabled_for_functiondef = True
         else:
             self.replacements_disabled_for_functiondef = False
-
-        if ddtrace_in_name:
-            _mark_avoid_convert_recursively(def_node)
 
         if hasattr(def_node.args, "vararg") and def_node.args.vararg:
             if def_node.args.vararg.annotation:
