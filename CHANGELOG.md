@@ -4,6 +4,59 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.17.0
+
+### New Features
+
+- Add support for expanding AWS request/response Payloads into flattened span tags.
+- Add requirements.json to SSI artifact for bailing out on unsupported systems.
+- Updates the service naming algorithm to infer the base service name when `DD_SERVICE` is not set, replacing instances of `'unnamed-python-service'`. Ensures that a more meaningful service name is used whenever possible, enhancing clarity in service identification.
+- LLM Observability: When not using a provider integration (OpenAI, Anthropic, or Bedrock) with the LangChain integration, token metrics will be appended to the LLM Observability `llm` span. LLM Observability: When langchain's `chat_model.with_structured_output(..., method="json_mode")` is used, or `response_format={"type": "json_object"}` is passed into a langchain chat model invocation, the LLM Observability span will be an `llm` span instead of a `workflow` span.
+- ASM: Support added for session fingerprints.
+### Bug Fixes
+
+- botocore: This fix resolves the issue where the span pointer for deserialized DynamoDB requests (through the resource-based API) were not being generated.- lib-injection: Support Python 2.7+ for injection compatibility check.
+- ci_visibility: Updates the inferred base service name algorithm to ensure that arguments following `--ddtrace` are no longer skipped when executing tests with pytest. Previously, the algorithm misinterpreted these arguments as standard flags, overlooking possible test paths that may contribute to the inferred service name.
+- botocore: This fix resolves an issue where our span pointer calculation code added recently logged unactionable messages.
+- Code Security: add umap, numba and pynndescent to the Code Security denylist.
+
+- ASM: The new user events policy is preventing users PII to be added by default as span tags. To allow customers using the Django auto instrumentation to still have those information, new environment variables have been added. In particular DD_DJANGO_INCLUDE_EMAIL (false by default), will tag user events with user email as before.
+
+- Fixes an issue where the use of the crashtracking component could result in zombie processes.
+
+- lib-injection: This fix adds more commands to the auto-injection denylist.
+
+- lib-injection: This fix ensures we do not import the user installed `ddtrace` if it is present.
+
+- lib-injection: Fix injection guardrail check when `sys.argv` is not available.
+
+- LLM Observability: Resolves an issue where annotating spans with non-ASCII language input/output values resulted in encoded unicode being submitted.
+
+- Add googlecloudsdk and google auth to the Code Security deny list.
+
+- Code Security: This fix resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError
+
+- profiling: fix a data race where span information associated with a thread was read and updated concurrently, leading to segfaults
+
+- profiling: fixes an issue where cpu-time was not profiled for services using gunicorn, when <span class="title-ref">\`DD_PROFILING_STACK_V2_ENABLED</span> was set.
+
+- profiling: fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+
+- profiling: The lock profiler would log a warning if it couldn't determine a  
+  name for a lock, and it would try determining a name multiple times for the same lock. This lead to excessive log spam. Downgrade this to a debug log and only try to determine the name once.
+
+- profiling: fixes an issue where the profiler was allocating too much memory from `ensure_binary_or_empty()` function, on Python versions before 3.12, with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+
+- profiling: fixes an issue where the sample pool could deadlock after `fork()`  
+  by clearing it in the child process.
+
+- profiling: when a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when <span class="title-ref">DD_PROFILING_ENDPOINT_COLLECTION_ENABLED</span><span class="title-ref"> and </span><span class="title-ref">DD_PROFILING_STACK_V2_ENABLED</span>\` were set to enable grouping of profiles for endpoints.
+
+- pymongo: add type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+
+
+---
+
 ## 2.16.4
 
 
