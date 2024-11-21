@@ -42,38 +42,56 @@ static PyObject* object_string = NULL;
 
 #define ALLOC_TRACKER_MAX_COUNT UINT64_MAX
 
+const int g_memalloc_lock_timeout = 32; // 32 ms is about 8 scheduler slices--arbitrary, but whatever
+
 static alloc_tracker_t* global_alloc_tracker;
 
 static void
 memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
-    /* Do not overflow; just ignore the new events if we ever reach that point */
-    if (global_alloc_tracker->alloc_count >= ALLOC_TRACKER_MAX_COUNT)
+    static bool lock_initialized = false;
+    static memlock_t event_lock;
+    if (!lock_initialized) {
+        memlock_init(&event_lock);
+        lock_initialized = true;
+    }
+
+    uint64_t alloc_count = atomic_inc_clamped(global_alloc_tracker->alloc_count, ALLOC_TRACKER_MAX_COUNT);
+
+    // Return if we've reached the maximum number of allocations
+    if (alloc_count == 0)
         return;
 
-    global_alloc_tracker->alloc_count++;
-
-    /* Avoid loops */
+    // Return if we can't take the guard
     if (!memalloc_take_guard())
         return;
 
     /* Determine if we can capture or if we need to sample */
-    if (global_alloc_tracker->allocs.count < ctx->max_events) {
+    if (alloc_count < ctx->max_events) {
         /* Buffer is not full, fill it */
         traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
-        if (tb)
-            traceback_array_append(&global_alloc_tracker->allocs, tb);
+        if (tb) {
+            if (memlock_lock(&event_lock, g_memalloc_lock_timeout)) {
+                traceback_array_append(&global_alloc_tracker->allocs, tb);
+                memlock_unlock(&event_lock);
+            }
+        }
     } else {
         /* Sampling mode using a reservoir sampling algorithm: replace a random
          * traceback with this one */
-        uint64_t r = random_range(global_alloc_tracker->alloc_count);
+        uint64_t r = random_range(alloc_count);
 
         if (r < ctx->max_events) {
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
             if (tb) {
-                traceback_free(global_alloc_tracker->allocs.tab[r]);
-                global_alloc_tracker->allocs.tab[r] = tb;
+                if (memlock_lock(&event_lock, g_memalloc_lock_timeout)) {
+                    traceback_free(global_alloc_tracker->allocs.tab[r]);
+                    global_alloc_tracker->allocs.tab[r] = tb;
+                } else {
+                    // Couldn't get the lock, so we have to dump the traceback
+                    traceback_free(tb);
+                }
             }
         }
     }
