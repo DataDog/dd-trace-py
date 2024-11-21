@@ -14,14 +14,14 @@ def extract_model_name_google(instance, model_name_attr):
     return model_name
 
 
-def get_generation_config_google(instance, kwargs, generation_config_attr):
+def get_generation_config_google(instance, kwargs):
     """
     The generation config can be defined on the model instance or
     as a kwarg of the request. Therefore, try to extract this information
     from the kwargs and otherwise default to checking the model instance attribute.
     """
     generation_config = _get_attr(kwargs, "generation_config", {})
-    return generation_config or _get_attr(instance, generation_config_attr, {})
+    return generation_config or _get_attr(instance, "_generation_config", {})
 
 
 def tag_request_content_part_google(tag_prefix, span, integration, part, part_idx, content_idx):

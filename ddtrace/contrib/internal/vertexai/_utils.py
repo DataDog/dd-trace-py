@@ -194,7 +194,7 @@ def tag_request(span, integration, instance, args, kwargs):
             contents = history + contents
         if isinstance(contents, Part) or isinstance(contents, str) or isinstance(contents, dict):
             contents = history + [contents]
-    generation_config = get_generation_config_google(model_instance, kwargs, "_generation_config")
+    generation_config = get_generation_config_google(model_instance, kwargs)
     generation_config_dict = None
     if generation_config is not None:
         generation_config_dict = (

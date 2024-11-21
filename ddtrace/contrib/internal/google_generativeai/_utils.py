@@ -108,7 +108,7 @@ def tag_request(span, integration, instance, args, kwargs):
     Includes capturing generation configuration, system prompt, and messages.
     """
     contents = get_argument_value(args, kwargs, 0, "contents")
-    generation_config = get_generation_config_google(instance, kwargs, "generation_config")
+    generation_config = get_generation_config_google(instance, kwargs)
     system_instruction = getattr(instance, "_system_instruction", None)
     stream = kwargs.get("stream", None)
 
