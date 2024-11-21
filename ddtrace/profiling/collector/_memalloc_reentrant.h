@@ -114,7 +114,7 @@ memlock_init(memlock_t* lock)
 static inline bool
 memlock_timed(memlock_t* lock, uint32_t timeout_ms)
 {
-#ifdef _LINUX
+#ifdef __linux__
     // On Linux, we need to make sure we didn't just fork
     // pthreads will guarantee the lock is consistent, but we at least need to clear it
     static pid_t my_pid = getpid();
@@ -131,7 +131,7 @@ memlock_timed(memlock_t* lock, uint32_t timeout_ms)
 #ifdef _WIN32
     DWORD result = WaitForSingleObject(lock->mutex, timeout_ms);
     return result == WAIT_OBJECT_0;
-#ifdef __APPLE__
+#elif defined(__APPLE__)
     // `pthread_mutex_timedlock` isn't available on macOS, so we implement a hot loop
     struct timespec start_time, current_time;
     clock_gettime(CLOCK_REALTIME, &start_time); // Get the starting time
