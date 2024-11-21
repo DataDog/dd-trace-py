@@ -130,7 +130,7 @@ def tag_stream_response(span, chunks, integration):
             if finish_reason:
                 span.set_tag_str(
                     "vertexai.response.candidates.%d.finish_reason" % (candidate_idx),
-                    str(_get_attr(finish_reason, "name", "")),
+                    _get_attr(finish_reason, "name", ""),
                 )
             candidate_content = _get_attr(candidate, "content", {})
             role = role or _get_attr(candidate_content, "role", "")
@@ -240,7 +240,7 @@ def tag_response(span, generations, integration):
     for candidate_idx, candidate in enumerate(candidates):
         finish_reason = _get_attr(candidate, "finish_reason", None)
         if finish_reason:
-            span.set_tag_str("vertexai.response.candidates.%d.finish_reason" % candidate_idx, str(finish_reason))
+            span.set_tag_str("vertexai.response.candidates.%d.finish_reason" % candidate_idx, finish_reason)
         candidate_content = _get_attr(candidate, "content", None)
         role = _get_attr(candidate_content, "role", "")
         span.set_tag_str("vertexai.response.candidates.%d.content.role" % candidate_idx, str(role))
