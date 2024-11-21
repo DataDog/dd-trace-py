@@ -25,3 +25,8 @@ google_generativeai:
   is_snapshot: true
   env:
     SUITE_NAME: google_generativeai
+vertexai:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: vertexai
