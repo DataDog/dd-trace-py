@@ -2724,6 +2724,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="vertexai",
+            command="pytest {cmdargs} tests/contrib/vertexai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vertexai": [latest],
+            },
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
