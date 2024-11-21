@@ -4,6 +4,7 @@ import ast
 import codecs
 import os
 import re
+import textwrap
 from sys import builtin_module_names
 from types import ModuleType
 from typing import Optional
@@ -368,7 +369,7 @@ def visit_ast(
     source_text: Text,
     module_path: Text,
     module_name: Text = "",
-) -> Optional[str]:
+) -> Optional[ast.Module]:
     parsed_ast = ast.parse(source_text, module_path)
     _VISITOR.update_location(filename=module_path, module_name=module_name)
     modified_ast = _VISITOR.visit(parsed_ast)
@@ -401,23 +402,52 @@ def _remove_flask_run(text: Text) -> Text:
     return new_text
 
 
-def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, str]:
+_DIR_WRAPPER = textwrap.dedent(
+    """
+ 
+    
+# ddtrace dir: replaces existing module __dir__ if it exists, otherwise adds our
+# implementation that filters out __ddtrace symbols to avoid breaking code that depends
+# on the dir(module) output
+def __ddtrace_dir__():
+    orig_dir = globals().get("__orig_dir__")
+    if orig_dir:
+        results = [name for name in __orig_dir__() if not name.startswith("__ddtrace")]
+    else:
+        results = [name for name in globals() if not name.startswith("__ddtrace")]
+
+    return results
+
+# replace
+def __ddtrace_set_dir_filter():
+    if "__dir__" in globals():
+        globals()["__orig_dir__"] = __dir__
+
+    globals()["__dir__"] = __ddtrace_dir__
+
+__ddtrace_set_dir_filter()
+
+    """
+)
+
+
+def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, Optional[ast.Module]]:
     module_name = module.__name__
 
     module_origin = origin(module)
     if module_origin is None:
         log.debug("astpatch_source couldn't find the module: %s", module_name)
-        return "", ""
+        return "", None
 
     module_path = str(module_origin)
     try:
         if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
             log.debug("empty file: %s", module_path)
-            return "", ""
+            return "", None
     except OSError:
         log.debug("astpatch_source couldn't find the file: %s", module_path, exc_info=True)
-        return "", ""
+        return "", None
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
     # If its pyc or pyo, change to .py and check that the file exists. If not,
@@ -427,30 +457,33 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     if module_ext.lower() not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
         log.debug("extension not supported: %s for: %s", module_ext, module_path)
-        return "", ""
+        return "", None
 
     with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
             log.debug("unicode decode error for file: %s", module_path, exc_info=True)
-            return "", ""
+            return "", None
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
         log.debug("empty file: %s", module_path)
-        return "", ""
+        return "", None
 
     if remove_flask_run:
         source_text = _remove_flask_run(source_text)
 
-    new_source = visit_ast(
+    # Add the dir filter so __ddtrace stuff is not returned by dir(module)
+    source_text += _DIR_WRAPPER
+
+    new_ast = visit_ast(
         source_text,
         module_path,
         module_name=module_name,
     )
-    if new_source is None:
+    if new_ast is None:
         log.debug("file not ast patched: %s", module_path)
-        return "", ""
+        return "", None
 
-    return module_path, new_source
+    return module_path, new_ast

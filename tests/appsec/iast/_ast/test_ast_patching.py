@@ -136,7 +136,7 @@ import html"""
     ],
 )
 def test_astpatch_source_unchanged(module_name):
-    assert ("", "") == astpatch_module(__import__(module_name, fromlist=[None]))
+    assert ("", None) == astpatch_module(__import__(module_name, fromlist=[None]))
 
 
 def test_module_should_iast_patch():
@@ -170,7 +170,9 @@ def test_module_in_python_stdlib(module_name, result):
 
 def test_module_path_none(caplog):
     with caplog.at_level(logging.DEBUG), mock.patch("ddtrace.internal.module.Path.resolve", side_effect=AttributeError):
-        assert ("", "") == astpatch_module(__import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None]))
+        assert ("", None) == astpatch_module(
+            __import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None])
+        )
         assert "astpatch_source couldn't find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
 
 
@@ -183,7 +185,7 @@ def test_module_path_none(caplog):
 )
 def test_astpatch_stringio_module_changed(module_name):
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
-    assert ("", "") != (module_path, new_source)
+    assert ("", None) != (module_path, new_source)
     new_code = astunparse.unparse(new_source)
     assert new_code.startswith(
         "\nimport ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
@@ -222,4 +224,4 @@ def test_astpatch_globals_module_unchanged(module_name):
     ``globals()`` was being incorrectly patched with the aspect for ``glob()``
     """
     module_path, new_source = astpatch_module(__import__(module_name, fromlist=[None]))
-    assert ("", "") == (module_path, new_source)
+    assert ("", None) == (module_path, new_source)
