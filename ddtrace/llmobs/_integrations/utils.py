@@ -13,6 +13,7 @@ def extract_model_name_google(instance, model_name_attr):
         return model_name.split("/")[-1]
     return model_name
 
+
 def get_generation_config_google(instance, kwargs, generation_config_attr):
     """
     The generation config can be defined on the model instance or

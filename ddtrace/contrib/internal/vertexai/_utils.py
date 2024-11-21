@@ -129,7 +129,8 @@ def tag_stream_response(span, chunks, integration):
             finish_reason = _get_attr(candidate, "finish_reason", None)
             if finish_reason:
                 span.set_tag_str(
-                    "vertexai.response.candidates.%d.finish_reason" % (candidate_idx), str(_get_attr(finish_reason, "name", ""))
+                    "vertexai.response.candidates.%d.finish_reason" % (candidate_idx),
+                    str(_get_attr(finish_reason, "name", "")),
                 )
             candidate_content = _get_attr(candidate, "content", {})
             role = role or _get_attr(candidate_content, "role", "")
@@ -141,7 +142,9 @@ def tag_stream_response(span, chunks, integration):
         if not token_counts:
             continue
         span.set_metric("vertexai.response.usage.prompt_tokens", _get_attr(token_counts, "prompt_token_count", 0))
-        span.set_metric("vertexai.response.usage.completion_tokens", _get_attr(token_counts, "candidates_token_count", 0))
+        span.set_metric(
+            "vertexai.response.usage.completion_tokens", _get_attr(token_counts, "candidates_token_count", 0)
+        )
         span.set_metric("vertexai.response.usage.total_tokens", _get_attr(token_counts, "total_token_count", 0))
     # streamed responses have only a single candidate, so there is only one role to be tagged
     span.set_tag_str("vertexai.response.candidates.0.content.role", str(role))
@@ -194,7 +197,9 @@ def tag_request(span, integration, instance, args, kwargs):
     generation_config = get_generation_config_google(model_instance, kwargs, "_generation_config")
     generation_config_dict = None
     if generation_config is not None:
-        generation_config_dict = generation_config if isinstance(generation_config, dict) else generation_config.to_dict()
+        generation_config_dict = (
+            generation_config if isinstance(generation_config, dict) else generation_config.to_dict()
+        )
     system_instructions = get_system_instruction_texts_from_model(model_instance)
     stream = _get_attr(kwargs, "stream", None)
 
