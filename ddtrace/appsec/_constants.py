@@ -153,6 +153,7 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 
     TELEMETRY_REQUEST_TAINTED: Literal["_dd.iast.telemetry.request.tainted"] = "_dd.iast.telemetry.request.tainted"
     TELEMETRY_EXECUTED_SINK: Literal["_dd.iast.telemetry.executed.sink"] = "_dd.iast.telemetry.executed.sink"
+    TELEMETRY_EXECUTED_SOURCE: Literal["_dd.iast.telemetry.executed.source"] = "_dd.iast.telemetry.executed.source"
 
 
 class WAF_DATA_NAMES(metaclass=Constant_Class):
