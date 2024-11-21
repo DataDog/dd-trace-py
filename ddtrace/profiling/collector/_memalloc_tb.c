@@ -87,6 +87,9 @@ memalloc_tb_deinit(void)
 void
 traceback_free(traceback_t* tb)
 {
+    if (!tb)
+        return;
+
     for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
         Py_DECREF(tb->frames[nframe].filename);
         Py_DECREF(tb->frames[nframe].name);

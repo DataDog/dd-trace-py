@@ -26,26 +26,33 @@
 #else
 #error "Unsupported compiler for thread-local storage"
 #endif
-extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
+extern bool _MEMALLOC_ON_THREAD;
+
+// gettid syscall I guess
+#ifdef __linux__
+#include <sys/syscall.h>
+#include <unistd.h>
+static inline pid_t
+gettid()
+{
+    return syscall(SYS_gettid);
+}
+#endif
 
 // Simple CAS for bools
+static inline bool
+cas_thread_local_bool(bool* target, bool expected, bool desired)
+{
+    bool ret = false;
 #if defined(_MSC_VER)
-static inline bool
-cas_thread_local_bool(bool* target, bool expected, bool desired)
-{
-    LONG expected_long = (LONG)expected;
-    LONG desired_long = (LONG)desired;
-    return (LONG)expected == InterlockedCompareExchange((volatile LONG*)target, desired_long, expected_long);
-}
+    ret = (LONG)expected == InterlockedCompareExchange((volatile LONG*)target, (LONG)desired, (LONG)expected);
 #elif defined(__GNUC__) || defined(__clang__) // GCC or Clang
-static inline bool
-cas_thread_local_bool(bool* target, bool expected, bool desired)
-{
-    return __atomic_compare_exchange_n(target, &expected, &desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-}
+    ret = __atomic_compare_exchange_n(target, &expected, desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 #else
 #error "Unsupported compiler for atomic operations"
 #endif
+    return ret;
+}
 
 // This is a simple clamped atomic increment
 // On 64-bit systems, do thigns the normal way

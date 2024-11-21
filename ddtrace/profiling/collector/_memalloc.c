@@ -46,16 +46,17 @@ const int g_memalloc_lock_timeout = 32; // 32 ms is about 8 scheduler slices--ar
 
 static alloc_tracker_t* global_alloc_tracker;
 
+static memlock_t g_memalloc_lock;
+
+__attribute__((constructor)) static void
+memalloc_init()
+{
+    memlock_init(&g_memalloc_lock);
+}
+
 static void
 memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
-    static bool lock_initialized = false;
-    static memlock_t event_lock;
-    if (!lock_initialized) {
-        memlock_init(&event_lock);
-        lock_initialized = true;
-    }
-
     uint64_t alloc_count = atomic_inc_clamped(&global_alloc_tracker->alloc_count, ALLOC_TRACKER_MAX_COUNT);
 
     // Return if we've reached the maximum number of allocations
@@ -63,17 +64,21 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         return;
 
     // Return if we can't take the guard
-    if (!memalloc_take_guard())
+    if (!memalloc_take_guard()) {
         return;
+    }
 
     /* Determine if we can capture or if we need to sample */
-    if (alloc_count < ctx->max_events) {
+    if (global_alloc_tracker->allocs.count < ctx->max_events) {
         /* Buffer is not full, fill it */
         traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
         if (tb) {
-            if (memlock_lock_timed(&event_lock, g_memalloc_lock_timeout)) {
+            if (memlock_lock_timed(&g_memalloc_lock, g_memalloc_lock_timeout)) {
                 traceback_array_append(&global_alloc_tracker->allocs, tb);
-                memlock_unlock(&event_lock);
+                memlock_unlock(&g_memalloc_lock);
+            } else {
+                // Couldn't get the lock, so we have to dump the traceback
+                traceback_free(tb);
             }
         }
     } else {
@@ -85,9 +90,10 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
             if (tb) {
-                if (memlock_lock_timed(&event_lock, g_memalloc_lock_timeout)) {
+                if (memlock_lock_timed(&g_memalloc_lock, g_memalloc_lock_timeout)) {
                     traceback_free(global_alloc_tracker->allocs.tab[r]);
                     global_alloc_tracker->allocs.tab[r] = tb;
+                    memlock_unlock(&g_memalloc_lock);
                 } else {
                     // Couldn't get the lock, so we have to dump the traceback
                     traceback_free(tb);
@@ -241,7 +247,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
 
-    global_alloc_tracker = alloc_tracker_new();
+    if (memlock_lock_timed(&g_memalloc_lock, -1)) {
+        global_alloc_tracker = alloc_tracker_new();
+        memlock_unlock(&g_memalloc_lock);
+    }
 
     PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
@@ -266,8 +275,11 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     memalloc_tb_deinit();
-    alloc_tracker_free(global_alloc_tracker);
-    global_alloc_tracker = NULL;
+    if (memlock_lock_timed(&g_memalloc_lock, -1)) {
+        alloc_tracker_free(global_alloc_tracker);
+        global_alloc_tracker = NULL;
+        memlock_unlock(&g_memalloc_lock);
+    }
 
     memalloc_heap_tracker_deinit();
 
@@ -320,7 +332,10 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
 
     iestate->alloc_tracker = global_alloc_tracker;
     /* reset the current traceback list */
-    global_alloc_tracker = alloc_tracker_new();
+    if (memlock_lock_timed(&g_memalloc_lock, -1)) {
+        global_alloc_tracker = alloc_tracker_new();
+        memlock_unlock(&g_memalloc_lock);
+    }
     iestate->seq_index = 0;
 
     PyObject* iter_and_count = PyTuple_New(3);
@@ -334,8 +349,11 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
 static void
 iterevents_dealloc(IterEventsState* iestate)
 {
-    alloc_tracker_free(iestate->alloc_tracker);
-    Py_TYPE(iestate)->tp_free(iestate);
+    if (memlock_lock_timed(&g_memalloc_lock, -1)) {
+        alloc_tracker_free(iestate->alloc_tracker);
+        Py_TYPE(iestate)->tp_free(iestate);
+        memlock_unlock(&g_memalloc_lock);
+    }
 }
 
 static PyObject*
