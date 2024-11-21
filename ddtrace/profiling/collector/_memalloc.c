@@ -330,11 +330,14 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
     if (!iestate)
         return NULL;
 
-    iestate->alloc_tracker = global_alloc_tracker;
     /* reset the current traceback list */
     if (memlock_lock_timed(&g_memalloc_lock, -1)) {
+        iestate->alloc_tracker = global_alloc_tracker;
         global_alloc_tracker = alloc_tracker_new();
         memlock_unlock(&g_memalloc_lock);
+    } else {
+        Py_TYPE(iestate)->tp_free(iestate);
+        return NULL;
     }
     iestate->seq_index = 0;
 
