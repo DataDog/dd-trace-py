@@ -33,7 +33,9 @@ def test_appsec_standalone_apm_enabled_metric(tracer_appsec_standalone):
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    if args["appsec_standalone_enabled"] and (args["appsec_enabled"] or args["iast_enabled"]):
+    if args.get("appsec_standalone_enabled", None) and (
+        args.get("appsec_enabled", None) or args.get("iast_enabled", None)
+    ):
         assert span.get_metric("_dd.apm.enabled") == 0.0
     else:
         assert span.get_metric("_dd.apm.enabled") is None
