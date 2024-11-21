@@ -4,9 +4,9 @@ from vertexai.generative_models import GenerativeModel
 from vertexai.generative_models import Part
 
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._integrations.utils import get_generation_config_google
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
-from ddtrace.llmobs._integrations.utils import get_generation_config_google
 from ddtrace.llmobs._utils import _get_attr
 
 

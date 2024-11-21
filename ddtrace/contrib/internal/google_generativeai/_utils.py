@@ -4,9 +4,9 @@ from google.generativeai.types.generation_types import to_generation_config_dict
 import wrapt
 
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._integrations.utils import get_generation_config_google
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
-from ddtrace.llmobs._integrations.utils import get_generation_config_google
 
 
 class BaseTracedGenerateContentResponse(wrapt.ObjectProxy):
