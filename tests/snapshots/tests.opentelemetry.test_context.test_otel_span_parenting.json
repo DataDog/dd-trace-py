@@ -1,7 +1,7 @@
 [[
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "otel-root",
     "trace_id": 0,
     "span_id": 1,
@@ -25,7 +25,7 @@
   },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "otel-parent1",
        "trace_id": 0,
        "span_id": 2,
@@ -37,7 +37,7 @@
      },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "otel-child1",
           "trace_id": 0,
           "span_id": 5,
@@ -49,7 +49,7 @@
         },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "orphan1",
        "trace_id": 0,
        "span_id": 3,
@@ -61,7 +61,7 @@
      },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "otel-parent2",
        "trace_id": 0,
        "span_id": 4,
@@ -80,7 +80,7 @@
      },
         {
           "name": "internal",
-          "service": "",
+          "service": "tests.opentelemetry",
           "resource": "otel-child2",
           "trace_id": 0,
           "span_id": 6,
