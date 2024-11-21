@@ -40,7 +40,7 @@ class DDRuntimeContext:
             else:
                 ddcontext = None
                 log.error(
-                    "Programming ERROR: ddtrace does not support activiting spans with the type: %s. Please open a "
+                    "Programming ERROR: ddtrace does not support activating spans with the type: %s. Please open a "
                     "github issue at: https://github.com/Datadog/dd-trace-py and set DD_TRACE_OTEL_ENABLED=True.",
                     type(otel_span),
                 )
