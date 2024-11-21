@@ -77,7 +77,7 @@ def get_system_instruction_texts_from_model(instance):
     if isinstance(raw_system_instructions, str):
         return [raw_system_instructions]
     elif isinstance(raw_system_instructions, Part):
-        return [raw_system_instructions.text]
+        return [_get_attr(raw_system_instructions, "text", "")]
     elif not isinstance(raw_system_instructions, list):
         return []
 
@@ -86,7 +86,7 @@ def get_system_instruction_texts_from_model(instance):
         if isinstance(elem, str):
             system_instructions.append(elem)
         elif isinstance(elem, Part):
-            system_instructions.append(elem.text)
+            system_instructions.append(_get_attr(elem, "text", ""))
     return system_instructions
 
 
