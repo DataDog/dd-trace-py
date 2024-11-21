@@ -6,6 +6,7 @@ import wrapt
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
+from ddtrace.llmobs._integrations.utils import get_generation_config_google
 
 
 class BaseTracedGenerateContentResponse(wrapt.ObjectProxy):
@@ -107,7 +108,7 @@ def tag_request(span, integration, instance, args, kwargs):
     Includes capturing generation configuration, system prompt, and messages.
     """
     contents = get_argument_value(args, kwargs, 0, "contents")
-    generation_config = kwargs.get("generation_config", {})
+    generation_config = get_generation_config_google(instance, kwargs, "generation_config")
     system_instruction = getattr(instance, "_system_instruction", None)
     stream = kwargs.get("stream", None)
 

@@ -6,6 +6,7 @@ from vertexai.generative_models import Part
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
+from ddtrace.llmobs._integrations.utils import get_generation_config_google
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -87,19 +88,6 @@ def get_system_instruction_texts_from_model(instance):
         elif isinstance(elem, Part):
             system_instructions.append(elem.text)
     return system_instructions
-
-
-def get_generation_config_from_model(instance, kwargs):
-    """
-    The generation config can be defined on the model instance or
-    as a kwarg of the request. Therefore, try to extract this information
-    from the kwargs and otherwise default to checking the model instance attribute.
-    """
-    generation_config_arg = _get_attr(kwargs, "generation_config", {})
-    if generation_config_arg != {}:
-        return generation_config_arg if isinstance(generation_config_arg, dict) else generation_config_arg.to_dict()
-    generation_config_attr = instance._generation_config or {}
-    return generation_config_attr if isinstance(generation_config_attr, dict) else generation_config_attr.to_dict()
 
 
 def extract_info_from_parts(parts):
@@ -203,7 +191,10 @@ def tag_request(span, integration, instance, args, kwargs):
             contents = history + contents
         if isinstance(contents, Part) or isinstance(contents, str) or isinstance(contents, dict):
             contents = history + [contents]
-    generation_config_dict = get_generation_config_from_model(model_instance, kwargs)
+    generation_config = get_generation_config_google(model_instance, kwargs, "_generation_config")
+    generation_config_dict = None
+    if generation_config is not None:
+        generation_config_dict = generation_config if isinstance(generation_config, dict) else generation_config.to_dict()
     system_instructions = get_system_instruction_texts_from_model(model_instance)
     stream = _get_attr(kwargs, "stream", None)
 
