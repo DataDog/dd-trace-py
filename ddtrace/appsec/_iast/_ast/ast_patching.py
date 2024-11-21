@@ -372,7 +372,9 @@ def visit_ast(
 ) -> Optional[ast.Module]:
     parsed_ast = ast.parse(source_text, module_path)
     _VISITOR.update_location(filename=module_path, module_name=module_name)
+    print("JJJ parsed_ast: %s" % parsed_ast)
     modified_ast = _VISITOR.visit(parsed_ast)
+    print("JJJ modified_ast: %s" % modified_ast)
 
     if not _VISITOR.ast_modified:
         return None
@@ -406,9 +408,6 @@ _DIR_WRAPPER = textwrap.dedent(
     """
  
     
-# ddtrace dir: replaces existing module __dir__ if it exists, otherwise adds our
-# implementation that filters out __ddtrace symbols to avoid breaking code that depends
-# on the dir(module) output
 def __ddtrace_dir__():
     orig_dir = globals().get("__orig_dir__")
     if orig_dir:
@@ -418,7 +417,6 @@ def __ddtrace_dir__():
 
     return results
 
-# replace
 def __ddtrace_set_dir_filter():
     if "__dir__" in globals():
         globals()["__orig_dir__"] = __dir__
@@ -477,6 +475,7 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     # Add the dir filter so __ddtrace stuff is not returned by dir(module)
     source_text += _DIR_WRAPPER
 
+    print("JJJ module_path: %s" % module_path)
     new_ast = visit_ast(
         source_text,
         module_path,
