@@ -1,11 +1,19 @@
 name: Framework tests
 
 on:
-  push:
-    branches:
-      - main
-      - 'mq-working-branch**'
-  pull_request:
+  # DEV: Removing these from PRs for now while
+  # we investigate the value of framework tests.
+  # They will run nightly instead, and manual
+  # workflow dispatch will be enabled
+  # push:
+  #   branches:
+  #     - main
+  #     - 'mq-working-branch**'
+  # pull_request:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 5 * * *'
+  
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
@@ -86,9 +94,10 @@ jobs:
             gunicorn eventlet flup bjoern gevent aiohttp-wsgi uvloop; do
             pip install $name || echo "Failed to install $name with $(python -V 2>&1)" 1>&2
           done
+      # DEV: Inject the latest ddtrace on PyPI while we have this running nightly
       - name: Inject ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install ../ddtrace
+        run: pip install ddtrace
         # Allows tests to continue through deprecation warnings for jinja2 and mako
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
