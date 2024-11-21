@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""
+Debug script to print the patched code of a Python file.
+Usage: PYTHONPATH=$PYTHONPATH:~/.../dd-trace-py/ python -m scripts.iast.print_patched_code /path/to/your/python-file.py
+"""
+
 import sys
 from typing import Text
 
