@@ -157,10 +157,10 @@ def _tag_request_content(span, integration, content, content_idx):
         span.set_tag_str("vertexai.request.contents.%d.text" % content_idx, integration.trunc(content))
         return
     if isinstance(content, dict):
-        role = _get_attr(content, "role", "")
+        role = content.get("role", "")
         if role:
             span.set_tag_str("vertexai.request.contents.%d.role" % content_idx, role)
-        parts = _get_attr(content, "parts", [])
+        parts = content.get("parts", [])
         for part_idx, part in enumerate(parts):
             tag_request_content_part_google("vertexai", span, integration, part, part_idx, content_idx)
         return
@@ -201,7 +201,7 @@ def tag_request(span, integration, instance, args, kwargs):
             generation_config if isinstance(generation_config, dict) else generation_config.to_dict()
         )
     system_instructions = get_system_instruction_texts_from_model(model_instance)
-    stream = _get_attr(kwargs, "stream", None)
+    stream = kwargs.get("stream", None)
 
     if generation_config_dict is not None:
         for k, v in generation_config_dict.items():
@@ -236,7 +236,7 @@ def tag_response(span, generations, integration):
     Includes capturing generation text, roles, finish reasons, and token counts.
     """
     generations_dict = generations.to_dict()
-    candidates = _get_attr(generations_dict, "candidates", [])
+    candidates = generations_dict.get("candidates", [])
     for candidate_idx, candidate in enumerate(candidates):
         finish_reason = _get_attr(candidate, "finish_reason", None)
         if finish_reason:
@@ -250,7 +250,7 @@ def tag_response(span, generations, integration):
         for part_idx, part in enumerate(parts):
             tag_response_part_google("vertexai", span, integration, part, part_idx, candidate_idx)
 
-    token_counts = _get_attr(generations_dict, "usage_metadata", None)
+    token_counts = generations_dict.get("usage_metadata", None)
     if not token_counts:
         return
     span.set_metric("vertexai.response.usage.prompt_tokens", _get_attr(token_counts, "prompt_token_count", 0))

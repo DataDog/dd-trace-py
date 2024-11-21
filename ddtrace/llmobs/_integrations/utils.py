@@ -20,7 +20,7 @@ def get_generation_config_google(instance, kwargs):
     as a kwarg of the request. Therefore, try to extract this information
     from the kwargs and otherwise default to checking the model instance attribute.
     """
-    generation_config = _get_attr(kwargs, "generation_config", {})
+    generation_config = kwargs.get("generation_config", {})
     return generation_config or _get_attr(instance, "_generation_config", {})
 
 
@@ -36,21 +36,21 @@ def tag_request_content_part_google(tag_prefix, span, integration, part, part_id
         function_call_dict = type(function_call).to_dict(function_call)
         span.set_tag_str(
             "%s.request.contents.%d.parts.%d.function_call.name" % (tag_prefix, content_idx, part_idx),
-            _get_attr(function_call_dict, "name", ""),
+            function_call_dict.get("name", ""),
         )
         span.set_tag_str(
             "%s.request.contents.%d.parts.%d.function_call.args" % (tag_prefix, content_idx, part_idx),
-            integration.trunc(str(_get_attr(function_call_dict, "args", {}))),
+            integration.trunc(str(function_call_dict.get("args", {}))),
         )
     if function_response:
         function_response_dict = type(function_response).to_dict(function_response)
         span.set_tag_str(
             "%s.request.contents.%d.parts.%d.function_response.name" % (tag_prefix, content_idx, part_idx),
-            _get_attr(function_response_dict, "name", ""),
+            function_response_dict.get("name", ""),
         )
         span.set_tag_str(
             "%s.request.contents.%d.parts.%d.function_response.response" % (tag_prefix, content_idx, part_idx),
-            integration.trunc(str(_get_attr(function_response_dict, "response", {}))),
+            integration.trunc(str(function_response_dict.get("response", {}))),
         )
 
 
