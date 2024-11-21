@@ -6,6 +6,7 @@ from vertexai.generative_models import Part
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
+from ddtrace.llmobs._utils import _get_attr
 
 
 class BaseTracedVertexAIStreamResponse:
@@ -71,7 +72,7 @@ def get_system_instruction_texts_from_model(instance):
     """
     Extract system instructions from model and convert to []str for tagging.
     """
-    raw_system_instructions = getattr(instance, "_system_instruction", [])
+    raw_system_instructions = _get_attr(instance, "_system_instruction", [])
     if isinstance(raw_system_instructions, str):
         return [raw_system_instructions]
     elif isinstance(raw_system_instructions, Part):
@@ -94,7 +95,7 @@ def get_generation_config_from_model(instance, kwargs):
     as a kwarg of the request. Therefore, try to extract this information
     from the kwargs and otherwise default to checking the model instance attribute.
     """
-    generation_config_arg = kwargs.get("generation_config", {})
+    generation_config_arg = _get_attr(kwargs, "generation_config", {})
     if generation_config_arg != {}:
         return generation_config_arg if isinstance(generation_config_arg, dict) else generation_config_arg.to_dict()
     generation_config_attr = instance._generation_config or {}
@@ -106,9 +107,9 @@ def extract_info_from_parts(parts):
     concatenated_text = ""
     function_calls = []
     for part in parts:
-        text = getattr(part, "text", "")
+        text = _get_attr(part, "text", "")
         concatenated_text += text
-        function_call = getattr(part, "function_call", None)
+        function_call = _get_attr(part, "function_call", None)
         if function_call is not None:
             function_calls.append(function_call)
     return concatenated_text, function_calls
@@ -123,11 +124,11 @@ def _tag_response_parts(span, integration, parts):
     for idx, function_call in enumerate(function_calls):
         span.set_tag_str(
             "vertexai.response.candidates.%d.content.parts.%d.function_calls.%d.function_call.name" % (0, 0, idx),
-            integration.trunc(str(getattr(function_call, "name", ""))),
+            _get_attr(function_call, "name", ""),
         )
         span.set_tag_str(
             "vertexai.response.candidates.%d.content.parts.%d.function_calls.%d.function_call.args" % (0, 0, idx),
-            integration.trunc(str(getattr(function_call, "args", ""))),
+            integration.trunc(str(_get_attr(function_call, "args", ""))),
         )
 
 
@@ -135,23 +136,25 @@ def tag_stream_response(span, chunks, integration):
     all_parts = []
     role = ""
     for chunk in chunks:
-        for candidate_idx, candidate in enumerate(chunk.candidates):
-            finish_reason = candidate.finish_reason
+        candidates = _get_attr(chunk, "candidates", [])
+        for candidate_idx, candidate in enumerate(candidates):
+            finish_reason = _get_attr(candidate, "finish_reason", None)
             if finish_reason:
                 span.set_tag_str(
-                    "vertexai.response.candidates.%d.finish_reason" % (candidate_idx), str(finish_reason.name)
+                    "vertexai.response.candidates.%d.finish_reason" % (candidate_idx), str(_get_attr(finish_reason, "name", ""))
                 )
-            candidate_content = candidate.content
-            role = role or candidate_content.role
+            candidate_content = _get_attr(candidate, "content", {})
+            role = role or _get_attr(candidate_content, "role", "")
             if not integration.is_pc_sampled_span(span):
                 continue
-            all_parts.extend(candidate_content.parts)
-        token_counts = chunk.usage_metadata
+            parts = _get_attr(candidate_content, "parts", [])
+            all_parts.extend(parts)
+        token_counts = _get_attr(chunk, "usage_metadata", None)
         if not token_counts:
             continue
-        span.set_metric("vertexai.response.usage.prompt_tokens", token_counts.prompt_token_count)
-        span.set_metric("vertexai.response.usage.completion_tokens", token_counts.candidates_token_count)
-        span.set_metric("vertexai.response.usage.total_tokens", token_counts.total_token_count)
+        span.set_metric("vertexai.response.usage.prompt_tokens", _get_attr(token_counts, "prompt_token_count", 0))
+        span.set_metric("vertexai.response.usage.completion_tokens", _get_attr(token_counts, "candidates_token_count", 0))
+        span.set_metric("vertexai.response.usage.total_tokens", _get_attr(token_counts, "total_token_count", 0))
     # streamed responses have only a single candidate, so there is only one role to be tagged
     span.set_tag_str("vertexai.response.candidates.0.content.role", str(role))
     _tag_response_parts(span, integration, all_parts)
@@ -163,20 +166,20 @@ def _tag_request_content(span, integration, content, content_idx):
         span.set_tag_str("vertexai.request.contents.%d.text" % content_idx, integration.trunc(content))
         return
     if isinstance(content, dict):
-        role = content.get("role", "")
+        role = _get_attr(content, "role", "")
         if role:
-            span.set_tag_str("vertexai.request.contents.%d.role" % content_idx, str(content.get("role", "")))
-        parts = content.get("parts", [])
+            span.set_tag_str("vertexai.request.contents.%d.role" % content_idx, role)
+        parts = _get_attr(content, "parts", [])
         for part_idx, part in enumerate(parts):
             tag_request_content_part_google("vertexai", span, integration, part, part_idx, content_idx)
         return
     if isinstance(content, Part):
         tag_request_content_part_google("vertexai", span, integration, content, 0, content_idx)
         return
-    role = getattr(content, "role", "")
+    role = _get_attr(content, "role", "")
     if role:
         span.set_tag_str("vertexai.request.contents.%d.role" % content_idx, str(role))
-    parts = getattr(content, "parts", [])
+    parts = _get_attr(content, "parts", [])
     if not parts:
         span.set_tag_str(
             "vertexai.request.contents.%d.text" % content_idx,
@@ -194,7 +197,7 @@ def tag_request(span, integration, instance, args, kwargs):
     # instance is either a chat session or a model itself
     model_instance = instance if isinstance(instance, GenerativeModel) else instance._model
     contents = get_argument_value(args, kwargs, 0, "contents")
-    history = getattr(instance, "_history", [])
+    history = _get_attr(instance, "_history", [])
     if history:
         if isinstance(contents, list):
             contents = history + contents
@@ -202,7 +205,7 @@ def tag_request(span, integration, instance, args, kwargs):
             contents = history + [contents]
     generation_config_dict = get_generation_config_from_model(model_instance, kwargs)
     system_instructions = get_system_instruction_texts_from_model(model_instance)
-    stream = kwargs.get("stream", None)
+    stream = _get_attr(kwargs, "stream", None)
 
     if generation_config_dict is not None:
         for k, v in generation_config_dict.items():
@@ -237,22 +240,23 @@ def tag_response(span, generations, integration):
     Includes capturing generation text, roles, finish reasons, and token counts.
     """
     generations_dict = generations.to_dict()
-    for candidate_idx, candidate in enumerate(generations_dict.get("candidates", [])):
-        finish_reason = candidate.get("finish_reason", None)
+    candidates = _get_attr(generations_dict, "candidates", [])
+    for candidate_idx, candidate in enumerate(candidates):
+        finish_reason = _get_attr(candidate, "finish_reason", None)
         if finish_reason:
             span.set_tag_str("vertexai.response.candidates.%d.finish_reason" % candidate_idx, str(finish_reason))
-        candidate_content = candidate.get("content", {})
-        role = candidate_content.get("role", "")
+        candidate_content = _get_attr(candidate, "content", None)
+        role = _get_attr(candidate_content, "role", "")
         span.set_tag_str("vertexai.response.candidates.%d.content.role" % candidate_idx, str(role))
         if not integration.is_pc_sampled_span(span):
             continue
-        parts = candidate_content.get("parts", [])
+        parts = _get_attr(candidate_content, "parts", [])
         for part_idx, part in enumerate(parts):
             tag_response_part_google("vertexai", span, integration, part, part_idx, candidate_idx)
 
-    token_counts = generations_dict.get("usage_metadata", None)
+    token_counts = _get_attr(generations_dict, "usage_metadata", None)
     if not token_counts:
         return
-    span.set_metric("vertexai.response.usage.prompt_tokens", token_counts.get("prompt_token_count", 0))
-    span.set_metric("vertexai.response.usage.completion_tokens", token_counts.get("candidates_token_count", 0))
-    span.set_metric("vertexai.response.usage.total_tokens", token_counts.get("total_token_count", 0))
+    span.set_metric("vertexai.response.usage.prompt_tokens", _get_attr(token_counts, "prompt_token_count", 0))
+    span.set_metric("vertexai.response.usage.completion_tokens", _get_attr(token_counts, "candidates_token_count", 0))
+    span.set_metric("vertexai.response.usage.total_tokens", _get_attr(token_counts, "total_token_count", 0))

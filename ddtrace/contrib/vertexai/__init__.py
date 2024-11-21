@@ -89,8 +89,8 @@ required_modules = ["vertexai"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from ..internal.vertexai.patch import get_version
-        from ..internal.vertexai.patch import patch
-        from ..internal.vertexai.patch import unpatch
+        from ddtrace.contrib.internal.vertexai.patch import get_version
+        from ddtrace.contrib.internal.vertexai.patch import patch
+        from ddtrace.contrib.internal.vertexai.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]
