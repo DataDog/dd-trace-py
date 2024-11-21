@@ -1,5 +1,4 @@
 import asyncio
-import glob
 import os
 import sys
 import time
@@ -15,8 +14,8 @@ from tests.profiling.collector import pprof_utils
 
 
 @pytest.mark.skipif(sys.version_info < (3, 8), reason="stack v2 is available only on 3.8+ as echion does")
-def test_asyncio(monkeypatch):
-    pprof_output_prefix = "/tmp/test_asyncio"
+def test_asyncio(monkeypatch, tmp_path):
+    pprof_output_prefix = str(tmp_path / "test_asyncio")
     monkeypatch.setattr(config.stack, "v2_enabled", True)
     monkeypatch.setattr(config, "output_pprof", pprof_output_prefix)
 
@@ -104,11 +103,3 @@ def test_asyncio(monkeypatch):
     assert checked_main
     assert checked_t1
     assert checked_t2
-
-    # cleanup output file
-    for f in glob.glob(pprof_output_prefix + ".*"):
-        try:
-            os.remove(f)
-        except Exception as e:
-            print("Error removing file: {}".format(e))
-        pass
