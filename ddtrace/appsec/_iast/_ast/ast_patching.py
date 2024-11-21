@@ -15,7 +15,8 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
-from ddtrace.internal.utils.formats import asbool
+
+# from ddtrace.internal.utils.formats import asbool  # JJJ
 
 from .visitor import AstVisitor
 
