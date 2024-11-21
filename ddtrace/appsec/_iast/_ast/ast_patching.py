@@ -280,6 +280,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "protobuf.",
     "pycparser.",  # this package is called when a module is imported, propagation is not needed
     "pytest.",  # Testing framework
+    "_pytest.",
     "setuptools.",
     "sklearn.",  # Machine learning library
     "sqlalchemy.orm.interfaces.",  # Performance optimization
