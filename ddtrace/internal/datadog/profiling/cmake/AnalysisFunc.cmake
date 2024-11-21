@@ -1,6 +1,12 @@
 include(CheckIPOSupported)
 
 function(add_ddup_config target)
+    # Profiling native extensions are built with C++17, even though underlying
+    # repo adheres to the manylinux 2014 standard. This isn't currently a
+    # problem, but if it becomes one, we may have to structure the library
+    # differently.
+    target_compile_features(${target} PUBLIC cxx_std_17)
+
     # Common compile options
     target_compile_options(${target} PRIVATE "$<$<CONFIG:Release>:-Os>" -ffunction-sections
         -Wall
@@ -82,4 +88,9 @@ function(add_ddup_config target)
     if(DO_FANALYZER AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         target_compile_options(${target} PRIVATE -fanalyzer)
     endif()
+
+    # The main targets, ddup, crashtracker, stack_v2, and dd_wrapper are built
+    # as dynamic libraries, so PIC is required. And setting this is also fine
+    # for tests as they're loading those dynamic libraries.
+    set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endfunction()

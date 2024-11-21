@@ -50,6 +50,7 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
+DD_WRAPPER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "dd_wrapper"
 CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
@@ -534,31 +535,90 @@ if not IS_PYSTON:
     if (
         platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
     ) and is_64_bit_python():
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.ddup._ddup",
-                source_dir=DDUP_DIR,
-                optional=False,
-            )
-        )
 
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
-                source_dir=CRASHTRACKER_DIR,
-                optional=False,
-            )
-        )
+        def build_libdd_wrapper(build_type="Debug", build_args=None):
+            source_dir = DD_WRAPPER_DIR
+            output_dir = Path(DD_WRAPPER_DIR).resolve()
 
-        # Echion doesn't build on 3.7, so just skip it outright for now
-        if sys.version_info >= (3, 8):
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                    source_dir=STACK_V2_DIR,
-                    optional=False,
-                ),
-            )
+            cmake_build_dir = (output_dir / "build")
+            cmake_build_dir.mkdir(exist_ok=True)
+            print(source_dir, output_dir, cmake_build_dir, "================================================")
+
+            cmake_args = [
+                "-S{}".format(source_dir),  # cmake>=3.13
+                "-B{}".format(cmake_build_dir),  # cmake>=3.13
+                "-DPython3_ROOT_DIR={}".format(sysconfig.get_config_var("prefix")),
+                "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+                "-DCMAKE_BUILD_TYPE={}".format(build_type),
+                "-DLIB_INSTALL_DIR={}".format(output_dir),
+            ]
+
+            if BUILD_PROFILING_NATIVE_TESTS:
+                cmake_args += ["-DBUILD_TESTING=ON"]
+
+            if IS_EDITABLE:
+                # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
+                cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(source_dir))
+
+            # Arguments to the cmake --build command
+            build_args = build_args or []
+            build_args += ["--config {}".format(build_type)]
+
+            # Arguments to cmake --install command
+            install_args = []
+            install_args += ["--config {}".format(build_type)]
+
+            # platform/version-specific arguments--may go into cmake, build, or install as needed
+            if CURRENT_OS == "Windows":
+                cmake_args += [
+                    "-A{}".format("x64" if platform.architecture()[0] == "64bit" else "Win32"),
+                ]
+            if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
+                # Cross-compile support for macOS - respect ARCHFLAGS if set
+                # Darwin Universal2 should bundle both architectures
+                # This is currently specific to IAST and requires cmakefile support
+                archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+                if archs:
+                    cmake_args += [
+                        "-DBUILD_MACOS=ON",
+                        "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                    ]
+
+            cmake_command = (
+                Path(cmake.CMAKE_BIN_DIR) / "cmake"
+            ).resolve()  # explicitly use the cmake provided by the cmake package
+            subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
+            subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
+            subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
+
+
+        build_libdd_wrapper()
+        pass
+        # ext_modules.append(
+        #     CMakeExtension(
+        #         "ddtrace.internal.datadog.profiling.ddup._ddup",
+        #         source_dir=DDUP_DIR,
+        #         optional=False,
+        #     )
+        # )
+
+        # ext_modules.append(
+        #     CMakeExtension(
+        #         "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
+        #         source_dir=CRASHTRACKER_DIR,
+        #         optional=False,
+        #     )
+        # )
+
+        # # Echion doesn't build on 3.7, so just skip it outright for now
+        # if sys.version_info >= (3, 8):
+        #     ext_modules.append(
+        #         CMakeExtension(
+        #             "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+        #             source_dir=STACK_V2_DIR,
+        #             optional=False,
+        #         ),
+        #     )
 
 else:
     ext_modules = []
