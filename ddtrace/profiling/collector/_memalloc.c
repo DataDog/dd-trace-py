@@ -48,7 +48,20 @@ static alloc_tracker_t* global_alloc_tracker;
 
 static memlock_t g_memalloc_lock;
 
-__attribute__((constructor)) static void
+// forward decl of constructor
+static void
+memalloc_init(void);
+
+#ifdef _MSC_VER
+#pragma section(".CRT$XCU", read)
+__declspec(allocate(".CRT$XCU")) void (*memalloc_init_func)(void) = memalloc_init;
+
+#elif defined(__GNUC__) || defined(__clang__)
+__attribute__((constructor))
+#else
+#error Unsupported compiler
+#endif
+static void
 memalloc_init()
 {
     memlock_init(&g_memalloc_lock);
