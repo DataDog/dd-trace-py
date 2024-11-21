@@ -4,8 +4,8 @@ import ast
 import codecs
 import os
 import re
-import textwrap
 from sys import builtin_module_names
+import textwrap
 from types import ModuleType
 from typing import Optional
 from typing import Text
@@ -405,8 +405,8 @@ def _remove_flask_run(text: Text) -> Text:
 
 _DIR_WRAPPER = textwrap.dedent(
     """
- 
-    
+
+
 def __ddtrace_dir__():
     orig_dir = globals().get("__orig_dir__")
     if orig_dir:

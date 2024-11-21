@@ -231,30 +231,32 @@ def test_astpatch_globals_module_unchanged(module_name):
 
 
 @pytest.mark.parametrize(
-    "module_name, env_var, expected_code_exists",
+    "module_name, env_var",
     [
-        ("tests.appsec.iast.fixtures.ast.other.with_implemented_dir", "false", True),
-        ("tests.appsec.iast.fixtures.ast.other.with_implemented_dir", "true", False),
-        ("tests.appsec.iast.fixtures.ast.other.without_implemented_dir", "false", True),
-        ("tests.appsec.iast.fixtures.ast.other.without_implemented_dir", "true", False),
+        ("tests.appsec.iast.fixtures.ast.other.with_implemented_dir", "false"),
+        ("tests.appsec.iast.fixtures.ast.other.with_implemented_dir", "true"),
+        ("tests.appsec.iast.fixtures.ast.other.without_implemented_dir", "false"),
+        ("tests.appsec.iast.fixtures.ast.other.without_implemented_dir", "true"),
     ],
 )
-def test_astpatch_dir_patched_with_env_var(module_name, env_var, expected_code_exists):
+def test_astpatch_dir_patched_with_env_var(module_name, env_var):
     """
-    Check that the ast_patching._DIR_WRAPPER code is added to the end of the module
+    Check that the ast_patching._DIR_WRAPPER code is added to the end of the module if
+    the env var is False and not added otherwise
     """
     with override_env({IAST.ENV_NO_DIR_PATCH: env_var}):
         module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
         assert ("", None) != (module_path, new_ast)
-
-        if expected_code_exists:
-            new_code = astunparse.unparse(new_ast)
-            assert "def __ddtrace_dir__" in new_code
-            assert "def __ddtrace_set_dir_filter()" in new_code
+        new_code = astunparse.unparse(new_ast)
 
         if asbool(env_var):
+            # If ENV_NO_DIR_PATCH is set to True our added symbols are not filtered out
             assert "__ddtrace_aspects" in new_code
             assert "__ddtrace_taint_sinks" in new_code
+        else:
+            # Check that the added dir code is there
+            assert "def __ddtrace_dir__" in new_code
+            assert "def __ddtrace_set_dir_filter()" in new_code
 
 
 @pytest.mark.parametrize(
@@ -270,10 +272,10 @@ def test_astpatch_dir_patched_with_env_var(module_name, env_var, expected_code_e
         ),
     ],
 )
-def test_astpatch_dir_patched_with_env_var(module_name, expected_names):
+def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_names):
     """
     Check that the patched dir doesn't have any __ddtrace symbols and match the original
-    unpatched dir() output except for those
+    unpatched dir() output, both with or without a previous custom __dir__ implementation
     """
     with override_env({IAST.ENV_NO_DIR_PATCH: "false"}):
         imported_mod = __import__(module_name, fromlist=[None])
