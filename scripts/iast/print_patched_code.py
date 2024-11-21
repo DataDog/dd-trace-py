@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
 
 """
-Debug script to print the patched code of a Python file, optionally colorized (if you have pygments) and formatted (if you have black).
+Debug script to print the patched code of a Python file, optionally colorized (if you have pygments)
+and formatted (if you have black).
 Usage: PYTHONPATH=$PYTHONPATH:~/.../dd-trace-py/ python -m scripts.iast.print_patched_code /path/to/your/python_file.py
 """
 
 import os
-
-#!/usr/bin/env python3
-"""
-Debug script to print the patched code of a Python file, optionally with syntax highlighting (with pygments) and code formatting (with black).
-Usage: PYTHONPATH=$PYTHONPATH:~/.../dd-trace-py/ python -m scripts.iast.print_patched_code /path/to/your/python-file.py
-"""
-
 import sys
 from typing import Text
-import sys
+
 
 try:
     from pygments import highlight
-    from pygments.lexers import PythonLexer
     from pygments.formatters import TerminalFormatter
+    from pygments.lexers import PythonLexer
 
     colorize = True
 except ImportError:
@@ -29,9 +23,9 @@ except ImportError:
 try:
     import black
 
-    format = True
+    _format = True
 except ImportError:
-    format = False
+    _format = False
 
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
@@ -50,7 +44,7 @@ if __name__ == "__main__":
     MODULE_PATH = sys.argv[1]
     code = _get_patched_code(MODULE_PATH)
 
-    if format:
+    if _format:
         code = black.format_str(code, mode=black.FileMode())
 
     if colorize:
