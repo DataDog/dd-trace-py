@@ -183,7 +183,6 @@ memlock_lock_timed(memlock_t* lock, uint32_t timeout_ms)
 #endif
 
     // We should never get here, since each platform should return from its block
-    assert(false);
     return false;
 }
 
