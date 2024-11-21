@@ -3,6 +3,10 @@ import threading
 import time
 
 import opentelemetry
+from opentelemetry.baggage import get_baggage
+from opentelemetry.baggage import remove_baggage
+from opentelemetry.baggage import set_baggage
+from opentelemetry.context import attach
 import pytest
 
 import ddtrace
@@ -129,3 +133,38 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(2)
         await coro(3)
         await coro(4)
+
+
+def test_otel_baggage(oteltracer):
+    with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
+        baggage_context = set_baggage("key1", "value1")
+        baggage_context = set_baggage("key2", "value2", baggage_context)
+        attach(baggage_context)
+        with ddtrace.tracer.trace("ddtrace-baggage-inject") as ddspan:
+            assert ddspan.context.get_baggage_item("key1") == "value1"
+            assert ddspan.context.get_baggage_item("key2") == "value2"
+
+
+def test_dd_baggage(oteltracer):
+    with ddtrace.tracer.trace("ddtrace-baggage") as ddspan:
+        ddspan.context.set_baggage_item("key1", "value1")
+        ddspan.context.set_baggage_item("key2", "value2")
+        assert get_baggage("key1") == "value1"
+        assert get_baggage("key2") == "value2"
+
+
+def test_otel_baggage_remove(oteltracer):
+    with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
+        baggage_context = set_baggage("key1", "value1")
+        baggage_context = set_baggage("key2", "value2", baggage_context)
+        attach(baggage_context)
+        baggage_context = set_baggage("key3", "value3")
+        baggage_context = set_baggage("key4", "value4", baggage_context)
+        baggage_context = remove_baggage("key1", baggage_context)
+        baggage_context = remove_baggage("key2", baggage_context)
+        attach(baggage_context)
+        with ddtrace.tracer.trace("ddtrace-baggage-inject") as ddspan:
+            # newest baggage set in otel should take precedence
+            assert ddspan.context.get_baggage_item("key3") == "value3"
+            assert ddspan.context.get_baggage_item("key4") == "value4"
+            assert ddspan.context.get_baggage_item("key1") is None
