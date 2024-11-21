@@ -26,7 +26,7 @@ TAG_KEYS = frozenset(
         ("id", "celery.id"),
         ("priority", "celery.priority"),
         ("queue", "celery.queue"),
-        ("messaging.destination", "celery.queue"),
+        ("queue", "messaging.destination"),
         ("reply_to", "celery.reply_to"),
         ("retries", "celery.retries"),
         ("routing_key", "celery.routing_key"),
