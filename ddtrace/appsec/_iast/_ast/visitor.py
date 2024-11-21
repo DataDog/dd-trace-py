@@ -458,11 +458,7 @@ class AstVisitor(ast.NodeTransformer):
         Special case for some tests which would enter in a patching
         loop otherwise when visiting the check functions
         """
-
-        if def_node.name in self.dont_patch_these_functionsdefs:
-            self.replacements_disabled_for_functiondef = True
-        else:
-            self.replacements_disabled_for_functiondef = False
+        self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
 
         if hasattr(def_node.args, "vararg") and def_node.args.vararg:
             if def_node.args.vararg.annotation:
