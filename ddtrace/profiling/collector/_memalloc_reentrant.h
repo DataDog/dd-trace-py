@@ -131,6 +131,29 @@ memlock_timed(memlock_t* lock, uint32_t timeout_ms)
 #ifdef _WIN32
     DWORD result = WaitForSingleObject(lock->mutex, timeout_ms);
     return result == WAIT_OBJECT_0;
+#ifdef __APPLE__
+    // `pthread_mutex_timedlock` isn't available on macOS, so we implement a hot loop
+    struct timespec start_time, current_time;
+    clock_gettime(CLOCK_REALTIME, &start_time); // Get the starting time
+                                                //
+    while (true) {
+        if (pthread_mutex_trylock(&lock->mutex) == 0) {
+            return true;
+        }
+
+        // Else, gotta check the time
+        clock_gettime(CLOCK_REALTIME, &current_time);
+        uint32_t elapsed_ms =
+          (current_time.tv_sec - start_time.tv_sec) * 1e3 + (current_time.tv_nsec - start_time.tv_nsec) / 1e6;
+
+        if (elapsed_ms >= timeout_ms) {
+            return false; // Timeout
+        }
+
+        // Sleep for a tick
+        struct timespec ts = { 0, 4e6 }; // 4ms
+        nanosleep(&ts, NULL);
+    }
 #else
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -142,6 +165,10 @@ memlock_timed(memlock_t* lock, uint32_t timeout_ms)
     int result = pthread_mutex_timedlock(&lock->mutex, &ts);
     return result == 0;
 #endif
+
+    // We should never get here, since each platform should return from its block
+    assert(false);
+    return false;
 }
 
 // Unlock function
