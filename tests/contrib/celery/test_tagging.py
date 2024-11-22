@@ -39,9 +39,6 @@ def add(x, y):
     return x + y
 
 
-pytest_plugins = ("celery.contrib.pytest",)
-
-
 @pytest.fixture(autouse=False)
 def instrument_celery():
     # Instrument Celery and create an app with Broker and Result backends
