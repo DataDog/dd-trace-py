@@ -194,7 +194,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
-            assert async_span.get_tag("out.host") == socket.gethostname()
+            assert async_span.get_tag("out.host") == "memory://"
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -239,7 +239,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
-            assert async_span.get_tag("out.host") == socket.gethostname()
+            assert async_span.get_tag("out.host") == "memory://"
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
