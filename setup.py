@@ -59,8 +59,8 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.21.0"
 
-# DEV: update this accordingly when src/core upgrades, see
-# https://github.com/DataDog/dd-trace-py/commit/83ded1333930e17a87f88c2d81efa02401d526e2
+# DEV: update this accordingly when src/core upgrades libdatadog dependency. 
+# libdatadog v14.1.0 requires rust 1.76.
 RUST_MINIMUM_VERSION = "1.76"  
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
