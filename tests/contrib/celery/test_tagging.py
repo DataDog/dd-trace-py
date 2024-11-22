@@ -1,12 +1,78 @@
 import socket
 import time
 
+from celery import Celery
 from celery.contrib.testing.worker import start_worker
+import pytest
 
 from ddtrace import Pin
+from ddtrace.contrib.celery import patch
+from ddtrace.contrib.celery import unpatch
+from tests.utils import DummyTracer
 
-from .main import add
-from .main import multiply
+from .base import AMQP_BROKER_URL
+from .base import BACKEND_URL
+from .base import BROKER_URL
+
+
+redis_celery_app = Celery(
+    "mul_celery",
+    broker=BROKER_URL,
+    backend=BACKEND_URL,
+)
+
+
+@redis_celery_app.task
+def multiply(x, y):
+    return x * y
+
+
+amqp_celery_app = Celery(
+    "add_celery",
+    broker=AMQP_BROKER_URL,
+    backend="rpc://",
+)
+
+
+@amqp_celery_app.task
+def add(x, y):
+    return x + y
+
+
+pytest_plugins = ("celery.contrib.pytest",)
+
+
+@pytest.fixture(autouse=False)
+def instrument_celery():
+    # Instrument Celery and create an app with Broker and Result backends
+    patch()
+    yield
+    # Remove instrumentation from Celery
+    unpatch()
+
+
+@pytest.fixture(scope="session")
+def celery_config():
+    return {"broker_url": BROKER_URL}
+
+
+@pytest.fixture
+def dummy_tracer():
+    return DummyTracer()
+
+
+@pytest.fixture(autouse=False)
+def traced_redis_celery_app(instrument_celery, dummy_tracer):
+    Pin.get_from(redis_celery_app)
+    Pin.override(redis_celery_app, tracer=dummy_tracer)
+    yield redis_celery_app
+
+
+@pytest.fixture(autouse=False)
+def traced_amqp_celery_app(instrument_celery, dummy_tracer):
+    Pin.get_from(amqp_celery_app)
+    Pin.override(amqp_celery_app, tracer=dummy_tracer)
+    yield amqp_celery_app
 
 
 def test_redis_task(traced_redis_celery_app):
@@ -28,7 +94,7 @@ def test_redis_task(traced_redis_celery_app):
         assert_traces(tracer, "multiply", t, "redis")
 
 
-def test_amqp_task(traced_amqp_celery_app):
+def test_amqp_task(instrument_celery, traced_amqp_celery_app):
     tracer = Pin.get_from(traced_amqp_celery_app).tracer
 
     with start_worker(  # <-- Important!
@@ -58,7 +124,7 @@ def assert_traces(tracer, task_name, task, backend):
 
     assert async_span.error == 0
     assert async_span.name == "celery.apply"
-    assert async_span.resource == f"tests.contrib.celery.main.{task_name}"
+    assert async_span.resource == f"tests.contrib.celery.test_tagging.{task_name}"
     assert async_span.service == "celery-producer"
     assert async_span.get_tag("celery.id") == task.task_id
     assert async_span.get_tag("celery.action") == "apply_async"
@@ -69,7 +135,7 @@ def assert_traces(tracer, task_name, task, backend):
 
     assert run_span.error == 0
     assert run_span.name == "celery.run"
-    assert run_span.resource == f"tests.contrib.celery.main.{task_name}"
+    assert run_span.resource == f"tests.contrib.celery.test_tagging.{task_name}"
     assert run_span.service == "celery-worker"
     assert run_span.get_tag("celery.id") == task.task_id
     assert run_span.get_tag("celery.action") == "run"
