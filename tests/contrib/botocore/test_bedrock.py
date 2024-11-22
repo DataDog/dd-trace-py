@@ -39,6 +39,14 @@ def aws_credentials():
 
 
 @pytest.fixture
+def mock_tracer(ddtrace_global_config, bedrock_client):
+    pin = Pin.get_from(bedrock_client)
+    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
+    pin.override(bedrock_client, tracer=mock_tracer)
+    yield mock_tracer
+
+
+@pytest.fixture
 def boto3(aws_credentials, mock_llmobs_span_writer, ddtrace_global_config):
     global_config = {"_dd_api_key": "<not-a-real-api_key>"}
     global_config.update(ddtrace_global_config)
@@ -316,20 +324,6 @@ def test_read_error(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
-def test_read_stream_error(bedrock_client, request_vcr):
-    body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
-    with request_vcr.use_cassette("meta_invoke_stream.yaml"):
-        response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
-        with mock.patch(
-            "ddtrace.contrib.internal.botocore.services.bedrock._extract_streamed_response"
-        ) as mock_extract_response:
-            mock_extract_response.side_effect = Exception("test")
-            with pytest.raises(Exception):
-                for _ in response.get("body"):
-                    pass
-
-
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_readlines_error(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
@@ -358,3 +352,20 @@ def test_cohere_embedding(bedrock_client, request_vcr):
     with request_vcr.use_cassette("cohere_embedding.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
+
+
+def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tracer):
+    body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
+    with request_vcr.use_cassette("anthropic_message_invoke_stream.yaml"):
+        response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
+        i = 0
+        with pytest.raises(GeneratorExit):
+            for _ in response.get("body"):
+                if i >= 6:
+                    raise GeneratorExit
+                i += 1
+    span = mock_tracer.pop_traces()[0][0]
+    assert span is not None
+    assert span.name == "bedrock-runtime.command"
+    assert span.resource == "InvokeModelWithResponseStream"
+    assert span.get_tag("bedrock.response.choices.0.text").startswith("Hobb")

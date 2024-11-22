@@ -451,3 +451,25 @@ if config.stack.v2_enabled and not _check_for_stack_v2_available():
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)
+
+
+def config_str(config):
+    configured_features = []
+    if config.stack.enabled:
+        if config.stack.v2_enabled:
+            configured_features.append("stack_v2")
+        else:
+            configured_features.append("stack")
+    if config.lock.enabled:
+        configured_features.append("lock")
+    if config.memory.enabled:
+        configured_features.append("mem")
+    if config.heap.sample_size > 0:
+        configured_features.append("heap")
+    if config.export.libdd_enabled:
+        configured_features.append("exp_dd")
+    else:
+        configured_features.append("exp_py")
+    configured_features.append("CAP" + str(config.capture_pct))
+    configured_features.append("MAXF" + str(config.max_frames))
+    return "_".join(configured_features)

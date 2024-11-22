@@ -222,8 +222,14 @@ class CIVisibility(Service):
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
         dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
+        dd_env_msg = ""
 
         if ddconfig._ci_visibility_agentless_enabled:
+            # In agentless mode, normalize an unset env to none (this is already done by the backend in most cases, so
+            # it does not override default behavior)
+            if dd_env is None:
+                dd_env = "none"
+                dd_env_msg = " (not set in environment)"
             if not self._api_key:
                 raise EnvironmentError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
@@ -242,6 +248,11 @@ class CIVisibility(Service):
                 dd_env,
             )
         elif self._agent_evp_proxy_is_available():
+            # In EVP-proxy cases, if an env is not provided, we need to get the agent's default env in order to make
+            # the correct decision:
+            if dd_env is None:
+                dd_env = self._agent_get_default_env()
+                dd_env_msg = " (default environment provided by agent)"
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
             requests_mode_str = "EVP Proxy"
             self._api_client = EVPProxyTestVisibilityAPIClient(
@@ -269,7 +280,7 @@ class CIVisibility(Service):
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
-        log.info("Service: %s (env: %s)", self._service, dd_env)
+        log.info("Service: %s (env: %s%s)", self._service, dd_env, dd_env_msg)
         log.info("Requests mode: %s", requests_mode_str)
         log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
         log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
@@ -393,6 +404,17 @@ class CIVisibility(Service):
             if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
                 return True
         return False
+
+    def _agent_get_default_env(self):
+        # type: () -> Optional[str]
+        try:
+            info = agent.info(self.tracer._agent_url)
+        except Exception:
+            return "none"
+
+        if info:
+            return info.get("config", {}).get("default_env", "none")
+        return "none"
 
     @classmethod
     def is_itr_enabled(cls):
