@@ -405,6 +405,8 @@ def _remove_flask_run(text: Text) -> Text:
     return new_text
 
 
+# FIXME: remove all the sys.modules thing and just use globals() once we have
+# dropped Python 3.7 (3.7's globals() calls dir() so ends with an infinite recursion).
 _DIR_WRAPPER = textwrap.dedent(
     f"""
 
