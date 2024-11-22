@@ -462,6 +462,9 @@ class AstVisitor(ast.NodeTransformer):
         Special case for some tests which would enter in a patching
         loop otherwise when visiting the check functions
         """
+        if f"{_PREFIX}dir" in def_node.name or f"{_PREFIX}set_dir_filter" in def_node.name:
+            return def_node
+
         self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
 
         if hasattr(def_node.args, "vararg") and def_node.args.vararg:

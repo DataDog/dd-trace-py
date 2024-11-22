@@ -410,21 +410,36 @@ _DIR_WRAPPER = textwrap.dedent(
 
 
 def {_PREFIX}dir():
-    orig_dir = globals().get("{_PREFIX}orig_dir__")
+    import sys
+    module = sys.modules[__name__]
+    module_dict = object.__getattribute__(module, '__dict__')
+    
+    # Retrieve the original __dir__ if it exists
+    orig_dir = module_dict.get("{_PREFIX}orig_dir__")
+ 
     if orig_dir:
-        results = [name for name in {_PREFIX}orig_dir__() if not (
-        name.startswith("{_PREFIX}") or name == "{_PREFIX}orig_dir__"
-        )]
+        # Use the original __dir__ method and filter the results
+        results = [name for name in orig_dir() if not name.startswith("{_PREFIX}")]
     else:
-        results = [name for name in globals() if not (name.startswith("{_PREFIX}") or name == "__dir__")]
+        # List names from the module's __dict__ and filter out the unwanted names
+        results = [
+            name for name in module_dict
+            if not (name.startswith("{_PREFIX}") or name == "__dir__")
+        ]   
 
     return results
 
 def {_PREFIX}set_dir_filter():
-    if "__dir__" in globals():
-        globals()["{_PREFIX}orig_dir__"] = __dir__
-
-    globals()["__dir__"] = {_PREFIX}dir
+    import sys
+    module = sys.modules[__name__]
+    module_dict = object.__getattribute__(module, '__dict__')
+    
+    if "__dir__" in module_dict:
+        # Store the original __dir__ method
+        module_dict["{_PREFIX}orig_dir__"] = module_dict["__dir__"]
+    
+    # Replace the module's __dir__ with the custom one
+    module_dict["__dir__"] = {_PREFIX}dir
 
 {_PREFIX}set_dir_filter()
 
