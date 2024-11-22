@@ -5,6 +5,7 @@ import codecs
 import os
 import re
 from sys import builtin_module_names
+from sys import version_info
 import textwrap
 from types import ModuleType
 from typing import Optional
@@ -405,19 +406,12 @@ def _remove_flask_run(text: Text) -> Text:
     return new_text
 
 
-# FIXME: remove all the sys.modules thing and just use globals() once we have
-# dropped Python 3.7 (3.7's globals() calls dir() so ends with an infinite recursion).
 _DIR_WRAPPER = textwrap.dedent(
     f"""
 
 
 def {_PREFIX}dir():
-    import sys
-    module = sys.modules[__name__]
-    module_dict = object.__getattribute__(module, '__dict__')
-
-    # Retrieve the original __dir__ if it exists
-    orig_dir = module_dict.get("{_PREFIX}orig_dir__")
+    orig_dir = globals().get("{_PREFIX}orig_dir__")
 
     if orig_dir:
         # Use the original __dir__ method and filter the results
@@ -425,23 +419,19 @@ def {_PREFIX}dir():
     else:
         # List names from the module's __dict__ and filter out the unwanted names
         results = [
-            name for name in module_dict
+            name for name in globals()
             if not (name.startswith("{_PREFIX}") or name == "__dir__")
         ]
 
     return results
 
 def {_PREFIX}set_dir_filter():
-    import sys
-    module = sys.modules[__name__]
-    module_dict = object.__getattribute__(module, '__dict__')
-
-    if "__dir__" in module_dict:
+    if "__dir__" in globals():
         # Store the original __dir__ method
-        module_dict["{_PREFIX}orig_dir__"] = module_dict["__dir__"]
+        globals()["{_PREFIX}orig_dir__"] = __dir__
 
     # Replace the module's __dir__ with the custom one
-    module_dict["__dir__"] = {_PREFIX}dir
+    globals()["__dir__"] = {_PREFIX}dir
 
 {_PREFIX}set_dir_filter()
 
@@ -492,8 +482,9 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     if remove_flask_run:
         source_text = _remove_flask_run(source_text)
 
-    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
+    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)
+        # doesnt work in 3.7 because it enters into infinite recursion
         source_text += _DIR_WRAPPER
 
     new_ast = visit_ast(
