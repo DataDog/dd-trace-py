@@ -46,7 +46,6 @@ def try_patched(module_name, expect_no_change=False):
             patched_module
         ), "Patched source is None after patching: Maybe not an error, but something fishy is going on"
         new_code = unparse(patched_module)
-        # JJJ
         assert (
             "import ddtrace.appsec._iast.taint_sinks as _ddtrace_taint_sinks"
             "\nimport ddtrace.appsec._iast._taint_tracking.aspects as _ddtrace_aspects\n"
