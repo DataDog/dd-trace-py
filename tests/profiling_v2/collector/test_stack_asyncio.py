@@ -9,7 +9,7 @@ import pytest
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio",
         DD_PROFILING_STACK_V2_ENABLED="true",
     ),
-    err=None,
+    out=None,
 )
 def test_asyncio():
     import asyncio
@@ -96,6 +96,7 @@ def test_asyncio():
             thread_name="MainThread",
             task_name="hello",
             span_id=span_id,
+            local_root_span_id=local_root_span_id,
             locations=[
                 pprof_utils.StackLocation(
                     function_name="hello", filename="test_stack_asyncio.py", line_no=hello.__code__.co_firstlineno + 3

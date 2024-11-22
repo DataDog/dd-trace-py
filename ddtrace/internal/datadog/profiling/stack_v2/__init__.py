@@ -15,7 +15,6 @@ try:
     is_available = True
 
     def link_span(span: typing.Optional[typing.Union[context.Context, ddspan.Span]]):
-        print("link_span called with span: %s" % span)
         if isinstance(span, ddspan.Span):
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
