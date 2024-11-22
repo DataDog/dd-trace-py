@@ -412,7 +412,7 @@ _DIR_WRAPPER = textwrap.dedent(
 def {_PREFIX}dir():
     orig_dir = globals().get("{_PREFIX}orig_dir__")
     if orig_dir:
-        results = [name for name in __orig_dir__() if not (
+        results = [name for name in {_PREFIX}orig_dir__() if not (
         name.startswith("{_PREFIX}") or name == "{_PREFIX}orig_dir__"
         )]
     else:
