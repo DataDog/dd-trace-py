@@ -48,7 +48,6 @@ static alloc_tracker_t* global_alloc_tracker;
 
 static memlock_t g_memalloc_lock;
 
-
 // This is a multiplatform way to define an operation to happen at static initialization time
 static void
 memalloc_init(void);
