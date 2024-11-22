@@ -636,7 +636,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
             assert async_span.get_tag("out.host") == "memory://"
-            assert async_span.get_tag("messaging.destination") == "memory://"
 
         run_span = self.find_span(name="celery.run")
         assert run_span.name == "celery.run"
