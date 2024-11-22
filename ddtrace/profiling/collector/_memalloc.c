@@ -48,7 +48,8 @@ static alloc_tracker_t* global_alloc_tracker;
 
 static memlock_t g_memalloc_lock;
 
-// forward decl of constructor
+
+// This is a multiplatform way to define an operation to happen at static initialization time
 static void
 memalloc_init(void);
 
@@ -104,8 +105,13 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
             if (tb) {
                 if (memlock_lock_timed(&g_memalloc_lock, g_memalloc_lock_timeout)) {
-                    traceback_free(global_alloc_tracker->allocs.tab[r]);
-                    global_alloc_tracker->allocs.tab[r] = tb;
+                    // Disgusting hack: we shouldn't have to check to see if `tab` is NULL
+                    if (global_alloc_tracker->allocs.tab != NULL) {
+                        traceback_free(global_alloc_tracker->allocs.tab[r]);
+                        global_alloc_tracker->allocs.tab[r] = tb;
+                    } else {
+                        traceback_free(tb);
+                    }
                     memlock_unlock(&g_memalloc_lock);
                 } else {
                     // Couldn't get the lock, so we have to dump the traceback
