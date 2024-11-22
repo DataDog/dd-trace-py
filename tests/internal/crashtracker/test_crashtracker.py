@@ -3,6 +3,8 @@ import sys
 
 import pytest
 
+from ddtrace.settings.profiling import config as profiling_config
+from ddtrace.settings.profiling import config_str
 import tests.internal.crashtracker.utils as utils
 
 
@@ -501,6 +503,32 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
     for k, v in tags.items():
         assert k.encode() in data
         assert v.encode() in data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_set_tag_profiler_config(run_python_code_in_subprocess):
+    port, sock = utils.crashtracker_receiver_bind()
+    assert sock
+
+    env = os.environ.copy()
+    env["DD_TRACE_AGENT_URL"] = "http://localhost:%d" % port
+    env["DD_PROFILING_ENABLED"] = "1"
+    stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+
+    assert not stdout
+    assert not stderr
+    assert exitcode == -11
+
+    # Wait for the connection
+    conn = utils.listen_get_conn(sock)
+    assert conn
+    data = utils.conn_to_bytes(conn)
+    assert data
+
+    # Now check for the profiler_config tag
+    assert b"profiler_config" in data
+    profiler_config = config_str(profiling_config)
+    assert profiler_config.encode() in data
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")

@@ -102,7 +102,7 @@ venv = Venv(
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
-        "_DD_CIVISIBILITY_USE_PYTEST_V2": "true",
+        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "true",
     },
     venvs=[
         Venv(
@@ -1606,7 +1606,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
             },
             venvs=[
                 Venv(
@@ -1695,7 +1695,7 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             env={
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
             },
             venvs=[
                 Venv(
@@ -1728,7 +1728,7 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             env={
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
             },
             venvs=[
                 Venv(
@@ -2724,6 +2724,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="vertexai",
+            command="pytest {cmdargs} tests/contrib/vertexai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vertexai": [latest],
+            },
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
@@ -2981,7 +2990,7 @@ venv = Venv(
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
                 # Enable pytest v2 plugin to handle pytest-cpp items in the test suite
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
                 "CPUCOUNT": "12",
             },
             pkgs={

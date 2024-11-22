@@ -13,3 +13,8 @@ else:
     from _pytest.runner import CallInfo as pytest_CallInfo  # noqa: F401
 
 _pytest_report_teststatus_return_type = t.Optional[t.Tuple[str, str, t.Tuple[str, t.Mapping[str, bool]]]]
+
+if _get_pytest_version_tuple() >= (7, 4, 0):
+    from _pytest.tmpdir import tmppath_result_key  # noqa: F401
+else:
+    tmppath_result_key = None
