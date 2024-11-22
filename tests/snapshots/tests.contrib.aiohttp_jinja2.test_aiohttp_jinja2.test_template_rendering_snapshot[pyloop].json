@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.template",
-    "service": "",
+    "service": "tests.contrib.aiohttp_jinja2",
     "resource": "aiohttp.template",
     "trace_id": 0,
     "span_id": 1,

@@ -1,7 +1,7 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": "tests.contrib.langchain",
     "resource": "langchain_pinecone.vectorstores.PineconeVectorStore",
     "trace_id": 0,
     "span_id": 1,
@@ -37,7 +37,7 @@
   },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": "tests.contrib.langchain",
        "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
        "trace_id": 0,
        "span_id": 2,

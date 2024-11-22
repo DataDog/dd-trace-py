@@ -1,7 +1,7 @@
 [[
   {
     "name": "test-execute-instrumentation",
-    "service": "",
+    "service": "tests.contrib.graphql",
     "resource": "test-execute-instrumentation",
     "trace_id": 0,
     "span_id": 1,
@@ -33,7 +33,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.graphql",
          "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
@@ -54,7 +54,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.graphql",
          "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
@@ -78,7 +78,7 @@
           "type": "graphql",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.graphql",
             "_dd.p.tid": "654a694400000000",
             "component": "graphql"
           },
@@ -95,7 +95,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.contrib.graphql",
                "_dd.p.tid": "654a694400000000"
              },
              "duration": 16708,
@@ -111,7 +111,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.graphql",
          "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
@@ -135,7 +135,7 @@
           "type": "graphql",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.graphql",
             "_dd.p.tid": "654a694400000000",
             "component": "graphql"
           },
@@ -152,7 +152,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.base_service": "",
+               "_dd.base_service": "tests.contrib.graphql",
                "_dd.p.tid": "654a694400000000"
              },
              "duration": 14000,
