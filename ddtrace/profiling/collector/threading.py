@@ -45,12 +45,14 @@ class ThreadingLockCollector(_lock.LockCollector):
 
 # Also patch threading.Thread so echion can track thread lifetimes
 def init_stack_v2():
+    print("in threading.init_stack_v2")
     if config.stack.v2_enabled and stack_v2.is_available:
         _thread_set_native_id = Thread._set_native_id
         _thread_bootstrap_inner = Thread._bootstrap_inner
 
         def thread_set_native_id(self, *args, **kswargs):
             _thread_set_native_id(self, *args, **kswargs)
+            print("stack_v2.register_thread", self.ident, self.native_id, self.name)
             stack_v2.register_thread(self.ident, self.native_id, self.name)
 
         def thread_bootstrap_inner(self, *args, **kwargs):

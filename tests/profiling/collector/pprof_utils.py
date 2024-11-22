@@ -16,7 +16,7 @@ from tests.profiling.collector.lock_utils import LineNo
 
 
 UINT64_MAX = (1 << 64) - 1
-DEBUG_TEST = False
+DEBUG_TEST = True
 
 
 # Clamp the value to the range [0, UINT64_MAX] as done in clamp_to_uint64_unsigned
