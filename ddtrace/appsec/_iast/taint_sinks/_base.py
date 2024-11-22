@@ -5,6 +5,7 @@ from typing import Optional
 from typing import Text
 
 from ddtrace import tracer
+from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 
@@ -90,6 +91,11 @@ class VulnerabilityBase(Operation):
             span = tracer.current_root_span()
             if span:
                 span_id = span.span_id
+                # Mark the span as kept to avoid being dropped by the agent.
+                #
+                # It is important to do it as soon as the vulnerability is reported
+                # to ensure that any downstream propagation performed has the new priority.
+                _asm_manual_keep(span)
 
         vulnerability = Vulnerability(
             type=vulnerability_type,

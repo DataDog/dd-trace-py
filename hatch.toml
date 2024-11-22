@@ -417,7 +417,7 @@ dependencies = [
 ]
 
 [envs.pytest_plugin_v2.env-vars]
-_DD_CIVISIBILITY_USE_PYTEST_V2 = "true"
+DD_PYTEST_USE_NEW_PLUGIN_BETA = "true"
 DD_AGENT_PORT = "9126"
 
 [envs.pytest_plugin_v2.scripts]
