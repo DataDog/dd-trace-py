@@ -10,7 +10,7 @@ from ddtrace.internal.module import BaseModuleWatchdog
 inject_handled_exception_reporting = None
 
 # Import are noqa'd otherwise some formatters will helpfully remove them
-if sys.version_info >= (3, 11):  # and sys.version_info < (3, 12):
+if sys.version_info >= (3, 10):  # and sys.version_info < (3, 12):
     from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
 
     inject_handled_exception_reporting = _inject_handled_exception_reporting
@@ -50,19 +50,3 @@ def _instrument_obj(obj):
         for candidate in dir(obj):
             if type(obj) in (types.FunctionType, types.MethodType, type):
                 _instrument_obj(candidate)
-
-
-def _default_datadog_exc_callback(*args):
-    print("I am magically here!!!")
-    exc = sys.exception()
-    if not exc:
-        return
-
-    span = ddtrace.tracer.current_span()
-    if not span:
-        return
-
-    span._add_event(
-        "exception",
-        {"message": str(exc), "type": type(exc).__name__, "stack": "".join(traceback.format_exception(exc))},
-    )
