@@ -100,6 +100,7 @@ def appsec_application_server(
         env[IAST.ENV] = iast_enabled
         env[IAST.ENV_REQUEST_SAMPLING] = "100"
         env["_DD_APPSEC_DEDUPLICATION_ENABLED"] = "false"
+        env[IAST.ENV_NO_DIR_PATCH] = "false"
         if assert_debug:
             env["_" + IAST.ENV_DEBUG] = iast_enabled
             env["_" + IAST.ENV_PROPAGATION_DEBUG] = iast_enabled
