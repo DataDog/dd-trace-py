@@ -150,10 +150,13 @@ class VertexAIIntegration(BaseLLMIntegration):
                 messages.append({"content": content})
                 continue
             if isinstance(content, dict):
-                message = {"content": content.get("text", "")}
-                if content.get("role", None):
-                    message["role"] = content["role"]
-                messages.append(message)
+                role = content.get("role", "")
+                parts = content.get("parts", [])
+                for part in parts:
+                    message = self._extract_message_from_part(part)
+                    if role:
+                        message["role"] = role
+                    messages.append(message)
                 continue
             if isinstance(content, Part):
                 message = self._extract_message_from_part(contents)
