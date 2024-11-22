@@ -1,4 +1,5 @@
 import socket
+import time
 
 from celery.contrib.testing.worker import start_worker
 
@@ -21,6 +22,9 @@ def test_redis_task(traced_redis_celery_app):
         t = multiply.delay(4, 4)
         assert t.get(timeout=2) == 16
 
+        # wait for spans to be received
+        time.sleep(3)
+
         assert_traces(tracer, "multiply", t, "redis")
 
 
@@ -36,6 +40,9 @@ def test_amqp_task(traced_amqp_celery_app):
     ):
         t = add.delay(4, 4)
         assert t.get(timeout=2) == 8
+        
+        # wait for spans to be received
+        time.sleep(3)
 
         assert_traces(tracer, "add", t, "amqp")
 
