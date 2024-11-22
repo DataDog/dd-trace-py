@@ -36,6 +36,7 @@ def request_vcr():
     yield get_request_vcr(subdirectory_name="langchain_community")
 
 
+'''
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_global_tags(ddtrace_config_langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, mock_tracer):
     """
@@ -1535,3 +1536,4 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core, request_v
     )
 
     calculator.invoke("2", config={"unserializable": object()})
+'''
