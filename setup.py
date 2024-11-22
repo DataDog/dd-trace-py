@@ -57,7 +57,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.20.1"
+LIBDDWAF_VERSION = "1.21.0"
 
 RUST_MINIMUM_VERSION = "1.71"  # Safe guess:  1.71 is about a year old as of 2024-07-03
 

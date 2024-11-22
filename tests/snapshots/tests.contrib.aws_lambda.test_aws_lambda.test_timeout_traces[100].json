@@ -1,7 +1,7 @@
 [[
   {
     "name": "aws.lambda",
-    "service": "",
+    "service": "tests.contrib.aws_lambda",
     "resource": "aws.lambda",
     "trace_id": 0,
     "span_id": 1,
@@ -27,7 +27,7 @@
   },
      {
        "name": "timeout",
-       "service": "",
+       "service": "tests.contrib.aws_lambda",
        "resource": "timeout",
        "trace_id": 0,
        "span_id": 2,

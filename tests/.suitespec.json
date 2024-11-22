@@ -291,6 +291,10 @@
             "ddtrace/contrib/google_generativeai/*",
             "ddtrace/contrib/internal/google_generativeai/*"
         ],
+        "vertexai": [
+            "ddtrace/contrib/vertexai/*",
+            "ddtrace/contrib/internal/vertexai/*"
+        ],
         "subprocess": [
             "ddtrace/contrib/subprocess/*",
             "ddtrace/contrib/internal/subprocess/*"
@@ -300,6 +304,7 @@
             "ddtrace/contrib/internal/sqlalchemy/*"
         ],
         "opentelemetry": [
+            "ddtrace/settings/_otel_remapper.py",
             "ddtrace/opentelemetry/*",
             "ddtrace/internal/opentelemetry/*"
         ],
@@ -1503,6 +1508,16 @@
             "@llmobs",
             "tests/contrib/google_generativeai/*",
             "tests/snapshots/tests.contrib.google_generativeai.*"
+        ],
+        "vertexai": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@vertexai",
+            "@llmobs",
+            "tests/contrib/vertexai/*",
+            "tests/snapshots/tests.contrib.vertexai.*"
         ],
         "runtime": [
             "@core",

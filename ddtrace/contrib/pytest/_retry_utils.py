@@ -8,6 +8,7 @@ from _pytest.logging import caplog_records_key
 from _pytest.runner import CallInfo
 import pytest
 
+from ddtrace.contrib.pytest._types import tmppath_result_key
 from ddtrace.contrib.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
@@ -59,6 +60,8 @@ def _get_outcome_from_retry(
             _outcome_exc_info = TestExcInfo(setup_call.excinfo.type, setup_call.excinfo.value, setup_call.excinfo.tb)
             item.stash[caplog_records_key] = {}
             item.stash[caplog_handler_key] = {}
+            if tmppath_result_key is not None:
+                item.stash[tmppath_result_key] = {}
     if setup_report.outcome == outcomes.SKIPPED:
         _outcome_status = TestStatus.SKIP
 
@@ -71,6 +74,8 @@ def _get_outcome_from_retry(
                 _outcome_exc_info = TestExcInfo(call_call.excinfo.type, call_call.excinfo.value, call_call.excinfo.tb)
                 item.stash[caplog_records_key] = {}
                 item.stash[caplog_handler_key] = {}
+                if tmppath_result_key is not None:
+                    item.stash[tmppath_result_key] = {}
         elif call_report.outcome == outcomes.SKIPPED:
             _outcome_status = TestStatus.SKIP
         elif call_report.outcome == outcomes.PASSED:
@@ -88,6 +93,8 @@ def _get_outcome_from_retry(
                 )
                 item.stash[caplog_records_key] = {}
                 item.stash[caplog_handler_key] = {}
+                if tmppath_result_key is not None:
+                    item.stash[tmppath_result_key] = {}
 
     item._initrequest()
 
