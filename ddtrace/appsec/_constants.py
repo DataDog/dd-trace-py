@@ -137,6 +137,7 @@ class IAST(metaclass=Constant_Class):
     ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
+    PATCH_ADDED_SYMBOL_PREFIX: Literal["_ddtrace_"] = "_ddtrace_"
 
     METRICS_REPORT_LVLS = (
         (TELEMETRY_DEBUG_VERBOSITY, TELEMETRY_DEBUG_NAME),

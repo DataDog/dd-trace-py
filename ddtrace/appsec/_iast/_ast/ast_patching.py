@@ -22,6 +22,7 @@ from .visitor import AstVisitor
 
 _VISITOR = AstVisitor()
 
+_PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast.",)
@@ -405,25 +406,25 @@ def _remove_flask_run(text: Text) -> Text:
 
 
 _DIR_WRAPPER = textwrap.dedent(
-    """
+    f"""
 
 
-def __ddtrace_dir__():
+def {_PREFIX}dir():
     orig_dir = globals().get("__orig_dir__")
     if orig_dir:
-        results = [name for name in __orig_dir__() if not (name.startswith("_ddtrace") or name == "__orig_dir__")]
+        results = [name for name in __orig_dir__() if not (name.startswith("{_PREFIX}") or name == "__orig_dir__")]
     else:
-        results = [name for name in globals() if not (name.startswith("_ddtrace") or name == "__dir__")]
+        results = [name for name in globals() if not (name.startswith("{_PREFIX}") or name == "__dir__")]
 
     return results
 
-def __ddtrace_set_dir_filter():
+def {_PREFIX}set_dir_filter():
     if "__dir__" in globals():
         globals()["__orig_dir__"] = __dir__
 
-    globals()["__dir__"] = __ddtrace_dir__
+    globals()["__dir__"] = {_PREFIX}dir
 
-__ddtrace_set_dir_filter()
+{_PREFIX}set_dir_filter()
 
     """
 )

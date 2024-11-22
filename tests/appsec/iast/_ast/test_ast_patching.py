@@ -13,6 +13,8 @@ from ddtrace.appsec._iast._ast.ast_patching import visit_ast
 from ddtrace.internal.utils.formats import asbool
 from tests.utils import override_env
 
+_PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
+
 
 @pytest.mark.parametrize(
     "source_text, module_path, module_name",
@@ -62,8 +64,8 @@ def test_astpatch_module_changed(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
-        "\nimport ddtrace.appsec._iast.taint_sinks as __ddtrace_taint_sinks"
-        "\nimport ddtrace.appsec._iast._taint_tracking.aspects as __ddtrace_aspects"
+        f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
+        f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
     assert "ddtrace_aspects.str_aspect(" in new_code
 
@@ -79,8 +81,8 @@ def test_astpatch_module_changed_add_operator(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
-        "\nimport ddtrace.appsec._iast.taint_sinks as __ddtrace_taint_sinks"
-        "\nimport ddtrace.appsec._iast._taint_tracking.aspects as __ddtrace_aspects"
+        f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
+        f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
     assert "ddtrace_aspects.add_aspect(" in new_code
 
@@ -96,8 +98,8 @@ def test_astpatch_module_changed_add_inplace_operator(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
-        "\nimport ddtrace.appsec._iast.taint_sinks as __ddtrace_taint_sinks"
-        "\nimport ddtrace.appsec._iast._taint_tracking.aspects as __ddtrace_aspects"
+        f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
+        f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
     assert "ddtrace_aspects.add_inplace_aspect(" in new_code
 
@@ -114,14 +116,14 @@ def test_astpatch_source_changed_with_future_imports(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
-        """
+        f"""
 '\\nSome\\nmulti-line\\ndocstring\\nhere\\n'
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-import ddtrace.appsec._iast.taint_sinks as __ddtrace_taint_sinks
-import ddtrace.appsec._iast._taint_tracking.aspects as __ddtrace_aspects
+import ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks
+import ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects
 import html"""
     )
     assert "ddtrace_aspects.str_aspect(" in new_code
@@ -191,8 +193,8 @@ def test_astpatch_stringio_module_changed(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
-        "\nimport ddtrace.appsec._iast.taint_sinks as __ddtrace_taint_sinks"
-        "\nimport ddtrace.appsec._iast._taint_tracking.aspects as __ddtrace_aspects"
+        f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
+        f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
     assert "ddtrace_aspects.stringio_aspect(" in new_code
 
@@ -209,8 +211,8 @@ def test_astpatch_bytesio_module_changed(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
-        "\nimport ddtrace.appsec._iast.taint_sinks as __ddtrace_taint_sinks"
-        "\nimport ddtrace.appsec._iast._taint_tracking.aspects as __ddtrace_aspects"
+        f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
+        f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
     assert "ddtrace_aspects.bytesio_aspect(" in new_code
 
@@ -251,12 +253,12 @@ def test_astpatch_dir_patched_with_env_var(module_name, env_var):
 
         if asbool(env_var):
             # If ENV_NO_DIR_PATCH is set to True our added symbols are not filtered out
-            assert "__ddtrace_aspects" in new_code
-            assert "__ddtrace_taint_sinks" in new_code
+            assert f"{_PREFIX}aspects" in new_code
+            assert f"{_PREFIX}taint_sinks" in new_code
         else:
             # Check that the added dir code is there
-            assert "def __ddtrace_dir__" in new_code
-            assert "def __ddtrace_set_dir_filter()" in new_code
+            assert f"def {_PREFIX}dir" in new_code
+            assert f"def {_PREFIX}set_dir_filter()" in new_code
 
 
 @pytest.mark.parametrize(
@@ -288,14 +290,14 @@ def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_n
         assert ("", None) != (module_path, new_ast)
 
         new_code = astunparse.unparse(new_ast)
-        assert "def __ddtrace_dir__" in new_code
-        assert "def __ddtrace_set_dir_filter()" in new_code
+        assert f"def {_PREFIX}dir" in new_code
+        assert f"def {_PREFIX}set_dir_filter()" in new_code
 
         compiled_code = compile(new_ast, module_path, "exec")
         exec(compiled_code, imported_mod.__dict__)
         patched_dir = set(dir(imported_mod))
         for symbol in patched_dir:
-            assert not symbol.startswith("__ddtrace_")
+            assert not symbol.startswith(_PREFIX)
 
         # Check that there are no new symbols that were not in the original dir() call
         assert len(patched_dir.difference(orig_dir)) == 0
