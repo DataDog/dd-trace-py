@@ -1337,7 +1337,7 @@ def _should_skip(condition=None, until: int = None):
         until = dt.datetime(3000, 1, 1)
     else:
         until = dt.datetime.fromtimestamp(until)
-    if until and dt.datetime.now(dt.timezone.utc) < until.replace(tzinfo=None):
+    if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
     if condition is not None and not condition:
         return False
