@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where the CIVisbility service would incorrectly default the tracer env to ``None``
+    in  EVP proxy mode if ``DD_ENV`` was not specified but the agent had a default environment set to a value other
+    than ``none`` (eg: using ``DD_APM_ENV`` in the agent's environment).

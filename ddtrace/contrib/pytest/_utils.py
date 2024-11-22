@@ -30,7 +30,7 @@ log = get_logger(__name__)
 
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
-_USE_PLUGIN_V2 = asbool(os.environ.get("_DD_CIVISIBILITY_USE_PYTEST_V2", "false"))
+_USE_PLUGIN_V2 = asbool(os.environ.get("DD_PYTEST_USE_NEW_PLUGIN_BETA", "false"))
 
 
 class _PYTEST_STATUS:
