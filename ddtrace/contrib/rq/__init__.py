@@ -201,7 +201,11 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 return func(*args, **kwargs)
             finally:
                 # call _after_perform_job handler for job status and origin
-                span_tags = {"job.status": job.get_status() or "None", "job.origin": job.origin}
+                try:
+                    status = job.get_status()
+                except Exception:
+                    status = None
+                span_tags = {"job.status": status or "None", "job.origin": job.origin}
                 job_failed = job.is_failed
                 core.dispatch("rq.worker.perform_job", [ctx, job_failed, span_tags])
 
