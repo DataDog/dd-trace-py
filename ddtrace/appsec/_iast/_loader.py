@@ -12,19 +12,19 @@ IS_IAST_ENABLED = _is_iast_enabled()
 
 
 def _exec_iast_patched_module(module_watchdog, module):
-    patched_source = None
+    patched_ast = None
     compiled_code = None
     if IS_IAST_ENABLED:
         try:
-            module_path, patched_source = astpatch_module(module)
+            module_path, patched_ast = astpatch_module(module)
         except Exception:
             log.debug("Unexpected exception while AST patching", exc_info=True)
-            patched_source = None
+            patched_ast = None
 
-    if patched_source:
+    if patched_ast:
         try:
             # Patched source is compiled in order to execute it
-            compiled_code = compile(patched_source, module_path, "exec")
+            compiled_code = compile(patched_ast, module_path, "exec")
         except Exception:
             log.debug("Unexpected exception while compiling patched code", exc_info=True)
             compiled_code = None
