@@ -13,6 +13,7 @@ from ddtrace.appsec._iast._ast.ast_patching import visit_ast
 from ddtrace.internal.utils.formats import asbool
 from tests.utils import override_env
 
+
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 
 

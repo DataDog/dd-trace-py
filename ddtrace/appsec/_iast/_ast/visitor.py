@@ -12,10 +12,11 @@ from typing import Set
 from typing import Text
 from typing import Tuple  # noqa:F401
 
+from ..._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
-from ..._constants import IAST
+
 
 PY3 = sys.version_info[0] >= 3
 PY30_37 = sys.version_info >= (3, 0, 0) and sys.version_info < (3, 8, 0)
