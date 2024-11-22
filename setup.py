@@ -59,7 +59,9 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.21.0"
 
-RUST_MINIMUM_VERSION = "1.76"  # Safe guess:  1.71 is about a year old as of 2024-07-03
+# DEV: update this accordingly when src/core upgrades, see
+# https://github.com/DataDog/dd-trace-py/commit/83ded1333930e17a87f88c2d81efa02401d526e2
+RUST_MINIMUM_VERSION = "1.76"  
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
