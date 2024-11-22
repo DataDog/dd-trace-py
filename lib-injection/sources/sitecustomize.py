@@ -352,6 +352,15 @@ def _inject():
             return
         else:
             try:
+                # Make sure to remove this script's directory, and to add the ddtrace bootstrap directory to the path
+                # DEV: We need to add the bootstrap directory to the path to ensure the logic to load any user custom
+                # sitecustomize is preserved.
+                if SCRIPT_DIR in sys.path:
+                    sys.path.remove(SCRIPT_DIR)
+                bootstrap_dir = os.path.join(os.path.abspath(os.path.dirname(ddtrace.__file__)), "bootstrap")
+                if bootstrap_dir not in sys.path:
+                    sys.path.insert(0, bootstrap_dir)
+
                 import ddtrace.bootstrap.sitecustomize
 
                 # Modify the PYTHONPATH for any subprocesses that might be spawned:
@@ -363,13 +372,10 @@ def _inject():
                 if SCRIPT_DIR in python_path:
                     python_path.remove(SCRIPT_DIR)
                 python_path.insert(-1, site_pkgs_path)
-                bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
                 python_path.insert(0, bootstrap_dir)
                 python_path = os.pathsep.join(python_path)
                 os.environ["PYTHONPATH"] = python_path
 
-                # Also insert the bootstrap dir in the path of the current python process.
-                sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
                 event = gen_telemetry_payload(
                     [

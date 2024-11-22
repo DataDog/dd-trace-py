@@ -14,7 +14,6 @@ from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
-from ddtrace.internal.core import crashtracking
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
@@ -29,6 +28,7 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config as profiling_config
+from ddtrace.settings.profiling import config_str
 
 
 LOG = logging.getLogger(__name__)
@@ -174,27 +174,8 @@ class _ProfilerInstance(service.Service):
             self.tags.update({"functionname": self._lambda_function_name})
 
         # Build the list of enabled Profiling features and send along as a tag
-        configured_features = []
-        if self._stack_collector_enabled:
-            if self._stack_v2_enabled:
-                configured_features.append("stack_v2")
-            else:
-                configured_features.append("stack")
-        if self._lock_collector_enabled:
-            configured_features.append("lock")
-        if self._memory_collector_enabled:
-            configured_features.append("mem")
-        if profiling_config.heap.sample_size > 0:
-            configured_features.append("heap")
-
-        if self._export_libdd_enabled:
-            configured_features.append("exp_dd")
-        else:
-            configured_features.append("exp_py")
-        configured_features.append("CAP" + str(profiling_config.capture_pct))
-        configured_features.append("MAXF" + str(profiling_config.max_frames))
-        self.tags.update({"profiler_config": "_".join(configured_features)})
-        crashtracking.add_tag("profiler_config", self.tags["profiler_config"])
+        profiler_config = config_str(profiling_config)
+        self.tags.update({"profiler_config": profiler_config})
 
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:

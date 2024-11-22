@@ -136,7 +136,9 @@ class TraceSamplingProcessor(TraceProcessor):
             root_ctx = chunk_root._context
 
             if self.apm_opt_out:
-                chunk_root.set_metric(MK_APM_ENABLED, 0)
+                for span in trace:
+                    if span._local_root_value is None:
+                        span.set_metric(MK_APM_ENABLED, 0)
 
             # only trace sample if we haven't already sampled
             if root_ctx and root_ctx.sampling_priority is None:
