@@ -79,7 +79,7 @@ def _standard_hashing_function(*elements: bytes) -> str:
 
 def _standard_hashing_function_failure(reason: str) -> str:
     log.debug(
-        "failed to generate standard hash for span pointer: %s",
+        "span pointers: failed to generate standard hash for span pointer: %s",
         reason,
     )
     record_span_pointer_calculation_issue(
