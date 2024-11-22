@@ -484,7 +484,7 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
 
     if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)
-        # doesnt work in 3.7 because it enters into infinite recursion
+        # does not work in 3.7 because it enters into infinite recursion
         source_text += _DIR_WRAPPER
 
     new_ast = visit_ast(
