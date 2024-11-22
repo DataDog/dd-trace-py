@@ -77,10 +77,18 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
 
     def __iter__(self):
         """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
+        exception_raised = False
         try:
             for line in self.__wrapped__:
                 self._body.append(json.loads(line["chunk"]["bytes"]))
                 yield line
+        except Exception:
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
+            exception_raised = True
+            raise
+        finally:
+            if exception_raised:
+                return
             metadata = _extract_streamed_response_metadata(self._execution_ctx, self._body)
             formatted_response = _extract_streamed_response(self._execution_ctx, self._body)
             model_provider = self._execution_ctx["model_provider"]
@@ -92,9 +100,6 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 "botocore.bedrock.process_response",
                 [self._execution_ctx, formatted_response, metadata, self._body, should_set_choice_ids],
             )
-        except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
-            raise
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
