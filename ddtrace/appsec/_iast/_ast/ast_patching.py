@@ -413,10 +413,10 @@ def {_PREFIX}dir():
     import sys
     module = sys.modules[__name__]
     module_dict = object.__getattribute__(module, '__dict__')
-    
+
     # Retrieve the original __dir__ if it exists
     orig_dir = module_dict.get("{_PREFIX}orig_dir__")
- 
+
     if orig_dir:
         # Use the original __dir__ method and filter the results
         results = [name for name in orig_dir() if not name.startswith("{_PREFIX}")]
@@ -425,7 +425,7 @@ def {_PREFIX}dir():
         results = [
             name for name in module_dict
             if not (name.startswith("{_PREFIX}") or name == "__dir__")
-        ]   
+        ]
 
     return results
 
@@ -433,11 +433,11 @@ def {_PREFIX}set_dir_filter():
     import sys
     module = sys.modules[__name__]
     module_dict = object.__getattribute__(module, '__dict__')
-    
+
     if "__dir__" in module_dict:
         # Store the original __dir__ method
         module_dict["{_PREFIX}orig_dir__"] = module_dict["__dir__"]
-    
+
     # Replace the module's __dir__ with the custom one
     module_dict["__dir__"] = {_PREFIX}dir
 
