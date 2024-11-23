@@ -52,7 +52,6 @@ def trace_prerun(*args, **kwargs):
     service = config.celery["worker_service_name"]
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
 
-
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
