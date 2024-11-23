@@ -5,7 +5,6 @@ import subprocess
 from time import sleep
 
 import celery
-from celery import chain
 from celery.exceptions import Retry
 import mock
 import pytest
