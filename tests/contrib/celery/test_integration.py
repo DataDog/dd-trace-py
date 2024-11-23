@@ -5,6 +5,7 @@ import subprocess
 from time import sleep
 
 import celery
+from celery import chain
 from celery.exceptions import Retry
 import mock
 import pytest
@@ -476,6 +477,32 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert sum([1 for trace in traces for span in trace]) == 8
         trace_id = traces[0][0].trace_id
         assert all(trace_id == span.trace_id for trace in traces for span in trace)
+
+    # Ensure that when we call Celery chains, the root span has celery specific span tags
+    def test_task_chain_task_call_task(self):
+        @self.app.task
+        def fn_a():
+            return 1
+
+        @self.app.task
+        def fn_b():
+            return 2
+
+        traces = None
+        try:
+            # See https://github.com/DataDog/dd-trace-py/issues/11479
+            (fn_a.si() | fn_b.si()).delay()
+            import time
+
+            time.sleep(10)
+        except Exception:
+            pass
+
+        traces = self.pop_traces()
+        assert len(traces) == 3
+        # Assert that each celery related span has a celery specific tag like celery.action
+        # TODO figure out why this test passes on the main branch in pytest but not a real app
+        assert all("celery.action" in span._meta.keys() for trace in traces for span in trace)
 
     @mock.patch("kombu.messaging.Producer.publish", mock.Mock(side_effect=ValueError))
     def test_fn_task_apply_async_soft_exception(self):
