@@ -9,7 +9,7 @@ from ddtrace.llmobs._integrations.utils import tag_response_part_google
 
 
 class BaseTracedVertexAIStreamResponse:
-    def __init__(self, generator, model_instance, integration, span, args, kwargs, is_chat):
+    def __init__(self, generator, model_instance, integration, span, args, kwargs, is_chat, history):
         self._generator = generator
         self._model_instance = model_instance
         self._dd_integration = integration
@@ -18,6 +18,7 @@ class BaseTracedVertexAIStreamResponse:
         self._kwargs = kwargs
         self.is_chat = is_chat
         self._chunks = []
+        self._history = history
 
 
 class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
@@ -47,7 +48,8 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
                 self._dd_span,
                 args=self._args,
                 kwargs=self._kwargs,
-                response=self._generator, # TODO: may need to be changed
+                response=self._chunks,
+                history=self._history
             )
             self._dd_span.finish()
 
@@ -79,7 +81,8 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
                 self._dd_span,
                 args=self._args,
                 kwargs=self._kwargs,
-                response=self._generator, # TODO: may need to be changed
+                response=self._chunks,
+                history=self._history
             )
             self._dd_span.finish()
 
