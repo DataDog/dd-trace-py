@@ -42,6 +42,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        history: List[Any] = [],
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("vertexai.request.model") or "")
@@ -50,11 +51,10 @@ class VertexAIIntegration(BaseLLMIntegration):
         instance = kwargs.get("instance", None)
         metadata = self._llmobs_set_metadata(kwargs, instance)
         span.set_tag_str(METADATA, safe_json(metadata))
-
         system_instruction = self._extract_system_instructions(instance)
         # TODO: figure out how to get history from the instance
         input_contents = get_argument_value(args, kwargs, 0, "contents")
-        input_messages = self._extract_input_message(input_contents, system_instruction)
+        input_messages = self._extract_input_message(input_contents, history, system_instruction)
         span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
 
         if span.error or response is None:
@@ -72,6 +72,9 @@ class VertexAIIntegration(BaseLLMIntegration):
         """
         Extract system instructions from model, convert to []str, ad return.
         """
+        # extract model instance from chat session
+        if hasattr(instance, "_model"):
+            instance = instance._model
         raw_system_instructions = getattr(instance, "_system_instruction", [])
         if isinstance(raw_system_instructions, str):
             return [raw_system_instructions]
@@ -124,11 +127,17 @@ class VertexAIIntegration(BaseLLMIntegration):
             message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
         return message
 
-    def _extract_input_message(self, contents, system_instruction=None):
+    def _extract_input_message(self, contents, history, system_instruction=None):
         messages = []
         if system_instruction:
             for instruction in system_instruction:
                 messages.append({"content": instruction or "", "role": "system"})
+        for content in history:
+            role = _get_attr(content, "role", "")
+            parts = _get_attr(content, "parts", [])
+            for part in parts:
+                message = self._extract_message_from_part(part, role)
+                messages.append(message)
         if isinstance(contents, str):
             messages.append({"content": contents})
             return messages
@@ -177,6 +186,24 @@ class VertexAIIntegration(BaseLLMIntegration):
 
     def _extract_output_message(self, generations):
         output_messages = []
+        # streamed responses will be a list of chunks
+        if isinstance(generations, list):
+            message_content = ""
+            tool_calls = []
+            role = "model"
+            for chunk in generations:
+                for candidate in _get_attr(chunk, "candidates", []):
+                    content = _get_attr(candidate, "content", {})
+                    role = _get_attr(content, "role", role)
+                    parts = _get_attr(content, "parts", [])
+                    for part in parts:
+                        message = self._extract_message_from_part(part)
+                        message_content += message.get("content", "")
+                        tool_calls.extend(message.get("tool_calls", []))
+            message = {"content": message_content, "role": role}
+            if tool_calls:
+                message["tool_calls"] = tool_calls
+            return [message]      
         generations_dict = generations.to_dict()
         for candidate in generations_dict.get("candidates", []):
             content = candidate.get("content", {})
