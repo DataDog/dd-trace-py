@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
+from .appsec._iast._utils import _is_iast_enabled
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
@@ -225,7 +226,7 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if asm_config._iast_enabled:
+    if _is_iast_enabled():
         from ddtrace.appsec._iast._patch_modules import patch_iast
         from ddtrace.appsec.iast import enable_iast_propagation
 
