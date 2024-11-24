@@ -1,3 +1,5 @@
+import contextvars
+
 from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
@@ -70,8 +72,6 @@ async def trace_middleware(app, handler):
         request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
         try:
             response = await handler(request)
-            if isinstance(response, web.StreamResponse):
-                request.task.add_done_callback(lambda _: finish_request_span(request, response))
             return response
         except Exception:
             request_span.set_traceback()
@@ -132,8 +132,21 @@ def finish_request_span(request, response):
         response_headers=response.headers,
         route=route,
     )
+    if type(response) is web.StreamResponse and not response.task.done():
+        request_span_var.set(request_span)
+        request.task.add_done_callback(span_done_callback)
 
     request_span.finish()
+
+
+def span_done_callback(task):
+    span = request_span_var.get(None)
+    if span:
+        span.finish()
+        request_span_var.set(None)
+
+
+request_span_var = contextvars.ContextVar("__dd_request_span")
 
 
 async def on_prepare(request, response):
@@ -143,8 +156,6 @@ async def on_prepare(request, response):
     """
     # NB isinstance is not appropriate here because StreamResponse is a parent of the other
     # aiohttp response types
-    if type(response) is web.StreamResponse and not response.task.done():
-        return
     finish_request_span(request, response)
 
 
