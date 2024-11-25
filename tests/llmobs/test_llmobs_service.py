@@ -2085,7 +2085,7 @@ def test_submit_evaluation_for_empty_span_or_trace_id_raises_warning(LLMObs, moc
     )
 
 
-def test_submit_evaluation_for_empty_tag_key_or_val_raises_warning(LLMObs, mock_logs):
+def test_submit_evaluation_for_span_with_tag_empty_key_or_val_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation_for(span_with_tag=("456"), label="toxicity", metric_type="categorical", value="high")
     mock_logs.warning.assert_called_once_with("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
     mock_logs.reset_mock()
@@ -2283,7 +2283,9 @@ def test_submit_evaluation_for_metric_with_metadata_enqueues_metric(LLMObs, mock
     )
 
 
-def test_submit_evaluation_for_with_tag_enqueues_writer_with_categorical_metric(LLMObs, mock_llmobs_eval_metric_writer):
+def test_submit_evaluation_for_span_with_tag_enqueues_writer_with_categorical_metric(
+    LLMObs, mock_llmobs_eval_metric_writer
+):
     LLMObs.submit_evaluation_for(
         span_with_tag=("tag_key", "tag_val"),
         label="toxicity",
