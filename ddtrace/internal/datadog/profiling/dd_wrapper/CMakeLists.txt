@@ -47,8 +47,6 @@ add_library(
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
-target_compile_features(dd_wrapper PUBLIC cxx_std_17)
-
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
 
 target_link_libraries(dd_wrapper PRIVATE ${Datadog_LIBRARIES} Threads::Threads)
@@ -75,7 +73,7 @@ string(TOLOWER ${PLATFORM_SUFFIX} PLATFORM_SUFFIX)
 # but as long as it encodes the major moving parts, it's fine
 set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
 
-set_target_properties(dd_wrapper PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
+set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
 
 # The name of the crashtracker executable has to be propagated to a a few different targets, and it needs to be inferred
 # at runtime, so we set it here.  Any component which used dd_wrapper will have access to a uniform name.

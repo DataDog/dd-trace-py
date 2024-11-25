@@ -170,6 +170,7 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
     assert filtered_metrics == ["executed.source", "request.tainted"]
     assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
+    assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_parameter") > 0
 
 
 @pytest.mark.skip_iast_check_logs

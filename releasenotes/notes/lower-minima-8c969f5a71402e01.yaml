@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    This fix resolves an issue where the default versions of ``click`` and ``jinja2`` installed on 3.8 were outside of the
+    allowed minimum versions for autoinstrumentation.

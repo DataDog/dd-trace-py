@@ -26,7 +26,6 @@ def test_ddup_start():
             service="my_service",
             version="my_version",
             tags={},
-            url="http://localhost:8126",
         )
         ddup.start()
     except Exception as e:
