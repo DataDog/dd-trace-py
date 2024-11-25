@@ -1259,11 +1259,11 @@ def _register_coverage_handlers():
 
 
 @_requires_civisibility_enabled
-def _on_get_tag(get_tag_args: TestBase.GetTagArgs) -> Any:
+def _on_get_tag(get_tag_args: TestBase.GetTagArgs) -> None:
     item_id = get_tag_args.item_id
     key = get_tag_args.name
     log.debug("Handling get tag for item id %s, key %s", item_id, key)
-    return CIVisibility.get_item_by_id(item_id).get_tag(key)
+    core.set_item(f"civisibility.{item_id}.{key}", CIVisibility.get_item_by_id(item_id).get_tag(key))
 
 
 @_requires_civisibility_enabled
