@@ -64,7 +64,7 @@ def ddtrace_iast_flask_patch():
         return
 
     if not patched_ast:
-        log.debug("Patching main flask module failed")
+        log.debug("Main flask module not patched, probably it was not needed")
         return
 
     compiled_code = compile(patched_ast, module_path, "exec")
