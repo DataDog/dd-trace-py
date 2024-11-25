@@ -510,8 +510,7 @@ class DummyEvaluator:
 
 def _dummy_evaluator_eval_metric_event(span_id, trace_id):
     return LLMObsEvaluationMetricEvent(
-        span_id=span_id,
-        trace_id=trace_id,
+        join_on={"span": {"span_id": span_id, "trace_id": trace_id}},
         score_value=1.0,
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,

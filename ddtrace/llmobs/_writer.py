@@ -55,8 +55,7 @@ class LLMObsSpanEvent(TypedDict):
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
-    span_id: str
-    trace_id: str
+    join_on: Dict[str, Dict[str, str]]
     metric_type: str
     label: str
     categorical_value: str
