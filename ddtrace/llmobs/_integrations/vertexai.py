@@ -20,6 +20,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
+from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 import vertexai
 from vertexai.generative_models import Part
 
@@ -52,7 +53,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         metadata = llmobs_get_metadata_google(kwargs, instance)
         span.set_tag_str(METADATA, safe_json(metadata))
         
-        system_instruction = self._extract_system_instructions(instance)
+        system_instruction = get_system_instructions_from_google_model(instance)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
         span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
@@ -66,27 +67,6 @@ class VertexAIIntegration(BaseLLMIntegration):
         usage = get_llmobs_metrics_tags_google("vertexai", span)
         if usage:
             span.set_tag_str(METRICS, safe_json(usage))
-
-    @staticmethod
-    def _extract_system_instructions(instance):
-        """
-        Extract system instructions from model, convert to []str, and return.
-        """
-        raw_system_instructions = getattr(instance, "_system_instruction", [])
-        if isinstance(raw_system_instructions, str):
-            return [raw_system_instructions]
-        elif isinstance(raw_system_instructions, Part):
-            return [raw_system_instructions.text]
-        elif not isinstance(raw_system_instructions, list):
-            return []
-
-        system_instructions = []
-        for elem in raw_system_instructions:
-            if isinstance(elem, str):
-                system_instructions.append(elem)
-            elif isinstance(elem, Part):
-                system_instructions.append(elem.text)
-        return system_instructions
 
 
     def _extract_input_message(self, contents, history, system_instruction=None):

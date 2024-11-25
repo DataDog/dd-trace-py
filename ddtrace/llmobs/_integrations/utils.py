@@ -2,6 +2,8 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+import vertexai
+from vertexai.generative_models import Part
 
 
 def extract_model_name_google(instance, model_name_attr):
@@ -79,15 +81,10 @@ def tag_response_part_google(tag_prefix, span, integration, part, part_idx, cand
 def llmobs_get_metadata_google(kwargs, instance):
     metadata = {}
     model_config = getattr(instance, "_generation_config", {}) or {}
-    try:
-        model_config = model_config.to_dict()
-    except:
-        pass
+    model_config = model_config.to_dict() if hasattr(model_config, "to_dict") else model_config
     request_config = kwargs.get("generation_config", {}) or {}
-    try: 
-        request_config = request_config.to_dict()
-    except:
-        pass
+    request_config = request_config.to_dict() if hasattr(request_config, "to_dict") else request_config
+
     parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
     for param in parameters:
         model_config_value = _get_attr(model_config, param, None)
@@ -130,3 +127,23 @@ def get_llmobs_metrics_tags_google(integration_name, span):
         if total_tokens is not None:
             usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
         return usage
+
+def get_system_instructions_from_google_model(model_instance):
+    """
+    Extract system instructions from model and convert to []str for tagging.
+    """
+    raw_system_instructions = getattr(model_instance, "_system_instruction", [])
+    if isinstance(raw_system_instructions, str):
+        return [raw_system_instructions]
+    elif isinstance(raw_system_instructions, Part):
+        return [_get_attr(raw_system_instructions, "text", "")]
+    elif not isinstance(raw_system_instructions, list):
+        return []
+
+    system_instructions = []
+    for elem in raw_system_instructions:
+        if isinstance(elem, str):
+            system_instructions.append(elem)
+        elif isinstance(elem, Part):
+            system_instructions.append(_get_attr(elem, "text", ""))
+    return system_instructions

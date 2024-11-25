@@ -7,6 +7,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.utils import get_generation_config_google
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
+from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -89,27 +90,6 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
                     history=self._history
                 )
             self._dd_span.finish()
-
-
-def get_system_instruction_texts_from_model(instance):
-    """
-    Extract system instructions from model and convert to []str for tagging.
-    """
-    raw_system_instructions = _get_attr(instance, "_system_instruction", [])
-    if isinstance(raw_system_instructions, str):
-        return [raw_system_instructions]
-    elif isinstance(raw_system_instructions, Part):
-        return [_get_attr(raw_system_instructions, "text", "")]
-    elif not isinstance(raw_system_instructions, list):
-        return []
-
-    system_instructions = []
-    for elem in raw_system_instructions:
-        if isinstance(elem, str):
-            system_instructions.append(elem)
-        elif isinstance(elem, Part):
-            system_instructions.append(_get_attr(elem, "text", ""))
-    return system_instructions
 
 
 def extract_info_from_parts(parts):
@@ -222,7 +202,7 @@ def tag_request(span, integration, instance, args, kwargs):
         generation_config_dict = (
             generation_config if isinstance(generation_config, dict) else generation_config.to_dict()
         )
-    system_instructions = get_system_instruction_texts_from_model(model_instance)
+    system_instructions = get_system_instructions_from_google_model(model_instance)
     stream = kwargs.get("stream", None)
 
     if generation_config_dict is not None:
