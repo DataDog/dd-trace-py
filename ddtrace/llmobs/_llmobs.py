@@ -813,12 +813,6 @@ class LLMObs(Service):
                 "Evaluation metric data will not be sent.",
             )
             return
-        if not config._dd_api_key:
-            log.warning(
-                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                "Ensure this configuration is set before running your application."
-            )
-            return
 
         has_exactly_one_joining_key = (span is not None) ^ (span_with_tag is not None)
 
@@ -849,13 +843,6 @@ class LLMObs(Service):
             ):
                 raise TypeError("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
             join_on["tag"] = {"tag_key": span_with_tag[0], "tag_value": span_with_tag[1]}
-
-        ml_app = ml_app if ml_app else config._llmobs_ml_app
-        if not ml_app:
-            raise ValueError(
-                "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                "Ensure this configuration is set before running your application."
-            )
 
         timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
 
@@ -890,6 +877,20 @@ class LLMObs(Service):
                     evaluation_tags[ensure_text(k)] = ensure_text(v)
                 except TypeError:
                     log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
+
+        if not config._dd_api_key:
+            log.warning(
+                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                "Ensure this configuration is set before running your application."
+            )
+            return
+        ml_app = ml_app if ml_app else config._llmobs_ml_app
+        if not ml_app:
+            log.warning(
+                "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                "Ensure this configuration is set before running your application."
+            )
+            return
 
         evaluation_metric = {
             "join_on": join_on,
@@ -945,7 +946,7 @@ class LLMObs(Service):
                                 evaluation metric.
         """
         if cls.enabled is False:
-            log.warning(
+            log.debug(
                 "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
             )
             return
@@ -973,8 +974,7 @@ class LLMObs(Service):
         timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
 
         if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
-            log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
-            return
+            raise ValueError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
 
         span_id = span_context.get("span_id")
         trace_id = span_context.get("trace_id")

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import threading
 import time
 
@@ -2017,12 +2018,13 @@ def test_service_enable_does_not_start_evaluator_runner():
         llmobs_service.disable()
 
 
-def test_submit_evaluation_for_llmobs_disabled_raises_warning(LLMObs, mock_logs):
+def test_submit_evaluation_for_llmobs_disabled_debug_logs(LLMObs, mock_logs):
     LLMObs.disable()
+    mock_logs.reset_mock()
     LLMObs.submit_evaluation_for(
         span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value="high"
     )
-    mock_logs.warning.assert_called_once_with(
+    mock_logs.debug.assert_called_once_with(
         "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. ", "Evaluation metric data will not be sent."
     )
 
@@ -2055,80 +2057,93 @@ def test_submit_evaluation_for_no_ml_app_raises_warning(LLMObs, mock_logs):
         )
 
 
-def test_submit_evaluation_for_span_incorrect_type_raises_warning(LLMObs, mock_logs):
-    LLMObs.submit_evaluation_for(span="asd", label="toxicity", metric_type="categorical", value="high")
-    mock_logs.warning.assert_called_once_with(
-        "`span` must be a dictionary containing both span_id and trace_id keys. "
-        "LLMObs.export_span() can be used to generate this dictionary from a given span."
-    )
+def test_submit_evaluation_for_span_incorrect_type_raises_error(LLMObs, mock_logs):
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            (
+                "`span` must be a dictionary containing both span_id and trace_id keys. "
+                "LLMObs.export_span() can be used to generate this dictionary from a given span."
+            )
+        ),
+    ):
+        LLMObs.submit_evaluation_for(span="asd", label="toxicity", metric_type="categorical", value="high")
 
 
-def test_submit_evaluation_for_span_with_tag_incorrect_type_raises_warning(LLMObs, mock_logs):
-    LLMObs.submit_evaluation_for(span_with_tag="asd", label="toxicity", metric_type="categorical", value="high")
-    mock_logs.warning.assert_called_once_with("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
-    mock_logs.reset_mock()
-    LLMObs.submit_evaluation_for(span_with_tag=("key", 1), label="toxicity", metric_type="categorical", value="high")
-    mock_logs.warning.assert_called_once_with("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
+def test_submit_evaluation_for_span_with_tag_incorrect_type_raises_error(LLMObs, mock_logs):
+    with pytest.raises(TypeError, match=r"`span_with_tag` must be a tuple of shape \(tag_key, tag_value\)"):
+        LLMObs.submit_evaluation_for(span_with_tag="asd", label="toxicity", metric_type="categorical", value="high")
+    with pytest.raises(TypeError, match=r"`span_with_tag` must be a tuple of shape \(tag_key, tag_value\)"):
+        LLMObs.submit_evaluation_for(
+            span_with_tag=("key", 1), label="toxicity", metric_type="categorical", value="high"
+        )
 
 
-def test_submit_evaluation_for_empty_span_or_trace_id_raises_warning(LLMObs, mock_logs):
-    LLMObs.submit_evaluation_for(span={"trace_id": "456"}, label="toxicity", metric_type="categorical", value="high")
-    mock_logs.warning.assert_called_once_with(
-        "`span` must be a dictionary containing both span_id and trace_id keys. "
-        "LLMObs.export_span() can be used to generate this dictionary from a given span."
-    )
-    mock_logs.reset_mock()
-    LLMObs.submit_evaluation_for(span={"span_id": "456"}, label="toxicity", metric_type="categorical", value="high")
-    mock_logs.warning.assert_called_once_with(
-        "`span` must be a dictionary containing both span_id and trace_id keys. "
-        "LLMObs.export_span() can be used to generate this dictionary from a given span."
-    )
+def test_submit_evaluation_for_empty_span_or_trace_id_raises_error(LLMObs, mock_logs):
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            (
+                "`span` must be a dictionary containing both span_id and trace_id keys. "
+                "LLMObs.export_span() can be used to generate this dictionary from a given span."
+            )
+        ),
+    ):
+        LLMObs.submit_evaluation_for(
+            span={"trace_id": "456"}, label="toxicity", metric_type="categorical", value="high"
+        )
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "`span` must be a dictionary containing both span_id and trace_id keys. "
+            "LLMObs.export_span() can be used to generate this dictionary from a given span."
+        ),
+    ):
+        LLMObs.submit_evaluation_for(span={"span_id": "456"}, label="toxicity", metric_type="categorical", value="high")
 
 
-def test_submit_evaluation_for_span_with_tag_empty_key_or_val_raises_warning(LLMObs, mock_logs):
-    LLMObs.submit_evaluation_for(span_with_tag=("456"), label="toxicity", metric_type="categorical", value="high")
-    mock_logs.warning.assert_called_once_with("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
-    mock_logs.reset_mock()
+def test_submit_evaluation_for_span_with_tag_empty_key_or_val_raises_error(LLMObs, mock_logs):
+    with pytest.raises(TypeError, match=r"`span_with_tag` must be a tuple of shape \(tag_key, tag_value\)"):
+        LLMObs.submit_evaluation_for(span_with_tag=("456"), label="toxicity", metric_type="categorical", value="high")
 
 
-def test_submit_evaluation_for_invalid_timestamp_raises_warning(LLMObs, mock_logs):
-    LLMObs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"},
-        label="",
-        metric_type="categorical",
-        value="high",
-        ml_app="dummy",
-        timestamp_ms="invalid",
-    )
-    mock_logs.warning.assert_called_once_with(
-        "timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
-    )
+def test_submit_evaluation_for_invalid_timestamp_raises_error(LLMObs, mock_logs):
+    with pytest.raises(
+        ValueError, match="timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
+    ):
+        LLMObs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"},
+            label="",
+            metric_type="categorical",
+            value="high",
+            ml_app="dummy",
+            timestamp_ms="invalid",
+        )
 
 
-def test_submit_evaluation_for_empty_label_raises_warning(LLMObs, mock_logs):
-    LLMObs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"}, label="", metric_type="categorical", value="high"
-    )
-    mock_logs.warning.assert_called_once_with("label must be the specified name of the evaluation metric.")
+def test_submit_evaluation_for_empty_label_raises_error(LLMObs, mock_logs):
+    with pytest.raises(ValueError, match="label must be the specified name of the evaluation metric."):
+        LLMObs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"}, label="", metric_type="categorical", value="high"
+        )
 
 
-def test_submit_evaluation_for_incorrect_metric_type_raises_warning(LLMObs, mock_logs):
-    LLMObs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
-    )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
-    mock_logs.reset_mock()
-    LLMObs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
-    )
-    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
+def test_submit_evaluation_for_incorrect_metric_type_raises_error(LLMObs, mock_logs):
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical' or 'score'."):
+        LLMObs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
+        )
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical' or 'score'."):
+        LLMObs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
+        )
 
 
-def test_submit_evaluation_for_incorrect_score_value_type_raises_warning(LLMObs, mock_logs):
-    LLMObs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="score", value="high"
-    )
-    mock_logs.warning.assert_called_once_with("value must be an integer or float for a score metric.")
+def test_submit_evaluation_for_incorrect_score_value_type_raises_error(LLMObs, mock_logs):
+    with pytest.raises(TypeError, match="value must be an integer or float for a score metric."):
+        LLMObs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="score", value="high"
+        )
 
 
 def test_submit_evaluation_for_invalid_tags_raises_warning(LLMObs, mock_logs):
