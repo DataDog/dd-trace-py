@@ -6,5 +6,5 @@ export const options = {
 };
 
 export default function () {
-    const res = http.get('http://127.0.0.1:8080/polls/123/vote/');
+    const res = http.get('http://127.0.0.1:8080/polls/123/results/');
 }
