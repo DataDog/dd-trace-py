@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    Format: LLM Observability: This introduces the ability to submit custom evaluations joined to a span by a tag key-value pair using the
+            `LLMObs.submit_evaluation_for()` method. The tag key-value pair is expected to uniquely a span.
+            Example usage: 
+              - Evaluation joined by tag: `LLMObs.submit_evaluation_for(span_with_tag=("message_id", "dummy-message-id"), label="rating", ...)`.
+              - Evaluation joined by trace/span ID: `LLMObs.submit_evaluation_for(span={"trace_id": "...", "span_id": "..."}, label="rating", ...)`.
+deprecations:
+  - |
+    Format: LLM Observability: `LLMObs.submit_evaluation` is deprecated and will be removed in <version_to_be_removed>.
+            As an alternative to `LLMObs.submit_evaluation`, you can use `LLMObs.submit_evaluation_for` instead.
