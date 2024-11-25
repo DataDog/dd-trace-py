@@ -723,7 +723,6 @@ venv = Venv(
                         "celery[redis]": [
                             latest,
                         ],
-                        "redis": "~=3.5",
                     },
                 ),
             ],
