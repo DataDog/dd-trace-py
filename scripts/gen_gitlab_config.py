@@ -200,6 +200,8 @@ TESTS_GEN = GITLAB / "tests-gen.yml"
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
 
+has_error = False
+
 LOGGER.info("Configuration generation steps:")
 for name, func in dict(globals()).items():
     if name.startswith("gen_"):
@@ -207,8 +209,9 @@ for name, func in dict(globals()).items():
         try:
             start = time()
             func()
-            end = time()
-            LOGGER.info("- %s: %s [took %dms]", name, desc, int((end - start) / 1e6))
+            LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
         except Exception as e:
             LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
             has_error = True
+
+sys.exit(has_error)

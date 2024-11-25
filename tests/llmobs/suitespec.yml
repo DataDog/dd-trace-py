@@ -42,9 +42,9 @@ suites:
     - '@llmobs'
     - tests/contrib/google_generativeai/*
     - tests/snapshots/tests.contrib.google_generativeai.*
-  vertexai:
     runner: riot
     snapshot: true
+  vertexai:
     paths:
       - '@bootstrap'
       - '@core'
