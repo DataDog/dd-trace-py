@@ -9,7 +9,7 @@
     "type": "redis",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.rediscluster",
       "_dd.p.dm": "-0",
       "component": "rediscluster",
       "db.system": "redis",
@@ -40,7 +40,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.rediscluster",
       "_dd.p.dm": "-0",
       "language": "python",
       "runtime-id": "1e05369c917e47d6a0c31264f74a62b3"
@@ -64,7 +64,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.rediscluster",
          "component": "rediscluster",
          "db.system": "redis",
          "redis.raw_command": "GET put_key_in_resource",
@@ -89,7 +89,7 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.rediscluster",
          "component": "rediscluster",
          "db.system": "redis",
          "redis.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",

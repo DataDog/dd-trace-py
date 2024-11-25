@@ -179,6 +179,20 @@ def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
 
 
 @pytest.fixture
+def ddtrace_tmp_path(tmp_path):
+    # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
+    ddtrace_dir = tmp_path / DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+    ddtrace_dir.mkdir(exist_ok=True)  # Create the directory if it doesn't exist
+
+    # Check for __init__.py and create it if it doesn't exist
+    init_file = ddtrace_dir / "__init__.py"
+    if not init_file.exists():
+        init_file.write_text("")  # Create an empty __init__.py file
+
+    return ddtrace_dir
+
+
+@pytest.fixture
 def run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
         pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)

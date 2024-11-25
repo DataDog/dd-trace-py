@@ -13,6 +13,7 @@ from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
@@ -45,6 +46,9 @@ class ModuleCodeCollector(ModuleWatchdog):
         # By default, exclude standard / venv paths (eg: avoids over-instrumenting cases where a virtualenv is created
         # in the root directory of a repository)
         self._exclude_paths: t.List[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
+
+        # Avoid instrumenting anything in the current module
+        self._exclude_paths.append(Path(__file__).resolve().parent)
 
         self._coverage_enabled: bool = False
         self.seen: t.Set[t.Tuple[CodeType, str]] = set()
@@ -321,6 +325,9 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         if any(code_path.is_relative_to(exclude_path) for exclude_path in self._exclude_paths):
             # Don't instrument code from standard library/site packages/etc.
+            return code
+
+        if not is_user_code(code_path):
             return code
 
         retval = self.instrument_code(code, _module.__package__ if _module is not None else "")

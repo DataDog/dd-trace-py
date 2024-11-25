@@ -22,7 +22,7 @@ import pytest
         "OTEL_SDK_DISABLED": "True",
         "DD_TRACE_OTEL_ENABLED": "True",
     },
-    err=b"Unsupported OTEL logs exporter value detected: warning. Only the 'none' value is supported.\n",
+    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_dd_otel_mixed_env_configuration():
     from ddtrace import config
@@ -54,8 +54,8 @@ def test_dd_otel_mixed_env_configuration():
         "OTEL_SDK_DISABLED": "False",
     },
     err=b"Following style not supported by ddtrace: jaegar.\n"
-    b"A trace exporter value 'otlp' is set, but not supported. Traces will be exported to Datadog.\n"
-    b"Unsupported OTEL logs exporter value detected: warning. Only the 'none' value is supported.\n",
+    b"Setting OTEL_TRACES_EXPORTER to otlp is not supported by ddtrace, "
+    b"this configuration will be ignored.\n",
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
@@ -93,7 +93,7 @@ def test_otel_log_level_configuration_debug():
 
 @pytest.mark.subprocess(
     env={"OTEL_LOG_LEVEL": "trace"},
-    err=b"ddtrace does not support otel log level 'trace'. ddtrace only supports enabling debug logs.\n",
+    err=b"Setting OTEL_LOG_LEVEL to trace is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_log_level_configuration_info():
     from ddtrace import config
@@ -103,7 +103,7 @@ def test_otel_log_level_configuration_info():
 
 @pytest.mark.subprocess(
     env={"OTEL_LOG_LEVEL": "warning"},
-    err=b"ddtrace does not support otel log level 'warning'. ddtrace only supports enabling debug logs.\n",
+    err=b"Setting OTEL_LOG_LEVEL to warning is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_log_level_configuration_unsupported():
     from ddtrace import config
@@ -162,7 +162,8 @@ def test_otel_traces_sampler_configuration_alwaysoff():
         "OTEL_TRACES_SAMPLER": "traceidratio",
         "OTEL_TRACES_SAMPLER_ARG": "0.5",
     },
-    err=b"Trace sampler set from traceidratio to parentbased_traceidratio; only parent based sampling is supported.\n",
+    err=b"Trace sampler set from traceidratio to parentbased_traceidratio; only parent based sampling is supported.\n"
+    b"OpenTelemetry configuration OTEL_TRACES_SAMPLER_ARG is not supported by Datadog.\n",
 )
 def test_otel_traces_sampler_configuration_traceidratio():
     from ddtrace import config
@@ -179,7 +180,7 @@ def test_otel_traces_exporter_configuration():
 
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_EXPORTER": "true"},
-    err=b"A trace exporter value 'true' is set, but not supported. Traces will be exported to Datadog.\n",
+    err=b"Setting OTEL_TRACES_EXPORTER to true is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_traces_exporter_configuration_unsupported_exporter():
     from ddtrace import config
@@ -196,7 +197,7 @@ def test_otel_metrics_exporter_configuration():
 
 @pytest.mark.subprocess(
     env={"OTEL_METRICS_EXPORTER": "true"},
-    err=b"Metrics exporter value is set to unrecognized value: true.\n",
+    err=b"Setting OTEL_METRICS_EXPORTER to true is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_metrics_exporter_configuration_unsupported_exporter():
     from ddtrace import config
@@ -206,7 +207,7 @@ def test_otel_metrics_exporter_configuration_unsupported_exporter():
 
 @pytest.mark.subprocess(
     env={"otel_LOGS_EXPORTER": "console"},
-    err=b"Unsupported OTEL logs exporter value detected: console. Only the 'none' value is supported.\n",
+    err=b"Setting OTEL_LOGS_EXPORTER to console is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_logs_exporter_configuration_unsupported():
     from ddtrace import config  # noqa: F401
@@ -233,8 +234,8 @@ def test_otel_resource_attributes_unified_tags():
 
 @pytest.mark.subprocess(
     env={"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment:prod,service.name:bleh,service.version:1.0"},
-    err=b"DDTRACE failed to read OTEL_RESOURCE_ATTRIBUTES. This value is misformatted: "
-    b"deployment.environment:prod,service.name:bleh,service.version:1.0\n",
+    err=b"Setting OTEL_RESOURCE_ATTRIBUTES to deployment.environment:prod,service.name:bleh,service.version:1.0"
+    b" is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_resource_attributes_misconfigured_tags():
     from ddtrace import config  # noqa: F401

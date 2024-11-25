@@ -9,7 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "asyncpg",
@@ -35,7 +35,7 @@
 [
   {
     "name": "parent",
-    "service": "",
+    "service": "tests.contrib.asyncpg",
     "resource": "parent",
     "trace_id": 1,
     "span_id": 1,
@@ -67,7 +67,7 @@
        "type": "sql",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.asyncpg",
          "_dd.p.tid": "654a694400000000",
          "component": "asyncpg",
          "db.name": "postgres",
@@ -88,7 +88,7 @@
 [
   {
     "name": "parent2",
-    "service": "",
+    "service": "tests.contrib.asyncpg",
     "resource": "parent2",
     "trace_id": 2,
     "span_id": 1,
@@ -121,7 +121,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "asyncpg",
