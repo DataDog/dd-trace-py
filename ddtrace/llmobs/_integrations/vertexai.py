@@ -52,7 +52,6 @@ class VertexAIIntegration(BaseLLMIntegration):
         metadata = self._llmobs_set_metadata(kwargs, instance)
         span.set_tag_str(METADATA, safe_json(metadata))
         system_instruction = self._extract_system_instructions(instance)
-        # TODO: figure out how to get history from the instance
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
         span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
@@ -72,9 +71,6 @@ class VertexAIIntegration(BaseLLMIntegration):
         """
         Extract system instructions from model, convert to []str, ad return.
         """
-        # extract model instance from chat session
-        if hasattr(instance, "_model"):
-            instance = instance._model
         raw_system_instructions = getattr(instance, "_system_instruction", [])
         if isinstance(raw_system_instructions, str):
             return [raw_system_instructions]
