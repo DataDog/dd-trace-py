@@ -106,6 +106,8 @@ def test_asyncio():
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
             task_name=t1_name,
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
             locations=[
                 pprof_utils.StackLocation(
                     function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
@@ -120,6 +122,8 @@ def test_asyncio():
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
             task_name=t2_name,
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
             locations=[
                 pprof_utils.StackLocation(
                     function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
