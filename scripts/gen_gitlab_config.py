@@ -78,21 +78,29 @@ def gen_required_suites() -> None:
     suites = get_suites()
     required_suites = []
 
-    for suite in suites:
-        if suite not in jobspecs:
-            print(f"WARNING: Suite {suite} has no jobspec", file=sys.stderr)
-            continue
+    changed_files = extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", ""))
 
-    for job in jobspecs:
-        if job not in suites:
-            print(f"WARNING: Job {job} has no suitespec", file=sys.stderr)
-            continue
+    lockfiles = any(Path(f).parent.name == ".riot/requirements/" for f in changed_files)
 
-    fetn(
-        suites=sorted(suites),
-        action=lambda suite: required_suites.append(suite),
-        git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
-    )
+    # If any requirements.txt file is modified, run all suites
+    if lockfiles:
+        required_suites.extend(suites)  # Add all available suites to the required_suites list
+    else:
+        for suite in suites:
+            if suite not in jobspecs:
+                print(f"WARNING: Suite {suite} has no jobspec", file=sys.stderr)
+                continue
+
+        for job in jobspecs:
+            if job not in suites:
+                print(f"WARNING: Job {job} has no suitespec", file=sys.stderr)
+                continue
+
+        fetn(
+            suites=sorted(suites),
+            action=lambda suite: required_suites.append(suite),
+            git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
+        )
 
     # Copy the template file
     (GITLAB / "tests-gen.yml").write_text(
