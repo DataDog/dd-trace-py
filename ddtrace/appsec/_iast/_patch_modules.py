@@ -8,6 +8,8 @@ IAST_PATCH = {
     "weak_hash": True,
 }
 
+_is_iast_patched = False
+
 
 def patch_iast(patch_modules=IAST_PATCH):
     """Load IAST vulnerabilities sink points.
@@ -17,6 +19,9 @@ def patch_iast(patch_modules=IAST_PATCH):
     # TODO: Devise the correct patching strategy for IAST
     from ddtrace._monkey import _on_import_factory
 
+    global _is_iast_patched
+    if _is_iast_patched:
+        return
     for module in (m for m, e in patch_modules.items() if e):
         when_imported("hashlib")(
             _on_import_factory(module, prefix="ddtrace.appsec._iast.taint_sinks", raise_errors=False)
@@ -25,3 +30,4 @@ def patch_iast(patch_modules=IAST_PATCH):
     when_imported("json")(
         _on_import_factory("json_tainting", prefix="ddtrace.appsec._iast._patches", raise_errors=False)
     )
+    _is_iast_patched = True
