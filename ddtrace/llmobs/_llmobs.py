@@ -869,17 +869,10 @@ class LLMObs(Service):
             log.warning("label must be the specified name of the evaluation metric.")
             return
 
-        if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score"):
+        metric_type = metric_type.lower()
+        if metric_type not in ("categorical", "score"):
             log.warning("metric_type must be one of 'categorical' or 'score'.")
             return
-
-        metric_type = metric_type.lower()
-        if metric_type == "numerical":
-            log.warning(
-                "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
-                "Converting `numerical` metric to `score` type."
-            )
-            metric_type = "score"
 
         if metric_type == "categorical" and not isinstance(value, str):
             log.warning("value must be a string for a categorical metric.")
