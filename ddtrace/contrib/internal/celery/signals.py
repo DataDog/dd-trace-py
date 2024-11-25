@@ -187,17 +187,18 @@ def trace_after_publish(*args, **kwargs):
 
         if broker_url == "memory://":
             host = broker_url
-
         else:
             parsed_url = urlparse(broker_url)
 
-            host = ""
+            host = None
             if parsed_url.hostname:
                 host = parsed_url.hostname
 
             if parsed_url.port:
                 span.set_metric(net.TARGET_PORT, parsed_url.port)
-        span.set_tag_str(net.TARGET_HOST, host)
+
+        if host:
+            span.set_tag_str(net.TARGET_HOST, host)
 
         span.finish()
         detach_span(task, task_id, is_publish=True)
