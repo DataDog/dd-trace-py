@@ -8,5 +8,5 @@ features:
               - Evaluation joined by trace/span ID: `LLMObs.submit_evaluation_for(span={"trace_id": "...", "span_id": "..."}, label="rating", ...)`.
 deprecations:
   - |
-    Format: LLM Observability: `LLMObs.submit_evaluation` is deprecated and will be removed in <version_to_be_removed>.
+    Format: LLM Observability: `LLMObs.submit_evaluation` is deprecated and will be removed in 3.0.0.
             As an alternative to `LLMObs.submit_evaluation`, you can use `LLMObs.submit_evaluation_for` instead.

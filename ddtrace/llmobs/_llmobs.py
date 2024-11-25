@@ -23,6 +23,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -59,6 +60,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -934,12 +936,10 @@ class LLMObs(Service):
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
     ) -> None:
-        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-        from ddtrace.vendor.debtcollector import deprecate
-
         deprecate(
-            "The ddtrace.context module is deprecated and will be removed from the public API.",
-            message="Context should be imported from the ddtrace.trace package",
+            "Using `LLMObs.submit_evaluation` is deprecated",
+            message="Please use `LLMObs.submit_evaluation_for` instead.",
+            removal_version="3.0.0",
             category=DDTraceDeprecationWarning,
         )
 
