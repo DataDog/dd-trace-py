@@ -22,7 +22,6 @@ def test_asyncio():
     from ddtrace import ext
     from ddtrace import tracer
     from ddtrace.internal.datadog.profiling import stack_v2
-    from ddtrace.profiling import _asyncio
     from ddtrace.profiling import profiler
     from tests.profiling.collector import _asyncio_compat
     from tests.profiling.collector import pprof_utils
