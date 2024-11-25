@@ -371,7 +371,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
         self._atr_get_retry_test(retry_number).finish_test(status, exc_info=exc_info)
 
-    def atr_get_final_status(self) -> TestStatus:
+    def atr_get_final_status(self) -> TestStatus: # ꙮ
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:
             return self._status
 

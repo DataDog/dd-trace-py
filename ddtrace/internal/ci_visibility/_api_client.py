@@ -21,6 +21,7 @@ from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.constants import DETAILED_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import UNIQUE_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
@@ -88,6 +89,11 @@ class EarlyFlakeDetectionSettings:
 
 
 @dataclasses.dataclass(frozen=True)
+class QuarantineSettings:
+    enabled: bool = False
+
+
+@dataclasses.dataclass(frozen=True)
 class TestVisibilityAPISettings:
     __test__ = False
     coverage_enabled: bool = False
@@ -96,6 +102,7 @@ class TestVisibilityAPISettings:
     itr_enabled: bool = False
     flaky_test_retries_enabled: bool = False
     early_flake_detection: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
+    quarantine: QuarantineSettings = dataclasses.field(default_factory=QuarantineSettings)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -372,6 +379,11 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 )
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()
+
+            quarantine = QuarantineSettings(
+                enabled=attributes.get("quarantine", {}).get("enabled", False) # TODO: assume it's present
+            )
+
         except KeyError:
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             raise
@@ -383,6 +395,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             itr_enabled=itr_enabled,
             flaky_test_retries_enabled=flaky_test_retries_enabled,
             early_flake_detection=early_flake_detection,
+            quarantine=quarantine,
         )
 
         record_settings_response(
@@ -391,6 +404,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             api_settings.require_git,
             api_settings.itr_enabled,
             api_settings.early_flake_detection.enabled,
+            api_settings.quarantine.enabled,
         )
 
         return api_settings
@@ -492,6 +506,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         }
 
         try:
+            # ꙮ Change to the new tests/detailed endpoint.
             parsed_response = self._do_request_with_telemetry(
                 "POST", UNIQUE_TESTS_ENDPOINT, json.dumps(payload), metric_names
             )
@@ -524,6 +539,77 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         record_early_flake_detection_tests_count(len(unique_test_ids))
 
         return unique_test_ids
+
+    def fetch_test_details(self):
+        metric_names = APIRequestMetricNames(
+            count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST,
+            duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS,
+            response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES,
+            error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS,
+        ) # ꙮ
+
+        payload = {
+            "data": {
+                "id": str(uuid4()),
+                "type": "ci_app_libraries_tests_detailed",
+                "attributes": {
+                    "service": self._service,
+                    "env": self._dd_env,
+                    "repository_url": self._git_data.repository_url,
+                    "configurations": self._configurations,
+                },
+            }
+        }
+
+        test_details = TestDetails()
+
+        try:
+            parsed_response = self._do_request_with_telemetry(
+                "POST", DETAILED_TESTS_ENDPOINT, json.dumps(payload), metric_names
+            )
+        except Exception:  # noqa: E722
+            return None
+
+        if "errors" in parsed_response:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            log.debug("Detailed tests response contained an error")
+            return None
+
+        try:
+            modules_data = parsed_response["data"]["attributes"]["modules"]
+        except KeyError:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        try:
+            for module in modules_data:
+                module_id = TestModuleId(module["id"])
+                for suite in module["suites"]:
+                    suite_id = TestSuiteId(module_id, suite["id"])
+                    for test in suite["tests"]:
+                        test_id = InternalTestId(suite_id, test["id"])
+                        test_properties = test.get("properties", {})
+                        test_details.test_properties[test_id] = test_properties
+
+        except Exception:  # noqa: E722
+            log.debug("Failed to parse detailed tests data", exc_info=True)
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        record_early_flake_detection_tests_count(len(test_details.unique_test_ids()))
+
+        return test_details
+
+
+class TestDetails:
+    def __init__(self):
+        self.test_properties: t.Dict[InternalTestId, t.Dict[str, Any]] = {}
+
+    def unique_test_ids(self):
+        return set(self.test_properties.keys())
+
+    def is_quarantined_test(self, test_id: InternalTestId) -> bool:
+        return self.test_properties.get(test_id, {}).get("quarantined", false)
 
 
 class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):

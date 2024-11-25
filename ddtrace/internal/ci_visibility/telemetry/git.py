@@ -51,6 +51,7 @@ def record_settings_response(
     require_git: Optional[bool] = False,
     itr_enabled: Optional[bool] = False,
     early_flake_detection_enabled: Optional[bool] = False,
+    quarantine_enabled: Optional[bool] = False,
 ) -> None:
     log.debug(
         "Recording settings telemetry: %s, %s, %s, %s, %s",
@@ -72,6 +73,8 @@ def record_settings_response(
         response_tags.append(("itr_enabled", "1"))
     if early_flake_detection_enabled:
         response_tags.append(("early_flake_detection_enabled", "1"))
+    if quarantine_enabled:
+        response_tags.append(("quarantine_enabled", "1"))
 
     if response_tags:
         telemetry_writer.add_count_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_RESPONSE, 1, tuple(response_tags))

@@ -37,8 +37,10 @@ from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.internal.ci_visibility._api_client import TestDetails
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
@@ -201,6 +203,7 @@ class CIVisibility(Service):
         self._itr_meta = {}  # type: Dict[str, Any]
         self._itr_data: Optional[ITRData] = None
         self._unique_test_ids: Set[InternalTestId] = set()
+        self._test_details = TestDetails()
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -419,7 +422,15 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return cls._instance._api_settings.flaky_test_retries_enabled and asbool(
-            os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True)
+            os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True) ## ????
+        )
+
+    @classmethod
+    def is_quarantine_enabled(cls):
+        if cls._instance is None:
+            return False
+        return cls._instance._api_settings.quarantine.enabled and asbool(
+            os.getenv("DD_TEST_QUARANTINE_ENABLED", default=True)
         )
 
     @classmethod
@@ -522,11 +533,13 @@ class CIVisibility(Service):
             "Final settings: coverage collection: %s, "
             "test skipping: %s, "
             "Early Flake Detection: %s, "
-            "Auto Test Retries: %s",
+            "Auto Test Retries: %s, ",
+            "Quarantine: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
             CIVisibility.is_efd_enabled(),
             CIVisibility.is_atr_enabled(),
+            CIVisibility.is_quarantine_enabled(),
         )
 
     @classmethod
@@ -798,6 +811,17 @@ class CIVisibility(Service):
         return None
 
     @classmethod
+    def get_quarantine_api_settings(cls) -> Optional[QuarantineSettings]:
+        if not cls.enabled:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        instance = cls.get_instance()
+        if instance is None or instance._api_settings is None:
+            return None
+        return instance._api_settings.quarantine
+
+    @classmethod
     def get_workspace_path(cls) -> Optional[str]:
         if not cls.enabled:
             error_msg = "CI Visibility is not enabled"
@@ -916,6 +940,10 @@ def _on_discover_session(
     if atr_api_settings is None or not CIVisibility.is_atr_enabled():
         atr_api_settings = AutoTestRetriesSettings()
 
+    quarantine_api_settings = CIVisibility.get_quarantine_api_settings()
+    if quarantine_api_settings is None or not CIVisibility.is_quatantine_enabled():
+        quarantine_api_settings = QuarantineSettings() ## is this really needed?
+
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
         test_service=test_service,
@@ -937,6 +965,7 @@ def _on_discover_session(
         coverage_enabled=CIVisibility.should_collect_coverage(),
         efd_settings=efd_api_settings,
         atr_settings=atr_api_settings,
+        quarantine_settings=quarantine_api_settings,
     )
 
     session = TestVisibilitySession(
