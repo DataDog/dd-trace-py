@@ -663,7 +663,7 @@ def _on_test_visibility_disable() -> None:
 def _on_test_visibility_is_enabled() -> bool:
     from ddtrace.internal.ci_visibility import CIVisibility
 
-    return CIVisibility.enabled
+    core.set_item("civisibility_enabled", CIVisibility.enabled)
 
 
 def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescription) -> None:
