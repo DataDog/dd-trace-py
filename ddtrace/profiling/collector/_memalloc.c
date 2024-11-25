@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <pthread.h>
+
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
@@ -21,6 +23,8 @@ typedef struct
     /* The maximum number of frames collected in stack traces */
     uint16_t max_nframe;
 } memalloc_context_t;
+
+static pthread_mutex_t global_mu = PTHREAD_MUTEX_INITIALIZER;
 
 /* We only support being started once, so we use a global context for the whole
    module. If we ever want to be started multiple twice, we'd need a more
@@ -53,9 +57,19 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 
     global_alloc_tracker->alloc_count++;
 
+    if (!PyGILState_Check()) {
+        // die
+        *(int*)0 = 0;
+    }
+
     /* Avoid loops */
     if (memalloc_get_reentrant())
         return;
+
+    // Returns 0 on success
+    if (pthread_mutex_trylock(&global_mu)) {
+        *(int*)1 = 0;
+    }
 
     /* Determine if we can capture or if we need to sample */
     if (global_alloc_tracker->allocs.count < ctx->max_events) {
@@ -83,6 +97,8 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
             }
         }
     }
+
+    pthread_mutex_unlock(&global_mu);
 }
 
 static void
@@ -310,10 +326,22 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
     if (!iestate)
         return NULL;
 
+    if (!PyGILState_Check()) {
+        // die
+        *(int*)0 = 0;
+    }
+
+    // Returns 0 on success
+    if (pthread_mutex_trylock(&global_mu)) {
+        *(int*)2 = 0;
+    }
+
     iestate->alloc_tracker = global_alloc_tracker;
     /* reset the current traceback list */
     global_alloc_tracker = alloc_tracker_new();
     iestate->seq_index = 0;
+
+    pthread_mutex_unlock(&global_mu);
 
     PyObject* iter_and_count = PyTuple_New(3);
     PyTuple_SET_ITEM(iter_and_count, 0, (PyObject*)iestate);
@@ -326,6 +354,10 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
 static void
 iterevents_dealloc(IterEventsState* iestate)
 {
+    if (!PyGILState_Check()) {
+        // die
+        *(int*)0 = 0;
+    }
     alloc_tracker_free(iestate->alloc_tracker);
     Py_TYPE(iestate)->tp_free(iestate);
 }
@@ -334,6 +366,10 @@ static PyObject*
 iterevents_next(IterEventsState* iestate)
 {
     if (iestate->seq_index < iestate->alloc_tracker->allocs.count) {
+        if (!PyGILState_Check()) {
+            // die
+            *(int*)0 = 0;
+        }
         traceback_t* tb = iestate->alloc_tracker->allocs.tab[iestate->seq_index];
         iestate->seq_index++;
 

@@ -67,6 +67,10 @@ heap_tracker_freeze(heap_tracker_t* heap_tracker)
 static void
 heap_tracker_untrack_thawed(heap_tracker_t* heap_tracker, void* ptr)
 {
+    if (!PyGILState_Check()) {
+        // die
+        *(int*)0 = 0;
+    }
     /* This search is O(n) where `n` is the number of tracked traceback,
        which is linearly linked to the heap size. This search could probably be
        optimized in a couple of ways:
@@ -93,6 +97,10 @@ heap_tracker_untrack_thawed(heap_tracker_t* heap_tracker, void* ptr)
 static void
 heap_tracker_thaw(heap_tracker_t* heap_tracker)
 {
+    if (!PyGILState_Check()) {
+        // die
+        *(int*)0 = 0;
+    }
     /* Add the frozen allocs at the end */
     traceback_array_splice(&heap_tracker->allocs,
                            heap_tracker->allocs.count,
@@ -133,6 +141,10 @@ memalloc_heap_tracker_deinit(void)
 void
 memalloc_heap_untrack(void* ptr)
 {
+    if (!PyGILState_Check()) {
+        // die
+        *(int*)0 = 0;
+    }
     if (global_heap_tracker.frozen) {
         /* Check that we still have space to store the free. If we don't have
            enough space, we ignore the untrack. That's sad as there is a change
@@ -152,6 +164,10 @@ memalloc_heap_untrack(void* ptr)
 bool
 memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
+    if (!PyGILState_Check()) {
+        // die
+        *(int*)0 = 0;
+    }
     /* Heap tracking is disabled */
     if (global_heap_tracker.sample_size == 0)
         return false;
@@ -198,6 +214,10 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
 PyObject*
 memalloc_heap()
 {
+    if (!PyGILState_Check()) {
+        // die
+        *(int*)0 = 0;
+    }
     heap_tracker_freeze(&global_heap_tracker);
 
     PyObject* heap_list = PyList_New(global_heap_tracker.allocs.count);
