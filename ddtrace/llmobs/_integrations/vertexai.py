@@ -69,7 +69,7 @@ class VertexAIIntegration(BaseLLMIntegration):
     @staticmethod
     def _extract_system_instructions(instance):
         """
-        Extract system instructions from model, convert to []str, ad return.
+        Extract system instructions from model, convert to []str, and return.
         """
         raw_system_instructions = getattr(instance, "_system_instruction", [])
         if isinstance(raw_system_instructions, str):
@@ -90,13 +90,14 @@ class VertexAIIntegration(BaseLLMIntegration):
     @staticmethod
     def _llmobs_set_metadata(kwargs, instance):
         metadata = {}
-        model_config = _get_attr(instance, "_generation_config", {})
+        model_config = getattr(instance, "_generation_config") or {}
+        model_config_dict = model_config if isinstance(model_config, dict) else model_config.to_dict()
         request_config = kwargs.get("generation_config", {})
-        request_config = request_config if isinstance(request_config, dict) else request_config.to_dict()
+        request_config_dict = request_config if isinstance(request_config, dict) else request_config.to_dict()
         parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
         for param in parameters:
-            model_config_value = _get_attr(model_config, param, None)
-            request_config_value = _get_attr(request_config, param, None)
+            model_config_value = model_config_dict.get(param, None)
+            request_config_value = request_config_dict.get(param, None)
             if model_config_value or request_config_value:
                 metadata[param] = request_config_value or model_config_value
         return metadata
@@ -136,12 +137,6 @@ class VertexAIIntegration(BaseLLMIntegration):
                 messages.append(message)
         if isinstance(contents, str):
             messages.append({"content": contents})
-            return messages
-        if isinstance(contents, dict):
-            message = {"content": contents.get("text", "")}
-            if contents.get("role", None):
-                message["role"] = contents["role"]
-            messages.append(message)
             return messages
         if isinstance(contents, Part):
             message = self._extract_message_from_part(contents)

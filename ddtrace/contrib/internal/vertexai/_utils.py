@@ -241,7 +241,7 @@ def tag_request(span, integration, instance, args, kwargs):
             integration.trunc(str(text)),
         )
 
-    if isinstance(contents, str) or isinstance(contents, dict):
+    if isinstance(contents, str):
         span.set_tag_str("vertexai.request.contents.0.text", integration.trunc(str(contents)))
         return
     elif isinstance(contents, Part):
