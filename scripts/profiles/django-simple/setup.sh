@@ -6,9 +6,7 @@ PREFIX=${1}
 AUSTIN_VERSION="3.6"
 K6_VERSION="0.26.2"
 
-export DJANGO_SETTINGS_MODULE="config.settings.production"
 export DJANGO_ALLOWED_HOSTS="127.0.0.1"
-export DJANGO_SECRET_KEY="SECRET_KEY"
 export DATABASE_URL="sqlite:///django.db"
 
 # Clean up existing installation
@@ -26,12 +24,12 @@ source ${PREFIX}/bin/activate
 pip install pip --upgrade
 
 # Install the application
-git clone https://github.com/DataDog/trace-examples.git ${PREFIX}/trace-examples
+test -d ${PREFIX}/trace-examples || git clone -b sample-django --single-branch https://github.com/DataDog/trace-examples.git ${PREFIX}/trace-examples
 pushd ${PREFIX}/trace-examples/
-    git checkout origin/django-simple
-    pushd python/django/django-simple
-        pip install -r requirements/production.txt
+    pushd python/django/sample-django
+        pip install -r requirements.txt
         python manage.py migrate
+        python manage.py collectstatic
     popd
 popd
 
