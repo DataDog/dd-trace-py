@@ -29,7 +29,7 @@ else:
 FILE_PATH = Path(__file__).resolve().parent
 _INSIDE_ENV_RUNNER_PATH = os.path.join(FILE_PATH, "inside_env_runner.py")
 # Use this function if you want to test one or a filter number of package for debug proposes
-# SKIP_FUNCTION = lambda package: package.name == "google-auth"  # noqa: E731
+# SKIP_FUNCTION = lambda package: package.name == "pygments"  # noqa: E731
 SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 # Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
