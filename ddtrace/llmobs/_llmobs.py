@@ -808,7 +808,7 @@ class LLMObs(Service):
                                 evaluation metric.
         """
         if cls.enabled is False:
-            log.warning(
+            log.debug(
                 "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. ",
                 "Evaluation metric data will not be sent.",
             )
@@ -823,8 +823,9 @@ class LLMObs(Service):
         has_exactly_one_joining_key = (span is not None) ^ (span_with_tag is not None)
 
         if not has_exactly_one_joining_key:
-            log.warning("Exactly one of `span` or `span_with_tag` must be specified to submit an evaluation metric.")
-            return
+            raise ValueError(
+                "Exactly one of `span` or `span_with_tag` must be specified to submit an evaluation metric."
+            )
 
         join_on = {}
         if span is not None:
@@ -835,11 +836,10 @@ class LLMObs(Service):
                 or not isinstance(span.get("span_id"), str)
                 or not isinstance(span.get("trace_id"), str)
             ):
-                log.warning(
+                raise TypeError(
                     "`span` must be a dictionary containing both span_id and trace_id keys. "
                     "LLMObs.export_span() can be used to generate this dictionary from a given span."
                 )
-                return
             join_on["span"] = span
         elif span_with_tag is not None:
             if (
@@ -847,42 +847,36 @@ class LLMObs(Service):
                 or len(span_with_tag) != 2
                 or not all(isinstance(i, str) for i in span_with_tag)
             ):
-                log.warning("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
-                return
+                raise TypeError("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
             join_on["tag"] = {"tag_key": span_with_tag[0], "tag_value": span_with_tag[1]}
 
         ml_app = ml_app if ml_app else config._llmobs_ml_app
         if not ml_app:
-            log.warning(
+            raise ValueError(
                 "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
                 "Ensure this configuration is set before running your application."
             )
-            return
 
         timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
 
         if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
-            log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
-            return
+            raise ValueError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
 
         if not label:
-            log.warning("label must be the specified name of the evaluation metric.")
-            return
+            raise ValueError("label must be the specified name of the evaluation metric.")
 
         metric_type = metric_type.lower()
         if metric_type not in ("categorical", "score"):
-            log.warning("metric_type must be one of 'categorical' or 'score'.")
-            return
+            raise ValueError("metric_type must be one of 'categorical' or 'score'.")
 
         if metric_type == "categorical" and not isinstance(value, str):
-            log.warning("value must be a string for a categorical metric.")
-            return
+            raise TypeError("value must be a string for a categorical metric.")
         if metric_type == "score" and not isinstance(value, (int, float)):
-            log.warning("value must be an integer or float for a score metric.")
-            return
+            raise TypeError("value must be an integer or float for a score metric.")
+
         if tags is not None and not isinstance(tags, dict):
             log.warning("tags must be a dictionary of string key-value pairs.")
-            return
+            tags = None
 
         # initialize tags with default values that will be overridden by user-provided tags
         evaluation_tags = {
