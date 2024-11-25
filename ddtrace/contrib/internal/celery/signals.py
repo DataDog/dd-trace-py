@@ -184,13 +184,16 @@ def trace_after_publish(*args, **kwargs):
         return
     else:
         broker_url = current_app.conf.broker_url
-        parsed_url = urlparse(broker_url)
 
-        host = ""
-        if parsed_url.scheme:
-            host += parsed_url.scheme + "://"
-        if parsed_url.hostname:
-            host += parsed_url.hostname
+        if broker_url == "memory://":
+            host = broker_url
+        
+        else:
+            parsed_url = urlparse(broker_url)
+
+            host = ""
+            if parsed_url.hostname:
+                host = parsed_url.hostname
         span.set_tag_str(net.TARGET_HOST, host)
 
         span.finish()
