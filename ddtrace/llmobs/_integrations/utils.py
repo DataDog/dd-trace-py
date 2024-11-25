@@ -78,14 +78,20 @@ def tag_response_part_google(tag_prefix, span, integration, part, part_idx, cand
 
 def llmobs_get_metadata_google(kwargs, instance):
     metadata = {}
-    model_config = getattr(instance, "_generation_config") or {}
-    model_config_dict = model_config if isinstance(model_config, dict) else model_config.to_dict()
-    request_config = kwargs.get("generation_config", {})
-    request_config_dict = request_config if isinstance(request_config, dict) else request_config.to_dict()
+    model_config = getattr(instance, "_generation_config", {}) or {}
+    try:
+        model_config = model_config.to_dict()
+    except:
+        pass
+    request_config = kwargs.get("generation_config", {}) or {}
+    try: 
+        request_config = request_config.to_dict()
+    except:
+        pass
     parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
     for param in parameters:
-        model_config_value = model_config_dict.get(param, None)
-        request_config_value = request_config_dict.get(param, None)
+        model_config_value = _get_attr(model_config, param, None)
+        request_config_value = _get_attr(request_config, param, None)
         if model_config_value or request_config_value:
             metadata[param] = request_config_value or model_config_value
     return metadata
