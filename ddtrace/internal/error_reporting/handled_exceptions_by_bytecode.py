@@ -3,7 +3,7 @@ import sys
 from types import CodeType
 import typing as t
 from .hook import _default_datadog_exc_callback
-from ..bytecode_injection.core import inject_invocation
+from ..bytecode_injection.core import inject_invocation, InjectionContext
 
 # from ddtrace.internal.coverage.instrumentation_py3_11 import NO_OFFSET
 # from ddtrace.internal.coverage.instrumentation_py3_11 import SKIP_LINES
@@ -27,14 +27,21 @@ def _inject_handled_exception_reporting(func):
     if not injection_indexes:
         return ()
 
-    injection_context = InjectionContext.from_code(func.__code__, "put.the.package.here")
-    injection_context.instructions_cb = generate_instructions
+    # injection_context = InjectionContext.from_code(func.__code__, "put.the.package.here")
+    # injection_context.instructions_cb = generate_instructions
 
-    injection_lines = {
-        opcode: line for opcode, line in dis.findlinestarts(original_code) if opcode in injection_indexes
-    }
+    def injection_lines_cb(injection_context: InjectionContext):
+        return {
+            opcode: line for opcode, line in dis.findlinestarts(original_code) if opcode in injection_indexes
+        }
 
-    code, _ = inject_instructions(injection_context, injection_lines, SKIP_LINES)
+    injection_context = InjectionContext(original_code, _default_datadog_exc_callback, injection_lines_cb)
+
+    code, _ = inject_invocation(
+        injection_context,
+        'path/to/file.py',
+        'my.package'
+    )
     func.__code__ = code
 
 # def generate_instructions(injection_context: InjectionContext, line_numbe: int) -> t.Tuple[Instruction, ...]:
@@ -102,21 +109,18 @@ CHECK_EXC_MATCH = dis.opmap["CHECK_EXC_MATCH"]
 
 
 def _find_bytecode_indexes(code: CodeType) -> t.List[int]:
-    """
-    TODO: Move it to use __code__'s exceptions table
-    """
     injection_indexes = []
     state = WAITING_FOR_EXC
 
-    exc_entries = parse_exception_table(code)
+    exc_entries = dis._parse_exception_table(code)
     for exc_entry in exc_entries:
         # we are currently not supporting exc table entry targets as instructions
-        if (
-            isinstance(exc_entry.target, Instruction)
-            or isinstance(exc_entry.start, Instruction)
-            or isinstance(exc_entry.end, Instruction)
-        ):
-            break
+        # if (
+        #     isinstance(exc_entry.target, Instruction)
+        #     or isinstance(exc_entry.start, Instruction)
+        #     or isinstance(exc_entry.end, Instruction)
+        # ):
+        #     break
 
         if state == WAITING_FOR_EXC and code.co_code[exc_entry.target] == PUSH_EXC_INFO:
             # at this point either the exception is checked for a match, for example
