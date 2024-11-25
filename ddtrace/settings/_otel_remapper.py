@@ -28,6 +28,7 @@ from ..constants import ENV_KEY
 from ..constants import VERSION_KEY
 from ..internal.logger import get_logger
 from ..internal.telemetry import telemetry_writer
+from ..internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 
 
 log = get_logger(__name__)
@@ -168,7 +169,10 @@ def otel_remapping():
             if otel_env.startswith("OTEL_") and otel_env != "OTEL_PYTHON_CONTEXT":
                 log.warning("OpenTelemetry configuration %s is not supported by Datadog.", otel_env)
                 telemetry_writer.add_count_metric(
-                    "tracer", "otel.env.unsupported", 1, (("config_opentelemetry", otel_env.lower()),)
+                    TELEMETRY_NAMESPACE_TAG_TRACER,
+                    "otel.env.unsupported",
+                    1,
+                    (("config_opentelemetry", otel_env.lower()),),
                 )
             continue
 
@@ -181,7 +185,7 @@ def otel_remapping():
                 otel_value,
             )
             telemetry_writer.add_count_metric(
-                "tracer",
+                TELEMETRY_NAMESPACE_TAG_TRACER,
                 "otel.env.hiding",
                 1,
                 (("config_opentelemetry", otel_env.lower()), ("config_datadog", dd_env.lower())),
@@ -201,7 +205,7 @@ def otel_remapping():
                 otel_value,
             )
             telemetry_writer.add_count_metric(
-                "tracer",
+                TELEMETRY_NAMESPACE_TAG_TRACER,
                 "otel.env.invalid",
                 1,
                 (("config_opentelemetry", otel_env.lower()), ("config_datadog", dd_env.lower())),
