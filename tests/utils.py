@@ -23,6 +23,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
+from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
@@ -181,6 +182,7 @@ def override_global_config(values):
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     ddtrace.settings.asm.config._eval_asm_can_be_enabled()
     try:
+        core.dispatch("test.config.override")
         yield
     finally:
         # Reset all to their original values
