@@ -530,6 +530,10 @@
         ],
         "codeowners": [
             "ddtrace/internal/codeowners.py"
+        ],
+        "azure_functions": [
+            "ddtrace/contrib/azure_functions/*",
+            "ddtrace/contrib/internal/azure_functions/*"
         ]
     },
     "suites": {
@@ -1523,6 +1527,15 @@
             "@core",
             "@runtime",
             "tests/runtime/*"
+        ],
+        "azure_functions": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@azure_functions",
+            "tests/contrib/azure_functions/*",
+            "tests/snapshots/tests.contrib.azure_functions.*"
         ]
     }
 }

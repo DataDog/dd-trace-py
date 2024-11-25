@@ -33,6 +33,7 @@ RUN \
       gdb \
       git \
       gnupg \
+      gpg \
       jq \
       libbz2-dev \
       libenchant-dev \
@@ -58,6 +59,15 @@ RUN \
   # For running datadog-ci CLI with npx
   && apt-get install -y --no-install-recommends nodejs npm \
   && npm install -g @datadog/datadog-ci \
+  # Install azure-functions-core-tools-4, only supported on amd64 architecture for Linux
+  # https://github.com/Azure/azure-functions-core-tools/issues/3112
+  && if [ "$TARGETARCH" = "amd64" ]; \
+  then \
+    curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg \
+    && mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg \
+    && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-buster-prod buster main" > /etc/apt/sources.list.d/dotnetdev.list \
+    && apt-get update && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.0.6280-1; \
+  fi \
   # Install Mariadb last because mariadb_repo_setup currently breaks apt
   && wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup \
   && chmod +x mariadb_repo_setup \

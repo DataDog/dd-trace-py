@@ -537,6 +537,13 @@ jobs:
           pattern: 'aws_lambda'
           snapshot: true
 
+  azure_functions:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'azure_functions'
+          snapshot: true
+
   datastreams:
     <<: *contrib_job_small
     steps:

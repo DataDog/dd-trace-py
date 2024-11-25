@@ -1,4 +1,4 @@
-import azure.functions
+import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -28,7 +28,7 @@ config._add(
 
 def get_version():
     # type: () -> str
-    return getattr(azure.functions, "__version__", "")
+    return getattr(azure_functions, "__version__", "")
 
 
 def _set_span_meta(span, req, res, function_name, path, trigger):
@@ -52,11 +52,11 @@ def patch():
     Patch `azure.functions` module for tracing
     """
     # Check to see if we have patched azure.functions yet or not
-    if getattr(azure.functions, "_datadog_patch", False):
+    if getattr(azure_functions, "_datadog_patch", False):
         return
-    azure.functions._datadog_patch = True
+    azure_functions._datadog_patch = True
 
-    Pin().onto(azure.functions.FunctionApp)
+    Pin().onto(azure_functions.FunctionApp)
     _w("azure.functions", "FunctionApp.route", _patched_route)
 
 
@@ -71,8 +71,8 @@ def _patched_route(wrapped, instance, args, kwargs):
         function_name = func.__name__
 
         def wrap_function(
-            req: azure.functions.HttpRequest, context: azure.functions.Context
-        ) -> azure.functions.HttpResponse:
+            req: azure_functions.HttpRequest, context: azure_functions.Context
+        ) -> azure_functions.HttpResponse:
             parsed_url = parse.urlparse(req.url)
             path = parsed_url.path
             resource = f"{req.method} {path}"
@@ -105,8 +105,8 @@ def _patched_route(wrapped, instance, args, kwargs):
 
 
 def unpatch():
-    if not getattr(azure.functions, "_datadog_patch", False):
+    if not getattr(azure_functions, "_datadog_patch", False):
         return
-    azure.functions._datadog_patch = False
+    azure_functions._datadog_patch = False
 
-    _u(azure.functions.FunctionApp, "route")
+    _u(azure_functions.FunctionApp, "route")
