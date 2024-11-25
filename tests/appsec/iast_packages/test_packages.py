@@ -29,7 +29,7 @@ else:
 FILE_PATH = Path(__file__).resolve().parent
 _INSIDE_ENV_RUNNER_PATH = os.path.join(FILE_PATH, "inside_env_runner.py")
 # Use this function if you want to test one or a filter number of package for debug proposes
-# SKIP_FUNCTION = lambda package: package.name == "pygments"  # noqa: E731
+# SKIP_FUNCTION = lambda package: package.name == "google-auth"  # noqa: E731
 SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 # Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
@@ -266,27 +266,28 @@ PACKAGES = [
     ),
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
-    # PackageForTesting(
-    # "google-auth",
-    # "2.35.0",
-    # "",
-    # "",
-    # "",
-    # import_name="google.auth.crypt.rsa",
-    # import_module_to_validate="google.auth.crypt.rsa",
-    # expect_no_change=True,
-    # ),
-    # PackageForTesting(
-    # "google-api-core",
-    # "2.22.0",
-    # "",
-    # "",
-    # "",
-    # import_name="google",
-    # import_module_to_validate="google.auth.iam",
-    # extras=[("google-cloud-storage", "2.18.2")],
-    # test_e2e=True,
-    # ),
+    PackageForTesting(
+    "google-auth",
+    "2.35.0",
+    "",
+    "",
+    "",
+    test_import=False,
+    import_name="google.auth.crypt.rsa",
+    import_module_to_validate="google.auth.crypt.rsa",
+    expect_no_change=True,
+    ),
+    PackageForTesting(
+    "google-api-core",
+    "2.22.0",
+    "",
+    "",
+    "",
+    import_name="google",
+    import_module_to_validate="google.auth.iam",
+    extras=[("google-cloud-storage", "2.18.2")],
+    test_e2e=True,
+    ),
     PackageForTesting(
         "google-api-python-client",
         "2.111.0",
