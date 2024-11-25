@@ -39,7 +39,7 @@ class TestOperatorAddInplaceReplacement(object):
 
         bytecode = dis.Bytecode(mod.do_operator_add_inplace_params)
         dis.dis(mod.do_operator_add_inplace_params)
-        assert bytecode.codeobj.co_names == ("ddtrace_aspects", "add_inplace_aspect")
+        assert bytecode.codeobj.co_names == ("_ddtrace_aspects", "add_inplace_aspect")
 
     def test_string_operator_add_inplace_one_tainted(self) -> None:
         string_input = taint_pyobject(
