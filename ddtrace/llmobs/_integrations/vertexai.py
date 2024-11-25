@@ -68,18 +68,13 @@ class VertexAIIntegration(BaseLLMIntegration):
         if usage:
             span.set_tag_str(METRICS, safe_json(usage))
 
-
     def _extract_input_message(self, contents, history, system_instruction=None):
         messages = []
         if system_instruction:
             for instruction in system_instruction:
                 messages.append({"content": instruction or "", "role": "system"})
         for content in history:
-            role = _get_attr(content, "role", "")
-            parts = _get_attr(content, "parts", [])
-            for part in parts:
-                message = extract_message_from_part_google(part, role)
-                messages.append(message)
+            messages.extend(self._extract_messages_from_content(content))
         if isinstance(contents, str):
             messages.append({"content": contents})
             return messages
@@ -94,30 +89,11 @@ class VertexAIIntegration(BaseLLMIntegration):
             if isinstance(content, str):
                 messages.append({"content": content})
                 continue
-            if isinstance(content, dict):
-                role = content.get("role", "")
-                parts = content.get("parts", [])
-                for part in parts:
-                    message = extract_message_from_part_google(part)
-                    if role:
-                        message["role"] = role
-                    messages.append(message)
-                continue
             if isinstance(content, Part):
                 message = extract_message_from_part_google(contents)
                 messages.append(message)
                 continue
-            role = _get_attr(content, "role", None)
-            parts = _get_attr(content, "parts", [])
-            if not parts or not isinstance(parts, Iterable):
-                message = {"content": "[Non-text content object: {}]".format(repr(content))}
-                if role:
-                    message["role"] = role
-                messages.append(message)
-                continue
-            for part in parts:
-                message = extract_message_from_part_google(part, role)
-                messages.append(message)
+            messages.extend(self._extract_messages_from_content(content))
         return messages
 
     def _extract_output_message(self, generations):
@@ -130,10 +106,8 @@ class VertexAIIntegration(BaseLLMIntegration):
             for chunk in generations:
                 for candidate in _get_attr(chunk, "candidates", []):
                     content = _get_attr(candidate, "content", {})
-                    role = _get_attr(content, "role", role)
-                    parts = _get_attr(content, "parts", [])
-                    for part in parts:
-                        message = extract_message_from_part_google(part)
+                    messages = self._extract_messages_from_content(content)
+                    for message in messages:
                         message_content += message.get("content", "")
                         tool_calls.extend(message.get("tool_calls", []))
             message = {"content": message_content, "role": role}
@@ -143,10 +117,21 @@ class VertexAIIntegration(BaseLLMIntegration):
         generations_dict = generations.to_dict()
         for candidate in generations_dict.get("candidates", []):
             content = candidate.get("content", {})
-            role = content.get("role", "model")
-            parts = content.get("parts", [])
-            for part in parts:
-                message = extract_message_from_part_google(part, role)
-                output_messages.append(message)
+            output_messages.extend(self._extract_messages_from_content(content))
         return output_messages
 
+    @staticmethod
+    def _extract_messages_from_content(content):
+        messages = []
+        role = _get_attr(content, "role", "")
+        parts = _get_attr(content, "parts", [])
+        if not parts or not isinstance(parts, Iterable):
+            message = {"content": "[Non-text content object: {}]".format(repr(content))}
+            if role:
+                message["role"] = role
+            messages.append(message)
+            return messages
+        for part in parts:
+            message = extract_message_from_part_google(part, role)
+            messages.append(message)
+        return messages
