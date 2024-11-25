@@ -533,7 +533,7 @@ class CIVisibility(Service):
             "Final settings: coverage collection: %s, "
             "test skipping: %s, "
             "Early Flake Detection: %s, "
-            "Auto Test Retries: %s, ",
+            "Auto Test Retries: %s, "
             "Quarantine: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
@@ -941,7 +941,7 @@ def _on_discover_session(
         atr_api_settings = AutoTestRetriesSettings()
 
     quarantine_api_settings = CIVisibility.get_quarantine_api_settings()
-    if quarantine_api_settings is None or not CIVisibility.is_quatantine_enabled():
+    if quarantine_api_settings is None or not CIVisibility.is_quarantine_enabled():
         quarantine_api_settings = QuarantineSettings() ## is this really needed?
 
     session_settings = TestVisibilitySessionSettings(
