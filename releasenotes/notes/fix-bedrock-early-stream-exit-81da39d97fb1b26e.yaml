@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    botocore: This fix resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
+  - |
+    LLM Observability: This fix ensures bedrock spans are finished even when streamed responses are not fully consumed.
