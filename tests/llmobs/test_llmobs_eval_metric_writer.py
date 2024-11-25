@@ -7,15 +7,19 @@ import pytest
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 
 
-INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric"
+INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric"
 DD_SITE = "datad0g.com"
-dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
+dd_api_key = os.getenv("DD_API_KEY_STAGING", default="<not-a-real-api-key>")
 
 
 def _categorical_metric_event():
     return {
-        "span_id": "12345678901",
-        "trace_id": "98765432101",
+        "join_on": {
+            "span": {
+                "span_id": "12345678901",
+                "trace_id": "98765432101",
+            },
+        },
         "metric_type": "categorical",
         "categorical_value": "very",
         "label": "toxicity",
@@ -26,8 +30,12 @@ def _categorical_metric_event():
 
 def _score_metric_event():
     return {
-        "span_id": "12345678902",
-        "trace_id": "98765432102",
+        "join_on": {
+            "span": {
+                "span_id": "12345678902",
+                "trace_id": "98765432102",
+            },
+        },
         "metric_type": "score",
         "label": "sentiment",
         "score_value": 0.9,
