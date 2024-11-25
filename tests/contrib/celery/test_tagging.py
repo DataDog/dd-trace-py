@@ -72,7 +72,7 @@ def traced_amqp_celery_app(instrument_celery, dummy_tracer):
     yield amqp_celery_app
 
 
-@pytest.mark.snapshot(ignores=["meta.celery.id", "meta.celery.hostname"])
+@pytest.mark.snapshot(ignores=["meta.celery.id", "meta.celery.hostname", "meta.celery.reply_to", "meta.celery.correlation_id"])
 def test_redis_task(traced_redis_celery_app):
     tracer = Pin.get_from(traced_redis_celery_app).tracer
 
@@ -92,7 +92,7 @@ def test_redis_task(traced_redis_celery_app):
         assert_traces(tracer, "multiply", t, 6379)
 
 
-@pytest.mark.snapshot(ignores=["meta.celery.id", "meta.celery.hostname"])
+@pytest.mark.snapshot(ignores=["meta.celery.id", "meta.celery.hostname", "meta.celery.reply_to", "meta.celery.correlation_id"])
 def test_amqp_task(instrument_celery, traced_amqp_celery_app):
     tracer = Pin.get_from(traced_amqp_celery_app).tracer
 
