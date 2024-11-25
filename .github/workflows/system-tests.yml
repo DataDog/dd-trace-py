@@ -133,11 +133,6 @@ jobs:
           docker load < images_artifacts/${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
           docker load < images_artifacts/agent_${{ github.sha }}.tar.gz
 
-      # TODO: Enable once https://github.com/DataDog/system-tests/pull/3506 is merged
-      # - name: Run IAST_STANDALONE
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-      #   run: ./run.sh IAST_STANDALONE
-
       - name: Run DEFAULT
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh DEFAULT
@@ -201,6 +196,10 @@ jobs:
       - name: Run APPSEC_STANDALONE
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE
+
+      - name: Run IAST_STANDALONE
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh IAST_STANDALONE
 
       - name: Run APPSEC_RUNTIME_ACTIVATION
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
