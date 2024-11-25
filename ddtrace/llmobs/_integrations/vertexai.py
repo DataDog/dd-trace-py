@@ -20,6 +20,9 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
+from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
 import vertexai
 from vertexai.generative_models import Part
 
@@ -49,8 +52,9 @@ class VertexAIIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("vertexai.request.provider") or "")
 
         instance = kwargs.get("instance", None)
-        metadata = self._llmobs_set_metadata(kwargs, instance)
+        metadata = llmobs_get_metadata_google(kwargs, instance)
         span.set_tag_str(METADATA, safe_json(metadata))
+        
         system_instruction = self._extract_system_instructions(instance)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
@@ -62,7 +66,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(response)
             span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
-        usage = self._get_llmobs_metrics_tags(span)
+        usage = get_llmobs_metrics_tags_google("vertexai", span)
         if usage:
             span.set_tag_str(METRICS, safe_json(usage))
 
@@ -86,43 +90,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             elif isinstance(elem, Part):
                 system_instructions.append(elem.text)
         return system_instructions
-    
-    @staticmethod
-    def _llmobs_set_metadata(kwargs, instance):
-        metadata = {}
-        model_config = getattr(instance, "_generation_config") or {}
-        model_config_dict = model_config if isinstance(model_config, dict) else model_config.to_dict()
-        request_config = kwargs.get("generation_config", {})
-        request_config_dict = request_config if isinstance(request_config, dict) else request_config.to_dict()
-        parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
-        for param in parameters:
-            model_config_value = model_config_dict.get(param, None)
-            request_config_value = request_config_dict.get(param, None)
-            if model_config_value or request_config_value:
-                metadata[param] = request_config_value or model_config_value
-        return metadata
 
-    @staticmethod
-    def _extract_message_from_part(part, role=None):
-        text = _get_attr(part, "text", "")
-        function_call = _get_attr(part, "function_call", None)
-        function_response = _get_attr(part, "function_response", None)
-        message = {"content": text}
-        if role:
-            message["role"] = role
-        if function_call:
-            function_call_dict = function_call
-            if not isinstance(function_call, dict):
-                function_call_dict = type(function_call).to_dict(function_call)
-            message["tool_calls"] = [
-                {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
-            ]
-        if function_response:
-            function_response_dict = function_response
-            if not isinstance(function_response, dict):
-                function_response_dict = type(function_response).to_dict(function_response)
-            message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
-        return message
 
     def _extract_input_message(self, contents, history, system_instruction=None):
         messages = []
@@ -133,13 +101,13 @@ class VertexAIIntegration(BaseLLMIntegration):
             role = _get_attr(content, "role", "")
             parts = _get_attr(content, "parts", [])
             for part in parts:
-                message = self._extract_message_from_part(part, role)
+                message = extract_message_from_part_google(part, role)
                 messages.append(message)
         if isinstance(contents, str):
             messages.append({"content": contents})
             return messages
         if isinstance(contents, Part):
-            message = self._extract_message_from_part(contents)
+            message = extract_message_from_part_google(contents)
             messages.append(message)
             return messages
         if not isinstance(contents, list):
@@ -153,13 +121,13 @@ class VertexAIIntegration(BaseLLMIntegration):
                 role = content.get("role", "")
                 parts = content.get("parts", [])
                 for part in parts:
-                    message = self._extract_message_from_part(part)
+                    message = extract_message_from_part_google(part)
                     if role:
                         message["role"] = role
                     messages.append(message)
                 continue
             if isinstance(content, Part):
-                message = self._extract_message_from_part(contents)
+                message = extract_message_from_part_google(contents)
                 messages.append(message)
                 continue
             role = _get_attr(content, "role", None)
@@ -171,7 +139,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                 messages.append(message)
                 continue
             for part in parts:
-                message = self._extract_message_from_part(part, role)
+                message = extract_message_from_part_google(part, role)
                 messages.append(message)
         return messages
 
@@ -188,7 +156,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                     role = _get_attr(content, "role", role)
                     parts = _get_attr(content, "parts", [])
                     for part in parts:
-                        message = self._extract_message_from_part(part)
+                        message = extract_message_from_part_google(part)
                         message_content += message.get("content", "")
                         tool_calls.extend(message.get("tool_calls", []))
             message = {"content": message_content, "role": role}
@@ -201,22 +169,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             role = content.get("role", "model")
             parts = content.get("parts", [])
             for part in parts:
-                message = self._extract_message_from_part(part, role)
+                message = extract_message_from_part_google(part, role)
                 output_messages.append(message)
         return output_messages
-
-    @staticmethod
-    def _get_llmobs_metrics_tags(span):
-        usage = {}
-        input_tokens = span.get_metric("vertexai.response.usage.prompt_tokens")
-        output_tokens = span.get_metric("vertexai.response.usage.completion_tokens")
-        total_tokens = span.get_metric("vertexai.response.usage.total_tokens")
-
-        if input_tokens is not None:
-            usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
-        if output_tokens is not None:
-            usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        if total_tokens is not None:
-            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
-        return usage
 

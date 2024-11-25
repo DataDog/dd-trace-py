@@ -72,3 +72,52 @@ def tag_response_part_google(tag_prefix, span, integration, part, part_idx, cand
         "%s.response.candidates.%d.content.parts.%d.function_call.args" % (tag_prefix, candidate_idx, part_idx),
         integration.trunc(str(_get_attr(function_call, "args", {}))),
     )
+
+def llmobs_get_metadata_google(kwargs, instance):
+    metadata = {}
+    model_config = getattr(instance, "_generation_config") or {}
+    model_config_dict = model_config if isinstance(model_config, dict) else model_config.to_dict()
+    request_config = kwargs.get("generation_config", {})
+    request_config_dict = request_config if isinstance(request_config, dict) else request_config.to_dict()
+    parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
+    for param in parameters:
+        model_config_value = model_config_dict.get(param, None)
+        request_config_value = request_config_dict.get(param, None)
+        if model_config_value or request_config_value:
+            metadata[param] = request_config_value or model_config_value
+    return metadata
+
+def extract_message_from_part_google(part, role=None):
+    text = _get_attr(part, "text", "")
+    function_call = _get_attr(part, "function_call", None)
+    function_response = _get_attr(part, "function_response", None)
+    message = {"content": text}
+    if role:
+        message["role"] = role
+    if function_call:
+        function_call_dict = function_call
+        if not isinstance(function_call, dict):
+            function_call_dict = type(function_call).to_dict(function_call)
+        message["tool_calls"] = [
+            {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
+        ]
+    if function_response:
+        function_response_dict = function_response
+        if not isinstance(function_response, dict):
+            function_response_dict = type(function_response).to_dict(function_response)
+        message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+    return message
+
+def get_llmobs_metrics_tags_google(integration_name, span):
+        usage = {}
+        input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name)
+        output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name)
+        total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
+
+        if input_tokens is not None:
+            usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        if output_tokens is not None:
+            usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        if total_tokens is not None:
+            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+        return usage
