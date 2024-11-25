@@ -942,7 +942,7 @@ def _on_discover_session(
 
     quarantine_api_settings = CIVisibility.get_quarantine_api_settings()
     if quarantine_api_settings is None or not CIVisibility.is_quarantine_enabled():
-        quarantine_api_settings = QuarantineSettings() ## is this really needed?
+        quarantine_api_settings = QuarantineSettings() ### is this really needed?
 
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
