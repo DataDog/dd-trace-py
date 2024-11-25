@@ -32,8 +32,8 @@ def _catch_and_log_exceptions(func):
 
 def _get_item_tag(item_id: TestVisibilityItemId, tag_name: str) -> Any:
     log.debug("Getting tag for item %s: %s", item_id, tag_name)
-    tag_args = (_TestVisibilityAPIBase.GetTagArgs(item_id, tag_name),)
-    tag_value = core.dispatch("test_visibility.item.get_tag", (tag_args,))
+    tag_args = _TestVisibilityAPIBase.GetTagArgs(item_id, tag_name)
+    core.dispatch("test_visibility.item.get_tag", (tag_args,))
     tag_value = core.get_item(f"civisibility.{tag_args.item_id}.{tag_args.name}")
     return tag_value
 
