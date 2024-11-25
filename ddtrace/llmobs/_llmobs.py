@@ -807,7 +807,8 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(
-                "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
+                "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. ",
+                "Evaluation metric data will not be sent.",
             )
             return
         if not config._dd_api_key:
@@ -816,8 +817,11 @@ class LLMObs(Service):
                 "Ensure this configuration is set before running your application."
             )
             return
-        if not span and not span_with_tag:
-            log.warning("Either `span` or `span_with_tag` must be specified to submit an evaluation metric.")
+
+        has_exactly_one_joining_key = (span is not None) ^ (span_with_tag is not None)
+
+        if not has_exactly_one_joining_key:
+            log.warning("Exactly one of `span` or `span_with_tag` must be specified to submit an evaluation metric.")
             return
 
         join_on = {}
@@ -930,6 +934,15 @@ class LLMObs(Service):
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
     ) -> None:
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+        from ddtrace.vendor.debtcollector import deprecate
+
+        deprecate(
+            "The ddtrace.context module is deprecated and will be removed from the public API.",
+            message="Context should be imported from the ddtrace.trace package",
+            category=DDTraceDeprecationWarning,
+        )
+
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
 
@@ -1021,8 +1034,7 @@ class LLMObs(Service):
                     log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
 
         evaluation_metric = {
-            "span_id": span_id,
-            "trace_id": trace_id,
+            "join_on": {"span": {"span_id": span_id, "trace_id": trace_id}},
             "label": str(label),
             "metric_type": metric_type.lower(),
             "timestamp_ms": timestamp_ms,

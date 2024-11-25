@@ -212,11 +212,13 @@ def _get_llmobs_parent_id(span: Span):
 
 
 def _expected_llmobs_eval_metric_event(
-    span_id,
-    trace_id,
     metric_type,
     label,
     ml_app,
+    tag_key=None,
+    tag_val=None,
+    span_id=None,
+    trace_id=None,
     timestamp_ms=None,
     categorical_value=None,
     score_value=None,
@@ -225,8 +227,7 @@ def _expected_llmobs_eval_metric_event(
     metadata=None,
 ):
     eval_metric_event = {
-        "span_id": span_id,
-        "trace_id": trace_id,
+        "join_on": {},
         "metric_type": metric_type,
         "label": label,
         "tags": [
@@ -234,6 +235,10 @@ def _expected_llmobs_eval_metric_event(
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
     }
+    if tag_key is not None and tag_val is not None:
+        eval_metric_event["join_on"]["tag"] = {"tag_key": tag_key, "tag_value": tag_val}
+    if span_id is not None and trace_id is not None:
+        eval_metric_event["join_on"]["span"] = {"span_id": span_id, "trace_id": trace_id}
     if categorical_value is not None:
         eval_metric_event["categorical_value"] = categorical_value
     if score_value is not None:

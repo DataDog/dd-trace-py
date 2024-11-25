@@ -158,7 +158,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
         self._event_type = "evaluation_metric"
         self._buffer = []
-        self._endpoint = "/api/intake/llm-obs/v1/eval-metric"
+        self._endpoint = "/api/intake/llm-obs/v2/eval-metric"
         self._intake = "api.%s" % self._site  # type: str
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:

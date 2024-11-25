@@ -2015,3 +2015,394 @@ def test_service_enable_does_not_start_evaluator_runner():
         assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
         llmobs_service.disable()
+
+
+def test_submit_evaluation_for_llmobs_disabled_raises_warning(LLMObs, mock_logs):
+    LLMObs.disable()
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value="high"
+    )
+    mock_logs.warning.assert_called_once_with(
+        "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. ", "Evaluation metric data will not be sent."
+    )
+
+
+def test_submit_evaluation_for_no_api_key_raises_warning(AgentlessLLMObs, mock_logs):
+    with override_global_config(dict(_dd_api_key="")):
+        AgentlessLLMObs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+        )
+        mock_logs.warning.assert_called_once_with(
+            "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+            "Ensure this configuration is set before running your application."
+        )
+
+
+def test_submit_evaluation_for_no_ml_app_raises_warning(LLMObs, mock_logs):
+    with override_global_config(dict(_llmobs_ml_app="")):
+        LLMObs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+        )
+        mock_logs.warning.assert_called_once_with(
+            "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+            "Ensure this configuration is set before running your application."
+        )
+
+
+def test_submit_evaluation_for_span_incorrect_type_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(span="asd", label="toxicity", metric_type="categorical", value="high")
+    mock_logs.warning.assert_called_once_with(
+        "`span` must be a dictionary containing both span_id and trace_id keys. "
+        "LLMObs.export_span() can be used to generate this dictionary from a given span."
+    )
+
+
+def test_submit_evaluation_for_span_with_tag_incorrect_type_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(span_with_tag="asd", label="toxicity", metric_type="categorical", value="high")
+    mock_logs.warning.assert_called_once_with("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
+    mock_logs.reset_mock()
+    LLMObs.submit_evaluation_for(span_with_tag=("key", 1), label="toxicity", metric_type="categorical", value="high")
+    mock_logs.warning.assert_called_once_with("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
+
+
+def test_submit_evaluation_for_empty_span_or_trace_id_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(span={"trace_id": "456"}, label="toxicity", metric_type="categorical", value="high")
+    mock_logs.warning.assert_called_once_with(
+        "`span` must be a dictionary containing both span_id and trace_id keys. "
+        "LLMObs.export_span() can be used to generate this dictionary from a given span."
+    )
+    mock_logs.reset_mock()
+    LLMObs.submit_evaluation_for(span={"span_id": "456"}, label="toxicity", metric_type="categorical", value="high")
+    mock_logs.warning.assert_called_once_with(
+        "`span` must be a dictionary containing both span_id and trace_id keys. "
+        "LLMObs.export_span() can be used to generate this dictionary from a given span."
+    )
+
+
+def test_submit_evaluation_for_empty_tag_key_or_val_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(span_with_tag=("456"), label="toxicity", metric_type="categorical", value="high")
+    mock_logs.warning.assert_called_once_with("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
+    mock_logs.reset_mock()
+
+
+def test_submit_evaluation_for_invalid_timestamp_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="",
+        metric_type="categorical",
+        value="high",
+        ml_app="dummy",
+        timestamp_ms="invalid",
+    )
+    mock_logs.warning.assert_called_once_with(
+        "timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
+    )
+
+
+def test_submit_evaluation_for_empty_label_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"}, label="", metric_type="categorical", value="high"
+    )
+    mock_logs.warning.assert_called_once_with("label must be the specified name of the evaluation metric.")
+
+
+def test_submit_evaluation_for_incorrect_metric_type_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
+    )
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
+    mock_logs.reset_mock()
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
+    )
+    mock_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
+
+
+def test_submit_evaluation_for_numerical_value_raises_unsupported_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value="high"
+    )
+    mock_logs.warning.assert_has_calls(
+        [
+            mock.call(
+                "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+                "Converting `numerical` metric to `score` type."
+            ),
+        ]
+    )
+
+
+def test_submit_evaluation_for_incorrect_numerical_value_type_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="numerical", value="high"
+    )
+    mock_logs.warning.assert_has_calls(
+        [
+            mock.call("value must be an integer or float for a score metric."),
+        ]
+    )
+
+
+def test_submit_evaluation_for_incorrect_score_value_type_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"}, label="token_count", metric_type="score", value="high"
+    )
+    mock_logs.warning.assert_called_once_with("value must be an integer or float for a score metric.")
+
+
+def test_submit_evaluation_for_invalid_tags_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags=["invalid"],
+    )
+    mock_logs.warning.assert_called_once_with("tags must be a dictionary of string key-value pairs.")
+
+
+def test_submit_evaluation_for_invalid_metadata_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        metadata=1,
+    )
+    mock_logs.warning.assert_called_once_with("metadata must be json serializable dictionary.")
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_ml_app="test_app_name")],
+)
+def test_submit_evaluation_for_non_string_tags_raises_warning_but_still_submits(
+    LLMObs, mock_logs, mock_llmobs_eval_metric_writer
+):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={1: 2, "foo": "bar"},
+        ml_app="dummy",
+    )
+    mock_logs.warning.assert_called_once_with("Failed to parse tags. Tags for evaluation metrics must be strings.")
+    mock_logs.reset_mock()
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:dummy", "foo:bar"],
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(ddtrace="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
+)
+def test_submit_evaluation_for_metric_tags(LLMObs, mock_llmobs_eval_metric_writer):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(ddtrace="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
+)
+def test_submit_evaluation_for_metric_with_metadata_enqueues_metric(LLMObs, mock_llmobs_eval_metric_writer):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata={"foo": ["bar", "baz"]},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            metadata={"foo": ["bar", "baz"]},
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset()
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata="invalid",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+        )
+    )
+
+
+def test_submit_evaluation_for_with_tag_enqueues_writer_with_categorical_metric(LLMObs, mock_llmobs_eval_metric_writer):
+    LLMObs.submit_evaluation_for(
+        span_with_tag=("tag_key", "tag_val"),
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        ml_app="dummy",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            tag_key="tag_key",
+            tag_val="tag_val",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+        )
+    )
+
+
+def test_submit_evaluation_for_enqueues_writer_with_categorical_metric(LLMObs, mock_llmobs_eval_metric_writer):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        ml_app="dummy",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset_mock()
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.submit_evaluation_for(
+            span=LLMObs.export_span(span),
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+            ml_app="dummy",
+        )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id=str(span.span_id),
+            trace_id="{:x}".format(span.trace_id),
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+        )
+    )
+
+
+def test_submit_evaluation_for_enqueues_writer_with_score_metric(LLMObs, mock_llmobs_eval_metric_writer):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="sentiment",
+        metric_type="score",
+        value=0.9,
+        ml_app="dummy",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123", trace_id="456", label="sentiment", metric_type="score", score_value=0.9, ml_app="dummy"
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset_mock()
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.submit_evaluation_for(
+            span=LLMObs.export_span(span), label="sentiment", metric_type="score", value=0.9, ml_app="dummy"
+        )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id=str(span.span_id),
+            trace_id="{:x}".format(span.trace_id),
+            label="sentiment",
+            metric_type="score",
+            score_value=0.9,
+            ml_app="dummy",
+        )
+    )
+
+
+def test_submit_evaluation_for_with_numerical_metric_enqueues_writer_with_score_metric(
+    LLMObs, mock_llmobs_eval_metric_writer
+):
+    LLMObs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="token_count",
+        metric_type="numerical",
+        value=35,
+        ml_app="dummy",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy", span_id="123", trace_id="456", label="token_count", metric_type="score", score_value=35
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset_mock()
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.submit_evaluation_for(
+            span=LLMObs.export_span(span),
+            label="token_count",
+            metric_type="numerical",
+            value=35,
+            ml_app="dummy",
+        )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id=str(span.span_id),
+            trace_id="{:x}".format(span.trace_id),
+            label="token_count",
+            metric_type="score",
+            score_value=35,
+        )
+    )
