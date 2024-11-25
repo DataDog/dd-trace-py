@@ -9,7 +9,7 @@ from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 
 INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric"
 DD_SITE = "datad0g.com"
-dd_api_key = os.getenv("DD_API_KEY_STAGING", default="<not-a-real-api-key>")
+dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
 
 def _categorical_metric_event():
