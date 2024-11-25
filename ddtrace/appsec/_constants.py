@@ -127,14 +127,6 @@ class IAST(metaclass=Constant_Class):
     SEP_MODULES: Literal[","] = ","
     REQUEST_IAST_ENABLED: Literal["_dd.iast.request_enabled"] = "_dd.iast.request_enabled"
     PATCH_ADDED_SYMBOL_PREFIX: Literal["_ddtrace_"] = "_ddtrace_"
-
-    METRICS_REPORT_LVLS = (
-        (TELEMETRY_DEBUG_VERBOSITY, TELEMETRY_DEBUG_NAME),
-        (TELEMETRY_INFORMATION_VERBOSITY, TELEMETRY_INFORMATION_NAME),
-        (TELEMETRY_MANDATORY_VERBOSITY, TELEMETRY_MANDATORY_NAME),
-        (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
-    )
-
     TEXT_TYPES = (str, bytes, bytearray)
     TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
 
