@@ -283,6 +283,7 @@ PACKAGES = [
     "",
     "",
     "",
+    test_import=False,
     import_name="google",
     import_module_to_validate="google.auth.iam",
     extras=[("google-cloud-storage", "2.18.2")],
