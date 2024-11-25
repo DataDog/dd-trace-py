@@ -116,9 +116,9 @@ class _ProfilerInstance(service.Service):
         version: Optional[str] = None,
         tracer: Any = ddtrace.tracer,
         api_key: Optional[str] = None,
-        _stack_v2_enabled: Optional[bool] = None,
         _memory_collector_enabled: bool = profiling_config.memory.enabled,
         _stack_collector_enabled: bool = profiling_config.stack.enabled,
+        _stack_v2_enabled: bool = profiling_config.stack.v2_enabled,
         _lock_collector_enabled: bool = profiling_config.lock.enabled,
         enable_code_provenance: bool = profiling_config.code_provenance,
         endpoint_collection_enabled: bool = profiling_config.endpoint_collection,
@@ -133,10 +133,7 @@ class _ProfilerInstance(service.Service):
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key
         self._memory_collector_enabled: bool = _memory_collector_enabled
         self._stack_collector_enabled: bool = _stack_collector_enabled
-        self._stack_v2_enabled: bool = (
-            _stack_v2_enabled if _stack_v2_enabled is not None else profiling_config.stack.v2_enabled
-        )
-        print(profiling_config.stack.v2_enabled, _stack_v2_enabled, self._stack_v2_enabled)
+        self._stack_v2_enabled: bool = _stack_v2_enabled
         self._lock_collector_enabled: bool = _lock_collector_enabled
         self.enable_code_provenance: bool = enable_code_provenance
         self.endpoint_collection_enabled: bool = endpoint_collection_enabled
@@ -265,7 +262,6 @@ class _ProfilerInstance(service.Service):
                         r,
                         tracer=self.tracer,
                         endpoint_collection_enabled=self.endpoint_collection_enabled,
-                        _stack_collector_v2_enabled=self._stack_v2_enabled,
                     )
                 )
                 LOG.debug("Profiling collector (stack) initialized")

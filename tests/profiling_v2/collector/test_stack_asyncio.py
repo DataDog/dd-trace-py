@@ -9,7 +9,6 @@ import pytest
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio",
         DD_PROFILING_STACK_V2_ENABLED="true",
     ),
-    out=None,
 )
 def test_asyncio():
     import asyncio
@@ -67,8 +66,8 @@ def test_asyncio():
         t1, t2 = loop.run_until_complete(maintask)
     p.stop()
 
-    t1_name = _asyncio._task_get_name(t1)
-    t2_name = _asyncio._task_get_name(t2)
+    t1_name = t1.get_name()
+    t2_name = t2.get_name()
 
     assert t1_name == "sleep 1"
     assert t2_name == "sleep 2"
@@ -79,7 +78,6 @@ def test_asyncio():
 
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
     assert len(samples_with_span_id) > 0
-    # print(samples_with_span_id)
 
     # get samples with task_name
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
@@ -87,14 +85,12 @@ def test_asyncio():
     # tracking via ddtrace.profiling._asyncio
     assert len(samples) > 0
 
-    # print(samples)
-
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
-            task_name="hello",
+            task_name="main",
             span_id=span_id,
             local_root_span_id=local_root_span_id,
             locations=[
@@ -105,30 +101,30 @@ def test_asyncio():
         ),
     )
 
-    # pprof_utils.assert_profile_has_sample(
-    #     profile,
-    #     samples,
-    #     expected_sample=pprof_utils.StackEvent(
-    #         thread_name="MainThread",
-    #         task_name=t1_name,
-    #         locations=[
-    #             pprof_utils.StackLocation(
-    #                 function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
-    #             ),
-    #         ],
-    #     ),
-    # )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name=t1_name,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
+                ),
+            ],
+        ),
+    )
 
-    # pprof_utils.assert_profile_has_sample(
-    #     profile,
-    #     samples,
-    #     expected_sample=pprof_utils.StackEvent(
-    #         thread_name="MainThread",
-    #         task_name=t2_name,
-    #         locations=[
-    #             pprof_utils.StackLocation(
-    #                 function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
-    #             ),
-    #         ],
-    #     ),
-    # )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name=t2_name,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
+                ),
+            ],
+        ),
+    )

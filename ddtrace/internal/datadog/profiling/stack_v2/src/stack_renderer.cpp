@@ -57,14 +57,9 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 
     const std::optional<Span> active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
     if (active_span) {
-        std::cout << "ACTIVE SPAN FOUND thread_id: " << thread_id << " span_id: " << active_span->span_id
-                  << " local_root_span_id: " << active_span->local_root_span_id
-                  << " span_type: " << active_span->span_type << std::endl;
         ddup_push_span_id(sample, active_span->span_id);
         ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
         ddup_push_trace_type(sample, std::string_view(active_span->span_type));
-    } else {
-        std::cout << "thread_id: " << thread_id << " no active span" << std::endl;
     }
 }
 
@@ -95,20 +90,13 @@ StackRenderer::render_task_begin(std::string_view name)
         ddup_push_cputime(sample, thread_state.cpu_time_ns, 1); // initialized to 0, so possibly a no-op
         ddup_push_monotonic_ns(sample, thread_state.now_time_ns);
 
-        std::cout << "render_task_begin " << name << " thread_state.id " << thread_state.id << std::endl;
         // We also want to make sure the tid -> span_id mapping is present in the sample for the task
         const std::optional<Span> active_span =
           ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
         if (active_span) {
-            std::cout << "render_task_begin ACTIVE SPAN FOUND thread_id: " << thread_state.id
-                      << " span_id: " << active_span->span_id
-                      << " local_root_span_id: " << active_span->local_root_span_id
-                      << " span_type: " << active_span->span_type << std::endl;
             ddup_push_span_id(sample, active_span->span_id);
             ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
             ddup_push_trace_type(sample, std::string_view(active_span->span_type));
-        } else {
-            std::cout << "render_task_begin thread_id: " << thread_state.id << " no active span" << std::endl;
         }
     }
 

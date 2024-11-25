@@ -53,8 +53,6 @@ def _(asyncio):
 
     init_stack_v2 = config.stack.v2_enabled and stack_v2.is_available
 
-    print("asyncio.init_stack_v2", init_stack_v2)
-
     @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
     def _(f, args, kwargs):
         loop = get_argument_value(args, kwargs, 1, "loop")
