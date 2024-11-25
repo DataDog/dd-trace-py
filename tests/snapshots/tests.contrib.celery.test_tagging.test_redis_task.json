@@ -1,0 +1,74 @@
+[[
+  {
+    "name": "celery.apply",
+    "service": "celery-producer",
+    "resource": "tests.contrib.celery.test_tagging.multiply",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.celery",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6744930b00000000",
+      "celery.action": "apply_async",
+      "celery.hostname": "gen75418@testrunner",
+      "celery.id": "03a13167-c52c-442e-ac26-8f4ad6361840",
+      "celery.routing_key": "celery",
+      "component": "celery",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "eaa08133e7194d5d99332e2579cf5af4",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 6379,
+      "process_id": 75418
+    },
+    "duration": 4461000,
+    "start": 1732547339090039000
+  }],
+[
+  {
+    "name": "celery.run",
+    "service": "celery-worker",
+    "resource": "tests.contrib.celery.test_tagging.multiply",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.celery",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6744930b00000000",
+      "celery.action": "run",
+      "celery.correlation_id": "03a13167-c52c-442e-ac26-8f4ad6361840",
+      "celery.delivery_info.exchange": "",
+      "celery.delivery_info.redelivered": "False",
+      "celery.delivery_info.routing_key": "celery",
+      "celery.hostname": "testrunner",
+      "celery.id": "03a13167-c52c-442e-ac26-8f4ad6361840",
+      "celery.reply_to": "9c0a7a2a-c51a-32a2-813e-5fc898f33ab5",
+      "celery.state": "SUCCESS",
+      "component": "celery",
+      "language": "python",
+      "runtime-id": "eaa08133e7194d5d99332e2579cf5af4",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "celery.delivery_info.priority": 0,
+      "process_id": 75418
+    },
+    "duration": 4608000,
+    "start": 1732547339095628000
+  }]]

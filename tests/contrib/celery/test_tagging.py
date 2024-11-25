@@ -72,15 +72,16 @@ def traced_amqp_celery_app(instrument_celery, dummy_tracer):
     yield amqp_celery_app
 
 
+@pytest.mark.snapshot(ignores=["meta.celery.id", "meta.celery.hostname"])
 def test_redis_task(traced_redis_celery_app):
     tracer = Pin.get_from(traced_redis_celery_app).tracer
 
-    with start_worker(  # <-- Important!
+    with start_worker(
         traced_redis_celery_app,
         pool="solo",
         loglevel="info",
         perform_ping_check=False,
-        shutdown_timeout=30,  # <-- Important!
+        shutdown_timeout=30,
     ):
         t = multiply.delay(4, 4)
         assert t.get(timeout=2) == 16
@@ -88,18 +89,19 @@ def test_redis_task(traced_redis_celery_app):
         # wait for spans to be received
         time.sleep(3)
 
-        assert_traces(tracer, "multiply", t, "redis")
+        assert_traces(tracer, "multiply", t, 6379)
 
 
+@pytest.mark.snapshot(ignores=["meta.celery.id", "meta.celery.hostname"])
 def test_amqp_task(instrument_celery, traced_amqp_celery_app):
     tracer = Pin.get_from(traced_amqp_celery_app).tracer
 
-    with start_worker(  # <-- Important!
+    with start_worker(
         traced_amqp_celery_app,
         pool="solo",
         loglevel="info",
         perform_ping_check=False,
-        shutdown_timeout=30,  # <-- Important!
+        shutdown_timeout=30,
     ):
         t = add.delay(4, 4)
         assert t.get(timeout=2) == 8
@@ -107,10 +109,10 @@ def test_amqp_task(instrument_celery, traced_amqp_celery_app):
         # wait for spans to be received
         time.sleep(3)
 
-        assert_traces(tracer, "add", t, "amqp")
+        assert_traces(tracer, "add", t, 5672)
 
 
-def assert_traces(tracer, task_name, task, backend):
+def assert_traces(tracer, task_name, task, port):
     traces = tracer.pop_traces()
 
     assert 2 == len(traces)
@@ -128,7 +130,8 @@ def assert_traces(tracer, task_name, task, backend):
     assert async_span.get_tag("celery.routing_key") == "celery"
     assert async_span.get_tag("component") == "celery"
     assert async_span.get_tag("span.kind") == "producer"
-    assert async_span.get_tag("out.host") == "{backend}://127.0.0.1".format(backend=backend)
+    assert async_span.get_tag("out.host") == "127.0.0.1"
+    assert async_span.get_metric("network.destination.port") == port
 
     assert run_span.error == 0
     assert run_span.name == "celery.run"
