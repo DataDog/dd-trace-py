@@ -27,6 +27,7 @@ def wrapped_function(wrapped, instance, args, kwargs):
     )
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
+
 import inspect
 import os
 import sys
@@ -71,8 +72,14 @@ def ddtrace_iast_flask_patch():
     sys.modules[module_name] = compiled_code
 
 
+_iast_propagation_enabled = False
+
+
 def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
+    global _iast_propagation_enabled
+    if _iast_propagation_enabled:
+        return
     if asbool(os.getenv(IAST.ENV, "false")):
         from ddtrace.appsec._iast._utils import _is_python_version_supported
 
@@ -82,6 +89,7 @@ def enable_iast_propagation():
 
             log.debug("IAST enabled")
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+            _iast_propagation_enabled = True
 
 
 def disable_iast_propagation():
@@ -89,10 +97,14 @@ def disable_iast_propagation():
     from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
+    global _iast_propagation_enabled
+    if not _iast_propagation_enabled:
+        return
     try:
         ModuleWatchdog.remove_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
     except KeyError:
         log.warning("IAST is already disabled and it's not in the ModuleWatchdog")
+    _iast_propagation_enabled = False
 
 
 __all__ = [
