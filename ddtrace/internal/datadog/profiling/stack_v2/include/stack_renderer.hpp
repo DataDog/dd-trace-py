@@ -30,10 +30,18 @@ struct ThreadState
     int64_t now_time_ns = 0;
 };
 
+struct TaskState
+{
+    // Task info for current sample. Whenever the sample is created, this
+    // state has to be reset.
+    bool pushed_task_name = false;
+};
+
 class StackRenderer : public RendererInterface
 {
     Sample* sample = nullptr;
     ThreadState thread_state = {};
+    TaskState task_state = {};
 
     virtual void render_message(std::string_view msg) override;
     virtual void render_thread_begin(PyThreadState* tstate,
