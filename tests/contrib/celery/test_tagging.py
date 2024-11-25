@@ -15,15 +15,6 @@ from .base import BACKEND_URL
 from .base import BROKER_URL
 
 
-SNAPSHOT_IGNORED_ATTRS = [
-    "meta.celery.id",
-    "meta.celery.hostname",
-    "meta.celery.reply_to",
-    "meta.celery.correlation_id",
-    "meta.celery.delivery_info.redelivered",
-]
-
-
 redis_celery_app = Celery(
     "mul_celery",
     broker=BROKER_URL,
@@ -81,7 +72,6 @@ def traced_amqp_celery_app(instrument_celery, dummy_tracer):
     yield amqp_celery_app
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORED_ATTRS)
 def test_redis_task(traced_redis_celery_app):
     tracer = Pin.get_from(traced_redis_celery_app).tracer
 
@@ -101,7 +91,6 @@ def test_redis_task(traced_redis_celery_app):
         assert_traces(tracer, "multiply", t, 6379)
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORED_ATTRS)
 def test_amqp_task(instrument_celery, traced_amqp_celery_app):
     tracer = Pin.get_from(traced_amqp_celery_app).tracer
 
