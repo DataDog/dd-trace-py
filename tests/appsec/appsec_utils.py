@@ -6,6 +6,7 @@ import sys
 
 from requests.exceptions import ConnectionError
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.vendor import psutil
@@ -107,6 +108,7 @@ def appsec_application_server(
         env["DD_IAST_ENABLED"] = iast_enabled
         env["DD_IAST_REQUEST_SAMPLING"] = "100"
         env["_DD_APPSEC_DEDUPLICATION_ENABLED"] = "false"
+        env[IAST.ENV_NO_DIR_PATCH] = "false"
         if assert_debug:
             env["_DD_IAST_DEBUG"] = iast_enabled
             env["DD_TRACE_DEBUG"] = iast_enabled
