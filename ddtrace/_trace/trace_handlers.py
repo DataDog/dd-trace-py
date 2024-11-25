@@ -660,7 +660,7 @@ def _on_test_visibility_disable() -> None:
     CIVisibility.disable()
 
 
-def _on_test_visibility_is_enabled() -> bool:
+def _on_test_visibility_is_enabled() -> None:
     from ddtrace.internal.ci_visibility import CIVisibility
 
     core.set_item("civisibility_enabled", CIVisibility.enabled)
