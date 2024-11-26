@@ -10,3 +10,7 @@ deprecations:
   - |
     LLM Observability: `LLMObs.submit_evaluation` is deprecated and will be removed in 3.0.0.
                         As an alternative to `LLMObs.submit_evaluation`, you can use `LLMObs.submit_evaluation_for` instead.
+                        To migrate, replace `LLMObs.submit_evaluation(span_context={"span_id": ..., "trace_id": ...}, ...)` with:
+                          `LLMObs.submit_evaluation_for(span={"span_id": ..., "trace_id": ...}, ...)` if you choose to join by span_id and trace_id
+                          or
+                          `LLMObs.submit_evaluation_for(span_with_tag=("tag_key", "tag_val"), ...)` if you choose to join by tag.
