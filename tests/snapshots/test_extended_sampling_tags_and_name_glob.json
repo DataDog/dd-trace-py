@@ -1,7 +1,7 @@
 [[
   {
     "name": "mycoolname",
-    "service": "",
+    "service": "tests.integration",
     "resource": "mycoolname",
     "trace_id": 0,
     "span_id": 1,
@@ -27,7 +27,7 @@
 [
   {
     "name": "should_send1",
-    "service": "",
+    "service": "tests.integration",
     "resource": "should_send1",
     "trace_id": 1,
     "span_id": 1,
@@ -53,7 +53,7 @@
 [
   {
     "name": "should_send2",
-    "service": "",
+    "service": "tests.integration",
     "resource": "banana",
     "trace_id": 2,
     "span_id": 1,
@@ -79,7 +79,7 @@
 [
   {
     "name": "mycoolname",
-    "service": "",
+    "service": "tests.integration",
     "resource": "mycoolname",
     "trace_id": 3,
     "span_id": 1,

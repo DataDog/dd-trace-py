@@ -9,7 +9,7 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "rq",
@@ -39,7 +39,7 @@
        "type": "worker",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.rq",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "654a694400000000",
          "component": "rq",
@@ -71,7 +71,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.rq",
             "_dd.p.tid": "654a694400000000",
             "component": "rq",
             "job.id": "45ed1c2f-0e79-4a7a-9ca6-2d124eb0d43b"
@@ -90,7 +90,7 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "rq",
@@ -120,7 +120,7 @@
        "type": "worker",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.rq",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "654a694400000000",
          "component": "rq",
@@ -152,7 +152,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.rq",
             "_dd.p.tid": "654a694400000000",
             "component": "rq",
             "job.id": "0d125a3e-a0b7-4fc1-bff0-96c4bd7e9d09"
@@ -171,7 +171,7 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "rq",
@@ -201,7 +201,7 @@
        "type": "worker",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.rq",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "654a694400000000",
          "component": "rq",
@@ -233,7 +233,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
+            "_dd.base_service": "tests.contrib.rq",
             "_dd.p.tid": "654a694400000000",
             "component": "rq",
             "job.id": "136e8c75-89b9-4c73-9894-ed1b61420ab0"

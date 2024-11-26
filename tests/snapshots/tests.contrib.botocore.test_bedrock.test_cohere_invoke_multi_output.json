@@ -9,7 +9,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "659d9e8200000000",
       "bedrock.request.max_tokens": "10",

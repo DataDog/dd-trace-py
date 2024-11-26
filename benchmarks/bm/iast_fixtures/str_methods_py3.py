@@ -1,4 +1,5 @@
 # Python 3 only functions (syntax errors on Python 2)
+import re
 from typing import TYPE_CHECKING  # noqa:F401
 
 
@@ -7,6 +8,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List  # noqa:F401
     from typing import Optional  # noqa:F401
     from typing import Tuple  # noqa:F401
+
+
+COMPILED_RE = re.compile(
+    r"(?<!\.)(__import__|a(?:bs|iter|ll|ny)|b(?:in|ool|reakpoint|yte(?:array|s))|c(?:allable|hr|lassmethod|omp(?:ile|lex))|d(?:elattr|i(?:ct|r|vmod))|e(?:numerate|val)|f(?:ilter|(?:loa|orma|rozense)t)|g(?:etattr|lobals)|h(?:as(?:attr|h)|ex)|i(?:d|n(?:(?:(?:pu)?)t)|s(?:instance|subclass)|ter)|l(?:en|ist|ocals)|m(?:a(?:[px])|emoryview|in)|next|o(?:bject|ct|pen|rd)|p(?:ow|r(?:int|operty))|r(?:ange|e(?:pr|versed)|ound)|s(?:et(?:(?:attr)?)|lice|orted|t(?:aticmethod|r)|u(?:m|per))|t(?:(?:upl|yp)e)|vars|zip)\b",
+    re.MULTILINE,
+)
 
 
 def do_zero_padding_fstring(a):  # type: (int) -> str
@@ -131,3 +138,11 @@ class URLPattern:
                     tried.append([pattern])
             raise Resolver404({"tried": tried, "path": new_path})
         raise Resolver404({"path": path})
+
+
+def do_match_group(text):
+    #
+    #  TODO(avara1986): This kind of assignation doesn't work with AST patching
+    #    my_re_match_function = COMPILED_RE.match
+    result = COMPILED_RE.match(text, 0)
+    return result.group()

@@ -317,8 +317,15 @@ def test_extract(tracer):  # noqa: F811
         assert len(context.get_all_baggage_items()) == 3
 
 
-def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(tracer):  # noqa: F811
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
+def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
+    tracer, appsec_enabled, iast_enabled  # noqa: F811
+):
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         headers = {
             "x-datadog-trace-id": "1234",
@@ -362,8 +369,15 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(t
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
-def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(tracer):  # noqa: F811
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
+def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
+    tracer, appsec_enabled, iast_enabled  # noqa: F811
+):
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -428,10 +442,15 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
-    tracer,  # noqa: F811
+    tracer, appsec_enabled, iast_enabled  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -526,10 +545,15 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_user_keep(
-    tracer, upstream_priority  # noqa: F811
+    tracer, upstream_priority, appsec_enabled, iast_enabled  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -585,10 +609,15 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_force_keep(
-    tracer, upstream_priority  # noqa: F811
+    tracer, upstream_priority, appsec_enabled, iast_enabled  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
