@@ -67,6 +67,7 @@ class VertexAIIntegration(BaseLLMIntegration):
 
     def _extract_input_message(self, contents, history, system_instruction=None):
         from vertexai.generative_models._generative_models import Part
+
         messages = []
         if system_instruction:
             for instruction in system_instruction:
