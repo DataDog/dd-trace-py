@@ -11,15 +11,12 @@ import typing as t
 def gen_required_suites(template: dict) -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
-    from needs_testrun import for_each_testrun_needed as fetn
+    from needs_testrun import for_each_testrun_needed
     from suitespec import get_suites
 
-    suites = get_suites()
-    jobs = set(template["jobs"].keys())
-
     required_suites = template["requires_tests"]["requires"] = []
-    fetn(
-        suites=sorted(set(suites.keys()) & jobs),
+    for_each_testrun_needed(
+        suites=sorted(set(_.rpartition("::")[-1] for _ in get_suites()) & set(template["jobs"].keys())),
         action=lambda suite: required_suites.append(suite),
         git_selections=extract_git_commit_selections(os.getenv("GIT_COMMIT_DESC", "")),
     )
