@@ -12,6 +12,7 @@ from typing import Set
 from typing import Text
 from typing import Tuple  # noqa:F401
 
+from ..._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
@@ -22,11 +23,12 @@ PY30_37 = sys.version_info >= (3, 0, 0) and sys.version_info < (3, 8, 0)
 PY38_PLUS = sys.version_info >= (3, 8, 0)
 PY39_PLUS = sys.version_info >= (3, 9, 0)
 
+_PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 CODE_TYPE_FIRST_PARTY = "first_party"
 CODE_TYPE_DD = "datadog"
 CODE_TYPE_SITE_PACKAGES = "site_packages"
 CODE_TYPE_STDLIB = "stdlib"
-TAINT_SINK_FUNCTION_REPLACEMENT = "ddtrace_taint_sinks.ast_function"
+TAINT_SINK_FUNCTION_REPLACEMENT = _PREFIX + "taint_sinks.ast_function"
 
 
 def _mark_avoid_convert_recursively(node):
@@ -38,71 +40,71 @@ def _mark_avoid_convert_recursively(node):
 
 _ASPECTS_SPEC: Dict[Text, Any] = {
     "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
-    "alias_module": "ddtrace_aspects",
+    "alias_module": _PREFIX + "aspects",
     "functions": {
-        "StringIO": "ddtrace_aspects.stringio_aspect",
-        "BytesIO": "ddtrace_aspects.bytesio_aspect",
-        "str": "ddtrace_aspects.str_aspect",
-        "bytes": "ddtrace_aspects.bytes_aspect",
-        "bytearray": "ddtrace_aspects.bytearray_aspect",
-        "ddtrace_iast_flask_patch": "ddtrace_aspects.empty_func",  # To avoid recursion
+        "StringIO": _PREFIX + "aspects.stringio_aspect",
+        "BytesIO": _PREFIX + "aspects.bytesio_aspect",
+        "str": _PREFIX + "aspects.str_aspect",
+        "bytes": _PREFIX + "aspects.bytes_aspect",
+        "bytearray": _PREFIX + "aspects.bytearray_aspect",
+        "ddtrace_iast_flask_patch": _PREFIX + "aspects.empty_func",  # To avoid recursion
     },
     "stringalike_methods": {
-        "StringIO": "ddtrace_aspects.stringio_aspect",
-        "BytesIO": "ddtrace_aspects.bytesio_aspect",
-        "decode": "ddtrace_aspects.decode_aspect",
-        "join": "ddtrace_aspects.join_aspect",
-        "encode": "ddtrace_aspects.encode_aspect",
-        "extend": "ddtrace_aspects.bytearray_extend_aspect",
-        "upper": "ddtrace_aspects.upper_aspect",
-        "lower": "ddtrace_aspects.lower_aspect",
-        "replace": "ddtrace_aspects.replace_aspect",
-        "swapcase": "ddtrace_aspects.swapcase_aspect",
-        "title": "ddtrace_aspects.title_aspect",
-        "capitalize": "ddtrace_aspects.capitalize_aspect",
-        "casefold": "ddtrace_aspects.casefold_aspect",
-        "translate": "ddtrace_aspects.translate_aspect",
-        "format": "ddtrace_aspects.format_aspect",
-        "format_map": "ddtrace_aspects.format_map_aspect",
-        "zfill": "ddtrace_aspects.zfill_aspect",
-        "ljust": "ddtrace_aspects.ljust_aspect",
-        "split": "ddtrace_aspects.split_aspect",  # Both regular split and re.split
-        "rsplit": "ddtrace_aspects.rsplit_aspect",
-        "splitlines": "ddtrace_aspects.splitlines_aspect",
+        "StringIO": _PREFIX + "aspects.stringio_aspect",
+        "BytesIO": _PREFIX + "aspects.bytesio_aspect",
+        "decode": _PREFIX + "aspects.decode_aspect",
+        "join": _PREFIX + "aspects.join_aspect",
+        "encode": _PREFIX + "aspects.encode_aspect",
+        "extend": _PREFIX + "aspects.bytearray_extend_aspect",
+        "upper": _PREFIX + "aspects.upper_aspect",
+        "lower": _PREFIX + "aspects.lower_aspect",
+        "replace": _PREFIX + "aspects.replace_aspect",
+        "swapcase": _PREFIX + "aspects.swapcase_aspect",
+        "title": _PREFIX + "aspects.title_aspect",
+        "capitalize": _PREFIX + "aspects.capitalize_aspect",
+        "casefold": _PREFIX + "aspects.casefold_aspect",
+        "translate": _PREFIX + "aspects.translate_aspect",
+        "format": _PREFIX + "aspects.format_aspect",
+        "format_map": _PREFIX + "aspects.format_map_aspect",
+        "zfill": _PREFIX + "aspects.zfill_aspect",
+        "ljust": _PREFIX + "aspects.ljust_aspect",
+        "split": _PREFIX + "aspects.split_aspect",  # Both regular split and re.split
+        "rsplit": _PREFIX + "aspects.rsplit_aspect",
+        "splitlines": _PREFIX + "aspects.splitlines_aspect",
         # re module and re.Match methods
-        "findall": "ddtrace_aspects.re_findall_aspect",
-        "finditer": "ddtrace_aspects.re_finditer_aspect",
-        "fullmatch": "ddtrace_aspects.re_fullmatch_aspect",
-        "expand": "ddtrace_aspects.re_expand_aspect",
-        "group": "ddtrace_aspects.re_group_aspect",
-        "groups": "ddtrace_aspects.re_groups_aspect",
-        "match": "ddtrace_aspects.re_match_aspect",
-        "search": "ddtrace_aspects.re_search_aspect",
-        "sub": "ddtrace_aspects.re_sub_aspect",
-        "subn": "ddtrace_aspects.re_subn_aspect",
+        "findall": _PREFIX + "aspects.re_findall_aspect",
+        "finditer": _PREFIX + "aspects.re_finditer_aspect",
+        "fullmatch": _PREFIX + "aspects.re_fullmatch_aspect",
+        "expand": _PREFIX + "aspects.re_expand_aspect",
+        "group": _PREFIX + "aspects.re_group_aspect",
+        "groups": _PREFIX + "aspects.re_groups_aspect",
+        "match": _PREFIX + "aspects.re_match_aspect",
+        "search": _PREFIX + "aspects.re_search_aspect",
+        "sub": _PREFIX + "aspects.re_sub_aspect",
+        "subn": _PREFIX + "aspects.re_subn_aspect",
     },
     # Replacement function for indexes and ranges
     "slices": {
-        "index": "ddtrace_aspects.index_aspect",
-        "slice": "ddtrace_aspects.slice_aspect",
+        "index": _PREFIX + "aspects.index_aspect",
+        "slice": _PREFIX + "aspects.slice_aspect",
     },
     # Replacement functions for modules
     "module_functions": {
         "os.path": {
-            "basename": "ddtrace_aspects.ospathbasename_aspect",
-            "dirname": "ddtrace_aspects.ospathdirname_aspect",
-            "join": "ddtrace_aspects.ospathjoin_aspect",
-            "normcase": "ddtrace_aspects.ospathnormcase_aspect",
-            "split": "ddtrace_aspects.ospathsplit_aspect",
-            "splitext": "ddtrace_aspects.ospathsplitext_aspect",
+            "basename": _PREFIX + "aspects.ospathbasename_aspect",
+            "dirname": _PREFIX + "aspects.ospathdirname_aspect",
+            "join": _PREFIX + "aspects.ospathjoin_aspect",
+            "normcase": _PREFIX + "aspects.ospathnormcase_aspect",
+            "split": _PREFIX + "aspects.ospathsplit_aspect",
+            "splitext": _PREFIX + "aspects.ospathsplitext_aspect",
         }
     },
     "operators": {
-        ast.Add: "ddtrace_aspects.add_aspect",
-        "INPLACE_ADD": "ddtrace_aspects.add_inplace_aspect",
-        "FORMAT_VALUE": "ddtrace_aspects.format_value_aspect",
-        ast.Mod: "ddtrace_aspects.modulo_aspect",
-        "BUILD_STRING": "ddtrace_aspects.build_string_aspect",
+        ast.Add: _PREFIX + "aspects.add_aspect",
+        "INPLACE_ADD": _PREFIX + "aspects.add_inplace_aspect",
+        "FORMAT_VALUE": _PREFIX + "aspects.format_value_aspect",
+        ast.Mod: _PREFIX + "aspects.modulo_aspect",
+        "BUILD_STRING": _PREFIX + "aspects.build_string_aspect",
     },
     "excluded_from_patching": {
         # Key: module being patched
@@ -123,6 +125,8 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         },
         "django.utils.html": {"": ("format_html", "format_html_join")},
         "sqlalchemy.sql.compiler": {"": ("_requires_quotes",)},
+        # Our added functions
+        "": {"": (f"{_PREFIX}dir", f"{_PREFIX}set_dir_filter")},
     },
     # This is a set since all functions will be replaced by taint_sink_functions
     "taint_sinks": {
@@ -149,10 +153,10 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
 
 
 if sys.version_info >= (3, 12):
-    _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects.ospathsplitroot_aspect"
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = _PREFIX + "aspects.ospathsplitroot_aspect"
 
 if sys.version_info >= (3, 12) or os.name == "nt":
-    _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects.ospathsplitdrive_aspect"
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = _PREFIX + "aspects.ospathsplitdrive_aspect"
 
 
 class AstVisitor(ast.NodeTransformer):
@@ -163,7 +167,7 @@ class AstVisitor(ast.NodeTransformer):
     ):
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
-            "alias_module": "ddtrace_taint_sinks",
+            "alias_module": _PREFIX + "taint_sinks",
             "functions": {},
         }
         self._sinkpoints_functions = self._sinkpoints_spec["functions"]
@@ -458,6 +462,9 @@ class AstVisitor(ast.NodeTransformer):
         Special case for some tests which would enter in a patching
         loop otherwise when visiting the check functions
         """
+        if f"{_PREFIX}dir" in def_node.name or f"{_PREFIX}set_dir_filter" in def_node.name:
+            return def_node
+
         self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
 
         if hasattr(def_node.args, "vararg") and def_node.args.vararg:
