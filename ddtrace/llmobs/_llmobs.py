@@ -745,10 +745,9 @@ class LLMObs(Service):
             log.warning("span_tags must be a dictionary of string key - primitive value pairs.")
             return
         try:
-            existing_tags = span._get_ctx_item(TAGS)
-            if existing_tags:
-                span_tags.update(existing_tags)
-            span._set_ctx_item(TAGS, span_tags)
+            existing_tags = span._get_ctx_item(TAGS) or {}
+            existing_tags.update(span_tags)
+            span._set_ctx_item(TAGS, existing_tags)
         except Exception:
             log.warning("Failed to parse tags.", exc_info=True)
 

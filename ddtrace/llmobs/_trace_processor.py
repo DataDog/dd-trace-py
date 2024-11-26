@@ -78,6 +78,8 @@ class LLMObsTraceProcessor(TraceProcessor):
     def _llmobs_span_event(self, span: Span) -> Tuple[Dict[str, Any], bool]:
         """Span event object structure."""
         span_kind = span._get_ctx_item(SPAN_KIND)
+        if not span_kind:
+            raise KeyError("Span kind not found in span context")
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
@@ -104,7 +106,7 @@ class LLMObsTraceProcessor(TraceProcessor):
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
                 )
             else:
-                meta["input"]["prompt"] = json.loads(prompt_json_str)
+                meta["input"]["prompt"] = prompt_json_str
         if span.error:
             meta.update({
                 ERROR_MSG: span.get_tag(ERROR_MSG),
