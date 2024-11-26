@@ -414,8 +414,6 @@ suites:
       ENABLED_CHECKS: trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service
       LOG_LEVEL: DEBUG
       PORT: 9126
-      SNAPSHOT_CI: 1
-      SNAPSHOT_DIR: /snapshots
     paths:
       - '@bootstrap'
       - '@core'
