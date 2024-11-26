@@ -2,8 +2,6 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-import vertexai
-from vertexai.generative_models import Part
 
 
 def extract_model_name_google(instance, model_name_attr):
@@ -135,7 +133,7 @@ def get_system_instructions_from_google_model(model_instance):
     raw_system_instructions = getattr(model_instance, "_system_instruction", [])
     if isinstance(raw_system_instructions, str):
         return [raw_system_instructions]
-    elif isinstance(raw_system_instructions, Part):
+    elif is_instance_of_class(raw_system_instructions, "Part"):
         return [_get_attr(raw_system_instructions, "text", "")]
     elif not isinstance(raw_system_instructions, list):
         return []
@@ -144,9 +142,12 @@ def get_system_instructions_from_google_model(model_instance):
     for elem in raw_system_instructions:
         if isinstance(elem, str):
             system_instructions.append(elem)
-        elif isinstance(elem, Part):
+        elif is_instance_of_class(elem, "Part"):
             system_instructions.append(_get_attr(elem, "text", ""))
     return system_instructions
 
 def is_instance_of_class(obj, class_name):
-    return f"{obj.__class__.__module__}.{obj.__class__.__name__}" == class_name
+    """
+    Helper to identify instances of a class without having to import the class.
+    """
+    return obj.__class__.__name__ == class_name

@@ -77,7 +77,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         if isinstance(contents, str):
             messages.append({"content": contents})
             return messages
-        if is_instance_of_class(contents, "vertexai.generative_models._generative_models.Part"):
+        if is_instance_of_class(contents, "Part"):
             message = extract_message_from_part_google(contents)
             messages.append(message)
             return messages
@@ -88,7 +88,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             if isinstance(content, str):
                 messages.append({"content": content})
                 continue
-            if is_instance_of_class(contents, "vertexai.generative_models._generative_models.Part"):
+            if is_instance_of_class(contents, "Part"):
                 message = extract_message_from_part_google(contents)
                 messages.append(message)
                 continue
