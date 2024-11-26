@@ -57,9 +57,10 @@ class VertexAIIntegration(BaseLLMIntegration):
 
         if span.error or response is None:
             span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
-        else:
-            output_messages = self._extract_output_message(response)
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
+            return
+
+        output_messages = self._extract_output_message(response)
+        span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
         usage = get_llmobs_metrics_tags_google("vertexai", span)
         if usage:
