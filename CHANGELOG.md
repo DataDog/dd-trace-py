@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.14.8
+
+
+### Bug Fixes
+
+- ASM: This fix resolves an issue where some root span where not appropriately tagged for ASM standalone.
+
+
+---
+
 ## 2.16.4
 
 
