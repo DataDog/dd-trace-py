@@ -189,6 +189,7 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     return bool(matches)
 
 
+@cache
 def _get_pr_number() -> int:
     # CircleCI
     number = os.environ.get("CIRCLE_PR_NUMBER")
