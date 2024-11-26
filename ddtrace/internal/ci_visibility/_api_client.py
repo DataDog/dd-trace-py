@@ -390,6 +390,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             api_settings.skipping_enabled,
             api_settings.require_git,
             api_settings.itr_enabled,
+            api_settings.flaky_test_retries_enabled,
             api_settings.early_flake_detection.enabled,
         )
 
