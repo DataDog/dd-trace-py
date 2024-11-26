@@ -974,7 +974,8 @@ class LLMObs(Service):
         timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
 
         if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
-            raise ValueError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+            log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+            return
 
         span_id = span_context.get("span_id")
         trace_id = span_context.get("trace_id")
