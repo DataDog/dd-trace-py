@@ -69,15 +69,17 @@ class AnthropicIntegration(BaseLLMIntegration):
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
 
-        span._set_ctx_items({
-            SPAN_KIND: "llm",
-            MODEL_NAME: span.get_tag("anthropic.request.model") or "",
-            MODEL_PROVIDER: "anthropic",
-            INPUT_MESSAGES: input_messages,
-            METADATA: parameters,
-            OUTPUT_MESSAGES: output_messages,
-            METRICS: self._get_llmobs_metrics_tags(span),
-        })
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "llm",
+                MODEL_NAME: span.get_tag("anthropic.request.model") or "",
+                MODEL_PROVIDER: "anthropic",
+                INPUT_MESSAGES: input_messages,
+                METADATA: parameters,
+                OUTPUT_MESSAGES: output_messages,
+                METRICS: self._get_llmobs_metrics_tags(span),
+            }
+        )
 
     def _extract_input_message(self, messages, system_prompt=None):
         """Extract input messages from the stored prompt.

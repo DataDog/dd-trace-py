@@ -45,15 +45,17 @@ class BedrockIntegration(BaseLLMIntegration):
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
-        span._set_ctx_items({
-            SPAN_KIND: "llm",
-            MODEL_NAME: span.get_tag("bedrock.request.model") or "",
-            MODEL_PROVIDER: span.get_tag("bedrock.request.model_provider") or "",
-            INPUT_MESSAGES: input_messages,
-            METADATA: parameters,
-            METRICS: self._llmobs_metrics(span, response),
-            OUTPUT_MESSAGES: output_messages,
-        })
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "llm",
+                MODEL_NAME: span.get_tag("bedrock.request.model") or "",
+                MODEL_PROVIDER: span.get_tag("bedrock.request.model_provider") or "",
+                INPUT_MESSAGES: input_messages,
+                METADATA: parameters,
+                METRICS: self._llmobs_metrics(span, response),
+                OUTPUT_MESSAGES: output_messages,
+            }
+        )
 
     @staticmethod
     def _llmobs_metrics(span: Span, response: Optional[Dict[str, Any]]) -> Dict[str, Any]:

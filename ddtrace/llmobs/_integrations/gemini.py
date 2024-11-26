@@ -50,15 +50,17 @@ class GeminiIntegration(BaseLLMIntegration):
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
 
-        span._set_ctx_items({
-            SPAN_KIND: "llm",
-            MODEL_NAME: span.get_tag("google_generativeai.request.model") or "",
-            MODEL_PROVIDER: span.get_tag("google_generativeai.request.provider") or "",
-            METADATA: metadata,
-            INPUT_MESSAGES: input_messages,
-            OUTPUT_MESSAGES: output_messages,
-            METRICS: self._get_llmobs_metrics_tags(span),
-        })
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "llm",
+                MODEL_NAME: span.get_tag("google_generativeai.request.model") or "",
+                MODEL_PROVIDER: span.get_tag("google_generativeai.request.provider") or "",
+                METADATA: metadata,
+                INPUT_MESSAGES: input_messages,
+                OUTPUT_MESSAGES: output_messages,
+                METRICS: self._get_llmobs_metrics_tags(span),
+            }
+        )
 
     @staticmethod
     def _llmobs_set_metadata(kwargs, instance):

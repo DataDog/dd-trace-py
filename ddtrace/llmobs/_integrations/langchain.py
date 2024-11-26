@@ -381,7 +381,11 @@ class LangChainIntegration(BaseLLMIntegration):
         is_workflow: bool = False,
     ) -> None:
         span._set_ctx_items(
-            {SPAN_KIND: "workflow" if is_workflow else "retrieval", MODEL_NAME: span.get_tag(MODEL) or "", MODEL_PROVIDER: span.get_tag(PROVIDER) or ""}
+            {
+                SPAN_KIND: "workflow" if is_workflow else "retrieval",
+                MODEL_NAME: span.get_tag(MODEL) or "",
+                MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
+            }
         )
         input_query = get_argument_value(args, kwargs, 0, "query")
         if input_query is not None:
@@ -417,9 +421,14 @@ class LangChainIntegration(BaseLLMIntegration):
         formatted_outputs = ""
         if not span.error and tool_output is not None:
             formatted_outputs = self.format_io(tool_output)
-        span._set_ctx_items({
-            SPAN_KIND: "tool", METADATA: metadata, INPUT_VALUE: formatted_input, OUTPUT_VALUE: formatted_outputs,
-        })
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "tool",
+                METADATA: metadata,
+                INPUT_VALUE: formatted_input,
+                OUTPUT_VALUE: formatted_outputs,
+            }
+        )
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
