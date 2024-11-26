@@ -65,7 +65,7 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
-from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
@@ -910,9 +910,7 @@ def _requires_civisibility_enabled(func):
 
 
 @_requires_civisibility_enabled
-def _on_discover_session(
-    discover_args: TestSession.DiscoverArgs, test_framework_telemetry_name: Optional[TEST_FRAMEWORKS] = None
-):
+def _on_discover_session(discover_args: TestSession.DiscoverArgs):
     log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
@@ -928,7 +926,8 @@ def _on_discover_session(
     # If we're not provided a root directory, try and extract it from workspace, defaulting to CWD
     workspace_path = discover_args.root_dir or Path(CIVisibility.get_workspace_path() or os.getcwd())
 
-    test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
+    # Prevent high cardinality of test framework telemetry tag by matching with known frameworks
+    test_framework_telemetry_name = _get_test_framework_telemetry_name(discover_args.test_framework)
 
     efd_api_settings = CIVisibility.get_efd_api_settings()
     if efd_api_settings is None or not CIVisibility.is_efd_enabled():
