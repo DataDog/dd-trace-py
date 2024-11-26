@@ -1,5 +1,7 @@
+from urllib.parse import urlparse
+
+from celery import current_app
 from celery import registry
-from celery.utils import nodenames
 
 from ddtrace import Pin
 from ddtrace import config
@@ -181,9 +183,21 @@ def trace_after_publish(*args, **kwargs):
     if span is None:
         return
     else:
-        nodename = span.get_tag("celery.hostname")
-        if nodename is not None:
-            _, host = nodenames.nodesplit(nodename)
+        broker_url = current_app.conf.broker_url
+
+        if broker_url == "memory://":
+            host = broker_url
+        else:
+            parsed_url = urlparse(broker_url)
+
+            host = None
+            if parsed_url.hostname:
+                host = parsed_url.hostname
+
+            if parsed_url.port:
+                span.set_metric(net.TARGET_PORT, parsed_url.port)
+
+        if host:
             span.set_tag_str(net.TARGET_HOST, host)
 
         span.finish()

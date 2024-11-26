@@ -9,6 +9,7 @@ from ddtrace import config as ddconfig
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
+from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.logger import get_logger
 
 
@@ -147,3 +148,10 @@ def combine_url_path(*args: str):
     NOTE: this is custom-built for its current usage in the Test Visibility codebase. Use with care.
     """
     return "/".join(str(segment).strip("/") for segment in args)
+
+
+def _get_test_framework_telemetry_name(test_framework: str) -> TEST_FRAMEWORKS:
+    for framework in TEST_FRAMEWORKS:
+        if framework.value == test_framework:
+            return framework
+    return TEST_FRAMEWORKS.MANUAL

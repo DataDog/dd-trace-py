@@ -72,6 +72,11 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
+    # ensure exploit prevention patches are loaded by one-click activation
+    if asm_config._asm_enabled:
+        from ddtrace.appsec import load_common_appsec_modules
+
+        load_common_appsec_modules()
 
     forksafe.register(_forksafe_appsec_rc)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
