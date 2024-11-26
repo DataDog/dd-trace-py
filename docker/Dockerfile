@@ -68,12 +68,11 @@ RUN \
     && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-buster-prod buster main" > /etc/apt/sources.list.d/dotnetdev.list \
     && apt-get update && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.0.6280-1; \
   fi \
-  # Install Mariadb last because mariadb_repo_setup currently breaks apt
-  && wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup \
-  && chmod +x mariadb_repo_setup \
-  && ./mariadb_repo_setup \
-  && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
-  && rm mariadb_repo_setup \
+  # Install Mariadb
+  && mkdir -p /etc/apt/keyrings \
+  && curl -o /etc/apt/keyrings/mariadb-keyring.pgp 'https://mariadb.org/mariadb_release_signing_key.pgp' \
+  && echo -e "X-Repolib-Name: MariaDB\nTypes: deb\nURIs: https://mirror.us.mirhosting.net/mariadb/repo/11.rolling/debian\nSuites: buster\nComponents: main\nSigned-By: /etc/apt/keyrings/mariadb-keyring.pgp" > /etc/apt/sources.list.d/mariadb.sources \
+  && apt-get update && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 
