@@ -788,7 +788,6 @@ class LLMObs(Service):
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
-        metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span.
@@ -804,8 +803,6 @@ class LLMObs(Service):
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
-        :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
-                                evaluation metric.
         """
         if cls.enabled is False:
             log.debug(
@@ -878,12 +875,6 @@ class LLMObs(Service):
                 except TypeError:
                     log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
 
-        if not config._dd_api_key:
-            log.warning(
-                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                "Ensure this configuration is set before running your application."
-            )
-            return
         ml_app = ml_app if ml_app else config._llmobs_ml_app
         if not ml_app:
             log.warning(
@@ -901,14 +892,6 @@ class LLMObs(Service):
             "ml_app": ml_app,
             "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
         }
-
-        if metadata:
-            if not isinstance(metadata, dict):
-                log.warning("metadata must be json serializable dictionary.")
-            else:
-                metadata = safe_json(metadata)
-                if metadata and isinstance(metadata, str):
-                    evaluation_metric["metadata"] = json.loads(metadata)
 
         cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 

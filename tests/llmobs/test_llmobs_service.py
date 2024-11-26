@@ -1029,10 +1029,11 @@ def test_export_span_no_specified_span_returns_exported_active_span(LLMObs):
 
 def test_submit_evaluation_llmobs_disabled_raises_warning(LLMObs, mock_logs):
     LLMObs.disable()
+    mock_logs.reset_mock()
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value="high"
     )
-    mock_logs.warning.assert_called_once_with(
+    mock_logs.debug.assert_called_once_with(
         "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
     )
 
@@ -2029,20 +2030,6 @@ def test_submit_evaluation_for_llmobs_disabled_debug_logs(LLMObs, mock_logs):
     )
 
 
-def test_submit_evaluation_for_no_api_key_raises_warning(AgentlessLLMObs, mock_logs):
-    with override_global_config(dict(_dd_api_key="")):
-        AgentlessLLMObs.submit_evaluation_for(
-            span={"span_id": "123", "trace_id": "456"},
-            label="toxicity",
-            metric_type="categorical",
-            value="high",
-        )
-        mock_logs.warning.assert_called_once_with(
-            "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-            "Ensure this configuration is set before running your application."
-        )
-
-
 def test_submit_evaluation_for_no_ml_app_raises_warning(LLMObs, mock_logs):
     with override_global_config(dict(_llmobs_ml_app="")):
         LLMObs.submit_evaluation_for(
@@ -2157,17 +2144,6 @@ def test_submit_evaluation_for_invalid_tags_raises_warning(LLMObs, mock_logs):
     mock_logs.warning.assert_called_once_with("tags must be a dictionary of string key-value pairs.")
 
 
-def test_submit_evaluation_for_invalid_metadata_raises_warning(LLMObs, mock_logs):
-    LLMObs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        metadata=1,
-    )
-    mock_logs.warning.assert_called_once_with("metadata must be json serializable dictionary.")
-
-
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(_llmobs_ml_app="test_app_name")],
@@ -2210,55 +2186,6 @@ def test_submit_evaluation_for_metric_tags(LLMObs, mock_llmobs_eval_metric_write
         value="high",
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
         ml_app="ml_app_override",
-    )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="ml_app_override",
-            span_id="123",
-            trace_id="456",
-            label="toxicity",
-            metric_type="categorical",
-            categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
-        )
-    )
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config",
-    [dict(ddtrace="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
-)
-def test_submit_evaluation_for_metric_with_metadata_enqueues_metric(LLMObs, mock_llmobs_eval_metric_writer):
-    LLMObs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        ml_app="ml_app_override",
-        metadata={"foo": ["bar", "baz"]},
-    )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="ml_app_override",
-            span_id="123",
-            trace_id="456",
-            label="toxicity",
-            metric_type="categorical",
-            categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
-            metadata={"foo": ["bar", "baz"]},
-        )
-    )
-    mock_llmobs_eval_metric_writer.reset()
-    LLMObs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        ml_app="ml_app_override",
-        metadata="invalid",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(

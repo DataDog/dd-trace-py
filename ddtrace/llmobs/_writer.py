@@ -106,6 +106,13 @@ class BaseLLMObsWriter(PeriodicService):
             events = self._buffer
             self._buffer = []
 
+        if not self._headers.get("DD-API-KEY"):
+            logger.warning(
+                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. ",
+                "Ensure this configuration is set before running your application.",
+            )
+            return
+
         data = self._data(events)
         try:
             enc_llm_events = json.dumps(data)
