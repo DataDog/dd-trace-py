@@ -4,6 +4,25 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.13.3
+
+
+### Bug Fixes
+
+- CI Visibility: fixes a bug where `CODEOWNERS` would incorrectly fail to discard line-level trailing comments (eg: `@code/owner # my comment` would result in codeowners being parsed as `@code/owner`, `#`, `my`, and `comment`)
+- CI Visibility: fixes unnecessary logging of an exception that would appear when trying to upload git metadata in an environment without functioning git (eg: missing `git` binary or `.git` directory)
+- elasticsearch: this fix resolves an issue where span tags were not fully populated on "sampled" spans, causing metric dimensions to be incorrect when spans were prematurely marked as sampled, including resource_name.
+- LLM Observability: This fix resolves an issue where LLM Observability evaluation metrics were not being submitted in forked processes. The evaluation metric writer thread now automatically restarts when a forked process is detected.
+- LLM Observability: This fix resolves an issue where input and output values equal to zero were not being annotated on workflow, task, agent and tool spans when using <span class="title-ref">LLMObs.annotate</span>.
+- Code security: This fix resolves an issue where partial matches on function names we aimed to patch were being patched instead of full matches on them.
+- Code Security: This fix resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError
+- profiling: Improves the error message when the native exporter fails to load and stops profiling from starting if ddtrace is also being injected.
+- profiling: fix a data race where span information associated with a thread was read and updated concurrently, leading to segfaults
+- profiling: resolves an issue where endpoint profiling for stack v2 throws `TypeError` exception when it is given a `Span` with `None` span_type.
+
+
+---
+
 ## 2.16.4
 
 
