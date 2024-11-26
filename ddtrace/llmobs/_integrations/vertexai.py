@@ -17,7 +17,6 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
 from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
-from ddtrace.llmobs._integrations.utils import is_instance_of_class
 from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -67,6 +66,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             span.set_tag_str(METRICS, safe_json(usage))
 
     def _extract_input_message(self, contents, history, system_instruction=None):
+        from vertexai.generative_models._generative_models import Part
         messages = []
         if system_instruction:
             for instruction in system_instruction:
@@ -76,7 +76,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         if isinstance(contents, str):
             messages.append({"content": contents})
             return messages
-        if is_instance_of_class(contents, "Part"):
+        if isinstance(contents, Part):
             message = extract_message_from_part_google(contents)
             messages.append(message)
             return messages
@@ -87,7 +87,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             if isinstance(content, str):
                 messages.append({"content": content})
                 continue
-            if is_instance_of_class(contents, "Part"):
+            if isinstance(contents, Part):
                 message = extract_message_from_part_google(contents)
                 messages.append(message)
                 continue

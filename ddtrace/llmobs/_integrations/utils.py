@@ -134,10 +134,11 @@ def get_system_instructions_from_google_model(model_instance):
     """
     Extract system instructions from model and convert to []str for tagging.
     """
+    from vertexai.generative_models._generative_models import Part
     raw_system_instructions = getattr(model_instance, "_system_instruction", [])
     if isinstance(raw_system_instructions, str):
         return [raw_system_instructions]
-    elif is_instance_of_class(raw_system_instructions, "Part"):
+    elif isinstance(raw_system_instructions, Part):
         return [_get_attr(raw_system_instructions, "text", "")]
     elif not isinstance(raw_system_instructions, list):
         return []
@@ -146,13 +147,6 @@ def get_system_instructions_from_google_model(model_instance):
     for elem in raw_system_instructions:
         if isinstance(elem, str):
             system_instructions.append(elem)
-        elif is_instance_of_class(elem, "Part"):
+        elif isinstance(elem, Part):
             system_instructions.append(_get_attr(elem, "text", ""))
     return system_instructions
-
-
-def is_instance_of_class(obj, class_name):
-    """
-    Helper to identify instances of a class without having to import the class.
-    """
-    return obj.__class__.__name__ == class_name

@@ -61,6 +61,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
         model=extract_model_name_google(model_instance, "_model_name"),
         submit_to_llmobs=True,
     )
+    # history must be copied since it is modified during the LLM interaction
     history = getattr(instance, "history", [])[:]
     try:
         tag_request(span, integration, instance, args, kwargs)
@@ -94,6 +95,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
         model=extract_model_name_google(model_instance, "_model_name"),
         submit_to_llmobs=True,
     )
+    # history must be copied since it is modified during the LLM interaction
     history = getattr(instance, "history", [])[:]
     try:
         tag_request(span, integration, instance, args, kwargs)
