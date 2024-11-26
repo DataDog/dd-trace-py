@@ -38,7 +38,7 @@ is_exit_normal(int status)
 void
 sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "http://localhost:8126", "cpython", "3.10.6", "3.100", 256);
     std::atomic<bool> done(false);
     std::vector<std::thread> threads;
     std::vector<unsigned int> ids;
@@ -75,7 +75,7 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 void
 fork_stress_test(unsigned int num_threads, unsigned int sleep_time_ns, unsigned int num_children)
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "http://localhost:8126", "cpython", "3.10.6", "3.100", 256);
     std::atomic<bool> done(false);
     std::vector<std::thread> threads;
     std::vector<unsigned int> ids;
