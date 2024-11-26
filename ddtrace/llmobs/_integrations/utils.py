@@ -147,3 +147,6 @@ def get_system_instructions_from_google_model(model_instance):
         elif isinstance(elem, Part):
             system_instructions.append(_get_attr(elem, "text", ""))
     return system_instructions
+
+def is_instance_of_class(obj, class_name):
+    return f"{obj.__class__.__module__}.{obj.__class__.__name__}" == class_name

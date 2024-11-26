@@ -21,8 +21,7 @@ from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
 from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
-import vertexai
-from vertexai.generative_models import Part
+from ddtrace.llmobs._integrations.utils import is_instance_of_class
 
 
 class VertexAIIntegration(BaseLLMIntegration):
@@ -78,7 +77,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         if isinstance(contents, str):
             messages.append({"content": contents})
             return messages
-        if isinstance(contents, Part):
+        if is_instance_of_class(contents, "vertexai.generative_models._generative_models.Part"):
             message = extract_message_from_part_google(contents)
             messages.append(message)
             return messages
@@ -89,7 +88,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             if isinstance(content, str):
                 messages.append({"content": content})
                 continue
-            if isinstance(content, Part):
+            if is_instance_of_class(contents, "vertexai.generative_models._generative_models.Part"):
                 message = extract_message_from_part_google(contents)
                 messages.append(message)
                 continue
