@@ -76,6 +76,7 @@ def tag_response_part_google(tag_prefix, span, integration, part, part_idx, cand
         integration.trunc(str(_get_attr(function_call, "args", {}))),
     )
 
+
 def llmobs_get_metadata_google(kwargs, instance):
     metadata = {}
     model_config = getattr(instance, "_generation_config", {}) or {}
@@ -90,6 +91,7 @@ def llmobs_get_metadata_google(kwargs, instance):
         if model_config_value or request_config_value:
             metadata[param] = request_config_value or model_config_value
     return metadata
+
 
 def extract_message_from_part_google(part, role=None):
     text = _get_attr(part, "text", "")
@@ -112,19 +114,21 @@ def extract_message_from_part_google(part, role=None):
         message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
     return message
 
-def get_llmobs_metrics_tags_google(integration_name, span):
-        usage = {}
-        input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name)
-        output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name)
-        total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
 
-        if input_tokens is not None:
-            usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
-        if output_tokens is not None:
-            usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        if total_tokens is not None:
-            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
-        return usage
+def get_llmobs_metrics_tags_google(integration_name, span):
+    usage = {}
+    input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name)
+    output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name)
+    total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
+
+    if input_tokens is not None:
+        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+    if output_tokens is not None:
+        usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+    if total_tokens is not None:
+        usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+    return usage
+
 
 def get_system_instructions_from_google_model(model_instance):
     """
@@ -145,6 +149,7 @@ def get_system_instructions_from_google_model(model_instance):
         elif is_instance_of_class(elem, "Part"):
             system_instructions.append(_get_attr(elem, "text", ""))
     return system_instructions
+
 
 def is_instance_of_class(obj, class_name):
     """

@@ -51,7 +51,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         instance = kwargs.get("instance", None)
         metadata = llmobs_get_metadata_google(kwargs, instance)
         span.set_tag_str(METADATA, safe_json(metadata))
-        
+
         system_instruction = get_system_instructions_from_google_model(instance)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
@@ -112,7 +112,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             message = {"content": message_content, "role": role}
             if tool_calls:
                 message["tool_calls"] = tool_calls
-            return [message]      
+            return [message]
         generations_dict = generations.to_dict()
         for candidate in generations_dict.get("candidates", []):
             content = candidate.get("content", {})
