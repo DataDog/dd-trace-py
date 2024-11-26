@@ -40,13 +40,13 @@ class VertexAIIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
-        history: List[Any] = [],
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("vertexai.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("vertexai.request.provider") or "")
 
         instance = kwargs.get("instance", None)
+        history = kwargs.get("history", [])
         metadata = llmobs_get_metadata_google(kwargs, instance)
         span.set_tag_str(METADATA, safe_json(metadata))
 

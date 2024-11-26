@@ -79,7 +79,8 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
         if span.error or not stream:
             if integration.is_pc_sampled_llmobs(span):
                 kwargs["instance"] = model_instance
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations, history=history)
+                kwargs["history"] = history
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations
 
@@ -113,7 +114,8 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
         if span.error or not stream:
             if integration.is_pc_sampled_llmobs(span):
                 kwargs["instance"] = model_instance
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations, history=history)
+                kwargs["history"] = history
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations
 
