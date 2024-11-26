@@ -66,6 +66,10 @@ def ddtrace_iast_flask_patch():
         log.debug("Unexpected exception while AST patching", exc_info=True)
         return
 
+    if not patched_ast:
+        log.debug("Main flask module not patched, probably it was not needed")
+        return
+
     compiled_code = compile(patched_ast, module_path, "exec")
     exec(compiled_code, module.__dict__)  # nosec B102
     sys.modules[module_name] = compiled_code
