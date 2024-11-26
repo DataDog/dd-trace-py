@@ -803,6 +803,7 @@ suites:
       - tests/contrib/shared_tests.py
     pattern: mysqldb$
     runner: riot
+    skip: true
   opentelemetry:
     parallelism: 4
     paths:

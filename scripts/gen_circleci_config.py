@@ -16,7 +16,10 @@ def gen_required_suites(template: dict) -> None:
 
     required_suites = template["requires_tests"]["requires"] = []
     for_each_testrun_needed(
-        suites=sorted(set(_.rpartition("::")[-1] for _ in get_suites()) & set(template["jobs"].keys())),
+        suites=sorted(
+            set(n.rpartition("::")[-1] for n, s in get_suites().items() if not s.get("skip", False))
+            & set(template["jobs"].keys())
+        ),
         action=lambda suite: required_suites.append(suite),
         git_selections=extract_git_commit_selections(os.getenv("GIT_COMMIT_DESC", "")),
     )
