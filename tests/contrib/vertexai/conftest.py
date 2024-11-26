@@ -50,7 +50,7 @@ def mock_tracer(ddtrace_global_config, vertexai):
             LLMObs.disable()
             LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
         yield mock_tracer
-    except Exception as e:
+    except Exception:
         yield
 
 

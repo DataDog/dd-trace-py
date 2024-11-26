@@ -1,4 +1,3 @@
-import json
 from typing import Any
 from typing import Dict
 from typing import Iterable
@@ -15,13 +14,13 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
 from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._integrations.utils import is_instance_of_class
+from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
+from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 
 
 class VertexAIIntegration(BaseLLMIntegration):

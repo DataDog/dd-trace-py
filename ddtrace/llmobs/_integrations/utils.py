@@ -1,7 +1,7 @@
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._utils import _get_attr
 
 
 def extract_model_name_google(instance, model_name_attr):

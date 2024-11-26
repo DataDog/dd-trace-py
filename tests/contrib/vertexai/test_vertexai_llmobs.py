@@ -1,13 +1,10 @@
-import os
-
-from google.api_core.exceptions import InvalidArgument
 import mock
 import pytest
 
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
-from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_2
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_STREAM_CHUNKS
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
 from tests.contrib.vertexai.utils import _async_streamed_response
 from tests.contrib.vertexai.utils import _mock_completion_response
