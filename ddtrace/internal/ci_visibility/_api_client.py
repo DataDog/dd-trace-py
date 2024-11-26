@@ -386,12 +386,12 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         )
 
         record_settings_response(
-            api_settings.coverage_enabled,
-            api_settings.skipping_enabled,
-            api_settings.require_git,
-            api_settings.itr_enabled,
-            api_settings.flaky_test_retries_enabled,
-            api_settings.early_flake_detection.enabled,
+            coverage_enabled=api_settings.coverage_enabled,
+            skipping_enabled=api_settings.skipping_enabled,
+            require_git=api_settings.require_git,
+            itr_enabled=api_settings.itr_enabled,
+            flaky_test_retries_enabled=api_settings.flaky_test_retries_enabled,
+            early_flake_detection_enabled=api_settings.early_flake_detection.enabled,
         )
 
         return api_settings

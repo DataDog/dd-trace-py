@@ -9,6 +9,7 @@
             "docker/*",
             "docker-compose.yml",
             "riotfile.py",
+            ".riot/requirements/*",
             "scripts/ddtest",
             "scripts/run-test-suite",
             "hatch.toml",
