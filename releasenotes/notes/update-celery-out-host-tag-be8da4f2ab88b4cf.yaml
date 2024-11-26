@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    celery: Changes celery ``out.host`` span tag to point towards broker host url instead of local celery process hostname. Fixes 
+    inferred service representation issues when using celery.
