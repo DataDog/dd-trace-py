@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.16.5
+
+
+### Bug Fixes
+
+- Code Security: patch the module dir function so original pre-patch results are not changed.
+- ASM: This fix ensures that common patches for exploit prevention and sca are only loaded if required, and only loaded once.
+- botocore: This fix resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
+- LLM Observability: This fix ensures bedrock spans are finished even when streamed responses are not fully consumed.
+- ASM: This fix resolves an issue where some root span where not appropriately tagged for ASM standalone.
+- This fix resolves an issue where the default versions of `click` and `jinja2` installed on 3.8 were outside of the allowed minimum versions for autoinstrumentation.
+
+
+---
+
 ## 2.16.4
 
 
