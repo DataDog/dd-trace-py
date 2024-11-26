@@ -209,7 +209,7 @@ class SpanCodeOriginProcessor(SpanProcessor):
             code = frame.f_code
             filename = code.co_filename
 
-            if is_user_code(Path(filename)):
+            if is_user_code(filename):
                 n = next(seq)
                 if n >= co_config.max_user_frames:
                     break
