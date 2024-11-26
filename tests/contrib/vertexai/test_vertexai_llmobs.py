@@ -98,6 +98,30 @@ class TestLLMObsVertexai:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span))
 
+    def test_completion_model_generation_config(self, vertexai, mock_llmobs_writer, mock_tracer):
+        llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
+        llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+        llm.generate_content(
+            "Why do bears hibernate?",
+            generation_config=vertexai.generative_models.GenerationConfig(
+                stop_sequences=["x"], max_output_tokens=30, temperature=1.0
+            ),
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+    
+    def test_completion_no_generation_config(self, vertexai, mock_llmobs_writer, mock_tracer):
+        llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
+        llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+        llm.generate_content(
+            "Why do bears hibernate?",
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_no_generation_config_span_event(span))
+    
+    
     def test_completion_stream(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["stream_generate_content"] = [
@@ -644,5 +668,19 @@ def expected_llmobs_system_prompt_span_event(span):
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 50},
         token_metrics={"input_tokens": 16, "output_tokens": 50, "total_tokens": 66},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+    )
+
+def expected_llmobs_no_generation_config_span_event(span):
+    return _expected_llmobs_llm_span_event(
+        span,
+        model_name="gemini-1.5-flash",
+        model_provider="google",
+        input_messages=[{"content": "Why do bears hibernate?"}],
+        output_messages=[
+            {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
+        ],
+        metadata={},
+        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
     )
