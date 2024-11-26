@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.17.2
+
+
+### Bug Fixes
+
+- ASM: This fix ensures that common patches for exploit prevention and sca are only loaded if required, and only loaded once.
+- botocore: This fix resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
+- LLM Observability: This fix ensures bedrock spans are finished even when streamed responses are not fully consumed.
+- grpcaio: Resolves a concurrency bug where distributed tracing headers were overwritten resulting in spans being assigned to the wrong trace.
+- LLM Observability: Fixes an issue where decorators were not tracing generator functions properly.
+- celery: Changes celery `out.host` span tag to point towards broker host url instead of local celery process hostname. Fixes inferred service representation issues when using celery.
+
+
+---
+
 ## 2.16.4
 
 
