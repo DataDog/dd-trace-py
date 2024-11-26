@@ -109,12 +109,12 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
     """Return the span ID of the nearest LLMObs-type span in the span's ancestor tree.
     In priority order: manually set parent ID tag, nearest LLMObs ancestor, local root's propagated parent ID tag.
     """
-    if span.get_tag(PARENT_ID_KEY):
-        return span.get_tag(PARENT_ID_KEY)
+    if span._get_ctx_item(PARENT_ID_KEY):
+        return span._get_ctx_item(PARENT_ID_KEY)
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         return str(nearest_llmobs_ancestor.span_id)
-    return span.get_tag(PROPAGATED_PARENT_ID_KEY)
+    return span._get_ctx_item(PROPAGATED_PARENT_ID_KEY)
 
 
 def _get_span_name(span: Span) -> str:
@@ -145,12 +145,12 @@ def _get_session_id(span: Span) -> Optional[str]:
     Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the span's trace ID.
     """
-    session_id = span.get_tag(SESSION_ID)
+    session_id = span._get_ctx_item(SESSION_ID)
     if session_id:
         return session_id
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
-        session_id = nearest_llmobs_ancestor.get_tag(SESSION_ID)
+        session_id = nearest_llmobs_ancestor._get_ctx_item(SESSION_ID)
     return session_id
 
 

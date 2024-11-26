@@ -18,7 +18,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_json
 
 
 class GeminiIntegration(BaseLLMIntegration):
@@ -40,28 +39,26 @@ class GeminiIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        span.set_tag_str(SPAN_KIND, "llm")
-        span.set_tag_str(MODEL_NAME, span.get_tag("google_generativeai.request.model") or "")
-        span.set_tag_str(MODEL_PROVIDER, span.get_tag("google_generativeai.request.provider") or "")
-
         instance = kwargs.get("instance", None)
         metadata = self._llmobs_set_metadata(kwargs, instance)
-        span.set_tag_str(METADATA, safe_json(metadata))
 
         system_instruction = _get_attr(instance, "_system_instruction", None)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, system_instruction)
-        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
 
-        if span.error or response is None:
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
-        else:
+        output_messages = [{"content": ""}]
+        if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
-        usage = self._get_llmobs_metrics_tags(span)
-        if usage:
-            span.set_tag_str(METRICS, safe_json(usage))
+        span._set_ctx_items({
+            SPAN_KIND: "llm",
+            MODEL_NAME: span.get_tag("google_generativeai.request.model") or "",
+            MODEL_PROVIDER: span.get_tag("google_generativeai.request.provider") or "",
+            METADATA: metadata,
+            INPUT_MESSAGES: input_messages,
+            OUTPUT_MESSAGES: output_messages,
+            METRICS: self._get_llmobs_metrics_tags(span),
+        })
 
     @staticmethod
     def _llmobs_set_metadata(kwargs, instance):
