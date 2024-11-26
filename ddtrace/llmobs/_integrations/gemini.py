@@ -17,6 +17,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
 from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
+from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 
@@ -48,7 +49,7 @@ class GeminiIntegration(BaseLLMIntegration):
         metadata = llmobs_get_metadata_google(kwargs, instance)
         span.set_tag_str(METADATA, safe_json(metadata))
 
-        system_instruction = _get_attr(instance, "_system_instruction", None)
+        system_instruction = get_system_instructions_from_google_model(instance)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, system_instruction)
         span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
@@ -66,8 +67,8 @@ class GeminiIntegration(BaseLLMIntegration):
     def _extract_input_message(self, contents, system_instruction=None):
         messages = []
         if system_instruction:
-            for part in system_instruction.parts:
-                messages.append({"content": part.text or "", "role": "system"})
+            for instruction in system_instruction:
+                messages.append({"content": instruction or "", "role": "system"})
         if isinstance(contents, str):
             messages.append({"content": contents})
             return messages
