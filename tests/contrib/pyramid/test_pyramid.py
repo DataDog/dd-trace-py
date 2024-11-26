@@ -253,7 +253,7 @@ def pyramid_client(snapshot, pyramid_app):
         proc.terminate()
 
 
-@flaky(until=1706677200)
+@flaky(1740089353, reason="Sample app doesn't seem to spin up in subprocess")
 @pytest.mark.parametrize(
     "pyramid_app",
     [

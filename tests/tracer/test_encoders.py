@@ -3,6 +3,7 @@ import contextlib
 import json
 import random
 import string
+import sys
 import threading
 from unittest import TestCase
 
@@ -871,6 +872,7 @@ def test_json_encoder_traces_bytes():
     assert "\x80span.b" == span_c["name"]
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
 @pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.3"})
 def test_v03_trace_api_deprecation():
     import warnings

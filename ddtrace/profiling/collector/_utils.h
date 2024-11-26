@@ -14,7 +14,7 @@ random_range(uint64_t max)
 #define DO_NOTHING(...)
 
 #define p_new(type, count) PyMem_RawMalloc(sizeof(type) * (count))
-#define p_delete(mem_p) PyMem_Free(mem_p);
+#define p_delete(mem_p) PyMem_RawFree(mem_p);
 // Allocate at least 16 and 50% more than requested to avoid allocating items one by one.
 #define p_alloc_nr(x) (((x) + 16) * 3 / 2)
 #define p_realloc(p, count)                                                                                            \
