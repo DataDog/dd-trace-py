@@ -111,8 +111,7 @@ def _expected_llmobs_llm_span_event(
         meta_dict.update({"model_name": model_name})
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
-    if metadata is not None:
-        meta_dict.update({"metadata": metadata})
+    meta_dict.update({"metadata": metadata or {}})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
     span_event["meta"].update(meta_dict)
@@ -163,8 +162,7 @@ def _expected_llmobs_non_llm_span_event(
         meta_dict["input"].update({"value": input_value})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
-    if metadata is not None:
-        meta_dict.update({"metadata": metadata})
+    meta_dict.update({"metadata": metadata or {}})
     if output_value is not None:
         meta_dict["output"].update({"value": output_value})
     if not meta_dict["input"]:

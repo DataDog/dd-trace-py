@@ -114,7 +114,7 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         return str(nearest_llmobs_ancestor.span_id)
-    return span._get_ctx_item(PROPAGATED_PARENT_ID_KEY)
+    return span.get_tag(PROPAGATED_PARENT_ID_KEY)
 
 
 def _get_span_name(span: Span) -> str:
@@ -131,12 +131,12 @@ def _get_ml_app(span: Span) -> str:
     Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the global config LLMObs ML app name otherwise.
     """
-    ml_app = span.get_tag(ML_APP)
+    ml_app = span._get_ctx_item(ML_APP)
     if ml_app:
         return ml_app
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
-        ml_app = nearest_llmobs_ancestor.get_tag(ML_APP)
+        ml_app = nearest_llmobs_ancestor._get_ctx_item(ML_APP)
     return ml_app or config._llmobs_ml_app or "unknown-ml-app"
 
 

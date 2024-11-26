@@ -704,7 +704,7 @@ class LLMObs(Service):
                 log.warning("Failed to parse input documents.", exc_info=True)
         if output_text is None:
             return
-        span._set_ctx_item(OUTPUT_VALUE, output_text)
+        span._set_ctx_item(OUTPUT_VALUE, str(output_text))
 
     @classmethod
     def _tag_retrieval_io(cls, span, input_text=None, output_documents=None):
@@ -712,7 +712,7 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
         if input_text is not None:
-            span._set_ctx_item(INPUT_VALUE, input_text)
+            span._set_ctx_item(INPUT_VALUE, str(input_text))
         if output_documents is None:
             return
         try:
@@ -730,9 +730,9 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
         if input_value is not None:
-            span._set_ctx_item(INPUT_VALUE, input_value)
+            span._set_ctx_item(INPUT_VALUE, str(input_value))
         if output_value is not None:
-            span._set_ctx_item(OUTPUT_VALUE, output_value)
+            span._set_ctx_item(OUTPUT_VALUE, str(output_value))
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:

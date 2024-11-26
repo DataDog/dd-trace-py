@@ -149,7 +149,7 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
         if span.error:
-            span.set_ctx_item(output_tag_key, [{"content": ""}])
+            span._set_ctx_item(output_tag_key, [{"content": ""}])
             return
         if stream:
             message_content = [{"content": completions}]  # single completion for streams
@@ -163,8 +163,8 @@ class LangChainIntegration(BaseLLMIntegration):
                         OUTPUT_TOKENS_METRIC_KEY: output_tokens,
                         TOTAL_TOKENS_METRIC_KEY: total_tokens,
                     }
-                    span.set_ctx_item(METRICS, metrics)
-        span.set_ctx_item(output_tag_key, message_content)
+                    span._set_ctx_item(METRICS, metrics)
+        span._set_ctx_item(output_tag_key, message_content)
 
     def _llmobs_set_tags_from_chat_model(
         self,
@@ -200,17 +200,17 @@ class LangChainIntegration(BaseLLMIntegration):
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(message.type, ""))
                     input_messages.append({"content": str(content), "role": str(role)})
-        span.set_ctx_item(input_tag_key, input_messages)
+        span._set_ctx_item(input_tag_key, input_messages)
 
         if span.error:
-            span.set_ctx_item(output_tag_key, [{"content": ""}])
+            span._set_ctx_item(output_tag_key, [{"content": ""}])
             return
 
         output_messages = []
         if stream:
             content = chat_completions.content
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
-            span.set_ctx_item(output_tag_key, [{"content": content, "role": ROLE_MAPPING.get(role, "")}])
+            span._set_ctx_item(output_tag_key, [{"content": content, "role": ROLE_MAPPING.get(role, "")}])
             return
 
         input_tokens, output_tokens, total_tokens = 0, 0, 0
@@ -246,7 +246,7 @@ class LangChainIntegration(BaseLLMIntegration):
             output_tokens = sum(v["output_tokens"] for v in tokens_per_choice_run_id.values())
             total_tokens = sum(v["total_tokens"] for v in tokens_per_choice_run_id.values())
 
-        span.set_ctx_item(output_tag_key, output_messages)
+        span._set_ctx_item(output_tag_key, output_messages)
 
         if not is_workflow and total_tokens > 0:
             metrics = {
@@ -254,7 +254,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 OUTPUT_TOKENS_METRIC_KEY: output_tokens,
                 TOTAL_TOKENS_METRIC_KEY: total_tokens,
             }
-            span.set_ctx_item(METRICS, metrics)
+            span._set_ctx_item(METRICS, metrics)
 
     def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
         """Extracts tool calls from a langchain chat completion."""

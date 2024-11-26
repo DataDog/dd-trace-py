@@ -192,7 +192,7 @@ def _llmobs_decorator(operation_kind):
                             _automatic_io_annotation
                             and resp
                             and operation_kind != "retrieval"
-                            and span.get_tag(OUTPUT_VALUE) is None
+                            and span._get_ctx_item(OUTPUT_VALUE) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp
@@ -240,7 +240,7 @@ def _llmobs_decorator(operation_kind):
                             _automatic_io_annotation
                             and resp
                             and operation_kind != "retrieval"
-                            and span.get_tag(OUTPUT_VALUE) is None
+                            and span._get_ctx_item(OUTPUT_VALUE) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp
