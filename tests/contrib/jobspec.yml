@@ -1,0 +1,360 @@
+aiohttp:
+  runner: riot
+  is_snapshot: true
+  services:
+  - httpbin_local
+  env:
+    SUITE_NAME: aiohttp
+  parallelism: 3
+asgi:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: "asgi$"
+tornado:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: tornado
+bottle:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: bottle
+  parallelism: 1
+celery:
+  runner: riot
+  is_snapshot: true
+  services:
+  - rabbitmq
+  - redis
+  env:
+    SUITE_NAME: celery
+    LOG_LEVEL: DEBUG
+    SNAPSHOT_DIR: /snapshots
+    PORT: 9126
+    SNAPSHOT_CI: 1
+    DD_POOL_TRACE_CHECK_FAILURES: true
+    DD_DISABLE_ERROR_RESPONSES: true
+    ENABLED_CHECKS: trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
+cherrypy:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: cherrypy
+dogpile_cache:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: dogpile_cache
+elasticsearch:
+  runner: riot
+  is_snapshot: true
+  services:
+  - opensearch
+  - elasticsearch
+  env:
+    SUITE_NAME: elasticsearch
+    TEST_ELASTICSEARCH_HOST: "elasticsearch"
+    TEST_OPENSEARCH_HOST: "opensearch"
+  parallelism: 17
+falcon:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: falcon
+django:
+  runner: riot
+  is_snapshot: true
+  services:
+  - postgres
+  - memcached
+  - redis
+  env:
+    SUITE_NAME: "django($|_celery)"
+    TEST_POSTGRES_HOST: "postgres"
+    TEST_MEMCACHED_HOST: "memcached"
+    TEST_REDIS_HOST: "redis"
+django_hosts:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: "django_hosts$"
+djangorestframework:
+  runner: riot
+  is_snapshot: true
+  services:
+  - memcached
+  - redis
+  env:
+    SUITE_NAME: djangorestframework
+    TEST_MEMCACHED_HOST: memcached
+    TEST_REDIS_HOST: redis
+dramatiq:
+  runner: riot
+  is_snapshot: true
+  services:
+  - redis
+  env:
+    SUITE_NAME: dramatiq
+    TEST_REDIS_HOST: redis
+  parallelism: 2
+fastapi:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: fastapi
+flask:
+  runner: riot
+  is_snapshot: true
+  services:
+  - memcached
+  - redis
+  env:
+    SUITE_NAME: flask
+    TEST_MEMCACHED_HOST: memcached
+    TEST_REDIS_HOST: redis
+  parallelism: 14
+gevent:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: gevent
+graphene:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: graphene
+graphql:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: graphql
+  parallelism: 6
+grpc:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: grpc
+gunicorn:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: gunicorn
+  parallelism: 12
+httplib:
+  runner: riot
+  is_snapshot: true
+  services:
+  - httpbin_local
+  env:
+    SUITE_NAME: httplib
+httpx:
+  runner: riot
+  is_snapshot: true
+  services:
+  - httpbin_local
+  env:
+    SUITE_NAME: httpx
+  parallelism: 2
+molten:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: molten
+pylibmc:
+  runner: riot
+  is_snapshot: true
+  services:
+  - memcached
+  env:
+    SUITE_NAME: pylibmc
+asynctest:
+  runner: riot
+  env:
+    SUITE_NAME: "asynctest$"
+  parallelism: 3
+pymemcache:
+  runner: riot
+  is_snapshot: true
+  services:
+  - memcached
+  env:
+    SUITE_NAME: pymemcache
+pymongo:
+  runner: riot
+  is_snapshot: true
+  services:
+  - mongo
+  env:
+    SUITE_NAME: pymongo
+pynamodb:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: pynamodb
+pyodbc:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: pyodbc
+pyramid:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: pyramid
+requests:
+  runner: riot
+  is_snapshot: true
+  services:
+  - httpbin_local
+  env:
+    SUITE_NAME: requests
+sanic:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: sanic
+snowflake:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: snowflake
+starlette:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: starlette
+structlog:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: structlog
+aredis:
+  runner: riot
+  is_snapshot: true
+  services:
+  - redis
+  env:
+    SUITE_NAME: "aredis$"
+  parallelism: 3
+yaaredis:
+  runner: riot
+  is_snapshot: true
+  services:
+  - redis
+  env:
+    SUITE_NAME: "yaaredis$"
+redis:
+  runner: riot
+  is_snapshot: true
+  services:
+  - rediscluster
+  - redis
+  env:
+    SUITE_NAME: "^redis$"
+  parallelism: 5
+rediscluster:
+  runner: riot
+  is_snapshot: true
+  services:
+  - redis
+  - rediscluster
+  env:
+    SUITE_NAME: rediscluster
+rq:
+  runner: riot
+  is_snapshot: true
+  services:
+  - redis
+  env:
+    SUITE_NAME: rq
+  parallelism: 2
+urllib3:
+  runner: riot
+  is_snapshot: true
+  services:
+  - httpbin_local
+  env:
+    SUITE_NAME: urllib3
+    TEST_HTTPBIN_HOST: "httpbin-local"
+    TEST_HTTPBIN_PORT: "8001"
+wsgi:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: wsgi
+kafka:
+  runner: riot
+  is_snapshot: true
+  services:
+  - kafka
+  env:
+    SUITE_NAME: kafka
+    TEST_KAFKA_HOST: "kafka"
+    TEST_KAFKA_PORT: "29092"
+  parallelism: 4
+kombu:
+  runner: riot
+  is_snapshot: true
+  services:
+  - rabbitmq
+  env:
+    SUITE_NAME: kombu
+jinja2:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: jinja2
+mako:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: mako
+algoliasearch:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: algoliasearch
+logbook:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: logbook
+loguru:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: loguru
+stdlib:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
+test_logging:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: test_logging
+subprocess:
+  runner: riot
+  env:
+    SUITE_NAME: subprocess
+sourcecode:
+  runner: riot
+  env:
+    SUITE_NAME: sourcecode
+opentracer:
+  runner: riot
+  env:
+    SUITE_NAME: opentracer
+protobuf:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: protobuf
+avro:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: avro
