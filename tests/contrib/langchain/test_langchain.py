@@ -174,7 +174,7 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.langchain",
         "langchain.request.provider:openai",
         "langchain.request.model:text-davinci-003",
         "langchain.request.type:llm",
@@ -213,7 +213,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
             "message": "sampled langchain.llms.openai.OpenAI",
             "hostname": mock.ANY,
             "ddsource": "langchain",
-            "service": "",
+            "service": "tests.contrib.langchain",
             "status": "info",
             "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
             "dd.trace_id": hex(trace_id)[2:],
@@ -334,7 +334,7 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.langchain",
         "langchain.request.provider:openai",
         "langchain.request.model:gpt-3.5-turbo",
         "langchain.request.type:chat_model",
@@ -373,7 +373,7 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
             "message": "sampled langchain.chat_models.openai.ChatOpenAI",
             "hostname": mock.ANY,
             "ddsource": "langchain",
-            "service": "",
+            "service": "tests.contrib.langchain",
             "status": "info",
             "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
             "dd.trace_id": hex(trace_id)[2:],
@@ -424,7 +424,7 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.langchain",
         "langchain.request.provider:openai",
         "langchain.request.model:text-embedding-ada-002",
         "langchain.request.type:embedding",
@@ -457,7 +457,7 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
             "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
             "hostname": mock.ANY,
             "ddsource": "langchain",
-            "service": "",
+            "service": "tests.contrib.langchain",
             "status": "info",
             "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
             "dd.trace_id": hex(trace_id)[2:],
@@ -635,7 +635,7 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.langchain",
         "langchain.request.provider:openai",
         "langchain.request.model:text-davinci-003",
         mock.ANY,  # should be in format "langchain.request.type:<type>"
@@ -678,7 +678,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "message": "sampled langchain.llms.openai.OpenAI",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
-                    "service": "",
+                    "service": "tests.contrib.langchain",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": hex(llm_span.trace_id)[2:],
@@ -693,7 +693,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "message": "sampled langchain.chains.llm.LLMChain",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
-                    "service": "",
+                    "service": "tests.contrib.langchain",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
                     "dd.trace_id": hex(mid_chain_span.trace_id)[2:],
@@ -713,7 +713,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "message": "sampled langchain.chains.llm_math.base.LLMMathChain",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
-                    "service": "",
+                    "service": "tests.contrib.langchain",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
                     "dd.trace_id": hex(base_chain_span.trace_id)[2:],
@@ -849,7 +849,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.langchain",
         "langchain.request.provider:pinecone",
         "langchain.request.model:",
         "langchain.request.type:similarity_search",
@@ -893,7 +893,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                     "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
-                    "service": "",
+                    "service": "tests.contrib.langchain",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": hex(embeddings_span.trace_id)[2:],
@@ -907,7 +907,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                     "message": "sampled langchain.vectorstores.pinecone.Pinecone",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
-                    "service": "",
+                    "service": "tests.contrib.langchain",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": hex(vectorstore_span.trace_id)[2:],
@@ -1020,7 +1020,7 @@ def test_llm_logs_when_response_not_completed(
             "message": "sampled langchain.llms.openai.OpenAI",
             "hostname": mock.ANY,
             "ddsource": "langchain",
-            "service": "",
+            "service": "tests.contrib.langchain",
             "status": "error",
             "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
             "dd.trace_id": hex(trace_id)[2:],
@@ -1054,7 +1054,7 @@ def test_chat_model_logs_when_response_not_completed(
             "message": "sampled langchain.chat_models.openai.ChatOpenAI",
             "hostname": mock.ANY,
             "ddsource": "langchain",
-            "service": "",
+            "service": "tests.contrib.langchain",
             "status": "error",
             "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
             "dd.trace_id": hex(trace_id)[2:],
@@ -1091,7 +1091,7 @@ def test_embedding_logs_when_response_not_completed(
             "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
             "hostname": mock.ANY,
             "ddsource": "langchain",
-            "service": "",
+            "service": "tests.contrib.langchain",
             "status": "error",
             "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
             "dd.trace_id": hex(trace_id)[2:],
@@ -1134,7 +1134,7 @@ def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, 
             "message": "sampled langchain.vectorstores.pinecone.Pinecone",
             "hostname": mock.ANY,
             "ddsource": "langchain",
-            "service": "",
+            "service": "tests.contrib.langchain",
             "status": "error",
             "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
             "dd.trace_id": hex(vectorstore_span.trace_id)[2:],

@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "vertexai.request",
+    "service": "tests.contrib.vertexai",
+    "resource": "GenerativeModel.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6737990400000000",
+      "language": "python",
+      "runtime-id": "48231302081b43f8a7aafe50c264f22d",
+      "vertexai.request.contents.0.parts.0.text": "Hello World!",
+      "vertexai.request.contents.0.role": "user",
+      "vertexai.request.contents.1.parts.0.text": "Great to meet you. What would you like to know?",
+      "vertexai.request.contents.1.role": "model",
+      "vertexai.request.contents.2.parts.0.text": "Why do bears hibernate?",
+      "vertexai.request.generation_config.max_output_tokens": "30",
+      "vertexai.request.generation_config.stop_sequences": "['x']",
+      "vertexai.request.generation_config.temperature": "1.0",
+      "vertexai.request.model": "gemini-1.5-flash",
+      "vertexai.request.provider": "google",
+      "vertexai.response.candidates.0.content.parts.0.text": "Bears hibernate to conserve energy and survive during winter months when food is scarce.\\n",
+      "vertexai.response.candidates.0.content.role": "model",
+      "vertexai.response.candidates.0.finish_reason": "STOP"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 36364,
+      "vertexai.response.usage.completion_tokens": 16,
+      "vertexai.response.usage.prompt_tokens": 14,
+      "vertexai.response.usage.total_tokens": 30
+    },
+    "duration": 371000,
+    "start": 1731696900228980000
+  }]]

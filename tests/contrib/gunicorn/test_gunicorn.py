@@ -183,7 +183,7 @@ def test_no_known_errors_occur(tmp_path):
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
-def test_span_schematization(tmp_path):
+def test_span_schematization(ddtrace_tmp_path):
     for schema_version in [None, "v0", "v1"]:
         for service_name in [None, "mysvc"]:
             gunicorn_settings = _gunicorn_settings_factory(
@@ -197,7 +197,7 @@ def test_span_schematization(tmp_path):
                 ),
                 ignores=["meta.result_class"],
             ):
-                with gunicorn_server(gunicorn_settings, tmp_path) as context:
+                with gunicorn_server(gunicorn_settings, ddtrace_tmp_path) as context:
                     _, client = context
                     response = client.get("/")
                 assert response.status_code == 200

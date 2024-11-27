@@ -140,7 +140,7 @@ They use the Flask integration tests as a teaching example. Referencing these in
    server is started by a Pytest fixture function that's defined in the snapshot test file.
 6. If the library you're integrating with requires communication with a datastore, make sure there's
    an image for that datastore referenced in ``docker-compose.yml``. If there is not, add one.
-   You can find a suitable image by searching on `Dockerhub <hub.docker.com>`_.
+   You can find a suitable image by searching on `Docker Hub <https://hub.docker.com>`_.
 7. Write a simple test. In your new snapshot test file, define a function testing your app's
    happy path. Here's an example from the Flask test suite:
 
@@ -216,7 +216,5 @@ The following is the check list for ensuring you have all of the components to h
 - The virtual environment configurations for your tests in ``riotfile.py``.
 - The Circle CI configurations for your tests in ``.circleci/config.templ.yml``.
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
-- The relevant file paths for your integration added to ``tests/.suitespec.json`` in two locations:
-    - Add non-test file paths under ``components``.
-    - Add test file paths under ``suites``.
+- The relevant file paths for your integration added to a suitespec file (see ``tests/README.md`` for details).
 - A release note for your addition generated with ``riot run reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.

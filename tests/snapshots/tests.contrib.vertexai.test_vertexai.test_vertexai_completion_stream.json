@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "vertexai.request",
+    "service": "tests.contrib.vertexai",
+    "resource": "GenerativeModel.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67337ee600000000",
+      "language": "python",
+      "runtime-id": "4ccec776d22a4a21b80ec41fbad61a6d",
+      "vertexai.request.contents.0.text": "How big is the solar system?",
+      "vertexai.request.generation_config.max_output_tokens": "30",
+      "vertexai.request.generation_config.stop_sequences": "['x']",
+      "vertexai.request.generation_config.temperature": "1.0",
+      "vertexai.request.model": "gemini-1.5-flash",
+      "vertexai.request.provider": "google",
+      "vertexai.request.stream": "True",
+      "vertexai.response.candidates.0.content.parts.0.text": "The solar system's size is vast, extending from the Sun to the outer reaches of the Oort cloud, a distance of roughly 1 to 2 lig...",
+      "vertexai.response.candidates.0.content.role": "model",
+      "vertexai.response.candidates.0.finish_reason": "STOP"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 43876,
+      "vertexai.response.usage.completion_tokens": 37,
+      "vertexai.response.usage.prompt_tokens": 16,
+      "vertexai.response.usage.total_tokens": 53
+    },
+    "duration": 2630000,
+    "start": 1731428070772425000
+  }]]

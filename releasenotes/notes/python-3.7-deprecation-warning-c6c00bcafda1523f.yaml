@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    Python 3.7 support is deprecated and will be removed in 3.0
