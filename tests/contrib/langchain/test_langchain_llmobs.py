@@ -1027,19 +1027,6 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
                 assert len(call_args["meta"]["output"]["value"]) > 0
 
     @staticmethod
-    def _call_vertexai_chat_model(ChatVertexAI, HumanMessage):
-        chat = ChatVertexAI(model="gemini-1.5-flash")
-        messages = [HumanMessage(content="what is the capital city of Canada")]
-        chat.invoke(messages)
-
-    @staticmethod
-    def _call_vertexai_llm(VertexAI):
-        llm = VertexAI(model="gemini-1.5-flash")
-        messages = [HumanMessage(content="what is the capital city of Canada")]
-        llm.invoke(messages)
-
-    
-    @staticmethod
     def _call_bedrock_chat_model(ChatBedrock, HumanMessage):
         chat = ChatBedrock(
             model_id="amazon.titan-tg1-large",
@@ -1086,27 +1073,6 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         ):
             llm.invoke("When do you use 'whom' instead of 'who'?")
 
-    
-    @run_in_subprocess
-    def test_llmobs_with_chat_model_vertexai_enabled(self):
-        from langchain_google_vertexai import ChatVertexAI
-        from langchain_core.messages import HumanMessage
-
-        patch(langchain=True, vertexai=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-
-        self._call_vertexai_chat_model(ChatVertexAI, HumanMessage)
-        self._assert_trace_structure_from_writer_call_args(["workflow"])
-
-    @run_in_subprocess
-    def test_llmobs_with_llm_model_vertexai_enabled(self):
-        from langchain_google_vertexai import VertexAI
-
-        patch(langchain=True, vertexai=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_vertexai_llm(VertexAI)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
-    
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_chat_model_bedrock_enabled(self):
         from langchain_aws import ChatBedrock

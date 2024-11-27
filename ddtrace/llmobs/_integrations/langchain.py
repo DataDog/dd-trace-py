@@ -44,7 +44,6 @@ TYPE = "langchain.request.type"
 ANTHROPIC_PROVIDER_NAME = "anthropic"
 BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
-VERTEXAI_PROVIDER_NAME = "vertexai"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -82,8 +81,6 @@ class LangChainIntegration(BaseLLMIntegration):
         if model_provider:
             if model_provider.startswith(BEDROCK_PROVIDER_NAME):
                 llmobs_integration = "bedrock"
-            elif model_provider.startswith(VERTEXAI_PROVIDER_NAME):
-                llmobs_integration = "vertexai"
             elif model_provider.startswith(OPENAI_PROVIDER_NAME):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
