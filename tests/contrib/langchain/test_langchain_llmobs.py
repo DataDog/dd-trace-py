@@ -363,14 +363,14 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             input_value=str(
                 {
                     "ability": "world capitals",
-                    "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
+                    "history": [("user", "Can you be my science teacher instead?"), ("assistant", "Yes")],
                     "input": "What's the powerhouse of the cell?",
                 }
             ),
             output_value=str(
                 {
                     "ability": "world capitals",
-                    "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
+                    "history": [("user", "Can you be my science teacher instead?"), ("assistant", "Yes")],
                     "input": "What's the powerhouse of the cell?",
                     "text": "Mitochondria.",
                 }
@@ -608,6 +608,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             cassette_name="lcel_openai_chain_schema_io.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 2
+
         _assert_expected_llmobs_chain_span(
             trace[0],
             mock_llmobs_span_writer,
@@ -615,7 +616,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                 [
                     {
                         "ability": "world capitals",
-                        "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
+                        "history": [("user", "Can you be my science teacher instead?"), ("assistant", "Yes")],
                         "input": "What's the powerhouse of the cell?",
                     }
                 ]
@@ -1066,7 +1067,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_non_ascii.yaml"):
             llm.invoke("안녕,\n 지금 몇 시야?")
         langchain_span = self.mock_llmobs_span_writer.enqueue.call_args_list[0][0][0]
-        assert langchain_span["meta"]["input"]["value"] == str([{"content": "안녕,\\n 지금 몇 시야?"}])
+        assert langchain_span["meta"]["input"]["value"] == [{"content": "안녕,\n 지금 몇 시야?"}]
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_disabled(self):

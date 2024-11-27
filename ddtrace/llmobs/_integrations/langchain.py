@@ -302,6 +302,7 @@ class LangChainIntegration(BaseLLMIntegration):
             inputs = get_argument_value(args, kwargs, 0, "input")
         else:
             inputs = kwargs
+        formatted_inputs = ""
         if inputs is not None:
             formatted_inputs = self.format_io(inputs)
         formatted_outputs = ""
@@ -310,8 +311,8 @@ class LangChainIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: "workflow",
-                INPUT_VALUE: formatted_inputs,
-                OUTPUT_VALUE: formatted_outputs,
+                INPUT_VALUE: str(formatted_inputs),
+                OUTPUT_VALUE: str(formatted_outputs),
             }
         )
 
