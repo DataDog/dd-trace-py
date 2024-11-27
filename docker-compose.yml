@@ -152,7 +152,7 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
-        image: ghcr.io/datadog/dd-trace-py/testrunner@sha256:8ca43d46ff34e078bd7bc0662e74e6be38547a98140a5cd4203805f6b214b583
+        image: ghcr.io/datadog/dd-trace-py/testrunner@sha256:1a76ac6a5f398d9fcca77468aed92b5f12e875e31370c628f7ceacd4246727c6
         command: bash
         environment:
             - TOX_SKIP_DIST=True
