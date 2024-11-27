@@ -424,6 +424,7 @@ class TelemetryWriter(PeriodicService):
         """Adds events to report imports done since the last periodic run"""
 
         if not _TelemetryConfig.DEPENDENCY_COLLECTION or not self._enabled:
+            log.debug("JJJ _add_dependencies_loaded_event: Dependency collection not enabled or telemetry not enabled")
             return
 
         with self._lock:
@@ -431,6 +432,7 @@ class TelemetryWriter(PeriodicService):
 
         if packages:
             payload = {"dependencies": packages}
+            log.debug("JJJ _add_dependencies_loaded_event: payload: %s", payload)
             self.add_event(payload, "app-dependencies-loaded")
 
     def _app_product_change(self):
@@ -637,7 +639,8 @@ class TelemetryWriter(PeriodicService):
             log.debug("JJJ periodic: _flush_new_imported_dependencies, newly_imported_deps: %s", newly_imported_deps)
             if newly_imported_deps:
                 self._app_dependencies_loaded_event(newly_imported_deps)
-        log.debug("JJJ periodic: _TelemetryConfig.DEPENDENCY_COLLECTION not enabled")
+        else:
+            log.debug("JJJ periodic: _TelemetryConfig.DEPENDENCY_COLLECTION not enabled")
 
         if shutting_down:
             self._app_closing_event()
