@@ -321,6 +321,7 @@ def _chat_completion_event():
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
 
+
 def _chat_completion_event_with_unserializable_field():
     return {
         "span_id": "12345678902",
@@ -358,6 +359,7 @@ def _chat_completion_event_with_unserializable_field():
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
+
 
 def _large_event():
     return {

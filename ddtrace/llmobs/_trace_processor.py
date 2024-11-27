@@ -108,11 +108,13 @@ class LLMObsTraceProcessor(TraceProcessor):
             else:
                 meta["input"]["prompt"] = prompt_json_str
         if span.error:
-            meta.update({
-                ERROR_MSG: span.get_tag(ERROR_MSG),
-                ERROR_STACK: span.get_tag(ERROR_STACK),
-                ERROR_TYPE: span.get_tag(ERROR_TYPE),
-            })
+            meta.update(
+                {
+                    ERROR_MSG: span.get_tag(ERROR_MSG),
+                    ERROR_STACK: span.get_tag(ERROR_STACK),
+                    ERROR_TYPE: span.get_tag(ERROR_TYPE),
+                }
+            )
         if not meta["input"]:
             meta.pop("input")
         if not meta["output"]:

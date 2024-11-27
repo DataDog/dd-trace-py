@@ -16,7 +16,10 @@ def test_encode_span(mock_writer_logs):
     encoded_llm_events, n_spans = encoder.encode()
 
     expected_llm_events = {
-        "_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [span]
+        "_dd.stage": "raw",
+        "_dd.tracer_version": ddtrace.__version__,
+        "event_type": "span",
+        "spans": [span],
     }
 
     assert n_spans == 1
@@ -32,7 +35,10 @@ def test_encode_multiple_spans(mock_writer_logs):
     encoded_llm_events, n_spans = encoder.encode()
 
     expected_llm_events = {
-        "_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": trace
+        "_dd.stage": "raw",
+        "_dd.tracer_version": ddtrace.__version__,
+        "event_type": "span",
+        "spans": trace,
     }
 
     assert n_spans == 2
@@ -49,7 +55,10 @@ def test_encode_span_with_unserializable_fields(mock_utils_logs):
     encoded_llm_events, n_spans = encoder.encode()
 
     expected_llm_events = {
-        "_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [mock.ANY]
+        "_dd.stage": "raw",
+        "_dd.tracer_version": ddtrace.__version__,
+        "event_type": "span",
+        "spans": [mock.ANY],
     }
 
     assert n_spans == 1

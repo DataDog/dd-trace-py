@@ -117,7 +117,6 @@ class TestLLMObsAnthropic:
                     )
                 )
 
-
     def test_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 

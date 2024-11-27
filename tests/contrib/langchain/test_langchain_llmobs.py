@@ -283,9 +283,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_chain_span(
             trace[1],
             mock_llmobs_span_writer,
-            input_value=str(
-                {"question": "what is two raised to the fifty-fourth power?", "stop": ["```output"]}
-            ),
+            input_value=str({"question": "what is two raised to the fifty-fourth power?", "stop": ["```output"]}),
             output_value=str(
                 {
                     "question": "what is two raised to the fifty-fourth power?",
@@ -565,12 +563,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             input_value=str([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
             output_value=mock.ANY,
         )
-        _assert_expected_llmobs_llm_span(
-            trace[2], mock_llmobs_span_writer, input_role="user", mock_token_metrics=True
-        )
-        _assert_expected_llmobs_llm_span(
-            trace[3], mock_llmobs_span_writer, input_role="user", mock_token_metrics=True
-        )
+        _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer, input_role="user", mock_token_metrics=True)
+        _assert_expected_llmobs_llm_span(trace[3], mock_llmobs_span_writer, input_role="user", mock_token_metrics=True)
 
     @flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
     @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
@@ -591,12 +585,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_chain_span(
             trace[0], mock_llmobs_span_writer, input_value=str(["chickens", "pigs"]), output_value=mock.ANY
         )
-        _assert_expected_llmobs_llm_span(
-            trace[1], mock_llmobs_span_writer, input_role="user", mock_token_metrics=True
-        )
-        _assert_expected_llmobs_llm_span(
-            trace[2], mock_llmobs_span_writer, input_role="user", mock_token_metrics=True
-        )
+        _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, input_role="user", mock_token_metrics=True)
+        _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer, input_role="user", mock_token_metrics=True)
 
     def test_llmobs_chain_schema_io(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
@@ -632,9 +622,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             ),
             output_value=str(["assistant", "Mitochondria."]),
         )
-        _assert_expected_llmobs_llm_span(
-            trace[1], mock_llmobs_span_writer, mock_io=True, mock_token_metrics=True
-        )
+        _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True, mock_token_metrics=True)
 
     def test_llmobs_anthropic_chat_model(self, langchain_anthropic, mock_llmobs_span_writer, mock_tracer):
         chat = langchain_anthropic.ChatAnthropic(temperature=0, model="claude-3-opus-20240229", max_tokens=15)
@@ -645,9 +633,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             cassette_name="anthropic_chat_completion_sync.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
-        _assert_expected_llmobs_llm_span(
-            span, mock_llmobs_span_writer, input_role="user", mock_token_metrics=True
-        )
+        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user", mock_token_metrics=True)
 
     def test_llmobs_embedding_query(self, langchain_community, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         if langchain_openai is None:
