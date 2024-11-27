@@ -634,8 +634,10 @@ class TelemetryWriter(PeriodicService):
 
         if _TelemetryConfig.DEPENDENCY_COLLECTION:
             newly_imported_deps = self._flush_new_imported_dependencies()
+            log.debug("JJJ periodic: _flush_new_imported_dependencies, newly_imported_deps: %s", newly_imported_deps)
             if newly_imported_deps:
                 self._app_dependencies_loaded_event(newly_imported_deps)
+        log.debug("JJJ periodic: _TelemetryConfig.DEPENDENCY_COLLECTION not enabled")
 
         if shutting_down:
             self._app_closing_event()

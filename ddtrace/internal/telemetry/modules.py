@@ -1,4 +1,5 @@
 import sys
+from logging import getLogger
 from types import ModuleType
 from typing import Any
 from typing import Set
@@ -6,6 +7,9 @@ from typing import Tuple
 
 from ..compat import PYTHON_VERSION_INFO
 from ..module import BaseModuleWatchdog
+
+
+log = getLogger(__name__)
 
 
 NEW_MODULES: Set[str] = set()  # New modules that have been imported since the last check
@@ -63,6 +67,7 @@ else:
         @classmethod
         def get_new_imports(cls):
             if cls._initial:
+                log.debug("JJJ TelemetryWriterModuleWatchdog.get_new_imports on inititial run")
                 try:
                     # On the first call, use sys.modules to cover all imports before we started. This is not
                     # done on __init__ because we want to do this slow operation on the writer's periodic call
@@ -75,7 +80,10 @@ else:
                     # switch to report new dependencies on further calls
                     cls._initial = False
             else:
+                log.debug("JJJ TelemetryWriterModuleWatchdog.get_new_imports on subsequent run")
                 new_imports = list(cls._new_imported)
+
+            log.debug("JJJ TelemetryWriterModuleWatchdog.get_new_imports new_imports: %s", new_imports)
 
             cls._new_imported.clear()
             return new_imports
