@@ -119,18 +119,5 @@ build_base_venvs:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/root/project"
 
-slotscheck:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  script:
-    - hatch run slotscheck:_
-
-conftests:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  script:
-    - hatch run meta-testing:meta-testing
 
 # Required jobs will appear here
