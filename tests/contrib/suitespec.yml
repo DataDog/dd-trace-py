@@ -23,6 +23,9 @@ components:
     - ddtrace/contrib/aws_lambda/*
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_functions:
+    - ddtrace/contrib/azure_functions/*
+    - ddtrace/contrib/internal/azure_functions/*
   botocore:
     - ddtrace/contrib/botocore/*
     - ddtrace/contrib/internal/botocore/*
@@ -371,6 +374,15 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     snapshot: true
+  azure_functions:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - tests/contrib/azure_functions/*
+      - tests/snapshots/tests.contrib.azure_functions.*
   botocore:
     parallelism: 6
     paths:
