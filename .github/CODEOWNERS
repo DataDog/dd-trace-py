@@ -39,7 +39,7 @@ ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-pyt
 ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
 docs/                               @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
-tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
+tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 
 # Core / Language Platform
