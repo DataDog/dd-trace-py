@@ -1,9 +1,9 @@
 import json
+
 import mock
 
 import ddtrace
 from ddtrace.llmobs._writer import LLMObsSpanEncoder
-
 from tests.llmobs._utils import _chat_completion_event
 from tests.llmobs._utils import _chat_completion_event_with_unserializable_field
 from tests.llmobs._utils import _completion_event

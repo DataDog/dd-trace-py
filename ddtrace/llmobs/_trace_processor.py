@@ -1,4 +1,3 @@
-import json
 from typing import Any
 from typing import Dict
 from typing import List
@@ -27,7 +26,6 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 from ddtrace.llmobs._constants import SESSION_ID

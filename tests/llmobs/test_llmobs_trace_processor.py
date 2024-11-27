@@ -1,5 +1,3 @@
-import json
-
 import mock
 import pytest
 

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import mock
 import pytest
 
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
