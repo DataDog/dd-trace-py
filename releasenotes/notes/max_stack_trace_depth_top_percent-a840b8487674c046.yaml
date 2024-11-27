@@ -1,7 +1,7 @@
 ---
 upgrade:
   - |
-  ASM: With this upgrade, you can now control how the stack trace report are cropped when reported for exploit prevention or IAST.
+    ASM: With this upgrade, you can now control how the stack trace report are cropped when reported for exploit prevention or IAST.
       - DD_APPSEC_MAX_STACK_TRACE_DEPTH allowed to control the maximum stack trace size reported (default 32)
       - DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT allows now to specify how the stack trace is cropped as a percentage.
       
