@@ -82,7 +82,8 @@ class LangChainIntegration(BaseLLMIntegration):
         if model_provider:
             if model_provider.startswith(BEDROCK_PROVIDER_NAME):
                 llmobs_integration = "bedrock"
-            elif model_provider.startswith(VERTEXAI_PROVIDER_NAME):
+            elif model_provider.startswith(VERTEXAI_PROVIDER_NAME) and operation == "llm":
+                # only the llm interface for Vertex AI will get instrumented properly
                 llmobs_integration = "vertexai"
             elif model_provider.startswith(OPENAI_PROVIDER_NAME):
                 llmobs_integration = "openai"
