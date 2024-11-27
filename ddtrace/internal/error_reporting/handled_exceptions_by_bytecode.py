@@ -27,76 +27,20 @@ def _inject_handled_exception_reporting(func):
     if not injection_indexes:
         return ()
 
-    # injection_context = InjectionContext.from_code(func.__code__, "put.the.package.here")
-    # injection_context.instructions_cb = generate_instructions
-
     def injection_lines_cb(injection_context: InjectionContext):
-        return {
-            opcode: line for opcode, line in dis.findlinestarts(original_code) if opcode in injection_indexes
-        }
+        return [
+            opcode for opcode, _ in dis.findlinestarts(original_code) if opcode in injection_indexes
+        ]
 
     injection_context = InjectionContext(original_code, _default_datadog_exc_callback, injection_lines_cb)
 
     code, _ = inject_invocation(
         injection_context,
+        _default_datadog_exc_callback,
         'path/to/file.py',
         'my.package'
     )
     func.__code__ = code
-
-# def generate_instructions(injection_context: InjectionContext, line_numbe: int) -> t.Tuple[Instruction, ...]:
-#     _0_idx = injection_context.with_const(0)
-#     cb_invocation_idx = injection_context.with_const(("_default_datadog_exc_callback",))
-
-#     cb_module_idx = injection_context.with_name("ddtrace.internal.error_reporting.hook")
-#     cb_name_idx = injection_context.with_name("_default_datadog_exc_callback")
-
-#     cb_var_idx = injection_context.with_varname("_default_datadog_exc_callback")
-
-#     precall_instructions = (
-#         [Instruction(NO_OFFSET, dis.opmap["PRECALL"], 0), Instruction(NO_OFFSET, dis.opmap["CACHE"], 0)]
-#         if sys.version_info[:2] == (3, 11)
-#         else []
-#     )
-
-#     instructions = [
-#         Instruction(NO_OFFSET, dis.opmap["LOAD_CONST"], _0_idx),
-#         *instr_with_arg(dis.opmap["LOAD_CONST"], cb_invocation_idx),
-#         *instr_with_arg(dis.opmap["IMPORT_NAME"], cb_module_idx),
-#         *instr_with_arg(dis.opmap["IMPORT_FROM"], cb_name_idx),
-#         Instruction(NO_OFFSET, dis.opmap["STORE_FAST"], cb_var_idx),
-#         Instruction(NO_OFFSET, dis.opmap["POP_TOP"], 0),
-#         Instruction(NO_OFFSET, dis.opmap["PUSH_NULL"], 0),
-#         Instruction(NO_OFFSET, dis.opmap["LOAD_FAST"], cb_var_idx),
-#         *precall_instructions,
-#         Instruction(NO_OFFSET, dis.opmap["CALL"], 0),
-#         Instruction(NO_OFFSET, dis.opmap["CACHE"], 0),
-#         Instruction(NO_OFFSET, dis.opmap["CACHE"], 0),
-#         Instruction(NO_OFFSET, dis.opmap["CACHE"], 0),
-#         Instruction(NO_OFFSET, dis.opmap["CACHE"], 0),
-#         Instruction(NO_OFFSET, dis.opmap["POP_TOP"], 0),
-#     ]
-
-#     return tuple(instructions)
-
-
-# def _inject_handled_exception_reporting(func):
-#     func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
-#     original_code = func.__code__
-
-#     injection_indexes = _find_bytecode_indexes(original_code)
-#     if not injection_indexes:
-#         return ()
-
-#     injection_context = InjectionContext.from_code(func.__code__, "put.the.package.here")
-#     injection_context.instructions_cb = generate_instructions
-
-#     injection_lines = {
-#         opcode: line for opcode, line in dis.findlinestarts(original_code) if opcode in injection_indexes
-#     }
-
-#     code, _ = inject_instructions(injection_context, injection_lines, SKIP_LINES)
-#     func.__code__ = code
 
 
 WAITING_FOR_EXC = 0
