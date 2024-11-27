@@ -12,7 +12,7 @@ from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 import tests.appsec.rules as rules
@@ -27,7 +27,7 @@ invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', 
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC]
     assert len(generate_metrics) == 2, "Expected 2 generate_metrics"
     for _metric_id, metric in generate_metrics.items():
         if metric.name == "waf.requests":
@@ -44,7 +44,7 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
 
 
 def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
-    distributions_metrics = metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]
+    distributions_metrics = metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE.APPSEC]
 
     assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
     for _metric_id, metric in distributions_metrics.items():
@@ -69,8 +69,8 @@ def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
                 rules.Config(),
             )
     metrics_data = telemetry_writer._namespace._metrics_data
-    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
-    assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
+    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC]) == 0
+    assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE.APPSEC]) == 0
 
 
 def test_metrics_when_appsec_runs(telemetry_writer, tracer):
@@ -136,7 +136,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
     assert len(list_metrics_logs) == 0
 
     generate_metrics = telemetry_writer._namespace._metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][
-        TELEMETRY_NAMESPACE_TAG_APPSEC
+        TELEMETRY_NAMESPACE.APPSEC
     ]
 
     timeout_found = False
