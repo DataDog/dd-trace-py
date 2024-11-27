@@ -22,7 +22,7 @@ def _assert_metric(
 
     metrics = []
     for event in metrics_events:
-        if event["payload"]["namespace"] == namespace:
+        if event["payload"]["namespace"] == namespace.value:
             for metric in event["payload"]["series"]:
                 metric["tags"].sort()
                 metrics.append(metric)
