@@ -122,9 +122,11 @@ class IAST(metaclass=Constant_Class):
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
     CONTEXT_KEY: Literal["_iast_data"] = "_iast_data"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
+    ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
     REQUEST_IAST_ENABLED: Literal["_dd.iast.request_enabled"] = "_dd.iast.request_enabled"
+    PATCH_ADDED_SYMBOL_PREFIX: Literal["_ddtrace_"] = "_ddtrace_"
     TEXT_TYPES = (str, bytes, bytearray)
     TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
 
