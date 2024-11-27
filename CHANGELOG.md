@@ -92,6 +92,38 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.16.4
+
+### Bug Fixes
+
+- ASM
+  - Ensures that common patches for exploit prevention and sca are only loaded if required, and only loaded once.
+  - Resolves an issue where some root span where not appropriately tagged for ASM standalone.
+
+- Auto-Instrumentation
+  - Resolves an issue where the default versions of `click` and `jinja2` installed on python3.8 were outside of the allowed minimum versions for auto-instrumentation.
+
+- Code Security
+  - Patches the module dir function so original pre-patch results are not changed.
+
+- LLM Observability
+  - Ensures bedrock spans are finished even when streamed responses are not fully consumed.
+
+- Tracing
+  - `botocore`: Resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
+
+
+---
+
+## 2.16.3
+
+### Bug Fixes
+
+  - Code Security: add umap, numba and pynndescent to the Code Security denylist.
+
+
+---
+
 ## 2.16.1
 
 ### Bug Fixes
@@ -120,11 +152,25 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
-## 2.16.3
+## 2.15.4
 
 ### Bug Fixes
 
-  - Code Security: add umap, numba and pynndescent to the Code Security denylist.
+- ASM
+  - Ensures that common patches for exploit prevention and sca are only loaded if required, and only loaded once.
+  - Resolves an issue where some root span where not appropriately tagged for ASM standalone.
+
+- Auto-Instrumentation
+  - Resolves an issue where the default versions of `click` and `jinja2` installed on python3.8 were outside of the allowed minimum versions for auto-instrumentation.
+
+- Code Security
+  - Patches the module dir function so original pre-patch results are not changed.
+
+- LLM Observability
+  - Ensures bedrock spans are finished even when streamed responses are not fully consumed.
+
+- Tracing
+  - `botocore`: Resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
 
 
 ---
