@@ -1,0 +1,29 @@
+ci_visibility:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: ci_visibility
+  parallelism: 4
+dd_coverage:
+  runner: hatch
+  is_snapshot: true
+  env:
+    SUITE_NAME: dd_coverage
+  parallelism: 6
+pytest:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: pytest
+  parallelism: 12
+pytest_v2:
+  runner: hatch
+  is_snapshot: true
+  env:
+    SUITE_NAME: pytest_plugin_v2
+  parallelism: 10
+unittest:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: unittest
