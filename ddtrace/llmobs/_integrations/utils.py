@@ -136,7 +136,7 @@ def get_system_instructions_from_google_model(model_instance):
     """
     from vertexai.generative_models._generative_models import Part
     from google.ai.generativelanguage_v1beta.types.content import Content
-    
+
     raw_system_instructions = getattr(model_instance, "_system_instruction", [])
     if isinstance(raw_system_instructions, Content):
         system_instructions = []

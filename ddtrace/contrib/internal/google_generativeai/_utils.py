@@ -129,9 +129,7 @@ def tag_request(span, integration, instance, args, kwargs):
 
     if system_instruction:
         for idx, text in enumerate(system_instruction):
-            span.set_tag_str(
-                "google_generativeai.request.system_instruction.%d.text" % idx, integration.trunc(text)
-            )
+            span.set_tag_str("google_generativeai.request.system_instruction.%d.text" % idx, integration.trunc(text))
 
     if isinstance(contents, str):
         span.set_tag_str("google_generativeai.request.contents.0.text", integration.trunc(contents))
