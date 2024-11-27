@@ -134,18 +134,24 @@ def get_system_instructions_from_google_model(model_instance):
     """
     Extract system instructions from model and convert to []str for tagging.
     """
-    from google.ai.generativelanguage_v1beta.types.content import Content
-    from vertexai.generative_models._generative_models import Part
+    try:
+        from google.ai.generativelanguage_v1beta.types.content import Content
+    except ImportError:
+        Content = None
+    try:
+        from vertexai.generative_models._generative_models import Part
+    except ImportError:
+        Part = None
 
     raw_system_instructions = getattr(model_instance, "_system_instruction", [])
-    if isinstance(raw_system_instructions, Content):
+    if Content is not None and isinstance(raw_system_instructions, Content):
         system_instructions = []
         for part in raw_system_instructions.parts:
             system_instructions.append(_get_attr(part, "text", ""))
         return system_instructions
     elif isinstance(raw_system_instructions, str):
         return [raw_system_instructions]
-    elif isinstance(raw_system_instructions, Part):
+    elif Part is not None and isinstance(raw_system_instructions, Part):
         return [_get_attr(raw_system_instructions, "text", "")]
     elif not isinstance(raw_system_instructions, list):
         return []
@@ -154,6 +160,6 @@ def get_system_instructions_from_google_model(model_instance):
     for elem in raw_system_instructions:
         if isinstance(elem, str):
             system_instructions.append(elem)
-        elif isinstance(elem, Part):
+        elif Part is not None and isinstance(elem, Part):
             system_instructions.append(_get_attr(elem, "text", ""))
     return system_instructions
