@@ -621,7 +621,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
                     }
                 ]
             ),
-            output_value=str(["assistant", "Mitochondria."]),
+            output_value=str(("assistant", "Mitochondria.")),
         )
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True, mock_token_metrics=True)
 

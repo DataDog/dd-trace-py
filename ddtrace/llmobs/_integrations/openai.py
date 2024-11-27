@@ -189,10 +189,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
         if span.error or not messages:
-            output_messages = [{"content": ""}]
-            span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+            span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
             return
-        output_messages = []
         if isinstance(messages, list):  # streamed response
             output_messages = []
             for streamed_message in messages:
@@ -212,6 +210,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
             return
         choices = _get_attr(messages, "choices", [])
+        output_messages = []
         for idx, choice in enumerate(choices):
             tool_calls_info = []
             choice_message = _get_attr(choice, "message", {})
