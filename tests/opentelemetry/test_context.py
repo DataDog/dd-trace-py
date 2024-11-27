@@ -153,6 +153,16 @@ def test_dd_baggage(oteltracer):
         assert get_baggage("key2") == "value2"
 
 
+def test_mixed_otel_dd_baggage(oteltracer):
+    with ddtrace.tracer.trace("ddtrace-baggage") as ddspan:
+        ddspan.context.set_baggage_item("key1", "dd1")
+        attach(set_baggage("key1", "otel1"))
+        attach(set_baggage("key2", "otel2"))
+        ddspan.context.set_baggage_item("key2", "dd2")
+        assert get_baggage("key1") == "otel1"
+        assert get_baggage("key2") == "dd2"
+
+
 def test_otel_baggage_remove(oteltracer):
     with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
         baggage_context = set_baggage("key1", "value1")
