@@ -134,8 +134,8 @@ def get_system_instructions_from_google_model(model_instance):
     """
     Extract system instructions from model and convert to []str for tagging.
     """
-    from vertexai.generative_models._generative_models import Part
     from google.ai.generativelanguage_v1beta.types.content import Content
+    from vertexai.generative_models._generative_models import Part
 
     raw_system_instructions = getattr(model_instance, "_system_instruction", [])
     if isinstance(raw_system_instructions, Content):
