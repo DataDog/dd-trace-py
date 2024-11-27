@@ -32,6 +32,7 @@ from ..utils.version import version as tracer_version
 from . import modules
 from .constants import TELEMETRY_APM_PRODUCT
 from .constants import TELEMETRY_LOG_LEVEL  # noqa:F401
+from .constants import TELEMETRY_NAMESPACE
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
@@ -340,7 +341,7 @@ class TelemetryWriter(PeriodicService):
         }
 
         # SOABI should help us identify which wheels people are getting from PyPI
-        self.add_configurations(get_python_config_vars())  # type: ignore
+        self.add_configurations(get_python_config_vars())
 
         payload = {
             "configuration": self._flush_configuration_queue(),
@@ -485,7 +486,6 @@ class TelemetryWriter(PeriodicService):
             }
 
     def add_configurations(self, configuration_list):
-        # type: (List[Tuple[str, Union[bool, float, str], str]]) -> None
         """Creates and queues a list of configurations"""
         with self._lock:
             for name, value, _origin in configuration_list:
@@ -496,7 +496,6 @@ class TelemetryWriter(PeriodicService):
                 }
 
     def add_log(self, level, message, stack_trace="", tags=None):
-        # type: (TELEMETRY_LOG_LEVEL, str, str, Optional[Dict]) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -518,8 +517,7 @@ class TelemetryWriter(PeriodicService):
                 data["stack_trace"] = stack_trace
             self._logs.add(data)
 
-    def add_gauge_metric(self, namespace, name, value, tags=None):
-        # type: (str,str, float, MetricTagType) -> None
+    def add_gauge_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
         """
         Queues gauge metric
         """
@@ -533,8 +531,7 @@ class TelemetryWriter(PeriodicService):
                 self.interval,
             )
 
-    def add_rate_metric(self, namespace, name, value=1.0, tags=None):
-        # type: (str,str, float, MetricTagType) -> None
+    def add_rate_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
         """
         Queues rate metric
         """
@@ -548,8 +545,7 @@ class TelemetryWriter(PeriodicService):
                 self.interval,
             )
 
-    def add_count_metric(self, namespace, name, value=1.0, tags=None):
-        # type: (str,str, float, MetricTagType) -> None
+    def add_count_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: MetricTagType = None):
         """
         Queues count metric
         """
@@ -562,8 +558,7 @@ class TelemetryWriter(PeriodicService):
                 tags,
             )
 
-    def add_distribution_metric(self, namespace, name, value=1.0, tags=None):
-        # type: (str,str, float, MetricTagType) -> None
+    def add_distribution_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value, tags: MetricTagType = None):
         """
         Queues distributions metric
         """
