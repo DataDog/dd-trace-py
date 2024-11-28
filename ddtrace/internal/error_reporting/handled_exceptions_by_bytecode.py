@@ -36,7 +36,6 @@ def _inject_handled_exception_reporting(func):
 
     code, _ = inject_invocation(
         injection_context,
-        _default_datadog_exc_callback,
         'path/to/file.py',
         'my.package'
     )
