@@ -175,3 +175,53 @@ class TestOperatorModuloReplacement(BaseReplacement):
             expected_result="aaaaaaaaaaaa",
             escaped_expected_result="aaaaaaa:+-<input1>a<input1>-+:aaaa",
         )
+
+
+def test_psycopg_queries_dump_bytes(caplog):
+    bytes_to_test = b"'my_user'"
+
+    result = mod.psycopg_queries_dump_bytes((bytes_to_test,))
+    assert result == b'INSERT INTO "show_client" ("username") VALUES (\'my_user\') RETURNING "show_client"."id"'
+
+    result = mod.psycopg_queries_dump_bytes_with_keys({b"name": bytes_to_test})
+    assert result == b'INSERT INTO "show_client" ("username") VALUES (\'my_user\') RETURNING "show_client"."id"'
+
+    with pytest.raises(TypeError):
+        mod.psycopg_queries_dump_bytes(
+            (
+                bytes_to_test,
+                bytes_to_test,
+            )
+        )
+
+    with pytest.raises(TypeError):
+        _ = b'INSERT INTO "show_client" ("username") VALUES (%s) RETURNING "show_client"."id"' % ((1,))
+
+    with pytest.raises(TypeError):
+        mod.psycopg_queries_dump_bytes((1,))
+
+    with pytest.raises(KeyError):
+        _ = b'INSERT INTO "show_client" ("username") VALUES (%(name)s) RETURNING "show_client"."id"' % {
+            "name": bytes_to_test
+        }
+
+    with pytest.raises(KeyError):
+        mod.psycopg_queries_dump_bytes_with_keys({"name": bytes_to_test})
+
+
+def test_psycopg_queries_dump_bytearray(caplog):
+    bytesarray_to_test = bytearray(b"'my_user'")
+
+    result = mod.psycopg_queries_dump_bytearray((bytesarray_to_test,))
+
+    assert result == b'INSERT INTO "show_client" ("username") VALUES (\'my_user\') RETURNING "show_client"."id"'
+    with pytest.raises(TypeError):
+        mod.psycopg_queries_dump_bytearray(
+            (
+                bytesarray_to_test,
+                bytesarray_to_test,
+            )
+        )
+
+        with pytest.raises(TypeError):
+            mod.psycopg_queries_dump_bytearray((1,))
