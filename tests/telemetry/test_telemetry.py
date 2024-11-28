@@ -79,7 +79,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
 
 import ddtrace # enables telemetry
-from ddtrace.internal.runtime import get_runtime_id
 
 # Heartbeat events are only sent if no other events are queued
 from ddtrace.internal.telemetry import telemetry_writer
