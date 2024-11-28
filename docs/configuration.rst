@@ -511,7 +511,7 @@ AppSec
    DD_IAST_STACK_TRACE_ENABLED:
      type: Boolean
      default: True
-     description: Whether to enable stack traces in reports for SCA/IAST.
+     description: Whether to enable stack traces in reports for Code Security/IAST.
 
    DD_IAST_VULNERABILITIES_PER_REQUEST:
      type: Integer
