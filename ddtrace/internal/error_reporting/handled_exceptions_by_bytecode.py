@@ -8,15 +8,6 @@ from ..bytecode_injection.core import inject_invocation
 from .hook import _default_datadog_exc_callback
 
 
-# from ddtrace.internal.coverage.instrumentation_py3_11 import NO_OFFSET
-# from ddtrace.internal.coverage.instrumentation_py3_11 import SKIP_LINES
-# from ddtrace.internal.coverage.instrumentation_py3_11 import InjectionContext
-# from ddtrace.internal.coverage.instrumentation_py3_11 import Instruction
-# from ddtrace.internal.coverage.instrumentation_py3_11 import inject_instructions
-# from ddtrace.internal.coverage.instrumentation_py3_11 import instr_with_arg
-# from ddtrace.internal.coverage.instrumentation_py3_11 import parse_exception_table
-
-
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
 assert sys.version_info >= (3, 10)  # and sys.version_info < (3, 12)  # nosec
