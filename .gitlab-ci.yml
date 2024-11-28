@@ -3,15 +3,16 @@ stages:
   - tests-gen
   - tests-trigger
   - shared-pipeline
-  - dogfood
   - benchmarks
   - macrobenchmarks
-  - dogfood
   - release
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   # CI_DEBUG_SERVICES: "true"
+
+default:
+  interruptible: true
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
@@ -19,7 +20,6 @@ include:
   - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
   - local: ".gitlab/macrobenchmarks.yml"
-  - local: ".gitlab/dogfood.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
 

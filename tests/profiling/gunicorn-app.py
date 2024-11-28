@@ -9,7 +9,7 @@ def fib(n):
 
 
 def app(environ, start_response):
-    response_body = "fib(35) is %d at pid %d tid %d" % (fib(35), os.getpid(), threading.get_ident())
+    response_body = "fib(30) is %d at pid %d tid %d" % (fib(30), os.getpid(), threading.get_ident())
 
     response_body = response_body.encode("utf-8")
 

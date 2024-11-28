@@ -1,7 +1,7 @@
 [[
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "set-span.type",
     "trace_id": 0,
     "span_id": 1,

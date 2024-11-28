@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Tracer: Removed x-forwarded from headers used for client IP resolution (but not from collected headers).
+      We lack evidence of actual usage, and whether this should follow RFC 7239 or regular XFF list format.

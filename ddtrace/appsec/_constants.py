@@ -134,8 +134,15 @@ class IAST(metaclass=Constant_Class):
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
+    ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
+    PATCH_ADDED_SYMBOL_PREFIX: Literal["_ddtrace_"] = "_ddtrace_"
+    REDACTION_ENABLED: Literal["DD_IAST_REDACTION_ENABLED"] = "DD_IAST_REDACTION_ENABLED"
+    REDACTION_NAME_PATTERN: Literal["DD_IAST_REDACTION_NAME_PATTERN"] = "DD_IAST_REDACTION_NAME_PATTERN"
+    REDACTION_VALUE_PATTERN: Literal["DD_IAST_REDACTION_VALUE_PATTERN"] = "DD_IAST_REDACTION_VALUE_PATTERN"
+    REDACTION_VALUE_NUMERAL: Literal["DD_IAST_REDACTION_VALUE_NUMERAL"] = "DD_IAST_REDACTION_VALUE_NUMERAL"
+    STACK_TRACE_ENABLED: Literal["DD_IAST_STACK_TRACE_ENABLED"] = "DD_IAST_STACK_TRACE_ENABLED"
 
     METRICS_REPORT_LVLS = (
         (TELEMETRY_DEBUG_VERBOSITY, TELEMETRY_DEBUG_NAME),
@@ -153,6 +160,7 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 
     TELEMETRY_REQUEST_TAINTED: Literal["_dd.iast.telemetry.request.tainted"] = "_dd.iast.telemetry.request.tainted"
     TELEMETRY_EXECUTED_SINK: Literal["_dd.iast.telemetry.executed.sink"] = "_dd.iast.telemetry.executed.sink"
+    TELEMETRY_EXECUTED_SOURCE: Literal["_dd.iast.telemetry.executed.source"] = "_dd.iast.telemetry.executed.source"
 
 
 class WAF_DATA_NAMES(metaclass=Constant_Class):
@@ -322,6 +330,9 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     STACK_TRACE_ENABLED: Literal["DD_APPSEC_STACK_TRACE_ENABLED"] = "DD_APPSEC_STACK_TRACE_ENABLED"
     MAX_STACK_TRACES: Literal["DD_APPSEC_MAX_STACK_TRACES"] = "DD_APPSEC_MAX_STACK_TRACES"
     MAX_STACK_TRACE_DEPTH: Literal["DD_APPSEC_MAX_STACK_TRACE_DEPTH"] = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
+    STACK_TOP_PERCENT: Literal[
+        "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT"
+    ] = "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT"
 
     class TYPE(metaclass=Constant_Class):
         CMDI: Literal["command_injection"] = "command_injection"
