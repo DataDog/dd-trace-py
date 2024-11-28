@@ -38,6 +38,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.propagation.http import _TraceContext
 from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
@@ -3163,16 +3164,15 @@ def test_llmobs_parent_id_not_injected_by_default():
     ],
 )
 def test_baggageheader_inject(span_context, expected_headers):
-    from ddtrace.propagation.http import _BaggageHeader
-
     headers = {}
     _BaggageHeader._inject(span_context, headers)
     assert headers == expected_headers
 
 
 def test_baggageheader_maxitems_inject():
+    import urllib.parse
+
     from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
-    from ddtrace.propagation.http import _BaggageHeader
 
     headers = {}
     baggage_items = {}
@@ -3180,18 +3180,45 @@ def test_baggageheader_maxitems_inject():
         baggage_items[f"key{i}"] = f"val{i}"
     span_context = Context(baggage=baggage_items)
     _BaggageHeader._inject(span_context, headers)
-    assert "baggage" not in headers
+    assert "baggage" in headers
+    header_value = headers["baggage"]
+    items = header_value.split(",")
+    assert len(items) == DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    expected_keys = [f"key{i}" for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS)]
+    for item in items:
+        key, value = item.split("=", 1)
+        key = urllib.parse.unquote(key)
+        assert key in expected_keys
 
 
 def test_baggageheader_maxbytes_inject():
     from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
-    from ddtrace.propagation.http import _BaggageHeader
 
     headers = {}
-    baggage_items = {"foo": ("a" * DD_TRACE_BAGGAGE_MAX_BYTES)}
+    # baggage item that exceeds the maximum byte size
+    baggage_items = {"foo": "a" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)}
     span_context = Context(baggage=baggage_items)
     _BaggageHeader._inject(span_context, headers)
-    assert "baggage" not in headers
+    # since the baggage item exceeds the max bytes, no header should be injected
+    header_value = headers["baggage"]
+    assert header_value == ""
+
+    # multiple baggage items to test dropping items when the total size exceeds the limit
+    headers = {}
+    baggage_items = {
+        "key1": "a" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key2": "b" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key3": "c" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key4": "d",
+    }
+    span_context = Context(baggage=baggage_items)
+    _BaggageHeader._inject(span_context, headers)
+    header_value = headers["baggage"]
+    header_size = len(header_value.encode("utf-8"))
+    assert header_size <= DD_TRACE_BAGGAGE_MAX_BYTES
+    assert "key4" not in header_value
+    assert "key2" in header_value
 
 
 @pytest.mark.parametrize(
@@ -3217,8 +3244,6 @@ def test_baggageheader_maxbytes_inject():
     ],
 )
 def test_baggageheader_extract(headers, expected_baggage):
-    from ddtrace.propagation.http import _BaggageHeader
-
     context = _BaggageHeader._extract(headers)
     assert context._baggage == expected_baggage
 
@@ -3239,8 +3264,6 @@ def test_baggageheader_extract(headers, expected_baggage):
     ],
 )
 def test_baggage_malformedheader_extract(headers, expected_baggage):
-    from ddtrace.propagation.http import _BaggageHeader
-
     context = _BaggageHeader._extract(headers)
     assert context._baggage == expected_baggage
 
