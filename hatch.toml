@@ -273,7 +273,7 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
-    "httpx",
+    "httpx<0.28.0",
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
