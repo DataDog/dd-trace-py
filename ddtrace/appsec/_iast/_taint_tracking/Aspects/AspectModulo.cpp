@@ -20,9 +20,9 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 
     if (PyUnicode_Check(text)) {
         result = PyUnicode_Format(text, insert_tuple);
-    } else if (PyBytes_Check(text) or PyByteArray_Check(text)) {
-        auto method_name = PyUnicode_FromString("__mod__");
-        result = PyObject_CallMethodObjArgs(text, method_name, insert_tuple, nullptr);
+    } else {
+        Py_DECREF(insert_tuple);
+        return nullptr;
     }
 
     Py_DECREF(insert_tuple);
