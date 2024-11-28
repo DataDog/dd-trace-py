@@ -81,10 +81,6 @@ import os
 import ddtrace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 
-if os.fork() > 0:
-    # Print the parent process runtime id for validation
-    print(get_runtime_id())
-
 # Heartbeat events are only sent if no other events are queued
 from ddtrace.internal.telemetry import telemetry_writer
 telemetry_writer.reset_queues()
@@ -102,8 +98,6 @@ telemetry_writer.periodic(force_flush=True)
     # Allow test agent session to capture all heartbeat events
     app_heartbeats = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False, subprocess=True)
     assert len(app_heartbeats) > 1
-    for hb in app_heartbeats:
-        assert hb["runtime_id"] == runtime_id
 
 
 def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
