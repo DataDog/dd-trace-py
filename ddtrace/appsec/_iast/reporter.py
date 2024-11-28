@@ -13,7 +13,6 @@ import zlib
 
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
-from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_id
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
@@ -80,6 +79,9 @@ class Vulnerability(NotNoneDictable):
     stackId: Optional[str] = None
 
     def __post_init__(self):
+        # avoid circular import
+        from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_id
+
         self.hash = zlib.crc32(repr(self).encode())
         stacktrace_id = get_iast_stacktrace_id()
         if stacktrace_id:
