@@ -1,2 +1,5 @@
 def print_str():
-    print(str("hi"))
+    h = "h"
+    i = "i"
+    hi = f"{h}" f"{i}"
+    print(str(hi))
