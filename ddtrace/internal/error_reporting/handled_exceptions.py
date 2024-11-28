@@ -1,9 +1,7 @@
 import sys
-import traceback
 import types
 from types import ModuleType
 
-import ddtrace
 from ddtrace.internal.module import BaseModuleWatchdog
 
 

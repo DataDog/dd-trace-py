@@ -1,10 +1,10 @@
 import sys
-import ddtrace
 import traceback
+
+import ddtrace
 
 
 def _default_datadog_exc_callback(*args):
-    print("I am HOOK magic handler!!!")
     _, exc, _ = sys.exc_info()
     if not exc:
         return
