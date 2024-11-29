@@ -75,7 +75,6 @@ def _get_outcome_from_retry(
             _outcome_status = TestStatus.SKIP
         elif call_report.outcome == outcomes.PASSED:
             _outcome_status = TestStatus.PASS
-
     # Teardown does not happen if setup skipped
     if not setup_report.skipped:
         teardown_call, teardown_report = _retry_run_when(item, "teardown", outcomes)
@@ -116,6 +115,7 @@ def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _p
     elif report.outcome == "skipped":
         report.outcome = outcomes.SKIPPED
     # Only log for actual test calls, or failures
-    if when == "call" or "passed" not in report.outcome:
+    is_quarantined = True # DEBUG
+    if (when == "call" or "passed" not in report.outcome): # and not is_quarantined:
         item.ihook.pytest_runtest_logreport(report=report)
     return call, report

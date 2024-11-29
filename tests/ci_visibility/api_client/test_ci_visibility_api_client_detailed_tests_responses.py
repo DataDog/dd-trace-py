@@ -1,4 +1,3 @@
-"""NOTE: this lives in its own file simply because some of the test variables are unwieldy"""
 from http.client import RemoteDisconnected
 import socket
 import textwrap
@@ -13,7 +12,7 @@ from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 
 
 class TestTestVisibilityAPIClientDetailedTestResponses(TestTestVisibilityAPIClientBase):
-    """Tests that unique tests responses from the API client are parsed properly"""
+    """Tests that detailed tests responses from the API client are parsed properly"""
 
     @pytest.mark.parametrize(
         "unique_test_response,expected_tests",

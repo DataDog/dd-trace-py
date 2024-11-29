@@ -420,6 +420,7 @@ def _process_result(item, call, result) -> _TestOutcome:
 
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
+
     # When ATR or EFD retries are active, we do not want makereport to generate results
     if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
         return
@@ -429,6 +430,21 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     test_id = _get_test_id_from_item(item)
 
     test_outcome = _process_result(item, call, original_result)
+
+    #print(f"\n==> ME OLHA:\n  {item=}\n  {call=}\n  {outcome=}\n  {test_outcome=}")
+
+    #### Quarantine shenanigans
+    is_quarantined = 'fail' in item.name # DEBUG
+    if is_quarantined:
+        if ((test_outcome.status is not None and call.when == "setup")
+            or
+            (test_outcome.status is not None and call.when == "teardown")
+            or
+            (call.when == "call")):
+            #print(f"Quarantine it!")
+            original_result.outcome = 'quarantine'
+            #original_result.longrepr = ('quar', 'q', 'quarantined')
+
 
     # A None value for test_outcome.status implies the test has not finished yet
     # Only continue to finishing the test if the test has finished, or if tearing down the test
@@ -573,6 +589,9 @@ def pytest_report_teststatus(
 ) -> _pytest_report_teststatus_return_type:
     if not is_test_visibility_enabled():
         return
+
+    if report.when in ("setup", "call") and report.outcome == 'quarantine':
+        return ('quarantined', 'q', ('QUARANTINED', {'blue': True}))
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         test_status = atr_get_teststatus(report)
