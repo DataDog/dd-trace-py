@@ -7,7 +7,7 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
     PyObject* result = nullptr;
 
     // If the second argument is not a tuple and not a mapping, wrap it in a tuple
-    PyObject* insert_tuple;
+    PyObject* insert_tuple = nullptr;
     if (PyMapping_Check(insert_tuple_or_obj) or PyTuple_Check(insert_tuple_or_obj)) {
         insert_tuple = insert_tuple_or_obj;
         Py_INCREF(insert_tuple);
@@ -24,20 +24,8 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
         auto method_name = PyUnicode_FromString("__mod__");
         result = PyObject_CallMethodObjArgs(text, method_name, insert_tuple, nullptr);
         Py_DECREF(method_name);
-    } else {
-        try {
-            const auto py_candidate_tuple = py::reinterpret_borrow<py::object>(insert_tuple);
-            const auto py_candidate_text = py::reinterpret_borrow<py::object>(text);
-            py::object res_py = py_candidate_text.attr("__mod__")(py_candidate_tuple);
-            result = res_py.ptr();
-        } catch (py::error_already_set& e) {
-            e.restore();
-            Py_XDECREF(insert_tuple);
-            Py_XDECREF(result);
-            return nullptr;
-        }
     }
-    Py_XDECREF(insert_tuple);
+    Py_DECREF(insert_tuple);
     if (has_pyerr()) {
         Py_XDECREF(result);
         return nullptr;
@@ -60,13 +48,21 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     // Lambda to get the result of the modulo operation
     auto get_result = [&]() -> PyObject* {
-        try {
-            PyObject* res = do_modulo(candidate_text, candidate_tuple);
-            return res;
-        } catch (py::error_already_set& e) {
-            e.restore();
-            return nullptr;
+        PyObject* res = do_modulo(candidate_text, candidate_tuple);
+        if (res == nullptr) {
+            try {
+                py::object res_py = py_candidate_text.attr("__mod__")(py_candidate_tuple);
+                PyObject* res_pyo = res_py.ptr();
+                if (res_pyo != nullptr) {
+                    Py_INCREF(res_pyo);
+                }
+                return res_pyo;
+            } catch (py::error_already_set& e) {
+                e.restore();
+                return nullptr;
+            }
         }
+        return res;
     };
 
     TRY_CATCH_ASPECT("modulo_aspect", return get_result(), , {
@@ -81,7 +77,7 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         }
 
         const py::tuple parameters =
-          py::isinstance<py::tuple>(py_candidate_tuple) ? py_candidate_tuple : py::make_tuple(py_candidate_tuple);
+                py::isinstance<py::tuple>(py_candidate_tuple) ? py_candidate_tuple : py::make_tuple(py_candidate_tuple);
 
         const auto tx_map = Initializer::get_tainting_map();
         if (!tx_map || tx_map->empty()) {
@@ -102,7 +98,7 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
             if (is_text(param_handle.ptr())) {
                 auto [ranges, ranges_error] = get_ranges(param_handle.ptr(), tx_map);
                 string n_parameter =
-                  as_formatted_evidence(AnyTextObjectToString(param_handle), ranges, TagMappingMode::Mapper, nullopt);
+                        as_formatted_evidence(AnyTextObjectToString(param_handle), ranges, TagMappingMode::Mapper, nullopt);
                 list_formatted_parameters.append(StringToPyObject(n_parameter, py_str_type));
             } else {
                 list_formatted_parameters.append(param_handle);
