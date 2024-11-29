@@ -29,13 +29,15 @@ def generate_callers_from_callees(functions_module, callees_module, callers_file
         callers.write(f"from {callees_module_str} import *\n")
         callers.write(f"from {callees_module_str} import _number_generator\n")
         callers.write("_ng = _number_generator()\n")
+        callers.write("_static_number = 42\n")
+        callers.write("_concat = f' {_static_number}' f'{_static_number}'\n")
 
         for function in module_functions:
             callers.write(
                 f"""
 
 def generator_call_{function}(*args, **kwargs):
-    return next(_ng).{function}(*args, **kwargs)
+    return next(_ng).{function}(*args, **kwargs) + _concat
             """
             )
 
