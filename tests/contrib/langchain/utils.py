@@ -35,3 +35,4 @@ def get_request_vcr(subdirectory_name=""):
         # Ignore requests to the agent
         ignore_localhost=True,
     )
+

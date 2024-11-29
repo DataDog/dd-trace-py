@@ -17,7 +17,6 @@ from tests.utils import override_global_config
 def ddtrace_config_langchain():
     return {}
 
-
 @pytest.fixture(scope="session")
 def mock_metrics():
     patcher = mock.patch("ddtrace.llmobs._integrations.base.get_dogstatsd_client")

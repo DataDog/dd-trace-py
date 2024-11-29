@@ -27,6 +27,7 @@ SPAN_START_WHILE_DISABLED_WARNING = (
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
+VERTEXAI_APM_SPAN_NAME = "vertexai.request"
 
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"

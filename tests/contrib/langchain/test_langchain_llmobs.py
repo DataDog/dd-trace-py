@@ -7,6 +7,7 @@ import langchain as langchain_
 import mock
 import pinecone as pinecone_
 import pytest
+import vertexai
 
 from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
@@ -15,6 +16,9 @@ from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.contrib.vertexai.utils import MockPredictionServiceClient
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
+from tests.contrib.vertexai.utils import _mock_completion_response
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import flaky
@@ -1027,6 +1031,31 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
                 assert len(call_args["meta"]["output"]["value"]) > 0
 
     @staticmethod
+    def _call_vertexai_chat_model(ChatVertexAI, HumanMessage):
+        with mock.patch.object(
+            vertexai.generative_models.GenerativeModel, "_prediction_client", new_callable=mock.PropertyMock
+        ) as mock_client_property:
+            mock_client = MockPredictionServiceClient()
+            mock_client_property.return_value = mock_client
+            mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+            chat = ChatVertexAI(model="gemini-1.5-flash")
+            messages = [HumanMessage(content="Why do bears hibernate?")]
+            chat.invoke(messages)
+
+    @staticmethod
+    def _call_vertexai_llm(VertexAI):
+        with mock.patch.object(
+            vertexai.generative_models.GenerativeModel, "_prediction_client", new_callable=mock.PropertyMock
+        ) as mock_client_property:
+            mock_client = MockPredictionServiceClient()
+            mock_client_property.return_value = mock_client
+            mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+            llm = VertexAI(model="gemini-1.5-flash")
+            messages = [HumanMessage(content="Why do bears hibernate?")]
+            llm.invoke(messages)
+
+    
+    @staticmethod
     def _call_bedrock_chat_model(ChatBedrock, HumanMessage):
         chat = ChatBedrock(
             model_id="amazon.titan-tg1-large",
@@ -1073,6 +1102,49 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         ):
             llm.invoke("When do you use 'whom' instead of 'who'?")
 
+    
+    @run_in_subprocess
+    def test_llmobs_with_chat_model_vertexai_enabled(self):
+        from langchain_google_vertexai import ChatVertexAI
+        from langchain_core.messages import HumanMessage
+
+        patch(langchain=True, vertexai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+
+        self._call_vertexai_chat_model(ChatVertexAI, HumanMessage)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+
+    @run_in_subprocess
+    def test_llmobs_with_chat_model_vertexai_disabled(self):
+        from langchain_google_vertexai import ChatVertexAI
+        from langchain_core.messages import HumanMessage
+
+        patch(langchain=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+
+        self._call_vertexai_chat_model(ChatVertexAI, HumanMessage)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+    
+    @run_in_subprocess
+    def test_llmobs_with_llm_model_vertexai_enabled(self):
+        from langchain_google_vertexai import VertexAI
+
+        patch(langchain=True, vertexai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_vertexai_llm(VertexAI)
+
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+    @run_in_subprocess
+    def test_llmobs_with_llm_model_vertexai_disabled(self):
+        from langchain_google_vertexai import VertexAI
+
+        patch(langchain=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_vertexai_llm(VertexAI)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+
+    
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_chat_model_bedrock_enabled(self):
         from langchain_aws import ChatBedrock
