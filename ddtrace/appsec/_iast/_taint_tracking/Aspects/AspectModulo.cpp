@@ -24,6 +24,7 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
         auto method_name = PyUnicode_FromString("__mod__");
         result = PyObject_CallMethodObjArgs(text, method_name, insert_tuple, nullptr);
         Py_DECREF(method_name);
+    } else {
     }
     Py_DECREF(insert_tuple);
     if (has_pyerr()) {
@@ -77,7 +78,7 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         }
 
         const py::tuple parameters =
-                py::isinstance<py::tuple>(py_candidate_tuple) ? py_candidate_tuple : py::make_tuple(py_candidate_tuple);
+          py::isinstance<py::tuple>(py_candidate_tuple) ? py_candidate_tuple : py::make_tuple(py_candidate_tuple);
 
         const auto tx_map = Initializer::get_tainting_map();
         if (!tx_map || tx_map->empty()) {
@@ -98,7 +99,7 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
             if (is_text(param_handle.ptr())) {
                 auto [ranges, ranges_error] = get_ranges(param_handle.ptr(), tx_map);
                 string n_parameter =
-                        as_formatted_evidence(AnyTextObjectToString(param_handle), ranges, TagMappingMode::Mapper, nullopt);
+                  as_formatted_evidence(AnyTextObjectToString(param_handle), ranges, TagMappingMode::Mapper, nullopt);
                 list_formatted_parameters.append(StringToPyObject(n_parameter, py_str_type));
             } else {
                 list_formatted_parameters.append(param_handle);
