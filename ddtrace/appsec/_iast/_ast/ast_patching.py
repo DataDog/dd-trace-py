@@ -277,6 +277,9 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pkg_resources.",
     "pluggy.",
     "protobuf.",
+    "psycopg.",  # PostgreSQL adapter for Python (v3)
+    "_psycopg.",  # PostgreSQL adapter for Python (v3)
+    "psycopg2.",  # PostgreSQL adapter for Python (v2)
     "pycparser.",  # this package is called when a module is imported, propagation is not needed
     "pytest.",  # Testing framework
     "setuptools.",
