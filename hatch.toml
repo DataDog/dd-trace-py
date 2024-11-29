@@ -450,3 +450,27 @@ dependencies = [
 view = [
     "python scripts/ci_visibility/view_snapshot.py {args:}",
 ]
+
+[envs.selenium]
+template = "selenium"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "selenium{matrix:selenium}",
+    "webdriver-manager"
+]
+
+[evs.selenium.env-vars]
+DD_AGENT_TRACER_URL = "9126"
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
+[envs.selenium.scripts]
+test = [
+    "pip freeze",
+    "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/selenium {args:}",
+]
+
+[[envs.selenium.matrix]]
+python = ["3.7", "3.10", "3.12"]
+selenium = ["~=3.0", "~=4.0"]
