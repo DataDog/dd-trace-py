@@ -90,9 +90,7 @@ telemetry_writer.periodic(force_flush=True)
     # Prevents dependencies loaded event from being generated
     stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    assert stderr == b"", stderr
-
-    runtime_id = stdout.strip().decode("utf-8")
+    assert stderr == b"", stderr    
 
     # Allow test agent session to capture all heartbeat events
     app_heartbeats = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False, subprocess=True)
