@@ -30,6 +30,7 @@ def wrapped_function(wrapped, instance, args, kwargs):
 
 import inspect
 import sys
+import types
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -69,9 +70,11 @@ def ddtrace_iast_flask_patch():
         return
 
     compiled_code = compile(patched_ast, module_path, "exec")
+    # creating a new module to execute the patched code from scratch
+    new_module = types.ModuleType(module_name)
     # module must be loaded in sys.modules before executing the compiled code
-    sys.modules[module_name] = module
-    exec(compiled_code, module.__dict__)  # nosec B102
+    sys.modules[module_name] = new_module
+    exec(compiled_code, new_module.__dict__)  # nosec B102
 
 
 _iast_propagation_enabled = False
