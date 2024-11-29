@@ -97,10 +97,10 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         }
         py::tuple formatted_parameters(list_formatted_parameters);
 
-        PyObject* applied_params = do_modulo(
-            StringToPyObject(fmttext, py_str_type).ptr(), formatted_parameters.ptr(),
-            StringToPyObject(fmttext, py_str_type), formatted_parameters
-        );
+        PyObject* applied_params = do_modulo(StringToPyObject(fmttext, py_str_type).ptr(),
+                                             formatted_parameters.ptr(),
+                                             StringToPyObject(fmttext, py_str_type),
+                                             formatted_parameters);
         if (applied_params == nullptr) {
             return get_result();
         }
