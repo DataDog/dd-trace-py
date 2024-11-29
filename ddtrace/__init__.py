@@ -17,6 +17,7 @@ from ._logger import configure_ddtrace_logger
 configure_ddtrace_logger()  # noqa: E402
 
 from .settings import _config as config
+from .settings.error_reporting import _er_config
 
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
@@ -70,10 +71,9 @@ _DEPRECATED_MODULE_ATTRIBUTES = [
 ]
 
 
-# TODO: move to the appropriate place
-from ddtrace.internal.error_reporting.handled_exceptions import HandledExceptionReportingWatchdog
-
-HandledExceptionReportingWatchdog.install()
+if _er_config.reported_handled_exceptions:
+    from ddtrace.internal.error_reporting.handled_exceptions import HandledExceptionReportingWatchdog
+    HandledExceptionReportingWatchdog.install()
 
 
 def __getattr__(name):
