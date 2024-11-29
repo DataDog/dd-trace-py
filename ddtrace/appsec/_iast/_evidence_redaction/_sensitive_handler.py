@@ -16,7 +16,16 @@ from .url_sensitive_analyzer import url_sensitive_analyzer
 
 log = get_logger(__name__)
 
-REDACTED_SOURCE_BUFFER = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" * 20
+REDACTED_SOURCE_BUFFER = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+LEN_SOURCE_BUFFER = len(REDACTED_SOURCE_BUFFER)
+
+
+def get_redacted_source(length):
+    repeat_string = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    full_repeats = length // LEN_SOURCE_BUFFER
+    remainder = length % LEN_SOURCE_BUFFER
+    result = repeat_string * full_repeats + REDACTED_SOURCE_BUFFER[:remainder]
+    return result
 
 
 class SensitiveHandler:
@@ -218,7 +227,7 @@ class SensitiveHandler:
                 if source_index < len(sources):
                     if not sources[source_index].redacted and self.is_sensible_source(sources[source_index]):
                         redacted_sources.append(source_index)
-                        sources[source_index].pattern = REDACTED_SOURCE_BUFFER[: len(sources[source_index].value)]
+                        sources[source_index].pattern = get_redacted_source(len(sources[source_index].value))
                         sources[source_index].redacted = True
 
                 if source_index in redacted_sources:
@@ -282,7 +291,7 @@ class SensitiveHandler:
         if source_index is not None:
             if not sources[source_index].redacted:
                 redacted_sources.append(source_index)
-                sources[source_index].pattern = REDACTED_SOURCE_BUFFER[: len(sources[source_index].value)]
+                sources[source_index].pattern = get_redacted_source(len(sources[source_index].value))
                 sources[source_index].redacted = True
 
             if source_index not in redacted_sources_context.keys():
@@ -334,13 +343,7 @@ class SensitiveHandler:
                         sensitive_start = 0
                     sensitive = _value[sensitive_start : _source_redaction_context["end"] - offset]
                     index_of_part_value_in_pattern = source.value.find(sensitive)
-                    # pattern = (
-                    #     placeholder[
-                    #         : (index_of_part_value_in_pattern + len(sensitive)) - index_of_part_value_in_pattern
-                    #     ]
-                    #     if index_of_part_value_in_pattern > -1
-                    #     else placeholder[: _source_redaction_context["end"] - _source_redaction_context["start"]]
-                    # )
+
                     pattern = (
                         placeholder[index_of_part_value_in_pattern : index_of_part_value_in_pattern + len(sensitive)]
                         if index_of_part_value_in_pattern > -1
