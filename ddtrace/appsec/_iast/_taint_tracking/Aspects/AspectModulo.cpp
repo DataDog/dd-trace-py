@@ -7,7 +7,7 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
     PyObject* result = nullptr;
 
     // If the second argument is not a tuple and not a mapping, wrap it in a tuple
-    PyObject* insert_tuple = nullptr;
+    PyObject* insert_tuple;
     if (PyMapping_Check(insert_tuple_or_obj) or PyTuple_Check(insert_tuple_or_obj)) {
         insert_tuple = insert_tuple_or_obj;
         Py_INCREF(insert_tuple);
@@ -20,12 +20,24 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 
     if (PyUnicode_Check(text)) {
         result = PyUnicode_Format(text, insert_tuple);
-    } else {
+    } else if (PyBytes_Check(text) or PyByteArray_Check(text)) {
         auto method_name = PyUnicode_FromString("__mod__");
         result = PyObject_CallMethodObjArgs(text, method_name, insert_tuple, nullptr);
         Py_DECREF(method_name);
+    } else {
+        try {
+            const auto py_candidate_tuple = py::reinterpret_borrow<py::object>(insert_tuple);
+            const auto py_candidate_text = py::reinterpret_borrow<py::object>(text);
+            py::object res_py = py_candidate_text.attr("__mod__")(py_candidate_tuple);
+            result = res_py.ptr();
+        } catch (py::error_already_set& e) {
+            e.restore();
+            Py_XDECREF(insert_tuple);
+            Py_XDECREF(result);
+            return nullptr;
+        }
     }
-    Py_DECREF(insert_tuple);
+    Py_XDECREF(insert_tuple);
     if (has_pyerr()) {
         Py_XDECREF(result);
         return nullptr;
