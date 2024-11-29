@@ -181,25 +181,16 @@ modulo_aspect: &modulo_aspect
   warmups: 1
   function_name: "iast_modulo_aspect"
 
-modulo_aspect_for_bytes: &modulo_aspect
-  processes: 10
-  loops: 5
-  values: 100
-  warmups: 1
+modulo_aspect_for_bytes:
+  <<: *modulo_aspect
   function_name: "iast_modulo_aspect_for_bytes"
 
-modulo_aspect_for_bytes_bytearray: &modulo_aspect
-  processes: 10
-  loops: 5
-  values: 100
-  warmups: 1
+modulo_aspect_for_bytes_bytearray:
+  <<: *modulo_aspect
   function_name: "iast_modulo_aspect_for_bytes_bytearray"
 
-modulo_aspect_for_bytearray_bytearray: &modulo_aspect
-  processes: 10
-  loops: 5
-  values: 100
-  warmups: 1
+modulo_aspect_for_bytearray_bytearray:
+  <<: *modulo_aspect
   function_name: "iast_modulo_aspect_for_bytearray_bytearray"
 
 modulo_noaspect:
