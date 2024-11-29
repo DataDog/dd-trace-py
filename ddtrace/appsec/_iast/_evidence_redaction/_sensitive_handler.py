@@ -1,4 +1,5 @@
 import re
+import string
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -16,7 +17,7 @@ from .url_sensitive_analyzer import url_sensitive_analyzer
 
 log = get_logger(__name__)
 
-REDACTED_SOURCE_BUFFER = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+REDACTED_SOURCE_BUFFER = string.ascii_letters + string.digits
 LEN_SOURCE_BUFFER = len(REDACTED_SOURCE_BUFFER)
 
 
