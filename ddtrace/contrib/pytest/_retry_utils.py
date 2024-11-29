@@ -51,6 +51,9 @@ def _get_outcome_from_retry(
     # _initrequest() needs to be called first because the test has already executed once
     item._initrequest()
 
+    #breakpoint()
+    item._report_sections = [] # ??
+
     # Setup
     setup_call, setup_report = _retry_run_when(item, "setup", outcomes)
     if setup_report.outcome == outcomes.FAILED:
