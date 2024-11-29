@@ -21,10 +21,9 @@ LEN_SOURCE_BUFFER = len(REDACTED_SOURCE_BUFFER)
 
 
 def get_redacted_source(length):
-    repeat_string = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     full_repeats = length // LEN_SOURCE_BUFFER
     remainder = length % LEN_SOURCE_BUFFER
-    result = repeat_string * full_repeats + REDACTED_SOURCE_BUFFER[:remainder]
+    result = REDACTED_SOURCE_BUFFER * full_repeats + REDACTED_SOURCE_BUFFER[:remainder]
     return result
 
 
