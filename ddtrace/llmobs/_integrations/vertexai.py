@@ -89,8 +89,8 @@ class VertexAIIntegration(BaseLLMIntegration):
             if isinstance(content, str):
                 messages.append({"content": content})
                 continue
-            if isinstance(contents, Part):
-                message = extract_message_from_part_google(contents)
+            if isinstance(content, Part):
+                message = extract_message_from_part_google(content)
                 messages.append(message)
                 continue
             messages.extend(self._extract_messages_from_content(content))
