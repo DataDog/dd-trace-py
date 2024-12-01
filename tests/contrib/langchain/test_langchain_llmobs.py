@@ -19,6 +19,7 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.contrib.vertexai.utils import MockPredictionServiceClient
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
 from tests.contrib.vertexai.utils import _mock_completion_response
+from tests.contrib.google_generativeai.utils import MockGenerativeModelClient
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import flaky
@@ -1054,6 +1055,32 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             messages = [HumanMessage(content="Why do bears hibernate?")]
             llm.invoke(messages)
 
+    @staticmethod
+    def _call_gemini_chat_model(ChatGoogleGenerativeAI, HumanMessage):
+        # TODO: fix mocking for gemini models
+        import google.generativeai
+        from google.generativeai import client as client_lib
+
+        mock_client = MockGenerativeModelClient()
+        client_lib._client_manager.clients["generative"] = mock_client
+        mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+        chat = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+        messages = [HumanMessage(content="Why do bears hibernate?")]
+        chat.invoke(messages)
+
+    @staticmethod
+    def _call_gemini_llm(GoogleGenerativeAI):
+        # TODO: fix mocking for gemini models
+        import google.generativeai
+        from google.generativeai import client as client_lib
+
+        mock_client = MockGenerativeModelClient()
+        client_lib._client_manager.clients["generative"] = mock_client
+        mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+        llm = GoogleGenerativeAI(model="gemini-1.5-flash")
+        messages = [HumanMessage(content="Why do bears hibernate?")]
+        llm.invoke(messages)
+
     
     @staticmethod
     def _call_bedrock_chat_model(ChatBedrock, HumanMessage):
@@ -1144,6 +1171,26 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._call_vertexai_llm(VertexAI)
         self._assert_trace_structure_from_writer_call_args(["llm"])
 
+    @run_in_subprocess
+    def test_llmobs_with_chat_model_gemini_enabled(self):
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        from langchain_core.messages import HumanMessage
+
+        patch(langchain=True, google_generativeai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+
+        self._call_gemini_chat_model(ChatGoogleGenerativeAI, HumanMessage)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+    
+    @run_in_subprocess
+    def test_llmobs_with_llm_model_gemini_enabled(self):
+        from langchain_google_genai import GoogleGenerativeAI
+
+        patch(langchain=True, google_generativeai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_gemini_llm(GoogleGenerativeAI)
+
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
     
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_chat_model_bedrock_enabled(self):
