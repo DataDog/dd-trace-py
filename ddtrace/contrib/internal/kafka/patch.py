@@ -249,7 +249,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
 
         for message in messages:
             if message is not None and first_message is not None:
-                core.set_item("kafka_topic", first_message.topic())
+                core.set_item("kafka_topic", str(first_message.topic()))
                 core.dispatch("kafka.consume.start", (instance, first_message, span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
@@ -260,7 +260,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         if first_message is not None:
             message_key = first_message.key() or ""
             message_offset = first_message.offset() or -1
-            span.set_tag_str(kafkax.TOPIC, first_message.topic())
+            span.set_tag_str(kafkax.TOPIC, str(first_message.topic()))
 
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
