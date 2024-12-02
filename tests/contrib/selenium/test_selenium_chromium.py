@@ -35,7 +35,7 @@ SNAPSHOT_IGNORES = [
 
 
 @pytest.fixture
-def _http_server():
+def _http_server(scope="function"):
     """Provides a simple HTTP server that servers the pages to be browser
 
     We use an HTTP server because RUM does not work with file:// URLs (it's unable to establish session storage)
@@ -59,34 +59,34 @@ def _http_server():
 def test_selenium_chromium_pytest_rum_enabled(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
         """
-        from pathlib import Path
+            from pathlib import Path
 
-        from selenium import webdriver
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.chrome.service import Service
-        from webdriver_manager.chrome import ChromeDriverManager
+            from selenium import webdriver
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.chrome.options import Options
 
-        def test_selenium_local_pass():
-            options = webdriver.ChromeOptions()
-            options.add_argument("--headless")
+            def test_selenium_local_pass():
+                options = Options()
+                options.add_argument("--headless")
+                options.add_argument("--no-sandbox")
 
-            with webdriver.Chrome(service=Service(ChromeDriverManager().install())) as driver:
-                url = "http://localhost:8079/rum_enabled/page_1.html"
+                with webdriver.Chrome(options=options) as driver:
+                    url = "http://localhost:8079/rum_enabled/page_1.html"
 
-                driver.get(url)
+                    driver.get(url)
 
-                assert driver.title == "Page 1"
+                    assert driver.title == "Page 1"
 
-                link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
+                    link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
 
-                link_2.click()
+                    link_2.click()
 
-                assert driver.title == "Page 2"
+                    assert driver.title == "Page 2"
 
-                link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-                link_1.click()
+                    link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
+                    link_1.click()
 
-                assert driver.title == "Page 1"
+                    assert driver.title == "Page 1"
         """
     )
     testdir.makepyfile(test_selenium=selenium_test_script)
