@@ -16,6 +16,7 @@ MODULE_HOOK_INSTALLED = False
 if PYTHON_VERSION_INFO >= (3, 8):
 
     def audit_hook(event: str, args: Tuple[Any, ...]):
+        print(f">>> event: {event}, args: {args}", flush=True, file=sys.stderr)
         if event != "import":
             return
 
