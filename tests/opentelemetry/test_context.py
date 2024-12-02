@@ -135,7 +135,7 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
         await coro(4)
 
 
-def test_otel_baggage(oteltracer):
+def test_otel_baggage_propagation_to_ddtrace(oteltracer):
     with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
         baggage_context = set_baggage("key1", "value1")
         baggage_context = set_baggage("key2", "value2", baggage_context)
@@ -145,7 +145,7 @@ def test_otel_baggage(oteltracer):
             assert ddspan.context.get_baggage_item("key2") == "value2"
 
 
-def test_dd_baggage(oteltracer):
+def test_ddtrace_baggage_propagation_to_otel(oteltracer):
     with ddtrace.tracer.trace("ddtrace-baggage") as ddspan:
         ddspan.context.set_baggage_item("key1", "value1")
         ddspan.context.set_baggage_item("key2", "value2")
@@ -153,7 +153,7 @@ def test_dd_baggage(oteltracer):
         assert get_baggage("key2") == "value2"
 
 
-def test_mixed_otel_dd_baggage(oteltracer):
+def test_conflicting_otel_and_ddtrace_baggage(oteltracer):
     with ddtrace.tracer.trace("ddtrace-baggage") as ddspan:
         ddspan.context.set_baggage_item("key1", "dd1")
         attach(set_baggage("key1", "otel1"))
@@ -163,7 +163,7 @@ def test_mixed_otel_dd_baggage(oteltracer):
         assert get_baggage("key2") == "dd2"
 
 
-def test_otel_baggage_remove(oteltracer):
+def test_otel_baggage_removal_propagation_to_ddtrace(oteltracer):
     with oteltracer.start_as_current_span("otel-baggage-inject") as span:  # noqa: F841
         baggage_context = set_baggage("key1", "value1")
         baggage_context = set_baggage("key2", "value2", baggage_context)
@@ -178,3 +178,4 @@ def test_otel_baggage_remove(oteltracer):
             assert ddspan.context.get_baggage_item("key3") == "value3"
             assert ddspan.context.get_baggage_item("key4") == "value4"
             assert ddspan.context.get_baggage_item("key1") is None
+            assert ddspan.context.get_baggage_item("key2") is None

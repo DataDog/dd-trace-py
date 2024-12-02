@@ -46,9 +46,10 @@ class DDRuntimeContext:
                 )
 
             # get current open telemetry baggage and store it on the datadog context object
+            # fix: we need to support setting baggage when there is no active span
             otel_baggage = get_all(otel_context)
             if ddcontext:
-                ddcontext._baggage.clear()
+                ddcontext.remove_all_baggage_items()
                 if otel_baggage:
                     for key, value in otel_baggage.items():
                         ddcontext._baggage[key] = value  # potentially convert to json
@@ -74,7 +75,7 @@ class DDRuntimeContext:
         from .span import Span
 
         ddactive = self._ddcontext_provider.active()
-        context = OtelContext()  # store current datadog baggage into here
+        context = OtelContext()
         if isinstance(ddactive, DDSpan):
             span = Span(ddactive)
             context = set_span_in_context(span, context)
