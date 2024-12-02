@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import Dict
 from typing import Optional
@@ -109,12 +110,19 @@ def is_iast_request_enabled():
     return False
 
 
+def _not_running_inside_pytest():
+    return os.getenv("PYTEST_CURRENT_TEST") is None
+
+
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
         if span:
             req_span = span
         else:
-            req_span = ctx.get_item("req_span")
+            if _not_running_inside_pytest():
+                req_span = ctx.get_item("req_span")
+            else:
+                req_span = core.get_root_span()
 
         if _is_iast_enabled():
             exist_data = req_span.get_tag(IAST.JSON)
