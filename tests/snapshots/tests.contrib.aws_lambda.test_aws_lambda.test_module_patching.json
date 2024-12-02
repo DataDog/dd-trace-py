@@ -1,7 +1,7 @@
 [[
   {
     "name": "result-trace",
-    "service": "",
+    "service": "tests.contrib.aws_lambda",
     "resource": "result-trace",
     "trace_id": 0,
     "span_id": 1,

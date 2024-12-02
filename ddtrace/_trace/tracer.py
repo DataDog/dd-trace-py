@@ -5,7 +5,6 @@ import os
 from os import environ
 from os import getpid
 from threading import RLock
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -52,27 +51,26 @@ from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 from ddtrace.vendor.debtcollector import deprecate
 
-
-if TYPE_CHECKING:
-    from ddtrace.internal.writer import AgentResponse  # noqa: F401
-    from ddtrace.settings import Config  # noqa: F401
 
 log = get_logger(__name__)
 
@@ -235,10 +233,20 @@ class Tracer(object):
         # _user_sampler is the backup in case we need to revert from remote config to local
         self._user_sampler: Optional[BaseSampler] = DatadogSampler()
         self._asm_enabled = asm_config._asm_enabled
+        self._iast_enabled = asm_config._iast_enabled
         self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled
-        self._sampler: BaseSampler = DatadogSampler()
-        self._maybe_opt_out()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self._apm_opt_out = (self._asm_enabled or self._iast_enabled) and self._appsec_standalone_enabled
+        if self._apm_opt_out:
+            self.enabled = False
+            # Disable compute stats (neither agent or tracer should compute them)
+            config._trace_compute_stats = False
+            # If ASM is enabled but tracing is disabled,
+            # we need to set the rate limiting to 1 trace per minute
+            # for the backend to consider the service as alive.
+            self._sampler: BaseSampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+        else:
+            self._sampler: BaseSampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
         verify_url(self._agent_url)
@@ -248,7 +256,6 @@ class Tracer(object):
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
-                priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if (self._compute_stats or self._apm_opt_out) else {},
@@ -261,7 +268,6 @@ class Tracer(object):
         self._partial_flush_min_spans = config._partial_flush_min_spans
         # Direct link to the appsec processor
         self._appsec_processor = None
-        self._iast_enabled = asm_config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
@@ -294,22 +300,9 @@ class Tracer(object):
 
         self._new_process = False
         config._subscribe(["_trace_sample_rate", "_trace_sampling_rules"], self._on_global_config_update)
-        config._subscribe(["logs_injection"], self._on_global_config_update)
+        config._subscribe(["_logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
-
-    def _maybe_opt_out(self):
-        self._apm_opt_out = self._asm_enabled and self._appsec_standalone_enabled
-        if self._apm_opt_out:
-            # If ASM is enabled but tracing is disabled,
-            # we need to set the rate limiting to 1 trace per minute
-            # for the backend to consider the service as alive.
-            from ddtrace.internal.rate_limiter import RateLimiter
-
-            self._sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)  # 1 trace per minute
-            # Disable compute stats (neither agent or tracer should compute them)
-            config._trace_compute_stats = False
-            self.enabled = False
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -409,27 +402,29 @@ class Tracer(object):
             return active.context
         return None
 
-    def get_log_correlation_context(self) -> Dict[str, str]:
+    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.
         Generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
-        active: Optional[Union[Context, Span]] = None
-        if self.enabled or self._apm_opt_out:
+        if active is None and (self.enabled or self._apm_opt_out):
             active = self.context_provider.active()
 
         if isinstance(active, Span) and active.service:
             service = active.service
         else:
             service = config.service
+
+        span_id = "0"
+        trace_id = "0"
         if active:
-            trace_id = active.trace_id
-            if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-                trace_id = active._trace_id_64bits
+            span_id = str(active.span_id) if active.span_id else span_id
+            trace_id = format_trace_id(active.trace_id) if active.trace_id else trace_id
+
         return {
-            "trace_id": str(trace_id) if active else "0",
-            "span_id": str(active.span_id) if active else "0",
+            "trace_id": trace_id,
+            "span_id": span_id,
             "service": service or "",
             "version": config.version or "",
             "env": config.env or "",
@@ -472,12 +467,18 @@ class Tracer(object):
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
-        :param priority_sampling: enable priority sampling, this is required for
-            complete distributed tracing support. Enabled by default.
+        :param priority_sampling: This argument is deprecated and will be removed in a future version.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
         """
         if enabled is not None:
             self.enabled = enabled
+
+        if priority_sampling is not None:
+            deprecate(
+                "Configuring priority sampling on tracing clients is deprecated",
+                version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         if settings is not None:
             self._filters = settings.get("FILTERS") or self._filters
@@ -497,11 +498,28 @@ class Tracer(object):
         if appsec_standalone_enabled is not None:
             self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled = appsec_standalone_enabled
 
+        if self._appsec_standalone_enabled and (self._asm_enabled or self._iast_enabled):
+            self._apm_opt_out = True
+            self.enabled = False
+            # Disable compute stats (neither agent or tracer should compute them)
+            config._trace_compute_stats = False
+            # Update the rate limiter to 1 trace per minute when tracing is disabled
+            if isinstance(sampler, DatadogSampler):
+                sampler._rate_limit_always_on = True
+                sampler.limiter.rate_limit = 1
+                sampler.limiter.time_window = 60e9
+            else:
+                if sampler is not None:
+                    log.warning(
+                        "Overriding sampler: %s, a DatadogSampler must be used in ASM Standalone mode",
+                        sampler.__class__,
+                    )
+                sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
+
         if sampler is not None:
             self._sampler = sampler
             self._user_sampler = self._sampler
-
-        self._maybe_opt_out()
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -544,14 +562,13 @@ class Tracer(object):
                 api_version = "v0.4"
             self._writer = AgentWriter(
                 self._agent_url,
-                priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 # if apm opt out, neither agent or tracer should compute the stats
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (compute_stats_enabled or self._apm_opt_out)
-                else {},
+                headers=(
+                    {"Datadog-Client-Computed-Stats": "yes"} if (compute_stats_enabled or self._apm_opt_out) else {}
+                ),
                 report_metrics=not self._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
@@ -603,8 +620,7 @@ class Tracer(object):
 
         self._generate_diagnostic_logs()
 
-    def _agent_response_callback(self, resp):
-        # type: (AgentResponse) -> None
+    def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
 
         The agent can return updated sample rates for the priority sampler.
@@ -794,8 +810,6 @@ class Tracer(object):
                 span._parent = parent
                 span._local_root = parent._local_root
 
-            if span._local_root is None:
-                span._local_root = span
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
@@ -812,8 +826,7 @@ class Tracer(object):
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
             )
-            span._local_root = span
-            if config.report_hostname:
+            if config._report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
@@ -1103,11 +1116,6 @@ class Tracer(object):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
 
-            if config._telemetry_enabled:
-                from ddtrace.internal import telemetry
-
-                telemetry.disable_and_flush()
-
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
             forksafe.unregister_before_fork(self._sample_before_fork)
@@ -1132,7 +1140,7 @@ class Tracer(object):
         elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
-        elif in_gcp_function() or in_azure_function_consumption_plan():
+        elif in_gcp_function() or in_azure_function():
             return False
         else:
             return in_aws_lambda()
@@ -1147,22 +1155,16 @@ class Tracer(object):
         - AWS Lambdas can have the Datadog agent installed via an extension.
           When it's available traces must be sent synchronously to ensure all
           are received before the Lambda terminates.
-        - Google Cloud Functions and Azure Consumption Plan Functions have a mini-agent spun up by the tracer.
+        - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
-        return (
-            (in_aws_lambda() and has_aws_lambda_agent_extension())
-            or in_gcp_function()
-            or in_azure_function_consumption_plan()
-        )
+        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
 
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
 
-    def _on_global_config_update(self, cfg, items):
-        # type: (Config, List) -> None
-
+    def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
         if "_trace_sample_rate" in items and "_trace_sampling_rules" in items:
             self._handle_sampler_update(cfg)
@@ -1179,8 +1181,8 @@ class Tracer(object):
                 if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
                     self.enabled = True
 
-        if "logs_injection" in items:
-            if config.logs_injection:
+        if "_logs_injection" in items:
+            if config._logs_injection:
                 from ddtrace.contrib.logging import patch
 
                 patch()
@@ -1189,8 +1191,7 @@ class Tracer(object):
 
                 unpatch()
 
-    def _handle_sampler_update(self, cfg):
-        # type: (Config) -> None
+    def _handle_sampler_update(self, cfg: Config) -> None:
         if (
             cfg._get_source("_trace_sample_rate") != "remote_config"
             and cfg._get_source("_trace_sampling_rules") != "remote_config"

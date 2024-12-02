@@ -1,8 +1,7 @@
 # DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
-FROM debian:buster-20221219-slim
-
+FROM debian:bookworm-slim
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
 ENV LANG C.UTF-8
@@ -28,7 +27,6 @@ RUN \
       gnupg \
       jq \
       libbz2-dev \
-      libenchant-dev \
       libffi-dev \
       liblzma-dev \
       libmemcached-dev \
@@ -42,13 +40,13 @@ RUN \
       libssh-dev \
       libssl-dev \
       patch \
-      python-openssl\
       unixodbc-dev \
       wget \
       zlib1g-dev \
       valgrind \
-    # Cleaning up apt cache space
-  && rm -rf /var/lib/apt/lists/*
+      gawk \
+      wget \
+      software-properties-common
 
 # Install pyenv and necessary Python versions
 # `--with-pydebug`: [Add options](https://docs.python.org/3/using/configure.html#python-debug-build) like count references, sanity checks...
@@ -61,20 +59,29 @@ RUN git clone --depth 1 --branch v3.11.6 https://github.com/python/cpython/ "${P
   && make install \
   && cd -
 
-RUN python3.11 -m pip install -U pip \
-    && python3.11 -m pip install six cattrs setuptools cython wheel cmake pytest pytest-cov hypothesis pytest-memray\
-    memray==1.12.0 \
-    requests==2.31.0 \
-    attrs>=20 \
-    bytecode>=0.14.0 \
-    cattrs \
-    ddsketch>=3.0.0 \
-    envier~=0.5 \
-    opentelemetry-api>=1 \
-    protobuf>=3 \
-    six>=1.12.0 \
+RUN wget https://bootstrap.pypa.io/get-pip.py
+RUN python3.11d get-pip.py --break-system-packages
+
+# Verify Python and pip installation
+RUN python3.11d --version && python3.11d -m pip --version
+
+RUN python3.11d -c "import sys;sys.gettotalrefcount()"
+
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+ENV PATH="/root/.cargo/bin:$PATH"
+
+RUN python3.11d -m pip install --break-system-packages setuptools cython wheel cmake pytest pytest-cov hypothesis pytest-memray\
+    "memray==1.14.0" \
+    "requests==2.31.0" \
+    "bytecode>=0.14.0" \
+    "envier~=0.5" \
+    "opentelemetry-api>=1" \
+    "protobuf>=3" \
     typing_extensions \
-    xmltodict>=0.12
+    "xmltodict>=0.12" \
+    setuptools-rust \
+    wrapt
 
 
 CMD ["/bin/bash"]

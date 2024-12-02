@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from ddtrace.contrib.grpc import utils
+from ddtrace.contrib.internal.grpc import utils
 
 
 def test_parse_method_path_with_package():
@@ -16,7 +16,7 @@ def test_parse_method_path_without_package():
     assert parsed == ("service", None, "service", "method")
 
 
-@mock.patch("ddtrace.contrib.grpc.utils.log")
+@mock.patch("ddtrace.contrib.internal.grpc.utils.log")
 @pytest.mark.parametrize(
     "args, kwargs, result, log_warning_call",
     [

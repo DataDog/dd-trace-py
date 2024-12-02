@@ -9,7 +9,7 @@
     "type": "sql",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.psycopg2",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "psycopg",
@@ -20,6 +20,7 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "5e80c5a691c84329bbe0464d28854fae",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {

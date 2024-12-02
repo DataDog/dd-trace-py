@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue in the ``LLMObs.annotate()`` method where non-JSON serializable 
+    arguments were discarded entirely. Now, the ``LLMObs.annotate()`` method safely handles non-JSON-serializable 
+    arguments by defaulting to a placeholder text.
+  - |
+    LLM Observability: Resolves an issue where attempting to tag non-JSON serializable request/response parameters 
+    resulted in a ``TypeError`` in the OpenAI, LangChain, Bedrock, and Anthropic integrations.
+  - |
+    langchain: Resolves an issue where attempting to tag non-JSON serializable tool config arguments resulted in a 
+    ``TypeError``. The LangChain integration now safely tags non-JSON serializable arguments with a default placeholder text. 

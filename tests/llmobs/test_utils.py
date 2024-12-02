@@ -4,10 +4,6 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 
 
-class Unserializable:
-    pass
-
-
 def test_messages_with_string():
     messages = Messages("hello")
     assert messages.messages == [{"content": "hello"}]
@@ -27,7 +23,7 @@ def test_messages_with_incorrect_type():
     with pytest.raises(TypeError):
         Messages(123)
     with pytest.raises(TypeError):
-        Messages(Unserializable())
+        Messages(object())
     with pytest.raises(TypeError):
         Messages(None)
 
@@ -36,7 +32,7 @@ def test_messages_with_non_string_content():
     with pytest.raises(TypeError):
         Messages([{"content": 123}])
     with pytest.raises(TypeError):
-        Messages([{"content": Unserializable()}])
+        Messages([{"content": object()}])
     with pytest.raises(TypeError):
         Messages([{"content": None}])
     with pytest.raises(TypeError):
@@ -47,7 +43,7 @@ def test_messages_with_non_string_role():
     with pytest.raises(TypeError):
         Messages([{"content": "hello", "role": 123}])
     with pytest.raises(TypeError):
-        Messages([{"content": "hello", "role": Unserializable()}])
+        Messages([{"content": "hello", "role": object()}])
     with pytest.raises(TypeError):
         Messages({"content": "hello", "role": {"key": "value"}})
 
@@ -80,7 +76,7 @@ def test_documents_with_incorrect_type():
     with pytest.raises(TypeError):
         Documents(123)
     with pytest.raises(TypeError):
-        Documents(Unserializable())
+        Documents(object())
     with pytest.raises(TypeError):
         Documents(None)
 

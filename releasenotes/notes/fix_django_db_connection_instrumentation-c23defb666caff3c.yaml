@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracer: This fix resolves an issue where django db instrumentation could fail.

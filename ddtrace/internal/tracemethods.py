@@ -3,8 +3,12 @@ from typing import Tuple
 
 import wrapt
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
+
+
+log = get_logger(__name__)
 
 
 def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
@@ -21,13 +25,14 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
     for qualified_methods in raw_dd_trace_methods.split(";"):
         # Validate that methods are specified
         if ":" not in qualified_methods:
-            raise ValueError(
+            log.warning(
                 (
                     "Invalid DD_TRACE_METHODS: %s. "
                     "Methods must be specified after a colon following the fully qualified module."
-                )
-                % qualified_methods
+                ),
+                qualified_methods,
             )
+            return []
 
         # Store the prefix and the methods  (eg. for "foo.bar.baz:qux,quux",
         # this is "foo.bar.baz" for the prefix and "qux,quux" for the methods)
@@ -36,23 +41,26 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
         if qualified_method_prefix == "__main__":
             # __main__ cannot be used since the __main__ that exists now is not the same as the __main__ that the user
             # application will have. __main__ when sitecustomize module is run is the builtin __main__.
-            raise ValueError(
+            log.warning(
                 "Invalid DD_TRACE_METHODS: %s. Methods cannot be traced on the __main__ module. __main__ when "
-                "sitecustomize module is run is the builtin __main__." % qualified_methods
+                "sitecustomize module is run is the builtin __main__.",
+                qualified_methods,
             )
+            return []
 
         # Add the methods to the list of methods to trace
         for method in methods.split(","):
             if not str.isidentifier(method.split(".")[-1]):
-                raise ValueError(
-                    "Invalid method name: %r. %s"
-                    % (
-                        method,
+                log.warning(
+                    "Invalid method name: %r. %s",
+                    method,
+                    (
                         "You might have a trailing comma."
                         if method == ""
-                        else "Method names must be valid Python identifiers.",
-                    )
+                        else "Method names must be valid Python identifiers."
+                    ),
                 )
+                return []
             dd_trace_methods.append((qualified_method_prefix, method))
     return dd_trace_methods
 
@@ -73,13 +81,14 @@ def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
     for qualified_methods in raw_dd_trace_methods.split(";"):
         # Validate that methods are specified
         if "[" not in qualified_methods or "]" not in qualified_methods:
-            raise ValueError(
+            log.warning(
                 (
                     "Invalid DD_TRACE_METHODS: %s. "
                     "Methods must be specified in square brackets following the fully qualified module or class name."
-                )
-                % qualified_methods
+                ),
+                qualified_methods,
             )
+            return []
 
         # Store the prefix of the qualified method name (eg. for "foo.bar.baz[qux,quux]", this is "foo.bar.baz")
         qualified_method_prefix = qualified_methods.split("[")[0]
@@ -87,9 +96,10 @@ def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
         if qualified_method_prefix == "__main__":
             # __main__ cannot be used since the __main__ that exists now is not the same as the __main__ that the user
             # application will have. __main__ when sitecustomize module is run is the builtin __main__.
-            raise ValueError(
-                "Invalid DD_TRACE_METHODS: %s. Methods cannot be traced on the __main__ module." % qualified_methods
+            log.warning(
+                "Invalid DD_TRACE_METHODS: %s. Methods cannot be traced on the __main__ module.", qualified_methods
             )
+            return []
 
         # Get the class or module name of the method (eg. for "foo.bar.baz[qux,quux]", this is "baz[qux,quux]")
         class_or_module_with_methods = qualified_methods.split(".")[-1]
@@ -101,15 +111,16 @@ def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
         # Add the methods to the list of methods to trace
         for method in methods.split(","):
             if not str.isidentifier(method):
-                raise ValueError(
-                    "Invalid method name: %r. %s"
-                    % (
-                        method,
+                log.warning(
+                    "Invalid method name: %r. %s",
+                    method,
+                    (
                         "You might have a trailing comma."
                         if method == ""
-                        else "Method names must be valid Python identifiers.",
-                    )
+                        else "Method names must be valid Python identifiers."
+                    ),
                 )
+                return []
             dd_trace_methods.append("%s.%s" % (qualified_method_prefix, method))
     return dd_trace_methods
 
@@ -142,7 +153,8 @@ def _install_trace_methods(raw_dd_trace_methods: str) -> None:
                     break
 
             if module is None:
-                raise ImportError("Could not import module for %r" % qualified_method)
+                log.warning("Could not import module for %r", qualified_method)
+                continue
 
             trace_method(base_module_guess, method_name)
     else:

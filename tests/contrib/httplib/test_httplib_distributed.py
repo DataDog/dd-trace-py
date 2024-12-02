@@ -1,12 +1,13 @@
 # Standard library
 import contextlib
 
+import wrapt
+
 # Project
 from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.internal.compat import httplib
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
 
 from .test_httplib import SOCKET

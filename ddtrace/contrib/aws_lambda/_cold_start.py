@@ -1,18 +1,14 @@
-__cold_start = True
-__lambda_container_initialized = False
+from ddtrace.contrib.internal.aws_lambda._cold_start import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-def set_cold_start():
-    """Set the value of the cold start global.
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-    This should be executed once per AWS Lambda execution before the execution.
-    """
-    global __cold_start
-    global __lambda_container_initialized
-    __cold_start = not __lambda_container_initialized
-    __lambda_container_initialized = True
-
-
-def is_cold_start():
-    """Returns the value of the global cold_start."""
-    return __cold_start
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

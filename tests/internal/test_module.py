@@ -2,27 +2,22 @@ import json
 import os
 from pathlib import Path
 import sys
+import warnings
 from warnings import warn
 
 import mock
 import pytest
 
+from ddtrace import check_supported_python_version
+from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
+from tests.utils import DDTRACE_PATH
+from tests.utils import _build_env
 
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-
-def _build_env():
-    environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
-    if os.environ.get("PATH"):
-        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
-    if os.environ.get("PYTHONPATH"):
-        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
-    return environ
+FILE_PATH = Path(__file__).resolve().parent
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -60,7 +55,7 @@ def module_watchdog():
 
 def test_watchdog_install_uninstall():
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
+    assert not any(isinstance(m, ModuleWatchdog) and not isinstance(m, ModuleCodeCollector) for m in sys.meta_path)
 
     ModuleWatchdog.install()
 
@@ -70,7 +65,7 @@ def test_watchdog_install_uninstall():
     ModuleWatchdog.uninstall()
 
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
+    assert not any(isinstance(m, ModuleWatchdog) and not isinstance(m, ModuleCodeCollector) for m in sys.meta_path)
 
 
 def test_import_origin_hook_for_imported_module(module_watchdog):
@@ -95,14 +90,6 @@ def test_after_module_imported_decorator(module_watchdog):
     module_watchdog.after_module_imported(module.__name__)(hook)
 
     hook.assert_called_once_with(module)
-
-
-def test_register_hook_without_install():
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.register_origin_hook(__file__, mock.Mock())
-
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.register_module_hook(__name__, mock.Mock())
 
 
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
@@ -238,8 +225,7 @@ def test_module_unregister_origin_hook(module_watchdog):
 
     assert module_watchdog._instance._hook_map[str(path)] == []
 
-    with pytest.raises(ValueError):
-        module_watchdog.unregister_origin_hook(path, hook)
+    module_watchdog.unregister_origin_hook(path, hook)
 
 
 def test_module_unregister_module_hook(module_watchdog):
@@ -257,21 +243,18 @@ def test_module_unregister_module_hook(module_watchdog):
     module_watchdog.unregister_module_hook(module, hook)
     assert module_watchdog._instance._hook_map[module] == []
 
-    with pytest.raises(ValueError):
-        module_watchdog.unregister_module_hook(module, hook)
+    module_watchdog.unregister_module_hook(module, hook)
 
 
 def test_module_watchdog_multiple_install():
     ModuleWatchdog.install()
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.install()
-
+    assert ModuleWatchdog.is_installed()
+    ModuleWatchdog.install()
     assert ModuleWatchdog.is_installed()
 
     ModuleWatchdog.uninstall()
-    with pytest.raises(RuntimeError):
-        ModuleWatchdog.uninstall()
-
+    assert not ModuleWatchdog.is_installed()
+    ModuleWatchdog.uninstall()
     assert not ModuleWatchdog.is_installed()
 
 
@@ -315,7 +298,7 @@ def test_module_import_hierarchy():
 
 @pytest.mark.subprocess(
     out="post_run_module_hook OK\n",
-    env=_build_env(),
+    env=_build_env(file_path=FILE_PATH),
     run_module=True,
 )
 def test_post_run_module_hook():
@@ -440,6 +423,7 @@ def test_module_watchdog_namespace_import():
         ModuleWatchdog.uninstall()
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
@@ -502,3 +486,134 @@ def test_module_watchdog_importlib_resources_files():
     import importlib.resources as r
 
     assert isinstance(r.files("namespace_test"), MultiplexedPath)
+
+
+@pytest.mark.subprocess
+def test_module_watchdog_does_not_rewrap_get_code():
+    """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
+    from importlib import reload
+
+    import ddtrace  #  noqa:F401
+    from tests.internal.namespace_test import ns_module
+
+    # Check that the loader's get_code is wrapped:
+    assert ns_module.__loader__.get_code._dd_get_code is True
+    initial_get_code = ns_module.__loader__.get_code
+
+    # Reload module a couple of times and check that the loader's get_code is still the same as the original
+    reload(ns_module)
+    reload(ns_module)
+    new_get_code = ns_module.__loader__.get_code
+    assert (
+        new_get_code is initial_get_code
+    ), f"module loader get_code (id: {id(new_get_code)}is not initial get_code (id: {id(initial_get_code)})"
+
+
+@pytest.mark.subprocess
+def test_module_watchdog_reloads_dont_cause_errors():
+    """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
+    from importlib import reload
+    import sys
+
+    from tests.internal.namespace_test import ns_module
+
+    # Since this test is running in a subprocess, the odds that the recursionlimit gets modified are low, so we set it
+    # to a reasonably low number, but still loop higher to make sure we don't hit the limit.
+    sys.setrecursionlimit(1000)
+    for _ in range(sys.getrecursionlimit() * 2):
+        reload(ns_module)
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_module_import_side_effect():
+    # Test that we can import a module that raises an exception during specific
+    # attribute lookups.
+    import tests.internal.side_effect_module  # noqa:F401
+
+
+def test_deprecated_modules_in_ddtrace_contrib():
+    # Test that all files in the ddtrace/contrib directory except a few exceptions (ex: ddtrace/contrib/redis_utils.py)
+    # have the deprecation template below.
+    deprecation_template = """from ddtrace.contrib.internal.{} import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
+"""
+
+    contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
+
+    missing_deprecations = set()
+    for directory, _, file_names in os.walk(contrib_dir):
+        if directory.startswith(str(contrib_dir / "internal")):
+            # Files in ddtrace/contrib/internal/... are not part of the public API, they should not be deprecated
+            continue
+        # Open files in ddtrace/contrib/ and check if the content matches the template
+        for file_name in file_names:
+            # Skip internal and __init__ modules, as they are not supposed to have the deprecation template
+            if file_name.endswith(".py") and not (file_name.startswith("_") or file_name == "__init__.py"):
+                # Get the relative path of the file from ddtrace/contrib to the deprecated file (ex: pymongo/patch)
+                relative_path = Path(directory).relative_to(contrib_dir) / file_name[:-3]  # Remove the .py extension
+                # Convert the relative path to python module format (ex: [pymongo, patch] -> pymongo.patch)
+                sub_modules = ".".join(relative_path.parts)
+                with open(os.path.join(directory, file_name), "r") as f:
+                    content = f.read()
+                    if deprecation_template.format(sub_modules) != content:
+                        missing_deprecations.add(f"ddtrace.contrib.{sub_modules}")
+
+    assert missing_deprecations == set(
+        [
+            # Note: The following ddtrace.contrib modules are expected to be part of the public API
+            # TODO: Revisit whether integration utils should be part of the public API
+            "ddtrace.contrib.redis_utils",
+            "ddtrace.contrib.trace_utils",
+            "ddtrace.contrib.trace_utils_async",
+            "ddtrace.contrib.trace_utils_redis",
+            # TODO: The following contrib modules are part of the public API (unlike most integrations).
+            # We should consider privatizing the internals of these integrations.
+            "ddtrace.contrib.unittest.patch",
+            "ddtrace.contrib.unittest.constants",
+            "ddtrace.contrib.pytest.constants",
+            "ddtrace.contrib.pytest.newhooks",
+            "ddtrace.contrib.pytest.plugin",
+            "ddtrace.contrib.pytest_benchmark.constants",
+            "ddtrace.contrib.pytest_benchmark.plugin",
+            "ddtrace.contrib.pytest_bdd.constants",
+            "ddtrace.contrib.pytest_bdd.plugin",
+        ]
+    )
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 8), reason="Python >= 3.8 is supported")
+def test_deprecated_python_version():
+    # Test that the deprecation warning for Python 3.7 and below is printed in unsupported Python versions.
+    with warnings.catch_warnings(record=True) as w:
+        # Cause all warnings to always be triggered.
+        warnings.simplefilter("always")
+        # Trigger a warning.
+        check_supported_python_version()
+        # Verify some things
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+        assert "Support for ddtrace with Python version" in str(w[-1].message)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python < 3.8 is unsupported")
+def test_non_deprecated_python_version():
+    # Test that the deprecation warning for Python 3.7 and below is not printed in supported Python versions.
+    with warnings.catch_warnings(record=True) as w:
+        # Cause all warnings to always be triggered.
+        warnings.simplefilter("always")
+        # Trigger a warning.
+        check_supported_python_version()
+        # Verify some things
+        assert len(w) == 0

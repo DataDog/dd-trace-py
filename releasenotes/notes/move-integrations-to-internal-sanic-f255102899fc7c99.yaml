@@ -1,0 +1,16 @@
+---
+deprecations:
+  - |
+    sanic: Deprecates all modules in the ``ddtrace.contrib.sanic`` package. Use attributes exposed in ``ddtrace.contrib.sanic.__all__`` instead.
+  - |
+    snowflake: Deprecates the ``ddtrace.contrib.snowflake`` module. Use attributes exposed in ``ddtrace.contrib.snowflake.__all__`` instead.
+  - |
+    sqlalchemy: Deprecates the ``ddtrace.contrib.sqlalchemy`` module. Use attributes exposed in ``ddtrace.contrib.sqlalchemy.__all__`` instead.
+  - |
+    sqlite3: Deprecates the ``ddtrace.contrib.sqlite3`` module. Use attributes exposed in ``ddtrace.contrib.sqlite3.__all__`` instead.
+  - |
+    starlette: Deprecates the ``ddtrace.contrib.starlette`` module. Use attributes exposed in ``ddtrace.contrib.starlette.__all__`` instead.
+  - |
+    structlog: Deprecates the ``ddtrace.contrib.structlog`` module. Use attributes exposed in ``ddtrace.contrib.structlog.__all__`` instead.
+  - |
+    subprocess: Deprecates the ``ddtrace.contrib.subprocess`` module. Use attributes exposed in ``ddtrace.contrib.subprocess.__all__`` instead.

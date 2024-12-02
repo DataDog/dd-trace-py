@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    exception replay: The ``DD_EXCEPTION_DEBUGGING_ENABLED`` environment
+    variable has been deprecated in favor of ``DD_EXCEPTION_REPLAY_ENABLED``.
+    The old environment variable will be removed in a future major release.

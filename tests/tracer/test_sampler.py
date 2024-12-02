@@ -143,8 +143,8 @@ class RateSamplerTest(unittest.TestCase):
 
     def test_negative_sample_rate_raises_error(self):
         tracer = DummyTracer()
-        with pytest.raises(ValueError, match="sample_rate of -0.5 is negative"):
-            tracer._sampler = RateSampler(sample_rate=-0.5)
+        tracer._sampler = RateSampler(sample_rate=-0.5)
+        assert tracer._sampler.sample_rate == 0
 
     def test_sample_rate_0_does_not_reset_to_1(self):
         tracer = DummyTracer()
@@ -154,90 +154,92 @@ class RateSamplerTest(unittest.TestCase):
         ), "Setting the sample rate to zero should result in the sample rate being zero"
 
 
-class RateByServiceSamplerTest(unittest.TestCase):
-    def test_default_key(self):
-        assert (
-            "service:,env:" == RateByServiceSampler._default_key
-        ), "default key should correspond to no service and no env"
+# RateByServiceSamplerTest Cases
+def test_default_key():
+    assert (
+        "service:,env:" == RateByServiceSampler._default_key
+    ), "default key should correspond to no service and no env"
 
-    def test_key(self):
-        assert (
-            RateByServiceSampler._default_key == RateByServiceSampler._key()
-        ), "_key() with no arguments returns the default key"
-        assert "service:mcnulty,env:" == RateByServiceSampler._key(
-            service="mcnulty"
-        ), "_key call with service name returns expected result"
-        assert "service:,env:test" == RateByServiceSampler._key(
-            env="test"
-        ), "_key call with env name returns expected result"
-        assert "service:mcnulty,env:test" == RateByServiceSampler._key(
-            service="mcnulty", env="test"
-        ), "_key call with service and env name returns expected result"
-        assert "service:mcnulty,env:test" == RateByServiceSampler._key(
-            "mcnulty", "test"
-        ), "_key call with service and env name as positional args returns expected result"
 
-    @run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
-    def test_sample_rate_deviation_128bit_trace_id(self):
-        self._test_sample_rate_deviation()
+def test_key():
+    assert (
+        RateByServiceSampler._default_key == RateByServiceSampler._key()
+    ), "_key() with no arguments returns the default key"
+    assert "service:mcnulty,env:" == RateByServiceSampler._key(
+        service="mcnulty"
+    ), "_key call with service name returns expected result"
+    assert "service:,env:test" == RateByServiceSampler._key(
+        env="test"
+    ), "_key call with env name returns expected result"
+    assert "service:mcnulty,env:test" == RateByServiceSampler._key(
+        service="mcnulty", env="test"
+    ), "_key call with service and env name returns expected result"
+    assert "service:mcnulty,env:test" == RateByServiceSampler._key(
+        "mcnulty", "test"
+    ), "_key call with service and env name as positional args returns expected result"
 
-    @run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="false"))
-    def test_sample_rate_deviation_64bit_trace_id(self):
-        self._test_sample_rate_deviation()
 
-    def _test_sample_rate_deviation(self):
-        for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = DummyTracer()
-            tracer.configure(sampler=RateByServiceSampler())
-            tracer._sampler.set_sample_rate(sample_rate)
+@run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
+def test_sample_rate_deviation_128bit_trace_id():
+    _test_sample_rate_deviation()
 
-            iterations = int(1e4 / sample_rate)
 
-            for i in range(iterations):
-                span = tracer.trace(str(i))
-                span.finish()
+@run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="false", DD_SERVICE="my-svc"))
+def test_sample_rate_deviation_64bit_trace_id():
+    _test_sample_rate_deviation()
 
-            samples = tracer.pop()
-            samples_with_high_priority = 0
-            for sample in samples:
-                sample_priority = sample.context.sampling_priority
-                samples_with_high_priority += int(bool(sample_priority > 0))
-                assert_sampling_decision_tags(
-                    sample,
-                    agent=sample_rate,
-                    trace_tag="-{}".format(SamplingMechanism.AGENT_RATE),
-                )
 
-            deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert (
-                deviation < 0.05
-            ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
-                deviation,
-                sample_rate,
+def _test_sample_rate_deviation():
+    for sample_rate in [0.1, 0.25, 0.5, 1]:
+        tracer = DummyTracer()
+        tracer.configure(sampler=RateByServiceSampler())
+        tracer._sampler.set_sample_rate(sample_rate)
+
+        iterations = int(1e4 / sample_rate)
+
+        for i in range(iterations):
+            span = tracer.trace(str(i))
+            span.finish()
+
+        samples = tracer.pop()
+        samples_with_high_priority = 0
+        for sample in samples:
+            sample_priority = sample.context.sampling_priority
+            samples_with_high_priority += int(bool(sample_priority > 0))
+            assert_sampling_decision_tags(
+                sample,
+                agent=sample_rate,
+                trace_tag="-{}".format(SamplingMechanism.AGENT_RATE),
             )
+
+        deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
+        assert (
+            deviation < 0.05
+        ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
+            deviation,
+            sample_rate,
+        )
 
 
 @pytest.mark.parametrize(
-    "sample_rate,sample_rate_is_valid",
+    "sample_rate,expectation",
     [
         (0.0, True),
         (1.0, True),
         (0.000001, True),
         (0.999999, True),
-        (-0.000000001, False),
-        (1.0000000001, False),
+        (-0.000000001, 0),
+        (1.0000000001, 1),
     ]
     + [(1 / i, True) for i in range(1, 50)]
-    + [(-(1 / i), False) for i in range(1, 50)]
-    + [(1 + (1 / i), False) for i in range(1, 50)],
+    + [(-(1 / i), 0) for i in range(1, 50)]
+    + [(1 + (1 / i), 1) for i in range(1, 50)],
 )
-def test_sampling_rule_init_sample_rate(sample_rate, sample_rate_is_valid):
-    if sample_rate_is_valid:
-        rule = SamplingRule(sample_rate=sample_rate)
-        assert rule.sample_rate == sample_rate, "SamplingRule should store the rate it's initialized with"
-    else:
-        with pytest.raises(ValueError):
-            SamplingRule(sample_rate=sample_rate)
+def test_sampling_rule_init_sample_rate(sample_rate, expectation):
+    rule = SamplingRule(sample_rate=sample_rate)
+    assert rule.sample_rate == (
+        sample_rate if expectation is True else expectation
+    ), "SamplingRule should store the rate it's initialized with"
 
 
 def test_sampling_rule_init_defaults():
@@ -449,15 +451,9 @@ def test_sampling_rule_init_via_env():
     # The following error handling tests use assertions on the json items instead of the returned string due
     # to Python's undefined ordering of dictionary keys
 
-    with pytest.raises(ValueError) as excinfo:
-        with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
-            sampling_rule = DatadogSampler().rules
-    assert str(excinfo.value).endswith(
-        "SamplingRule(sample_rate=2.0) must be greater than or equal to 0.0 and less than or equal to 1.0"
-    )
-    assert '"sample_rate": 2.0' in str(excinfo.value)
-    assert '"service": "xyz"' in str(excinfo.value)
-    assert '"name": "abc"' in str(excinfo.value)
+    with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
+        sampling_rules = DatadogSampler().rules
+    assert sampling_rules[0].sample_rate == 1
 
     with pytest.raises(KeyError) as excinfo:
         with override_global_config(dict(_trace_sampling_rules='[{"service":"xyz","name":"abc"}]')):
@@ -520,10 +516,10 @@ def test_sampling_rule_matches_name(span, rule, span_expected_to_match_rule):
         for service, pattern, expected_to_match in [
             ("my-service", SamplingRule.NO_RULE, True),
             ("my-service", None, False),
-            (None, None, True),
-            (None, "my-service", False),
-            (None, re.compile(r"my-service"), False),
-            (None, lambda service: "service" in service, False),
+            (None, "tests.tracer", True),
+            ("tests.tracer", "my-service", False),
+            ("tests.tracer", re.compile(r"my-service"), False),
+            ("tests.tracer", lambda service: "service" in service, False),
             ("my-service", "my-service", True),
             ("my-service", "my_service", False),
             ("my-service", re.compile(r"^my-"), True),
@@ -649,6 +645,21 @@ def test_sampling_rule_sample():
         )
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLE_RATE": "0.2"})
+def test_sampling_rate_config_deprecated():
+    import warnings
+
+    with warnings.catch_warnings(record=True) as ws:
+        warnings.simplefilter("always")
+
+        from ddtrace import config
+
+        assert config._trace_sample_rate == 0.2
+
+        assert len(ws) >= 1
+        assert any(w for w in ws if "DD_TRACE_SAMPLE_RATE is deprecated" in str(w.message)), [w.message for w in ws]
+
+
 def test_sampling_rule_sample_rate_1():
     rule = SamplingRule(sample_rate=1)
 
@@ -665,6 +676,18 @@ def test_sampling_rule_sample_rate_0():
     assert (
         sum(rule.sample(Span(name=str(i))) for i in range(iterations)) == 0
     ), "SamplingRule with rate=0 should never keep samples"
+
+
+@pytest.mark.subprocess(
+    env={"DD_TRACE_RATE_LIMIT": "2", "DD_TRACE_SAMPLING_RULES": ""},
+    err=b"DD_TRACE_RATE_LIMIT is set to 2 and DD_TRACE_SAMPLING_RULES is not set. "
+    b"Tracer rate limiting is only applied to spans that match tracer sampling rules. "
+    b"All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.\n",
+)
+def test_rate_limit_without_sampling_rules_warning():
+    from ddtrace import config
+
+    assert config._trace_rate_limit == 2
 
 
 def test_datadog_sampler_init():

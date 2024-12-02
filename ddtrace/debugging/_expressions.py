@@ -23,6 +23,7 @@ Full grammar:
     arg_operation           =>  {"<arg_op_type>": [<argument_list>]}
     arg_op_type             =>  filter | substring | getmember | index
 """  # noqa
+from dataclasses import dataclass
 from itertools import chain
 import re
 import sys
@@ -31,11 +32,11 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Optional
 from typing import Tuple
 from typing import Union
 
-import attr
 from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
@@ -83,6 +84,13 @@ def instanceof(value: Any, type_qname: str) -> bool:
             log.debug("Failed to check instanceof %s for value of type %s", type_qname, type(value))
 
     return False
+
+
+def get_local(_locals: Mapping[str, Any], name: str) -> Any:
+    try:
+        return _locals[name]
+    except KeyError:
+        raise NameError(f"No such local variable: '{name}'")
 
 
 class DDCompiler:
@@ -234,11 +242,9 @@ class DDCompiler:
             if arg == "@it":
                 return [Instr("LOAD_FAST", "_dd_it")]
 
-            return [
-                Instr("LOAD_FAST", "_locals"),
-                Instr("LOAD_CONST", self.__ref__(arg)),
-                Instr("BINARY_SUBSCR"),
-            ]
+            return self._call_function(
+                get_local, [Instr("LOAD_FAST", "_locals")], [Instr("LOAD_CONST", self.__ref__(arg))]
+            )
 
         return None
 
@@ -345,7 +351,7 @@ class DDCompiler:
             self._compile_direct_predicate(ast) or self._compile_arg_predicate(ast) or self._compile_value_source(ast)
         )
 
-    def compile(self, ast: DDASTType) -> Callable[[Dict[str, Any]], Any]:
+    def compile(self, ast: DDASTType) -> Callable[[Mapping[str, Any]], Any]:
         return self._make_function(ast, ("_locals",), "<expr>")
 
 
@@ -370,29 +376,29 @@ def _invalid_expression(_):
     return None
 
 
-@attr.s
-class DDExpression(object):
+@dataclass
+class DDExpression:
     __compiler__ = dd_compile
 
-    dsl = attr.ib(type=str)
-    callable = attr.ib(type=Callable[[Dict[str, Any]], Any])
+    dsl: str
+    callable: Callable[[Mapping[str, Any]], Any]
 
-    def eval(self, _locals):
+    def eval(self, scope: Mapping[str, Any]) -> Any:
         try:
-            return self.callable(_locals)
+            return self.callable(scope)
         except Exception as e:
             raise DDExpressionEvaluationError(self.dsl, e) from e
 
-    def __call__(self, _locals):
-        return self.eval(_locals)
+    def __call__(self, scope: Mapping[str, Any]) -> Any:
+        return self.eval(scope)
 
     @classmethod
-    def on_compiler_error(cls, dsl: str, exc: Exception) -> Callable[[Dict[str, Any]], Any]:
+    def on_compiler_error(cls, dsl: str, exc: Exception) -> Callable[[Mapping[str, Any]], Any]:
         log.error("Cannot compile expression: %s", dsl, exc_info=True)
         return _invalid_expression
 
     @classmethod
-    def compile(cls, expr: Dict[str, Any]) -> "DDExpression":
+    def compile(cls, expr: Mapping[str, Any]) -> "DDExpression":
         ast = expr["json"]
         dsl = expr["dsl"]
 

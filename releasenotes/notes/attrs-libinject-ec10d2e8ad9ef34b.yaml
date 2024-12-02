@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    library injection: Resolves an issue where the version of ``attrs`` installed by default on some Ubuntu installations
+    was treated as incompatible with library injection

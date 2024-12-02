@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -8,12 +9,32 @@ import uuid
 import clonevirtualenv
 import pytest
 
-from ddtrace.constants import IAST_ENV
+from ddtrace.appsec._constants import IAST
 from tests.appsec.appsec_utils import flask_server
+from tests.utils import DDTRACE_PATH
 from tests.utils import override_env
 
 
 PYTHON_VERSION = sys.version_info[:2]
+
+# Add modules in the denylist that must be tested anyway
+if IAST.PATCH_MODULES in os.environ:
+    os.environ[IAST.PATCH_MODULES] += IAST.SEP_MODULES + IAST.SEP_MODULES.join(
+        ["moto", "moto[all]", "moto[ec2]", "moto[s3]"]
+    )
+else:
+    os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(["moto", "moto[all]", "moto[ec2]", "moto[s3]"])
+
+
+FILE_PATH = Path(__file__).resolve().parent
+_INSIDE_ENV_RUNNER_PATH = os.path.join(FILE_PATH, "inside_env_runner.py")
+# Use this function if you want to test one or a filter number of package for debug proposes
+# SKIP_FUNCTION = lambda package: package.name == "pygments"  # noqa: E731
+SKIP_FUNCTION = lambda package: True  # noqa: E731
+
+# Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
+# Remember to set to False before pushing it!
+_DEBUG_MODE = False
 
 
 class PackageForTesting:
@@ -29,6 +50,7 @@ class PackageForTesting:
     test_import_python_versions_to_skip = []
     test_e2e = True
     test_propagation = False
+    expect_no_change = False
 
     def __init__(
         self,
@@ -44,7 +66,8 @@ class PackageForTesting:
         import_name=None,
         import_module_to_validate=None,
         test_propagation=False,
-        fixme_propagation_fails=False,
+        fixme_propagation_fails=None,
+        expect_no_change=False,
     ):
         self.name = name
         self.package_version = version
@@ -53,6 +76,7 @@ class PackageForTesting:
         self.test_e2e = test_e2e
         self.test_propagation = test_propagation
         self.fixme_propagation_fails = fixme_propagation_fails
+        self.expect_no_change = expect_no_change
 
         if expected_param:
             self.expected_param = expected_param
@@ -103,7 +127,7 @@ class PackageForTesting:
         else:
             package_fullversion = package_name
 
-        cmd = [python_cmd, "-m", "pip", "install", package_fullversion]
+        cmd = [python_cmd, "-m", "pip", "install", "-U", package_fullversion]
         env = {}
         env.update(os.environ)
         # CAVEAT: we use subprocess instead of `pip.main(["install", package_fullversion])` due to pip package
@@ -192,7 +216,9 @@ PACKAGES = [
         import_module_to_validate="boto3.session",
     ),
     PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
-    PackageForTesting("cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model"),
+    PackageForTesting(
+        "cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model", extras=[("setuptools", "72.1.0")]
+    ),
     PackageForTesting(
         "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
     ),
@@ -205,6 +231,7 @@ PACKAGES = [
         import_name="charset_normalizer",
         import_module_to_validate="charset_normalizer.api",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("click", "8.1.7", "", "Hello World!\nHello World!\n", "", import_module_to_validate="click.core"),
     PackageForTesting(
@@ -215,7 +242,7 @@ PACKAGES = [
         "",
         import_module_to_validate="cryptography.fernet",
         test_propagation=True,
-        fixme_propagation_fails=True,
+        fixme_propagation_fails=False,
     ),
     PackageForTesting(
         "distlib", "0.3.8", "", "Name: example-package\nVersion: 0.1", "", import_module_to_validate="distlib.util"
@@ -240,13 +267,27 @@ PACKAGES = [
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
     PackageForTesting(
+        "google-auth",
+        "2.35.0",
+        "",
+        "",
+        "",
+        test_import=False,
+        import_name="google.auth.crypt.rsa",
+        import_module_to_validate="google.auth.crypt.rsa",
+        expect_no_change=True,
+    ),
+    PackageForTesting(
         "google-api-core",
-        "2.19.0",
+        "2.22.0",
         "",
         "",
         "",
+        test_import=False,
         import_name="google",
         import_module_to_validate="google.auth.iam",
+        extras=[("google-cloud-storage", "2.18.2")],
+        test_e2e=True,
     ),
     PackageForTesting(
         "google-api-python-client",
@@ -399,7 +440,6 @@ PACKAGES = [
         "",
         import_module_to_validate="platformdirs.unix",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "pluggy",
@@ -447,6 +487,18 @@ PACKAGES = [
         "And the Easter of that year is: 2004-04-11",
         import_name="dateutil",
         import_module_to_validate="dateutil.relativedelta",
+    ),
+    PackageForTesting(
+        "python-multipart",
+        "0.0.5",  # this version validates APPSEC-55240 issue, don't upgrade it
+        "multipart/form-data; boundary=d8b5635eb590e078a608e083351288a0",
+        "d8b5635eb590e078a608e083351288a0",
+        "",
+        import_module_to_validate="multipart.multipart",
+        # This test is failing in CircleCI because, for some reason, instead of installing version
+        # 0.0.5, it’s installing the latest version
+        test_import=False,
+        test_propagation=True,
     ),
     PackageForTesting(
         "pytz",
@@ -522,7 +574,6 @@ PACKAGES = [
         "",
         import_module_to_validate="tomli._parser",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "tomlkit",
@@ -710,7 +761,6 @@ PACKAGES = [
         "Parsed INI data: {'section': [('key', 'test1234')]}",
         "",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting("psutil", "5.9.8", "cpu", "CPU Usage: replaced_usage", ""),
     PackageForTesting(
@@ -748,6 +798,16 @@ PACKAGES = [
         "",
         import_name="OpenSSL.SSL",
     ),
+    PackageForTesting(
+        "moto[s3]",
+        "5.0.11",
+        "some_bucket",
+        "right_result",
+        "",
+        import_name="moto.s3.models",
+        test_e2e=True,
+        extras=[("boto3", "1.34.143")],
+    ),
     PackageForTesting("decorator", "5.1.1", "World", "Decorated result: Hello, World!", ""),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
     PackageForTesting(
@@ -775,22 +835,14 @@ PACKAGES = [
     ),
 ]
 
-# Use this function if you want to test one or a filter number of package for debug proposes
-# SKIP_FUNCTION = lambda package: package.name == "pynacl"  # noqa: E731
-SKIP_FUNCTION = lambda package: True  # noqa: E731
-
-# Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
-# Remember to set to False before pushing it!
-_DEBUG_MODE = False
-
 
 @pytest.fixture(scope="module")
 def template_venv():
     """
     Create and configure a virtualenv template to be used for cloning in each test case
     """
-    venv_dir = os.path.join(os.getcwd(), "template_venv")
-    cloned_venvs_dir = os.path.join(os.getcwd(), "cloned_venvs")
+    venv_dir = os.path.join(DDTRACE_PATH, "template_venv")
+    cloned_venvs_dir = os.path.join(DDTRACE_PATH, "cloned_venvs")
     os.makedirs(cloned_venvs_dir, exist_ok=True)
 
     # Create virtual environment
@@ -822,7 +874,7 @@ def venv(template_venv):
     """
     Clone the main template configured venv to each test case runs the package in a clean isolated environment
     """
-    cloned_venvs_dir = os.path.join(os.getcwd(), "cloned_venvs")
+    cloned_venvs_dir = os.path.join(DDTRACE_PATH, "cloned_venvs")
     cloned_venv_dir = os.path.join(cloned_venvs_dir, str(uuid.uuid4()))
     clonevirtualenv.clone_virtualenv(template_venv, cloned_venv_dir)
     python_executable = os.path.join(cloned_venv_dir, "bin", "python")
@@ -841,12 +893,12 @@ def _assert_results(response, package):
         assert content["param"] == package.expected_param
 
     if type(content["result1"]) in (str, bytes):
-        assert content["result1"].startswith(package.expected_result1)
+        assert content["result1"].startswith(str(package.expected_result1))
     else:
         assert content["result1"] == package.expected_result1
 
     if type(content["result2"]) in (str, bytes):
-        assert content["result2"].startswith(package.expected_result2)
+        assert content["result2"].startswith(str(package.expected_result2))
     else:
         assert content["result2"] == package.expected_result2
 
@@ -855,12 +907,18 @@ def _assert_propagation_results(response, package):
     assert response.status_code == 200
     content = json.loads(response.content)
     result_ok = content["result1"] == "OK"
-    if package.fixme_propagation_fails:
+    if package.fixme_propagation_fails is not None:
         if result_ok:
-            print("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+            if package.fixme_propagation_fails:  # For packages that are reliably failing
+                pytest.xfail(
+                    "FIXME: Test passed unexpectedly, consider changing to fixme_propagation_fails=False for package %s"
+                    % package.name
+                )
+            else:
+                pytest.xfail("FIXME: Test passed unexpectedly for package %s" % package.name)
         else:
-            print("FIXME: propagation test (expectedly) failed for package %s" % package.name)
-        return
+            # result not OK, so propagation is not yet working for the package
+            pytest.xfail("FIXME: Test failed expectedly for package %s" % package.name)
 
     if not result_ok:
         print(f"Error: incorrect result from propagation endpoint for package {package.name}: {content}")
@@ -934,14 +992,17 @@ def test_flask_packages_propagation(package, venv, printer):
 
     package.install(venv)
     with flask_server(
-        python_cmd=venv, iast_enabled="true", remote_configuration_enabled="false", token=None, port=_TEST_PORT
+        python_cmd=venv,
+        iast_enabled="true",
+        remote_configuration_enabled="false",
+        token=None,
+        port=_TEST_PORT,
+        # assert_debug=True,  # DEV: uncomment to debug propagation
+        # manual_propagation=True,  # DEV: uncomment to debug propagation
     ) as context:
         _, client, pid = context
         response = client.get(package.url_propagation)
         _assert_propagation_results(response, package)
-
-
-_INSIDE_ENV_RUNNER_PATH = os.path.join(os.path.dirname(__file__), "inside_env_runner.py")
 
 
 @pytest.mark.parametrize(
@@ -955,7 +1016,7 @@ def test_packages_not_patched_import(package, venv):
         pytest.skip(reason)
         return
 
-    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_name]
+    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_module_to_validate]
 
     # 1. Try with the specified version
     package.install(venv)
@@ -983,12 +1044,22 @@ def test_packages_patched_import(package, venv):
         pytest.skip(reason)
         return
 
-    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "patched", package.import_module_to_validate]
+    cmdlist = [
+        venv,
+        _INSIDE_ENV_RUNNER_PATH,
+        "patched",
+        package.import_module_to_validate,
+        "True" if package.expect_no_change else "False",
+    ]
 
-    with override_env({IAST_ENV: "true"}):
+    with override_env({IAST.ENV: "true"}):
         # 1. Try with the specified version
         package.install(venv)
-        result = subprocess.run(cmdlist, capture_output=True, text=True)
+        result = subprocess.run(
+            cmdlist,
+            capture_output=True,
+            text=True,
+        )
         assert result.returncode == 0, result.stdout
         package.uninstall(venv)
 

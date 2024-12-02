@@ -18,7 +18,6 @@ from ddtrace import Tracer
 from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
-from ddtrace.appsec._constants import IAST
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
@@ -30,6 +29,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
 
@@ -42,9 +42,8 @@ def int_config():
 
 @pytest.fixture
 def span(tracer):
-    span = tracer.trace(name="myint")
-    yield span
-    span.finish()
+    with tracer.trace(name="myint") as span:
+        yield span
 
 
 class TestHeaders(object):
@@ -258,7 +257,7 @@ class TestHeaders(object):
 @pytest.mark.parametrize(
     "pin,config_val,default,global_service,expected",
     [
-        (Pin(), None, None, None, None),
+        (Pin(), None, None, None, "tests.tracer"),
         (Pin(), None, None, "global-svc", "global-svc"),
         (Pin(), None, "default-svc", None, "default-svc"),
         # Global service should have higher priority than the integration default.
@@ -281,10 +280,13 @@ def test_int_service(int_config, pin, config_val, default, global_service, expec
 def test_int_service_integration(int_config):
     pin = Pin()
     tracer = Tracer()
-    assert trace_utils.int_service(pin, int_config.myint) is None
+    assert trace_utils.int_service(pin, int_config.myint) == "tests.tracer"
 
     with override_global_config(dict(service="global-svc")):
-        assert trace_utils.int_service(pin, int_config.myint) is None
+        # ensure int config picks up overridden changes
+        int_config = config
+
+        assert trace_utils.int_service(pin, int_config.myint) == "global-svc"
 
         with tracer.trace("something", service=trace_utils.int_service(pin, int_config.myint)) as s:
             assert s.service == "global-svc"
@@ -304,6 +306,47 @@ def test_ext_service(int_config, pin, config_val, default, expected):
         int_config.myint.service = config_val
 
     assert trace_utils.ext_service(pin, int_config.myint, default) == expected
+
+
+@pytest.mark.subprocess(
+    parametrize={
+        "DD_TRACE_HEADER_TAGS": ["header1 header2 header3:third-header", "header1,header2,header3:third-header"]
+    }
+)
+def test_set_http_meta_with_http_header_tags_config():
+    from ddtrace import config
+    from ddtrace._trace.span import Span
+    from ddtrace.contrib.trace_utils import set_http_meta
+
+    assert config._trace_http_header_tags == {
+        "header1": "",
+        "header2": "",
+        "header3": "third-header",
+    }, config._trace_http_header_tags
+    integration_config = config.new_integration
+    assert integration_config.is_header_tracing_configured
+
+    # test request headers
+    request_span = Span(name="new_integration.request")
+    set_http_meta(
+        request_span,
+        integration_config,
+        request_headers={"header1": "value1", "header2": "value2", "header3": "value3"},
+    )
+    assert request_span.get_tag("http.request.headers.header1") == "value1"
+    assert request_span.get_tag("http.request.headers.header2") == "value2"
+    assert request_span.get_tag("third-header") == "value3"
+
+    # test response headers
+    response_span = Span(name="new_integration.response")
+    set_http_meta(
+        response_span,
+        integration_config,
+        response_headers={"header1": "value1", "header2": "value2", "header3": "value3"},
+    )
+    assert response_span.get_tag("http.response.headers.header1") == "value1"
+    assert response_span.get_tag("http.response.headers.header2") == "value2"
+    assert response_span.get_tag("third-header") == "value3"
 
 
 @pytest.mark.parametrize("appsec_enabled", [False, True])
@@ -367,7 +410,7 @@ def test_set_http_meta(
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
     span.span_type = span_type
-    with override_global_config({"_asm_enabled": appsec_enabled}):
+    with asm_context(config={"_asm_enabled": appsec_enabled}):
         trace_utils.set_http_meta(
             span,
             int_config,
@@ -465,6 +508,26 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_not_called()
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
+def test_set_http_meta_custom_errors_via_env():
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.trace_utils import set_http_meta
+
+    config._add("myint", dict())
+    with tracer.trace("error") as span1:
+        set_http_meta(span1, config.myint, status_code=405)
+        assert span1.error == 1
+
+    with tracer.trace("noterror") as span2:
+        set_http_meta(span2, config.myint, status_code=403)
+        assert span2.error == 0
+
+    with tracer.trace("noterror2") as span3:
+        set_http_meta(span3, config.myint, status_code=413)
+        assert span3.error == 0
+
+
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
 def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     assert int_config.myint.is_header_tracing_configured is False
@@ -478,14 +541,6 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     result_keys.sort(reverse=True)
     assert result_keys == ["runtime-id", http.USER_AGENT]
     mock_store_headers.assert_not_called()
-
-
-def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
-    with override_global_config(dict(_iast_enabled=False)):
-        cookies = {"foo": "bar"}
-        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
-        assert not span_report
 
 
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
@@ -543,6 +598,27 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
     mock_store_headers.assert_called()
 
 
+ALL_IP_HEADERS = (
+    ("x-forwarded-for", "1.1.1.1"),
+    ("x-real-ip", "2.2.2.2"),
+    ("true-client-ip", "3.3.3.3"),
+    ("x-client-ip", "4.4.4.4"),
+    ("x-forwarded", "5.5.5.5"),
+    ("forwarded-for", "6.6.6.6"),
+    ("x-cluster-client-ip", "7.7.7.7"),
+    ("fastly-client-ip", "8.8.8.8"),
+    ("cf-connecting-ip", "9.9.9.9"),
+    ("cf-connecting-ipv6", "10.10.10.10"),
+)
+
+# testing priority order
+ALL_TESTS = [
+    ["", dict(ALL_IP_HEADERS[-1 : -i - 2 : -1]), ALL_IP_HEADERS[-1 - i][1]] for i in range(len(ALL_IP_HEADERS))
+]
+# x-forwarded is now ignored so we fall back to forwarded-for
+ALL_TESTS[5][2] = "6.6.6.6"
+
+
 @pytest.mark.parametrize(
     "header_env_var,headers_dict,expected",
     [
@@ -584,10 +660,11 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
             {"x-forwarded-for": "4.4.4.4", "x-real-ip": "8.8.4.4"},
             "8.8.4.4",
         ),
-    ],
+    ]
+    + ALL_TESTS,
 )
 def test_get_request_header_ip(header_env_var, headers_dict, expected, span):
-    with override_global_config(dict(_asm_enabled=True, client_ip_header=header_env_var)):
+    with override_global_config(dict(_asm_enabled=True, _client_ip_header=header_env_var)):
         ip = trace_utils._get_request_header_client_ip(headers_dict, None, False)
         assert ip == expected
 
@@ -695,7 +772,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_confi
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
-    with override_global_config(dict(_asm_enabled=False, retrieve_client_ip=False)):
+    with override_global_config(dict(_asm_enabled=False, _retrieve_client_ip=False)):
         int_config.myint.http._header_tags = {"enabled": True}
         assert int_config.myint.is_header_tracing_configured is True
         trace_utils.set_http_meta(
@@ -709,7 +786,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
-    with override_global_config(dict(_asm_enabled=False, retrieve_client_ip=True)):
+    with override_global_config(dict(_asm_enabled=False, _retrieve_client_ip=True)):
         int_config.myint.http._header_tags = {"enabled": True}
         assert int_config.myint.is_header_tracing_configured is True
         trace_utils.set_http_meta(
@@ -961,13 +1038,64 @@ def test_sanitized_url_in_http_meta(span, int_config):
     assert span.get_tag(http.URL) == FULL_URL
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+def test_url_in_http_with_empty_obfuscation_regex():
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.ext import http
+
+    assert config._obfuscation_query_string_pattern.pattern == b"", config._obfuscation_query_string_pattern
+
+    SENSITIVE_URL = "http://weblog:7777/?application_key=123"
+    config._add("myint", dict())
+    with tracer.trace("s") as span:
+        set_http_meta(
+            span,
+            config.myint,
+            method="GET",
+            url=SENSITIVE_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == SENSITIVE_URL
+
+
+# TODO(munir): Remove this test when global_query_string_obfuscation_disabled is removed
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
+    # Test that query strings are not added to urls when the obfuscation regex is an empty string
+    # and obfuscation is enabled (not disabled xD)
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.ext import http
+
+    # assert obfuscation is disabled when the regex is an empty string
+    assert config.global_query_string_obfuscation_disabled is True
+    assert config._obfuscation_query_string_pattern is not None
+
+    # Enable obfucation with an empty regex
+    config.global_query_string_obfuscation_disabled = False
+
+    config._add("myint", dict())
+    with tracer.trace("s") as span:
+        set_http_meta(
+            span,
+            config.myint,
+            method="GET",
+            url="http://weblog:7777/?application_key=123",
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == "http://weblog:7777/", span._meta
+
+
 def test_url_in_http_meta(span, int_config):
     SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
     REDACTED_URL = "http://example.com/search?<redacted>&q=query#frag?ment"
     STRIPPED_URL = "http://example.com/search#frag?ment"
 
     int_config.http_tag_query_string = True
-    with override_global_config({"global_query_string_obfuscation_disabled": False}):
+    with override_global_config({"_global_query_string_obfuscation_disabled": False}):
         trace_utils.set_http_meta(
             span,
             int_config,
@@ -976,7 +1104,7 @@ def test_url_in_http_meta(span, int_config):
             status_code=200,
         )
         assert span.get_tag(http.URL) == REDACTED_URL
-    with override_global_config({"global_query_string_obfuscation_disabled": True}):
+    with override_global_config({"_global_query_string_obfuscation_disabled": True}):
         trace_utils.set_http_meta(
             span,
             int_config,
@@ -987,7 +1115,7 @@ def test_url_in_http_meta(span, int_config):
         assert span.get_tag(http.URL) == SENSITIVE_QS_URL
 
     int_config.http_tag_query_string = False
-    with override_global_config({"global_query_string_obfuscation_disabled": False}):
+    with override_global_config({"_global_query_string_obfuscation_disabled": False}):
         trace_utils.set_http_meta(
             span,
             int_config,
@@ -996,7 +1124,7 @@ def test_url_in_http_meta(span, int_config):
             status_code=200,
         )
         assert span.get_tag(http.URL) == STRIPPED_URL
-    with override_global_config({"global_query_string_obfuscation_disabled": True}):
+    with override_global_config({"_global_query_string_obfuscation_disabled": True}):
         trace_utils.set_http_meta(
             span,
             int_config,

@@ -15,14 +15,12 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddsketch import LogCollapsingLowestDenseDDSketch
-from ddsketch.pb.proto import DDSketchProto
-
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.core import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb
@@ -36,6 +34,8 @@ from ..writer import _human_size
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
 from .fnv import fnv1_64
+from .schemas.schema_builder import SchemaBuilder
+from .schemas.schema_sampler import SchemaSampler
 
 
 def gzip_compress(payload):
@@ -70,15 +70,37 @@ PathwayAggrKey = typing.Tuple[
 ]
 
 
+class SumCount:
+    """Helper class to keep track of sum and count of values."""
+
+    __slots__ = ("_sum", "_count")
+
+    def __init__(self) -> None:
+        self._sum: float = 0.0
+        self._count: int = 0
+
+    def add(self, value: float) -> None:
+        self._sum += value
+        self._count += 1
+
+    @property
+    def sum(self) -> float:
+        return self._sum
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+
 class PathwayStats(object):
     """Aggregated pathway statistics."""
 
     __slots__ = ("full_pathway_latency", "edge_latency", "payload_size")
 
     def __init__(self):
-        self.full_pathway_latency = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
-        self.edge_latency = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
-        self.payload_size = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
+        self.full_pathway_latency = DDSketch()
+        self.edge_latency = DDSketch()
+        self.payload_size = SumCount()
 
 
 PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int)])
@@ -121,6 +143,7 @@ class DataStreamsProcessor(PeriodicService):
         self._lock = Lock()
         self._current_context = threading.local()
         self._enabled = True
+        self._schema_samplers: Dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
             attempts=retry_attempts,
@@ -133,7 +156,7 @@ class DataStreamsProcessor(PeriodicService):
     def on_checkpoint_creation(
         self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec, payload_size=0
     ):
-        # type: (int, int, List[str], float, float, float, Optional[int]) -> None
+        # type: (int, int, List[str], float, float, float, int) -> None
         """
         on_checkpoint_creation is called every time a new checkpoint is created on a pathway. It records the
         latency to the previous checkpoint in the pathway (edge latency),
@@ -198,8 +221,8 @@ class DataStreamsProcessor(PeriodicService):
                     "EdgeTags": [compat.ensure_text(tag) for tag in edge_tags.split(",")],
                     "Hash": hash_value,
                     "ParentHash": parent_hash,
-                    "PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
-                    "EdgeLatency": DDSketchProto.to_proto(stat_aggr.edge_latency).SerializeToString(),
+                    "PathwayLatency": stat_aggr.full_pathway_latency.to_proto(),
+                    "EdgeLatency": stat_aggr.edge_latency.to_proto(),
                 }
                 bucket_aggr_stats.append(serialized_bucket)
             for consumer_key, offset in bucket.latest_commit_offsets.items():
@@ -363,6 +386,21 @@ class DataStreamsProcessor(PeriodicService):
         ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
 
+    def try_sample_schema(self, topic):
+        now_ms = time.time() * 1000
+
+        sampler = self._schema_samplers.setdefault(topic, SchemaSampler())
+        return sampler.try_sample(now_ms)
+
+    def can_sample_schema(self, topic):
+        now_ms = time.time() * 1000
+
+        sampler = self._schema_samplers.setdefault(topic, SchemaSampler())
+        return sampler.can_sample(now_ms)
+
+    def get_schema(self, schema_name, iterator):
+        return SchemaBuilder.get_schema(schema_name, iterator)
+
 
 class DataStreamsCtx:
     def __init__(self, processor, hash_value, pathway_start_sec, current_edge_start_sec):
@@ -452,8 +490,8 @@ class DataStreamsCtx:
         hash_value = self._compute_hash(tags, parent_hash)
         if span:
             span.set_tag_str("pathway.hash", str(hash_value))
-        edge_latency_sec = now_sec - self.current_edge_start_sec
-        pathway_latency_sec = now_sec - self.pathway_start_sec
+        edge_latency_sec = max(now_sec - self.current_edge_start_sec, 0.0)
+        pathway_latency_sec = max(now_sec - self.pathway_start_sec, 0.0)
         self.hash = hash_value
         self.current_edge_start_sec = now_sec
         self.processor.on_checkpoint_creation(

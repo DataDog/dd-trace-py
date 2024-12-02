@@ -2,8 +2,12 @@
 CAVEAT: the line number is important to some IAST tests, be careful to modify this file and update the tests if you
 make some changes
 """
+import asyncio
 import os
+import re
 import sys
+
+import _io
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -146,7 +150,8 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     string11 = "notainted#{}".format(string10)
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
     string12 = string11.rsplit("#")[1]
-    string13 = string12 + "\n" + "notainted"
+    string13_pre = string12 + "\n"
+    string13 = string13_pre + "notainted"
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted\nnotainted
     string14 = string13.splitlines()[0]  # string14 = string12
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
@@ -158,7 +163,8 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted.jpg
     string18 = os.path.splitext(string17)[0]
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
-    string19 = os.path.join(os.sep + string18, "nottainted_notdir")
+    string19_pre = os.sep + string18
+    string19 = os.path.join(string19_pre, "nottainted_notdir")
     # /TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted/nottainted_notdir
     string20 = os.path.dirname(string19)
     # /TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
@@ -173,10 +179,40 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     else:
         string23 = string21
 
+    re_slash = re.compile(r"[_.][a-zA-Z]*")
+    string24 = re_slash.findall(string23)[0]  # 1 propagation: '_HIROOT
+
+    re_match = re.compile(r"(\w+)", re.IGNORECASE)
+    re_match_result = re_match.match(string24)  # 1 propagation: 'HIROOT
+
+    string25 = re_match_result.group(0)  # 1 propagation: '_HIROOT
+
+    tmp_str = "DDDD"
+    string25 = tmp_str + string25  # 1 propagation: 'DDDD_HIROOT
+
+    re_match = re.compile(r"(\w+)(_+)(\w+)", re.IGNORECASE)
+    re_match_result = re_match.search(string25)
+    string26 = re_match_result.expand(r"DDD_\3")  # 1 propagation: 'DDDD_HIROOT
+
+    re_split = re.compile(r"[_.][a-zA-Z]*", re.IGNORECASE)
+    re_split_result = re_split.split(string26)
+
+    # TODO(avara1986): DDDD_ is constant but we're tainting all re results
+    string27 = re_split_result[0] + " EEE"
+    string28 = re.sub(r" EEE", "_OOO", string27, re.IGNORECASE)
+    string29 = re.subn(r"OOO", "III", string28, re.IGNORECASE)[0]
+    tmp_str2 = "_extend"
+    string29 += tmp_str2
     try:
         # label propagation_memory_check
-        m = open(ROOT_DIR + "/" + string23 + ".txt")
+        m = open(ROOT_DIR + "/" + string29 + ".txt")
         _ = m.read()
     except Exception:
         pass
-    return string23
+
+    return _io.StringIO(string29).read()
+
+
+async def propagation_memory_check_async(origin_string1, tainted_string_2):
+    await asyncio.sleep(0.001)
+    return propagation_memory_check(origin_string1, tainted_string_2)

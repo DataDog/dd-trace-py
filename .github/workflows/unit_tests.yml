@@ -1,0 +1,41 @@
+name: UnitTests
+
+on:
+  push:
+    branches:
+      - main
+      - 'mq-working-branch**'
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  unit-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Keep this in sync with hatch.toml
+        python-version: ["3.7", "3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install latest stable toolchain and rustfmt
+        run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
+
+      - name: Install hatch
+        uses: pypa/hatch@install
+        with:
+          version: "1.12.0"
+
+      - name: Install coreutils for MacOS to get sha256sum
+        if: matrix.os == 'macos-latest'
+        run: brew install coreutils
+
+      - name: Run tests
+        run: hatch run +py=${{ matrix.python-version }} ddtrace_unit_tests:test

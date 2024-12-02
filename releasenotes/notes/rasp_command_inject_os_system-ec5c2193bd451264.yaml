@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: This introduces Command Injection support for Exploit Prevention on os.system only.

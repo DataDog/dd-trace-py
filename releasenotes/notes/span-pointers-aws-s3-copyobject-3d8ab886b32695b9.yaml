@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: Adds span pointers for successful S3 CopyObject spans.

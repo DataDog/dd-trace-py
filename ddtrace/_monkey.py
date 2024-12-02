@@ -3,12 +3,15 @@ import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
+from ddtrace.appsec import load_common_appsec_modules
+
+from .appsec._iast._utils import _is_iast_enabled
+from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .settings import _config as config
-from .settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -26,6 +29,7 @@ PATCH_MODULES = {
     "aiomysql": True,
     "aredis": True,
     "asyncio": True,
+    "avro": True,
     "boto": True,
     "botocore": True,
     "bottle": True,
@@ -37,6 +41,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
+    "google_generativeai": True,
     "gevent": True,
     "graphql": True,
     "grpc": True,
@@ -65,6 +70,7 @@ PATCH_MODULES = {
     "aiobotocore": False,
     "httplib": False,
     "urllib3": False,
+    "vertexai": True,
     "vertica": True,
     "molten": True,
     "jinja2": True,
@@ -76,10 +82,10 @@ PATCH_MODULES = {
     "falcon": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
-    "logbook": config.logs_injection,
-    "logging": config.logs_injection,
-    "loguru": config.logs_injection,
-    "structlog": config.logs_injection,
+    "logbook": config._logs_injection,  # type: ignore
+    "logging": config._logs_injection,  # type: ignore
+    "loguru": config._logs_injection,  # type: ignore
+    "structlog": config._logs_injection,  # type: ignore
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
@@ -137,6 +143,7 @@ _MODULES_FOR_CONTRIB = {
     "aws_lambda": ("datadog_lambda",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
+    "google_generativeai": ("google.generativeai",),
 }
 
 
@@ -158,8 +165,6 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
-        if config._telemetry_enabled:
-            from .internal import telemetry
         # Import and patch module
         path = "%s.%s" % (prefix, module)
         try:
@@ -169,25 +174,23 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                 raise
             error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
             log.error(error_msg, exc_info=True)
-            if config._telemetry_enabled:
-                telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
-                telemetry.telemetry_writer.add_count_metric(
-                    "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
-                )
+            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
+            telemetry.telemetry_writer.add_count_metric(
+                "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
+            )
         else:
             imported_module.patch()
-            if config._telemetry_enabled:
-                if hasattr(imported_module, "get_versions"):
-                    versions = imported_module.get_versions()
-                    for name, v in versions.items():
-                        telemetry.telemetry_writer.add_integration(
-                            name, True, PATCH_MODULES.get(module) is True, "", version=v
-                        )
-                else:
-                    version = imported_module.get_version()
+            if hasattr(imported_module, "get_versions"):
+                versions = imported_module.get_versions()
+                for name, v in versions.items():
                     telemetry.telemetry_writer.add_integration(
-                        module, True, PATCH_MODULES.get(module) is True, "", version=version
+                        name, True, PATCH_MODULES.get(module) is True, "", version=v
                     )
+            else:
+                version = imported_module.get_version()
+                telemetry.telemetry_writer.add_integration(
+                    module, True, PATCH_MODULES.get(module) is True, "", version=version
+                )
 
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
@@ -225,17 +228,14 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if asm_config._iast_enabled:
+    if _is_iast_enabled():
         from ddtrace.appsec._iast._patch_modules import patch_iast
         from ddtrace.appsec.iast import enable_iast_propagation
 
         patch_iast()
         enable_iast_propagation()
 
-    if asm_config._ep_enabled or asm_config._iast_enabled:
-        from ddtrace.appsec._common_module_patches import patch_common_modules
-
-        patch_common_modules()
+    load_common_appsec_modules()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):

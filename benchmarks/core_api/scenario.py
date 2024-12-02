@@ -3,17 +3,17 @@ import bm
 from ddtrace.internal import core
 
 
+CUSTOM_EVENT_NAME = "CoreAPIScenario.event"
+
 if not hasattr(core, "dispatch_with_results"):
     core.dispatch_with_results = core.dispatch
 
 
 class CoreAPIScenario(bm.Scenario):
-    CUSTOM_EVENT_NAME = "CoreAPIScenario.event"
-
-    listeners = bm.var(type=int, default=0)
-    all_listeners = bm.var(type=int, default=0)
-    set_item_count = bm.var(type=int, default=100)
-    get_item_exists = bm.var_bool(default=False)
+    listeners: int
+    all_listeners: int
+    set_item_count: int
+    get_item_exists: bool
 
     def run(self):
         # Activate a number of no-op listeners for known events
@@ -22,7 +22,7 @@ class CoreAPIScenario(bm.Scenario):
             def listener(*_):
                 pass
 
-            core.on(self.CUSTOM_EVENT_NAME, listener)
+            core.on(CUSTOM_EVENT_NAME, listener)
             core.on("context.started.with_data", listener)
             core.on("context.ended.with_data", listener)
 

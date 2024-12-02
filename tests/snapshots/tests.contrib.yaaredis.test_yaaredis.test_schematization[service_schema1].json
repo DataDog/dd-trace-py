@@ -9,7 +9,7 @@
     "type": "redis",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "yaaredis",
@@ -18,6 +18,7 @@
       "out.host": "localhost",
       "redis.raw_command": "FLUSHALL",
       "runtime-id": "f9e411adfc7a4c2cabc38392dd511dbf",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
@@ -44,7 +45,7 @@
     "type": "redis",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "yaaredis",
@@ -53,6 +54,7 @@
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
       "runtime-id": "f9e411adfc7a4c2cabc38392dd511dbf",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {

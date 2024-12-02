@@ -125,11 +125,35 @@ Configuration
 
 .. py:data:: ddtrace.config.django['include_user_name']
 
-   Whether or not to include the authenticated user's username as a tag on the root request span.
+   Whether or not to include the authenticated user's name/id as a tag on the root request span.
 
    Can also be configured via the ``DD_DJANGO_INCLUDE_USER_NAME`` environment variable.
 
    Default: ``True``
+
+.. py:data:: ddtrace.config.django['include_user_email']
+
+   (ASM) Whether or not to include the authenticated user's email (if available) as a tag on the root request span on a user event.
+
+   Can also be configured via the ``DD_DJANGO_INCLUDE_USER_EMAIL`` environment variable.
+
+   Default: ``False``
+
+.. py:data:: ddtrace.config.django['include_user_login']
+
+   (ASM) Whether or not to include the authenticated user's login (if available) as a tag on the root request span on a user event.
+
+   Can also be configured via the ``DD_DJANGO_INCLUDE_USER_LOGIN`` environment variable.
+
+   Default: ``True``
+
+.. py:data:: ddtrace.config.django['include_user_realname']
+
+   (ASM) Whether or not to include the authenticated user's real name (if available) as a tag on the root request span on a user event.
+
+   Can also be configured via the ``DD_DJANGO_INCLUDE_USER_REALNAME`` environment variable.
+
+   Default: ``False``
 
 .. py:data:: ddtrace.config.django['use_handler_resource_format']
 
@@ -176,7 +200,8 @@ Example::
 
 .. __: https://www.djangoproject.com/
 """  # noqa: E501
-from ...internal.utils.importlib import require_modules
+
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["django"]
@@ -184,9 +209,17 @@ required_modules = ["django"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from . import patch as _patch
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch
+        # Required to allow users to import from `ddtrace.contrib.django.patch` directly
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ddtrace.contrib.internal.django.patch import get_version
+        from ddtrace.contrib.internal.django.patch import patch
+        from ddtrace.contrib.internal.django.patch import patch as _patch
+        from ddtrace.contrib.internal.django.patch import unpatch
 
         __all__ = ["patch", "unpatch", "_patch", "get_version"]

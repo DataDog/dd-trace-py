@@ -27,7 +27,10 @@ namespace Datadog {
     X(runtime, "runtime")                                                                                              \
     X(runtime_id, "runtime-id")                                                                                        \
     X(profiler_version, "profiler_version")                                                                            \
-    X(profile_seq, "profile_seq")
+    X(library_version, "library_version")                                                                              \
+    X(profile_seq, "profile_seq")                                                                                      \
+    X(is_crash, "is_crash")                                                                                            \
+    X(severity, "severity")
 
 // Here there are two columns because the Datadog backend expects these labels
 // to have spaces in the names.
@@ -41,8 +44,6 @@ namespace Datadog {
     X(span_id, "span id")                                                                                              \
     X(local_root_span_id, "local root span id")                                                                        \
     X(trace_type, "trace type")                                                                                        \
-    X(trace_resource_container, "trace resource container")                                                            \
-    X(trace_endpoint, "trace endpoint")                                                                                \
     X(class_name, "class name")                                                                                        \
     X(lock_name, "lock name")
 
@@ -59,10 +60,28 @@ enum class ExportLabelKey
     EXPORTER_LABELS(X_ENUM) Length_
 };
 
+// When a std::unique_ptr is registered, the template accepts a custom deleter. We want the runtime to manage pointers
+// for us, so here's the deleter for the exporter.
+struct DdogProfExporterDeleter
+{
+    void operator()(ddog_prof_Exporter* ptr) const
+    {
+        if (ptr) {
+            ddog_prof_Exporter_drop(ptr);
+        }
+    }
+};
+
 inline ddog_CharSlice
 to_slice(std::string_view str)
 {
     return { .ptr = str.data(), .len = str.size() };
+}
+
+inline ddog_ByteSlice
+to_byte_slice(std::string_view str)
+{
+    return { .ptr = reinterpret_cast<const uint8_t*>(str.data()), .len = str.size() };
 }
 
 inline std::string

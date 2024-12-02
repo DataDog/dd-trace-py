@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the profiler could erroneously try to load protobuf in autoinjected environments,
+    where it is not available.

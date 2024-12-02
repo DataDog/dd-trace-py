@@ -35,3 +35,18 @@ python ddtrace/appsec/_iast/_taint_tracking/bench_overload.py --log-file="valgri
 # Debug with gdb
 
 gdb --args python -m pytest tests/appsec/iast/test_command_injection.py
+
+## Generate coverage reports
+
+From the `ddtrace/appsec/_iast/_taint_tracking` dir run:
+```
+./generate_coverage.sh
+```
+
+This will generate a text mode coverage report. If you add `--html` it will generate nice HTML
+coverage pages at `ddtrace/appsec/_iast/_taint_tracking/coverage_html` dir. 
+Switch to it and open the `index.html` with your browser.
+
+
+If you use `--summary` it will generate only (at the end of the normal output) the % of line 
+coverage, useful for CI and automated checks.

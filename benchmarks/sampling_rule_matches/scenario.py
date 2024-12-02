@@ -24,11 +24,11 @@ def iter_n(items, n):
 
 
 class SamplingRules(bm.Scenario):
-    num_iterations = bm.var(type=int)
-    num_services = bm.var(type=int)
-    num_operations = bm.var(type=int)
-    num_resources = bm.var(type=int)
-    num_tags = bm.var(type=int)
+    num_iterations: int
+    num_services: int
+    num_operations: int
+    num_resources: int
+    num_tags: int
 
     def run(self):
         # Generate random service and operation names for the counts we requested

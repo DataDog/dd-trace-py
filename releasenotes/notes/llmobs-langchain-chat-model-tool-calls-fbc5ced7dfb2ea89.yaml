@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Added support for capturing tool calls returned from LangChain chat completions.

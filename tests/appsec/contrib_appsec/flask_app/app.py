@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from typing import Optional
 
 from flask import Flask
 from flask import request
@@ -125,19 +126,63 @@ def rasp(endpoint: str):
                 res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
-    elif endpoint == "shell":
-        res = ["shell endpoint"]
+    elif endpoint == "command_injection":
+        res = ["command_injection endpoint"]
         for param in query_params:
             if param.startswith("cmd"):
                 cmd = query_params[param]
                 try:
-                    import subprocess
-
-                    with subprocess.Popen(cmd, stdout=subprocess.PIPE) as f:
-                        res.append(f"cmd stdout: {f.stdout.read()}")
+                    res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
     tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
     return f"Unknown endpoint: {endpoint}"
+
+
+# Auto user event manual instrumentation
+
+
+@app.route("/login/", methods=["GET"])
+@app.route("/login", methods=["GET"])
+def login_user():
+    """manual instrumentation login endpoint"""
+    from ddtrace.appsec import trace_utils as appsec_trace_utils
+
+    USERS = {
+        "test": {"email": "testuser@ddog.com", "password": "1234", "name": "test", "id": "social-security-id"},
+        "testuuid": {
+            "email": "testuseruuid@ddog.com",
+            "password": "1234",
+            "name": "testuuid",
+            "id": "591dc126-8431-4d0f-9509-b23318d3dce4",
+        },
+    }
+
+    def authenticate(username: str, password: str) -> Optional[str]:
+        """authenticate user"""
+        if username in USERS:
+            if USERS[username]["password"] == password:
+                return USERS[username]["id"]
+            else:
+                appsec_trace_utils.track_user_login_failure_event(
+                    tracer, user_id=USERS[username]["id"], exists=True, login_events_mode="auto"
+                )
+                return None
+        appsec_trace_utils.track_user_login_failure_event(
+            tracer, user_id=username, exists=False, login_events_mode="auto"
+        )
+        return None
+
+    def login(user_id: str) -> None:
+        """login user"""
+        appsec_trace_utils.track_user_login_success_event(tracer, user_id=user_id, login_events_mode="auto")
+
+    username = request.args.get("username")
+    password = request.args.get("password")
+    user_id = authenticate(username=username, password=password)
+    if user_id is not None:
+        login(user_id)
+        return "OK"
+    return "login failure", 401

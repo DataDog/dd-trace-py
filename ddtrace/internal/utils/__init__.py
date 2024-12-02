@@ -13,13 +13,12 @@ class ArgumentError(Exception):
 
 
 def get_argument_value(
-    args,  # type: List[Any]
-    kwargs,  # type: Dict[str, Any]
-    pos,  # type: int
-    kw,  # type: str
-    optional=False,  # type: bool
-):
-    # type: (...) -> Optional[Any]
+    args: List[Any],
+    kwargs: Dict[str, Any],
+    pos: int,
+    kw: str,
+    optional: bool = False,
+) -> Optional[Any]:
     """
     This function parses the value of a target function argument that may have been
     passed in as a positional argument or a keyword argument. Because monkey-patched
@@ -46,14 +45,13 @@ def get_argument_value(
 
 
 def set_argument_value(
-    args,  # type: Tuple[Any, ...]
-    kwargs,  # type: Dict[str, Any]
-    pos,  # type: int
-    kw,  # type: str
-    value,  # type: Any
-    override_unset=False,  # type: bool
-):
-    # type: (...) -> Tuple[Tuple[Any, ...], Dict[str, Any]]
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
+    pos: int,
+    kw: str,
+    value: Any,
+    override_unset: bool = False,
+) -> Tuple[Tuple[Any, ...], Dict[str, Any]]:
     """
     Returns a new args, kwargs with the given value updated
     :param args: Positional arguments
@@ -81,3 +79,21 @@ def _get_metas_to_propagate(context):
         if isinstance(k, str) and k.startswith("_dd.p."):
             metas_to_propagate.append((k, v))
     return metas_to_propagate
+
+
+def get_blocked() -> Optional[Dict[str, Any]]:
+    # local import to avoid circular dependency
+    from ddtrace.internal import core
+
+    res = core.dispatch_with_results("asm.get_blocked")
+    if res and res.block_config:
+        return res.block_config.value
+    return None
+
+
+def set_blocked(block_settings: Optional[Dict[str, Any]] = None) -> None:
+    # local imports to avoid circular dependency
+    from ddtrace.internal import core
+    from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
+
+    core.dispatch("asm.set_blocked", (block_settings or STATUS_403_TYPE_AUTO,))

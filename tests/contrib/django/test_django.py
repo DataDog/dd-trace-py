@@ -15,9 +15,9 @@ from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
 import mock
 import pytest
+import wrapt
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -30,18 +30,16 @@ from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.vendor import wrapt
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_dict_issuperset
 from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_env
-from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
@@ -1427,14 +1425,14 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
-        "_dd.base_service": "",
+        "_dd.base_service": "tests.contrib.django",
     }
 
     expected_meta_header = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
-        "_dd.base_service": "",
+        "_dd.base_service": "tests.contrib.django",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1499,11 +1497,13 @@ def test_service_can_be_overridden(client, test_spans):
 
 @pytest.mark.parametrize("global_service_name", [None, "mysvc"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_schematized_default_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+def test_schematized_default_service_name(
+    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name, request
+):
     expected_service_name = {
         None: global_service_name or "django",
         "v0": global_service_name or "django",
-        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
     code = """
 import pytest
@@ -1542,15 +1542,17 @@ if __name__ == "__main__":
     assert status == 0, (out, err)
 
 
-@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
-@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize(
+    "schema_version, global_service_name",
+    [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
+)
 def test_schematized_default_db_service_name(
-    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name
+    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name, request
 ):
     expected_service_name = {
         None: "defaultdb",
         "v0": "defaultdb",
-        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
     code = """
 import pytest
@@ -1744,73 +1746,6 @@ def test_django_request_distributed_disabled(client, test_spans):
     assert root.get_tag("span.kind") == "server"
     assert root.trace_id != 12345
     assert root.parent_id is None
-
-
-@pytest.mark.django_db
-def test_analytics_global_off_integration_default(client, test_spans):
-    """
-    When making a request
-        When an integration trace search is not set and sample rate is set and globally trace search is disabled
-            We expect the root span to not include tag
-    """
-    with override_global_config(dict(analytics_enabled=False)):
-        assert client.get("/users/").status_code == 200
-
-    req_span = test_spans.get_root_span()
-    assert req_span.get_tag("span.kind") == "server"
-    assert req_span.name == "django.request"
-    assert req_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-
-@pytest.mark.django_db
-def test_analytics_global_on_integration_default(client, test_spans):
-    """
-    When making a request
-        When an integration trace search is not event sample rate is not set and globally trace search is enabled
-            We expect the root span to have the appropriate tag
-    """
-    with override_global_config(dict(analytics_enabled=True)):
-        assert client.get("/users/").status_code == 200
-
-    req_span = test_spans.get_root_span()
-    assert req_span.get_tag("span.kind") == "server"
-    assert req_span.name == "django.request"
-    assert req_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
-
-
-@pytest.mark.django_db
-def test_analytics_global_off_integration_on(client, test_spans):
-    """
-    When making a request
-        When an integration trace search is enabled and sample rate is set and globally trace search is disabled
-            We expect the root span to have the appropriate tag
-    """
-    with override_global_config(dict(analytics_enabled=False)):
-        with override_config("django", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            assert client.get("/users/").status_code == 200
-
-    sp_request = test_spans.get_root_span()
-    assert sp_request.get_tag("span.kind") == "server"
-    assert sp_request.name == "django.request"
-    assert sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
-
-
-@pytest.mark.django_db
-def test_analytics_global_off_integration_on_and_none(client, test_spans):
-    """
-    When making a request
-        When an integration trace search is enabled
-        Sample rate is set to None
-        Globally trace search is disabled
-            We expect the root span to have the appropriate tag
-    """
-    with override_global_config(dict(analytics_enabled=False)):
-        with override_config("django", dict(analytics_enabled=False, analytics_sample_rate=1.0)):
-            assert client.get("/users/").status_code == 200
-
-    sp_request = test_spans.get_root_span()
-    assert sp_request.name == "django.request"
-    assert sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
 def test_trace_query_string_integration_enabled(client, test_spans):

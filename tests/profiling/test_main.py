@@ -6,6 +6,7 @@ import sys
 import pytest
 
 from tests.utils import call_program
+from tests.utils import flaky
 
 from . import utils
 
@@ -85,7 +86,7 @@ methods = multiprocessing.get_all_start_methods()
 
 @pytest.mark.parametrize(
     "method",
-    set(methods) - {"forkserver", "fork"},  # flaky
+    set(methods) - {"forkserver", "fork"},
 )
 def test_multiprocessing(method, tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
@@ -105,6 +106,8 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
     utils.check_pprof_file(filename + "." + str(child_pid) + ".1")
 
 
+@flaky(1731959126)  # Marking as flaky so it will show up in flaky reports
+@pytest.mark.skipif(os.environ.get("GITLAB_CI") == "true", reason="Hanging and failing in GitLab CI")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_ENABLED="1"),

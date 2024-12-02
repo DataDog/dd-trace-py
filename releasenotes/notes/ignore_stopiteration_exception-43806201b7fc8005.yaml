@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    wsgi: Ensures the status of wsgi Spans are not set to error when a ``StopIteration`` exception is raised
+    marked the span as an error. With this change, ``StopIteration`` exceptions in this context will be ignored.

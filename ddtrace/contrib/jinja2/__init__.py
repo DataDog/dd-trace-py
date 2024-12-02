@@ -27,15 +27,23 @@ The library can be configured globally and per instance, using the Configuration
 By default, the service name is set to None, so it is inherited from the parent span.
 If there is no parent span and the service name is not overridden the agent will drop the traces.
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["jinja2"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch
+        # Required to allow users to import from `ddtrace.contrib.jinja2.patch` directly
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
+
+        # Expose public methods
+        from ddtrace.contrib.internal.jinja2.patch import get_version
+        from ddtrace.contrib.internal.jinja2.patch import patch
+        from ddtrace.contrib.internal.jinja2.patch import unpatch
 
         __all__ = ["patch", "unpatch", "get_version"]

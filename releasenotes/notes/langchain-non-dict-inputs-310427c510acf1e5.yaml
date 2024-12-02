@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langchain: tag non-dict inputs to LCEL chains appropriately. Non-dict inputs are stringified, and dict inputs are tagged by key-value pairs.

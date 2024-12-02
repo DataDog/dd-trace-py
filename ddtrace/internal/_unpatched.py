@@ -8,3 +8,4 @@ from builtins import open as unpatched_open  # noqa
 # to the threading module used by ddtrace here, we make it easy for those parts
 # to get a reference to the right threading module.
 import threading as _threading  # noqa
+import gc as _gc  # noqa

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes source file information that would be incorrect in certain decorated / wrapped scenarios and forces
+    paths to be relative to the repository root, if present.

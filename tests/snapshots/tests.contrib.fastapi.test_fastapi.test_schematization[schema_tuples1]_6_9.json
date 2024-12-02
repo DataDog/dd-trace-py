@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65e2cd9500000000",
       "component": "fastapi",
@@ -42,7 +42,7 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "ddtrace_subprocess_dir",
          "component": "fastapi",
          "http.method": "GET",
          "http.status_code": "200",
@@ -64,7 +64,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": ""
+            "_dd.base_service": "ddtrace_subprocess_dir"
           },
           "duration": 19000,
           "start": 1709362581778610000

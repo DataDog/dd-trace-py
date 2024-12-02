@@ -27,7 +27,7 @@ function profile {
 
 source ${PREFIX}/bin/activate
 
-profile "v0.3"
+profile "v0.4"
 profile "v0.5"
 
 sudo chown -R $(id -u):$(id -g) ${PREFIX}/artifacts/*

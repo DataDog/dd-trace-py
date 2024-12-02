@@ -8,7 +8,7 @@ import threading
 import typing
 import weakref
 
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 log = logging.getLogger(__name__)

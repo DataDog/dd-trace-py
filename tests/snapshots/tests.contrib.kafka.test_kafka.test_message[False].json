@@ -9,10 +9,11 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.kafka",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "kafka",
+      "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.message_key": "test_key",
       "kafka.tombstone": "False",
       "kafka.topic": "test_message_False",

@@ -6,13 +6,13 @@ import bm
 
 
 class DDtraceRun(bm.Scenario):
-    ddtrace_run = bm.var_bool()
-    http = bm.var_bool()
-    runtimemetrics = bm.var_bool()
-    telemetry = bm.var_bool()
-    profiling = bm.var_bool()
-    appsec = bm.var_bool()
-    tracing = bm.var_bool()
+    ddtrace_run: bool
+    http: bool
+    runtimemetrics: bool
+    telemetry: bool
+    profiling: bool
+    appsec: bool
+    tracing: bool
 
     def run(self):
         # setup subprocess environment variables

@@ -15,6 +15,7 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+from ddtrace.internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
@@ -28,6 +29,7 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_SAMPLED
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SPAN_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
+from ddtrace.propagation.http import _HTTP_HEADER_BAGGAGE
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 from ddtrace.propagation.http import _HTTP_HEADER_TRACEPARENT
 from ddtrace.propagation.http import _HTTP_HEADER_TRACESTATE
@@ -36,10 +38,12 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.propagation.http import _TraceContext
-from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
-from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
-from tests.contrib.fastapi.test_fastapi import tracer  # noqa:F401
+from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
+from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
+from tests.contrib.fastapi.conftest import test_spans as fastapi_test_spans  # noqa:F401
+from tests.contrib.fastapi.conftest import tracer  # noqa:F401
 
 from ..utils import override_global_config
 
@@ -65,9 +69,9 @@ def test_inject(tracer):  # noqa: F811
 
 
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
-    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+    with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
-        ctx._set_baggage_item("key1", "val1")
+        ctx.set_baggage_item("key1", "val1")
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
             headers = {}
@@ -281,6 +285,7 @@ def test_extract(tracer):  # noqa: F811
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.test=value,any=tag",
         "ot-baggage-key1": "value1",
+        "baggage": "foo=bar,raccoon=cute,serverNode=DF%2028",
     }
 
     context = HTTPPropagator.extract(headers)
@@ -307,10 +312,21 @@ def test_extract(tracer):  # noqa: F811
                 "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
+        assert context.get_baggage_item("foo") == "bar"
+        assert context.get_baggage_item("raccoon") == "cute"
+        assert context.get_baggage_item("serverNode") == "DF 28"
+        assert len(context.get_all_baggage_items()) == 3
 
 
-def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(tracer):  # noqa: F811
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
+def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
+    tracer, appsec_enabled, iast_enabled  # noqa: F811
+):
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         headers = {
             "x-datadog-trace-id": "1234",
@@ -354,8 +370,15 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(t
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
-def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(tracer):  # noqa: F811
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
+def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
+    tracer, appsec_enabled, iast_enabled  # noqa: F811
+):
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -420,10 +443,15 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
-    tracer,  # noqa: F811
+    tracer, appsec_enabled, iast_enabled  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -518,10 +546,15 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_user_keep(
-    tracer, upstream_priority  # noqa: F811
+    tracer, upstream_priority, appsec_enabled, iast_enabled  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -577,10 +610,15 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_force_keep(
-    tracer, upstream_priority  # noqa: F811
+    tracer, upstream_priority, appsec_enabled, iast_enabled  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -636,7 +674,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
 
 
 def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
-    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+    with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         headers = {
             "x-datadog-trace-id": "1234",
             "x-datadog-parent-id": "5678",
@@ -648,9 +686,9 @@ def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
         tracer.context_provider.activate(context)
 
         with tracer.trace("local_root_span") as span:
-            assert span._get_baggage_item("key1") == "value1"
+            assert span.context.get_baggage_item("key1") == "value1"
             with tracer.trace("child_span") as child_span:
-                assert child_span._get_baggage_item("key1") == "value1"
+                assert child_span.context.get_baggage_item("key1") == "value1"
 
 
 @pytest.mark.subprocess(
@@ -1282,7 +1320,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 None,
-                "0000000000000000",
+                None,
             ),
             None,
             None,
@@ -1295,7 +1333,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (  # "ts_string,expected_tuple,expected_logging,expected_exception",
             "dd=foo|bar:hi|l¢¢¢¢¢¢:",
-            (None, {}, None, "0000000000000000"),
+            (None, {}, None, None),
             None,
             None,
         ),
@@ -1373,7 +1411,6 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.origin": "rum",
-                    LAST_DD_PARENT_ID_KEY: "0000000000000000",
                     "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
                 },
                 "metrics": {"_sampling_priority_v1": 2},
@@ -2175,7 +2212,6 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "meta": {
                 "tracestate": "dd=o:rum",
                 "traceparent": TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION[_HTTP_HEADER_TRACEPARENT],
-                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
         },
     ),
@@ -2329,7 +2365,6 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[],
@@ -2356,7 +2391,6 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -2390,7 +2424,6 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -2499,14 +2532,16 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_t
 
     spans = fastapi_test_spans.pop_traces()
     assert spans[0][0].name == "fastapi.request"
-    assert spans[0][0]._links.get(67667974448284343) == SpanLink(
-        trace_id=171395628812617415352188477958425669623,
-        span_id=67667974448284343,
-        tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
-        flags=1,
-        attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
-    )
-    assert spans[0][1]._links == {}
+    assert [link for link in spans[0][0]._links if link.span_id == 67667974448284343] == [
+        SpanLink(
+            trace_id=171395628812617415352188477958425669623,
+            span_id=67667974448284343,
+            tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+            flags=1,
+            attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
+        )
+    ]
+    assert spans[0][1]._links == []
     assert spans[0][1].context._span_links == []
 
 
@@ -2841,8 +2876,15 @@ INJECT_FIXTURES = [
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
             _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            _PROPAGATION_STYLE_BAGGAGE,
         ],
-        VALID_DATADOG_CONTEXT,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 8185124618007618416,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+            "baggage": {"foo": "bar"},
+        },
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
@@ -2854,6 +2896,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
             _HTTP_HEADER_TRACESTATE: "dd=s:1;o:synthetics",
+            _HTTP_HEADER_BAGGAGE: "foo=bar",
         },
     ),
     (
@@ -2911,6 +2954,60 @@ INJECT_FIXTURES = [
             "span_id": VALID_DATADOG_CONTEXT["span_id"],
         },
         {
+            HTTP_HEADER_TRACE_ID: "13088165645273925489",
+            HTTP_HEADER_PARENT_ID: "8185124618007618416",
+            _HTTP_HEADER_B3_TRACE_ID: "b5a2814f70060771",
+            _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
+            _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370",
+            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
+            _HTTP_HEADER_TRACESTATE: "",
+        },
+    ),
+    (
+        "only_baggage",
+        [
+            _PROPAGATION_STYLE_BAGGAGE,
+        ],
+        {
+            "baggage": {"foo": "bar"},
+        },
+        {
+            _HTTP_HEADER_BAGGAGE: "foo=bar",
+        },
+    ),
+    (
+        "baggage_and_datadog",
+        [
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_BAGGAGE,
+        ],
+        {
+            "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
+            "span_id": VALID_DATADOG_CONTEXT["span_id"],
+            "baggage": {"foo": "bar"},
+        },
+        {
+            HTTP_HEADER_TRACE_ID: "13088165645273925489",
+            HTTP_HEADER_PARENT_ID: "8185124618007618416",
+            _HTTP_HEADER_BAGGAGE: "foo=bar",
+        },
+    ),
+    (
+        "baggage_order_first",
+        [
+            _PROPAGATION_STYLE_BAGGAGE,
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_B3_SINGLE,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
+        {
+            "baggage": {"foo": "bar"},
+            "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
+            "span_id": VALID_DATADOG_CONTEXT["span_id"],
+        },
+        {
+            _HTTP_HEADER_BAGGAGE: "foo=bar",
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             _HTTP_HEADER_B3_TRACE_ID: "b5a2814f70060771",
@@ -3042,3 +3139,141 @@ def test_llmobs_parent_id_not_injected_by_default():
         context = Context(trace_id=1, span_id=2)
         HTTPPropagator.inject(context, {})
         mock_llmobs_inject.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "span_context,expected_headers",
+    [
+        (Context(baggage={"key1": "val1"}), {"baggage": "key1=val1"}),
+        (Context(baggage={"key1": "val1", "key2": "val2"}), {"baggage": "key1=val1,key2=val2"}),
+        (Context(baggage={"serverNode": "DF 28"}), {"baggage": "serverNode=DF%2028"}),
+        (Context(baggage={"userId": "Amélie"}), {"baggage": "userId=Am%C3%A9lie"}),
+        (Context(baggage={"user!d(me)": "false"}), {"baggage": "user!d%28me%29=false"}),
+        (
+            Context(baggage={'",;\\()/:<=>?@[]{}': '",;\\'}),
+            {"baggage": "%22%2C%3B%5C%28%29%2F%3A%3C%3D%3E%3F%40%5B%5D%7B%7D=%22%2C%3B%5C"},
+        ),
+    ],
+    ids=[
+        "single_key_value",
+        "multiple_key_value_pairs",
+        "space_in_value",
+        "special_characters_in_value",
+        "special_characters_in_key",
+        "special_characters_in_key_and_value",
+    ],
+)
+def test_baggageheader_inject(span_context, expected_headers):
+    headers = {}
+    _BaggageHeader._inject(span_context, headers)
+    assert headers == expected_headers
+
+
+def test_baggageheader_maxitems_inject():
+    import urllib.parse
+
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    headers = {}
+    baggage_items = {}
+    for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 1):
+        baggage_items[f"key{i}"] = f"val{i}"
+    span_context = Context(baggage=baggage_items)
+    _BaggageHeader._inject(span_context, headers)
+    assert "baggage" in headers
+    header_value = headers["baggage"]
+    items = header_value.split(",")
+    assert len(items) == DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    expected_keys = [f"key{i}" for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS)]
+    for item in items:
+        key, value = item.split("=", 1)
+        key = urllib.parse.unquote(key)
+        assert key in expected_keys
+
+
+def test_baggageheader_maxbytes_inject():
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    headers = {}
+    # baggage item that exceeds the maximum byte size
+    baggage_items = {"foo": "a" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)}
+    span_context = Context(baggage=baggage_items)
+    _BaggageHeader._inject(span_context, headers)
+    # since the baggage item exceeds the max bytes, no header should be injected
+    header_value = headers["baggage"]
+    assert header_value == ""
+
+    # multiple baggage items to test dropping items when the total size exceeds the limit
+    headers = {}
+    baggage_items = {
+        "key1": "a" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key2": "b" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key3": "c" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key4": "d",
+    }
+    span_context = Context(baggage=baggage_items)
+    _BaggageHeader._inject(span_context, headers)
+    header_value = headers["baggage"]
+    header_size = len(header_value.encode("utf-8"))
+    assert header_size <= DD_TRACE_BAGGAGE_MAX_BYTES
+    assert "key4" not in header_value
+    assert "key2" in header_value
+
+
+@pytest.mark.parametrize(
+    "headers,expected_baggage",
+    [
+        ({"baggage": "key1=val1"}, {"key1": "val1"}),
+        ({"baggage": "key1=val1,key2=val2,foo=bar,x=y"}, {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}),
+        ({"baggage": "user!d%28me%29=false"}, {"user!d(me)": "false"}),
+        ({"baggage": "userId=Am%C3%A9lie"}, {"userId": "Amélie"}),
+        ({"baggage": "serverNode=DF%2028"}, {"serverNode": "DF 28"}),
+        (
+            {"baggage": "%22%2C%3B%5C%28%29%2F%3A%3C%3D%3E%3F%40%5B%5D%7B%7D=%22%2C%3B%5C"},
+            {'",;\\()/:<=>?@[]{}': '",;\\'},
+        ),
+    ],
+    ids=[
+        "single_key_value",
+        "multiple_key_value_pairs",
+        "special_characters_in_key",
+        "special_characters_in_value",
+        "space_in_value",
+        "special_characters_in_key_and_value",
+    ],
+)
+def test_baggageheader_extract(headers, expected_baggage):
+    context = _BaggageHeader._extract(headers)
+    assert context._baggage == expected_baggage
+
+
+@pytest.mark.parametrize(
+    "headers,expected_baggage",
+    [
+        ({"baggage": "no-equal-sign,foo=gets-dropped-because-previous-pair-is-malformed"}, {}),
+        ({"baggage": "foo=gets-dropped-because-subsequent-pair-is-malformed,="}, {}),
+        ({"baggage": "=no-key"}, {}),
+        ({"baggage": "no-value="}, {}),
+    ],
+    ids=[
+        "no-equal-sign-prev",
+        "no-equal-sign-subsequent",
+        "no-key",
+        "no-value",
+    ],
+)
+def test_baggage_malformedheader_extract(headers, expected_baggage):
+    context = _BaggageHeader._extract(headers)
+    assert context._baggage == expected_baggage
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"baggage": "key1=val1,key2=val2,foo=bar,x=y"},
+    ],
+)
+def test_http_propagator_baggage_extract(headers):
+    context = HTTPPropagator.extract(headers)
+    assert context._baggage == {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}

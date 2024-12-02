@@ -1,7 +1,7 @@
 [[
   {
     "name": "langchain.request",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "langchain.llms.openai.OpenAI",
     "trace_id": 0,
     "span_id": 1,
@@ -46,7 +46,7 @@
   },
      {
        "name": "openai.request",
-       "service": "unnamed-python-service",
+       "service": "ddtrace_subprocess_dir",
        "resource": "createCompletion",
        "trace_id": 0,
        "span_id": 2,
@@ -58,6 +58,7 @@
          "openai.api_base": "https://api.openai.com/v1",
          "openai.api_type": "open_ai",
          "openai.organization.name": "datadog-4",
+         "openai.request.client": "OpenAI",
          "openai.request.endpoint": "/v1/completions",
          "openai.request.frequency_penalty": "0",
          "openai.request.max_tokens": "256",
@@ -87,7 +88,7 @@
      },
         {
           "name": "http.client.request",
-          "service": "unnamed-python-service",
+          "service": "ddtrace_subprocess_dir",
           "resource": "POST /v1/completions",
           "trace_id": 0,
           "span_id": 3,

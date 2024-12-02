@@ -8,7 +8,7 @@ from bm.iast_utils.ast_patching import destroy_project_structure
 
 
 class IAST_AST_Patching(bm.Scenario):
-    iast_enabled = bm.var_bool()
+    iast_enabled: bool
 
     def run(self):
         try:

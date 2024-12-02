@@ -4,9 +4,9 @@ import bm
 
 
 class RateLimiter(bm.Scenario):
-    rate_limit = bm.var(type=int)
-    time_window = bm.var(type=int)
-    num_windows = bm.var(type=int)
+    rate_limit: int
+    time_window: int
+    num_windows: int
 
     def run(self):
         from ddtrace.internal.compat import time_ns

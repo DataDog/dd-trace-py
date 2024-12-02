@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue where flamegraph was upside down for stack v2,
+      ``DD_PROFILING_STACK_V2_ENABLED``.

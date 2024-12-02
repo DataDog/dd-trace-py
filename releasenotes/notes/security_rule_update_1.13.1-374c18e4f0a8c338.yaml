@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    ASM: Update default security rules to 1.13.1. 
+    This enable Exploit Prevention powered by RASP for LFI and Command Injection by default when ASM is enabled.

@@ -1,7 +1,7 @@
 [[
   {
     "name": "graphql.server.request",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "query HELLO { hello }",
     "trace_id": 0,
     "span_id": 1,
@@ -27,7 +27,7 @@
   },
      {
        "name": "graphql.parse",
-       "service": "unnamed-python-service",
+       "service": "ddtrace_subprocess_dir",
        "resource": "graphql.parse",
        "trace_id": 0,
        "span_id": 2,
@@ -44,7 +44,7 @@
      },
      {
        "name": "graphql.validate",
-       "service": "unnamed-python-service",
+       "service": "ddtrace_subprocess_dir",
        "resource": "graphql.validate",
        "trace_id": 0,
        "span_id": 3,
@@ -61,7 +61,7 @@
      },
      {
        "name": "graphql.execute",
-       "service": "unnamed-python-service",
+       "service": "ddtrace_subprocess_dir",
        "resource": "query HELLO { hello }",
        "trace_id": 0,
        "span_id": 4,

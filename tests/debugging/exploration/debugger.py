@@ -1,3 +1,4 @@
+import atexit
 import os
 import sys
 from types import ModuleType
@@ -16,6 +17,7 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
@@ -139,29 +141,7 @@ class NoopDebuggerRC(object):
         pass
 
 
-class NoopService(object):
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def stop(self):
-        pass
-
-    def start(self):
-        pass
-
-    def join(self):
-        pass
-
-
-class NoopProbePoller(NoopService):
-    pass
-
-
-class NoopLogsIntakeUploader(NoopService):
-    pass
-
-
-class NoopProbeStatusLogger(object):
+class NoopProbeStatusLogger:
     def __init__(self, *args, **kwargs):
         pass
 
@@ -214,13 +194,31 @@ class ExplorationSignalCollector(SignalCollector):
         return self._probes or [None]
 
 
+class NoopLogsIntakeUploader(LogsIntakeUploaderV1):
+    __collector__ = ExplorationSignalCollector
+    _count = 0
+
+    @classmethod
+    def register(cls, _name):
+        if cls._count == 0 and cls._instance is None:
+            cls._instance = cls()
+        cls._count += 1
+
+    @classmethod
+    def unregister(cls, _name):
+        if cls._count <= 0:
+            return
+
+        cls._count -= 1
+        if cls._count == 0 and cls._instance is not None:
+            cls._instance = None
+
+
 class ExplorationDebugger(Debugger):
     __rc__ = NoopDebuggerRC
     __uploader__ = NoopLogsIntakeUploader
-    __collector__ = ExplorationSignalCollector
     __watchdog__ = ModuleCollector
     __logger__ = NoopProbeStatusLogger
-    __poller__ = NoopProbePoller
 
     @classmethod
     def on_disable(cls) -> None:
@@ -238,7 +236,11 @@ class ExplorationDebugger(Debugger):
 
         super(ExplorationDebugger, cls).enable()
 
-        cls._instance._collector.on_snapshot = cls.on_snapshot
+        cls._instance.__uploader__.get_collector().on_snapshot = cls.on_snapshot
+
+        # Register the debugger to be disabled at exit manually because we are
+        # not being managed by the product manager.
+        atexit.register(cls.disable)
 
     @classmethod
     def disable(cls, join: bool = True) -> None:
@@ -268,13 +270,13 @@ class ExplorationDebugger(Debugger):
     def get_snapshots(cls) -> t.List[t.Optional[bytes]]:
         if cls._instance is None:
             return None
-        return cls._instance._collector.snapshots
+        return cls._instance.__uploader__.get_collector().snapshots
 
     @classmethod
     def get_triggered_probes(cls) -> t.List[Probe]:
         if cls._instance is None:
             return None
-        return cls._instance._collector.probes
+        return cls._instance.__uploader__.get_collector().probes
 
     @classmethod
     def add_probe(cls, probe: Probe) -> None:

@@ -14,12 +14,11 @@ from sanic.response import text
 from sanic.server import HttpProtocol
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation import http as http_propagation
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_config
 from tests.utils import override_http_config
 
@@ -154,10 +153,6 @@ else:
     params=[
         dict(),
         dict(service="mysanicsvc"),
-        dict(analytics_enabled=False),
-        dict(analytics_enabled=True),
-        dict(analytics_enabled=True, analytics_sample_rate=0.5),
-        dict(analytics_enabled=False, analytics_sample_rate=0.5),
         dict(distributed_tracing=False),
         dict(http_tag_query_string=True),
         dict(http_tag_query_string=False),
@@ -165,10 +160,6 @@ else:
     ids=[
         "default",
         "service_override",
-        "disable_analytics",
-        "enable_analytics_default_sample_rate",
-        "enable_analytics_custom_sample_rate",
-        "disable_analytics_custom_sample_rate",
         "disable_distributed_tracing",
         "http_tag_query_string_enabled",
         "http_tag_query_string_disabled",
@@ -238,12 +229,6 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
 
     if integration_config.get("http_tag_query_string_disabled"):
         assert re.search(r"/hello$", request_span.get_tag("http.url"))
-
-    if integration_config.get("analytics_enabled"):
-        analytics_sample_rate = integration_config.get("analytics_sample_rate") or 1.0
-        assert request_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == analytics_sample_rate
-    else:
-        assert request_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     if integration_config.get("distributed_tracing", True):
         assert request_span.parent_id == 1234
@@ -442,7 +427,7 @@ def test_service_name_schematization(ddtrace_run_python_code_in_subprocess, sche
     expected_service_name = {
         None: service_name or "sanic",
         "v0": service_name or "sanic",
-        "v1": service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
     code = """
 import asyncio

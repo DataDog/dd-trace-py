@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: This introduces suspicious attacker blocking with libddwaf 1.19.1

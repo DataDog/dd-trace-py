@@ -6,7 +6,6 @@ import sys
 
 import mock
 import pytest
-import six
 
 from ddtrace import Tracer
 from ddtrace.internal.atexit import register_on_exit_signal
@@ -29,7 +28,7 @@ def test_configure_keeps_api_hostname_and_port():
     assert tracer._writer.agent_url == "http://localhost:{}".format("9126" if AGENT_VERSION == "testagent" else "8126")
     tracer.configure(hostname="127.0.0.1", port=8127)
     assert tracer._writer.agent_url == "http://127.0.0.1:8127"
-    tracer.configure(priority_sampling=True)
+    tracer.configure(api_version="v0.5")
     assert (
         tracer._writer.agent_url == "http://127.0.0.1:8127"
     ), "Previous overrides of hostname and port are retained after a configure() call without those arguments"
@@ -71,8 +70,8 @@ def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_i
 import ddtrace
 """.lstrip()
     )
-    assert err == six.b("")
-    assert out == six.b("")
+    assert err == b""
+    assert out == b""
     assert status == 0
 
 
@@ -89,8 +88,8 @@ t.start()
 t.join()
 """.lstrip()
     )
-    assert err == six.b("")
-    assert out == six.b("")
+    assert err == b""
+    assert out == b""
     assert status == 0
 
 
@@ -198,7 +197,8 @@ def test_resource_name_too_large():
         s.finish()
     except ValueError:
         pytest.fail()
-    encoded_spans = t._writer._encoder.encode()
+    encoded_spans, size = t._writer._encoder.encode()
+    assert size == 1
     assert b"<dropped string of length 410 because it's too long (max allowed length 409)>" in encoded_spans
 
 
@@ -246,7 +246,7 @@ def test_metrics():
 
     assert t._partial_flush_min_spans == 300
 
-    with override_global_config(dict(health_metrics_enabled=True)):
+    with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -296,7 +296,7 @@ def test_metrics_partial_flush_disabled():
         partial_flush_enabled=False,
     )
 
-    with override_global_config(dict(health_metrics_enabled=True)):
+    with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -551,7 +551,7 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
-            return "bad_payload"
+            return "bad_payload", 1
 
         def encode_traces(self, traces):
             return "bad_payload"
@@ -583,17 +583,16 @@ def test_trace_with_failing_encoder_generates_error_log():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings(err=None)
+@pytest.mark.subprocess(err=None)
 def test_api_version_downgrade_generates_no_warning_logs():
-    import os
-
     import mock
 
     from ddtrace import tracer as t
+    from ddtrace.internal.utils.http import Response
 
-    encoding = os.environ["DD_TRACE_API_VERSION"] or "v0.5"
-    t._writer._downgrade(None, None, t._writer._clients[0])
-    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding]
+    t._writer.api_version = "v0.5"
+    t._writer._downgrade(Response(status=404), t._writer._clients[0])
+    assert t._writer._endpoint == "v0.4/traces"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("operation", service="my-svc").finish()
         t.shutdown()
@@ -626,15 +625,13 @@ def test_writer_flush_queue_generates_debug_log():
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         writer.write([])
         writer.flush_queue(raise_exc=True)
-        # for latest agent, default to v0.3 since no priority sampler is set
-        expected_encoding = encoding or "v0.3"
         calls = [
             mock.call(
                 logging.DEBUG,
                 "sent %s in %.5fs to %s",
                 AnyStr(),
                 AnyFloat(),
-                "{}/{}/traces".format(writer.agent_url, expected_encoding),
+                "{}/{}/traces".format(writer.agent_url, encoding),
             )
         ]
         log.log.assert_has_calls(calls)
@@ -766,7 +763,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     assert out == b"", "an empty program should generate no logs under ddtrace-run"
 
     assert (
-        b"[dd.service= dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
+        b"[dd.service=ddtrace_subprocess_dir dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
     ), "stderr should contain debug output when DD_TRACE_DEBUG is set"
 
     assert b"KeyError: 'dd.service'" not in err, "stderr should not contain any exception logs"
@@ -775,6 +772,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     ), "stderr should not contain any exception logs"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
 def test_no_warnings_when_Wall():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

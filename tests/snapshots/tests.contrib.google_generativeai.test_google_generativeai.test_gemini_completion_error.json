@@ -1,0 +1,35 @@
+[[
+  {
+    "name": "gemini.request",
+    "service": "tests.contrib.google_generativeai",
+    "resource": "GenerativeModel.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66e1da0a00000000",
+      "error.message": "400 Invalid API key. Please pass a valid API key.",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/google_generativeai/patch.py\", line 49, in traced_generate\n    generations = func(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_google-generativeai_pillow/lib/python3.10/site-packages/google/generativeai/generative_models.py\", line 331, in generate_content\n    response = self._client.generate_content(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_google-generativeai_pillow/lib/python3.10/site-packages/mock/mock.py\", line 1178, in __call__\n    return _mock_self._mock_call(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_google-generativeai_pillow/lib/python3.10/site-packages/mock/mock.py\", line 1182, in _mock_call\n    return _mock_self._execute_mock_call(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_google-generativeai_pillow/lib/python3.10/site-packages/mock/mock.py\", line 1239, in _execute_mock_call\n    raise effect\ngoogle.api_core.exceptions.InvalidArgument: 400 Invalid API key. Please pass a valid API key.\n",
+      "error.type": "google.api_core.exceptions.InvalidArgument",
+      "google_generativeai.request.contents.0.text": "What is the argument for LeBron James being the GOAT?",
+      "google_generativeai.request.generation_config.max_output_tokens": "30",
+      "google_generativeai.request.generation_config.stop_sequences": "['x']",
+      "google_generativeai.request.generation_config.temperature": "1.0",
+      "google_generativeai.request.model": "gemini-1.5-flash",
+      "google_generativeai.request.provider": "google",
+      "language": "python",
+      "runtime-id": "bd8636b7d4bb4b3abc2d4bc7129ec109"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 7954
+    },
+    "duration": 2178000,
+    "start": 1726077450617086000
+  }]]

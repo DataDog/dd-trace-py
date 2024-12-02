@@ -1,52 +1,14 @@
-import os
-
-import falcon
-
-from ddtrace import config
-from ddtrace import tracer
-from ddtrace.vendor import wrapt
-
-from ...internal.utils.formats import asbool
-from ...internal.utils.version import parse_version
-from .middleware import TraceMiddleware
+from ddtrace.contrib.internal.falcon.patch import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-FALCON_VERSION = parse_version(falcon.__version__)
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-
-config._add(
-    "falcon",
-    dict(
-        distributed_tracing=asbool(os.getenv("DD_FALCON_DISTRIBUTED_TRACING", default=True)),
-    ),
-)
-
-
-def get_version():
-    # type: () -> str
-    return getattr(falcon, "__version__", "")
-
-
-def patch():
-    """
-    Patch falcon.API to include contrib.falcon.TraceMiddleware
-    by default
-    """
-    if getattr(falcon, "_datadog_patch", False):
-        return
-
-    falcon._datadog_patch = True
-    if FALCON_VERSION >= (3, 0, 0):
-        wrapt.wrap_function_wrapper("falcon", "App.__init__", traced_init)
-    if FALCON_VERSION < (4, 0, 0):
-        wrapt.wrap_function_wrapper("falcon", "API.__init__", traced_init)
-
-
-def traced_init(wrapped, instance, args, kwargs):
-    mw = kwargs.pop("middleware", [])
-    service = config._get_service(default="falcon")
-
-    mw.insert(0, TraceMiddleware(tracer, service))
-    kwargs["middleware"] = mw
-
-    wrapped(*args, **kwargs)
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

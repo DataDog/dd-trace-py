@@ -10,8 +10,7 @@ The best way to suggest a change to the library is to open a
 You may also consider opening an `issue <https://github.com/DataDog/dd-trace-py/issues>`_
 if you'd like to report a bug or request a new feature.
 
-Before working on the library, install `docker <https://www.docker.com/products/docker>`_
-and `docker-compose <https://www.docker.com/products/docker-compose>`_.
+Before working on the library, install `docker <https://www.docker.com/products/docker>`_.
 
 Thanks for working with us!
 

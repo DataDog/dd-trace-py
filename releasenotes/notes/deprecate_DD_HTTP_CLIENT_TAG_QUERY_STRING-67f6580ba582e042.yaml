@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracing: ``DD_HTTP_CLIENT_TAG_QUERY_STRING`` configuration is deprecated and will be removed in v3.0.0. Use ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING`` instead.

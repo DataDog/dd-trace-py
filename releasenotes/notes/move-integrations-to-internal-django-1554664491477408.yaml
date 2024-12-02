@@ -1,0 +1,12 @@
+---
+deprecations:
+  - |
+    django: Deprecates all modules in the ``ddtrace.contrib.django`` package. Use attributes exposed in ``ddtrace.contrib.django.__all__`` instead.
+  - |
+    dogpile_cache: Deprecates all modules in the ``ddtrace.contrib.dogpile_cache`` package. Use attributes exposed in ``ddtrace.contrib.dogpile_cache.__all__`` instead.
+  - |
+    dramatiq: Deprecates all modules in the ``ddtrace.contrib.dramatiq`` package. Use attributes exposed in ``ddtrace.contrib.dramatiq.__all__`` instead.
+  - |
+    elasticsearch: Deprecates all modules in the ``ddtrace.contrib.elasticsearch`` package. Use attributes exposed in ``ddtrace.contrib.elasticsearch.__all__`` instead.
+  - |
+    falcon: Deprecates all modules in the ``ddtrace.contrib.falcon`` package. Use attributes exposed in ``ddtrace.contrib.falcon.__all__`` instead.

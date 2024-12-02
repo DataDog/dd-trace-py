@@ -3,16 +3,15 @@ import os
 import mock
 import pytest
 
-import ddtrace
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
@@ -30,15 +29,16 @@ def _dummy_check_enabled_features():
     """
     with mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-        return_value=_CIVisibilitySettings(False, False, False, False),
+        return_value=TestVisibilityAPISettings(False, False, False, False),
     ):
         yield
 
 
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
 def test_civisibility_intake_with_evp_available():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="0")):
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+    with override_env(
+        dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="0")
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
         t = Tracer()
         CIVisibility.enable(tracer=t)
         assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
@@ -53,8 +53,9 @@ def test_civisibility_intake_with_evp_available():
 def test_civisibility_intake_with_missing_apikey():
     with override_env(dict(DD_SITE="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")):
         with mock.patch.object(CIVisibility, "__init__", return_value=None) as mock_CIVisibility_init:
-            with mock.patch.object(CIVisibility, "start") as mock_CIVisibility_start:
-                ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+            with mock.patch.object(CIVisibility, "start") as mock_CIVisibility_start, mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+            ):
                 CIVisibility.enable()
                 assert CIVisibility.enabled is False
                 assert CIVisibility._instance is None
@@ -63,8 +64,9 @@ def test_civisibility_intake_with_missing_apikey():
 
 
 def test_civisibility_intake_with_apikey():
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")):
-        ddtrace.internal.ci_visibility.recorder.ddconfig = _get_default_civisibility_ddconfig()
+    with override_env(
+        dict(DD_API_KEY="foobar.baz", DD_SITE="foo.bar", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
         t = Tracer()
         CIVisibility.enable(tracer=t)
         assert CIVisibility._instance.tracer._writer._endpoint == AGENTLESS_ENDPOINT

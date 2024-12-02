@@ -1,16 +1,20 @@
 import ast
 import base64
 import contextlib
+import functools
 import importlib
 from itertools import product
 import json
 import os
 from os.path import split
 from os.path import splitext
+import platform
 import random
+import shutil
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
+from tempfile import gettempdir
 import time
 from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
@@ -26,8 +30,10 @@ import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
@@ -43,6 +49,66 @@ from tests.utils import snapshot_context as _snapshot_context
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
 
+DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
+
+
+# Hack to try and capture more logging data from pytest failing on `internal` jobs on
+# pytest shutdown. This is a temporary workaround until we can figure out... why....
+# https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/68751/workflows/8939123d-e0bf-4fd5-a4f2-2368eb9fc141/jobs/4201092
+# OSError: [Errno 9] Bad file descriptor
+if os.environ.get("CI") == "true":
+    try:
+        from _pytest.capture import FDCapture
+
+        original_done = FDCapture.done
+
+        @functools.wraps(FDCapture.done)
+        def wrapped_done(self) -> None:
+            try:
+                original_done(self)
+            except Exception as e:
+                import traceback
+
+                # Write to stderr since pytest captures and hides stdout by default
+                sys.stderr.write("Failed to close FDCapture: %s\n" % e)
+                traceback.print_exc()
+
+                sys.stderr.write(f"FDCapture: {self!r}\n")
+                for name in ("_state", "tmpfile", "syscapture", "targetfd", "targetfd_save", "targetfd_invalid"):
+                    value = "<unknown>"
+                    try:
+                        value = getattr(self, name, "<unknown>")
+                    except Exception:
+                        pass
+                    sys.stderr.write(f"FDCapture.{name}: {value!r}\n")
+
+                for name in ("targetfd", "targetfd_save", "targetfd_invalid"):
+                    try:
+                        # Try to see if the file descriptor is valid, and if so print the file name from /proc/self/fd
+                        fd = getattr(self, name)
+                        if fd is not None:
+                            try:
+                                fd_path = os.readlink(f"/proc/self/fd/{fd}")
+                                sys.stderr.write(f"FDCapture.{name} path: {fd_path!r}\n")
+                            except Exception:
+                                sys.stderr.write(f"FDCapture.{name} path: unknown or invalid\n")
+                        else:
+                            sys.stderr.write(f"FD: {name} is None\n")
+                    except Exception as e:
+                        sys.stderr.write(f"Failed to get FDCapture.{name}, error: {e}\n")
+                sys.stderr.flush()
+
+                # Try to mark the state as done anyways....
+                try:
+                    self._state = "done"
+                except Exception:
+                    pass
+
+        FDCapture.done = wrapped_done
+    except Exception as e:
+        print("Failed to wrap FDCapture", e)
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "snapshot(*args, **kwargs): mark test to run as a snapshot test which sends traces to the test agent"
@@ -52,6 +118,21 @@ def pytest_configure(config):
 @pytest.fixture
 def use_global_tracer():
     yield False
+
+
+@pytest.fixture
+def auto_enable_crashtracking():
+    # Crashtracking is only supported on linux right now
+    # TODO: Default to `True` when Windows and Darwin are supported
+    yield platform.system() == "Linux"
+
+
+@pytest.fixture(autouse=True)
+def enable_crashtracking(auto_enable_crashtracking):
+    if auto_enable_crashtracking:
+        crashtracking.start()
+        assert crashtracking.is_started()
+    yield
 
 
 @pytest.fixture
@@ -80,10 +161,41 @@ def clear_context_after_every_test():
         _DD_CONTEXTVAR.set(None)
 
 
+def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
+    # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
+    # inferred path service name as a fallback to DD_SERVICE
+    ddtrace_dir = tmpdir.join(DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
+    if not ddtrace_dir.exists():
+        ddtrace_dir.mkdir()
+
+    # Check for __init__.py and create it if it doesn't exist
+    # The first dir without an init file aka 'ddtrace_subprocess_dir' will be our service name
+    init_file = ddtrace_dir.join("__init__.py")
+    if not init_file.exists():
+        init_file.write("")  # Create an empty __init__.py file
+
+    pyfile = ddtrace_dir.join("test.py")
+    return pyfile
+
+
+@pytest.fixture
+def ddtrace_tmp_path(tmp_path):
+    # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
+    ddtrace_dir = tmp_path / DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+    ddtrace_dir.mkdir(exist_ok=True)  # Create the directory if it doesn't exist
+
+    # Check for __init__.py and create it if it doesn't exist
+    init_file = ddtrace_dir / "__init__.py"
+    if not init_file.exists():
+        init_file.write_text("")  # Create an empty __init__.py file
+
+    return ddtrace_dir
+
+
 @pytest.fixture
 def run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
-        pyfile = tmpdir.join("test.py")
+        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
         return call_program(sys.executable, str(pyfile), **kwargs)
 
@@ -93,7 +205,7 @@ def run_python_code_in_subprocess(tmpdir):
 @pytest.fixture
 def ddtrace_run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
-        pyfile = tmpdir.join("test.py")
+        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
         return call_program("ddtrace-run", sys.executable, str(pyfile), **kwargs)
 
@@ -103,7 +215,6 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
-    assert len(marks) < 2, "Multiple snapshot marks detected"
     if marks and os.getenv("DD_SNAPSHOT_ENABLED", "1") == "1":
         snap = marks[0]
         token = snap.kwargs.get("token")
@@ -202,6 +313,7 @@ def run_function_from_file(item, params=None):
     args = [sys.executable]
 
     timeout = marker.kwargs.get("timeout", None)
+    check_logs = marker.kwargs.get("check_logs", True)
 
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
@@ -230,44 +342,62 @@ def run_function_from_file(item, params=None):
     expected_out = marker.kwargs.get("out", "")
     expected_err = marker.kwargs.get("err", "")
 
-    with NamedTemporaryFile(mode="wb", suffix=".pyc") as fp:
-        dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
+    # Create a temporary dir named `ddtrace_subprocess_dir` that will be used for service naming
+    # consistency
+    temp_dir = gettempdir()
+    custom_temp_dir = os.path.join(temp_dir, DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
 
-        # If running a module with -m, we change directory to the module's
-        # folder and run the module directly.
-        if run_module:
-            cwd, module = split(splitext(fp.name)[0])
-            args.append(module)
-        else:
-            cwd = None
-            args.append(fp.name)
+    os.makedirs(custom_temp_dir, exist_ok=True)
 
-        # Add any extra requested args
-        args.extend(marker.kwargs.get("args", []))
+    try:
+        with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
+            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
 
-        def _subprocess_wrapper():
-            out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
+            # If running a module with -m, we change directory to the module's
+            # folder and run the module directly.
+            if run_module:
+                cwd, module = split(splitext(fp.name)[0])
+                args.append(module)
+            else:
+                cwd = None
+                args.append(fp.name)
 
-            xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
-            if xfailed:
-                pytest.xfail("subprocess test resulted in XFail")
-                return
+            # Add any extra requested args
+            args.extend(marker.kwargs.get("args", []))
 
-            if status != expected_status:
-                raise AssertionError(
-                    "Expected status %s, got %s."
-                    "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                    "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                    % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
-                )
+            def _subprocess_wrapper():
+                out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
-            if not is_stream_ok(out, expected_out):
-                raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
+                if xfailed:
+                    pytest.xfail("subprocess test resulted in XFail")
+                    return
 
-            if not is_stream_ok(err, expected_err):
-                raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+                if status != expected_status:
+                    raise AssertionError(
+                        "Expected status %s, got %s."
+                        "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                        "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                        % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
+                    )
 
-        return _subprocess_wrapper()
+                if not is_stream_ok(out, expected_out):
+                    if check_logs:
+                        raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                    else:
+                        pytest.xfail("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+
+                if not is_stream_ok(err, expected_err):
+                    if check_logs:
+                        raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+                    else:
+                        pytest.xfail("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+
+            return _subprocess_wrapper()
+    finally:
+        # Clean up the temporary directory
+        if os.path.exists(custom_temp_dir):
+            shutil.rmtree(custom_temp_dir)
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -420,11 +550,6 @@ def remote_config_worker():
 
 
 @pytest.fixture
-def filter_heartbeat_events():
-    yield True
-
-
-@pytest.fixture
 def telemetry_writer():
     # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
     # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
@@ -444,11 +569,9 @@ def telemetry_writer():
 
 
 class TelemetryTestSession(object):
-    def __init__(self, token, telemetry_writer, filter_heartbeats) -> None:
+    def __init__(self, token, telemetry_writer) -> None:
         self.token = token
         self.telemetry_writer = telemetry_writer
-        self.filter_heartbeats = filter_heartbeats
-        self.gotten_events = dict()
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
@@ -475,10 +598,9 @@ class TelemetryTestSession(object):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to clear session: %s" % self.token)
-        self.gotten_events = dict()
         return True
 
-    def get_requests(self, request_type=None):
+    def get_requests(self, request_type=None, filter_heartbeats=True):
         """Get a list of the requests sent to the test agent
 
         Results are in reverse order by ``seq_id``
@@ -489,44 +611,68 @@ class TelemetryTestSession(object):
             pytest.fail("Failed to fetch session requests: %s %s %s" % (self.create_connection(), status, self.token))
         requests = []
         for req in json.loads(body.decode("utf-8")):
-            body_str = base64.b64decode(req["body"]).decode("utf-8")
-            req["body"] = json.loads(body_str)
+            if "api/v2/apmtelemetry" not in req["url"]:
+                # /test/session/requests captures non telemetry payloads, ignore these requests
+                continue
+            req["body"] = json.loads(base64.b64decode(req["body"]))
             # filter heartbeat requests to reduce noise
-            if req["body"]["request_type"] == "app-heartbeat" and self.filter_heartbeats:
+            if req["body"]["request_type"] == "app-heartbeat" and filter_heartbeats:
                 continue
             if request_type is None or req["body"]["request_type"] == request_type:
                 requests.append(req)
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_events(self, event_type=None):
+    def get_events(self, event_type=None, filter_heartbeats=True, subprocess=False):
         """Get a list of the event payloads sent to the test agent
 
         Results are in reverse order by ``seq_id``
         """
-        status, body = self._request("GET", "/test/session/apmtelemetry?test_session_token=%s" % self.token)
-        if status != 200:
-            pytest.fail("Failed to fetch session events: %s" % self.token)
+        requests = self.get_requests(event_type, filter_heartbeats)
+        if subprocess:
+            # Use get_runtime_id to filter telemetry events generated in the current process
+            runtime_id = get_runtime_id()
+            requests = [req for req in requests if req["body"]["runtime_id"] != runtime_id]
+        return [req["body"] for req in requests]
 
-        for req in json.loads(body.decode("utf-8")):
-            # filter heartbeat events to reduce noise
-            if req.get("request_type") == "app-heartbeat" and self.filter_heartbeats:
-                continue
-            if (req["tracer_time"], req["seq_id"]) in self.gotten_events:
-                continue
-            if event_type is None or req["request_type"] == event_type:
-                self.gotten_events[(req["tracer_time"], req["seq_id"])] = req
-        return sorted(self.gotten_events.values(), key=lambda e: e["seq_id"], reverse=True)
+    def get_metrics(self, name=None):
+        metrics = []
+        for event in self.get_events("generate-metrics"):
+            for series in event["payload"]["series"]:
+                if name is None or series["metric"] == name:
+                    metrics.append(series)
+        metrics.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+        return metrics
+
+    def get_dependencies(self, name=None):
+        deps = []
+        for event in self.get_events("app-dependencies-loaded"):
+            for dep in event["payload"]["dependencies"]:
+                if name is None or dep["name"] == name:
+                    deps.append(dep)
+        deps.sort(key=lambda x: x["name"], reverse=False)
+        return deps
+
+    def get_configurations(self, name=None, ignores=None):
+        ignores = ignores or []
+        configurations = []
+        events_with_configs = self.get_events("app-started") + self.get_events("app-client-configuration-change")
+        for event in events_with_configs:
+            for c in event["payload"]["configuration"]:
+                if c["name"] == name or (name is None and c["name"] not in ignores):
+                    configurations.append(c)
+        configurations.sort(key=lambda x: x["name"], reverse=False)
+        return configurations
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, filter_heartbeat_events, request):
-    # type: (TelemetryWriter, bool, Any) -> Generator[TelemetryTestSession, None, None]
+def test_agent_session(telemetry_writer, request):
+    # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
-    requests = TelemetryTestSession(token, telemetry_writer, filter_heartbeat_events)
+    requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
     MAX_RETRY = 9
@@ -542,7 +688,14 @@ def test_agent_session(telemetry_writer, filter_heartbeat_events, request):
             time.sleep(pow(exp_time, try_nb))
         finally:
             conn.close()
+
+    p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
     try:
+        # The default environment for the telemetry writer tests disables agentless mode
+        # because the behavior is identical except for the trace URL, endpoint, and
+        # presence of an API key header.
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "0"
         yield requests
     finally:
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()

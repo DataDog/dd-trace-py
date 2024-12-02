@@ -3,6 +3,7 @@ import unittest
 
 from tornado import version_info
 
+import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
@@ -44,7 +45,7 @@ class TestTornadoExecutor(TornadoTestCase):
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
-        assert "tornado-web" == executor_span.service
+        assert ddtrace.config.service == executor_span.service
         assert "tornado.executor.with" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
         assert 0 == executor_span.error
@@ -76,7 +77,7 @@ class TestTornadoExecutor(TornadoTestCase):
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
-        assert "tornado-web" == executor_span.service
+        assert ddtrace.config.service == executor_span.service
         assert "tornado.executor.query" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
         assert 0 == executor_span.error
@@ -108,7 +109,7 @@ class TestTornadoExecutor(TornadoTestCase):
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
-        assert "tornado-web" == executor_span.service
+        assert ddtrace.config.service == executor_span.service
         assert "tornado.executor.with" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
         assert 1 == executor_span.error
@@ -145,7 +146,7 @@ class TestTornadoExecutor(TornadoTestCase):
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
-        assert "tornado-web" == executor_span.service
+        assert ddtrace.config.service == executor_span.service
         assert "tornado.executor.with" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
         assert 0 == executor_span.error
@@ -188,7 +189,7 @@ class TestTornadoExecutor(TornadoTestCase):
         patch(futures=True)
         from concurrent.futures import ThreadPoolExecutor
 
-        from ddtrace.vendor.wrapt import BoundFunctionWrapper
+        from wrapt import BoundFunctionWrapper
 
         fn_wrapper = getattr(ThreadPoolExecutor.submit, "__wrapped__", None)
         assert not isinstance(fn_wrapper, BoundFunctionWrapper)

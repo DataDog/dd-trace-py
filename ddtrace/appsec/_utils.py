@@ -1,3 +1,5 @@
+import logging
+import sys
 from typing import Any
 import uuid
 
@@ -63,6 +65,12 @@ def parse_response_body(raw_body):
         return req_body
 
 
+def _hash_user_id(user_id: str) -> str:
+    import hashlib
+
+    return f"anon_{hashlib.sha256(user_id.encode()).hexdigest()[:32]}"
+
+
 def _safe_userid(user_id):
     try:
         _ = int(user_id)
@@ -108,10 +116,7 @@ class _UserInfoRetriever:
             return user_login
 
         user_login = self.find_in_user_model(self.possible_user_id_fields)
-        if asm_config._automatic_login_events_mode == "extended":
-            return user_login
-
-        return _safe_userid(user_login)
+        return user_login
 
     def get_username(self):
         username = getattr(self.user, asm_config._user_model_name_field, None)
@@ -140,7 +145,7 @@ class _UserInfoRetriever:
 
         return self.find_in_user_model(self.possible_name_fields)
 
-    def get_user_info(self):
+    def get_user_info(self, login=False, email=False, name=False):
         """
         In safe mode, try to get the user id from the user object.
         In extended mode, try to also get the username (which will be the returned user_id),
@@ -149,19 +154,15 @@ class _UserInfoRetriever:
         user_extra_info = {}
 
         user_id = self.get_userid()
-        if asm_config._automatic_login_events_mode == "extended":
-            if not user_id:
-                user_id = self.find_in_user_model(self.possible_user_id_fields)
-
-            user_extra_info = {
-                "login": self.get_username(),
-                "email": self.get_user_email(),
-                "name": self.get_name(),
-            }
-
         if not user_id:
             return None, {}
 
+        if login:
+            user_extra_info["login"] = self.get_username()
+        if email:
+            user_extra_info["email"] = self.get_user_email()
+        if name:
+            user_extra_info["name"] = self.get_name()
         return user_id, user_extra_info
 
 
@@ -183,3 +184,10 @@ def get_triggers(span) -> Any:
         except Exception:
             log.debug("Failed to parse triggers", exc_info=True)
     return None
+
+
+def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
+    if sys.version_info < (3, 8):
+        return msg
+    filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
+    return f"{msg}[{filename}, line {line_number}, in {function_name}]"

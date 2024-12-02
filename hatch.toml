@@ -1,8 +1,3 @@
-[env]
-requires = [
-    "hatch-containers==0.7.0",
-]
-
 [envs.lint]
 detached = true
 python = "3.10"
@@ -10,28 +5,31 @@ dependencies = [
     "black==23.10.1",
     "click==8.1.7",
     "cython-lint==0.15.0",
-    "codespell==2.1.0",
+    "codespell==2.3.0",
     "bandit==1.7.5",
     "mypy==0.991",
     "coverage==7.3.0",
-    "envier==0.5.1",
-    "types-attrs==19.1.0",
+    "envier==0.5.2",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
     "types-PyYAML==6.0.12.2",
     "types-setuptools==65.6.0.0",
-    "types-six==1.16.21.4",
     "ddapm-test-agent>=1.2.0",
     "packaging==23.1",
     "pygments==2.16.1",
-    "riot==0.19.0",
+    "riot==0.20.0",
     "ruff==0.1.3",
     "clang-format==18.1.5",
+    "cmake-format==0.6.13",
+    "ruamel.yaml==0.18.6",
 ]
 
 [envs.lint.scripts]
 black_check = [
     "black --check {args:.}",
+]
+cmakeformat_check = [
+    "bash scripts/cmake-format.sh"
 ]
 cformat_check = [
     "bash scripts/cformat.sh"
@@ -41,14 +39,25 @@ style = [
     "ruff check {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
+    "cmakeformat_check",
 ]
 fmt = [
     "black {args:.}",
     "ruff --fix {args:.}",
     "style",
 ]
+# checks should encapsulate all rules used in pre-check
+checks = [
+    "style",
+    "typing",
+    "spelling",
+    "riot",
+    "security",
+    "test",
+    "suitespec-check",
+]
 spelling = [
-    "codespell --skip='ddwaf.h,*cassettes*' {args:ddtrace/ tests/ releasenotes/ docs/}",
+    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
     "mypy {args}",
@@ -72,18 +81,13 @@ dev-mode = false
 python = "3.10"
 features = ["opentracing"]
 dependencies = [  # copied from library dependencies
-    "ddsketch>=3.0.0",
     "protobuf>=3",
-    "attrs>=20",
-    "cattrs",
-    "six>=1.12.0",
     "typing_extensions",
     "xmltodict>=0.12",
-    "envier",
+    "envier==0.5.2",
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
     "bytecode",
-    "six>=1.12.0",
 ]
 extra-dependencies = [
     "reno[sphinx]~=3.5.0",
@@ -111,10 +115,6 @@ build = [
     "scripts/docs/build.sh",
 ]
 
-[envs.docs.overrides]
-# Local MacOS development requires Docker containers
-platform.macos.type = { value = "container" }
-
 [envs.slotscheck]
 template = "slotscheck"
 python = "3.10"
@@ -134,6 +134,7 @@ detached = true
 python = "3.10"
 extra-dependencies = [
     "packaging==23.1",
+    "ruamel.yaml==0.18.6",
 ]
 
 [envs.scripts.scripts]
@@ -142,6 +143,7 @@ test = [
 ]
 
 [envs.meta-testing]
+python = "3.10"
 extra-dependencies = [
     "pytest",
     "pytest-cov",
@@ -184,20 +186,23 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 template = "appsec_threats_django"
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
     "django{matrix:django}"
 ]
 
+[envs.appsec_threats_django.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
 [envs.appsec_threats_django.scripts]
 test = [
+    "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
 ]
 
-# python 3.12 should replace 3.11 in this list, but installation is failing on 3.12
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_django.matrix]]
@@ -213,12 +218,12 @@ python = ["3.8", "3.10"]
 django = ["==4.0.10"]
 
 [[envs.appsec_threats_django.matrix]]
-python = ["3.8", "3.10", "3.11"]
+python = ["3.8", "3.10", "3.12"]
 django = ["~=4.2"]
 
 [[envs.appsec_threats_django.matrix]]
-python = ["3.10", "3.11"]
-django = ["~=5.0"]
+python = ["3.10", "3.12"]
+django = ["~=5.1"]
 
 
 ## ASM Flask
@@ -227,7 +232,7 @@ django = ["~=5.0"]
 template = "appsec_threats_flask"
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
     "MarkupSafe{matrix:markupsafe:}",
@@ -235,14 +240,17 @@ dependencies = [
     "flask{matrix:flask}"
 ]
 
+[envs.appsec_threats_flask.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
 [envs.appsec_threats_flask.scripts]
 test = [
+    "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
 ]
 
-# python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_flask.matrix]]
@@ -256,12 +264,32 @@ flask = ["==2.1.3"]
 werkzeug = ["<3.0"]
 
 [[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.9", "3.11"]
+python = ["3.8", "3.9", "3.12"]
 flask = ["~=2.3"]
 
 [[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.10", "3.11"]
+python = ["3.8", "3.10", "3.12"]
 flask = ["~=3.0"]
+
+## ASM Native IAST module
+
+[envs.appsec_iast_native]
+template = "appsec_iast_native"
+dependencies = [
+    "cmake",
+    "pybind11",
+    "clang"
+]
+
+[envs.appsec_iast_native.scripts]
+test = [
+    "cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking",
+    "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests",
+    "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests"
+]
+
+[[envs.appsec_iast_native.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 
 ## ASM FastAPI
 
@@ -269,22 +297,25 @@ flask = ["~=3.0"]
 template = "appsec_threats_fastapi"
 dependencies = [
     "pytest",
-    "pytest-coverage",
+    "pytest-cov",
     "requests",
     "hypothesis",
-    "httpx",
+    "httpx<0.28.0",
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
 
+[envs.appsec_threats_fastapi.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
 [envs.appsec_threats_fastapi.scripts]
 test = [
+    "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
     "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 
-# python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_fastapi.matrix]]
@@ -293,9 +324,129 @@ fastapi = ["==0.86.0"]
 anyio = ["==3.7.1"]
 
 [[envs.appsec_threats_fastapi.matrix]]
-python = ["3.7", "3.9", "3.11"]
+python = ["3.7", "3.9", "3.12"]
 fastapi = ["==0.94.1"]
 
 [[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.11"]
-fastapi = ["~=0.109"]
+python = ["3.8", "3.10", "3.12"]
+fastapi = ["~=0.114.2"]
+
+
+## ASM Appsec Aggregated Leak Testing
+
+[envs.appsec_aggregated_leak_testing]
+template = "appsec_aggregated_leak_testing"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+    "pytest-asyncio",
+    "anyio",
+    "pydantic",
+    "pydantic-settings",
+]
+
+[envs.appsec_aggregated_leak_testing.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+DD_IAST_ENABLED = "true"
+
+[envs.appsec_aggregated_leak_testing.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+]
+
+[[envs.appsec_aggregated_leak_testing.matrix]]
+python = ["3.10", "3.11", "3.12"]
+
+
+
+## Unit Tests
+
+[envs.ddtrace_unit_tests]
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+]
+
+[envs.ddtrace_unit_tests.env-vars]
+DD_IAST_ENABLED = "false"
+DD_REMOTE_CONFIGURATION_ENABLED = "false"
+CMAKE_BUILD_PARALLEL_LEVEL="6"
+
+[envs.ddtrace_unit_tests.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/internal/service_name/test_extra_services_names.py -vvv -s",
+]
+
+[[envs.ddtrace_unit_tests.matrix]]
+python = ["3.12", "3.10", "3.7"]
+
+# Internal coverage (dd_coverage to distinguish from regular coverage) has version-specific code so tests are run
+# across all supported versions
+[envs.dd_coverage]
+template = "dd_coverage"
+dependencies = [
+    "hypothesis",
+    "pytest",
+    "pytest-cov",
+]
+
+[envs.dd_coverage.scripts]
+test = [
+    "pip freeze",
+    "pytest tests/coverage -s --no-cov {args:}",
+]
+
+[[envs.dd_coverage.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.pytest_plugin_v2]
+template = "pytest_plugin_v2"
+dependencies = [
+    "httpx",
+    "msgpack",
+    "requests",
+    "hypothesis",
+    "pytest{matrix:pytest}",
+    "pytest-cov"
+]
+
+[envs.pytest_plugin_v2.env-vars]
+DD_PYTEST_USE_NEW_PLUGIN_BETA = "true"
+DD_AGENT_PORT = "9126"
+
+[envs.pytest_plugin_v2.scripts]
+test = [
+    "pip freeze",
+    "echo $PYTEST_ADDOPTS",
+    "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {args:}",
+]
+
+[[envs.pytest_plugin_v2.matrix]]
+python = ["3.7"]
+pytest = ["~=6.0", "~=7.0"]
+
+
+[[envs.pytest_plugin_v2.matrix]]
+python = ["3.9", "3.10", "3.12"]
+pytest = ["~=6.0", "~=7.0", "~=8.0"]
+
+[envs.snapshot_viewer]
+dev-mode = false
+detached = true
+template = "snapshot_viewer"
+dependencies = [
+    "PrettyPrintTree"
+]
+
+[envs.snapshot_viewer.scripts]
+view = [
+    "python scripts/ci_visibility/view_snapshot.py {args:}",
+]

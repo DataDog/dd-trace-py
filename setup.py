@@ -42,20 +42,60 @@ HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
+SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
+
 IS_PYSTON = hasattr(sys, "pyston_version_info")
+IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
+CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
+
+BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.18.0"
+LIBDDWAF_VERSION = "1.21.0"
+
+# DEV: update this accordingly when src/core upgrades libdatadog dependency.
+# libdatadog v14.1.0 requires rust 1.76.
+RUST_MINIMUM_VERSION = "1.76"
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
     os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
+
+
+def interpose_sccache():
+    """
+    Injects sccache into the relevant build commands if it's allowed and we think it'll work
+    """
+    if not SCCACHE_COMPILE:
+        return
+
+    # Check for sccache.  We don't do multi-step failover (e.g., if ${SCCACHE_PATH} is set, but the binary is invalid)
+    sccache_path = Path(os.getenv("SCCACHE_PATH", shutil.which("sccache")))
+    if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
+        # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
+        # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
+        # a wrapper
+        os.environ["DD_SCCACHE_PATH"] = str(sccache_path.resolve())
+        os.environ["RUSTC_WRAPPER"] = str(sccache_path.resolve())
+        cc_path = next(
+            (shutil.which(cmd) for cmd in [os.getenv("CC", ""), "cc", "gcc", "clang"] if shutil.which(cmd)), None
+        )
+        if cc_path:
+            os.environ["DD_CC_OLD"] = cc_path
+            os.environ["CC"] = str(HERE / "scripts" / "cc_wrapper.sh")
+
+        cxx_path = next(
+            (shutil.which(cmd) for cmd in [os.getenv("CXX", ""), "c++", "g++", "clang++"] if shutil.which(cmd)), None
+        )
+        if cxx_path:
+            os.environ["DD_CXX_OLD"] = cxx_path
+            os.environ["CXX"] = str(HERE / "scripts" / "cxx_wrapper.sh")
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -230,6 +270,13 @@ class LibDDWafDownload(LibraryDownload):
 
 class LibraryDownloader(BuildPyCommand):
     def run(self):
+        # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
+        # is set to True when the package is being installed in editable mode, which we need to know
+        # for some extensions
+        global IS_EDITABLE
+        if self.editable_mode:
+            IS_EDITABLE = True
+
         CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
@@ -294,22 +341,38 @@ class CMakeBuild(build_ext):
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
-        # Get development paths
-        python_include = sysconfig.get_paths()["include"]
-        python_lib = sysconfig.get_config_var("LIBDIR")
-
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
         cmake_args += [
             "-S{}".format(ext.source_dir),  # cmake>=3.13
             "-B{}".format(cmake_build_dir),  # cmake>=3.13
-            "-DPython3_INCLUDE_DIRS={}".format(python_include),
-            "-DPython3_LIBRARIES={}".format(python_lib),
+            "-DPython3_ROOT_DIR={}".format(sysconfig.get_config_var("prefix")),
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
+
+        if BUILD_PROFILING_NATIVE_TESTS:
+            cmake_args += ["-DBUILD_TESTING=ON"]
+
+        # If it's been enabled, also propagate sccache to the CMake build.  We have to manually set the default CC/CXX
+        # compilers here, because otherwise the way we wrap sccache will conflict with the CMake wrappers
+        sccache_path = os.getenv("DD_SCCACHE_PATH")
+        if sccache_path:
+            cmake_args += [
+                "-DCMAKE_C_COMPILER={}".format(os.getenv("DD_CC_OLD", shutil.which("cc"))),
+                "-DCMAKE_C_COMPILER_LAUNCHER={}".format(sccache_path),
+                "-DCMAKE_CXX_COMPILER={}".format(os.getenv("DD_CXX_OLD", shutil.which("c++"))),
+                "-DCMAKE_CXX_COMPILER_LAUNCHER={}".format(sccache_path),
+            ]
+
+        # If this is an inplace build, propagate this fact to CMake in case it's helpful
+        # In particular, this is needed for build products which are not otherwise managed
+        # by setuptools/distutils
+        if IS_EDITABLE:
+            # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
+            cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(ext.source_dir))
 
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
@@ -370,6 +433,34 @@ class CMakeExtension(Extension):
         self.optional = optional  # If True, cmake errors are ignored
 
 
+def check_rust_toolchain():
+    try:
+        rustc_res = subprocess.run(["rustc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        cargo_res = subprocess.run(["cargo", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if rustc_res.returncode != 0:
+            raise EnvironmentError("rustc required to build Rust extensions")
+        if cargo_res.returncode != 0:
+            raise EnvironmentError("cargo required to build Rust extensions")
+
+        # Now check valid minimum versions.  These are hardcoded for now, but should be canonized in some other way
+        rustc_ver = rustc_res.stdout.decode().split(" ")[1]
+        cargo_ver = cargo_res.stdout.decode().split(" ")[1]
+        if rustc_ver < RUST_MINIMUM_VERSION:
+            raise EnvironmentError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
+        if cargo_ver < RUST_MINIMUM_VERSION:
+            raise EnvironmentError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
+    except FileNotFoundError:
+        raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
+
+
+# Before adding any extensions, check that system pre-requisites are satisfied
+try:
+    check_rust_toolchain()
+except EnvironmentError as e:
+    print(f"{e}")
+    sys.exit(1)
+
+
 def get_exts_for(name):
     try:
         mod = load_module_from_project_file(
@@ -427,13 +518,6 @@ if not IS_PYSTON:
             sources=["ddtrace/internal/_threads.cpp"],
             extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
         ),
-        Extension(
-            "ddtrace.internal.coverage._native",
-            sources=[
-                "ddtrace/internal/coverage/_native.c",
-            ],
-            extra_compile_args=debug_compile_args,
-        ),
     ]
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
@@ -449,16 +533,21 @@ if not IS_PYSTON:
 
         ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
 
-    if platform.system() == "Linux" and is_64_bit_python():
+    if (
+        platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
+    ) and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
-                cmake_args=[
-                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
-                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
-                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
-                ],
+                optional=False,
+            )
+        )
+
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
+                source_dir=CRASHTRACKER_DIR,
                 optional=False,
             )
         )
@@ -476,7 +565,7 @@ if not IS_PYSTON:
 else:
     ext_modules = []
 
-
+interpose_sccache()
 setup(
     name="ddtrace",
     packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
@@ -485,7 +574,10 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
+        "ddtrace.internal.datadog.profiling": (
+            ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
+        ),
+        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -558,7 +650,6 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
-    + get_exts_for("wrapt")
     + get_exts_for("psutil"),
     rust_extensions=[
         RustExtension(

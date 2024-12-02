@@ -96,8 +96,8 @@ class TestLLMObsBedrock:
             output_messages=[{"content": mock.ANY} for _ in range(n_output)],
             metadata=expected_parameters,
             token_metrics={
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
+                "input_tokens": prompt_tokens,
+                "output_tokens": completion_tokens,
                 "total_tokens": prompt_tokens + completion_tokens,
             },
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
@@ -128,6 +128,10 @@ class TestLLMObsBedrock:
             }
         with get_request_vcr().use_cassette(cassette_name):
             body, model = json.dumps(body), _MODELS[provider]
+            if provider == "anthropic_message":
+                # we do this to reuse a cassette which tests
+                # cross-region inference
+                model = "us." + model
             response = bedrock_client.invoke_model(body=body, modelId=model)
             json.loads(response.get("body").read())
         span = mock_tracer.pop_traces()[0][0]

@@ -16,12 +16,12 @@ otel_tracer = get_tracer(__name__)
 
 
 class OtelSpan(bm.Scenario):
-    nspans = bm.var(type=int)
-    ntags = bm.var(type=int)
-    ltags = bm.var(type=int)
-    nmetrics = bm.var(type=int)
-    finishspan = bm.var_bool()
-    telemetry = bm.var_bool()
+    nspans: int
+    ntags: int
+    ltags: int
+    nmetrics: int
+    finishspan: bool
+    telemetry: bool
 
     def run(self):
         # run scenario to also set tags on spans

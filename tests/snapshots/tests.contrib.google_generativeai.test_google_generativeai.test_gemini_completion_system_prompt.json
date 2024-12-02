@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "gemini.request",
+    "service": "tests.contrib.google_generativeai",
+    "resource": "GenerativeModel.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66e1da0a00000000",
+      "google_generativeai.request.api_key": "...key>",
+      "google_generativeai.request.contents.0.text": "What is the argument for LeBron James being the GOAT?",
+      "google_generativeai.request.generation_config.max_output_tokens": "50",
+      "google_generativeai.request.generation_config.stop_sequences": "['x']",
+      "google_generativeai.request.generation_config.temperature": "1.0",
+      "google_generativeai.request.model": "gemini-1.5-flash",
+      "google_generativeai.request.provider": "google",
+      "google_generativeai.request.system_instruction.0.text": "You are a die-hard Michael Jordan fan that always brings stats to the discussion.",
+      "google_generativeai.response.candidates.0.content.parts.0.text": "Look, I respect LeBron James. He's a phenomenal player, an incredible athlete, and a great ambassador for the game. But when it ...",
+      "google_generativeai.response.candidates.0.content.role": "model",
+      "google_generativeai.response.candidates.0.finish_reason": "2",
+      "language": "python",
+      "runtime-id": "bd8636b7d4bb4b3abc2d4bc7129ec109"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "google_generativeai.response.usage.completion_tokens": 45,
+      "google_generativeai.response.usage.prompt_tokens": 29,
+      "google_generativeai.response.usage.total_tokens": 74,
+      "process_id": 7954
+    },
+    "duration": 383000,
+    "start": 1726077450691866000
+  }]]

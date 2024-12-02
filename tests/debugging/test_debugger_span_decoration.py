@@ -2,7 +2,7 @@
 import sys
 
 import ddtrace
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
@@ -41,7 +41,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     probe_id="span-decoration",
                     module="tests.submod.traced_stuff",
                     func_qname="inner",
-                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    evaluate_at=ProbeEvalTiming.EXIT,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
@@ -65,7 +65,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
             assert (
                 span.get_tag("_dd.di.test.bad.evaluation_error")
-                == "'Failed to evaluate expression \"test\": \\'notathing\\''"
+                == "'Failed to evaluate expression \"test\": No such local variable: \\'notathing\\''"
             )
 
             assert not d.test_queue
@@ -77,7 +77,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     probe_id="span-decoration",
                     module="tests.submod.traced_stuff",
                     func_qname="inner",
-                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    evaluate_at=ProbeEvalTiming.EXIT,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(
@@ -107,13 +107,17 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
             assert (
                 span.get_tag("_dd.di.test.bad.evaluation_error")
-                == "'Failed to evaluate expression \"test\": \\'notathing\\''"
+                == "'Failed to evaluate expression \"test\": No such local variable: \\'notathing\\''"
             )
 
             (signal,) = d.test_queue
-            assert signal.errors == [EvaluationError(expr="test", message="Failed to evaluate condition: 'notathing'")]
+            assert signal.errors == [
+                EvaluationError(
+                    expr="test", message="Failed to evaluate condition: No such local variable: 'notathing'"
+                )
+            ]
 
-            ((payload,),) = d.uploader.wait_for_payloads()
+            (payload,) = d.uploader.wait_for_payloads()
             assert payload["message"] == "Condition evaluation errors for probe span-decoration"
 
     def test_debugger_span_decoration_probe_in_inner_function_active_span(self):
@@ -149,7 +153,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
                     probe_id="span-decoration",
                     module="tests.submod.traced_stuff",
                     func_qname="traceme",
-                    evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+                    evaluate_at=ProbeEvalTiming.ENTRY,
                     target_span=SpanDecorationTargetSpan.ACTIVE,
                     decorations=[
                         SpanDecoration(

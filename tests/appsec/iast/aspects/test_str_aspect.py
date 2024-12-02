@@ -2,7 +2,6 @@
 import mock
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -16,11 +15,7 @@ from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_forma
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
-mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
-
-
-def setup():
-    oce._enabled = True
+mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
 @pytest.mark.parametrize(
@@ -61,11 +56,11 @@ def test_str_aspect_objs(obj):
 @pytest.mark.parametrize(
     "args",
     [
-        ("utf-8", "strict"),
-        ("latin1", "strict"),
-        ("iso-8859-8", "strict"),
-        ("sjis", "strict"),
-        ("utf-8", "replace"),
+        ("utf-8",),
+        ("latin1",),
+        ("iso-8859-8",),
+        ("sjis",),
+        ("utf-8",),
     ],
 )
 @pytest.mark.parametrize("kwargs", [{}, {"errors": "ignore"}, {"errors": "replace"}])
@@ -533,7 +528,7 @@ class TestOperatorsReplacement(BaseReplacement):
             mod.do_ljust(string_input, "aaaaa")
 
         list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 1
+        assert len(list_metrics_logs) == 0
 
     def test_zfill(self):
         # Not tainted

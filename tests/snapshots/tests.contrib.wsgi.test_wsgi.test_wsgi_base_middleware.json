@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.wsgi",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "wsgi",
@@ -39,7 +39,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.wsgi",
          "_dd.p.tid": "654a694400000000",
          "app_tag": "app test tag set",
          "component": "wsgi"
@@ -60,7 +60,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.wsgi",
          "_dd.p.tid": "654a694400000000",
          "component": "wsgi",
          "response_tag": "resp test tag set"

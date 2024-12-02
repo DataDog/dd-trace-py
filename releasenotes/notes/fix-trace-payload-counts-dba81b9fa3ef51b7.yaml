@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Improves the accuracy of ``X-Datadog-Trace-Count`` payload header.

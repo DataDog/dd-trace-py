@@ -199,7 +199,6 @@ STDLIB_MODULE_NAMES = {
     "typing",
     "unicodedata",
     "unittest",
-    "urllib",
     "uu",
     "uuid",
     "venv",

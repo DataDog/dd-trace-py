@@ -2,7 +2,6 @@ import mock
 import pymysql
 
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pymysql.patch import patch
 from ddtrace.contrib.pymysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -337,47 +336,6 @@ class PyMySQLCore(object):
         assert span.service == "pymysql"
         assert span.name == "pymysql.connection.rollback"
 
-    def test_analytics_default(self):
-        conn, tracer = self._get_conn_tracer()
-
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        rows = cursor.fetchall()
-        assert len(rows) == 1
-        spans = tracer.pop()
-
-        self.assertEqual(len(spans), 1)
-        span = spans[0]
-        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("pymysql", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            conn, tracer = self._get_conn_tracer()
-
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            rows = cursor.fetchall()
-            assert len(rows) == 1
-            spans = tracer.pop()
-
-            self.assertEqual(len(spans), 1)
-            span = spans[0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("pymysql", dict(analytics_enabled=True)):
-            conn, tracer = self._get_conn_tracer()
-
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            rows = cursor.fetchall()
-            assert len(rows) == 1
-            spans = tracer.pop()
-
-            self.assertEqual(len(spans), 1)
-            span = spans[0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
-
 
 class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
     def _get_conn_tracer(self):
@@ -540,7 +498,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         conn, tracer = self._get_conn_tracer()
         cursor = conn.cursor()
 
-        shared_tests._test_dbm_propagation_enabled(tracer, cursor, "mysql")
+        shared_tests._test_dbm_propagation_enabled(tracer, cursor, "pymysql")
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
@@ -557,7 +515,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         cursor.__wrapped__ = mock.Mock()
 
         shared_tests._test_dbm_propagation_comment_with_global_service_name_configured(
-            config=MYSQL_CONFIG, db_system="mysql", cursor=cursor, wrapped_instance=cursor.__wrapped__
+            config=MYSQL_CONFIG, db_system="pymysql", cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
 
     @TracerTestCase.run_in_subprocess(
@@ -566,7 +524,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_AIOMYSQL_SERVICE="service-name-override",
+            DD_PYMYSQL_SERVICE="service-name-override",
         )
     )
     def test_pymysql_dbm_propagation_comment_integration_service_name_override(self):
@@ -585,7 +543,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_AIOMYSQL_SERVICE="service-name-override",
+            DD_PYMYSQL_SERVICE="service-name-override",
         )
     )
     def test_pymysql_dbm_propagation_comment_pin_service_name_override(self):

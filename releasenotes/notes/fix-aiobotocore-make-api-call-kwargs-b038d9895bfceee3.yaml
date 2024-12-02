@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aiobotocore: Fix an issue where the `_make_api_call` arguments were not captured correctly when using keyword arguments.

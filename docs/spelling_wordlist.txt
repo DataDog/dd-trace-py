@@ -71,6 +71,7 @@ datastore
 datastores
 dbapi
 ddtrace
+deallocating
 deprecations
 deserializing
 django
@@ -91,10 +92,12 @@ entrypoints
 env
 enqueuer
 eol
+eventbridge
 exec
 fastapi
 formatter
 gRPC
+generativeai
 gevent
 graphql
 graphene
@@ -121,6 +124,7 @@ JSON
 jinja
 js
 kafka
+kinesis
 kombu
 kubernetes
 kwarg
@@ -216,9 +220,11 @@ sanic
 screenshots
 serializable
 sha
+sns
 sql
 sqlalchemy
 sqlite
+sqs
 stacktrace
 starlette
 statsd
@@ -287,3 +293,10 @@ hotspot
 CMake
 libdatadog
 importlib
+oce
+assertIn
+# tests/contrib/openai/test_openai_v1.py
+Nam
+# docs/configuration.rst
+uest
+suitespec

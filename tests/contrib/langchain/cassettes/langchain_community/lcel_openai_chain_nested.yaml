@@ -1,7 +1,7 @@
 interactions:
 - request:
-    body: '{"messages": [{"role": "user", "content": "what is the city Spongebob Squarepants
-      is from?"}], "model": "gpt-3.5-turbo", "n": 1, "stream": false, "temperature":
+    body: '{"messages": [{"content": "what is the city Spongebob Squarepants is from?",
+      "role": "user"}], "model": "gpt-3.5-turbo", "n": 1, "stream": false, "temperature":
       0.7}'
     headers:
       accept:
@@ -17,7 +17,7 @@ interactions:
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.12.0
+      - OpenAI/Python 1.30.3
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -27,30 +27,26 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.30.3
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.5
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA1RQy27CMBC85ytWPgMCQsrjyAEuHBC5tKoq5JhN4uJ4XXujQhH/Xplne/FhZmc8
-        M6cEQOidmIFQtWTVONOdTt/0oU6X+egnfz3mI7faLBdLs+iv1ptUdKKCik9UfFf1FDXOIGuyV1p5
-        lIzRdTAeDPsv2SibXoiGdmiirHLcTXtZl1tfULc/GGY3ZU1aYRAzeE8AAE6XN2a0OzyIGfQ7d6TB
-        EGSFYvY4AhCeTESEDEEHlpZF50kqsoz2Ejt3ZCucUwH5Vys9rqXlADpA6akBrhFKrWIhaaC1O/Tf
-        ktGD0nwEKmGu99pqmBMzNT1x++L8yGaocp6K2MO2xjzwUlsd6q1HGcjGHIHJXeXnBODjskH7r5Zw
-        nhrHW6Y92mg4mFztxHP1P+T4RjKxNE88zZJbPhGOgbHZltpW6J3X10FKty2GkyKdlqWciOSc/AIA
-        AP//AwAHfh/xGgIAAA==
+    content: "{\n  \"id\": \"chatcmpl-9lfUX0KeSkWVMqO4oxVOk0G68nKPm\",\n  \"object\":
+      \"chat.completion\",\n  \"created\": 1721147937,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+      \"assistant\",\n        \"content\": \"Spongebob Squarepants is from the fictional
+      underwater city of Bikini Bottom.\"\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+      \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 18,\n    \"completion_tokens\":
+      16,\n    \"total_tokens\": 34\n  },\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 86e140bf7f001a34-EWR
-      Cache-Control:
-      - no-cache, must-revalidate
+      - 8a436ced081936d8-YYZ
       Connection:
       - keep-alive
       Content-Encoding:
@@ -58,52 +54,49 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 02 Apr 2024 13:44:20 GMT
+      - Tue, 16 Jul 2024 16:38:57 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=fuJc.1q.QCl8.FqyUMf570NZ8Q9p9Dr7ZkVJfruYEOc-1712065460-1.0.1.1-Q_gPOEcVg71sH1AWtSC9CUiI0g5Fl3UswRVju37DbK1BuN_116Sq66Q.ZJU_1uLrUoaO56ZYugQPpzIRrLp.nQ;
-        path=/; expires=Tue, 02-Apr-24 14:14:20 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=bZvKWD81GTdp6G_y2Nm5hZ5mi0iNIsyRNq.E3eUrfg0-1721147937-1.0.1.1-.a7RkMAqjuZF3QJdnAPPdtC624nIvGSlOzvwmOGHUdMfSIgpMl252mo6rLwrFPxpmSoLsct.b9a0bxo2p1Tehw;
+        path=/; expires=Tue, 16-Jul-24 17:08:57 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=dAtfrl6Vmvxsh50WftUQCkcyvrYwVmaAYFE757lWeII-1712065460050-0.0.1.1-604800000;
+      - _cfuvid=XV4Ai3Te_TlP56ovhvmiCjpRTy99CdyMvwMxpLYLNHM-1721147937409-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
-      access-control-allow-origin:
-      - '*'
+      X-Content-Type-Options:
+      - nosniff
       alt-svc:
       - h3=":443"; ma=86400
-      openai-model:
-      - gpt-3.5-turbo-0125
       openai-organization:
-      - user-vgqng3jybrjkfe7a1gf2l5ch
+      - datadog-4
       openai-processing-ms:
-      - '615'
+      - '323'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
+      - max-age=15552000; includeSubDomains; preload
       x-ratelimit-limit-requests:
-      - '200'
+      - '15000'
       x-ratelimit-limit-tokens:
-      - '40000'
+      - '2000000'
       x-ratelimit-remaining-requests:
-      - '199'
+      - '14999'
       x-ratelimit-remaining-tokens:
-      - '39971'
+      - '1999971'
       x-ratelimit-reset-requests:
-      - 7m12s
+      - 4ms
       x-ratelimit-reset-tokens:
-      - 43ms
+      - 0s
       x-request-id:
-      - req_1ed955ba5797db0a8872a782414eca60
-    status:
-      code: 200
-      message: OK
+      - req_2a0ad6bbdb454ea4d47b2b4a8a4434d3
+    http_version: HTTP/1.1
+    status_code: 200
 - request:
-    body: '{"messages": [{"role": "user", "content": "what country is the city SpongeBob
-      SquarePants is from the fictional underwater city of Bikini Bottom. in? respond
-      in Spanish"}], "model": "gpt-3.5-turbo", "n": 1, "stream": false, "temperature":
+    body: '{"messages": [{"content": "what country is the city Spongebob Squarepants
+      is from the fictional underwater city of Bikini Bottom. in? respond in Spanish",
+      "role": "user"}], "model": "gpt-3.5-turbo", "n": 1, "stream": false, "temperature":
       0.7}'
     headers:
       accept:
@@ -117,12 +110,12 @@ interactions:
       content-type:
       - application/json
       cookie:
-      - __cf_bm=fuJc.1q.QCl8.FqyUMf570NZ8Q9p9Dr7ZkVJfruYEOc-1712065460-1.0.1.1-Q_gPOEcVg71sH1AWtSC9CUiI0g5Fl3UswRVju37DbK1BuN_116Sq66Q.ZJU_1uLrUoaO56ZYugQPpzIRrLp.nQ;
-        _cfuvid=dAtfrl6Vmvxsh50WftUQCkcyvrYwVmaAYFE757lWeII-1712065460050-0.0.1.1-604800000
+      - __cf_bm=bZvKWD81GTdp6G_y2Nm5hZ5mi0iNIsyRNq.E3eUrfg0-1721147937-1.0.1.1-.a7RkMAqjuZF3QJdnAPPdtC624nIvGSlOzvwmOGHUdMfSIgpMl252mo6rLwrFPxpmSoLsct.b9a0bxo2p1Tehw;
+        _cfuvid=XV4Ai3Te_TlP56ovhvmiCjpRTy99CdyMvwMxpLYLNHM-1721147937409-0.0.1.1-604800000
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.12.0
+      - OpenAI/Python 1.30.3
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -132,30 +125,27 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.12.0
+      - 1.30.3
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.5
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA1SQT0sDMRDF7/sphpxt6e5a++dYQfBWLSIiUrLZ2e3YbCYms2CRfnfJtrZ4CeH9
-        8l7ezE8GoKhWS1Bmp8V03o4Wizc6dPft4Tt/pKf4upHZ+qX8ep4/FLOFukkOrj7RyJ9rbLjzFoXY
-        nbAJqAVTaj7Li8nd9PZuMoCOa7TJ1noZlePpSPpQ8WiSF9Ozc8dkMKolvGcAAD/DmTq6Gr/VEoac
-        QekwRt2iWl4eAajANilKx0hRtBN1c4WGnaAbam88uxZXXMHmq9cB19pJBIxQI1gNhvpa1xD7qtOB
-        nIaGjJAhnfgDu5rTZUV7cjRW5x+Ol2qWWx+4SmO43tqL3pCjuNsG1JFdqhGF/cl+zAA+hhX0/6ZS
-        PnDnZSu8R5cCy/IUp65Lv8IiP0Nh0faqT2+zcz8VD1Gw2zbkWgw+0Gkfjd9WxbwqF02j5yo7Zr8A
-        AAD//wMAbH1E5BkCAAA=
+    content: "{\n  \"id\": \"chatcmpl-9lfUXTZscOzNtaBLyOVNFjvcrnE6X\",\n  \"object\":
+      \"chat.completion\",\n  \"created\": 1721147937,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+      \"assistant\",\n        \"content\": \"La ciudad ficticia de Fondo de Bikini,
+      de la serie de televisi\xF3n Spongebob Squarepants, est\xE1 ubicada en el fondo
+      del mar en un lugar desconocido.\"\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+      \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 32,\n    \"completion_tokens\":
+      37,\n    \"total_tokens\": 69\n  },\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 86e140c5fbf51a34-EWR
-      Cache-Control:
-      - no-cache, must-revalidate
+      - 8a436cf12cc336d8-YYZ
       Connection:
       - keep-alive
       Content-Encoding:
@@ -163,40 +153,37 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 02 Apr 2024 13:44:21 GMT
+      - Tue, 16 Jul 2024 16:38:58 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
       - chunked
-      access-control-allow-origin:
-      - '*'
+      X-Content-Type-Options:
+      - nosniff
       alt-svc:
       - h3=":443"; ma=86400
-      openai-model:
-      - gpt-3.5-turbo-0125
       openai-organization:
-      - user-vgqng3jybrjkfe7a1gf2l5ch
+      - datadog-4
       openai-processing-ms:
-      - '800'
+      - '688'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15724800; includeSubDomains
+      - max-age=15552000; includeSubDomains; preload
       x-ratelimit-limit-requests:
-      - '200'
+      - '15000'
       x-ratelimit-limit-tokens:
-      - '40000'
+      - '2000000'
       x-ratelimit-remaining-requests:
-      - '198'
+      - '14999'
       x-ratelimit-remaining-tokens:
-      - '39951'
+      - '1999951'
       x-ratelimit-reset-requests:
-      - 14m22.947s
+      - 4ms
       x-ratelimit-reset-tokens:
-      - 73ms
+      - 1ms
       x-request-id:
-      - req_eaed131f5f734e6b0b35e0efd11d807f
-    status:
-      code: 200
-      message: OK
+      - req_6a9e245cf97e6a605f8ba85e30443fd7
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

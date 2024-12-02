@@ -9,8 +9,8 @@ from typing import Generator
 from envier import En
 
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._debugger import Debugger
+from ddtrace.debugging._exception.replay import SpanExceptionHandler
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
@@ -22,29 +22,6 @@ from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
 class PayloadWaitTimeout(Exception):
     pass
-
-
-class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
-    def __init__(self, encoder, interval=0.1):
-        super(MockLogsIntakeUploaderV1, self).__init__(encoder, interval)
-        self.queue = []
-
-    def _write(self, payload):
-        self.queue.append(payload.decode())
-
-    def wait_for_payloads(self, cond=lambda _: bool(_), timeout=1.0):
-        end = monotonic() + timeout
-
-        while not cond(self.queue):
-            if monotonic() > end:
-                raise PayloadWaitTimeout(cond, timeout)
-            sleep(0.05)
-
-        return self.payloads
-
-    @property
-    def payloads(self):
-        return [json.loads(data) for data in self.queue]
 
 
 class MockDebuggingRCV07(object):
@@ -108,10 +85,40 @@ class TestSignalCollector(SignalCollector):
         raise PayloadWaitTimeout()
 
 
+class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
+    __collector__ = TestSignalCollector
+
+    def __init__(self, interval=0.0):
+        super(MockLogsIntakeUploaderV1, self).__init__(interval)
+        self.queue = []
+
+    def _write(self, payload):
+        self.queue.append(payload.decode())
+
+    def wait_for_payloads(self, cond=lambda _: bool(_), timeout=1.0):
+        _cond = (lambda _: len(_) == cond) if isinstance(cond, int) else cond
+
+        end = monotonic() + timeout
+
+        while not _cond(self.payloads):
+            if monotonic() > end:
+                raise PayloadWaitTimeout(_cond, timeout)
+            sleep(0.05)
+
+        return self.payloads
+
+    @property
+    def collector(self):
+        return self._collector
+
+    @property
+    def payloads(self):
+        return [_ for data in self.queue for _ in json.loads(data)]
+
+
 class TestDebugger(Debugger):
     __logger__ = MockProbeStatusLogger
     __uploader__ = MockLogsIntakeUploaderV1
-    __collector__ = TestSignalCollector
 
     def add_probes(self, *probes: Probe) -> None:
         self._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
@@ -124,19 +131,19 @@ class TestDebugger(Debugger):
 
     @property
     def test_queue(self):
-        return self._collector.test_queue
+        return self.collector.test_queue
 
     @property
     def signal_state_counter(self):
-        return self._collector.signal_state_counter
+        return self.collector.signal_state_counter
 
     @property
     def uploader(self):
-        return self._uploader
+        return self.__uploader__._instance
 
     @property
     def collector(self):
-        return self._collector
+        return self.__uploader__.get_collector()
 
     @property
     def probe_status_logger(self):
@@ -150,7 +157,10 @@ class TestDebugger(Debugger):
 
     @contextmanager
     def assert_single_snapshot(self):
+        self.uploader.wait_for_payloads()
+
         assert len(self.test_queue) == 1
+
         yield self.test_queue[0]
 
 
@@ -186,10 +196,16 @@ def debugger(**config_overrides: Any) -> Generator[TestDebugger, None, None]:
         yield debugger
 
 
-@contextmanager
-def exception_debugging(**config_overrides):
-    # type: (Any) -> Generator[TestDebugger, None, None]
-    config_overrides.setdefault("enabled", True)
+class MockSpanExceptionHandler(SpanExceptionHandler):
+    __uploader__ = MockLogsIntakeUploaderV1
 
-    with _debugger(ed_config, config_overrides) as ed:
-        yield ed
+
+@contextmanager
+def exception_replay(**config_overrides: Any) -> Generator[MockLogsIntakeUploaderV1, None, None]:
+    MockSpanExceptionHandler.enable()
+
+    handler = MockSpanExceptionHandler._instance
+    try:
+        yield handler.__uploader__._instance
+    finally:
+        MockSpanExceptionHandler.disable()

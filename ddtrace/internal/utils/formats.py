@@ -8,6 +8,8 @@ from typing import Tuple  # noqa:F401
 from typing import TypeVar  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
+
 from ..compat import ensure_text
 
 
@@ -70,6 +72,8 @@ def parse_tags_str(tags_str):
     The expected string is of the form::
         "key1:value1,key2:value2"
         "key1:value1 key2:value2"
+        "key1,key2"
+        "key1 key2"
 
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
@@ -86,10 +90,14 @@ def parse_tags_str(tags_str):
 
         for tag in tags:
             key, sep, value = tag.partition(":")
-            if not sep or not key or "," in key:
+            if not key.strip() or "," in key or (sep and not value):
                 invalids.append(tag)
-            else:
+            elif sep:
+                # parse key:val,key2:value2
                 parsed_tags.append((key, value))
+            else:
+                # parse key,key2
+                parsed_tags.append((key, ""))
 
         return parsed_tags, invalids
 
@@ -183,3 +191,8 @@ def flatten_key_value(root_key, value):
         else:
             flattened[key] = item
     return flattened
+
+
+def format_trace_id(trace_id: int) -> str:
+    """Translate a trace ID to a string format supported by the backend."""
+    return "{:032x}".format(trace_id) if trace_id > MAX_UINT_64BITS else str(trace_id)

@@ -6,6 +6,7 @@ import logging
 import os
 import random
 import re
+from shutil import which
 import subprocess
 from typing import Dict  # noqa:F401
 from typing import Generator  # noqa:F401
@@ -18,6 +19,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.time import StopWatch
 
 
@@ -80,6 +82,16 @@ def is_ref_a_tag(ref):
     return "tags/" in ref if ref else False
 
 
+@cached()
+def _get_executable_path(executable_name: str) -> Optional[str]:
+    """Return the path to an executable.
+
+    NOTE: cached() requires an argument which is why executable_name is passed in, even though it's really only ever
+    used to find the git executable at this point.
+    """
+    return which(executable_name, mode=os.X_OK)
+
+
 def _git_subprocess_cmd_with_details(*cmd, cwd=None, std_in=None):
     # type: (str, Optional[str], Optional[bytes]) -> _GitSubprocessDetails
     """Helper for invoking the git CLI binary
@@ -90,7 +102,10 @@ def _git_subprocess_cmd_with_details(*cmd, cwd=None, std_in=None):
         - the time it took to execute the command, in milliseconds
         - the exit code
     """
-    git_cmd = ["git"]
+    git_cmd = _get_executable_path("git")
+    if git_cmd is None:
+        raise FileNotFoundError("Git executable not found")
+    git_cmd = [git_cmd]
     git_cmd.extend(cmd)
 
     log.debug("Executing git command: %s", git_cmd)

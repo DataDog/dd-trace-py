@@ -6,7 +6,7 @@ from tests.utils import assert_span_http_status_code
 from . import BaseFlaskTestCase
 
 
-EXPECTED_METADATA = {"component": "flask", "_dd.base_service": ""}
+EXPECTED_METADATA = {"component": "flask", "_dd.base_service": "tests.contrib.flask"}
 
 
 class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
