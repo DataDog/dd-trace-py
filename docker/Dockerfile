@@ -58,12 +58,9 @@ RUN \
   # For running datadog-ci CLI with npx
   && apt-get install -y --no-install-recommends nodejs npm \
   && npm install -g @datadog/datadog-ci \
-  # Install Mariadb last because mariadb_repo_setup currently breaks apt
-  && wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup \
-  && chmod +x mariadb_repo_setup \
-  && ./mariadb_repo_setup \
-  && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
-  && rm mariadb_repo_setup \
+  # Install Mariadb
+  && wget -O- https://mariadb.org/mariadb_release_signing_key.pgp | gpg --dearmor > /etc/apt/trusted.gpg.d/mariadb.gpg \
+  && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ buster main" > /etc/apt/sources.list.d/mariadb.list \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 
