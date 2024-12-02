@@ -44,9 +44,15 @@ def _http_server(scope="function"):
     def _run_server():
         server_root = Path(__file__).parent / "static_test_pages"
         os.chdir(server_root)
-        with socketserver.TCPServer(("localhost", 8079), http.server.SimpleHTTPRequestHandler) as httpd:
-            print("serving at port", 8079)
-            httpd.serve_forever()
+        # We do not use the context manager gecause we need allow_reuse_address
+        httpd = socketserver.TCPServer(
+            ("localhost", 8079), http.server.SimpleHTTPRequestHandler, bind_and_activate=False
+        )
+        httpd.allow_reuse_address = True
+        httpd.daemon_threads = True
+        httpd.server_bind()
+        httpd.server_activate()
+        httpd.serve_forever()
 
     server = multiprocessing.Process(target=_run_server)
     server.start()
@@ -72,6 +78,55 @@ def test_selenium_chromium_pytest_rum_enabled(_http_server, testdir, git_repo):
 
                 with webdriver.Chrome(options=options) as driver:
                     url = "http://localhost:8079/rum_enabled/page_1.html"
+
+                    driver.get(url)
+
+                    assert driver.title == "Page 1"
+
+                    link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
+
+                    link_2.click()
+
+                    assert driver.title == "Page 2"
+
+                    link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
+                    link_1.click()
+
+                    assert driver.title == "Page 1"
+        """
+    )
+    testdir.makepyfile(test_selenium=selenium_test_script)
+    subprocess.run(
+        ["pytest", "--ddtrace", "-s"],
+        env=_get_default_ci_env_vars(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_ITR_ENABLED="false",
+                DD_PATCH_MODULES="sqlite3:false",
+                CI_PROJECT_DIR=str(testdir.tmpdir),
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+            )
+        ),
+    )
+
+
+@snapshot(ignores=SNAPSHOT_IGNORES)
+def test_selenium_chromium_pytest_rum_disabled(_http_server, testdir, git_repo):
+    selenium_test_script = textwrap.dedent(
+        """
+            from pathlib import Path
+
+            from selenium import webdriver
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.chrome.options import Options
+
+            def test_selenium_local_pass():
+                options = Options()
+                options.add_argument("--headless")
+                options.add_argument("--no-sandbox")
+
+                with webdriver.Chrome(options=options) as driver:
+                    url = "http://localhost:8079/rum_disabled/page_1.html"
 
                     driver.get(url)
 
