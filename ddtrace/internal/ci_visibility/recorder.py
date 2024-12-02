@@ -1385,23 +1385,25 @@ def _register_itr_handlers():
 
 
 @_requires_civisibility_enabled
-def _on_efd_is_enabled() -> bool:
-    return CIVisibility.get_session().efd_is_enabled()
+def _on_efd_is_enabled() -> None:
+    core.set_item("test_visibility.efd.is_enabled", CIVisibility.get_session().efd_is_enabled())
 
 
 @_requires_civisibility_enabled
-def _on_efd_session_is_faulty() -> bool:
-    return CIVisibility.get_session().efd_is_faulty_session()
+def _on_efd_session_is_faulty() -> None:
+    core.set_item("test_visibility.efd.session_is_faulty", CIVisibility.get_session().efd_is_faulty_session())
 
 
 @_requires_civisibility_enabled
-def _on_efd_session_has_efd_failed_tests() -> bool:
-    return CIVisibility.get_session().efd_has_failed_tests()
+def _on_efd_session_has_efd_failed_tests() -> None:
+    core.set_item("test_visibility.efd.session_has_failed_tests", CIVisibility.get_session().efd_has_failed_tests())
 
 
 @_requires_civisibility_enabled
 def _on_efd_should_retry_test(test_id: InternalTestId):
-    return CIVisibility.get_test_by_id(test_id).efd_should_retry()
+    core.set_item(
+        f"test_visibility.efd.should_retry_test.{test_id}", CIVisibility.get_test_by_id(test_id).efd_should_retry()
+    )
 
 
 @_requires_civisibility_enabled
