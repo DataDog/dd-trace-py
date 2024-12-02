@@ -1232,7 +1232,7 @@ def _register_item_handlers():
 
 
 @_requires_civisibility_enabled
-def _on_get_coverage_data(item_id: Union[TestSuiteId, TestId]) -> Optional[Dict[Path, CoverageLines]]:
+def _on_get_coverage_data(item_id: Union[TestSuiteId, TestId]) -> None:
     log.debug("Handling get coverage data for item %s", item_id)
     core.set_item("test_visibility.item.get_coverage_data", CIVisibility.get_item_by_id(item_id).get_coverage_data())
 
@@ -1340,17 +1340,18 @@ def _on_itr_is_item_skippable(item_id: Union[TestSuiteId, TestId]) -> None:
     """Skippable items are fetched as part CIVisibility.enable(), so they are assumed to be available."""
     log.debug("Handling is item skippable for item id %s", item_id)
 
-    skippable = CIVisibility.is_item_itr_skippable(item_id)
-
     if not isinstance(item_id, (TestSuiteId, TestId)):
         log.warning("Only suites or tests can be skippable, not %s", type(item_id))
         skippable = False
 
-    if not CIVisibility.test_skipping_enabled():
+    elif not CIVisibility.test_skipping_enabled():
         log.debug("Test skipping is not enabled")
         skippable = False
 
-    core.set_item("test_visibility.item.is_item_skippable", skippable)
+    else:
+        skippable = CIVisibility.is_item_itr_skippable(item_id)
+
+    core.set_item("test_visibility.itr.is_item_skippable", skippable)
 
 
 @_requires_civisibility_enabled
