@@ -1199,9 +1199,9 @@ def _on_item_get_span(item_id: TestVisibilityItemId):
 
 
 @_requires_civisibility_enabled
-def _on_item_is_finished(item_id: TestVisibilityItemId) -> bool:
+def _on_item_is_finished(item_id: TestVisibilityItemId) -> None:
     log.debug("Handling is finished for item %s", item_id)
-    return CIVisibility.get_item_by_id(item_id).is_finished()
+    core.set_item("test_visibility.item.is_finished", CIVisibility.get_item_by_id(item_id).is_finished())
 
 
 @_requires_civisibility_enabled
@@ -1234,7 +1234,7 @@ def _register_item_handlers():
 @_requires_civisibility_enabled
 def _on_get_coverage_data(item_id: Union[TestSuiteId, TestId]) -> Optional[Dict[Path, CoverageLines]]:
     log.debug("Handling get coverage data for item %s", item_id)
-    return CIVisibility.get_item_by_id(item_id).get_coverage_data()
+    core.set_item("test_visibility.item.get_coverage_data", CIVisibility.get_item_by_id(item_id).get_coverage_data())
 
 
 @_requires_civisibility_enabled
@@ -1330,39 +1330,41 @@ def _on_itr_mark_forced_run(item_id: Union[TestSuiteId, TestId]) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_itr_was_forced_run(item_id: TestVisibilityItemId) -> bool:
+def _on_itr_was_forced_run(item_id: TestVisibilityItemId) -> None:
     log.debug("Handling marking %s as forced run", item_id)
-    return CIVisibility.get_item_by_id(item_id).was_itr_forced_run()
+    core.set_item("test_visibility.itr.was_forced_run", CIVisibility.get_item_by_id(item_id).was_itr_forced_run())
 
 
 @_requires_civisibility_enabled
-def _on_itr_is_item_skippable(item_id: Union[TestSuiteId, TestId]) -> bool:
+def _on_itr_is_item_skippable(item_id: Union[TestSuiteId, TestId]) -> None:
     """Skippable items are fetched as part CIVisibility.enable(), so they are assumed to be available."""
     log.debug("Handling is item skippable for item id %s", item_id)
 
+    skippable = CIVisibility.is_item_itr_skippable(item_id)
+
     if not isinstance(item_id, (TestSuiteId, TestId)):
         log.warning("Only suites or tests can be skippable, not %s", type(item_id))
-        return False
+        skippable = False
 
     if not CIVisibility.test_skipping_enabled():
         log.debug("Test skipping is not enabled")
-        return False
+        skippable = False
 
-    return CIVisibility.is_item_itr_skippable(item_id)
+    core.set_item("test_visibility.item.is_item_skippable", skippable)
 
 
 @_requires_civisibility_enabled
-def _on_itr_is_item_unskippable(item_id: Union[TestSuiteId, TestId]) -> bool:
+def _on_itr_is_item_unskippable(item_id: Union[TestSuiteId, TestId]) -> None:
     log.debug("Handling is item unskippable for %s", item_id)
     if not isinstance(item_id, (TestSuiteId, TestId)):
         raise CIVisibilityError("Only suites or tests can be unskippable")
-    return CIVisibility.get_item_by_id(item_id).is_itr_unskippable()
+    core.set_item("test_visibility.itr.is_item_unskippable", CIVisibility.get_item_by_id(item_id).is_itr_unskippable())
 
 
 @_requires_civisibility_enabled
-def _on_itr_was_item_skipped(item_id: Union[TestSuiteId, TestId]) -> bool:
+def _on_itr_was_item_skipped(item_id: Union[TestSuiteId, TestId]) -> None:
     log.debug("Handling was item skipped for %s", item_id)
-    return CIVisibility.get_item_by_id(item_id).is_itr_skipped()
+    core.set_item("test_visibility.itr.was_item_skipped", CIVisibility.get_item_by_id(item_id).is_itr_skipped())
 
 
 def _register_itr_handlers():

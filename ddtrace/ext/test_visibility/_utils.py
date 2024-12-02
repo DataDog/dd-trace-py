@@ -60,6 +60,7 @@ def _delete_item_tags(item_id: TestVisibilityItemId, tag_names: List[str], recur
 
 def _is_item_finished(item_id: TestVisibilityItemId) -> bool:
     log.debug("Checking if item %s is finished", item_id)
-    _is_finished = bool(core.dispatch_with_results("test_visibility.item.is_finished", (item_id,)).is_finished.value)
+    core.dispatch("test_visibility.item.is_finished", (item_id,))
+    _is_finished = bool(core.get_item("test_visibility.item.is_finished"))
     log.debug("Item %s is finished: %s", item_id, _is_finished)
     return _is_finished

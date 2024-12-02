@@ -38,9 +38,8 @@ class ITRMixin:
     def was_forced_run(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Checking if item %s was forced to run", item_id)
-        _was_forced_run = bool(
-            core.dispatch_with_results("test_visibility.itr.was_forced_run", (item_id,)).was_forced_run.value
-        )
+        core.dispatch("test_visibility.itr.was_forced_run", (item_id,))
+        _was_forced_run = bool(core.get_item("test_visibility.itr.was_forced_run"))
         log.debug("Item %s was forced run: %s", item_id, _was_forced_run)
         return _was_forced_run
 
@@ -49,9 +48,8 @@ class ITRMixin:
     def is_itr_skippable(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Checking if item %s is skippable", item_id)
-        is_item_skippable = bool(
-            core.dispatch_with_results("test_visibility.itr.is_item_skippable", (item_id,)).is_item_skippable.value
-        )
+        core.dispatch("test_visibility.itr.is_item_skippable", (item_id,))
+        is_item_skippable = bool(core.get_item("test_visibility.itr.is_item_skippable"))
         log.debug("Item %s is skippable: %s", item_id, is_item_skippable)
 
         return is_item_skippable
@@ -61,9 +59,8 @@ class ITRMixin:
     def is_itr_unskippable(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Checking if item %s is unskippable", item_id)
-        is_item_unskippable = bool(
-            core.dispatch_with_results("test_visibility.itr.is_item_unskippable", (item_id,)).is_item_unskippable.value
-        )
+        core.dispatch("test_visibility.itr.is_item_unskippable", (item_id,))
+        is_item_unskippable = bool(core.get_item("test_visibility.itr.is_item_unskippable"))
         log.debug("Item %s is unskippable: %s", item_id, is_item_unskippable)
 
         return is_item_unskippable
@@ -73,9 +70,8 @@ class ITRMixin:
     def was_skipped_by_itr(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Checking if item %s was skipped by ITR", item_id)
-        was_item_skipped = bool(
-            core.dispatch_with_results("test_visibility.itr.was_item_skipped", (item_id,)).was_item_skipped.value
-        )
+        core.dispatch("test_visibility.itr.was_item_skipped", (item_id,))
+        was_item_skipped = bool(core.get_item("test_visibility.itr.was_item_skipped"))
         log.debug("Item %s was skipped by ITR: %s", item_id, was_item_skipped)
         return was_item_skipped
 
@@ -97,8 +93,7 @@ class ITRMixin:
         item_id: t.Union[ext_api.TestSuiteId, InternalTestId]
     ) -> t.Optional[t.Dict[Path, CoverageLines]]:
         log.debug("Getting coverage data for item %s", item_id)
-        coverage_data = core.dispatch_with_results(
-            "test_visibility.item.get_coverage_data", (item_id,)
-        ).coverage_data.value
+        core.dispatch("test_visibility.item.get_coverage_data", (item_id,))
+        coverage_data = core.get_item("test_visibility.item.get_coverage_data")
         log.debug("Coverage data for item %s: %s", item_id, coverage_data)
         return coverage_data
