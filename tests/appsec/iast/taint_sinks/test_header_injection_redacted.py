@@ -123,4 +123,5 @@ def test_header_injection_redaction_suite(
     source["origin"] = origin_to_str(source["origin"])
 
     assert vulnerability["type"] == VULN_HEADER_INJECTION
+    assert vulnerability["evidence"] == vulnerabilities_expected["evidence"]
     assert source == sources_expected
