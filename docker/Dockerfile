@@ -64,6 +64,8 @@ RUN \
   && ./mariadb_repo_setup \
   && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
   && rm mariadb_repo_setup \
+  # mariadb apt repo currently breaks things
+  && rm /etc/apt/sources.list.d/mariadb.list \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 
@@ -83,5 +85,13 @@ RUN if [ "$TARGETARCH" = "amd64" ]; \
     fi \
   && install -t /usr/local/bin hatch \
   && hatch -q
+
+# Chrome is needed for selenium tests but cannot be installed on aarch64
+RUN if [ "$TARGETARCH" = "amd64" ]; \
+    then echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
+        && wget -O- https://dl.google.com/linux/linux_signing_key.pub |gpg --dearmor > /etc/apt/trusted.gpg.d/google.gpg \
+        && apt update \
+        && apt install -y google-chrome-stable
+    fi
 
 CMD ["/bin/bash"]
