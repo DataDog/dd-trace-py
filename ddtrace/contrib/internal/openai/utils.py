@@ -48,11 +48,36 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self):
-        return self
+        exception_raised = False
+        try:
+            for chunk in self.__wrapped__:
+                if self._dd_span._get_ctx_item("openai_stream_magic"):
+                    choice = getattr(chunk, "choices", [None])[0]
+                    if getattr(choice, "finish_reason", None):
+                        usage_chunk = next(self.__wrapped__)
+                        self._streamed_chunks[0].insert(0, usage_chunk)
+                yield chunk
+                _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            exception_raised = True
+            raise
+        finally:
+            if not exception_raised:
+                _process_finished_stream(
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                )
+            self._dd_span.finish()
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
 
     def __next__(self):
         try:
-            chunk = self.__wrapped__.__next__()
+            chunk = next(self.__wrapped__)
+            if self._dd_span._get_ctx_item("openai_stream_magic"):
+                choice = getattr(chunk, "choices", [None])[0]
+                if getattr(choice, "finish_reason", None):
+                    usage_chunk = next(self.__wrapped__)
+                    self._streamed_chunks[0].insert(0, usage_chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
             return chunk
         except StopIteration:

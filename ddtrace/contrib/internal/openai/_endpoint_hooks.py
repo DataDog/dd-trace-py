@@ -255,6 +255,9 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 span.set_tag_str("openai.request.messages.%d.content" % idx, integration.trunc(str(content)))
             span.set_tag_str("openai.request.messages.%d.role" % idx, str(role))
             span.set_tag_str("openai.request.messages.%d.name" % idx, str(name))
+        if kwargs.get("stream") and not kwargs.get("stream_options", {}).get("include_usage", False):
+            span._set_ctx_item("openai_stream_magic", True)
+            kwargs["stream_options"] = {"include_usage": True}
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
