@@ -5,11 +5,8 @@ from functools import singledispatch
 from pathlib import Path
 from types import CodeType
 from types import FunctionType
-from typing import Deque
 from typing import Iterator
-from typing import Optional
 from typing import Set
-from typing import Tuple
 from typing import cast
 
 from ddtrace.internal.safety import _isinstance
@@ -118,31 +115,10 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
     return f
 
 
-def collect_code_objects(code: CodeType) -> Iterator[Tuple[CodeType, Optional[CodeType]]]:
-    # Topological sorting
+def collect_code_objects(code: CodeType) -> Iterator[CodeType]:
     q = deque([code])
-    g = {}
-    p = {}
-    leaves: Deque[CodeType] = deque()
-
-    # Build the graph and the parent map
     while q:
         c = q.popleft()
-        new_codes = g[c] = {_ for _ in c.co_consts if isinstance(_, CodeType)}
-        if not new_codes:
-            leaves.append(c)
-            continue
-        for new_code in new_codes:
-            p[new_code] = c
-        q.extend(new_codes)
-
-    # Yield the code objects in topological order
-    while leaves:
-        c = leaves.popleft()
-        parent = p.get(c)
-        yield c, parent
-        if parent is not None:
-            children = g[parent]
-            children.remove(c)
-            if not children:
-                leaves.append(parent)
+        for new_code in (_ for _ in c.co_consts if isinstance(_, CodeType)):
+            yield new_code
+            q.append(new_code)

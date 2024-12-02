@@ -86,11 +86,8 @@ class DebuggerError(Exception):
 class DebuggerModuleWatchdog(ModuleWatchdog):
     _locations: Set[str] = set()
 
-    def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
-        # Cache the module code object onto the module
-        _module.__dd_code__ = code  # type: ignore[attr-defined]
-
-        return super().transform(code, _module)
+    def transform(self, code: CodeType, module: ModuleType) -> CodeType:
+        return FunctionDiscovery.transformer(code, module)
 
     @classmethod
     def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
