@@ -59,15 +59,19 @@ RUN \
   && apt-get install -y --no-install-recommends nodejs npm \
   && npm install -g @datadog/datadog-ci \
   # Install Mariadb last because mariadb_repo_setup currently breaks apt
-  && wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup \
-  && chmod +x mariadb_repo_setup \
-  && ./mariadb_repo_setup \
+  && wget -O- https://mariadb.org/mariadb_release_signing_key.pgp |gpg --dearmor > /etc/apt/trusted.gpg.d/mariadb.gpg \
+  && echo 'deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ buster main' > /etc/apt/sources.list.d/mariadb.list \
   && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
-  && rm mariadb_repo_setup \
-  # mariadb apt repo currently breaks things
-  && rm /etc/apt/sources.list.d/mariadb.list \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
+
+# Chrome is needed for selenium tests but cannot be installed on aarch64
+RUN if [ "$TARGETARCH" = "amd64" ]; \
+    then echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
+        && wget -O- https://dl.google.com/linux/linux_signing_key.pub |gpg --dearmor > /etc/apt/trusted.gpg.d/google.gpg \
+        && apt update \
+        && apt install -y google-chrome-stable ; \
+    fi
 
 # Install Rust toolchain
 RUN curl https://sh.rustup.rs -sSf | \
@@ -85,13 +89,5 @@ RUN if [ "$TARGETARCH" = "amd64" ]; \
     fi \
   && install -t /usr/local/bin hatch \
   && hatch -q
-
-# Chrome is needed for selenium tests but cannot be installed on aarch64
-RUN if [ "$TARGETARCH" = "amd64" ]; \
-    then echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
-        && wget -O- https://dl.google.com/linux/linux_signing_key.pub |gpg --dearmor > /etc/apt/trusted.gpg.d/google.gpg \
-        && apt update \
-        && apt install -y google-chrome-stable \
-    fi
 
 CMD ["/bin/bash"]
