@@ -91,7 +91,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; \
     then echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
         && wget -O- https://dl.google.com/linux/linux_signing_key.pub |gpg --dearmor > /etc/apt/trusted.gpg.d/google.gpg \
         && apt update \
-        && apt install -y google-chrome-stable
+        && apt install -y google-chrome-stable \
     fi
 
 CMD ["/bin/bash"]
