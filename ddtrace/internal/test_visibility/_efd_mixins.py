@@ -65,9 +65,8 @@ class EFDTestMixin:
     @_catch_and_log_exceptions
     def efd_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
         log.debug("Adding Early Flake Detection retry for item %s", item_id)
-        retry_number = core.dispatch_with_results(
-            "test_visibility.efd.add_retry", (item_id, start_immediately)
-        ).retry_number.value
+        core.dispatch("test_visibility.efd.add_retry", (item_id, start_immediately))
+        retry_number = core.get_item(f"test_visibility.efd.add_retry.{item_id}")
         log.debug("Added Early Flake Detection retry number %s for item %s", retry_number, item_id)
         return retry_number
 
@@ -114,7 +113,6 @@ class EFDTestMixin:
     @_catch_and_log_exceptions
     def efd_get_final_status(item_id) -> EFDTestStatus:
         log.debug("Getting final status for item %s in Early Flake Detection", item_id)
-        final_status = core.dispatch_with_results(
-            "test_visibility.efd.get_final_status", (item_id,)
-        ).efd_final_status.value
+        core.dispatch("test_visibility.efd.get_final_status", (item_id,))
+        final_status = core.get_item(f"test_visibility.efd.get_final_status.{item_id}")
         return final_status

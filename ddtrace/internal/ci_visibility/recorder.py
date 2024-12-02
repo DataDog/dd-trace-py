@@ -1407,8 +1407,10 @@ def _on_efd_should_retry_test(test_id: InternalTestId):
 
 
 @_requires_civisibility_enabled
-def _on_efd_add_retry(test_id: InternalTestId, retry_number: int) -> Optional[int]:
-    return CIVisibility.get_test_by_id(test_id).efd_add_retry(retry_number)
+def _on_efd_add_retry(test_id: InternalTestId, retry_number: int) -> None:
+    core.set_item(
+        f"test_visibility.efd.add_retry.{test_id}", CIVisibility.get_test_by_id(test_id).efd_add_retry(retry_number)
+    )
 
 
 @_requires_civisibility_enabled
@@ -1424,8 +1426,10 @@ def _on_efd_finish_retry(efd_finish_args: EFDTestMixin.EFDRetryFinishArgs):
 
 
 @_requires_civisibility_enabled
-def _on_efd_get_final_status(test_id: InternalTestId) -> EFDTestStatus:
-    return CIVisibility.get_test_by_id(test_id).efd_get_final_status()
+def _on_efd_get_final_status(test_id: InternalTestId) -> None:
+    core.set_item(
+        f"test_visibility.efd.get_final_status.{test_id}", CIVisibility.get_test_by_id(test_id).efd_get_final_status()
+    )
 
 
 def _register_efd_handlers():
