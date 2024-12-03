@@ -23,8 +23,6 @@ if PYTHON_VERSION_INFO >= (3, 8):
     def audit_hook(event: str, args: Tuple[Any, ...]):
         global GLOBAL_CALLS
         GLOBAL_CALLS += 1
-        info = f"||| GLOBAL_CALLS: {GLOBAL_CALLS}"
-        log.error(info)
         if event != "import":
             return
 
@@ -33,9 +31,9 @@ if PYTHON_VERSION_INFO >= (3, 8):
         ALL_MODULES.add(args[0])
 
     def get_newly_imported_modules() -> Set[str]:
-        global MODULE_HOOK_INSTALLED, NEW_MODULES, ALL_MODULES
+        global MODULE_HOOK_INSTALLED, NEW_MODULES, ALL_MODULES, GLOBAL_CALLS
 
-        info = f"||| MODULE_HOOK_INSTALLED: {MODULE_HOOK_INSTALLED}"
+        info = f"||| MODULE_HOOK_INSTALLED: {MODULE_HOOK_INSTALLED} {GLOBAL_CALLS}"
         log.error(info)
         # Our hook is not installed, so we are not getting notified of new imports,
         # we need to track the changes manually

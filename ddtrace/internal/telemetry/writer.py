@@ -231,12 +231,14 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.RUNNING:
             return True
 
-        if self._is_periodic:
-            self.start()
-
-        self.status = ServiceStatus.RUNNING
         if _TelemetryConfig.DEPENDENCY_COLLECTION:
             modules.install_import_hook()
+
+        if self._is_periodic:
+            self.start()
+            return True
+
+        self.status = ServiceStatus.RUNNING
         return True
 
     def disable(self):
