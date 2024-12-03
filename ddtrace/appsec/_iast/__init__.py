@@ -1,4 +1,4 @@
-"""IAST (interactive application security testing) analyzes code for security vulnerabilities.
+"""IAST (Interactive Application Security Testing) analyzes code for security vulnerabilities.
 
 To add new vulnerabilities analyzers (Taint sink) we should update `IAST_PATCH` in
 `ddtrace/appsec/iast/_patch_modules.py`
@@ -29,6 +29,7 @@ def wrapped_function(wrapped, instance, args, kwargs):
 """  # noqa: RST201, RST213, RST210
 
 import inspect
+import os
 import sys
 
 from ddtrace.internal.logger import get_logger
@@ -89,6 +90,22 @@ def enable_iast_propagation():
     log.debug("IAST enabled")
     ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
     _iast_propagation_enabled = True
+
+
+def _iast_pytest_activation():
+    global _iast_propagation_enabled
+    if _iast_propagation_enabled:
+        return
+    os.environ["DD_IAST_ENABLED"] = os.environ.get("DD_IAST_ENABLED") or "1"
+    os.environ["DD_IAST_REQUEST_SAMPLING"] = os.environ.get("DD_IAST_REQUEST_SAMPLING") or "100.0"
+    os.environ["_DD_APPSEC_DEDUPLICATION_ENABLED"] = os.environ.get("_DD_APPSEC_DEDUPLICATION_ENABLED") or "false"
+    os.environ["DD_IAST_VULNERABILITIES_PER_REQUEST"] = os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST") or "1000"
+    os.environ["DD_IAST_MAX_CONCURRENT_REQUESTS"] = os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS") or "1000"
+    from ddtrace.settings.asm import config as asm_config
+
+    asm_config._iast_request_sampling = 100.0
+    asm_config._deduplication_enabled = False
+    enable_iast_propagation()
 
 
 def disable_iast_propagation():

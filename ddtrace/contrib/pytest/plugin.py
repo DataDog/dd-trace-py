@@ -15,6 +15,7 @@ from typing import Dict  # noqa:F401
 
 import pytest
 
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest._utils import _extract_span
 from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
@@ -71,6 +72,10 @@ def pytest_addoption(parser):
     parser.addini("no-ddtrace", DDTRACE_HELP_MSG, type="bool")
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
     parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
+    if _is_iast_enabled():
+        from ddtrace.appsec._iast import _iast_pytest_activation
+
+        _iast_pytest_activation()
 
 
 # Version-specific pytest hooks

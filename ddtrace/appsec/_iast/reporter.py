@@ -121,7 +121,7 @@ class IastSpanReporter(NotNoneDictable):
         """
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
 
-    def _merge(self, other: "IastSpanReporter") -> "IastSpanReporter":
+    def _merge(self, other: "IastSpanReporter") -> None:
         """
         Merges the IAST span reporter with another IAST span reporter.
 
