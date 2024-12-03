@@ -116,7 +116,9 @@ def get_blocked() -> Dict[str, Any]:
     env = _get_asm_context()
     if env is None:
         return {}
-    return env.blocked or {}
+    blocked = env.blocked or {}
+    core.set_item("asm.get_blocked", blocked)
+    return blocked
 
 
 def _use_html(headers) -> bool:

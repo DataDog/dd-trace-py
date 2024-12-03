@@ -1195,7 +1195,7 @@ def _register_test_handlers():
 def _on_item_get_span(item_id: TestVisibilityItemId):
     log.debug("Handing get_span for item %s", item_id)
     item = CIVisibility.get_item_by_id(item_id)
-    return item.get_span()
+    core.set_item(f"test_visibility.item.get_span.{item_id}", item.get_span())
 
 
 @_requires_civisibility_enabled
