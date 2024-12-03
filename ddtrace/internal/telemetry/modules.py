@@ -4,18 +4,27 @@ from typing import Any
 from typing import Set
 from typing import Tuple
 
+from ddtrace.internal.logger import get_logger
+
 from ..compat import PYTHON_VERSION_INFO
 from ..module import BaseModuleWatchdog
 
 
+log = get_logger(__name__)
+
 NEW_MODULES: Set[str] = set()  # New modules that have been imported since the last check
 ALL_MODULES: Set[str] = set()  # All modules that have been imported
 MODULE_HOOK_INSTALLED = False
+GLOBAL_CALLS = 0
 
 # For Python >= 3.8 we can use the sys.audit event import(module, filename, sys.path, sys.meta_path, sys.path_hooks)
 if PYTHON_VERSION_INFO >= (3, 8):
 
     def audit_hook(event: str, args: Tuple[Any, ...]):
+        global GLOBAL_CALLS
+        GLOBAL_CALLS += 1
+        info = f"||| GLOBAL_CALLS: {GLOBAL_CALLS}"
+        log.error(info)
         if event != "import":
             return
 
