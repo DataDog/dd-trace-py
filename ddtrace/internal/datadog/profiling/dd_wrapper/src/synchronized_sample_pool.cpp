@@ -23,17 +23,6 @@ SynchronizedSamplePool::SynchronizedSamplePool(size_t capacity)
     ddog_ArrayQueue_NewResult array_queue_new_result = ddog_ArrayQueue_new(capacity, sample_delete_fn);
     if (array_queue_new_result.tag == DDOG_ARRAY_QUEUE_NEW_RESULT_OK) {
         pool = std::unique_ptr<ddog_ArrayQueue, Deleter>(array_queue_new_result.ok);
-        if (pool == nullptr) {
-            // die
-            int* q = reinterpret_cast<int*>(0x42);
-            *q = 0xfeedface;
-        }
-        uintptr_t* p = reinterpret_cast<uintptr_t*>(pool.get());
-        if (*p == 0) {
-            // die
-            int* q = reinterpret_cast<int*>(0x123);
-            *q = 0xfeedface;
-        }
     } else {
         auto err = array_queue_new_result.err;
         std::string errmsg = err_to_msg(&err, "Failed to create sample pool");
@@ -42,16 +31,6 @@ SynchronizedSamplePool::SynchronizedSamplePool(size_t capacity)
         pool = nullptr;
     }
 }
-
-/*
-SynchronizedSamplePool::~SynchronizedSamplePool()
-{
-    std::cerr << getpid() << ": bye bye sample pool!" << std::endl;
-    // NB: I tried commenting this out and the tests still fail...
-    // pool.reset();
-    pool.reset(reinterpret_cast<ddog_ArrayQueue*>(static_cast<uintptr_t>(0xdeadbeefdeadbeef)));
-}
-*/
 
 std::optional<Sample*>
 SynchronizedSamplePool::take_sample()

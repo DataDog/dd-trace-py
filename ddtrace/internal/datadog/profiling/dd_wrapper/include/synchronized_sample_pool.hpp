@@ -19,10 +19,10 @@ struct Deleter
     void operator()(ddog_ArrayQueue* object)
     {
         tripcount++;
-        std::cerr << getpid() << ": delter called, count " << tripcount << std::endl;
-        uintptr_t* p = reinterpret_cast<uintptr_t*>(object);
-        *p = 0xdeadbeefdeadbeef;
-        // ddog_ArrayQueue_drop(object);
+        std::cerr << getpid() << ": deleter called, count " << tripcount << std::endl;
+        ddog_ArrayQueue_drop(object);
+        //  NB: the tests can fail even if I comment out the drop above.
+        //*object = *object; // noop to make the compiler happy
     }
 };
 
@@ -33,7 +33,6 @@ class SynchronizedSamplePool
 
   public:
     SynchronizedSamplePool(size_t capacity);
-    //~SynchronizedSamplePool();
 
     std::optional<Sample*> take_sample();
     std::optional<Sample*> return_sample(Sample* sample);
