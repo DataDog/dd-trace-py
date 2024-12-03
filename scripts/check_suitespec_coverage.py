@@ -24,6 +24,9 @@ SPEC_PATTERNS = {_ for suite in spec.get_suites() for _ in spec.get_patterns(sui
 
 # Ignore any embedded documentation
 IGNORE_PATTERNS.add("**/*.md")
+# Ignore release notes
+IGNORE_PATTERNS.add("releasenotes/**/*.yml")
+IGNORE_PATTERNS.add("releasenotes/**/*.yaml")
 # The aioredis integration is deprecated and untested
 IGNORE_PATTERNS.add("ddtrace/contrib/aioredis/*")
 
