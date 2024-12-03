@@ -4,7 +4,37 @@
 
 #include <algorithm>
 #include <chrono>
+#include <string_view>
 #include <thread>
+
+Datadog::internal::StringArena::StringArena()
+{
+    chunks.emplace_back();
+    chunks.back().reserve(Datadog::internal::StringArena::DEFAULT_SIZE);
+}
+
+void
+Datadog::internal::StringArena::reset()
+{
+    // Free chunks. Keep the first one around so it's easy to reuse this without
+    // needing new allocations every time. We can completely drop it to get rid
+    // of everything
+    chunks.front().clear();
+    chunks.erase(++chunks.begin(), chunks.end());
+}
+
+std::string_view
+Datadog::internal::StringArena::insert(std::string_view s)
+{
+    auto chunk = &chunks.back();
+    if ((chunk->capacity() - chunk->size()) < s.size()) {
+        chunk = &chunks.emplace_back();
+        chunk->reserve(std::max(s.size(), Datadog::internal::StringArena::DEFAULT_SIZE));
+    }
+    int base = chunk->size();
+    chunk->insert(chunk->end(), s.begin(), s.end());
+    return std::string_view(chunk->data() + base, s.size());
+}
 
 Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
   : max_nframes{ _max_nframes }
@@ -28,8 +58,8 @@ void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
     static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
-    name = profile_state.insert_or_get(name);
-    filename = profile_state.insert_or_get(filename);
+    name = string_storage.insert(name);
+    filename = string_storage.insert(filename);
 
     CodeProvenance::get_instance().add_filename(filename);
 
@@ -73,7 +103,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     // Otherwise, persist the val string and add the label
-    val = profile_state.insert_or_get(val);
+    val = string_storage.insert(val);
     auto& label = labels.emplace_back();
     label.key = to_slice(key_sv);
     label.str = to_slice(val);
@@ -106,6 +136,7 @@ Datadog::Sample::clear_buffers()
     labels.clear();
     locations.clear();
     dropped_frames = 0;
+    string_storage.reset();
 }
 
 bool

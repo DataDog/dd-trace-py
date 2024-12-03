@@ -15,6 +15,28 @@ extern "C"
 
 namespace Datadog {
 
+namespace internal {
+
+struct StringArena
+{
+    static constexpr size_t DEFAULT_SIZE = 1024;
+    // Strings are backed by fixed-size chunks. The chunks can't grow, or they'll
+    // move and invalidate pointers into the arena.  So, if we need more space, we
+    // add more chunks.
+    std::vector<std::vector<char>> chunks;
+
+    StringArena();
+    // Clear the backing data of the arena, except for a smaller initial segment.
+    // Views returned by insert are invalid after this call.
+    void reset();
+    // Copies the contents of s into the arena and returns a view of the copy in
+    // the arena. The returned view is valid until the next call to reset, or
+    // until the arena is destroyed.
+    std::string_view insert(std::string_view s);
+};
+
+} // namespace internal
+
 class SampleManager; // friend
 
 class Sample
@@ -44,6 +66,9 @@ class Sample
 
     // Additional metadata
     int64_t endtime_ns = 0; // end of the event
+
+    // Backing memory for string copies
+    internal::StringArena string_storage{};
 
   public:
     // Helpers
