@@ -61,6 +61,7 @@ RUN \
   # Install Mariadb
   && wget -O- https://mariadb.org/mariadb_release_signing_key.pgp | gpg --dearmor > /etc/apt/trusted.gpg.d/mariadb.gpg \
   && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ buster main" > /etc/apt/sources.list.d/mariadb.list \
+  && apt-get update && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 
