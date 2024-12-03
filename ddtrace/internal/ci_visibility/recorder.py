@@ -1448,23 +1448,27 @@ def _register_efd_handlers():
 
 
 @_requires_civisibility_enabled
-def _on_atr_is_enabled() -> bool:
-    return CIVisibility.is_atr_enabled()
+def _on_atr_is_enabled() -> None:
+    core.set_item("test_visibility.atr.is_enabled", CIVisibility.is_atr_enabled())
 
 
 @_requires_civisibility_enabled
-def _on_atr_session_has_failed_tests() -> bool:
-    return CIVisibility.get_session().atr_has_failed_tests()
+def _on_atr_session_has_failed_tests() -> None:
+    core.set_item("test_visibility.atr.session_has_failed_tests", CIVisibility.get_session().atr_has_failed_tests())
 
 
 @_requires_civisibility_enabled
-def _on_atr_should_retry_test(item_id: InternalTestId) -> bool:
-    return CIVisibility.get_test_by_id(item_id).atr_should_retry()
+def _on_atr_should_retry_test(item_id: InternalTestId) -> None:
+    core.set_item(
+        f"test_visibility.atr.should_retry_test.{item_id}", CIVisibility.get_test_by_id(item_id).atr_should_retry()
+    )
 
 
 @_requires_civisibility_enabled
-def _on_atr_add_retry(item_id: InternalTestId, retry_number: int) -> Optional[int]:
-    return CIVisibility.get_test_by_id(item_id).atr_add_retry(retry_number)
+def _on_atr_add_retry(item_id: InternalTestId, retry_number: int) -> None:
+    core.set_item(
+        f"test_visibility.atr.add_retry.{item_id}", CIVisibility.get_test_by_id(item_id).atr_add_retry(retry_number)
+    )
 
 
 @_requires_civisibility_enabled
@@ -1480,8 +1484,10 @@ def _on_atr_finish_retry(atr_finish_args: ATRTestMixin.ATRRetryFinishArgs):
 
 
 @_requires_civisibility_enabled
-def _on_atr_get_final_status(test_id: InternalTestId) -> TestStatus:
-    return CIVisibility.get_test_by_id(test_id).atr_get_final_status()
+def _on_atr_get_final_status(test_id: InternalTestId) -> None:
+    core.set_item(
+        f"test_visibility.atr.get_final_status.{test_id}", CIVisibility.get_test_by_id(test_id).atr_get_final_status()
+    )
 
 
 def _register_atr_handlers():
