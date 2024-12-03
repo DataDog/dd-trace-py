@@ -47,6 +47,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         source_file_info: Optional[TestSourceFileInfo] = None,
         initial_tags: Optional[Dict[str, str]] = None,
         is_efd_retry: bool = False,
+        is_atr_retry: bool = False,
         resource: Optional[str] = None,
         is_new: bool = False,
     ):
@@ -72,7 +73,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._efd_is_retry = is_efd_retry
         self._efd_retries: List[TestVisibilityTest] = []
         self._efd_abort_reason: Optional[str] = None
-        self._efd_initial_finish_time_ns: Optional[int] = None
+
+        self._atr_is_retry = is_atr_retry
+        self._atr_retries: List[TestVisibilityTest] = []
 
         # Currently unsupported
         self._is_benchmark = None
@@ -98,8 +101,12 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         # NOTE: The is_new tag is currently only being set in the context of EFD (since that is the only context in
         # which unique tests are fetched).
-        if self._is_new:
+        if self.is_new():
             self.set_tag(TEST_IS_NEW, self._is_new)
+
+    def _set_atr_tags(self) -> None:
+        if self._atr_is_retry:
+            self.set_tag(TEST_IS_RETRY, self._atr_is_retry)
 
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
@@ -124,6 +131,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             test_framework=self._session_settings.test_framework_metric_name,
             is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
             is_new=self._is_new if self._is_new is not None else None,
+            is_retry=self._efd_is_retry or self._atr_is_retry,
             early_flake_detection_abort_reason=self._efd_abort_reason,
         )
 
@@ -161,6 +169,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             if efd_status == EFDTestStatus.ALL_SKIP:
                 return TestStatus.SKIP
             return TestStatus.FAIL
+        if self.atr_has_retries():
+            return self.atr_get_final_status()
         return super().get_status()
 
     def count_itr_skipped(self) -> None:
@@ -299,3 +309,73 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
     def set_efd_abort_reason(self, reason: str) -> None:
         self._efd_abort_reason = reason
+
+    #
+    # ATR (Auto Test Retries) functionality
+    #
+    def _atr_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
+        return self._atr_retries[retry_number - 1]
+
+    def _atr_make_retry_test(self):
+        retry_test = self.__class__(
+            self.name,
+            self._session_settings,
+            codeowners=self._codeowners,
+            source_file_info=self._source_file_info,
+            initial_tags=self._tags,
+            is_atr_retry=True,
+        )
+        retry_test.parent = self.parent
+
+        return retry_test
+
+    def atr_has_retries(self) -> bool:
+        return len(self._atr_retries) > 0
+
+    def atr_should_retry(self):
+        if not self._session_settings.atr_settings.enabled:
+            return False
+
+        if self.get_session().atr_max_retries_reached():
+            return False
+
+        if not self.is_finished():
+            log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
+            return False
+
+        # Only tests that are failing should be retried
+        if self.atr_get_final_status() != TestStatus.FAIL:
+            return False
+
+        return len(self._atr_retries) < self._session_settings.atr_settings.max_retries
+
+    def atr_add_retry(self, start_immediately=False) -> Optional[int]:
+        if not self.atr_should_retry():
+            log.debug("Auto Test Retries: atr_add_retry called but test should not retry")
+            return None
+
+        retry_test = self._atr_make_retry_test()
+        self._atr_retries.append(retry_test)
+        session = self.get_session()
+        if session is not None:
+            session._atr_count_retry()
+
+        if start_immediately:
+            retry_test.start()
+
+        return len(self._atr_retries)
+
+    def atr_start_retry(self, retry_number: int):
+        self._atr_get_retry_test(retry_number).start()
+
+    def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
+        self._atr_get_retry_test(retry_number).finish_test(status, exc_info=exc_info)
+
+    def atr_get_final_status(self) -> TestStatus:
+        if self._status in [TestStatus.PASS, TestStatus.SKIP]:
+            return self._status
+
+        if any(retry._status == TestStatus.PASS for retry in self._atr_retries):
+            return TestStatus.PASS
+
+        return TestStatus.FAIL

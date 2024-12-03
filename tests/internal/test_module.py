@@ -2,11 +2,14 @@ import json
 import os
 from pathlib import Path
 import sys
+import warnings
 from warnings import warn
 
 import mock
 import pytest
 
+from ddtrace import check_supported_python_version
+from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
@@ -52,7 +55,7 @@ def module_watchdog():
 
 def test_watchdog_install_uninstall():
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
+    assert not any(isinstance(m, ModuleWatchdog) and not isinstance(m, ModuleCodeCollector) for m in sys.meta_path)
 
     ModuleWatchdog.install()
 
@@ -62,7 +65,7 @@ def test_watchdog_install_uninstall():
     ModuleWatchdog.uninstall()
 
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
+    assert not any(isinstance(m, ModuleWatchdog) and not isinstance(m, ModuleCodeCollector) for m in sys.meta_path)
 
 
 def test_import_origin_hook_for_imported_module(module_watchdog):
@@ -420,6 +423,7 @@ def test_module_watchdog_namespace_import():
         ModuleWatchdog.uninstall()
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
@@ -569,7 +573,7 @@ def __getattr__(name):
     assert missing_deprecations == set(
         [
             # Note: The following ddtrace.contrib modules are expected to be part of the public API
-            # TODO: Revist whether integration utils should be part of the public API
+            # TODO: Revisit whether integration utils should be part of the public API
             "ddtrace.contrib.redis_utils",
             "ddtrace.contrib.trace_utils",
             "ddtrace.contrib.trace_utils_async",
@@ -587,3 +591,29 @@ def __getattr__(name):
             "ddtrace.contrib.pytest_bdd.plugin",
         ]
     )
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 8), reason="Python >= 3.8 is supported")
+def test_deprecated_python_version():
+    # Test that the deprecation warning for Python 3.7 and below is printed in unsupported Python versions.
+    with warnings.catch_warnings(record=True) as w:
+        # Cause all warnings to always be triggered.
+        warnings.simplefilter("always")
+        # Trigger a warning.
+        check_supported_python_version()
+        # Verify some things
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+        assert "Support for ddtrace with Python version" in str(w[-1].message)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python < 3.8 is unsupported")
+def test_non_deprecated_python_version():
+    # Test that the deprecation warning for Python 3.7 and below is not printed in supported Python versions.
+    with warnings.catch_warnings(record=True) as w:
+        # Cause all warnings to always be triggered.
+        warnings.simplefilter("always")
+        # Trigger a warning.
+        check_supported_python_version()
+        # Verify some things
+        assert len(w) == 0

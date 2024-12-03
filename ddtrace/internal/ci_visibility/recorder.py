@@ -26,6 +26,7 @@ from ddtrace.ext.test_visibility.api import TestId
 from ddtrace.ext.test_visibility.api import TestModule
 from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSession
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import TestSuite
 from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal import agent
@@ -64,13 +65,15 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
-from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
+from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -218,7 +221,15 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
+        dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
+        dd_env_msg = ""
+
         if ddconfig._ci_visibility_agentless_enabled:
+            # In agentless mode, normalize an unset env to none (this is already done by the backend in most cases, so
+            # it does not override default behavior)
+            if dd_env is None:
+                dd_env = "none"
+                dd_env_msg = " (not set in environment)"
             if not self._api_key:
                 raise EnvironmentError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
@@ -234,9 +245,14 @@ class CIVisibility(Service):
                 self._dd_site,
                 ddconfig._ci_visibility_agentless_url if ddconfig._ci_visibility_agentless_url else None,
                 self._service,
-                ddconfig.env,
+                dd_env,
             )
         elif self._agent_evp_proxy_is_available():
+            # In EVP-proxy cases, if an env is not provided, we need to get the agent's default env in order to make
+            # the correct decision:
+            if dd_env is None:
+                dd_env = self._agent_get_default_env()
+                dd_env_msg = " (default environment provided by agent)"
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
             requests_mode_str = "EVP Proxy"
             self._api_client = EVPProxyTestVisibilityAPIClient(
@@ -245,7 +261,7 @@ class CIVisibility(Service):
                 self._configurations,
                 self.tracer._agent_url,
                 self._service,
-                ddconfig.env,
+                dd_env,
             )
         else:
             requests_mode_str = "APM (some features will be disabled)"
@@ -264,7 +280,7 @@ class CIVisibility(Service):
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
-        log.info("Service: %s (env: %s)", self._service, ddconfig.env)
+        log.info("Service: %s (env: %s%s)", self._service, dd_env, dd_env_msg)
         log.info("Requests mode: %s", requests_mode_str)
         log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
         log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
@@ -277,6 +293,7 @@ class CIVisibility(Service):
             "API-provided settings: Early Flake Detection enabled: %s",
             self._api_settings.early_flake_detection.enabled,
         )
+        log.info("API-provided settings: Auto Test Retries enabled: %s", self._api_settings.flaky_test_retries_enabled)
         log.info("Detected configurations: %s", str(self._configurations))
 
         try:
@@ -388,6 +405,17 @@ class CIVisibility(Service):
                 return True
         return False
 
+    def _agent_get_default_env(self):
+        # type: () -> Optional[str]
+        try:
+            info = agent.info(self.tracer._agent_url)
+        except Exception:
+            return "none"
+
+        if info:
+            return info.get("config", {}).get("default_env", "none")
+        return "none"
+
     @classmethod
     def is_itr_enabled(cls):
         # cls.enabled guarantees _instance is not None
@@ -406,6 +434,14 @@ class CIVisibility(Service):
         return (
             cls._instance._api_settings.early_flake_detection.enabled
             and ddconfig._test_visibility_early_flake_detection_enabled
+        )
+
+    @classmethod
+    def is_atr_enabled(cls):
+        if cls._instance is None:
+            return False
+        return cls._instance._api_settings.flaky_test_retries_enabled and asbool(
+            os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True)
         )
 
     @classmethod
@@ -505,10 +541,14 @@ class CIVisibility(Service):
 
         log.debug("%s enabled", cls.__name__)
         log.info(
-            "Final settings: coverage collection: %s, test skipping: %s, Early Flake Detection: %s",
+            "Final settings: coverage collection: %s, "
+            "test skipping: %s, "
+            "Early Flake Detection: %s, "
+            "Auto Test Retries: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
             CIVisibility.is_efd_enabled(),
+            CIVisibility.is_atr_enabled(),
         )
 
     @classmethod
@@ -560,6 +600,14 @@ class CIVisibility(Service):
                     "Early Flake Detection is enabled by API but disabled by "
                     "DD_TEST_VISIBILITY_EARLY_FLAKE_DETECTION_ENABLED environment variable"
                 )
+
+        if self._api_settings.flaky_test_retries_enabled and not asbool(
+            os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", True)
+        ):
+            log.warning(
+                "Auto Test Retries is enabled by API but disabled by "
+                "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED environment variable"
+            )
 
     def _stop_service(self):
         # type: () -> None
@@ -729,6 +777,49 @@ class CIVisibility(Service):
         return instance._api_settings.early_flake_detection
 
     @classmethod
+    def get_atr_api_settings(cls) -> Optional[AutoTestRetriesSettings]:
+        if not cls.enabled:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        instance = cls.get_instance()
+        if instance is None or instance._api_settings is None:
+            return None
+
+        if instance._api_settings.flaky_test_retries_enabled:
+            # NOTE: this is meant to come from integration settings but current plans to rewrite how integration
+            # settings are defined make it better for this logic to be temporarily defined here.
+
+            # defaults
+            max_retries = 5
+            max_session_total_retries = 1000
+
+            env_max_retries = os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT")
+            if env_max_retries is not None:
+                try:
+                    max_retries = int(env_max_retries)
+                except ValueError:
+                    log.warning(
+                        "Failed to parse DD_CIVISIBILITY_FLAKY_RETRY_COUNT, using default value: %s", max_retries
+                    )
+
+            env_max_session_total_retries = os.environ.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT")
+            if env_max_session_total_retries is not None:
+                try:
+                    max_session_total_retries = int(env_max_session_total_retries)
+                except ValueError:
+                    log.warning(
+                        "Failed to parse DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT, using default value: %s",
+                        max_session_total_retries,
+                    )
+
+            return AutoTestRetriesSettings(
+                enabled=True, max_retries=max_retries, max_session_total_retries=max_session_total_retries
+            )
+
+        return None
+
+    @classmethod
     def get_workspace_path(cls) -> Optional[str]:
         if not cls.enabled:
             error_msg = "CI Visibility is not enabled"
@@ -799,6 +890,12 @@ class CIVisibility(Service):
         if instance is None:
             return False
 
+        # The assumption that we were not able to fetch unique tests properly if the length is 0 is acceptable
+        # because the current EFD usage would cause the session to be faulty even if the query was successful but
+        # not unique tests exist. In this case, we assume all tests are unique.
+        if len(instance._unique_test_ids) == 0:
+            return True
+
         return test_id in instance._unique_test_ids
 
 
@@ -813,9 +910,7 @@ def _requires_civisibility_enabled(func):
 
 
 @_requires_civisibility_enabled
-def _on_discover_session(
-    discover_args: TestSession.DiscoverArgs, test_framework_telemetry_name: Optional[TEST_FRAMEWORKS] = None
-):
+def _on_discover_session(discover_args: TestSession.DiscoverArgs):
     log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
@@ -831,12 +926,16 @@ def _on_discover_session(
     # If we're not provided a root directory, try and extract it from workspace, defaulting to CWD
     workspace_path = discover_args.root_dir or Path(CIVisibility.get_workspace_path() or os.getcwd())
 
-    test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
+    # Prevent high cardinality of test framework telemetry tag by matching with known frameworks
+    test_framework_telemetry_name = _get_test_framework_telemetry_name(discover_args.test_framework)
 
     efd_api_settings = CIVisibility.get_efd_api_settings()
-    if efd_api_settings is None:
-        log.debug("Could not get Early Flake Detection settings, using defaults")
+    if efd_api_settings is None or not CIVisibility.is_efd_enabled():
         efd_api_settings = EarlyFlakeDetectionSettings()
+
+    atr_api_settings = CIVisibility.get_atr_api_settings()
+    if atr_api_settings is None or not CIVisibility.is_atr_enabled():
+        atr_api_settings = AutoTestRetriesSettings()
 
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
@@ -858,6 +957,7 @@ def _on_discover_session(
         itr_correlation_id=instance._itr_meta.get(ITR_CORRELATION_ID_TAG_NAME, ""),
         coverage_enabled=CIVisibility.should_collect_coverage(),
         efd_settings=efd_api_settings,
+        atr_settings=atr_api_settings,
     )
 
     session = TestVisibilitySession(
@@ -908,6 +1008,12 @@ def _on_session_get_codeowners() -> Optional[Codeowners]:
 
 
 @_requires_civisibility_enabled
+def _on_session_is_atr_enabled() -> bool:
+    log.debug("Getting Auto Test Retries enabled")
+    return CIVisibility.is_atr_enabled()
+
+
+@_requires_civisibility_enabled
 def _on_session_is_efd_enabled() -> bool:
     log.debug("Getting Early Flake Detection enabled")
     return CIVisibility.is_efd_enabled()
@@ -936,6 +1042,7 @@ def _register_session_handlers():
     core.on("test_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
     core.on("test_visibility.session.get_path_codeowners", _on_session_get_path_codeowners, "path_codeowners")
     core.on("test_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
+    core.on("test_visibility.session.is_atr_enabled", _on_session_is_atr_enabled, "is_atr_enabled")
     core.on("test_visibility.session.is_efd_enabled", _on_session_is_efd_enabled, "is_efd_enabled")
     core.on(
         "test_visibility.session.should_collect_coverage",
@@ -1026,8 +1133,10 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
-    # New tests are currently only considered for EFD
-    if CIVisibility.is_efd_enabled():
+    # New tests are currently only considered for EFD:
+    # - if known tests were fetched properly (enforced by is_unique_test)
+    # - if they have no parameters
+    if CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None:
         is_new = not CIVisibility.is_unique_test(discover_args.test_id)
     else:
         is_new = False
@@ -1094,10 +1203,31 @@ def _on_item_is_finished(item_id: TestVisibilityItemId) -> bool:
     return CIVisibility.get_item_by_id(item_id).is_finished()
 
 
+@_requires_civisibility_enabled
+def _on_item_stash_set(item_id: TestVisibilityItemId, key: str, value: object) -> None:
+    log.debug("Handling stash set for item %s, key %s, value %s", item_id, key, value)
+    CIVisibility.get_item_by_id(item_id).stash_set(key, value)
+
+
+@_requires_civisibility_enabled
+def _on_item_stash_get(item_id: TestVisibilityItemId, key: str) -> Optional[object]:
+    log.debug("Handling stash get for item %s, key %s", item_id, key)
+    return CIVisibility.get_item_by_id(item_id).stash_get(key)
+
+
+@_requires_civisibility_enabled
+def _on_item_stash_delete(item_id: TestVisibilityItemId, key: str) -> None:
+    log.debug("Handling stash delete for item %s, key %s", item_id, key)
+    CIVisibility.get_item_by_id(item_id).stash_delete(key)
+
+
 def _register_item_handlers():
     log.debug("Registering item handlers")
     core.on("test_visibility.item.get_span", _on_item_get_span, "span")
     core.on("test_visibility.item.is_finished", _on_item_is_finished, "is_finished")
+    core.on("test_visibility.item.stash_set", _on_item_stash_set)
+    core.on("test_visibility.item.stash_get", _on_item_stash_get, "stash_value")
+    core.on("test_visibility.item.stash_delete", _on_item_stash_delete)
 
 
 @_requires_civisibility_enabled
@@ -1305,6 +1435,54 @@ def _register_efd_handlers():
     core.on("test_visibility.efd.get_final_status", _on_efd_get_final_status, "efd_final_status")
 
 
+@_requires_civisibility_enabled
+def _on_atr_is_enabled() -> bool:
+    return CIVisibility.is_atr_enabled()
+
+
+@_requires_civisibility_enabled
+def _on_atr_session_has_failed_tests() -> bool:
+    return CIVisibility.get_session().atr_has_failed_tests()
+
+
+@_requires_civisibility_enabled
+def _on_atr_should_retry_test(item_id: InternalTestId) -> bool:
+    return CIVisibility.get_test_by_id(item_id).atr_should_retry()
+
+
+@_requires_civisibility_enabled
+def _on_atr_add_retry(item_id: InternalTestId, retry_number: int) -> Optional[int]:
+    return CIVisibility.get_test_by_id(item_id).atr_add_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_atr_start_retry(test_id: InternalTestId, retry_number: int):
+    CIVisibility.get_test_by_id(test_id).atr_start_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_atr_finish_retry(atr_finish_args: ATRTestMixin.ATRRetryFinishArgs):
+    CIVisibility.get_test_by_id(atr_finish_args.test_id).atr_finish_retry(
+        atr_finish_args.retry_number, atr_finish_args.status, atr_finish_args.exc_info
+    )
+
+
+@_requires_civisibility_enabled
+def _on_atr_get_final_status(test_id: InternalTestId) -> TestStatus:
+    return CIVisibility.get_test_by_id(test_id).atr_get_final_status()
+
+
+def _register_atr_handlers():
+    log.debug("Registering ATR handlers")
+    core.on("test_visibility.atr.is_enabled", _on_atr_is_enabled, "is_enabled")
+    core.on("test_visibility.atr.session_has_failed_tests", _on_atr_session_has_failed_tests, "has_failed_tests")
+    core.on("test_visibility.atr.should_retry_test", _on_atr_should_retry_test, "should_retry_test")
+    core.on("test_visibility.atr.add_retry", _on_atr_add_retry, "retry_number")
+    core.on("test_visibility.atr.start_retry", _on_atr_start_retry)
+    core.on("test_visibility.atr.finish_retry", _on_atr_finish_retry)
+    core.on("test_visibility.atr.get_final_status", _on_atr_get_final_status, "atr_final_status")
+
+
 _register_session_handlers()
 _register_module_handlers()
 _register_suite_handlers()
@@ -1314,3 +1492,4 @@ _register_tag_handlers()
 _register_coverage_handlers()
 _register_itr_handlers()
 _register_efd_handlers()
+_register_atr_handlers()

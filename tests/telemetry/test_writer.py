@@ -17,6 +17,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_global_config
 
 
@@ -152,7 +153,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "profiling_enabled", "origin": "default", "value": "false"},
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
-                    {"name": "crashtracking_alt_stack", "origin": "unknown", "value": False},
+                    {"name": "crashtracking_create_alt_stack", "origin": "unknown", "value": True},
+                    {"name": "crashtracking_use_alt_stack", "origin": "unknown", "value": True},
                     {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
                     {"name": "crashtracking_debug_url", "origin": "unknown", "value": None},
                     {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
@@ -293,6 +295,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_APPSEC_MAX_STACK_TRACES", "origin": "default", "value": 2},
         {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH", "origin": "default", "value": 32},
+        {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT", "origin": "default", "value": 75.0},
         {
             "name": "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP",
             "origin": "default",
@@ -324,15 +327,20 @@ import ddtrace.settings.exception_replay
         {"name": "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
-        {"name": "DD_CRASHTRACKING_ALT_STACK", "origin": "default", "value": False},
+        {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER", "origin": "default", "value": "full"},
         {"name": "DD_CRASHTRACKING_STDERR_FILENAME", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_STDOUT_FILENAME", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_TAGS", "origin": "default", "value": ""},
+        {"name": "DD_CRASHTRACKING_USE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_WAIT_FOR_RECEIVER", "origin": "default", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_DJANGO_INCLUDE_USER_EMAIL", "origin": "default", "value": False},
+        {"name": "DD_DJANGO_INCLUDE_USER_LOGIN", "origin": "default", "value": True},
+        {"name": "DD_DJANGO_INCLUDE_USER_NAME", "origin": "default", "value": True},
+        {"name": "DD_DJANGO_INCLUDE_USER_REALNAME", "origin": "default", "value": False},
         {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": None},
         {"name": "DD_DOGSTATSD_URL", "origin": "default", "value": None},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL", "origin": "default", "value": 3600},
@@ -370,6 +378,7 @@ import ddtrace.settings.exception_replay
             "[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
         {"name": "DD_IAST_REQUEST_SAMPLING", "origin": "default", "value": 30.0},
+        {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
         {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
@@ -400,7 +409,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_SERVICE", "origin": "default", "value": "unnamed-python-service"},
+        {"name": "DD_SERVICE", "origin": "default", "value": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME},
         {"name": "DD_SERVICE_MAPPING", "origin": "env_var", "value": "default_dd_service:remapped_dd_service"},
         {"name": "DD_SITE", "origin": "env_var", "value": "datadoghq.com"},
         {"name": "DD_SPAN_SAMPLING_RULES", "origin": "env_var", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
@@ -806,3 +815,64 @@ def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available(
     assert telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
     assert telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
     assert "dd-api-key" not in telemetry_writer._client._headers
+
+
+def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess, tmpdir):
+    """
+    asserts that telemetry data is submitted for OpenTelemetry configurations
+    """
+
+    env = os.environ.copy()
+    env["DD_SERVICE"] = "dd_service"
+    env["OTEL_SERVICE_NAME"] = "otel_service"
+    env["OTEL_LOG_LEVEL"] = "DEBUG"
+    env["OTEL_PROPAGATORS"] = "tracecontext"
+    env["OTEL_TRACES_SAMPLER"] = "always_on"
+    env["OTEL_TRACES_EXPORTER"] = "none"
+    env["OTEL_LOGS_EXPORTER"] = "otlp"
+    env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
+    env["OTEL_SDK_DISABLED"] = "true"
+    env["OTEL_UNSUPPORTED_CONFIG"] = "value"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    assert status == 0, stderr
+
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations()}
+
+    assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
+    assert configurations["OTEL_LOG_LEVEL"] == {"name": "OTEL_LOG_LEVEL", "origin": "env_var", "value": "debug"}
+    assert configurations["OTEL_PROPAGATORS"] == {
+        "name": "OTEL_PROPAGATORS",
+        "origin": "env_var",
+        "value": "tracecontext",
+    }
+    assert configurations["OTEL_TRACES_SAMPLER"] == {
+        "name": "OTEL_TRACES_SAMPLER",
+        "origin": "env_var",
+        "value": "always_on",
+    }
+    assert configurations["OTEL_TRACES_EXPORTER"] == {
+        "name": "OTEL_TRACES_EXPORTER",
+        "origin": "env_var",
+        "value": "none",
+    }
+    assert configurations["OTEL_LOGS_EXPORTER"] == {"name": "OTEL_LOGS_EXPORTER", "origin": "env_var", "value": "otlp"}
+    assert configurations["OTEL_RESOURCE_ATTRIBUTES"] == {
+        "name": "OTEL_RESOURCE_ATTRIBUTES",
+        "origin": "env_var",
+        "value": "team=apm,component=web",
+    }
+    assert configurations["OTEL_SDK_DISABLED"] == {"name": "OTEL_SDK_DISABLED", "origin": "env_var", "value": "true"}
+
+    env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
+    tags = [m["tags"] for m in env_hiding_metrics]
+    assert tags == [["config_opentelemetry:otel_service_name", "config_datadog:dd_service"]]
+
+    env_unsupported_metrics = test_agent_session.get_metrics("otel.env.unsupported")
+    tags = [m["tags"] for m in env_unsupported_metrics]
+    assert tags == [["config_opentelemetry:otel_unsupported_config"]]
+
+    env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
+    tags = [m["tags"] for m in env_invalid_metrics]
+    assert tags == [["config_opentelemetry:otel_logs_exporter", "config_datadog:"]]

@@ -38,7 +38,7 @@ class TestOperatorAddReplacement(unittest.TestCase):
 
         bytecode = dis.Bytecode(mod.do_operator_add_params)
         dis.dis(mod.do_operator_add_params)
-        assert bytecode.codeobj.co_names == ("ddtrace_aspects", "add_aspect")
+        assert bytecode.codeobj.co_names == ("_ddtrace_aspects", "add_aspect")
 
     def test_string_operator_add_one_tainted(self):  # type: () -> None
         string_input = taint_pyobject(

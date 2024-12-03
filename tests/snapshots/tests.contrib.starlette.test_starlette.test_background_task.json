@@ -1,7 +1,7 @@
 [[
   {
     "name": "starlette.background_task",
-    "service": "",
+    "service": "tests.contrib.starlette",
     "resource": "<unknown>",
     "trace_id": 0,
     "span_id": 1,
@@ -27,7 +27,7 @@
 [
   {
     "name": "starlette.background_task",
-    "service": "",
+    "service": "tests.contrib.starlette",
     "resource": "custom_task",
     "trace_id": 1,
     "span_id": 1,
@@ -61,7 +61,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.starlette",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "660a332700000000",
       "component": "starlette",

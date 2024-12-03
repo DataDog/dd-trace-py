@@ -23,6 +23,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
+from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
@@ -181,6 +182,7 @@ def override_global_config(values):
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     ddtrace.settings.asm.config._eval_asm_can_be_enabled()
     try:
+        core.dispatch("test.config.override")
         yield
     finally:
         # Reset all to their original values
@@ -1072,7 +1074,6 @@ def snapshot_context(
             elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
                 pytest.fail(to_unicode(r.read()), pytrace=False)
-
         try:
             yield SnapshotTest(
                 tracer=tracer,
@@ -1338,7 +1339,7 @@ def _should_skip(condition=None, until: int = None):
         until = dt.datetime(3000, 1, 1)
     else:
         until = dt.datetime.fromtimestamp(until)
-    if until and dt.datetime.utcnow() < until.replace(tzinfo=None):
+    if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
     if condition is not None and not condition:
         return False

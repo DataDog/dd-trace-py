@@ -4,6 +4,7 @@ import typing as t
 
 import pytest
 
+from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
 from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
@@ -13,11 +14,13 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_cove
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
-from ddtrace.contrib.pytest._retry_utils import get_retry_num
+from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
+from ddtrace.contrib.pytest._types import pytest_CallInfo
+from ddtrace.contrib.pytest._types import pytest_Config
+from ddtrace.contrib.pytest._types import pytest_TestReport
 from ddtrace.contrib.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.pytest._utils import _get_names_from_item
-from ddtrace.contrib.pytest._utils import _get_pytest_version_tuple
 from ddtrace.contrib.pytest._utils import _get_session_command
 from ddtrace.contrib.pytest._utils import _get_source_file_info
 from ddtrace.contrib.pytest._utils import _get_test_id_from_item
@@ -25,7 +28,9 @@ from ddtrace.contrib.pytest._utils import _get_test_parameters_json
 from ddtrace.contrib.pytest._utils import _is_enabled_early
 from ddtrace.contrib.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_atr
 from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.pytest._utils import _TestOutcome
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
@@ -52,7 +57,11 @@ from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.vendor.debtcollector import deprecate
 
+
+if _pytest_version_supports_retries():
+    from ddtrace.contrib.pytest._retry_utils import get_retry_num
 
 if _pytest_version_supports_efd():
     from ddtrace.contrib.pytest._efd_utils import efd_get_failed_reports
@@ -60,16 +69,11 @@ if _pytest_version_supports_efd():
     from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
     from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
 
-if _get_pytest_version_tuple() >= (7, 0, 0):
-    from pytest import CallInfo as pytest_CallInfo
-    from pytest import Config as pytest_Config  # noqa: F401
-    from pytest import TestReport as pytest_TestReport
-    from pytest import TestShortLogReport as pytest_TestShortLogReport
-else:
-    from _pytest.config import Config as pytest_Config
-    from _pytest.reports import TestReport as pytest_TestReport
-    from _pytest.reports import TestReport as pytest_TestShortLogReport
-    from _pytest.runner import CallInfo as pytest_CallInfo
+if _pytest_version_supports_atr():
+    from ddtrace.contrib.pytest._atr_utils import atr_get_failed_reports
+    from ddtrace.contrib.pytest._atr_utils import atr_get_teststatus
+    from ddtrace.contrib.pytest._atr_utils import atr_handle_retries
+    from ddtrace.contrib.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
 
@@ -158,6 +162,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
+        log.warning("This version of the ddtrace pytest plugin is currently in beta.")
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
@@ -172,9 +177,17 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
 
 def pytest_configure(config: pytest_Config) -> None:
+    # The only way we end up in pytest_configure is if the environment variable is being used, and logging the warning
+    # now ensures it shows up in output regardless of the use of the -s flag
+    deprecate(
+        "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
+        message="this preview version of the pytest ddtrace plugin will become the only version.",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+
     try:
         if is_enabled(config):
-            take_over_logger_stream_handler()
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)
             if _is_pytest_cov_enabled(config):
@@ -406,11 +419,11 @@ def _process_result(item, call, result) -> _TestOutcome:
         InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
         return _TestOutcome(TestStatus.FAIL)
 
-    # NOTE: for EFD purposes, we need to know if the test failed during setup or teardown.
+    # NOTE: for ATR and EFD purposes, we need to know if the test failed during setup or teardown.
     if call.when == "setup" and result.failed:
-        InternalTest.set_tag(test_id, "_dd.ci.efd_setup_failed", True)
+        InternalTest.stash_set(test_id, "setup_failed", True)
     elif call.when == "teardown" and result.failed:
-        InternalTest.set_tag(test_id, "_dd.ci.efd_teardown_failed", True)
+        InternalTest.stash_set(test_id, "teardown_failed", True)
 
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 
@@ -418,9 +431,8 @@ def _process_result(item, call, result) -> _TestOutcome:
 
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
-    # When EFD retries are active, we do not want makereport to generate results, but we want to record exceptions
-    # since they are not available in the output of runtest_protocol
-    if get_retry_num(item.nodeid) is not None:
+    # When ATR or EFD retries are active, we do not want makereport to generate results
+    if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
         return
 
     original_result = outcome.get_result()
@@ -438,10 +450,15 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
-    # EFD retries tests only if their teardown succeeded to ensure the best chance they will succeed
+    # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
     # NOTE: this mutates the original result's outcome
+    if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
+        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
+        return
     if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
+    if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -459,9 +476,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
         log.debug("encountered error during makereport", exc_info=True)
 
 
-@pytest.hookimpl(hookwrapper=True, tryfirst=True)
-def pytest_terminal_summary(terminalreporter, exitstatus, config):
-    """Report flaky or failed tests"""
+def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
     # Before yield gives us a chance to show failure reports, but they have to be in terminalreporter.stats["failed"] to
     # be shown. That, however, would make them count towards the final summary, so we add them temporarily, then restore
     # terminalreporter.stats["failed"] to its original size after the yield.
@@ -472,14 +487,23 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
             failed_report.outcome = PYTEST_STATUS.FAILED
             terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
-    yield
+    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+        for failed_report in atr_get_failed_reports(terminalreporter):
+            failed_report.outcome = PYTEST_STATUS.FAILED
+            terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
+    return failed_reports_initial_size
+
+
+def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial_size: t.Optional[int] = None):
     # After yield gives us a chance to:
     # - print our flaky test status summary
     # - modify the total counts
 
     # Restore terminalreporter.stats["failed"] to its original size so the final summary remains correct
-    if failed_reports_initial_size == 0:
+    if failed_reports_initial_size is None:
+        log.debug("Could not get initial failed report size, not restoring failed reports")
+    elif failed_reports_initial_size == 0:
         terminalreporter.stats.pop("failed", None)
     else:
         terminalreporter.stats[PYTEST_STATUS.FAILED] = terminalreporter.stats[PYTEST_STATUS.FAILED][
@@ -490,6 +514,31 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
         efd_pytest_terminal_summary_post_yield(terminalreporter)
 
+    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+        atr_pytest_terminal_summary_post_yield(terminalreporter)
+    return
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Report flaky or failed tests"""
+    if not is_test_visibility_enabled():
+        yield
+        return
+
+    failed_reports_initial_size = None
+    try:
+        failed_reports_initial_size = _pytest_terminal_summary_pre_yield(terminalreporter)
+    except Exception:  # noqa: E722
+        log.debug("Encountered error during terminal summary pre-yield", exc_info=True)
+
+    yield
+
+    try:
+        _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial_size)
+    except Exception:  # noqa: E722
+        log.debug("Encountered error during terminal summary post-yield", exc_info=True)
+
     return
 
 
@@ -497,7 +546,9 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
-    if InternalTestSession.efd_has_failed_tests():
+    if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    if InternalTestSession.atr_has_failed_tests() and InternalTestSession.atr_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
@@ -530,9 +581,19 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 def pytest_report_teststatus(
     report: pytest_TestReport,
-) -> t.Optional[pytest_TestShortLogReport]:
-    if _pytest_version_supports_efd():
-        return efd_get_teststatus(report)
+) -> _pytest_report_teststatus_return_type:
+    if not is_test_visibility_enabled():
+        return
+
+    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+        test_status = atr_get_teststatus(report)
+        if test_status is not None:
+            return test_status
+
+    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+        test_status = efd_get_teststatus(report)
+        if test_status is not None:
+            return test_status
 
 
 @pytest.hookimpl(trylast=True)

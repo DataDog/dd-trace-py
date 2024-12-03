@@ -7,6 +7,7 @@ import typing as t
 
 import pytest
 
+from ddtrace.contrib.pytest.constants import ATR_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.pytest.constants import EFD_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.pytest.constants import RETRIES_MIN_SUPPORTED_VERSION
@@ -29,7 +30,7 @@ log = get_logger(__name__)
 
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
-_USE_PLUGIN_V2 = asbool(os.environ.get("_DD_CIVISIBILITY_USE_PYTEST_V2", "false"))
+_USE_PLUGIN_V2 = asbool(os.environ.get("DD_PYTEST_USE_NEW_PLUGIN_BETA", "false"))
 
 
 class _PYTEST_STATUS:
@@ -167,6 +168,10 @@ def _pytest_version_supports_retries() -> bool:
 
 def _pytest_version_supports_efd():
     return _get_pytest_version_tuple() >= EFD_MIN_SUPPORTED_VERSION
+
+
+def _pytest_version_supports_atr():
+    return _get_pytest_version_tuple() >= ATR_MIN_SUPPORTED_VERSION
 
 
 def _pytest_marked_to_skip(item: pytest.Item) -> bool:

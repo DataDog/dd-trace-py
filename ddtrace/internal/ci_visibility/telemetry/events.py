@@ -16,7 +16,7 @@ log = get_logger(__name__)
 class EVENTS_TELEMETRY(str, Enum):
     CREATED = "event_created"
     FINISHED = "event_finished"
-    MANUAL_API_EVENT = "manual_api_event"
+    MANUAL_API_EVENT = "manual_api_events"
     ENQUEUED_FOR_SERIALIZATION = "events_enqueued_for_serialization"
 
 
@@ -28,8 +28,30 @@ def _record_event(
     is_unsupported_ci: Optional[bool] = False,
     is_benchmark: Optional[bool] = False,
     is_new: Optional[bool] = False,
+    is_retry: Optional[bool] = False,
     early_flake_detection_abort_reason: Optional[str] = None,
 ):
+    log.debug(
+        "Recording event telemetry: event=%s"
+        ", event_type=%s"
+        ", test_framework=%s"
+        ", has_codeowners=%s"
+        ", is_unsuported_ci=%s"
+        ", is_benchmark=%s"
+        ", is_new=%s"
+        ", is_retry=%s"
+        ", early_flake_detection_abort_reason=%s",
+        event,
+        event_type,
+        test_framework,
+        has_codeowners,
+        is_unsupported_ci,
+        is_benchmark,
+        is_new,
+        is_retry,
+        early_flake_detection_abort_reason,
+    )
+
     if has_codeowners and event_type != EVENT_TYPES.SESSION:
         log.debug("has_codeowners tag can only be set for sessions, but event type is %s", event_type)
     if is_unsupported_ci and event_type != EVENT_TYPES.SESSION:
@@ -40,6 +62,10 @@ def _record_event(
         log.debug(
             "is_new tag can only be set for test finishes, but event type is %s and event is %s", event_type, event
         )
+    if is_retry and not (event_type == EVENT_TYPES.TEST and event == EVENTS_TELEMETRY.FINISHED):
+        log.debug(
+            "is_retry tag can only be set for test finishes, but event type is %s and event is %s", event_type, event
+        )
     if early_flake_detection_abort_reason and (
         event_type not in [EVENT_TYPES.TEST, EVENT_TYPES.SESSION] or event != EVENTS_TELEMETRY.FINISHED
     ):
@@ -47,17 +73,20 @@ def _record_event(
             "early_flake_detection_abort_reason tag can only be set for tests and session finish events",
         )
 
-    _tags: List[Tuple[str, str]] = [("event_type", event_type)]
+    _tags: List[Tuple[str, str]] = [("event_type", event_type.value)]
     if test_framework and test_framework != TEST_FRAMEWORKS.MANUAL:
-        _tags.append(("test_framework", test_framework))
+        _tags.append(("test_framework", str(test_framework.value)))
     if event_type == EVENT_TYPES.SESSION:
         _tags.append(("has_codeowners", "1" if has_codeowners else "0"))
         _tags.append(("is_unsupported_ci", "1" if has_codeowners else "0"))
 
     if event_type == EVENT_TYPES.TEST:
         _tags.append(("is_benchmark", "1" if is_benchmark else "0"))
-        if event == EVENTS_TELEMETRY.FINISHED and is_new:
-            _tags.append(("is_new", "1"))
+        if event == EVENTS_TELEMETRY.FINISHED:
+            if is_new:
+                _tags.append(("is_new", "true"))
+            if is_retry:
+                _tags.append(("is_retry", "true"))
 
     if (
         early_flake_detection_abort_reason
@@ -66,7 +95,7 @@ def _record_event(
     ):
         _tags.append(("early_flake_detection_abort_reason", early_flake_detection_abort_reason))
 
-    telemetry_writer.add_count_metric(_NAMESPACE, event, 1, tuple(_tags))
+    telemetry_writer.add_count_metric(_NAMESPACE, event.value, 1, tuple(_tags))
 
 
 def record_event_created(
@@ -97,6 +126,7 @@ def record_event_finished(
     is_unsupported_ci: bool = False,
     is_benchmark: bool = False,
     is_new: bool = False,
+    is_retry: bool = False,
     early_flake_detection_abort_reason: Optional[str] = None,
 ):
     _record_event(
@@ -107,6 +137,7 @@ def record_event_finished(
         is_unsupported_ci=is_unsupported_ci,
         is_benchmark=is_benchmark,
         is_new=is_new,
+        is_retry=is_retry,
         early_flake_detection_abort_reason=early_flake_detection_abort_reason,
     )
 

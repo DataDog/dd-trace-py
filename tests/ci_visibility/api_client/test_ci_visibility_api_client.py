@@ -353,6 +353,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             configurations["custom"] = _expected_config.pop("custom_configurations")
         if "dd_service" not in _expected_config:
             _expected_config["dd_service"] = "dd-test-py"
+        if "dd_env" not in _expected_config:
+            _expected_config["dd_env"] = "none"
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
         with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing():
@@ -425,7 +427,111 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                     configurations=configurations,
                     git_data=git_data,
                     agent_url="http://patchedagenturl:6218",
+                    dd_env="none",
                     **_expected_config,
+                )
+                CIVisibility.enable()
+                assert CIVisibility.enabled is True
+                assert CIVisibility._instance is not None
+                assert CIVisibility._instance._api_client is not None
+
+                assert CIVisibility._instance._api_client.__dict__ == expected_client.__dict__
+            finally:
+                CIVisibility.disable()
+
+    def test_civisibility_api_client_evp_respects_agent_default_config(self):
+        """Tests that, if no DD_ENV is provided in EVP mode, the agent's default env is used"""
+        agent_info_response = json.loads(
+            """
+            {
+              "version": "7.49.1",
+              "git_commit": "1790cab",
+              "endpoints": [
+                "/v0.3/traces",
+                "/v0.3/services",
+                "/v0.4/traces",
+                "/v0.4/services",
+                "/v0.5/traces",
+                "/v0.7/traces",
+                "/profiling/v1/input",
+                "/telemetry/proxy/",
+                "/v0.6/stats",
+                "/v0.1/pipeline_stats",
+                "/evp_proxy/v1/",
+                "/evp_proxy/v2/",
+                "/evp_proxy/v3/",
+                "/debugger/v1/input",
+                "/debugger/v1/diagnostics",
+                "/symdb/v1/input",
+                "/dogstatsd/v1/proxy",
+                "/dogstatsd/v2/proxy",
+                "/v0.7/config",
+                "/config/set"
+              ],
+              "client_drop_p0s": true,
+              "span_meta_structs": true,
+              "long_running_spans": true,
+              "config": {
+                "default_env": "not_the_default_default_env",
+                "target_tps": 10,
+                "max_eps": 200,
+                "receiver_port": 8126,
+                "receiver_socket": "",
+                "connection_limit": 0,
+                "receiver_timeout": 0,
+                "max_request_bytes": 26214400,
+                "statsd_port": 8125,
+                "max_memory": 0,
+                "max_cpu": 0,
+                "analyzed_spans_by_service": {},
+                "obfuscation": {
+                  "elastic_search": true,
+                  "mongo": true,
+                  "sql_exec_plan": false,
+                  "sql_exec_plan_normalize": false,
+                  "http": {
+                    "remove_query_string": false,
+                    "remove_path_digits": false
+                  },
+                  "remove_stack_traces": false,
+                  "redis": {
+                    "Enabled": true,
+                    "RemoveAllArgs": false
+                  },
+                  "memcached": {
+                    "Enabled": true,
+                    "KeepCommand": false
+                  }
+                }
+              }
+            }
+            """
+        )
+
+        configurations = {
+            "os.architecture": "testarch64",
+            "os.platform": "Not Actually Linux",
+            "os.version": "1.2.3-test",
+            "runtime.name": "CPythonTest",
+            "runtime.version": "1.2.3",
+        }
+
+        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
+        with _ci_override_env(full_clear=True), _patch_env_for_testing(), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+        ), mock.patch("ddtrace.internal.agent.info", return_value=agent_info_response), mock.patch(
+            "ddtrace.internal.agent.get_trace_url", return_value="http://shouldntbeused:6218"
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
+        ):
+            try:
+                expected_client = EVPProxyTestVisibilityAPIClient(
+                    itr_skipping_level=ITR_SKIPPING_LEVEL.TEST,
+                    configurations=configurations,
+                    git_data=git_data,
+                    agent_url="http://patchedagenturl:6218",
+                    dd_env="not_the_default_default_env",
+                    dd_service="dd-test-py",
                 )
                 CIVisibility.enable()
                 assert CIVisibility.enabled is True
