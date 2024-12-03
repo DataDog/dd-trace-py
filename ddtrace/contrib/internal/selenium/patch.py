@@ -112,7 +112,7 @@ class SeleniumGetWrappingContext(SeleniumWrappingContextBase):
 
         existing_browser_name = root_span.get_tag("test.browser.name")
         if existing_browser_name is None:
-            root_span.set_tag("test.browser.name", "")
+            root_span.set_tag("test.browser.name", browser_name)
         elif existing_browser_name not in ["", browser_name]:
             root_span.set_tag("test.browser.name", "")
 

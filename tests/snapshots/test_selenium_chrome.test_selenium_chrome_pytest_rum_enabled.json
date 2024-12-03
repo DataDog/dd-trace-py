@@ -12,14 +12,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "674f2dc500000000",
+      "_dd.p.tid": "674f30a200000000",
       "component": "pytest",
       "language": "python",
       "library_version": "2.18.0.dev95+g5f76e34a0",
       "os.architecture": "x86_64",
       "os.platform": "Linux",
       "os.version": "5.15.0-1071-aws",
-      "runtime-id": "1472310b4b614fbabd0da9b1c6730c34",
+      "runtime-id": "7302c641201a429b97db4b8c863fc1e9",
       "runtime.name": "CPython",
       "runtime.version": "3.10.14",
       "span.kind": "test",
@@ -29,7 +29,7 @@
       "test.framework_version": "8.3.4",
       "test.itr.tests_skipping.enabled": "false",
       "test.status": "pass",
-      "test_session_id": "5049656433491290489",
+      "test_session_id": "11779449984696132842",
       "type": "test_session_end"
     },
     "metrics": {
@@ -37,10 +37,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 10561
+      "process_id": 13453
     },
-    "duration": 1216135311,
-    "start": 1733242309007193036
+    "duration": 1175555510,
+    "start": 1733243042959917377
   },
      {
        "name": "pytest.test_module",
@@ -55,7 +55,7 @@
          "_dd.base_service": "",
          "_dd.origin": "ciapp-test",
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "674f2dc500000000",
+         "_dd.p.tid": "674f30a200000000",
          "component": "pytest",
          "language": "python",
          "library_version": "2.18.0.dev95+g5f76e34a0",
@@ -73,8 +73,8 @@
          "test.module": "",
          "test.module_path": "",
          "test.status": "pass",
-         "test_module_id": "7122256595080609951",
-         "test_session_id": "5049656433491290489",
+         "test_module_id": "7190997582830612638",
+         "test_session_id": "11779449984696132842",
          "type": "test_module_end"
        },
        "metrics": {
@@ -82,8 +82,8 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1
        },
-       "duration": 1099831893,
-       "start": 1733242309122370955
+       "duration": 1056334178,
+       "start": 1733243043078015355
      },
         {
           "name": "pytest.test_suite",
@@ -98,7 +98,7 @@
             "_dd.base_service": "",
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
-            "_dd.p.tid": "674f2dc500000000",
+            "_dd.p.tid": "674f30a200000000",
             "component": "pytest",
             "language": "python",
             "library_version": "2.18.0.dev95+g5f76e34a0",
@@ -115,9 +115,9 @@
             "test.module_path": "",
             "test.status": "pass",
             "test.suite": "test_selenium.py",
-            "test_module_id": "7122256595080609951",
-            "test_session_id": "5049656433491290489",
-            "test_suite_id": "8153770665128674219",
+            "test_module_id": "7190997582830612638",
+            "test_session_id": "11779449984696132842",
+            "test_suite_id": "16799388353789766894",
             "type": "test_suite_end"
           },
           "metrics": {
@@ -125,8 +125,8 @@
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1
           },
-          "duration": 1082351156,
-          "start": 1733242309122475197
+          "duration": 1039485691,
+          "start": 1733243043078144147
         }],
 [
   {
@@ -142,20 +142,20 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "674f2dc500000000",
+      "_dd.p.tid": "674f30a300000000",
       "component": "pytest",
       "language": "python",
       "library_version": "2.18.0.dev95+g5f76e34a0",
       "os.architecture": "x86_64",
       "os.platform": "Linux",
       "os.version": "5.15.0-1071-aws",
-      "runtime-id": "1472310b4b614fbabd0da9b1c6730c34",
+      "runtime-id": "7302c641201a429b97db4b8c863fc1e9",
       "runtime.name": "CPython",
       "runtime.version": "3.10.14",
       "span.kind": "test",
       "test.browser.driver": "selenium",
       "test.browser.driver_version": "4.27.1",
-      "test.browser.name": "",
+      "test.browser.name": "chrome",
       "test.browser.version": "131.0.6778.85",
       "test.command": "pytest --ddtrace -s --ddtrace-patch-all",
       "test.framework": "pytest",
@@ -169,9 +169,9 @@
       "test.status": "pass",
       "test.suite": "test_selenium.py",
       "test.type": "test",
-      "test_module_id": "7122256595080609951",
-      "test_session_id": "5049656433491290489",
-      "test_suite_id": "8153770665128674219",
+      "test_module_id": "7190997582830612638",
+      "test_session_id": "11779449984696132842",
+      "test_suite_id": "16799388353789766894",
       "type": "test"
     },
     "metrics": {
@@ -179,10 +179,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 10561,
+      "process_id": 13453,
       "test.source.end": 29,
       "test.source.start": 7
     },
-    "duration": 1099780984,
-    "start": 1733242309122529508
+    "duration": 1056245299,
+    "start": 1733243043078204615
   }]]
