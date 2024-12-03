@@ -233,7 +233,6 @@ class TelemetryWriter(PeriodicService):
 
         if self._is_periodic:
             self.start()
-            return True
 
         self.status = ServiceStatus.RUNNING
         if _TelemetryConfig.DEPENDENCY_COLLECTION:
