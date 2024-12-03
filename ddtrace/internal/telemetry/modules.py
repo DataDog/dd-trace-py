@@ -35,6 +35,8 @@ if PYTHON_VERSION_INFO >= (3, 8):
     def get_newly_imported_modules() -> Set[str]:
         global MODULE_HOOK_INSTALLED, NEW_MODULES, ALL_MODULES
 
+        info = f"||| MODULE_HOOK_INSTALLED: {MODULE_HOOK_INSTALLED}"
+        log.error(info)
         # Our hook is not installed, so we are not getting notified of new imports,
         # we need to track the changes manually
         if not NEW_MODULES and not MODULE_HOOK_INSTALLED:
