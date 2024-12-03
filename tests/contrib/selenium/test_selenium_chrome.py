@@ -1,7 +1,14 @@
+"""Tests for selenium + RUM integration
+
+IMPORTANT NOTE: these tests only reliably work on Linux/x86_64 due to some annoyingly picky issues with installing
+Selenium and a working browser/webdriver combination on non-x86_64 architectures (at time of writing, at least,
+Selenium's webdriver-manager doesn't support Linux on non-x86_64).
+"""
 import http.server
 import multiprocessing
 import os
 from pathlib import Path
+import platform
 import socketserver
 import subprocess
 import textwrap
@@ -62,7 +69,8 @@ def _http_server(scope="function"):
 
 
 @snapshot(ignores=SNAPSHOT_IGNORES)
-def test_selenium_chromium_pytest_rum_enabled(_http_server, testdir, git_repo):
+@pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
+def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
         """
             from pathlib import Path
@@ -111,7 +119,8 @@ def test_selenium_chromium_pytest_rum_enabled(_http_server, testdir, git_repo):
 
 
 @snapshot(ignores=SNAPSHOT_IGNORES)
-def test_selenium_chromium_pytest_rum_disabled(_http_server, testdir, git_repo):
+@pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
+def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
         """
             from pathlib import Path
