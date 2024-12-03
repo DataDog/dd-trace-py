@@ -40,7 +40,8 @@ class InternalTestBase(ext_api.TestBase):
     @_catch_and_log_exceptions
     def stash_get(item_id: ext_api.TestVisibilityItemId, key: str):
         log.debug("Getting stashed value for key %s in item %s", key, item_id)
-        stash_value = core.dispatch_with_results("test_visibility.item.stash_get", (item_id, key)).stash_value.value
+        core.dispatch("test_visibility.item.stash_get", (item_id, key))
+        stash_value = core.get_item(f"test_visibility.item.stash_get.{item_id}.{key}")
         log.debug("Got stashed value %s for key %s in item %s", stash_value, key, item_id)
         return stash_value
 

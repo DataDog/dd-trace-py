@@ -1210,9 +1210,11 @@ def _on_item_stash_set(item_id: TestVisibilityItemId, key: str, value: object) -
 
 
 @_requires_civisibility_enabled
-def _on_item_stash_get(item_id: TestVisibilityItemId, key: str) -> Optional[object]:
+def _on_item_stash_get(item_id: TestVisibilityItemId, key: str) -> None:
     log.debug("Handling stash get for item %s, key %s", item_id, key)
-    return CIVisibility.get_item_by_id(item_id).stash_get(key)
+    core.set_item(
+        f"test_visibility.item.stash_get.{item_id}.{key}", CIVisibility.get_item_by_id(item_id).stash_get(key)
+    )
 
 
 @_requires_civisibility_enabled
