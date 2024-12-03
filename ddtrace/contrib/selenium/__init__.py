@@ -5,11 +5,15 @@ Real User Monitoring session replays.
 Enabling
 ~~~~~~~~
 
-The Selenium integration is enabled by default in test contexts (eg: pytest, or unittest).Use
-:func:`patch()<ddtrace.patch>` to enable the integration::
+The Selenium integration is enabled by default in test contexts (eg: pytest, or unittest). Use
+:func:`patch()<ddtrace.patch>` to enable the integration:
 
     from ddtrace import patch
     patch(selenium=True)
+
+
+When using pytest, the `--ddtrace-patch-all` flag is required in order for this integration to
+be enabled..
 
 Configuration
 ~~~~~~~~~~~~~

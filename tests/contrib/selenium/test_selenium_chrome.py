@@ -105,7 +105,7 @@ def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
     )
     testdir.makepyfile(test_selenium=selenium_test_script)
     subprocess.run(
-        ["pytest", "--ddtrace", "-s"],
+        ["pytest", "--ddtrace", "-s", "--ddtrace-patch-all"],
         env=_get_default_ci_env_vars(
             dict(
                 DD_API_KEY="foobar.baz",
@@ -155,7 +155,60 @@ def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
     )
     testdir.makepyfile(test_selenium=selenium_test_script)
     subprocess.run(
-        ["pytest", "--ddtrace", "-s"],
+        ["pytest", "--ddtrace", "-s", "--ddtrace-patch-all"],
+        env=_get_default_ci_env_vars(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_ITR_ENABLED="false",
+                DD_PATCH_MODULES="sqlite3:false",
+                CI_PROJECT_DIR=str(testdir.tmpdir),
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+            )
+        ),
+    )
+
+
+@snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
+def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_server, testdir, git_repo):
+    selenium_test_script = textwrap.dedent(
+        """
+            from pathlib import Path
+
+            from selenium import webdriver
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.chrome.options import Options
+
+            from ddtrace.contrib.selenium import unpatch
+
+            def test_selenium_local_unpatch():
+                unpatch()
+                options = Options()
+                options.add_argument("--headless")
+                options.add_argument("--no-sandbox")
+
+                with webdriver.Chrome(options=options) as driver:
+                    url = "http://localhost:8079/rum_disabled/page_1.html"
+
+                    driver.get(url)
+
+                    assert driver.title == "Page 1"
+
+                    link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
+
+                    link_2.click()
+
+                    assert driver.title == "Page 2"
+
+                    link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
+                    link_1.click()
+
+                    assert driver.title == "Page 1"
+        """
+    )
+    testdir.makepyfile(test_selenium=selenium_test_script)
+    subprocess.run(
+        ["pytest", "--ddtrace", "-s", "--ddtrace-patch-all"],
         env=_get_default_ci_env_vars(
             dict(
                 DD_API_KEY="foobar.baz",
