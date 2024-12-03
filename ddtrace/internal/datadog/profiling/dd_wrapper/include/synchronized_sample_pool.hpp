@@ -8,12 +8,22 @@ extern "C"
 }
 #include <memory>
 #include <optional>
+#include <unistd.h>
 
 namespace Datadog {
 
+static int tripcount = 0;
+
 struct Deleter
 {
-    void operator()(ddog_ArrayQueue* object) { ddog_ArrayQueue_drop(object); }
+    void operator()(ddog_ArrayQueue* object)
+    {
+        tripcount++;
+        std::cerr << getpid() << ": delter called, count " << tripcount << std::endl;
+        uintptr_t* p = reinterpret_cast<uintptr_t*>(object);
+        *p = 0xdeadbeefdeadbeef;
+        // ddog_ArrayQueue_drop(object);
+    }
 };
 
 class SynchronizedSamplePool
@@ -23,6 +33,7 @@ class SynchronizedSamplePool
 
   public:
     SynchronizedSamplePool(size_t capacity);
+    //~SynchronizedSamplePool();
 
     std::optional<Sample*> take_sample();
     std::optional<Sample*> return_sample(Sample* sample);

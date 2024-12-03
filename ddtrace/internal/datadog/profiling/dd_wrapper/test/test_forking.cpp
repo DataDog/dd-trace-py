@@ -34,6 +34,29 @@ is_exit_normal(int status)
     return WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
+void
+log_waitpid_status(int status)
+{
+    int exitstatus = WEXITSTATUS(status);
+    std::cerr << "exit status=" << exitstatus;
+    if (WIFSIGNALED(status)) {
+        int n = WTERMSIG(status);
+        std::cerr << ", terminated by signal " << n;
+        if (WCOREDUMP(status)) {
+            std::cerr << " (dumped core)";
+        }
+        std::cerr << std::endl;
+        return;
+    }
+    // returns true if the child process was stopped by delivery of a
+    // signal; this is only possible if the call was done using WUNTRACED
+    // or when the child is being traced (see ptrace(2)).
+    if (WIFSTOPPED(status)) {
+        int n = WSTOPSIG(status);
+        std::cerr << ", stopped by signal " << n << std::endl;
+    }
+}
+
 // Validates that sampling/uploads work around forks
 void
 sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
@@ -66,6 +89,10 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     waitpid(pid, &status, 0);
     ddup_upload();
     if (!is_exit_normal(status)) {
+        // TODO: child might have segfaulted. Can we get a core?
+        std::cerr << "FAIL!!! " << status << std::endl;
+        std::cerr << "child process " << pid << " died:";
+        log_waitpid_status(status);
         std::exit(1);
     }
     std::exit(0);
@@ -105,6 +132,9 @@ fork_stress_test(unsigned int num_threads, unsigned int sleep_time_ns, unsigned 
     for (pid_t pid : children) {
         waitpid(pid, &status, 0);
         if (!is_exit_normal(status)) {
+            std::cerr << "FAIL STRESS!!!" << status << std::endl;
+            std::cerr << "child process " << pid << " died:";
+            log_waitpid_status(status);
             std::exit(1);
         }
     }

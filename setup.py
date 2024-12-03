@@ -429,7 +429,8 @@ class CMakeExtension(Extension):
         self.cmake_args = cmake_args or []
         self.build_args = build_args or []
         self.install_args = install_args or []
-        self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
+        # self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
+        self.build_type = "RelWithDebInfo"
         self.optional = optional  # If True, cmake errors are ignored
 
 

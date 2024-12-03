@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include "sample_manager.hpp"
 #include "types.hpp"
 
@@ -78,6 +80,7 @@ Datadog::SampleManager::postfork_child()
         // Clear the pool to make sure it's in a consistent state.
         // Suppose there was a thread that was adding/removing sample from the pool
         // and the fork happened in the middle of that operation.
+        std::cerr << getpid() << ": post-fork child" << std::endl;
         sample_pool = std::make_unique<SynchronizedSamplePool>(sample_pool_capacity);
     }
 }

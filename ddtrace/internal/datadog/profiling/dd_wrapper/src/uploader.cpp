@@ -132,6 +132,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
             auto err = res.err;                              // NOLINT (cppcoreguidelines-pro-type-union-access)
             errmsg = err_to_msg(&err, "Error uploading");
+            std::cerr << getpid() << ": ";
             std::cerr << errmsg << std::endl;
             ddog_Error_drop(&err);
             return false;

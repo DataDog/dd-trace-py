@@ -9,6 +9,7 @@
 #include <atomic>
 #include <mutex>
 #include <optional>
+#include <unistd.h>
 
 #include <vector>
 

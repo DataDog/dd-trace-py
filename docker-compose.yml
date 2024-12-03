@@ -161,6 +161,7 @@ services:
         working_dir: /root/project/
         volumes:
           - ddagent:/tmp/ddagent
+          - /tmp:/tmp
           - ./:/root/project
           - ./.ddtox:/root/project/.tox
           - ./.riot:/root/project/.riot
