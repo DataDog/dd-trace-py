@@ -121,6 +121,76 @@ class IastSpanReporter(NotNoneDictable):
         """
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
 
+    def _merge(self, other: "IastSpanReporter") -> "IastSpanReporter":
+        """
+        Merges the IAST span reporter with another IAST span reporter.
+
+        Args:
+        - other (IastSpanReporter): IAST span reporter to merge.
+
+        Returns:
+        - IastSpanReporter: Merged IAST span reporter.
+        """
+        # TODO: Handle the case where we need to update indexes of sources
+        self.sources = self.sources + other.sources
+        self.vulnerabilities.update(other.vulnerabilities)
+
+    def _from_json(self, json_str: str):
+        """
+        Initializes the IAST span reporter from a JSON string.
+
+        Args:
+        - json_str (str): JSON string.
+        """
+        from ._taint_tracking import str_to_origin
+
+        data = json.loads(json_str)
+        self.sources = []
+        for i in data["sources"]:
+            source = Source(
+                origin=str_to_origin(i["origin"]),
+                name=i["name"],
+            )
+            if "value" in i:
+                source.value = i["value"]
+            if "redacted" in i:
+                source.redacted = i["redacted"]
+            if "pattern" in i:
+                source.pattern = i["pattern"]
+            self.sources.append(source)
+
+        # TODO: not always dialect exists
+        # self.vulnerabilities = {
+        #     Vulnerability(
+        #         type=i["type"],
+        #         evidence=Evidence(dialect=i["evidence"]["dialect"], value=i["evidence"]["value"]),
+        #         location=Location(
+        #             spanId=i["location"]["spanId"], path=i["location"]["path"], line=i["location"]["line"]
+        #         ),
+        #     )
+        #     for i in data["vulnerabilities"]
+        # }
+        self.vulnerabilities = set()
+        for i in data["vulnerabilities"]:
+            evidence = Evidence()
+            if "ranges" in i["evidence"]:
+                evidence._ranges = i["evidence"]["ranges"]
+            if "value" in i["evidence"]:
+                evidence.value = i["evidence"]["value"]
+            if "valueParts" in i["evidence"]:
+                evidence.valueParts = i["evidence"]["valueParts"]
+            if "dialect" in i["evidence"]:
+                evidence.dialect = i["evidence"]["dialect"]
+            self.vulnerabilities.add(
+                Vulnerability(
+                    type=i["type"],
+                    evidence=evidence,
+                    location=Location(
+                        spanId=i["location"]["spanId"], path=i["location"]["path"], line=i["location"]["line"]
+                    ),
+                )
+            )
+
     def _to_dict(self):
         return {
             "sources": [i._to_dict() for i in self.sources],

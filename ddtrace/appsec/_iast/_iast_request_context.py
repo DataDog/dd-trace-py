@@ -116,40 +116,64 @@ def _not_running_inside_pytest():
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
-        if span:
-            req_span = span
-        else:
-            if _not_running_inside_pytest():
-                req_span = ctx.get_item("req_span")
+        not_in_pytest = _not_running_inside_pytest()
+        if not_in_pytest:
+            if span:
+                req_span = span
             else:
-                req_span = core.get_root_span()
+                req_span = ctx.get_item("req_span")
+        else:
+            req_span = core.get_root_span()
 
         if _is_iast_enabled():
             exist_data = req_span.get_tag(IAST.JSON)
-            if exist_data is None and req_span.get_metric(IAST.ENABLED) is None:
-                if not is_iast_request_enabled():
-                    req_span.set_metric(IAST.ENABLED, 0.0)
+            if exist_data is None:
+                if req_span.get_metric(IAST.ENABLED) is None:
+                    if not is_iast_request_enabled():
+                        req_span.set_metric(IAST.ENABLED, 0.0)
+                        end_iast_context(req_span)
+                        oce.release_request()
+                        return
+
+                    req_span.set_metric(IAST.ENABLED, 1.0)
+                    report_data: Optional[IastSpanReporter] = get_iast_reporter()
+
+                    if report_data:
+                        report_data.build_and_scrub_value_parts()
+                        req_span.set_tag_str(IAST.JSON, report_data._to_str())
+                    _set_metric_iast_request_tainted()
+                    _set_span_tag_iast_request_tainted(req_span)
+                    _set_span_tag_iast_executed_sink(req_span)
+
+                    set_iast_request_enabled(False)
                     end_iast_context(req_span)
+
+                    if req_span.get_tag(ORIGIN_KEY) is None:
+                        req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+
                     oce.release_request()
-                    return
-
-                req_span.set_metric(IAST.ENABLED, 1.0)
+            elif not not_in_pytest:  # sorry
+                # Data exists from a previous request
+                # we will merge both reports
                 report_data: Optional[IastSpanReporter] = get_iast_reporter()
+                if report_data is not None:
+                    previous_data = IastSpanReporter()
+                    previous_data._from_json(exist_data)
 
-                if report_data:
+                    report_data._merge(previous_data)
                     report_data.build_and_scrub_value_parts()
                     req_span.set_tag_str(IAST.JSON, report_data._to_str())
-                _set_metric_iast_request_tainted()
-                _set_span_tag_iast_request_tainted(req_span)
-                _set_span_tag_iast_executed_sink(req_span)
+                    _set_metric_iast_request_tainted()
+                    _set_span_tag_iast_request_tainted(req_span)
+                    _set_span_tag_iast_executed_sink(req_span)
 
-                set_iast_request_enabled(False)
-                end_iast_context(req_span)
+                    set_iast_request_enabled(False)
+                    end_iast_context(req_span)
 
-                if req_span.get_tag(ORIGIN_KEY) is None:
-                    req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+                    if req_span.get_tag(ORIGIN_KEY) is None:
+                        req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
-                oce.release_request()
+                    oce.release_request()
 
     except Exception:
         log.debug("[IAST] Error finishing IAST context", exc_info=True)
