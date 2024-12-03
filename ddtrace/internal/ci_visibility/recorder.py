@@ -983,28 +983,28 @@ def _on_finish_session(finish_args: TestSession.FinishArgs):
 
 
 @_requires_civisibility_enabled
-def _on_session_is_test_skipping_enabled() -> bool:
+def _on_session_is_test_skipping_enabled() -> None:
     log.debug("Handling is test skipping enabled")
-    return CIVisibility.test_skipping_enabled()
+    core.set_item("test_visibility.session.is_test_skipping_enabled", CIVisibility.test_skipping_enabled())
 
 
 @_requires_civisibility_enabled
-def _on_session_get_workspace_path() -> Optional[Path]:
+def _on_session_get_workspace_path() -> None:
     log.debug("Handling finish for session id %s")
     path_str = CIVisibility.get_workspace_path()
-    return Path(path_str) if path_str is not None else None
+    core.set_item("test_visibility.session.get_workspace_path", Path(path_str) if path_str is not None else None)
 
 
 @_requires_civisibility_enabled
-def _on_session_should_collect_coverage() -> bool:
+def _on_session_should_collect_coverage() -> None:
     log.debug("Handling should collect coverage")
-    return CIVisibility.should_collect_coverage()
+    core.set_item("test_visibility.session.should_collect_coverage", CIVisibility.should_collect_coverage())
 
 
 @_requires_civisibility_enabled
-def _on_session_get_codeowners() -> Optional[Codeowners]:
+def _on_session_get_codeowners() -> None:
     log.debug("Getting codeowners")
-    return CIVisibility.get_codeowners()
+    core.set_item("test_visibility.session.get_codeowners", CIVisibility.get_codeowners())
 
 
 @_requires_civisibility_enabled
@@ -1026,12 +1026,13 @@ def _on_session_set_covered_lines_pct(coverage_pct) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
+def _on_session_get_path_codeowners(path: Path) -> None:
     log.debug("Getting codeowners for path %s", path)
     codeowners = CIVisibility.get_codeowners()
-    if codeowners is None:
-        return None
-    return codeowners.of(str(path.absolute()))
+    core.set_item(
+        f"test_visibility.session.get_path_codeowners.{path}",
+        None if codeowners is None else codeowners.of(str(path.absolute())),
+    )
 
 
 def _register_session_handlers():
@@ -1156,9 +1157,9 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
 
 
 @_requires_civisibility_enabled
-def _on_is_new_test(test_id: Union[TestId, InternalTestId]) -> bool:
+def _on_is_new_test(test_id: Union[TestId, InternalTestId]) -> None:
     log.debug("Handling is new test for test %s", test_id)
-    return CIVisibility.get_test_by_id(test_id).is_new()
+    core.set_item(f"test_visibility.test.is_new.{test_id}", CIVisibility.get_test_by_id(test_id).is_new())
 
 
 @_requires_civisibility_enabled

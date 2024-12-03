@@ -66,9 +66,10 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
     def get_codeowners() -> t.Optional[_Codeowners]:
         log.debug("Getting codeowners object")
 
-        codeowners: t.Optional[_Codeowners] = core.dispatch_with_results(
+        core.dispatch("test_visibility.session.get_codeowners")
+        codeowners: t.Optional[_Codeowners] = core.get_item(
             "test_visibility.session.get_codeowners",
-        ).codeowners.value
+        )
         return codeowners
 
     @staticmethod
@@ -76,9 +77,8 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
     def get_workspace_path() -> Path:
         log.debug("Getting session workspace path")
 
-        workspace_path: Path = core.dispatch_with_results(
-            "test_visibility.session.get_workspace_path"
-        ).workspace_path.value
+        core.dispatch("test_visibility.session.get_workspace_path")
+        workspace_path: Path = core.get_item("test_visibility.session.get_workspace_path")
         return workspace_path
 
     @staticmethod
@@ -86,9 +86,8 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
     def should_collect_coverage() -> bool:
         log.debug("Checking if coverage should be collected for session")
 
-        _should_collect_coverage = bool(
-            core.dispatch_with_results("test_visibility.session.should_collect_coverage").should_collect_coverage.value
-        )
+        core.dispatch("test_visibility.session.should_collect_coverage")
+        _should_collect_coverage = bool(core.get_item("test_visibility.session.should_collect_coverage"))
         log.debug("Coverage should be collected: %s", _should_collect_coverage)
 
         return _should_collect_coverage
@@ -98,11 +97,8 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
     def is_test_skipping_enabled() -> bool:
         log.debug("Checking if test skipping is enabled")
 
-        _is_test_skipping_enabled = bool(
-            core.dispatch_with_results(
-                "test_visibility.session.is_test_skipping_enabled"
-            ).is_test_skipping_enabled.value
-        )
+        core.dispatch("test_visibility.session.is_test_skipping_enabled")
+        _is_test_skipping_enabled = bool(core.get_item("test_visibility.session.is_test_skipping_enabled"))
         log.debug("Test skipping is enabled: %s", _is_test_skipping_enabled)
 
         return _is_test_skipping_enabled
@@ -119,9 +115,8 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
     def get_path_codeowners(path: Path) -> t.Optional[t.List[str]]:
         log.debug("Getting codeowners object for path %s", path)
 
-        path_codeowners: t.Optional[t.List[str]] = core.dispatch_with_results(
-            "test_visibility.session.get_path_codeowners", (path,)
-        ).path_codeowners.value
+        core.dispatch("test_visibility.session.get_path_codeowners", (path,))
+        path_codeowners: t.Optional[t.List[str]] = core.get_item(f"test_visibility.session.get_path_codeowners.{path}")
         return path_codeowners
 
 
@@ -162,6 +157,7 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTe
     @_catch_and_log_exceptions
     def is_new_test(item_id: InternalTestId) -> bool:
         log.debug("Checking if test %s is new", item_id)
-        is_new = bool(core.dispatch_with_results("test_visibility.test.is_new", (item_id,)).is_new.value)
+        core.dispatch("test_visibility.test.is_new", (item_id,))
+        is_new = bool(core.get_item(f"test_visibility.test.is_new.{item_id}"))
         log.debug("Test %s is new: %s", item_id, is_new)
         return is_new
