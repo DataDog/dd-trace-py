@@ -164,3 +164,11 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTe
         is_new = bool(core.dispatch_with_results("test_visibility.test.is_new", (item_id,)).is_new.value)
         log.debug("Test %s is new: %s", item_id, is_new)
         return is_new
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def is_quarantined_test(item_id: InternalTestId) -> bool:
+        log.debug("Checking if test %s is quarantined", item_id)
+        is_quarantined = bool(core.dispatch_with_results("test_visibility.test.is_quarantined", (item_id,)).is_quarantined.value)
+        log.debug("Test %s is quarantined: %s", item_id, is_quarantined)
+        return is_quarantined

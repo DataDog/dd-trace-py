@@ -1184,6 +1184,12 @@ def _on_is_new_test(test_id: Union[TestId, InternalTestId]) -> bool:
 
 
 @_requires_civisibility_enabled
+def _on_is_quarantined_test(test_id: Union[TestId, InternalTestId]) -> bool:
+    log.debug("Handling is quarantined test for test %s", test_id)
+    return CIVisibility.get_test_by_id(test_id).is_quarantined()
+
+
+@_requires_civisibility_enabled
 def _on_start_test(test_id: TestId):
     log.debug("Handling start for test id %s", test_id)
     CIVisibility.get_test_by_id(test_id).start()
@@ -1207,6 +1213,7 @@ def _register_test_handlers():
     log.debug("Registering test handlers")
     core.on("test_visibility.test.discover", _on_discover_test)
     core.on("test_visibility.test.is_new", _on_is_new_test, "is_new")
+    core.on("test_visibility.test.is_quarantined", _on_is_quarantined_test, "is_quarantined")
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
     core.on("test_visibility.test.set_parameters", _on_set_test_parameters)

@@ -291,7 +291,7 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
         InternalTest.set_parameters(test_id, parameters)
 
     InternalTest.start(test_id)
-
+    #breakpoint()
     _handle_itr_should_skip(item, test_id)
 
     item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
@@ -432,6 +432,10 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     test_outcome = _process_result(item, call, original_result)
 
     #print(f"\n==> ME OLHA:\n  {item=}\n  {call=}\n  {outcome=}\n  {test_outcome=}")
+
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+    if is_quarantined and test_outcome.status is not None:
+        original_result.outcome = 'quarantined'
 
     #### Quarantine shenanigans
     # is_quarantined = 'fail' in item.name # DEBUG
@@ -584,9 +588,6 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     except Exception:  # noqa: E722
         log.debug("encountered error during session finish", exc_info=True)
 
-
-def is_quarantined(nodeid):
-    return ("quarantined" in nodeid) # ꙮꙮ
 
 def pytest_report_teststatus(
     report: pytest_TestReport,

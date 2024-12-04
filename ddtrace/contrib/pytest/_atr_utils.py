@@ -46,7 +46,7 @@ def atr_handle_retries(
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
     if when == "call":
         if test_outcome.status == TestStatus.FAIL:
-            original_result.outcome = 'quarantined' # _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED
+            original_result.outcome = _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED
         return
     # PAST LIFE:
     # if InternalTest.get_tag(test_id, "_dd.ci.atr_setup_failed"):
