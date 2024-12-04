@@ -186,4 +186,3 @@ class BaseTestLLMObsLangchain:
             tool.invoke(tool_input, config=config)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
-
