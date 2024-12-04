@@ -32,5 +32,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "19.0"
+
       - name: Run profiling native tests
         run: ./ddtrace/internal/datadog/profiling/build_standalone.sh --${{matrix.sanitizer}} RelWithDebInfo dd_wrapper_test
