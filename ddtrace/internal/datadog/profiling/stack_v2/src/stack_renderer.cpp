@@ -103,7 +103,6 @@ StackRenderer::render_task_begin(std::string_view)
 
         task_state.pushed_task_name = false;
     }
-
 }
 
 void
