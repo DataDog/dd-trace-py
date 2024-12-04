@@ -21,7 +21,6 @@ LOG = logging.getLogger(__name__)
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
 
 
-@callonce
 def get_distributions():
     # type: () -> t.Set[Distribution]
     """returns the name and version of all distributions in a python path"""
@@ -60,22 +59,36 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
 
 
 @cached(maxsize=1024)
-def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
+def get_module_distribution_versions(module_name: str, standard: bool = False) -> t.Optional[t.Tuple[str, str]]:
+    if not module_name:
+        return None
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    try:
-        return (
-            module_name,
-            importlib_metadata.distribution(module_name).version,
-        )
-    except importlib_metadata.PackageNotFoundError:
-        pass
-
+    names: t.List[str] = []
     pkgs = get_package_distributions()
-    names = pkgs.get(module_name, [])
+    while names == []:
+        try:
+            return (
+                module_name,
+                importlib_metadata.distribution(module_name).version,
+            )
+        except Exception:
+            pass
+        names = pkgs.get(module_name, [])
+        if not names:
+            if module_name in sys.stdlib_module_names:
+                if standard:
+                    return (module_name, sys.version.split()[0])
+                return None
+            p = module_name.rfind(".")
+            if p > 0:
+                module_name = module_name[:p]
+            else:
+                break
+    print("XXX", module_name, names)
     if len(names) != 1:
         # either it was not resolved or it's a multipurpose package (like '__pycache__')
         return None

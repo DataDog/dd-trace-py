@@ -77,6 +77,7 @@ def update_imported_dependencies(
     deps = []
 
     for imported_module, importing_module in new_modules:
+        print("|||", imported_module, importing_module)
         im_dist = get_module_distribution_versions(imported_module)
         if im_dist is None:
             continue
@@ -86,10 +87,12 @@ def update_imported_dependencies(
             continue
 
         fr_dist = (
-            None if importing_module in ("__main__", "__init__") else get_module_distribution_versions(importing_module)
+            None
+            if importing_module in ("__main__", "__init__")
+            else get_module_distribution_versions(importing_module, True)
         )
         if fr_dist is None:
-            from_name, from_version = importing_module, "unknown"
+            from_name, from_version = importing_module.split(".")[0], "unknown"
         else:
             from_name, from_version = fr_dist
 
