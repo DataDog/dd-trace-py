@@ -88,7 +88,6 @@ def get_module_distribution_versions(module_name: str, standard: bool = False) -
                 module_name = module_name[:p]
             else:
                 break
-    print("XXX", module_name, names)
     if len(names) != 1:
         # either it was not resolved or it's a multipurpose package (like '__pycache__')
         return None
