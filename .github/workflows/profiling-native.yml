@@ -1,4 +1,4 @@
-name: ProfilingNativeTests
+name: Profiling Native Tests with Sanitizers
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  profiling-native-tests:
+  test:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
