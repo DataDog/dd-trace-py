@@ -228,7 +228,7 @@ def _wsgi_make_block_content(ctx, construct_url):
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
     resp_headers.append(("Content-Length", str(len(content))))
-    return status, resp_headers, content
+    core.set_item("wsgi.block.started", (status, resp_headers, content))
 
 
 def _asgi_make_block_content(ctx, url):
