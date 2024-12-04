@@ -31,10 +31,15 @@ def sbom_collection(original_import_callable, instance, args, kwargs):
     GLOBAL_CALLS += 1
     imported_module = args[0]
     if not imported_module.startswith("ddtrace"):
+        # Avoid reporting importlib as parent module
+        importing_module = "importlib"
         frame = inspect.currentframe().f_back
-        if frame is None:
-            return original_import_callable(*args, **kwargs)
-        importing_module = frame.f_globals.get("__name__", "__unknown__")
+        while importing_module.startswith("importlib"):
+            if frame is None:
+                return original_import_callable(*args, **kwargs)
+            importing_module = frame.f_globals.get("__name__", "__unknown__")
+            frame = frame.f_back
+
         edge = (imported_module, importing_module)
         global NEW_MODULES, ALL_MODULES
         if edge not in ALL_MODULES:
@@ -66,7 +71,7 @@ def install_import_hook():
 
     # If we have not called get_newly_imported_modules yet, we can initialize to all imported modules
     if not NEW_MODULES:
-        NEW_MODULES = {(module, "__init__") for module in sys.modules}
+        NEW_MODULES = {(module, "ddtrace") for module in sys.modules}
         ALL_MODULES = NEW_MODULES.copy()
     try_wrap_function_wrapper("builtins", "__import__", sbom_collection)
     MODULE_HOOK_INSTALLED = True

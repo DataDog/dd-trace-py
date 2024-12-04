@@ -86,11 +86,7 @@ def update_imported_dependencies(
         if name == "ddtrace":
             continue
 
-        fr_dist = (
-            None
-            if importing_module in ("__main__", "__init__")
-            else get_module_distribution_versions(importing_module, True)
-        )
+        fr_dist = None if importing_module == "__main__" else get_module_distribution_versions(importing_module, True)
         if fr_dist is None:
             from_name, from_version = importing_module.split(".")[0], "unknown"
         else:
