@@ -26,9 +26,6 @@ def test_asyncio():
     from tests.profiling.collector import _asyncio_compat
     from tests.profiling.collector import pprof_utils
 
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     assert stack_v2.is_available, stack_v2.failure_msg
 
     sleep_time = 0.2
@@ -57,10 +54,7 @@ def test_asyncio():
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        if _asyncio_compat.PY38_AND_LATER:
-            maintask = loop.create_task(hello(), name="main")
-        else:
-            maintask = loop.create_task(hello())
+        maintask = loop.create_task(hello(), name="main")
 
         t1, t2 = loop.run_until_complete(maintask)
     p.stop()
