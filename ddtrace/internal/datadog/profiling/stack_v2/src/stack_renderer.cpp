@@ -51,7 +51,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     thread_state.cpu_time_ns = 0; // Walltime samples are guaranteed, but CPU times are not. Initialize to 0
                                   // since we don't know if we'll get a CPU time here.
 
-    task_state.pushed_task_name = false;
+    pushed_task_name = false;
 
     // Finalize the thread information we have
     ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
@@ -101,7 +101,7 @@ StackRenderer::render_task_begin(std::string_view)
             ddup_push_trace_type(sample, std::string_view(active_span->span_type));
         }
 
-        task_state.pushed_task_name = false;
+        pushed_task_name = false;
     }
 }
 
@@ -132,9 +132,9 @@ StackRenderer::render_python_frame(std::string_view name, std::string_view file,
     }
     // DEV: Echion pushes a dummy frame containing task name, and its line
     // number is set to 0.
-    if (!task_state.pushed_task_name and line == 0 and name != invalid and name != "<invalid>") {
+    if (!pushed_task_name and line == 0 and name != invalid and name != "<invalid>") {
         ddup_push_task_name(sample, name);
-        task_state.pushed_task_name = true;
+        pushed_task_name = true;
     }
 
     ddup_push_frame(sample, name, file, 0, line);
