@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import urllib.parse
+
 import pytest
+
 from .app import app as real_app
 
 
