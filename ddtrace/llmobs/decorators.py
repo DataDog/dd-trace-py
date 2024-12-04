@@ -172,7 +172,7 @@ def _llmobs_decorator(operation_kind):
                     func_signature = signature(func)
                     bound_args = func_signature.bind_partial(*args, **kwargs)
                     if _automatic_io_annotation and bound_args.arguments:
-                        LLMObs.annotate(span=span, input_data=bound_args.arguments)
+                        LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
                     return yield_from_async_gen(func, span, args, kwargs)
 
                 @wraps(func)
@@ -211,7 +211,7 @@ def _llmobs_decorator(operation_kind):
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=bound_args.arguments)
+                            LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
                         try:
                             yield from func(*args, **kwargs)
                         except (StopIteration, GeneratorExit):
