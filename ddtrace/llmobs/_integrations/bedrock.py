@@ -28,7 +28,12 @@ class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
     def _llmobs_set_tags(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None, operation: str = ""
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if span._get_ctx_item(PROPAGATED_PARENT_ID_KEY) is None:
