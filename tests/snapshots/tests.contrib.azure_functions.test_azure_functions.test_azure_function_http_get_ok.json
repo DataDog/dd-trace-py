@@ -2,7 +2,7 @@
   {
     "name": "azure.functions.invoke",
     "service": "azure_functions",
-    "resource": "GET /api/httptest",
+    "resource": "GET /api/httpgetok",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -11,25 +11,25 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6745e5dc00000000",
-      "aas.function.name": "http_test",
+      "_dd.p.tid": "6750843400000000",
+      "aas.function.name": "http_get_ok",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
       "http.method": "GET",
-      "http.route": "/api/httptest",
+      "http.route": "/api/httpgetok",
       "http.status_code": "200",
-      "http.url": "http://0.0.0.0:7071/api/httptest",
+      "http.url": "http://0.0.0.0:7071/api/httpgetok?key=val",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "e3af047bea4149968fb325ffdaa69eef",
+      "runtime-id": "4065fdf8d3f24412b4c038e96d52d6f9",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 68118
+      "process_id": 37022
     },
-    "duration": 274208,
-    "start": 1732634076015238006
+    "duration": 857333,
+    "start": 1733329972203318625
   }]]

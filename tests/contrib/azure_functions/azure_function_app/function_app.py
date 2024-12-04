@@ -9,6 +9,16 @@ import azure.functions as func  # noqa: E402
 app = func.FunctionApp()
 
 
-@app.route(route="httptest", auth_level=func.AuthLevel.ANONYMOUS)
-def http_test(req: func.HttpRequest) -> func.HttpResponse:
+@app.route(route="httpgetok", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+def http_get_ok(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")
+
+
+@app.route(route="httpgeterror", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+def http_get_error(req: func.HttpRequest) -> func.HttpResponse:
+    raise Exception("Test Error")
+
+
+@app.route(route="httppostok", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
+def http_post_ok(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")

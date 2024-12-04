@@ -1,0 +1,35 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "azure_functions",
+    "resource": "POST /api/httppostok",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6750844500000000",
+      "aas.function.name": "http_post_ok",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "POST",
+      "http.route": "/api/httppostok",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/httppostok",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "a2adb6b1e1cb4521987cec0cfd424583",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 40201
+    },
+    "duration": 378125,
+    "start": 1733329989266559633
+  }]]
