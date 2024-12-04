@@ -23,6 +23,7 @@ def test_flask_pytest_iast(iast_enabled, iast_request_sampling, pytest_use_new_p
             "DD_TRACE_DEBUG": "true",
             "DD_PYTEST_USE_NEW_PLUGIN_BETA": pytest_use_new_plugin,
             "DD_IAST_REQUEST_SAMPLING": iast_request_sampling,
+            "_DD_IAST_USE_ROOT_SPAN": "1",
             # "DD_API_KEY": "invalidapikey",
             # "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         }

@@ -103,6 +103,8 @@ venv = Venv(
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "DD_PYTEST_USE_NEW_PLUGIN_BETA": "true",
+        "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+        "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
     },
     venvs=[
         Venv(
@@ -156,8 +158,6 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -176,8 +176,6 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -192,8 +190,6 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -220,8 +216,6 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -234,7 +228,6 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
                 # Flask 1.x.x
@@ -805,7 +798,6 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
                 Venv(
@@ -2339,7 +2331,6 @@ venv = Venv(
             pys=select_pys(),
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
         ),
         Venv(
@@ -2347,7 +2338,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/dbapi_async",
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             pkgs={
                 "pytest-asyncio": "==0.21.1",
