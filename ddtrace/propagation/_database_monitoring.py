@@ -144,14 +144,17 @@ def handle_dbm_injection(int_config, span, args, kwargs):
     if dbm_propagator:
         args, kwargs = dbm_propagator.inject(span, args, kwargs)
 
+    core.set_item("dbm.execute", (span, args, kwargs))
     return span, args, kwargs
 
 
 def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
     # bind_execute_many uses prepared statements which we want to avoid injection for
     if method.__name__ != "bind_execute_many":
-        return handle_dbm_injection(int_config, span, args, kwargs)
-    return span, args, kwargs
+        result = handle_dbm_injection(int_config, span, args, kwargs)
+    else:
+        result = span, args, kwargs
+    core.set_item("dbm.execute", result)
 
 
 _DBM_STANDARD_EVENTS = {
