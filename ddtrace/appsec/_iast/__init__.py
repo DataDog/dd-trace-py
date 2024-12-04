@@ -34,6 +34,7 @@ import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.settings.asm import config as asm_config
 
 from ._overhead_control_engine import OverheadControl
 from ._utils import _is_iast_enabled
@@ -94,6 +95,7 @@ def enable_iast_propagation():
 
 def _iast_pytest_activation():
     global _iast_propagation_enabled
+    global oce
     if _iast_propagation_enabled:
         return
     os.environ["DD_IAST_ENABLED"] = os.environ.get("DD_IAST_ENABLED") or "1"
@@ -102,11 +104,13 @@ def _iast_pytest_activation():
     os.environ["_DD_APPSEC_DEDUPLICATION_ENABLED"] = os.environ.get("_DD_APPSEC_DEDUPLICATION_ENABLED") or "false"
     os.environ["DD_IAST_VULNERABILITIES_PER_REQUEST"] = os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST") or "1000"
     os.environ["DD_IAST_MAX_CONCURRENT_REQUESTS"] = os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS") or "1000"
-    from ddtrace.settings.asm import config as asm_config
 
     asm_config._iast_request_sampling = 100.0
     asm_config._deduplication_enabled = False
+    asm_config._iast_max_vulnerabilities_per_requests = 1000
+    asm_config._iast_max_concurrent_requests = 1000
     enable_iast_propagation()
+    oce.reconfigure()
 
 
 def disable_iast_propagation():

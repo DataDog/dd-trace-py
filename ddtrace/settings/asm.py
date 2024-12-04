@@ -156,6 +156,18 @@ class ASMConfig(Env):
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
+    _iast_max_concurrent_requests = Env.var(
+        int,
+        IAST.DD_IAST_MAX_CONCURRENT_REQUESTS,
+        default=2,
+        help="Timeout in milliseconds for WAF computations",
+    )
+    _iast_max_vulnerabilities_per_requests = Env.var(
+        int,
+        IAST.DD_IAST_VULNERABILITIES_PER_REQUEST,
+        default=2,
+        help="Timeout in milliseconds for WAF computations",
+    )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
     _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
 
@@ -213,6 +225,8 @@ class ASMConfig(Env):
         "_iast_redaction_enabled",
         "_iast_redaction_name_pattern",
         "_iast_redaction_value_pattern",
+        "_iast_max_concurrent_requests",
+        "_iast_max_vulnerabilities_per_requests",
         "_iast_lazy_taint",
         "_ep_stack_trace_enabled",
         "_ep_max_stack_traces",
