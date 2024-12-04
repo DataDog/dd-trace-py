@@ -131,9 +131,21 @@ class IastSpanReporter(NotNoneDictable):
         Returns:
         - IastSpanReporter: Merged IAST span reporter.
         """
-        # TODO: Handle the case where we need to update indexes of sources
+        len_previous_sources = len(self.sources)
         self.sources = self.sources + other.sources
-        self.vulnerabilities.update(other.vulnerabilities)
+        self._update_vulnerabilities(other, len_previous_sources)
+
+    def _update_vulnerabilities(self, other: "IastSpanReporter", offset: int):
+        for vuln in other.vulnerabilities:
+            if (
+                hasattr(vuln, "evidence")
+                and hasattr(vuln.evidence, "valueParts")
+                and vuln.evidence.valueParts is not None
+            ):
+                for part in vuln.evidence.valueParts:
+                    if "source" in part:
+                        part["source"] = part["source"] + offset
+            self.vulnerabilities.add(vuln)
 
     def _from_json(self, json_str: str):
         """
@@ -159,17 +171,6 @@ class IastSpanReporter(NotNoneDictable):
                 source.pattern = i["pattern"]
             self.sources.append(source)
 
-        # TODO: not always dialect exists
-        # self.vulnerabilities = {
-        #     Vulnerability(
-        #         type=i["type"],
-        #         evidence=Evidence(dialect=i["evidence"]["dialect"], value=i["evidence"]["value"]),
-        #         location=Location(
-        #             spanId=i["location"]["spanId"], path=i["location"]["path"], line=i["location"]["line"]
-        #         ),
-        #     )
-        #     for i in data["vulnerabilities"]
-        # }
         self.vulnerabilities = set()
         for i in data["vulnerabilities"]:
             evidence = Evidence()
