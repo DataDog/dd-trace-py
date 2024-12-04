@@ -4,6 +4,7 @@ import sysconfig
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
+from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -69,23 +70,33 @@ def _get_application(key):
     }
 
 
-def update_imported_dependencies(already_imported: Dict[str, str], new_modules: List[str]) -> List[Dict[str, str]]:
+def update_imported_dependencies(
+    already_imported: Dict[Tuple[str, str], Tuple[str, str]],
+    new_modules: Set[Tuple[str, str]],
+) -> List[Dict[str, str]]:
     deps = []
 
-    for module_name in new_modules:
-        dists = get_module_distribution_versions(module_name)
-        if not dists:
+    for imported_module, importing_module in new_modules:
+        im_dist = get_module_distribution_versions(imported_module)
+        if im_dist is None:
+            continue
+        name, version = im_dist
+
+        if name == "ddtrace":
             continue
 
-        for name, version in dists.items():
-            if name == "ddtrace":
-                continue
+        fr_dist = (
+            None if importing_module in ("__main__", "__init__") else get_module_distribution_versions(importing_module)
+        )
+        if fr_dist is None:
+            from_name, from_version = importing_module, "unknown"
+        else:
+            from_name, from_version = fr_dist
 
-            if name in already_imported:
-                continue
-
-            already_imported[name] = version
-            deps.append({"name": name, "version": version})
+        if (name, from_name) in already_imported:
+            continue
+        already_imported[(name, from_name)] = version, from_version
+        deps.append({"name": name, "version": version, "from_name": from_name, "from_version": from_version})
 
     return deps
 

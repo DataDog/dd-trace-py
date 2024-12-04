@@ -184,7 +184,7 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
-        self._imported_dependencies: Dict[str, str] = dict()
+        self._imported_dependencies: Dict[Tuple[str, str], Tuple[str, str]] = dict()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._send_product_change_updates = False
 
@@ -400,7 +400,7 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = dict()
         return integrations
 
-    def _flush_new_imported_dependencies(self) -> Set[str]:
+    def _flush_new_imported_dependencies(self) -> Set[Tuple[str, str]]:
         with self._lock:
             new_deps = modules.get_newly_imported_modules()
         return new_deps
@@ -421,7 +421,7 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-client-configuration-change")
 
-    def _app_dependencies_loaded_event(self, newly_imported_deps: List[str]):
+    def _app_dependencies_loaded_event(self, newly_imported_deps: Set[Tuple[str, str]]) -> None:
         """Adds events to report imports done since the last periodic run"""
 
         if not _TelemetryConfig.DEPENDENCY_COLLECTION or not self._enabled:
@@ -604,7 +604,7 @@ class TelemetryWriter(PeriodicService):
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
-    def periodic(self, force_flush=False, shutting_down=False):
+    def periodic(self, force_flush=False, shutting_down=False) -> None:
         # ensure app_started is called at least once in case traces weren't flushed
         self._app_started()
         self._app_product_change()

@@ -2,7 +2,6 @@ import ctypes
 import gc
 import inspect
 import sys
-from types import ModuleType
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -15,14 +14,11 @@ from wrapt import resolve_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 
-from ..compat import PYTHON_VERSION_INFO
-from ..module import BaseModuleWatchdog
-
 
 log = get_logger(__name__)
 
-NEW_MODULES: Set[str] = set()  # New modules that have been imported since the last check
-ALL_MODULES: Set[str] = set()  # All modules that have been imported
+NEW_MODULES: Set[Tuple[str, str]] = set()  # New modules that have been imported since the last check
+ALL_MODULES: Set[Tuple[str, str]] = set()  # All modules that have been imported
 MODULE_HOOK_INSTALLED = False
 GLOBAL_CALLS = 0
 
@@ -33,102 +29,52 @@ def sbom_collection(original_import_callable, instance, args, kwargs):
     """
     global GLOBAL_CALLS
     GLOBAL_CALLS += 1
-    frame = inspect.currentframe().f_back
-    if frame is None:
-        return original_import_callable(*args, **kwargs)
-    module_name = frame.f_globals.get("__name__", "__main__")
-    line = frame.f_lineno
-    print(f">>> sbom_collection {args[0]} from {module_name} on line {line}", flush=True)
-
-    global NEW_MODULES, ALL_MODULES
-    NEW_MODULES.add(args[0])
-    ALL_MODULES.add(args[0])
+    imported_module = args[0]
+    if not imported_module.startswith("ddtrace"):
+        frame = inspect.currentframe().f_back
+        if frame is None:
+            return original_import_callable(*args, **kwargs)
+        importing_module = frame.f_globals.get("__name__", "__unknown__")
+        edge = (imported_module, importing_module)
+        global NEW_MODULES, ALL_MODULES
+        if edge not in ALL_MODULES:
+            NEW_MODULES.add(edge)
+            ALL_MODULES.add(edge)
 
     return original_import_callable(*args, **kwargs)
 
 
-# For Python >= 3.8 we can use the sys.audit event import(module, filename, sys.path, sys.meta_path, sys.path_hooks)
-if PYTHON_VERSION_INFO >= (3, 8):
+def get_newly_imported_modules() -> Set[Tuple[str, str]]:
+    global MODULE_HOOK_INSTALLED, NEW_MODULES, ALL_MODULES, GLOBAL_CALLS
 
-    def audit_hook(event: str, args: Tuple[Any, ...]):
-        global GLOBAL_CALLS
-        GLOBAL_CALLS += 1
-        if event != "import":
-            return
+    info = f"||| MODULE_HOOK_INSTALLED: {MODULE_HOOK_INSTALLED} {GLOBAL_CALLS}"
+    log.error(info)
+    # Our hook is not installed, so we are not getting notified of new imports,
+    # we need to track the changes manually
+    if not NEW_MODULES and not MODULE_HOOK_INSTALLED:
+        latest_modules = {(module, "__unknown__") for module in sys.modules}
+        NEW_MODULES = latest_modules - ALL_MODULES
+        ALL_MODULES = latest_modules
 
-        global NEW_MODULES, ALL_MODULES
-        NEW_MODULES.add(args[0])
-        ALL_MODULES.add(args[0])
+    new_modules = NEW_MODULES
+    NEW_MODULES = set()
+    return new_modules
 
-    def get_newly_imported_modules() -> Set[str]:
-        global MODULE_HOOK_INSTALLED, NEW_MODULES, ALL_MODULES, GLOBAL_CALLS
 
-        info = f"||| MODULE_HOOK_INSTALLED: {MODULE_HOOK_INSTALLED} {GLOBAL_CALLS}"
-        log.error(info)
-        # Our hook is not installed, so we are not getting notified of new imports,
-        # we need to track the changes manually
-        if not NEW_MODULES and not MODULE_HOOK_INSTALLED:
-            latest_modules = set(sys.modules.keys())
-            NEW_MODULES = latest_modules - ALL_MODULES
-            ALL_MODULES = latest_modules
+def install_import_hook():
+    global MODULE_HOOK_INSTALLED, NEW_MODULES, ALL_MODULES
 
-        new_modules = NEW_MODULES
-        NEW_MODULES = set()
-        return new_modules
+    # If we have not called get_newly_imported_modules yet, we can initialize to all imported modules
+    if not NEW_MODULES:
+        NEW_MODULES = {(module, "__init__") for module in sys.modules}
+        ALL_MODULES = NEW_MODULES.copy()
+    try_wrap_function_wrapper("builtins", "__import__", sbom_collection)
+    MODULE_HOOK_INSTALLED = True
 
-    def install_import_hook():
-        global MODULE_HOOK_INSTALLED, NEW_MODULES, ALL_MODULES
 
-        # If we have not called get_newly_imported_modules yet, we can initialize to all imported modules
-        if not NEW_MODULES:
-            NEW_MODULES = set(sys.modules.keys())
-            ALL_MODULES = NEW_MODULES.copy()
-        try_wrap_function_wrapper("builtins", "__import__", sbom_collection)
-        MODULE_HOOK_INSTALLED = True
-
-    def uninstall_import_hook():
-        # We cannot uninstall a sys audit hook
-        pass
-
-else:
-
-    class TelemetryWriterModuleWatchdog(BaseModuleWatchdog):
-        _initial = True
-        _new_imported: Set[str] = set()
-
-        def after_import(self, module: ModuleType) -> None:
-            self._new_imported.add(module.__name__)
-
-        @classmethod
-        def get_new_imports(cls):
-            if cls._initial:
-                try:
-                    # On the first call, use sys.modules to cover all imports before we started. This is not
-                    # done on __init__ because we want to do this slow operation on the writer's periodic call
-                    # and not on instantiation.
-                    new_imports = list(sys.modules.keys())
-                except RuntimeError:
-                    new_imports = []
-                finally:
-                    # If there is any problem with the above we don't want to repeat this slow process, instead we just
-                    # switch to report new dependencies on further calls
-                    cls._initial = False
-            else:
-                new_imports = list(cls._new_imported)
-
-            cls._new_imported.clear()
-            return new_imports
-
-    def get_newly_imported_modules() -> Set[str]:
-        return set(TelemetryWriterModuleWatchdog.get_new_imports())
-
-    def install_import_hook():
-        if not TelemetryWriterModuleWatchdog.is_installed():
-            TelemetryWriterModuleWatchdog.install()
-
-    def uninstall_import_hook():
-        if TelemetryWriterModuleWatchdog.is_installed():
-            TelemetryWriterModuleWatchdog.uninstall()
+def uninstall_import_hook():
+    # We cannot uninstall a sys audit hook
+    pass
 
 
 def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable) -> None:
