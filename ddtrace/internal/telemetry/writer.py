@@ -432,6 +432,8 @@ class TelemetryWriter(PeriodicService):
 
         if packages:
             payload = {"dependencies": packages}
+            info = f">>> SBOM {payload}"
+            log.error(info)
             self.add_event(payload, "app-dependencies-loaded")
 
     def _app_product_change(self):
