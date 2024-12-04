@@ -114,7 +114,7 @@ def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _p
     if report.outcome == "passed":
         report.outcome = outcomes.PASSED
     elif report.outcome == "failed" or report.outcome == "error":
-        report.outcome = outcomes.FAILED
+        report.outcome = outcomes.FAILED # QQQ
     elif report.outcome == "skipped":
         report.outcome = outcomes.SKIPPED
     # Only log for actual test calls, or failures

@@ -46,15 +46,16 @@ def atr_handle_retries(
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
     if when == "call":
         if test_outcome.status == TestStatus.FAIL:
-            original_result.outcome = _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED
+            original_result.outcome = 'quarantined' # _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED
         return
-    if InternalTest.get_tag(test_id, "_dd.ci.atr_setup_failed"):
-        log.debug("Test item %s failed during setup, will not be retried for Auto Test Retries")
-        return
-    if InternalTest.get_tag(test_id, "_dd.ci.atr_teardown_failed"):
-        # NOTE: tests that passed their call but failed during teardown are not retried
-        log.debug("Test item %s failed during teardown, will not be retried for Auto Test Retries")
-        return
+    # PAST LIFE:
+    # if InternalTest.get_tag(test_id, "_dd.ci.atr_setup_failed"):
+    #     log.debug("Test item %s failed during setup, will not be retried for Auto Test Retries")
+    #     return
+    # if InternalTest.get_tag(test_id, "_dd.ci.atr_teardown_failed"):
+    #     # NOTE: tests that passed their call but failed during teardown are not retried
+    #     log.debug("Test item %s failed during teardown, will not be retried for Auto Test Retries")
+    #     return
 
     atr_outcome = _atr_do_retries(item)
 
@@ -64,7 +65,7 @@ def atr_handle_retries(
         keywords=item.keywords,
         when="call",
         longrepr=None,
-        outcome=_FINAL_OUTCOMES[atr_outcome],
+        outcome='quarantined!' if InternalTest.stash_get(test_id, "is_quarantined") else _FINAL_OUTCOMES[atr_outcome],
     )
     #print("\nTHE FINAL COUNTDOWN")
     item.ihook.pytest_runtest_logreport(report=final_report)
@@ -83,6 +84,14 @@ def _atr_do_retries(item: pytest.Item) -> TestStatus:
         XFAIL=_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
         XPASS=_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
     )
+
+    # outcomes = RetryOutcomes(
+    #     PASSED='dd_quarantine_passed',
+    #     FAILED='dd_quarantine_failed',
+    #     SKIPPED='dd_quarantine_skipped',
+    #     XFAIL='dd_quarantine_passed',
+    #     XPASS='dd_quarantine_failed',
+    # )
 
     test_id = _get_test_id_from_item(item)
 

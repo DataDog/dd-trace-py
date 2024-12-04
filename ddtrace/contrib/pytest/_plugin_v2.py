@@ -434,16 +434,17 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     #print(f"\n==> ME OLHA:\n  {item=}\n  {call=}\n  {outcome=}\n  {test_outcome=}")
 
     #### Quarantine shenanigans
-    is_quarantined = 'fail' in item.name # DEBUG
-    if is_quarantined:
-        if ((test_outcome.status is not None and call.when == "setup")
-            or
-            (test_outcome.status is not None and call.when == "teardown")
-            or
-            (call.when == "call")):
-            #print(f"Quarantine it!")
-            original_result.outcome = 'quarantine'
-            #original_result.longrepr = ('quar', 'q', 'quarantined')
+    # is_quarantined = 'fail' in item.name # DEBUG
+    # if is_quarantined:
+    #     InternalTest.stash_set(test_id, "is_quarantined", True)
+    #     if ((test_outcome.status is not None and call.when == "setup")
+    #         or
+    #         (test_outcome.status is not None and call.when == "teardown")
+    #         or
+    #         (call.when == "call")):
+    #         #print(f"Quarantine it!")
+    #         original_result.outcome = 'quarantined'
+    #         #original_result.longrepr = ('quar', 'q', 'quarantined')
 
 
     # A None value for test_outcome.status implies the test has not finished yet
@@ -584,14 +585,14 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         log.debug("encountered error during session finish", exc_info=True)
 
 
+def is_quarantined(nodeid):
+    return ("quarantined" in nodeid) # ꙮꙮ
+
 def pytest_report_teststatus(
     report: pytest_TestReport,
 ) -> _pytest_report_teststatus_return_type:
     if not is_test_visibility_enabled():
         return
-
-    if report.when in ("setup", "call") and report.outcome == 'quarantine':
-        return ('quarantined', 'q', ('QUARANTINED', {'blue': True}))
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         test_status = atr_get_teststatus(report)
@@ -602,6 +603,10 @@ def pytest_report_teststatus(
         test_status = efd_get_teststatus(report)
         if test_status is not None:
             return test_status
+
+    # if report.when in ("setup", "call") and is_quarantined(report.nodeid):
+    #     breakpoint()
+    #     return ('quarantined', 'q', ('QUARANTINED', {'blue': True}))
 
 
 @pytest.hookimpl(trylast=True)

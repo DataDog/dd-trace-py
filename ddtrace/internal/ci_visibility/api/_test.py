@@ -50,6 +50,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         is_atr_retry: bool = False,
         resource: Optional[str] = None,
         is_new: bool = False,
+        is_quarantined: bool = False,
     ):
         self._parameters = parameters
         super().__init__(
@@ -69,6 +70,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(test.PARAMETERS, parameters)
 
         self._is_new = is_new
+        self._is_quarantined = is_quarantined
 
         self._efd_is_retry = is_efd_retry
         self._efd_retries: List[TestVisibilityTest] = []
@@ -199,6 +201,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         # decisions)
         return self._is_new and (self._parameters is None)
 
+    def is_quarantined(self):
+        return self._is_quarantined
+
     #
     # EFD (Early Flake Detection) functionality
     #
@@ -323,6 +328,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             codeowners=self._codeowners,
             source_file_info=self._source_file_info,
             initial_tags=self._tags,
+            is_quarantined=self._is_quarantined,
             is_atr_retry=True,
         )
         retry_test.parent = self.parent

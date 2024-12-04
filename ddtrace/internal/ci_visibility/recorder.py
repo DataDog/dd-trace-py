@@ -422,7 +422,7 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return cls._instance._api_settings.flaky_test_retries_enabled and asbool(
-            os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True) ## ????
+            os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True)
         )
 
     @classmethod
@@ -900,6 +900,14 @@ class CIVisibility(Service):
 
         return test_id in instance._unique_test_ids
 
+    @classmethod
+    def is_quarantined(cls, test_id: Union[TestId, InternalTestId]) -> bool:
+        instance = cls.get_instance()
+        if instance is None:
+            return False
+
+        return ('fail' in test_id.name) # DEBUG
+
 
 def _requires_civisibility_enabled(func):
     def wrapper(*args, **kwargs):
@@ -1149,6 +1157,11 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     else:
         is_new = False
 
+    if CIVisibility.is_quarantine_enabled():
+        is_quarantined = CIVisibility.is_quarantined(discover_args.test_id)
+    else:
+        is_quarantined = False
+
     suite.add_child(
         discover_args.test_id,
         TestVisibilityTest(
@@ -1159,6 +1172,7 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
             source_file_info=discover_args.source_file_info,
             resource=discover_args.resource,
             is_new=is_new,
+            is_quarantined=is_quarantined,
         ),
     )
 
