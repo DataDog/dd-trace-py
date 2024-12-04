@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes an issue where ``asyncio`` task names are not properly propagated
+    when using stack v2, i.e. when ``DD_PROFILING_STACK_V2_ENABLED`` is set.
+
