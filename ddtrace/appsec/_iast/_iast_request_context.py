@@ -117,18 +117,22 @@ def _move_iast_data_to_root_span():
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
+        req_span = None
         move_to_root = _move_iast_data_to_root_span()
         if move_to_root:
-            req_span = core.get_root_span()
-        else:
+            try:
+                req_span = core.get_root_span()
+            except ValueError:
+                log.debug("Exception getting the root span")
+        if req_span is None:
             if span:
                 req_span = span
             else:
                 req_span = ctx.get_item("req_span")
 
         if _is_iast_enabled():
-            exist_data = req_span.get_tag(IAST.JSON)
-            if exist_data is None:
+            existing_data = req_span.get_tag(IAST.JSON)
+            if existing_data is None and not move_to_root:
                 if req_span.get_metric(IAST.ENABLED) is None:
                     if not is_iast_request_enabled():
                         req_span.set_metric(IAST.ENABLED, 0.0)
@@ -136,45 +140,27 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                         oce.release_request()
                         return
 
-                    req_span.set_metric(IAST.ENABLED, 1.0)
-                    report_data: Optional[IastSpanReporter] = get_iast_reporter()
-
-                    if report_data:
-                        report_data.build_and_scrub_value_parts()
-                        req_span.set_tag_str(IAST.JSON, report_data._to_str())
-                    _set_metric_iast_request_tainted()
-                    _set_span_tag_iast_request_tainted(req_span)
-                    _set_span_tag_iast_executed_sink(req_span)
-
-                    set_iast_request_enabled(False)
-                    end_iast_context(req_span)
-
-                    if req_span.get_tag(ORIGIN_KEY) is None:
-                        req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
-
-                    oce.release_request()
-            elif move_to_root:  # sorry
-                # Data exists from a previous request
-                # we will merge both reports
-                report_data: Optional[IastSpanReporter] = get_iast_reporter()
-                if report_data is not None:
+            req_span.set_metric(IAST.ENABLED, 1.0)
+            report_data: Optional[IastSpanReporter] = get_iast_reporter()
+            if report_data is not None:
+                if move_to_root and existing_data is not None:
                     previous_data = IastSpanReporter()
-                    previous_data._from_json(exist_data)
-
+                    previous_data._from_json(existing_data)
                     report_data._merge(previous_data)
-                    report_data.build_and_scrub_value_parts()
-                    req_span.set_tag_str(IAST.JSON, report_data._to_str())
-                    _set_metric_iast_request_tainted()
-                    _set_span_tag_iast_request_tainted(req_span)
-                    _set_span_tag_iast_executed_sink(req_span)
+                report_data.build_and_scrub_value_parts()
+                req_span.set_tag_str(IAST.JSON, report_data._to_str())
 
-                    set_iast_request_enabled(False)
-                    end_iast_context(req_span)
+                _set_metric_iast_request_tainted()
+                _set_span_tag_iast_request_tainted(req_span)
+                _set_span_tag_iast_executed_sink(req_span)
 
-                    if req_span.get_tag(ORIGIN_KEY) is None:
-                        req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+                set_iast_request_enabled(False)
+                end_iast_context(req_span)
 
-                    oce.release_request()
+                if req_span.get_tag(ORIGIN_KEY) is None:
+                    req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+
+                oce.release_request()
 
     except Exception:
         log.debug("[IAST] Error finishing IAST context", exc_info=True)
