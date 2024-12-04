@@ -6,7 +6,9 @@
 #include <pthread.h>
 
 // Initiate an upload in a separate thread, otherwise we won't be mid-upload during fork
-void* upload_in_thread(void*) {
+void*
+upload_in_thread(void*)
+{
     ddup_upload();
 
     return nullptr;
