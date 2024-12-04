@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestId
@@ -143,6 +144,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         override_finish_time: Optional[float] = None,
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, reason: %s", self, status, reason)
+
+        self.set_tag(test.TYPE, SpanTypes.TEST)
+
         if status is not None:
             self.set_status(status)
         if reason is not None:

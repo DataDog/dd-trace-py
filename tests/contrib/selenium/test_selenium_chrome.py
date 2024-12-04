@@ -20,6 +20,7 @@ from tests.utils import snapshot
 
 
 SELENIUM_SNAPSHOT_IGNORES = [
+    "resource",  # Ignored because v1 and v2 plugins have different results, but that's okay
     "meta.ci.workspace_path",
     "meta.error.stack",
     "meta.library_version",
@@ -28,7 +29,8 @@ SELENIUM_SNAPSHOT_IGNORES = [
     "meta.os.version",
     "meta.runtime-id",
     "meta.runtime.version",
-    "meta.test.browser.version" "meta.test.framework_version",
+    "meta.test.browser.version",  # ignored because it may change when images are rebuilt
+    "meta.test.framework_version",
     "meta.test_module_id",
     "meta.test_session_id",
     "meta.test_suite_id",
@@ -113,6 +115,7 @@ def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
                 DD_PATCH_MODULES="sqlite3:false",
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                DD_PYTEST_USE_NEW_PLUGIN_BETA=os.environ.get("_TESTED_PYTEST_PLUGIN_VERSION"),
             )
         ),
     )
@@ -163,6 +166,7 @@ def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
                 DD_PATCH_MODULES="sqlite3:false",
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                DD_PYTEST_USE_NEW_PLUGIN_BETA=os.environ.get("_TESTED_PYTEST_PLUGIN_VERSION"),
             )
         ),
     )
@@ -216,6 +220,7 @@ def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_serv
                 DD_PATCH_MODULES="sqlite3:false",
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                DD_PYTEST_USE_NEW_PLUGIN_BETA=os.environ.get("_TESTED_PYTEST_PLUGIN_VERSION"),
             )
         ),
     )

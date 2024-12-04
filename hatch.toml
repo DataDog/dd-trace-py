@@ -467,6 +467,7 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.selenium.scripts]
 test = [
+    "env",
     "pip freeze",
     "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/selenium {args:}",
 ]
@@ -474,10 +475,10 @@ test = [
 [[envs.selenium.matrix]]
 python = ["3.7", "3.10", "3.12"]
 selenium = ["~=3.0", "~=4.0"]
-use_beta_pytest = ["true", "false"]
+tested_pytest_plugin_version = ["v1", "v2"]
 
 [envs.selenium.overrides]
-matrix.use_beta_pytest.env-vars = [
-    { key = "DD_PYTEST_USE_NEW_PLUGIN_BETA", value = "false"},
-    { key = "DD_PYTEST_USE_NEW_PLUGIN_BETA", value = "true", if = ["true"]}
+matrix.tested_pytest_plugin_version.env-vars = [
+    { key = "_TESTED_PYTEST_PLUGIN_VERSION", value = "false", if = ["v1"]},
+    { key = "_TESTED_PYTEST_PLUGIN_VERSION", value = "true", if = ["v2"]}
 ]
