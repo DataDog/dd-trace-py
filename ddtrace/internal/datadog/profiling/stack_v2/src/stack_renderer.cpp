@@ -135,6 +135,8 @@ StackRenderer::render_python_frame(std::string_view name, std::string_view file,
     if (!pushed_task_name and line == 0) {
         ddup_push_task_name(sample, name);
         pushed_task_name = true;
+        // And return early to avoid pushing task name as a frame
+        return;
     }
 
     ddup_push_frame(sample, name, file, 0, line);
