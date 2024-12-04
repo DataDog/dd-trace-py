@@ -70,6 +70,7 @@ if _pytest_version_supports_efd():
 if _pytest_version_supports_atr():
     from ddtrace.contrib.pytest._atr_utils import atr_get_failed_reports
     from ddtrace.contrib.pytest._atr_utils import atr_get_teststatus
+    from ddtrace.contrib.pytest._atr_utils import quarantine_atr_get_teststatus
     from ddtrace.contrib.pytest._atr_utils import atr_handle_retries
     from ddtrace.contrib.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
 
@@ -468,7 +469,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome)
+        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome, is_quarantined)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -596,7 +597,7 @@ def pytest_report_teststatus(
         return
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        test_status = atr_get_teststatus(report)
+        test_status = atr_get_teststatus(report) or quarantine_atr_get_teststatus(report)
         if test_status is not None:
             return test_status
 

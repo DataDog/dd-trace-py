@@ -366,7 +366,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skipping_enabled = attributes["tests_skipping"]
             require_git = attributes["require_git"]
             itr_enabled = attributes["itr_enabled"]
-            flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] #or True ########DEBUG
+            flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] or True ########DEBUG
 
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(

@@ -906,7 +906,7 @@ class CIVisibility(Service):
         if instance is None:
             return False
 
-        return ('fail' in test_id.name) # DEBUG
+        return ('quarantined' in test_id.name) # DEBUG
 
 
 def _requires_civisibility_enabled(func):
