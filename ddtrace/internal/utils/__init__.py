@@ -87,9 +87,7 @@ def get_blocked() -> Optional[Dict[str, Any]]:
 
     core.dispatch("asm.get_blocked")
     res = core.get_item("asm.get_blocked")
-    if res and res.block_config:
-        return res.block_config.value
-    return None
+    return res or None
 
 
 def set_blocked(block_settings: Optional[Dict[str, Any]] = None) -> None:
