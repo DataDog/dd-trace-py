@@ -165,12 +165,12 @@ class _DDWSGIMiddlewareBase(object):
             result = core.get_item("wsgi.request.complete")
 
             if stop_iteration_exception:
-                if result.value:
+                if result:
                     # Close the request and app spans
-                    result.value._finish_spans()
+                    result._finish_spans()
                     core.dispatch("wsgi.app.success", (ctx, closing_iterable))
                 raise stop_iteration_exception
-            return result.value if result else []
+            return result or []
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
