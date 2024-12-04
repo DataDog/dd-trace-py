@@ -15,6 +15,7 @@ from typing import Dict  # noqa:F401
 
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest._utils import _extract_span
@@ -64,6 +65,14 @@ def pytest_addoption(parser):
         "--ddtrace-include-class-name",
         action="store_true",
         dest="ddtrace-include-class-name",
+        default=False,
+        help=DDTRACE_INCLUDE_CLASS_HELP_MSG,
+    )
+
+    group._addoption(
+        "--ddtrace-iast-report",
+        action="store_true",
+        dest="ddtrace-iast-report",
         default=False,
         help=DDTRACE_INCLUDE_CLASS_HELP_MSG,
     )
@@ -131,6 +140,22 @@ def ddspan(request):
 
     if _CIVisibility.enabled:
         return _extract_span(request.node)
+
+
+@pytest.fixture(autouse=_is_iast_enabled())
+def ddtrace_iast(request, ddspan):
+    """Return the :class:`ddtrace._trace.span.Span` instance associated with the
+    current test when Datadog CI Visibility is enabled.
+    """
+    yield
+    if request.config.getoption("ddtrace-iast-report"):
+        data = ddspan.get_tag(IAST.JSON)
+        if data:
+            import json
+
+            json_data = json.loads(data)
+            vulns = ",".join([vuln["type"] for vuln in json_data["vulnerabilities"]])
+            pytest.fail(f"There are vulnerabilities in your code: {vulns}")
 
 
 @pytest.fixture(scope="session")

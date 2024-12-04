@@ -22,6 +22,7 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -110,20 +111,20 @@ def is_iast_request_enabled():
     return False
 
 
-def _not_running_inside_pytest():
-    return os.getenv("PYTEST_CURRENT_TEST") is None
+def _move_iast_data_to_root_span():
+    return asbool(os.getenv("_DD_IAST_USE_ROOT_SPAN"))
 
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
-        not_in_pytest = _not_running_inside_pytest()
-        if not_in_pytest:
+        move_to_root = _move_iast_data_to_root_span()
+        if move_to_root:
+            req_span = core.get_root_span()
+        else:
             if span:
                 req_span = span
             else:
                 req_span = ctx.get_item("req_span")
-        else:
-            req_span = core.get_root_span()
 
         if _is_iast_enabled():
             exist_data = req_span.get_tag(IAST.JSON)
@@ -152,7 +153,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                         req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
                     oce.release_request()
-            elif not not_in_pytest:  # sorry
+            elif move_to_root:  # sorry
                 # Data exists from a previous request
                 # we will merge both reports
                 report_data: Optional[IastSpanReporter] = get_iast_reporter()
