@@ -99,8 +99,8 @@ def update_imported_dependencies(
         if (name, from_name) in already_imported:
             continue
         already_imported[(name, from_name)] = version, from_version
-        deps.append({"name": name, "version": version, "from_name": from_name, "from_version": from_version})
-
+        if (name, version) != (from_name, from_version):
+            deps.append({"name": name, "version": version, "from_name": from_name, "from_version": from_version})
     return deps
 
 
