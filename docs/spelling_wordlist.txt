@@ -299,3 +299,4 @@ assertIn
 Nam
 # docs/configuration.rst
 uest
+suitespec

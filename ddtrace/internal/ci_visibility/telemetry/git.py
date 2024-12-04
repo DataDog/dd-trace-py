@@ -50,28 +50,38 @@ def record_settings_response(
     skipping_enabled: Optional[bool] = False,
     require_git: Optional[bool] = False,
     itr_enabled: Optional[bool] = False,
+    flaky_test_retries_enabled: Optional[bool] = False,
     early_flake_detection_enabled: Optional[bool] = False,
 ) -> None:
     log.debug(
-        "Recording settings telemetry: %s, %s, %s, %s, %s",
+        "Recording settings telemetry:"
+        " coverage_enabled=%s"
+        ", skipping_enabled=%s"
+        ", require_git=%s"
+        ", itr_enabled=%s"
+        ", flaky_test_retries_enabled=%s"
+        ", early_flake_detection_enabled=%s",
         coverage_enabled,
         skipping_enabled,
         require_git,
         itr_enabled,
+        flaky_test_retries_enabled,
         early_flake_detection_enabled,
     )
     # Telemetry "booleans" are true if they exist, otherwise false
     response_tags = []
     if coverage_enabled:
-        response_tags.append(("coverage_enabled", "1"))
+        response_tags.append(("coverage_enabled", "true"))
     if skipping_enabled:
-        response_tags.append(("itrskip_enabled", "1"))
+        response_tags.append(("itrskip_enabled", "true"))
     if require_git:
-        response_tags.append(("require_git", "1"))
+        response_tags.append(("require_git", "true"))
     if itr_enabled:
-        response_tags.append(("itr_enabled", "1"))
+        response_tags.append(("itr_enabled", "true"))
+    if flaky_test_retries_enabled:
+        response_tags.append(("flaky_test_retries_enabled", "true"))
     if early_flake_detection_enabled:
-        response_tags.append(("early_flake_detection_enabled", "1"))
+        response_tags.append(("early_flake_detection_enabled", "true"))
 
     if response_tags:
         telemetry_writer.add_count_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_RESPONSE, 1, tuple(response_tags))

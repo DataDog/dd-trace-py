@@ -720,10 +720,9 @@ venv = Venv(
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
                     },
                     pkgs={
-                        "celery": [
+                        "celery[redis]": [
                             latest,
                         ],
-                        "redis": "~=3.5",
                     },
                 ),
             ],
@@ -2721,6 +2720,8 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "google-generativeai": [latest],
                 "pillow": latest,
+                "google-ai-generativelanguage": [latest],
+                "vertexai": [latest],
             },
         ),
         Venv(
@@ -2730,6 +2731,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
+                "google-ai-generativelanguage": [latest],
             },
         ),
         Venv(

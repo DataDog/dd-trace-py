@@ -22,7 +22,7 @@ class TracePlugin(object):
     api = 2
 
     def __init__(self, service="bottle", tracer=None, distributed_tracing=None):
-        self.service = config.service or service
+        self.service = config._get_service(default=service)
         self.tracer = tracer or ddtrace.tracer
         if distributed_tracing is not None:
             config.bottle.distributed_tracing = distributed_tracing
