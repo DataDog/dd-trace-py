@@ -132,7 +132,7 @@ StackRenderer::render_python_frame(std::string_view name, std::string_view file,
     }
     // DEV: Echion pushes a dummy frame containing task name, and its line
     // number is set to 0.
-    if (!pushed_task_name and line == 0 and name != invalid and name != "<invalid>") {
+    if (!pushed_task_name and line == 0) {
         ddup_push_task_name(sample, name);
         pushed_task_name = true;
     }
