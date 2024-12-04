@@ -13,11 +13,8 @@ import pytest
 def test_asyncio():
     import asyncio
     import os
-    import sys
     import time
     import uuid
-
-    import pytest
 
     from ddtrace import ext
     from ddtrace import tracer
