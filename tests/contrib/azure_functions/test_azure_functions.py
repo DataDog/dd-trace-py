@@ -57,6 +57,5 @@ def azure_functions_client():
 
 
 @pytest.mark.snapshot
-def test_azure_function(azure_functions_client):
-    # type: (Client) -> None
+def test_azure_function(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httptest", headers=DEFAULT_HEADERS).status_code == 200
