@@ -54,7 +54,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
     code = code.replace(
         co_code=bytes(new_code),
         co_consts=tuple(new_consts),
-        co_linetable=bytes(new_linetable),
+        co_linetable=new_linetable,
         co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
     )
 
@@ -135,7 +135,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
-) -> t.Tuple[bytearray, t.List[object], bytearray, CoverageLines]:
+) -> t.Tuple[bytearray, t.List[object], bytes, CoverageLines]:
     code = injection_context.original_code
     old_code = code.co_code
     new_code = bytearray()
@@ -151,6 +151,8 @@ def _inject_invocation_nonrecursive(
     previous_arg = 0
     previous_previous_arg = 0
     extended_arg = 0
+    original_extended_arg_count = 0
+    extended_arg_offsets: t.List[t.Tuple[int, int]] = []
 
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
@@ -278,7 +280,7 @@ def _inject_invocation_nonrecursive(
                 instructions.append(POP_TOP)
                 instructions.append(0)
 
-                offsets_map[old_offset] = len(instructions)
+                offsets_map[old_offset] = len(instructions) // 2
                 injected_opcodes_count += len(instructions)
                 new_code.extend(instructions)
 
@@ -290,11 +292,10 @@ def _inject_invocation_nonrecursive(
                     is_first_instrumented_module_line = False
 
                 new_consts.append((line, path, package_dep))
-        else:
-            offsets_map[old_offset] = 0
 
         if opcode == EXTENDED_ARG:
             extended_arg = arg << 8
+            original_extended_arg_count += 1
             continue
 
         extended_arg = 0
@@ -322,6 +323,7 @@ def _inject_invocation_nonrecursive(
             new_code.append(0)
 
             new_ends[old_offset] = len(new_code)
+            extended_arg_offsets.append((old_offset, 3 - original_extended_arg_count))
 
         else:
             new_code.extend(append_instruction(opcode, arg))
@@ -351,6 +353,7 @@ def _inject_invocation_nonrecursive(
                     (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
                 )
 
+        original_extended_arg_count = 0
         previous_previous_arg = previous_arg
         previous_arg = arg
 
@@ -381,21 +384,27 @@ def _inject_invocation_nonrecursive(
             arg >>= 8
             arg_offset -= 2
 
-    return new_code, new_consts, update_location_data(injection_context.original_code, offsets_map, []), seen_lines
+    return new_code, new_consts, update_location_data(injection_context.original_code, offsets_map, extended_arg_offsets), seen_lines
 
 
 def update_location_data(
-    code: CodeType, trap_map: t.Dict[int, int], ext_arg_offsets: t.List[t.Tuple[int, int]]
-) -> bytearray:
+    code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
+) -> bytes:
+    """
+    See "Format of the location table" from Python's internal documentation for more information:
+    https://github.com/python/cpython/blob/main/InternalDocs/code_objects.md#format-of-the-locations-table
+    """
     # DEV: We expect the original offsets in the trap_map
     new_data = bytearray()
 
     data = code.co_linetable
     data_iter = iter(data)
-    ext_arg_offset_iter = iter(sorted(ext_arg_offsets))
+    ext_arg_offset_iter = iter(sorted(extended_arg_offsets))
     ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
 
-    original_offset = offset = 0
+    original_offset = 0
+    offset = 0
+
     while True:
         try:
             chunk = bytearray()
@@ -407,6 +416,8 @@ def update_location_data(
             offset_delta = ((b & 7) + 1) << 1
             loc_code = (b >> 3) & 0xF
 
+            # See https://github.com/python/cpython/blob/main/InternalDocs/code_objects.md#location-entries for
+            # meaning of the `loc_code` value.
             if loc_code == 14:
                 chunk.extend(consume_signed_varint(data_iter))
                 for _ in range(3):
@@ -419,36 +430,39 @@ def update_location_data(
             elif 0 <= loc_code <= 9:
                 chunk.append(next(data_iter))
 
-            if original_offset in trap_map:
+            if original_offset in offsets_map:
                 # No location info for the trap bytecode
-                trap_size = trap_map[original_offset]
-                n, r = divmod(trap_size, 8)
+                injected_instructions_size = offsets_map[original_offset]
+                n, r = divmod(injected_instructions_size, 8)
                 for _ in range(n):
                     new_data.append(0x80 | (0xF << 3) | 7)
                 if r:
                     new_data.append(0x80 | (0xF << 3) | r - 1)
-                offset += trap_size << 1
+                offset += injected_instructions_size << 1
 
             # Extend the line table record if we added any EXTENDED_ARGs
             original_offset += offset_delta
             offset += offset_delta
-            if ext_arg_offset is not None and offset > ext_arg_offset:
-                room = 7 - offset_delta
-                chunk[0] += min(room, t.cast(int, ext_arg_size))
-                if room < t.cast(int, ext_arg_size):
-                    chunk.append(0x80 | (0xF << 3) | t.cast(int, ext_arg_size) - room)
-                offset += ext_arg_size << 1
+            while ext_arg_offset is not None and offset > ext_arg_offset:
+                try:
+                    room = 7 - offset_delta
+                    chunk[0] += min(room, t.cast(int, ext_arg_size))
+                    if room < t.cast(int, ext_arg_size):
+                        chunk.append(0x80 | (0xF << 3) | t.cast(int, ext_arg_size) - room)
+                    offset += ext_arg_size << 1
 
-                ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
+                    ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
+                except StopIteration:
+                    pass
 
             new_data.extend(chunk)
         except StopIteration:
             break
 
-    return new_data
+    return bytes(new_data)
 
 
-def consume_varint(stream: t.Iterable[int]) -> bytes:
+def consume_varint(stream: t.Iterator[int]) -> bytes:
     a = bytearray()
 
     b = next(stream)
@@ -464,4 +478,8 @@ def consume_varint(stream: t.Iterable[int]) -> bytes:
     return bytes(a)
 
 
-consume_signed_varint = consume_varint  # They are the same thing for our purposes
+consume_signed_varint = consume_varint
+# def consume_signed_varint(stream: t.Iterator[int]) -> bytes:
+#     uval = int.from_bytes(consume_varint(stream))
+#     val = -(uval >> 1) if uval & 1 else uval >> 1
+#     return val.to_bytes(signed=True)
