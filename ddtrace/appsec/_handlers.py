@@ -81,17 +81,21 @@ def _on_set_http_meta(
 
 
 async def _on_asgi_request_parse_body(receive, headers):
+    return_key = "asgi.request.parse.body"
     if asm_config._asm_enabled:
         try:
             data_received = await receive()
         except Exception:
-            return receive, None
+            core.set_item(return_key, (receive, None))
+            return
 
         async def receive_wrapped(once=[True]):
             if once[0]:
                 once[0] = False
-                return data_received
-            return await receive()
+                core.set_item(return_key, data_received)
+                return
+            core.set_item(return_key, await receive())
+            return
 
         try:
             body = data_received.get("body", b"")
@@ -107,11 +111,14 @@ async def _on_asgi_request_parse_body(receive, headers):
                 req_body = None
             else:
                 req_body = parse_form_multipart(body.decode(), headers) or None
-            return receive_wrapped, req_body
+            core.set_item(return_key, (receive_wrapped, req_body))
+            return
         except Exception:
-            return receive_wrapped, None
+            core.set_item(return_key, (receive_wrapped, None))
+            return
 
-    return receive, None
+    core.set_item(return_key, (receive_wrapped, None))
+    return
 
 
 # FLASK
@@ -271,7 +278,7 @@ def _asgi_make_block_content(ctx, url):
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
-    return status, resp_headers, content
+    core.set_item("asgi.block.started", (status, resp_headers, content))
 
 
 def _on_flask_blocked_request(span):

@@ -330,7 +330,8 @@ def _on_django_login(
 
 def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_config):
     if not asm_config._asm_enabled:
-        return True, result_user
+        core.set_item("django.auth", (True, result_user))
+        return
 
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
@@ -356,7 +357,8 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
             else:
                 track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode, exists=False)
 
-    return False, None
+    core.set_item("django.auth", (False, None))
+    return
 
 
 core.on("django.login", _on_django_login)

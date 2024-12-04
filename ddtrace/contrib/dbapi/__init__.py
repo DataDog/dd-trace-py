@@ -123,9 +123,8 @@ class TracedCursor(wrapt.ObjectProxy):
             # dispatch DBM
             if dbm_propagator:
                 # this check is necessary to prevent fetch methods from trying to add dbm propagation
-                result = core.dispatch_with_results(
-                    f"{self._self_config.integration_name}.execute", (self._self_config, s, args, kwargs)
-                ).result
+                core.dispatch(f"{self._self_config.integration_name}.execute", (self._self_config, s, args, kwargs))
+                result = core.get_item(f"{self._self_config.integration_name}.execute")
                 if result:
                     s, args, kwargs = result.value
 

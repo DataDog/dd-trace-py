@@ -796,12 +796,13 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     if mode == "disabled":
         return result_user
     try:
-        result = core.dispatch_with_results(
+        core.dispatch(
             "django.auth",
             (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config.django),
-        ).user
-        if result and result.value[0]:
-            return result.value[1]
+        )
+        result = core.get_item("django.auth")
+        if result and result[0]:
+            return result[1]
     except Exception:
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
 
