@@ -474,3 +474,10 @@ test = [
 [[envs.selenium.matrix]]
 python = ["3.7", "3.10", "3.12"]
 selenium = ["~=3.0", "~=4.0"]
+use_beta_pytest = ["true", "false"]
+
+[envs.selenium.overrides]
+matrix.use_beta_pytest.env-vars = [
+    { key = "DD_PYTEST_USE_NEW_PLUGIN_BETA", value = "false"},
+    { key = "DD_PYTEST_USE_NEW_PLUGIN_BETA", value = "true", if = ["true"]}
+]

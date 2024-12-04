@@ -19,7 +19,7 @@ from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import snapshot
 
 
-SNAPSHOT_IGNORES = [
+SELENIUM_SNAPSHOT_IGNORES = [
     "meta.ci.workspace_path",
     "meta.error.stack",
     "meta.library_version",
@@ -28,7 +28,7 @@ SNAPSHOT_IGNORES = [
     "meta.os.version",
     "meta.runtime-id",
     "meta.runtime.version",
-    "meta.test.framework_version",
+    "meta.test.browser.version" "meta.test.framework_version",
     "meta.test_module_id",
     "meta.test_session_id",
     "meta.test_suite_id",
@@ -68,7 +68,7 @@ def _http_server(scope="function"):
         server.terminate()
 
 
-@snapshot(ignores=SNAPSHOT_IGNORES)
+@snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
 @pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
 def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
@@ -118,7 +118,7 @@ def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
     )
 
 
-@snapshot(ignores=SNAPSHOT_IGNORES)
+@snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
 @pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
 def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
@@ -168,7 +168,7 @@ def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
     )
 
 
-@snapshot(ignores=SNAPSHOT_IGNORES)
+@snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
 @pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
 def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
