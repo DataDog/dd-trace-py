@@ -383,6 +383,8 @@ suites:
       - '@azure_functions'
       - tests/contrib/azure_functions/*
       - tests/snapshots/tests.contrib.azure_functions.*
+    runner: riot
+    snapshot: true
   botocore:
     parallelism: 6
     paths:
