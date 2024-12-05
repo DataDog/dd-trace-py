@@ -129,6 +129,8 @@ __all__ = [
     "upper_aspect",
 ]
 
+PROPAGATING_MODULES = set()
+
 
 def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> _io.StringIO:
     if orig_function is not None:
@@ -203,6 +205,10 @@ def bytearray_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
 
 
 def join_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if not orig_function:
         orig_function = args[0].join
     if not isinstance(orig_function, BuiltinFunctionType):
@@ -220,6 +226,10 @@ def join_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
 
 
 def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -249,6 +259,10 @@ def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:
 def ljust_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if not orig_function:
         orig_function = args[0].ljust
     if not isinstance(orig_function, BuiltinFunctionType):
@@ -284,6 +298,10 @@ def ljust_aspect(
 def zfill_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -328,6 +346,10 @@ def zfill_aspect(
 def format_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is None:
         orig_function = args[0].format
 
@@ -360,6 +382,11 @@ def format_aspect(
 def format_map_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
+
     if orig_function is None:
         orig_function = args[0].format_map
 
@@ -538,6 +565,10 @@ def incremental_translation(self, incr_coder, funcode, empty):
 def decode_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
@@ -561,6 +592,10 @@ def decode_aspect(
 def encode_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
@@ -585,6 +620,10 @@ def encode_aspect(
 def upper_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -605,6 +644,10 @@ def upper_aspect(
 def lower_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -848,6 +891,11 @@ def replace_aspect(
 def swapcase_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
+
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -867,6 +915,9 @@ def swapcase_aspect(
 def title_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -886,6 +937,11 @@ def title_aspect(
 def capitalize_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
+
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -906,6 +962,10 @@ def capitalize_aspect(
 def casefold_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is not None:
         if not isinstance(orig_function, BuiltinFunctionType) or not args:
             if flag_added_args > 0:
@@ -939,6 +999,10 @@ def casefold_aspect(
 def translate_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
+    module_name = args[0]
+    PROPAGATING_MODULES.add(module_name)
+    args = args[1:]
+    flag_added_args = flag_added_args - 1
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
