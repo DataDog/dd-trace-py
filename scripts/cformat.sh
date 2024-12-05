@@ -27,17 +27,12 @@ then
     | grep -v '_taint_tracking/_vendor/' \
     | grep -v 'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/' \
     | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/' \
-    | grep -v '^ddtrace/internal/datadog/profiling/dd_wrapper/include/vendored/' \
     | while IFS= read -r file; do
   clang-format -i $file
   echo "Formatting $file"
 done
 else
-  git ls-files '*.c' '*.h' '*.cpp' '*.hpp' \
-    | grep -v '^ddtrace/vendor/' \
-    | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/' \
-    | grep -v '^ddtrace/internal/datadog/profiling/dd_wrapper/include/vendored/' \
-    | while read filename
+  git ls-files '*.c' '*.h' '*.cpp' '*.hpp' | grep -v '^ddtrace/vendor/' | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/'  | while read filename
   do
     CFORMAT_TMP=`mktemp`
     clang-format "$filename" > "$CFORMAT_TMP"
