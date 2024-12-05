@@ -24,7 +24,9 @@ profile_in_child(unsigned int num_threads, unsigned int run_time_ns, std::atomic
         ids.push_back(i);
     }
     std::vector<std::thread> new_threads;
+    std::cout << "child launch_samplers()" << std::endl;
     launch_samplers(ids, 10e3, new_threads, done);
+    std::cout << "child sleeping" << std::endl;
     std::this_thread::sleep_for(std::chrono::nanoseconds(run_time_ns));
     done.store(true);
     std::cout << "child waiting for join_samplers()" << std::endl;
