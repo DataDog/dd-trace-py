@@ -19,7 +19,9 @@ from tests.utils import override_global_config
 
 
 # FIXME: ideally all these should pass, through the key is that we don't leak any potential PII
-_ignore_list = {46, 47}
+_ignore_list = {
+    46,
+}
 
 
 @pytest.mark.parametrize(
