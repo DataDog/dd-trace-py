@@ -413,7 +413,7 @@ def update_location_data(
 
             chunk.append(b)
 
-            offset_delta = ((b & 7) + 1) << 1
+            offset_delta = ((b & 7) + 1) << 1  # multiply by 2 because the length in the line table is in code units.
             loc_code = (b >> 3) & 0xF
 
             # See https://github.com/python/cpython/blob/main/InternalDocs/code_objects.md#location-entries for
@@ -432,28 +432,27 @@ def update_location_data(
 
             if original_offset in offsets_map:
                 # No location info for the trap bytecode
-                injected_instructions_size = offsets_map[original_offset]
-                n, r = divmod(injected_instructions_size, 8)
+                injected_code_units_size = offsets_map[original_offset]
+                n, r = divmod(injected_code_units_size, 8)
                 for _ in range(n):
                     new_data.append(0x80 | (0xF << 3) | 7)
                 if r:
                     new_data.append(0x80 | (0xF << 3) | r - 1)
-                offset += injected_instructions_size << 1
+                offset += injected_code_units_size << 1
 
             # Extend the line table record if we added any EXTENDED_ARGs
-            original_offset += offset_delta
             offset += offset_delta
-            while ext_arg_offset is not None and offset > ext_arg_offset:
-                try:
-                    room = 7 - offset_delta
-                    chunk[0] += min(room, t.cast(int, ext_arg_size))
-                    if room < t.cast(int, ext_arg_size):
-                        chunk.append(0x80 | (0xF << 3) | t.cast(int, ext_arg_size) - room)
-                    offset += ext_arg_size << 1
+            if ext_arg_offset is not None and original_offset > ext_arg_offset:
+                # if ext_arg_offset is not None and offset > ext_arg_offset:
+                room = 7 - offset_delta
+                chunk[0] += min(room, t.cast(int, ext_arg_size))
+                if room < t.cast(int, ext_arg_size):
+                    chunk.append(0x80 | (0xF << 3) | t.cast(int, ext_arg_size) - room)
+                offset += ext_arg_size << 1
 
-                    ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
-                except StopIteration:
-                    pass
+                ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
+
+            original_offset += offset_delta
 
             new_data.extend(chunk)
         except StopIteration:

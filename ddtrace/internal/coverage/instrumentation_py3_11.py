@@ -248,109 +248,15 @@ def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
 SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
-@dataclass
-class InjectionContext:
-    original_code: CodeType
-    _new_consts: t.List[t.Any]
-    _new_names: t.List[str]
-    _new_varnames: t.List[str]
-    package: str
-    instructions_cb: t.Callable[["InjectionContext", int], t.Tuple[Instruction, ...]] = lambda ctx, _: ()
-
-    @staticmethod
-    def from_code(code: CodeType, package: str) -> "InjectionContext":
-        return InjectionContext(code, list(code.co_consts), list(code.co_names), list(code.co_varnames), package)
-
-    def with_const(self, value: t.Any) -> int:
-        if value not in self._new_consts:
-            index = len(self._new_consts)
-            self._new_consts.append(value)
-        else:
-            index = self._new_consts.index(value)
-        return index
-
-    def with_name(self, value: str) -> int:
-        if value not in self._new_names:
-            index = len(self._new_names)
-            self._new_names.append(value)
-        else:
-            index = self._new_names.index(value)
-        return index
-
-    def with_varname(self, value: str) -> int:
-        if value not in self._new_varnames:
-            index = len(self._new_varnames)
-            self._new_varnames.append(value)
-        else:
-            index = self._new_varnames.index(value)
-        return index
-
-    @property
-    def new_consts(self) -> t.Tuple[t.Any, ...]:
-        return tuple(self._new_consts)
-
-    @property
-    def new_names(self) -> t.Tuple[str, ...]:
-        return tuple(self._new_names)
-
-    @property
-    def new_varnames(self) -> t.Tuple[str, ...]:
-        return tuple(self._new_varnames)
-
-
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
-    line_starts = dict(dis.findlinestarts(code))
-
-    injection_context = InjectionContext.from_code(code, package)
-
-    # If we are looking at an empty module, we trick ourselves into instrumenting line 0 by skipping the RESUME at index
-    # and instrumenting the second offset:
-    if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
-        line_starts = {2: 0}
-
-    callback_index = injection_context.with_const(hook)
-
-    is_first_executable_line = True
-
-    def instructions_cb(injection_context: InjectionContext, line_number: int) -> t.Tuple[Instruction, ...]:
-        nonlocal is_first_executable_line
-
-        # Make sure that the current module is marked as depending on its own package by instrumenting the
-        # first executable line only
-        package_dep = None
-        if code.co_name == "<module>" and is_first_executable_line:
-            package_dep = (package, ("",))
-            is_first_executable_line = False
-
-        argument = (line_number, path, package_dep)
-        argument_index = injection_context.with_const(argument)
-
-        return (
-            Instruction(NO_OFFSET, PUSH_NULL, 0),
-            *instr_with_arg(LOAD_CONST, callback_index),
-            *instr_with_arg(LOAD_CONST, argument_index),
-            Instruction(NO_OFFSET, PRECALL, 1),
-            Instruction(NO_OFFSET, CACHE, 0),
-            Instruction(NO_OFFSET, CALL, 1),
-            Instruction(NO_OFFSET, CACHE, 0),
-            Instruction(NO_OFFSET, CACHE, 0),
-            Instruction(NO_OFFSET, CACHE, 0),
-            Instruction(NO_OFFSET, CACHE, 0),
-            Instruction(NO_OFFSET, POP_TOP, 0),
-        )
-
-    injection_context.instructions_cb = instructions_cb
-
-    return inject_instructions(injection_context, line_starts, SKIP_LINES)
-
-
-def inject_instructions(
-    injection_context: InjectionContext, injection_lines: t.Dict[int, int], skip_opcodes: frozenset
-) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
-    code = injection_context.original_code
+    trap_func, trap_arg = hook, path
 
     instructions: t.List[Instruction] = []
+
+    new_consts = list(code.co_consts)
+    trap_index = len(new_consts)
+    new_consts.append(trap_func)
 
     seen_lines = CoverageLines()
 
@@ -362,6 +268,7 @@ def inject_instructions(
     jumps: t.Dict[int, Jump] = {}
     traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
+    line_starts = dict(dis.findlinestarts(code))
 
     # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
     resume_offset = NO_OFFSET
@@ -369,6 +276,11 @@ def inject_instructions(
         if code.co_code[i] == RESUME:
             resume_offset = i
             break
+
+    # If we are looking at an empty module, we trick ourselves into instrumenting line 0 by skipping the RESUME at index
+    # and instrumenting the second offset:
+    if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
+        line_starts = {2: 0}
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
@@ -381,23 +293,30 @@ def inject_instructions(
     try:
         code_iter = iter(enumerate(code.co_code))
         ext: list[bytes] = []
-
         while True:
             original_offset, opcode = next(code_iter)
 
             if original_offset in exc_table_offsets:
                 offset_map[original_offset] = len(instructions) << 1
 
-            if original_offset in injection_lines and original_offset > resume_offset:
-                line = injection_lines[original_offset]
-                if code.co_code[original_offset] not in skip_opcodes:
+            if original_offset in line_starts and original_offset > resume_offset:
+                line = line_starts[original_offset]
+                if code.co_code[original_offset] not in SKIP_LINES:
                     # Inject trap call at the beginning of the line. Keep
                     # track of location and size of the trap call
                     # instructions. We need this to adjust the location
                     # table.
-                    trap_instructions = injection_context.instructions_cb(injection_context, line)
+                    trap_instructions = trap_call(trap_index, len(new_consts))
                     traps[original_offset] = len(trap_instructions)
                     instructions.extend(trap_instructions)
+
+                    # Make sure that the current module is marked as depending on its own package by instrumenting the
+                    # first executable line
+                    package_dep = None
+                    if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
+                        package_dep = (package, ("",))
+
+                    new_consts.append((line, trap_arg, package_dep))
 
                     line_map[original_offset] = trap_instructions[0]
 
@@ -419,11 +338,6 @@ def inject_instructions(
                 current_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 ext.clear()
 
-            package = injection_context.package
-
-            #############################
-            # TODO
-            #############################
             # Track imports names
             if opcode == IMPORT_NAME:
                 import_depth = code.co_consts[_previous_previous_arg]
@@ -448,9 +362,6 @@ def inject_instructions(
                     new_consts[-1][1],
                     (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
                 )
-            #############################
-            # END OF TODO
-            #############################
 
             # Collect branching instructions for processing
             if opcode in RJump.__opcodes__:
@@ -545,25 +456,16 @@ def inject_instructions(
         new_code.append(instr.opcode)
         new_code.append(instr.arg)
 
-    #############################
-    # TODO
-    #############################
     # Instrument nested code objects recursively
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
             new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
             seen_lines.update(nested_lines)
-    #############################
-    # END OF TODO
-    #############################
 
     return (
         code.replace(
             co_code=bytes(new_code),
-            co_consts=injection_context.new_consts,
-            co_names=injection_context.new_names,
-            co_varnames=injection_context.new_varnames,
-            co_nlocals=len(injection_context.new_varnames),
+            co_consts=tuple(new_consts),
             co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
             co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
             co_exceptiontable=compile_exception_table(exc_table),
