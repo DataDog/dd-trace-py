@@ -457,7 +457,7 @@ dependencies = [
     "pytest",
     "pytest-cov",
     "hypothesis",
-    "selenium{matrix:selenium}",
+    "selenium~=4.0",
     "webdriver-manager"
 ]
 
@@ -467,14 +467,12 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.selenium.scripts]
 test = [
-    "env",
     "pip freeze",
     "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/selenium {args:}",
 ]
 
 [[envs.selenium.matrix]]
 python = ["3.7", "3.10", "3.12"]
-selenium = ["~=3.0", "~=4.0"]
 tested_pytest_plugin_version = ["v1", "v2"]
 
 [envs.selenium.overrides]
