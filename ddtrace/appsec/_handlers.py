@@ -81,21 +81,17 @@ def _on_set_http_meta(
 
 
 async def _on_asgi_request_parse_body(receive, headers):
-    return_key = "asgi.request.parse.body"
     if asm_config._asm_enabled:
         try:
             data_received = await receive()
         except Exception:
-            core.set_item(return_key, (receive, None))
-            return
+            return receive, None
 
         async def receive_wrapped(once=[True]):
             if once[0]:
                 once[0] = False
-                core.set_item(return_key, data_received)
-                return
-            core.set_item(return_key, await receive())
-            return
+                return data_received
+            return await receive()
 
         try:
             body = data_received.get("body", b"")
@@ -111,14 +107,11 @@ async def _on_asgi_request_parse_body(receive, headers):
                 req_body = None
             else:
                 req_body = parse_form_multipart(body.decode(), headers) or None
-            core.set_item(return_key, (receive_wrapped, req_body))
-            return
+            return receive_wrapped, req_body
         except Exception:
-            core.set_item(return_key, (receive_wrapped, None))
-            return
+            return receive_wrapped, None
 
-    core.set_item(return_key, (receive_wrapped, None))
-    return
+    return receive, None
 
 
 # FLASK
@@ -235,7 +228,7 @@ def _wsgi_make_block_content(ctx, construct_url):
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
     resp_headers.append(("Content-Length", str(len(content))))
-    core.set_item("wsgi.block.started", (status, resp_headers, content))
+    return status, resp_headers, content
 
 
 def _asgi_make_block_content(ctx, url):
@@ -244,6 +237,7 @@ def _asgi_make_block_content(ctx, url):
     headers = ctx.get_item("headers")
     environ = ctx.get_item("environ")
     if req_span is None:
+        return
         raise ValueError("request span not found")
     block_config = get_blocked()
     desired_type = block_config.get("type", "auto")
@@ -278,7 +272,8 @@ def _asgi_make_block_content(ctx, url):
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
-    core.set_item("asgi.block.started", (status, resp_headers, content))
+    ctx.set_item("asgi.block.started", (status, resp_headers, content))
+    return status, resp_headers, content
 
 
 def _on_flask_blocked_request(span):
