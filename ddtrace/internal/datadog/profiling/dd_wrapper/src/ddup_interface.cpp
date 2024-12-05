@@ -306,12 +306,8 @@ ddup_upload() // cppcheck-suppress unusedFunction
         {
             void operator()(Datadog::Uploader& uploader)
             {
-                auto pid = getpid();
-                std::cout << pid << ": calling profile_borrow()" << std::endl;
                 uploader.upload(Datadog::Sample::profile_borrow());
-                std::cout << pid << ": calling profile_release()" << std::endl;
                 Datadog::Sample::profile_release();
-                std::cout << pid << ": calling profile_clear_state()" << std::endl;
                 Datadog::Sample::profile_clear_state();
             }
             void operator()(const std::string& err) { std::cerr << "Failed to create uploader: " << err << std::endl; }
