@@ -55,7 +55,6 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 
     // Collect some profiling data for a few ms, then upload in a thread before forking
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    join_samplers(threads, done);
 
     pthread_t thread;
     if (pthread_create(&thread, nullptr, upload_in_thread, nullptr) != 0) {
@@ -77,6 +76,7 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     done.store(true);
     waitpid(pid, &status, 0);
     ddup_upload();
+    join_samplers(threads, done);
     if (!is_exit_normal(status)) {
         std::exit(1);
     }
