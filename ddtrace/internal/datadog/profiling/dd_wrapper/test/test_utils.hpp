@@ -8,7 +8,6 @@
 #include <string_view>
 #include <thread>
 #include <vector>
-#include <unistd.h>
 
 static constexpr std::array<std::array<std::string_view, 7>, 3> names = { {
   {
@@ -116,10 +115,6 @@ get_name()
 void
 send_sample(unsigned int id)
 {
-    auto pid = getpid();
-    auto tid = std::this_thread::get_id();
-
-    std::cout << pid << ":" << tid << "ddup_start_sample()" << std::endl;
     auto h = ddup_start_sample();
     thread_local static std::random_device rd;
     thread_local static std::mt19937 gen(rd());
@@ -154,10 +149,7 @@ send_sample(unsigned int id)
         std::string func = get_name() + std::to_string(i);
         ddup_push_frame(h, func.c_str(), file.c_str(), i, 0);
     }
-
-    std::cout << pid << ":" << tid << "ddup_flush_sample()" << std::endl;
     ddup_flush_sample(h);
-    std::cout << pid << ":" << tid << "ddup_drop_sample()" << std::endl;
     ddup_drop_sample(h);
     h = nullptr;
 }
