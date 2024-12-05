@@ -30,4 +30,19 @@ SynchronizedSamplePool::return_sample(Sample* sample)
         return std::nullopt;
     }
 }
+
+void
+SynchronizedSamplePool::clear()
+{
+    const std::lock_guard<std::mutex> lock(mtx);
+    pool.clear();
+}
+
+void
+SynchronizedSamplePool::postfork_child()
+{
+    mtx.~mutex();
+    new (&mtx) std::mutex();
+    clear();
+}
 } // namespace Datadog
