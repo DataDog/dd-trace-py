@@ -800,7 +800,10 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
             "django.auth",
             (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config.django),
         )
-        result = core.get_item("django.auth")
+        result = core.get_item(
+            "django.auth",
+            (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config.django),
+        )
         if result and result[0]:
             return result[1]
     except Exception:
