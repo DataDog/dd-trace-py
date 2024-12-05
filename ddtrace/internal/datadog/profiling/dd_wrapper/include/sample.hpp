@@ -19,7 +19,13 @@ namespace internal {
 
 struct StringArena
 {
-    static constexpr size_t DEFAULT_SIZE = 1024;
+    // TODO: pick a reasonable default size and explain it. Goal is to be big
+    // enough to accommodate "average" sample string data without need for much
+    // growth (new allocs), but without too much wasted space in the typical case.
+    // User-provided things like function and task names can be arbitrarily-sized.
+    // Basically want (# of frames) * (name + filename size) + (# of labels) * (reasonable label size)
+    // where the sizes are a reasonable expected value.
+    static constexpr size_t DEFAULT_SIZE = 64 * 1024;
     // Strings are backed by fixed-size chunks. The chunks can't grow, or they'll
     // move and invalidate pointers into the arena.  So, if we need more space, we
     // add more chunks.
