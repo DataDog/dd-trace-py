@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fixes an issue where calling ``unlock()`` on unlocked mutex could result in
+    an undefined behavior.
+    Fixes an issue where the child process could deadlock after ``fork()`` as
+    it didn't reset the locks.
+
