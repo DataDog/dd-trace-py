@@ -21,6 +21,7 @@ riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
 CHANGELOG.md                        @DataDog/apm-python
 README.md                           @DataDog/apm-python
+tests/telemetry                     @DataDog/apm-python
 
 # Guild
 setup.py                            @DataDog/python-guild

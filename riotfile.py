@@ -2720,6 +2720,8 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "google-generativeai": [latest],
                 "pillow": latest,
+                "google-ai-generativelanguage": [latest],
+                "vertexai": [latest],
             },
         ),
         Venv(
@@ -2729,6 +2731,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
+                "google-ai-generativelanguage": [latest],
             },
         ),
         Venv(

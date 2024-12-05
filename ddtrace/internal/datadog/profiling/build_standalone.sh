@@ -245,7 +245,7 @@ add_compiler_args() {
       ;;
     -s|--safety)
       cmake_args+=(${compiler_args["safety"]})
-      set_gcc
+      set_clang
       ;;
     -t|--thread)
       cmake_args+=(${compiler_args["thread"]})
