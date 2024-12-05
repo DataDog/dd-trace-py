@@ -33,14 +33,14 @@ jobs:
       - name: Install dependencies
         if: matrix.os == 'macos-15'
         run: |
-          brew install bash llvm@18
+          brew install bash llvm@19
 
       - name: Install LLVM and Clang
         if: matrix.os == 'ubuntu-24.04'
         run: |
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 18
+          sudo ./llvm.sh 19
 
       - name: Run profiling native tests (ubuntu)
         if: matrix.os == 'ubuntu-24.04'
@@ -49,7 +49,7 @@ jobs:
       - name: Run profiling native tests (mac)
         if: matrix.os == 'macos-15'
         run: |
-          export PATH="$(brew --prefix llvm@18)/bin:$PATH"
-          export CPPFLAGS="-I$(brew --prefix llvm@18)/include"
-          export LDFLAGS="-L$(brew --prefix llvm@18)/lib"
+          export PATH="$(brew --prefix llvm@19)/bin:$PATH"
+          export CPPFLAGS="-I$(brew --prefix llvm@19)/include"
+          export LDFLAGS="-L$(brew --prefix llvm@19)/lib"
           ./ddtrace/internal/datadog/profiling/build_standalone.sh --${{matrix.sanitizer}} RelWithDebInfo dd_wrapper_test
