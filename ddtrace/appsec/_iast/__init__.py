@@ -27,6 +27,7 @@ def wrapped_function(wrapped, instance, args, kwargs):
     )
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
+
 import inspect
 import sys
 
@@ -63,9 +64,16 @@ def ddtrace_iast_flask_patch():
         log.debug("Unexpected exception while AST patching", exc_info=True)
         return
 
+    if not patched_ast:
+        log.debug("Main flask module not patched, probably it was not needed")
+        return
+
     compiled_code = compile(patched_ast, module_path, "exec")
     exec(compiled_code, module.__dict__)  # nosec B102
     sys.modules[module_name] = compiled_code
+
+
+_iast_propagation_enabled = False
 
 
 def enable_iast_propagation():
@@ -75,8 +83,12 @@ def enable_iast_propagation():
     from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
+    global _iast_propagation_enabled
+    if _iast_propagation_enabled:
+        return
     log.debug("IAST enabled")
     ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+    _iast_propagation_enabled = True
 
 
 def disable_iast_propagation():
@@ -86,10 +98,14 @@ def disable_iast_propagation():
     from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
+    global _iast_propagation_enabled
+    if not _iast_propagation_enabled:
+        return
     try:
         ModuleWatchdog.remove_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
     except KeyError:
         log.warning("IAST is already disabled and it's not in the ModuleWatchdog")
+    _iast_propagation_enabled = False
 
 
 __all__ = [

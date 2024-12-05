@@ -1,5 +1,6 @@
 import collections
 from functools import lru_cache as cached
+from functools import singledispatch
 import inspect
 import logging
 from os import fspath  # noqa:F401
@@ -241,8 +242,22 @@ def is_third_party(path: Path) -> bool:
     return package.name in _third_party_packages()
 
 
-def is_user_code(path: Path) -> bool:
+@singledispatch
+def is_user_code(path) -> bool:
+    raise NotImplementedError(f"Unsupported type {type(path)}")
+
+
+@is_user_code.register
+def _(path: Path) -> bool:
     return not (is_stdlib(path) or is_third_party(path))
+
+
+# DEV: Creating Path objects on Python < 3.11 is expensive
+@is_user_code.register(str)
+@cached(maxsize=1024)
+def _(path: str) -> bool:
+    _path = Path(path)
+    return not (is_stdlib(_path) or is_third_party(_path))
 
 
 @cached(maxsize=256)
