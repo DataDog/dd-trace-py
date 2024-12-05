@@ -80,18 +80,23 @@ def _on_set_http_meta(
 # ASGI
 
 
-async def _on_asgi_request_parse_body(receive, headers):
+async def _on_asgi_request_parse_body(ctx, receive, headers):
+    key = "asgi.request.parse.body"
     if asm_config._asm_enabled:
         try:
             data_received = await receive()
         except Exception:
+            ctx.set_item(key, (receive, None))
             return receive, None
 
         async def receive_wrapped(once=[True]):
             if once[0]:
                 once[0] = False
+                ctx.set_item(key, data_received)
                 return data_received
-            return await receive()
+            result = await receive()
+            ctx.set_item(key, result)
+            return result
 
         try:
             body = data_received.get("body", b"")
@@ -107,10 +112,13 @@ async def _on_asgi_request_parse_body(receive, headers):
                 req_body = None
             else:
                 req_body = parse_form_multipart(body.decode(), headers) or None
+            ctx.set_item(key, (receive_wrapped, req_body))
             return receive_wrapped, req_body
         except Exception:
+            ctx.set_item(key, (receive_wrapped, None))
             return receive_wrapped, None
 
+    ctx.set_item(key, (receive, None))
     return receive, None
 
 
@@ -238,7 +246,6 @@ def _asgi_make_block_content(ctx, url):
     environ = ctx.get_item("environ")
     if req_span is None:
         return
-        raise ValueError("request span not found")
     block_config = get_blocked()
     desired_type = block_config.get("type", "auto")
     ctype = None

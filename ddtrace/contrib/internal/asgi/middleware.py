@@ -202,9 +202,10 @@ class TraceMiddleware:
             if not self.integration_config.trace_query_string:
                 query_string = None
             body = None
-            result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers)).await_receive_and_body
+            core.dispatch("asgi.request.parse.body", (ctx, receive, headers))
+            result = ctx.get_item("asgi.request.parse.body")
             if result:
-                receive, body = await result.value
+                receive, body = await result
 
             client = scope.get("client")
             if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
