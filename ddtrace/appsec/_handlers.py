@@ -176,6 +176,7 @@ def _on_request_span_modifier(
                     wsgi_input.seek(0)
                 else:
                     environ["wsgi.input"] = io.BytesIO(body)
+    ctx.set_item("flask.request_call_modifier", req_body)
     return req_body
 
 

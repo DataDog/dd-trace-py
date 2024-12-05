@@ -142,7 +142,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         request = _RequestType(environ)
 
         req_body = None
-        result = core.dispatch_with_results(
+        result = core.dispatch(
             "flask.request_call_modifier",
             (
                 ctx,
@@ -154,9 +154,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 flask_version_str,
                 BadRequest,
             ),
-        ).request_body
+        )
+        result = ctx.get_item("flask.request_call_modifier")
         if result:
-            req_body = result.value
+            req_body = result
         core.dispatch("flask.request_call_modifier.post", (ctx, config.flask, request, req_body))
 
 
