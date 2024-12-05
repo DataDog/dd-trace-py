@@ -100,7 +100,7 @@ class TracedAsyncCursor(TracedCursor):
                 )
                 result = core.get_item(f"{self._self_config.integration_name}.execute")
                 if result:
-                    s, args, kwargs = result.value
+                    s, args, kwargs = result
 
             try:
                 return await method(*args, **kwargs)
