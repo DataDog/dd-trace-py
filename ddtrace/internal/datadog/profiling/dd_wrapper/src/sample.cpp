@@ -19,6 +19,10 @@ Datadog::internal::StringArena::reset()
     // Free chunks. Keep the first one around so it's easy to reuse this without
     // needing new allocations every time. We can completely drop it to get rid
     // of everything
+    // TODO - we could consider keeping more around if it's not too costly.
+    // The goal is to not retain more than we need _on average_. If we have
+    // mostly small samples and then a rare huge one, we can end up with
+    // all samples in our pool using as much memory as the largets ones we've seen
     chunks.front().clear();
     chunks.erase(++chunks.begin(), chunks.end());
 }
