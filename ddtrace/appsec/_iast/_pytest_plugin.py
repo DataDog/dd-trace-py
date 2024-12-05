@@ -2,10 +2,42 @@
 import json
 from typing import List
 
-import pytest
-
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
+
+try:
+    import pytest
+
+    @pytest.fixture(autouse=_is_iast_enabled())
+    def ddtrace_iast(request, ddspan):
+        """Return the :class:`ddtrace._trace.span.Span` instance associated with the
+        current test when Datadog CI Visibility is enabled.
+        """
+        yield
+        data = ddspan.get_tag(IAST.JSON)
+        if data:
+            json_data = json.loads(data)
+
+            if json_data["vulnerabilities"]:
+                for vuln in json_data["vulnerabilities"]:
+                    vuln_data.append(
+                        {
+                            "nodeid": request.node.nodeid,
+                            "vulnerability": vuln["type"],
+                            "file": vuln["location"]["path"],
+                            "line": vuln["location"]["line"],
+                        }
+                    )
+                if request.config.getoption("ddtrace-iast-fail-tests"):
+                    vulns = ", ".join([vuln["type"] for vuln in json_data["vulnerabilities"]])
+                    pytest.fail(f"There are vulnerabilities in the code: {vulns}")
+
+except ImportError:
+    log.debug("pytest not imported")
 
 
 vuln_data: List[dict] = []
@@ -26,8 +58,9 @@ def extract_code_snippet(filepath, line_number, context=3):
             end = min(len(lines), line_number + context)
             code = lines[start:end]
             return code, start  # Return lines and starting line number
-    except Exception as e:
-        return [f"Error reading file {filepath}: {e}"], None
+    except Exception:
+        log.debug("Error reading file %s", filepath, exc_info=True)
+        return "", 0
 
 
 def print_iast_report(terminalreporter):
@@ -41,7 +74,7 @@ def print_iast_report(terminalreporter):
 
         for entry in vuln_data:
             terminalreporter.write(f"Test: {entry['nodeid']}\n", bold=True)
-            critical = entry["vulnerability"] == "SQL_INJECTION"
+            critical = entry["vulnerability"].endswith("INJECTION")
             terminalreporter.write(
                 f"Vulnerability: {entry['vulnerability']} - \033]8;;"
                 f"{remediation[entry['vulnerability']]}\033\\Remediation\033]8;;\033\\ \n",
@@ -50,45 +83,22 @@ def print_iast_report(terminalreporter):
                 yellow=not critical,
             )
             terminalreporter.write(f"Location: {entry['file']}:{entry['line']}\n")
-            terminalreporter.write("Code:\n")
             code_snippet, start_line = extract_code_snippet(entry["file"], entry["line"])
 
-            if start_line is not None:
-                for i, line in enumerate(code_snippet, start=start_line + 1):
-                    if i == entry["line"]:
-                        terminalreporter.write(f"{i:4d}: {line}", bold=True, purple=True)
-                    else:
-                        terminalreporter.write(f"{i:4d}: {line}")
-            else:
-                # If there's an error extracting the code snippet
-                terminalreporter.write(code_snippet[0] + "\n", bold=True)
+            if code_snippet:
+                terminalreporter.write("Code:\n")
+
+                if start_line is not None:
+                    for i, line in enumerate(code_snippet, start=start_line + 1):
+                        if i == entry["line"]:
+                            terminalreporter.write(f"{i:4d}: {line}", bold=True, purple=True)
+                        else:
+                            terminalreporter.write(f"{i:4d}: {line}")
+                else:
+                    # If there's an error extracting the code snippet
+                    terminalreporter.write(code_snippet[0] + "\n", bold=True)
 
             terminalreporter.write(f"{'=' * 80}\n")
 
     else:
         terminalreporter.write("\nNo vulnerabilities found.\n")
-
-
-@pytest.fixture(autouse=_is_iast_enabled())
-def ddtrace_iast(request, ddspan):
-    """Return the :class:`ddtrace._trace.span.Span` instance associated with the
-    current test when Datadog CI Visibility is enabled.
-    """
-    yield
-    data = ddspan.get_tag(IAST.JSON)
-    if data:
-        json_data = json.loads(data)
-
-        if json_data["vulnerabilities"]:
-            for vuln in json_data["vulnerabilities"]:
-                vuln_data.append(
-                    {
-                        "nodeid": request.node.nodeid,
-                        "vulnerability": vuln["type"],
-                        "file": vuln["location"]["path"],
-                        "line": vuln["location"]["line"],
-                    }
-                )
-            if request.config.getoption("ddtrace-iast-fail-tests"):
-                vulns = ", ".join([vuln["type"] for vuln in json_data["vulnerabilities"]])
-                pytest.fail(f"There are vulnerabilities in the code: {vulns}")
