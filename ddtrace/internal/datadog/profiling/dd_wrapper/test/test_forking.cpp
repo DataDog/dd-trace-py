@@ -27,9 +27,7 @@ profile_in_child(unsigned int num_threads, unsigned int run_time_ns, std::atomic
     launch_samplers(ids, 10e3, new_threads, done);
     std::this_thread::sleep_for(std::chrono::nanoseconds(run_time_ns));
     done.store(true);
-    std::cout << "child waiting for join_samplers()" << std::endl;
     join_samplers(new_threads, done);
-    std::cout << "child waiting for ddup_upload()" << std::endl;
     ddup_upload();
     std::exit(0);
 }
@@ -115,11 +113,8 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     // Parent
     int status;
     done.store(true);
-    std::cout << "waiting for child pid" << std::endl;
     waitpid(pid, &status, 0);
-    std::cout << "waiting for ddup_upload()" << std::endl;
     ddup_upload();
-    std::cout << "waiting for join_pthread_samplers" << std::endl;
     join_pthread_samplers(thread_handles, done);
     if (!is_exit_normal(status)) {
         std::exit(1);
