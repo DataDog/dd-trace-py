@@ -4,12 +4,10 @@
 #include "types.hpp"
 
 #include <atomic>
-#include <deque>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
-#include <unordered_set>
 #include <vector>
 
 extern "C"
