@@ -51,7 +51,7 @@ function(add_ddup_config target)
         )
 
         # We treat the binary delicately around sanitizers, but the gloves come off for distributable builds
-        if(SANITIZE_OPTIONS)
+        if(NOT SANITIZE_OPTIONS)
             target_link_options(
                 ${target}
                 PRIVATE
@@ -59,7 +59,7 @@ function(add_ddup_config target)
                 -Wl,-Bsymbolic-functions
                 -Wl,--gc-sections
                 -Wl,-z,nodelete
-                -Wl,--exclude-libs,ALL)
+                -Wl,--exclude-libs,ALL
             )
         endif()
     endif()
