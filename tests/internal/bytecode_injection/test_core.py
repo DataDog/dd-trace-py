@@ -1,6 +1,7 @@
 import dis
-import pytest
 import sys
+
+import pytest
 
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
@@ -67,7 +68,7 @@ def test_injection_in_try_catch():
     sys.version_info[:2] < (3, 11),
     reason="Injection is only supported for 3.11+",
 )
-def test_linetable_compilation():
+def test_linetable_adjustment():
     selected_line_starts = [e for e in list(dis.findlinestarts(sample_function_short_jumps.__code__))[1:-1]]
     injection_offsets = [o for o, l in selected_line_starts]
 
@@ -77,17 +78,59 @@ def test_linetable_compilation():
 
     selected_line_starts_post_injection = [e for e in list(dis.findlinestarts(injected_code))[1:-1]]
 
-    assert len(selected_line_starts) == len(selected_line_starts_post_injection)
+    assert len(selected_line_starts) == len(selected_line_starts_post_injection), "Same number of lines"
 
     OFFSET = 0
     LINE = 1
     for idx, (o, l) in enumerate(selected_line_starts):
-        assert l == selected_line_starts_post_injection[idx][LINE]
+        assert l == selected_line_starts_post_injection[idx][LINE], "Every line is the same"
         # offset of line points to the same instructions
-        assert original_code.co_code[o] == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET]]
+        assert (
+            original_code.co_code[o] == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET]]
+        ), "The corresponding opcode is the same"
         # argument corresponding to first line opcode corresponds
-        assert original_code.co_code[o +
-                                     1] == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
+        assert (
+            original_code.co_code[o + 1] == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
+        ), "The corresponding argument is the same"
+
+
+@pytest.mark.skipif(
+    sys.version_info[:2] < (3, 11),
+    reason="Exception table is only available in python 3.11+",
+)
+def test_exceptiontable_adjustment():
+    selected_line_starts = [e for e in list(dis.findlinestarts(sample_function_short_jumps.__code__))[1:-1]]
+    injection_offsets = [o for o, l in selected_line_starts]
+
+    original_code = sample_function_short_jumps.__code__
+    original_co_code = original_code.co_code
+    original_exceptions = dis._parse_exception_table(original_code)
+
+    ic = InjectionContext(original_code, nothing, lambda _: injection_offsets)
+    injected_code, _ = inject_invocation(ic, "some/path.py", "some.package")
+    injected_co_code = injected_code.co_code
+    injected_exceptions = dis._parse_exception_table(injected_code)
+
+    print('original_exceptions')
+    for e in original_exceptions:
+        print('   ', e)
+    print('injected_exceptions')
+    for e in injected_exceptions:
+        print('   ', e)
+
+    assert len(original_exceptions) == len(injected_exceptions), "Same number of exceptions"
+    exceptions_cnt = len(original_exceptions)
+
+    for idx in range(exceptions_cnt):
+        original_entry = original_exceptions[idx]
+        injected_entry = injected_exceptions[idx]
+        assert original_co_code[original_entry.start] == injected_co_code[injected_entry.start], "Start opcode is the same"
+        assert original_co_code[original_entry.end] == injected_co_code[injected_entry.end], "End opcode is the same"
+        assert original_co_code[original_entry.target] == injected_co_code[injected_entry.target], "Target opcode is the same"
+        assert original_entry.depth == injected_entry.depth, "Depth is the same"
+        assert original_entry.lasti == injected_entry.lasti, "lasti is the same"
+
+    assert 1 == 2
 
 
 def sample_function_1():
@@ -112,11 +155,17 @@ def sample_function_short_jumps():
     for i in range(3):
         print(i > 1)
 
+    try:
+        raise ValueError("another value error")
+    except ValueError as _:
+        # in this spot we are going to inject accumulate(2)
+        print("I am handling the exception differently")
+
     return c
 
 
 def nothing(*args):
-    some_var = 'do nothing'
+    some_var = "do nothing"
     return some_var
 
 

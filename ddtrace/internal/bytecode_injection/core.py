@@ -41,7 +41,9 @@ class InjectionContext:
 
 def inject_invocation(injection_context: InjectionContext, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     code = injection_context.original_code
-    new_code, new_consts, new_linetable, seen_lines = _inject_invocation_nonrecursive(injection_context, path, package)
+    new_code, new_consts, new_linetable, new_exctable, seen_lines = _inject_invocation_nonrecursive(
+        injection_context, path, package
+    )
 
     # Instrument nested code objects recursively.
     for const_index, nested_code in enumerate(code.co_consts):
@@ -56,6 +58,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
         co_consts=tuple(new_consts),
         co_linetable=new_linetable,
         co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+        co_exceptiontable=new_exctable,
     )
 
     return (
@@ -135,7 +138,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
-) -> t.Tuple[bytearray, t.List[object], bytes, CoverageLines]:
+) -> t.Tuple[bytearray, t.List[object], bytes, bytes, CoverageLines]:
     code = injection_context.original_code
     old_code = code.co_code
     new_code = bytearray()
@@ -384,7 +387,13 @@ def _inject_invocation_nonrecursive(
             arg >>= 8
             arg_offset -= 2
 
-    return new_code, new_consts, update_location_data(injection_context.original_code, offsets_map, extended_arg_offsets), seen_lines
+    return (
+        new_code,
+        new_consts,
+        update_location_data(injection_context.original_code, offsets_map, extended_arg_offsets),
+        generate_exception_table(injection_context.original_code, offsets_map, extended_arg_offsets),
+        seen_lines,
+    )
 
 
 def update_location_data(
@@ -478,7 +487,49 @@ def consume_varint(stream: t.Iterator[int]) -> bytes:
 
 
 consume_signed_varint = consume_varint
-# def consume_signed_varint(stream: t.Iterator[int]) -> bytes:
-#     uval = int.from_bytes(consume_varint(stream))
-#     val = -(uval >> 1) if uval & 1 else uval >> 1
-#     return val.to_bytes(signed=True)
+
+
+def generate_exception_table(
+    code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
+) -> bytes:
+    """
+    For format see:
+    https://github.com/python/cpython/blob/208b0fb645c0e14b0826c0014e74a0b70c58c9d6/InternalDocs/exception_handling.md#format-of-the-exception-table
+    """
+    parsed_exception_table = dis._parse_exception_table(code)
+
+    def calculate_additional_offset(original_offset: int):
+        from_offsets = sum([codeunits << 1 for off, codeunits in offsets_map.items() if off <= original_offset])
+        from_extended_args = sum([codeunits << 1 for off, codeunits in extended_arg_offsets if off <= original_offset])
+        return original_offset + from_offsets + from_extended_args
+
+    table = bytearray()
+
+    for entry in parsed_exception_table:
+        print(entry)
+        new_start = calculate_additional_offset(entry.start)
+        new_end = calculate_additional_offset(entry.end)
+        new_target = calculate_additional_offset(entry.target)
+
+        size = new_end - new_start + 2
+        table.extend(to_varint(new_start >> 1, True))
+        table.extend(to_varint(size >> 1))
+        table.extend(to_varint(new_target >> 1))
+        table.extend(to_varint(((entry.depth << 1) | (1 if entry.lasti else 0))))
+
+    return bytes(table)
+
+
+def to_varint(value: int, set_begin_marker: bool = False) -> bytes:
+    # Encode value as a varint on 7 bits (MSB comes first) and set
+    # the begin marker if requested.
+    temp = bytearray()
+    if value < 0:
+        raise ValueError("Invalid value for varint")
+    while value:
+        temp.insert(0, value & 63 | (64 if temp else 0))
+        value >>= 6
+    temp = temp or bytearray([0])
+    if set_begin_marker:
+        temp[0] |= 128
+    return bytes(temp)
