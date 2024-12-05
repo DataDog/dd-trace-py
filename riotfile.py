@@ -159,6 +159,20 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pkgs={
+                        "psycopg[binary]": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "psycopg2-binary": "~=2.9.9",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="appsec_iast_memcheck",
