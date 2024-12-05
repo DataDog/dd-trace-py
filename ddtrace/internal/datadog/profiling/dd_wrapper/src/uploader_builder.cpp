@@ -77,6 +77,7 @@ Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 {
 
     if (!_key.empty() && !_val.empty()) {
+        const std::lock_guard<std::mutex> lock(tag_mutex);
         user_tags[std::string(_key)] = std::string(_val);
     }
 }
