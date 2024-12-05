@@ -83,6 +83,9 @@ def update_imported_dependencies(
         name, version = im_dist
 
         if name == "ddtrace":
+            if importing_module == "__first_time_ddtrace__":
+                # First time we import ddtrace, this is the root of the dependency tree
+                deps.append({"name": name, "version": version})
             continue
 
         fr_dist = None if importing_module == "__main__" else get_module_distribution_versions(importing_module, True)

@@ -72,6 +72,7 @@ def install_import_hook():
     # If we have not called get_newly_imported_modules yet, we can initialize to all imported modules
     if not NEW_MODULES:
         NEW_MODULES = {(module, "ddtrace") for module in sys.modules}
+        NEW_MODULES.add(("ddtrace", "__first_time_ddtrace__"))
         ALL_MODULES = NEW_MODULES.copy()
     try_wrap_function_wrapper("builtins", "__import__", sbom_collection)
     MODULE_HOOK_INSTALLED = True
