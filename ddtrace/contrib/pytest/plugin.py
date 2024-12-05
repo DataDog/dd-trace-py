@@ -143,6 +143,24 @@ def ddspan(request):
 
 
 vuln_data = []
+host = "docs.datadoghq.com"
+
+remediation = {
+    "SQL_INJECTION": f"https://{host}/vulnerabilities/sql_injection/sql_injection_python.html#prevention",
+    "WEAK_HASH": f"https://{host}/vulnerabilities/broken_cryptography/weak_hashing_algorithm_vulnerability.html#prevention",
+}
+
+
+def extract_code_snippet(filepath, line_number, context=3):
+    """Extracts code snippet around the given line number."""
+    try:
+        with open(filepath, "r") as file:
+            lines = file.readlines()
+            start = max(0, line_number - context - 1)
+            end = min(len(lines), line_number + context)
+            return lines[start:end], start  # Return lines and starting line number
+    except Exception as e:
+        return [f"Error reading file {filepath}: {e}"], None
 
 
 def print_iast_report(terminalreporter):
@@ -156,22 +174,33 @@ def print_iast_report(terminalreporter):
         max_vuln_type = max(len(entry["vulnerability"]) for entry in vuln_data)
         max_file = max(len(entry["file"]) for entry in vuln_data)
 
-        header = (
-            f"{'Test'.ljust(max_nodeid)} | {'Vulnerability'.ljust(max_vuln_type)} | {'File'.ljust(max_file)} | Line"
-        )
-        separator = "-" * len(header)
-
-        terminalreporter.write(f"{header}\n{separator}\n")
+        terminalreporter.write("=" * 80 + "\n")
 
         for entry in vuln_data:
-            row = (
-                f"{entry['nodeid'].ljust(max_nodeid)} | "
-                f"{entry['vulnerability'].ljust(max_vuln_type)} | "
-                f"{entry['file'].ljust(max_file)} | "
-                f"{entry['line']}"
+            terminalreporter.write(f"Test: {entry['nodeid']}\n", bold=True)
+            critical = entry["vulnerability"] == "SQL_INJECTION"
+            terminalreporter.write(
+                f"Vulnerability: {entry['vulnerability']} - \033]8;;{remediation[entry['vulnerability']]}\033\\Remediation\033]8;;\033\\ \n",
+                bold=True,
+                red=critical,
+                yellow=not critical,
             )
-            terminalreporter.write(f"{row}\n")
-        terminalreporter.write(f"{separator}\n")
+            terminalreporter.write(f"Location: {entry['file']}:{entry['line']}\n")
+            terminalreporter.write("Code:\n")
+            code_snippet, start_line = extract_code_snippet(entry["file"], entry["line"])
+            if start_line is not None:
+                for i, line in enumerate(code_snippet, start=start_line + 1):
+                    if i == entry["line"]:
+                        terminalreporter.write(f"{i:4d}: {line}", bold=True, purple=True)
+                    else:
+                        terminalreporter.write(f"{i:4d}: {line}")
+            else:
+                # If there's an error extracting the code snippet
+                terminalreporter.write(code_snippet[0] + "\n", bold=True)
+
+            # terminalreporter.write(f"\n")
+            terminalreporter.write("=" * 80 + "\n")
+
     else:
         terminalreporter.write("\nNo vulnerabilities found.\n")
 
