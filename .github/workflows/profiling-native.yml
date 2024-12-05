@@ -42,5 +42,14 @@ jobs:
           chmod +x llvm.sh
           sudo ./llvm.sh 18
 
-      - name: Run profiling native tests
+      - name: Run profiling native tests (ubuntu)
+        if: matrix.os == 'ubuntu-24.04'
+        run: ./ddtrace/internal/datadog/profiling/build_standalone.sh --${{matrix.sanitizer}} RelWithDebInfo dd_wrapper_test
+
+      - name: Run profiling native tests (mac)
+        if: matrix.os == 'macos-15'
+        env:
+          LDFLAGS: "-L$(brew --prefix llvm@18)/lib"
+          CPPFLAGS: "-I$(brew --prefix llvm@18)/include"
+          PATH: "$(brew --prefix llvm@18)/bin:$PATH"
         run: ./ddtrace/internal/datadog/profiling/build_standalone.sh --${{matrix.sanitizer}} RelWithDebInfo dd_wrapper_test
