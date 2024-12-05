@@ -45,15 +45,23 @@ function(add_ddup_config target)
     else()
         # Linux/ELF-based linker options
         target_link_options(
-        ${target}
-        PRIVATE
-        "$<$<CONFIG:Release>:-s>"
-        #            -Wl,--as-needed
-        #            -Wl,-Bsymbolic-functions
-        #            -Wl,--gc-sections
-        #            -Wl,-z,nodelete
-        #            -Wl,--exclude-libs,ALL)
+            ${target}
+            PRIVATE
+          "$<$<CONFIG:Release>:-s>"
         )
+
+        # We treat the binary delicately around sanitizers, but the gloves come off for distributable builds
+        if(SANITIZE_OPTIONS)
+            target_link_options(
+                ${target}
+                PRIVATE
+                -Wl,--as-needed
+                -Wl,-Bsymbolic-functions
+                -Wl,--gc-sections
+                -Wl,-z,nodelete
+                -Wl,--exclude-libs,ALL)
+            )
+        endif()
     endif()
 
     # If we can IPO, then do so
@@ -69,20 +77,6 @@ function(add_ddup_config target)
         # we include it here.
         target_compile_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS})
-
-        # Also need to propagate the settings to gtest, since every compilation unit in the project needs to be built with msan
-        # so we impose the same requirement on the other sanitizers to make this part straightforward.
-        #        target_compile_options(gtest PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
-        #        target_link_options(gtest PRIVATE -fsanitize=${SANITIZE_OPTIONS})
-        #
-        #        target_compile_options(gtest_main PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
-        #        target_link_options(gtest_main PRIVATE -fsanitize=${SANITIZE_OPTIONS})
-        #
-        #        target_compile_options(gmock PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
-        #        target_link_options(gmock PRIVATE -fsanitize=${SANITIZE_OPTIONS})
-        #
-        #        target_compile_options(gmock_main PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
-        #        target_link_options(gmock_main PRIVATE -fsanitize=${SANITIZE_OPTIONS})
 
 
     # Locate all directories containing relevant `.so` files
