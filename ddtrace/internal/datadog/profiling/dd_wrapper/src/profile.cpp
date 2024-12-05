@@ -203,5 +203,7 @@ Datadog::Profile::postfork_child()
 {
     profile_mtx.~mutex();
     new (&profile_mtx) std::mutex();
+    string_table_mtx.~mutex();
+    new (&string_table_mtx) std::mutex();
     cycle_buffers();
 }
