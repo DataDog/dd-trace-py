@@ -3,12 +3,15 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <pthread.h>
 
 // Initiate an upload in a separate thread, otherwise we won't be mid-upload during fork
-void
-upload_in_thread()
+void*
+upload_in_thread(void*)
 {
-    std::thread([&]() { ddup_upload(); }).detach();
+    ddup_upload();
+
+    return nullptr;
 }
 
 [[noreturn]] void
@@ -24,6 +27,7 @@ profile_in_child(unsigned int num_threads, unsigned int run_time_ns, std::atomic
     launch_samplers(ids, 10e3, new_threads, done);
     std::this_thread::sleep_for(std::chrono::nanoseconds(run_time_ns));
     done.store(true);
+    join_samplers(new_threads, done);
     ddup_upload();
     std::exit(0);
 }
@@ -51,7 +55,13 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 
     // Collect some profiling data for a few ms, then upload in a thread before forking
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    upload_in_thread();
+    join_samplers(threads, done);
+
+    pthread_t thread;
+    if (pthread_create(&thread, nullptr, upload_in_thread, nullptr) != 0) {
+        std::cout << "failed to create thread" << std::endl;
+        std::exit(1);
+    }
 
     // Fork, wait in the parent for child to finish
     pid_t pid = fork();
@@ -59,6 +69,8 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
         // Child
         profile_in_child(num_threads, 500e3, done); // Child profiles for 500ms
     }
+
+    pthread_join(thread, nullptr);
 
     // Parent
     int status;
@@ -87,7 +99,11 @@ fork_stress_test(unsigned int num_threads, unsigned int sleep_time_ns, unsigned 
     launch_samplers(ids, sleep_time_ns, threads, done);
 
     std::vector<pid_t> children;
-    upload_in_thread();
+    pthread_t thread;
+    if (pthread_create(&thread, nullptr, upload_in_thread, nullptr) != 0) {
+        std::cout << "failed to create thread" << std::endl;
+        std::exit(1);
+    }
     while (num_children > 0) {
         pid_t pid = fork();
         if (pid == 0) {
@@ -101,7 +117,7 @@ fork_stress_test(unsigned int num_threads, unsigned int sleep_time_ns, unsigned 
     // Parent
     int status;
     done.store(true);
-    upload_in_thread();
+    ddup_upload();
     for (pid_t pid : children) {
         waitpid(pid, &status, 0);
         if (!is_exit_normal(status)) {
