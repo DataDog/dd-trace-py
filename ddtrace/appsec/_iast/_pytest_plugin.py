@@ -34,7 +34,7 @@ def print_iast_report(terminalreporter):
     terminalreporter.write("\nDatadog Code Security Report:\n", bold=True, purple=True)
 
     if vuln_data:
-        terminalreporter.write("=" * 80 + "\n")
+        terminalreporter.write(f"{'=' * 80}\n")
 
         for entry in vuln_data:
             terminalreporter.write(f"Test: {entry['nodeid']}\n", bold=True)
@@ -59,7 +59,7 @@ def print_iast_report(terminalreporter):
                 # If there's an error extracting the code snippet
                 terminalreporter.write(code_snippet[0] + "\n", bold=True)
 
-            terminalreporter.write("=" * 80 + "\n")
+            terminalreporter.write(f"{'=' * 80}\n")
 
     else:
         terminalreporter.write("\nNo vulnerabilities found.\n")
