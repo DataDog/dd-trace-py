@@ -33,7 +33,7 @@ def azure_functions_client():
         client = Client("http://0.0.0.0:7071")
         # Wait for the server to start up
         try:
-            client.wait(max_tries=10, delay=6)
+            client.wait()
         except RetryError:
             # process failed
             stdout = proc.stdout.read()
