@@ -38,20 +38,59 @@ is_exit_normal(int status)
     return WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
+struct EmulateSamplerArg
+{
+    unsigned int id;
+    unsigned int sleep_time_ns;
+    std::atomic<bool>* done;
+};
+
+void*
+emulate_sampler_wrapper(void* argp)
+{
+    EmulateSamplerArg* arg = reinterpret_cast<EmulateSamplerArg*>(argp);
+
+    emulate_sampler(arg->id, arg->sleep_time_ns, *arg->done);
+
+    return nullptr;
+}
+
+void
+launch_pthread_samplers(const std::vector<EmulateSamplerArg>& args, std::vector<pthread_t>& threads)
+{
+    for (unsigned int i = 0; i < args.size(); i++) {
+        auto arg = args[i];
+        auto pthread_handle = threads[i];
+        pthread_create(&pthread_handle, nullptr, emulate_sampler_wrapper, reinterpret_cast<void*>(&arg));
+    }
+}
+
+void
+join_pthread_samplers(std::vector<pthread_t>& threads, std::atomic<bool>& done)
+{
+    done.store(true);
+    for (auto& handle : threads) {
+        pthread_join(handle, nullptr);
+    }
+}
+
 // Validates that sampling/uploads work around forks
 void
 sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 {
     configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
     std::atomic<bool> done(false);
-    std::vector<std::thread> threads;
+    std::vector<pthread_t> thread_handles;
     std::vector<unsigned int> ids;
-    for (unsigned int i = 0; i < num_threads; i++) {
-        ids.push_back(i);
+    std::vector<EmulateSamplerArg> args;
+
+    for (unsigned int i = 0; i < ids.size(); i++) {
+        auto id = ids[i];
+        args.push_back(EmulateSamplerArg{ id, sleep_time_ns, &done });
     }
 
     // ddup is configured, launch threads
-    launch_samplers(ids, sleep_time_ns, threads, done);
+    launch_pthread_samplers(args, thread_handles);
 
     // Collect some profiling data for a few ms, then upload in a thread before forking
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -76,7 +115,7 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     done.store(true);
     waitpid(pid, &status, 0);
     ddup_upload();
-    join_samplers(threads, done);
+    join_pthread_samplers(thread_handles, done);
     if (!is_exit_normal(status)) {
         std::exit(1);
     }
