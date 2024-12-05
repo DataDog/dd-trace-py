@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where input and output values equal to zero were not being annotated
+    on workflow, task, agent and tool spans when using `LLMObs.annotate`.
