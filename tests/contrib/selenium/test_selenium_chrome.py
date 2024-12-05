@@ -30,6 +30,7 @@ SELENIUM_SNAPSHOT_IGNORES = [
     "meta.runtime-id",
     "meta.runtime.version",
     "meta.test.browser.version",  # ignored because it may change when images are rebuilt
+    "meta.test.browser.driver_version",  # ignored because it may change when images are rebuilt
     "meta.test.framework_version",
     "meta.test_module_id",
     "meta.test_session_id",
