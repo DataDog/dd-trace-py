@@ -19,7 +19,9 @@ from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCove
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
+from ddtrace.internal.ci_visibility.constants import TEST_IS_QUARANTINED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
+from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
@@ -109,6 +111,10 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:
             self.set_tag(TEST_IS_RETRY, self._atr_is_retry)
+
+    def _set_quarantine_tags(self) -> None:
+        if self._is_quarantined:
+            self.set_tag(TEST_IS_QUARANTINED, self._is_quarantined)
 
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
@@ -375,7 +381,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._atr_get_retry_test(retry_number).start()
 
     def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
-        self._atr_get_retry_test(retry_number).finish_test(status, exc_info=exc_info)
+        retry_test = self._atr_get_retry_test(retry_number)
+
+        if retry_number >= self._session_settings.atr_settings.max_retries:
+            if self.atr_get_final_status() == TestStatus.FAIL:
+                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
+
+        retry_test.finish_test(status, exc_info=exc_info)
 
     def atr_get_final_status(self) -> TestStatus: # ꙮ
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:

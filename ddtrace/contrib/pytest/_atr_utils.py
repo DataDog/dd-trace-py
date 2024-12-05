@@ -314,3 +314,17 @@ def quarantine_atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
     if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED:
         return (_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, "F", ("QUARANTINED FINAL STATUS: FAILED", {"blue": True}))
     return None
+
+
+def quarantine_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.TerminalReporter):
+    terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED, None)
+    terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED, None)
+    terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED, None)
+    terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, None)
+
+    fully_failed_quarantined_tests = terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, None)
+
+    if not fully_failed_quarantined_tests:
+        return
+
+    # TODO: report list of fully failed quarantined tests, possibly inside the ATR report.

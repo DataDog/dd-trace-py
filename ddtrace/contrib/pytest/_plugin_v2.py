@@ -73,6 +73,7 @@ if _pytest_version_supports_atr():
     from ddtrace.contrib.pytest._atr_utils import quarantine_atr_get_teststatus
     from ddtrace.contrib.pytest._atr_utils import atr_handle_retries
     from ddtrace.contrib.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
 
@@ -527,6 +528,8 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         atr_pytest_terminal_summary_post_yield(terminalreporter)
+
+    quarantine_pytest_terminal_summary_post_yield(terminalreporter)
     return
 
 
