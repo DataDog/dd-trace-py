@@ -154,8 +154,8 @@ Datadog::Uploader::cancel_inflight()
 void
 Datadog::Uploader::prefork()
 {
-    lock();
     cancel_inflight();
+    lock();
 }
 
 void
