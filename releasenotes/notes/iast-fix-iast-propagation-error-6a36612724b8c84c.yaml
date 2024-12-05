@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security: This fix resolves an issue where the modulo (%) operator would not be replaced correctly for bytes 
+    and bytesarray if IAST is enabled.
