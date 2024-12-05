@@ -498,6 +498,7 @@ def _on_wrapped_view(kwargs):
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
         if not is_iast_request_enabled():
+            core.set_item("flask.wrapped_view", return_value)
             return return_value
 
         _kwargs = {}
@@ -506,6 +507,7 @@ def _on_wrapped_view(kwargs):
                 pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
             )
         return_value[1] = _kwargs
+    core.set_item("flask.wrapped_view", return_value)
     return return_value
 
 

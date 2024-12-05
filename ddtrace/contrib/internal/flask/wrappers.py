@@ -45,9 +45,10 @@ def _wrap_call(
         tags=tags,
     ) as ctx, ctx.span:
         if do_dispatch:
-            result = core.dispatch_with_results("flask.wrapped_view", (kwargs,)).callback_and_args
+            core.dispatch("flask.wrapped_view", (kwargs,))
+            result = core.get_item("flask.wrapped_view")
             if result:
-                callback_block, _kwargs = result.value
+                callback_block, _kwargs = result
                 if callback_block:
                     return callback_block()
                 if _kwargs:
