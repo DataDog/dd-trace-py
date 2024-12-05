@@ -1,0 +1,12 @@
+[package]
+name = "native_rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pyo3 = { version = "0.23.3", features = ["extension-module"] }
+twox-hash = "1.6"
+
+[lib]
+name = "native_rust"
+crate-type = ["cdylib"]

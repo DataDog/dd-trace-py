@@ -2,6 +2,7 @@
 #include "AspectFormat.h"
 #include "AspectSplit.h"
 #include "AspectsOsPath.h"
+#include "AspectLower.h"
 #include "Helpers.h"
 #include <pybind11/pybind11.h>
 
@@ -19,4 +20,8 @@ pyexport_m_aspect_helpers(py::module& m)
 
     py::module m_aspect_split = m.def_submodule("aspect_split", "Aspect split");
     pyexport_aspect_split(m_aspect_split);
+
+    py::module m_aspect_lower = m.def_submodule("aspect_lower", "Aspect lower");
+    pyexport_aspect_lower(m_aspect_lower);
+
 }

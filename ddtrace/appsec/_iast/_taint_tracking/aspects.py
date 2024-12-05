@@ -33,6 +33,7 @@ from .._taint_tracking import _aspect_ospathsplitroot
 from .._taint_tracking import _aspect_rsplit
 from .._taint_tracking import _aspect_split
 from .._taint_tracking import _aspect_splitlines
+from .._taint_tracking import _aspect_lower
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
@@ -74,6 +75,7 @@ rsplit_aspect = _aspect_rsplit
 slice_aspect = aspects.slice_aspect
 split_aspect = _aspect_split
 splitlines_aspect = _aspect_splitlines
+lower_aspect = _aspect_lower
 str_aspect = aspects.str_aspect
 
 __all__ = [
@@ -602,7 +604,7 @@ def upper_aspect(
         return candidate_text.upper(*args, **kwargs)
 
 
-def lower_aspect(
+def lower_aspect_python(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):

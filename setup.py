@@ -659,5 +659,14 @@ setup(
             binding=Binding.PyO3,
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
         ),
+        RustExtension(
+            "ddtrace.appsec._iast._taint_tracking.native_rust",
+            path="ddtrace/appsec/_iast/_taint_tracking/native_rust/Cargo.toml",
+            binding=Binding.PyO3,
+            py_limited_api=False,
+            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+        ),
+
     ],
+
 )
