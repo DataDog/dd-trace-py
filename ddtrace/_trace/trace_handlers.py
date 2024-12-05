@@ -231,7 +231,7 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     )
     modifier(resp_span, closing_iterable)
 
-    core.set_item(
+    ctx.set_item(
         "wsgi.request.complete",
         _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator),
     )
