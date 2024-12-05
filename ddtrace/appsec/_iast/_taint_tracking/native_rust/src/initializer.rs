@@ -1,8 +1,9 @@
 use crate::taint_range::TaintRangeRefs;
-use crate::utils::calculate_hash;
 use pyo3::Python;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
+
+use crate::utils;
 
 pub struct Initializer {
     tx_map: Mutex<HashMap<u64, TaintRangeRefs>>,
@@ -33,7 +34,7 @@ impl Initializer {
 
     /// Store TaintRangeRefs for a given string.
     pub fn store_taint_ranges_for_string(&self, s: &str, value: TaintRangeRefs) {
-        let key = calculate_hash(s);
+        let key = utils::calculate_hash(s);
         let mut tx_map = self.tx_map.lock().unwrap();
         tx_map.insert(key, value);
     }

@@ -9,6 +9,7 @@ mod tag_mapping_mode;
 mod source;
 mod taint_range;
 mod initializer;
+mod aspect_lower;
 mod utils;
 
 pub use origin_type::OriginType;
@@ -25,8 +26,9 @@ fn native_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Expose functions to Python
     m.add_function(wrap_pyfunction!(reset_context_py, m)?)?;
-    m.add_function(wrap_pyfunction!(get_ranges_py, m)?)?;
+    m.add_function(wrap_pyfunction!(get_ranges, m)?)?;
     m.add_function(wrap_pyfunction!(set_ranges, m)?)?;
+    m.add_function(wrap_pyfunction!(aspect_lower::api_lower_text, m)?)?;
 
     // Add your classes to the module
     m.add_class::<OriginType>()?;
@@ -42,14 +44,13 @@ fn reset_context_py() {
 }
 
 #[pyfunction]
-fn get_ranges_py(py: Python, s: &str) -> PyResult<Option<PyObject>> {
+fn get_ranges<'a>(py: Python<'a>, s: &str) -> PyResult<Option<Bound<'a, PyList>>> {
     let key = utils::calculate_hash(s);
     let initializer = initializer::get_initializer();
 
     if let Some(taint_ranges) = initializer.get_value(py, key) {
-        // Convert taint_ranges (Vec<Py<TaintRange>>) into a Python list
-        let pylist = PyList::new(py, taint_ranges)?; // Handle potential error
-        Ok(Some(pylist.into()))               // Convert to PyObject
+        let pylist = PyList::new(py, taint_ranges)?;
+        Ok(Some(pylist))
     } else {
         Ok(None)
     }
