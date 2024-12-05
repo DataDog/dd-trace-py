@@ -182,7 +182,7 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
         terminalreporter,
         status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
         status_text="failed",
-        report_outcome="quarantined", # PYTEST_STATUS.FAILED,
+        report_outcome=PYTEST_STATUS.FAILED,
         raw_strings=raw_summary_strings,
         markedup_strings=markedup_summary_strings,
         color="red",
@@ -320,11 +320,12 @@ def quarantine_pytest_terminal_summary_post_yield(terminalreporter: _pytest.term
     terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED, None)
     terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED, None)
     terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED, None)
-    terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, None)
 
-    fully_failed_quarantined_tests = terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, None)
+    final_passed_tests = terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, [])
+    final_failed_tests = terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, [])
 
-    if not fully_failed_quarantined_tests:
-        return
+    quarantined_tests = terminalreporter.stats.setdefault('quarantined', [])
+    quarantined_tests.extend(final_passed_tests)
+    quarantined_tests.extend(final_failed_tests)
 
-    # TODO: report list of fully failed quarantined tests, possibly inside the ATR report.
+    # todo: report list of fully failed quarantined tests, possibly inside the ATR report.
