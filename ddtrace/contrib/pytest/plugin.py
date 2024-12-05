@@ -70,9 +70,9 @@ def pytest_addoption(parser):
     )
 
     group._addoption(
-        "--ddtrace-iast-report",
+        "--ddtrace-iast-fail-tests",
         action="store_true",
-        dest="ddtrace-iast-report",
+        dest="ddtrace-iast-fail-tests",
         default=False,
         help=DDTRACE_INCLUDE_CLASS_HELP_MSG,
     )
@@ -142,20 +142,65 @@ def ddspan(request):
         return _extract_span(request.node)
 
 
+vuln_data = []
+
+
+def print_iast_report(terminalreporter):
+    if not _is_iast_enabled():
+        return
+
+    terminalreporter.write("\nDatadog Code Security Report:\n", bold=True, purple=True)
+
+    if vuln_data:
+        max_nodeid = max(len(entry["nodeid"]) for entry in vuln_data)
+        max_vuln_type = max(len(entry["vulnerability"]) for entry in vuln_data)
+        max_file = max(len(entry["file"]) for entry in vuln_data)
+
+        header = (
+            f"{'Test'.ljust(max_nodeid)} | {'Vulnerability'.ljust(max_vuln_type)} | {'File'.ljust(max_file)} | Line"
+        )
+        separator = "-" * len(header)
+
+        terminalreporter.write(f"{header}\n{separator}\n")
+
+        for entry in vuln_data:
+            row = (
+                f"{entry['nodeid'].ljust(max_nodeid)} | "
+                f"{entry['vulnerability'].ljust(max_vuln_type)} | "
+                f"{entry['file'].ljust(max_file)} | "
+                f"{entry['line']}"
+            )
+            terminalreporter.write(f"{row}\n")
+        terminalreporter.write(f"{separator}\n")
+    else:
+        terminalreporter.write("\nNo vulnerabilities found.\n")
+
+
 @pytest.fixture(autouse=_is_iast_enabled())
 def ddtrace_iast(request, ddspan):
     """Return the :class:`ddtrace._trace.span.Span` instance associated with the
     current test when Datadog CI Visibility is enabled.
     """
     yield
-    if request.config.getoption("ddtrace-iast-report"):
-        data = ddspan.get_tag(IAST.JSON)
-        if data:
-            import json
+    data = ddspan.get_tag(IAST.JSON)
+    if data:
+        import json
 
-            json_data = json.loads(data)
-            vulns = ",".join([vuln["type"] for vuln in json_data["vulnerabilities"]])
-            pytest.fail(f"There are vulnerabilities in your code: {vulns}")
+        json_data = json.loads(data)
+
+        if json_data["vulnerabilities"]:
+            for vuln in json_data["vulnerabilities"]:
+                vuln_data.append(
+                    {
+                        "nodeid": request.node.nodeid,
+                        "vulnerability": vuln["type"],
+                        "file": vuln["location"]["path"],
+                        "line": vuln["location"]["line"],
+                    }
+                )
+            if request.config.getoption("ddtrace-iast-fail-tests"):
+                vulns = ", ".join([vuln["type"] for vuln in json_data["vulnerabilities"]])
+                pytest.fail(f"There are vulnerabilities in the code: {vulns}")
 
 
 @pytest.fixture(scope="session")
