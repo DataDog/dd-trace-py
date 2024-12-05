@@ -7,6 +7,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <unistd.h>
 
 void
 Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
@@ -111,7 +112,10 @@ join(const std::vector<std::string>& vec, const std::string& delim)
 std::variant<Datadog::Uploader, std::string>
 Datadog::UploaderBuilder::build()
 {
+    auto pid = getpid();
     // Setup the ddog_Exporter
+
+    std::cout << pid << ": ddog_Vec_Tag_new()" << std::endl;
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
 
     // Add the tags.  In the average case, the user has a structural problem with
@@ -151,14 +155,17 @@ Datadog::UploaderBuilder::build()
         return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
     }
 
+    std::cout << pid << ": ddog_prof_Exporter_new()" << std::endl;
     // If we're here, the tags are good, so we can initialize the exporter
     ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
                                                               to_slice(profiler_version),
                                                               to_slice(family),
                                                               &tags,
                                                               ddog_prof_Endpoint_agent(to_slice(url)));
+    std::cout << pid << ": ddog_Vec_Tag_drop()" << std::endl;
     ddog_Vec_Tag_drop(tags);
 
+    std::cout << pid << ": get_newexporter_result()" << std::endl;
     auto ddog_exporter_result = Datadog::get_newexporter_result(res);
     ddog_prof_Exporter* ddog_exporter = nullptr;
     if (std::holds_alternative<ddog_prof_Exporter*>(ddog_exporter_result)) {
@@ -172,6 +179,7 @@ Datadog::UploaderBuilder::build()
 
     // 5s is a common timeout parameter for Datadog profilers
     const uint64_t max_timeout_ms = 5000;
+    std::cout << pid << ": ddog_prof_Exporter_set_timeout()" << std::endl;
     ddog_prof_MaybeError set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
     if (set_timeout_result.tag == DDOG_PROF_OPTION_ERROR_SOME_ERROR) {
         auto& err = set_timeout_result.some;
@@ -184,5 +192,6 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
+    std::cout << pid << ":returning from UploaderBuilder::build()" << std::endl;
     return Datadog::Uploader{ output_filename, ddog_exporter };
 }
