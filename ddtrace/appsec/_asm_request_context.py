@@ -586,7 +586,9 @@ def _on_block_decided(callback):
 
 def _get_headers_if_appsec():
     if asm_config._asm_enabled:
-        return get_headers()
+        headers = get_headers()
+        core.set_item("django.extract_body", headers)
+        return headers
 
 
 def asm_listen():
