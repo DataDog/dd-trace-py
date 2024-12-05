@@ -42,7 +42,8 @@ def print_iast_report(terminalreporter):
             terminalreporter.write(f"Test: {entry['nodeid']}\n", bold=True)
             critical = entry["vulnerability"] == "SQL_INJECTION"
             terminalreporter.write(
-                f"Vulnerability: {entry['vulnerability']} - \033]8;;{remediation[entry['vulnerability']]}\033\\Remediation\033]8;;\033\\ \n",
+                f"Vulnerability: {entry['vulnerability']} - \033]8;;"
+                f"{remediation[entry['vulnerability']]}\033\\Remediation\033]8;;\033\\ \n",
                 bold=True,
                 red=critical,
                 yellow=not critical,
