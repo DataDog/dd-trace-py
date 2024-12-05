@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import json
+
 import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._utils import _is_iast_enabled
+
 
 vuln_data = []
 dd_docs = "https://docs.datadoghq.com"

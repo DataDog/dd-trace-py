@@ -15,12 +15,11 @@ from typing import Dict  # noqa:F401
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest._utils import _extract_span
 from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
-from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast
 
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
