@@ -40,6 +40,8 @@ from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
+from ..internal.constants import _PROPAGATION_BEHAVIOR_CONTINUE
+from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
@@ -1129,29 +1131,30 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.
         """
-        if not headers:
+        if not headers or config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_IGNORE:
             return Context()
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
             context = Context()
-            # tracer configured to extract first only
-            if config._propagation_extract_first:
-                # loop through the extract propagation styles specified in order, return whatever context we get first
-                for prop_style in config._propagation_style_extract:
-                    propagator = _PROP_STYLES[prop_style]
-                    context = propagator._extract(normalized_headers)
-                    if config.propagation_http_baggage_enabled is True:
-                        _attach_baggage_to_context(normalized_headers, context)
-                    break
+            if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_CONTINUE:
+                # tracer configured to extract first only
+                if config._propagation_extract_first:
+                    # loop through the extract propagation styles specified in order, return first context found
+                    for prop_style in config._propagation_style_extract:
+                        propagator = _PROP_STYLES[prop_style]
+                        context = propagator._extract(normalized_headers)
+                        if config.propagation_http_baggage_enabled is True:
+                            _attach_baggage_to_context(normalized_headers, context)
+                        break
 
-            # loop through all extract propagation styles
-            else:
-                contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
+                # loop through all extract propagation styles
+                else:
+                    contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
 
-                if contexts:
-                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
-                    if config._propagation_http_baggage_enabled is True:
-                        _attach_baggage_to_context(normalized_headers, context)
+                    if contexts:
+                        context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                        if config._propagation_http_baggage_enabled is True:
+                            _attach_baggage_to_context(normalized_headers, context)
 
             # baggage headers are handled separately from the other propagation styles
             if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
