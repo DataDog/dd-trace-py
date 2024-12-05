@@ -1,0 +1,7 @@
+# Suppress uninitialized reads in GoogleTest
+interceptor_name=memcmp
+fun:std::char_traits<*>::compare
+fun:std::operator==<*>
+fun:testing::internal::UnitTestImpl::GetTestSuite
+fun:testing::internal::UnitTestImpl::AddTestInfo
+fun:testing::internal::MakeAndRegisterTestInfo

@@ -261,6 +261,8 @@ add_compiler_args() {
       ;;
     -m|--memory)
       cmake_args+=(${compiler_args["memory"]})
+      export MSAN_OPTIONS="suppresions="$(realpath $MY_DIR)/sanitizers/msan.supp
+      export MSAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
       set_clang
       ;;
     -C|--cppcheck)
