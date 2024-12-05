@@ -32,7 +32,6 @@ RUN apt-get update \
       gdb \
       git \
       gnupg \
-      gpg \
       jq \
       libbz2-dev \
       libenchant-dev \
