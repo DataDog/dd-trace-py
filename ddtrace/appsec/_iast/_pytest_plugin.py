@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import List
 import json
 
 import pytest
@@ -7,12 +8,12 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 
 
-vuln_data = []
-dd_docs = "https://docs.datadoghq.com"
+vuln_data: List[dict] = []
+DD_DOCS = "https://docs.datadoghq.com"
 
 remediation = {
-    "SQL_INJECTION": f"{dd_docs}/code_analysis/static_analysis_rules/python-flask/sqlalchemy-injection/",
-    "WEAK_HASH": "f{dd_docs}/code_analysis/static_analysis_rules/python-security/insecure-hash-functions/",
+    "SQL_INJECTION": f"{DD_DOCS}/code_analysis/static_analysis_rules/python-flask/sqlalchemy-injection/",
+    "WEAK_HASH": "f{DD_DOCS}/code_analysis/static_analysis_rules/python-security/insecure-hash-functions/",
 }
 
 
