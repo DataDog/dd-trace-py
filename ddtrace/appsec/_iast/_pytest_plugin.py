@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from typing import List
 import json
+from typing import List
 
 import pytest
 
