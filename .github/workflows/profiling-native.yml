@@ -26,10 +26,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: Install latest Rust
-        run: rustup update stable && rustup default stable
-
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
