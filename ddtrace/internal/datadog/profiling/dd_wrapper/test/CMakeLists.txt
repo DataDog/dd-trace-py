@@ -26,7 +26,6 @@ function(dd_wrapper_add_test name)
             # We start new threads after fork(), and we want to continue
             # running the tests after that instead of dying.
             ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0"
-            ENVIRONMENT "LSAN_OPTIONS=print_suppressions=1:suppressions=${CMAKE_CURRENT_SOURCE_DIR}/LSan.supp"
     )
 
     set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
