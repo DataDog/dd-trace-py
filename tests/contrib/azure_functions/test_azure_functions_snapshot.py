@@ -8,18 +8,10 @@ import pytest
 from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
 
-from datetime import datetime
-import threading
-
 
 DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
-
-
-def print_output(pipe, stream_name):
-    for line in iter(pipe.readline, b""):
-        print(f"{stream_name}: {line.decode('utf-8').strip()}")
 
 
 @pytest.fixture
@@ -39,18 +31,9 @@ def azure_functions_client():
     )
     try:
         client = Client("http://0.0.0.0:7071")
-
-        stdout_thread = threading.Thread(target=print_output, args=(proc.stdout, "STDOUT"))
-        stderr_thread = threading.Thread(target=print_output, args=(proc.stderr, "STDERR"))
-
-        stdout_thread.start()
-        stderr_thread.start()
-
         # Wait for the server to start up
         try:
-            print("Starting retries: ", datetime.now())
             client.wait()
-            print("Finished retries: ", datetime.now())
         except RetryError:
             # process failed
             stdout = proc.stdout.read()
@@ -71,9 +54,6 @@ def azure_functions_client():
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
-
-        stdout_thread.join()
-        stderr_thread.join()
 
 
 @pytest.mark.snapshot
