@@ -113,9 +113,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             core.dispatch("flask.start_response", ("Flask",))
             if get_blocked():
                 # response code must be set here, or it will be too late
-                result_content = core.dispatch_with_results("flask.block.request.content", ()).block_requested
+                core.dispatch("flask.block.request.content", ())
+                result_content = core.get_item("wsgi.block.started")
                 if result_content:
-                    _, status, response_headers = result_content.value
+                    _, status, response_headers = result_content
                     result = start_response(str(status), response_headers)
                 else:
                     block_config = get_blocked()
