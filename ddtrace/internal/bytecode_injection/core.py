@@ -4,7 +4,8 @@ import sys
 from types import CodeType
 import typing as t
 
-from ddtrace.internal.injection import HookType
+CallbackType = t.Callable[[t.Any], t.Any]
+
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
@@ -28,7 +29,7 @@ FORWARD_JUMPS = set(op for op in dis.hasjrel if "BACKWARD" not in dis.opname[op]
 @dataclass
 class InjectionContext:
     original_code: CodeType
-    hook: HookType
+    hook: CallbackType
     offsets_cb: t.Callable[["InjectionContext"], t.List[int]]
 
     def transfer(self, code: CodeType) -> "InjectionContext":
@@ -390,13 +391,13 @@ def _inject_invocation_nonrecursive(
     return (
         new_code,
         new_consts,
-        update_location_data(injection_context.original_code, offsets_map, extended_arg_offsets),
-        generate_exception_table(injection_context.original_code, offsets_map, extended_arg_offsets),
+        _update_location_data(injection_context.original_code, offsets_map, extended_arg_offsets),
+        _generate_exception_table(injection_context.original_code, offsets_map, extended_arg_offsets),
         seen_lines,
     )
 
 
-def update_location_data(
+def _update_location_data(
     code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
 ) -> bytes:
     """
@@ -428,11 +429,11 @@ def update_location_data(
             # See https://github.com/python/cpython/blob/main/InternalDocs/code_objects.md#location-entries for
             # meaning of the `loc_code` value.
             if loc_code == 14:
-                chunk.extend(consume_signed_varint(data_iter))
+                chunk.extend(_consume_signed_varint(data_iter))
                 for _ in range(3):
-                    chunk.extend(consume_varint(data_iter))
+                    chunk.extend(_consume_varint(data_iter))
             elif loc_code == 13:
-                chunk.extend(consume_signed_varint(data_iter))
+                chunk.extend(_consume_signed_varint(data_iter))
             elif 10 <= loc_code <= 12:
                 for _ in range(2):
                     chunk.append(next(data_iter))
@@ -451,7 +452,7 @@ def update_location_data(
 
             # Extend the line table record if we added any EXTENDED_ARGs
             offset += offset_delta
-            if ext_arg_offset is not None and original_offset > ext_arg_offset:
+            if ext_arg_offset is not None and original_offset >= ext_arg_offset:
                 # if ext_arg_offset is not None and offset > ext_arg_offset:
                 room = 7 - offset_delta
                 chunk[0] += min(room, t.cast(int, ext_arg_size))
@@ -470,7 +471,7 @@ def update_location_data(
     return bytes(new_data)
 
 
-def consume_varint(stream: t.Iterator[int]) -> bytes:
+def _consume_varint(stream: t.Iterator[int]) -> bytes:
     a = bytearray()
 
     b = next(stream)
@@ -486,10 +487,10 @@ def consume_varint(stream: t.Iterator[int]) -> bytes:
     return bytes(a)
 
 
-consume_signed_varint = consume_varint
+_consume_signed_varint = _consume_varint
 
 
-def generate_exception_table(
+def _generate_exception_table(
     code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
 ) -> bytes:
     """
@@ -506,9 +507,8 @@ def generate_exception_table(
     table = bytearray()
 
     for entry in parsed_exception_table:
-        print(entry)
         new_start = calculate_additional_offset(entry.start)
-        new_end = calculate_additional_offset(entry.end)
+        new_end = calculate_additional_offset(entry.end - 2)
         new_target = calculate_additional_offset(entry.target)
 
         size = new_end - new_start + 2

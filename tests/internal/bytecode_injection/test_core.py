@@ -111,13 +111,6 @@ def test_exceptiontable_adjustment():
     injected_co_code = injected_code.co_code
     injected_exceptions = dis._parse_exception_table(injected_code)
 
-    print('original_exceptions')
-    for e in original_exceptions:
-        print('   ', e)
-    print('injected_exceptions')
-    for e in injected_exceptions:
-        print('   ', e)
-
     assert len(original_exceptions) == len(injected_exceptions), "Same number of exceptions"
     exceptions_cnt = len(original_exceptions)
 
@@ -125,12 +118,11 @@ def test_exceptiontable_adjustment():
         original_entry = original_exceptions[idx]
         injected_entry = injected_exceptions[idx]
         assert original_co_code[original_entry.start] == injected_co_code[injected_entry.start], "Start opcode is the same"
-        assert original_co_code[original_entry.end] == injected_co_code[injected_entry.end], "End opcode is the same"
+        assert original_co_code[original_entry.end -
+                                2] == injected_co_code[injected_entry.end - 2], "End (exclusive) opcode is the same"
         assert original_co_code[original_entry.target] == injected_co_code[injected_entry.target], "Target opcode is the same"
         assert original_entry.depth == injected_entry.depth, "Depth is the same"
         assert original_entry.lasti == injected_entry.lasti, "lasti is the same"
-
-    assert 1 == 2
 
 
 def sample_function_1():
@@ -155,11 +147,22 @@ def sample_function_short_jumps():
     for i in range(3):
         print(i > 1)
 
+    i = 10
+    while i > 0:
+        i -= 1
+
     try:
         raise ValueError("another value error")
     except ValueError as _:
         # in this spot we are going to inject accumulate(2)
         print("I am handling the exception differently")
+
+    for i in range(3):
+        print(i > 1)
+
+    i = 10
+    while i > 0:
+        i -= 1
 
     return c
 

@@ -3,6 +3,7 @@ import sys
 from types import CodeType
 import typing as t
 
+from ..bytecode_injection.core import CallbackType
 from ..bytecode_injection.core import InjectionContext
 from ..bytecode_injection.core import inject_invocation
 from .hook import _default_datadog_exc_callback
@@ -13,9 +14,11 @@ from .hook import _default_datadog_exc_callback
 assert sys.version_info >= (3, 10)  # and sys.version_info < (3, 12)  # nosec
 
 
-def _inject_handled_exception_reporting(func):
+def _inject_handled_exception_reporting(func, callback: CallbackType | None = None):
     func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
     original_code = func.__code__  # type: CodeType
+
+    callback = callback or _default_datadog_exc_callback
 
     injection_indexes = _find_bytecode_indexes(original_code)
     if not injection_indexes:
@@ -24,7 +27,7 @@ def _inject_handled_exception_reporting(func):
     def injection_lines_cb(_: InjectionContext):
         return [opcode for opcode, _ in dis.findlinestarts(original_code) if opcode in injection_indexes]
 
-    injection_context = InjectionContext(original_code, _default_datadog_exc_callback, injection_lines_cb)
+    injection_context = InjectionContext(original_code, callback, injection_lines_cb)
 
     code, _ = inject_invocation(injection_context, "path/to/file.py", "my.package")
     func.__code__ = code
@@ -63,7 +66,7 @@ def _find_bytecode_indexes(code: CodeType) -> t.List[int]:
             continue
 
         if state == CHECKING_EXC_MATCH:
-            if CHECK_EXC_MATCH in code.co_code[exc_entry.start : exc_entry.end : 2]:
+            if CHECK_EXC_MATCH in code.co_code[exc_entry.start: exc_entry.end: 2]:
                 # we need to move forward, because this block of code is just checking
                 # if the exception handled matches the one that was raised
                 state = MATCHED_EXC_HANDLING_BLOCK
