@@ -19,7 +19,6 @@ configure_ddtrace_logger()  # noqa: E402
 from ddtrace._trace.span import Span  # noqa: E402
 from ddtrace._trace.tracer import Tracer  # noqa: E402
 
-
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
 import ddtrace.internal.telemetry  # noqa: E402
 from ddtrace.vendor import debtcollector
