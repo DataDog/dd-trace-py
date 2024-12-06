@@ -621,6 +621,7 @@ suites:
         - '@freezegun'
         - tests/contrib/freezegun/*
     runner: hatch
+    snapshot: true
   gevent:
     paths:
       - '@bootstrap'

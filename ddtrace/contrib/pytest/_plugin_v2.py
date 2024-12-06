@@ -6,8 +6,8 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
-from ddtrace import patch as dd_patch
 from ddtrace.contrib.coverage import patch as patch_coverage
+from ddtrace.contrib.freezegun import patch as patch_freezegun
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
@@ -100,7 +100,7 @@ def _handle_itr_should_skip(item, test_id) -> bool:
             InternalTest.mark_itr_forced_run(test_id)
             return False
 
-        InternalTest.mark_itr_skipped(test_id)
+        # InternalTest.mark_itr_skipped(test_id)
         # Marking the test as skipped by ITR so that it appears in pytest's output
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
         return True
@@ -165,7 +165,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
         take_over_logger_stream_handler()
         log.warning("This version of the ddtrace pytest plugin is currently in beta.")
         # Freezegun is proactively patched to avoid it interfering with internal timing
-        dd_patch(freezegun=True)
+        patch_freezegun()
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
