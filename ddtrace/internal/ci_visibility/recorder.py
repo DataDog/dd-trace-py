@@ -1172,7 +1172,7 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
             source_file_info=discover_args.source_file_info,
             resource=discover_args.resource,
             is_new=is_new,
-            is_quarantined=is_quarantined,
+            #is_quarantined=is_quarantined,
         ),
     )
 
