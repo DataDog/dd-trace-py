@@ -37,6 +37,7 @@ class Profile
     std::deque<std::string> string_storage{};
     StringTable strings{};
     std::mutex string_table_mtx{};
+    void reset_string_table();
 
     // Configuration
     SampleType type_mask{ 0 };
