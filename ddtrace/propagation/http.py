@@ -40,8 +40,8 @@ from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
-from ..internal.constants import _PROPAGATION_BEHAVIOR_CONTINUE
 from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
+from ..internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
@@ -975,7 +975,7 @@ class HTTPPropagator(object):
     """
 
     @staticmethod
-    def _extract_configured_contexts_avail(normalized_headers):
+    def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
         contexts = []
         styles_w_ctx = []
         for prop_style in config._propagation_style_extract:
@@ -990,6 +990,23 @@ class HTTPPropagator(object):
         return contexts, styles_w_ctx
 
     @staticmethod
+    def _context_to_span_link(context: Context, style: str) -> Optional[SpanLink]:
+        # encoding expects at least trace_id and span_id
+        if context.span_id and context.trace_id:
+            return SpanLink(
+                context.trace_id,
+                context.span_id,
+                flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
+                tracestate=(
+                    context._meta.get(W3C_TRACESTATE_KEY, "") if style == _PROPAGATION_STYLE_W3C_TRACECONTEXT else None
+                ),
+                attributes={
+                    "reason": "terminated_context",
+                    "context_headers": style,
+                },
+            )
+
+    @staticmethod
     def _resolve_contexts(contexts, styles_w_ctx, normalized_headers):
         primary_context = contexts[0]
         links = []
@@ -997,23 +1014,9 @@ class HTTPPropagator(object):
         for context in contexts[1:]:
             style_w_ctx = styles_w_ctx[contexts.index(context)]
             # encoding expects at least trace_id and span_id
-            if context.span_id and context.trace_id and context.trace_id != primary_context.trace_id:
-                links.append(
-                    SpanLink(
-                        context.trace_id,
-                        context.span_id,
-                        flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
-                        tracestate=(
-                            context._meta.get(W3C_TRACESTATE_KEY, "")
-                            if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
-                            else None
-                        ),
-                        attributes={
-                            "reason": "terminated_context",
-                            "context_headers": style_w_ctx,
-                        },
-                    )
-                )
+            # make this a method
+            if context.trace_id and context.trace_id != primary_context.trace_id:
+                links.append(HTTPPropagator._context_to_span_link(context, style_w_ctx))
             # if trace_id matches and the propagation style is tracecontext
             # add the tracestate to the primary context
             elif style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
@@ -1134,27 +1137,44 @@ class HTTPPropagator(object):
         if not headers or config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_IGNORE:
             return Context()
         try:
-            normalized_headers = {name.lower(): v for name, v in headers.items()}
+            normalized_headers: Dict = {name.lower(): v for name, v in headers.items()}
             context = Context()
-            if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_CONTINUE:
-                # tracer configured to extract first only
-                if config._propagation_extract_first:
-                    # loop through the extract propagation styles specified in order, return first context found
-                    for prop_style in config._propagation_style_extract:
-                        propagator = _PROP_STYLES[prop_style]
-                        context = propagator._extract(normalized_headers)
-                        if config.propagation_http_baggage_enabled is True:
-                            _attach_baggage_to_context(normalized_headers, context)
-                        break
+            if config._propagation_extract_first:
+                # use only first propagation style specified, even if it doesn't find a context
+                # we don't try the other styles
+                for prop_style in config._propagation_style_extract:
+                    propagator = _PROP_STYLES[prop_style]
+                    rec_context = propagator._extract(normalized_headers)
+                    # if configured to restart, append our first context to the current context as a span link
+                    if rec_context:
+                        if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
+                            link = HTTPPropagator._context_to_span_link(rec_context, prop_style)
+                            if link:
+                                context._span_links.append(link)
+                        else:
+                            context = rec_context
+                    if config.propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
+                    break
 
                 # loop through all extract propagation styles
-                else:
-                    contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
+            else:
+                contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
 
-                    if contexts:
+                if contexts:
+                    # if we're configured to restart, we're going to extract all the received
+                    # contexts and append them on to a new context as span links
+                    if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
+                        for rec_context in contexts:
+                            style_w_ctx = styles_w_ctx[contexts.index(rec_context)]
+                            link = HTTPPropagator._context_to_span_link(rec_context, style_w_ctx)
+                            if link:
+                                context._span_links.append(link)
+                    else:
                         context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
-                        if config._propagation_http_baggage_enabled is True:
-                            _attach_baggage_to_context(normalized_headers, context)
+
+                    if config._propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
 
             # baggage headers are handled separately from the other propagation styles
             if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
