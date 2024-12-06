@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
+from email.encoders import encode_noop
 from json import loads
 import logging
 import os
@@ -418,7 +419,7 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
 class FormData:
     name: str
     filename: str
-    data: str
+    data: Union[str, bytes]
     content_type: str
 
 
@@ -431,12 +432,12 @@ def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
     del msg["MIME-Version"]
 
     for part in parts:
-        app = MIMEApplication(part.data, part.content_type, lambda _: _)
+        app = MIMEApplication(part.data, part.content_type, encode_noop)
         app.add_header("Content-Disposition", "form-data", name=part.name, filename=part.filename)
         del app["MIME-Version"]
         msg.attach(app)
 
     # Split headers and body
-    headers, _, body = msg.as_string(policy=HTTP).partition("\r\n\r\n")
+    headers, _, body = msg.as_bytes(policy=HTTP).partition(b"\r\n\r\n")
 
-    return body.encode("utf-8"), dict(_.split(": ") for _ in headers.splitlines())
+    return body, dict(_.split(": ") for _ in headers.decode().splitlines())
