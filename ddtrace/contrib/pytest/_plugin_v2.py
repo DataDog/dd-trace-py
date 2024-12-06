@@ -436,21 +436,19 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     #print(f"\n==> ME OLHA:\n  {item=}\n  {call=}\n  {outcome=}\n  {test_outcome=}")
 
     is_quarantined = InternalTest.is_quarantined_test(test_id)
-    if is_quarantined and test_outcome.status is not None:
-        original_result.outcome = 'quarantined'
+    # if is_quarantined and test_outcome.status is not None:
+    #     original_result.outcome = 'quarantined'
 
     #### Quarantine shenanigans
     # is_quarantined = 'fail' in item.name # DEBUG
     # if is_quarantined:
-    #     InternalTest.stash_set(test_id, "is_quarantined", True)
+    # #     InternalTest.stash_set(test_id, "is_quarantined", True)
     #     if ((test_outcome.status is not None and call.when == "setup")
     #         or
     #         (test_outcome.status is not None and call.when == "teardown")
     #         or
     #         (call.when == "call")):
-    #         #print(f"Quarantine it!")
     #         original_result.outcome = 'quarantined'
-    #         #original_result.longrepr = ('quar', 'q', 'quarantined')
 
 
     # A None value for test_outcome.status implies the test has not finished yet
@@ -503,6 +501,13 @@ def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
         for failed_report in atr_get_failed_reports(terminalreporter):
             failed_report.outcome = PYTEST_STATUS.FAILED
             terminalreporter.stats.setdefault("failed", []).append(failed_report)
+
+    from ddtrace.contrib.pytest._atr_utils import _QUARANTINE_ATR_RETRY_OUTCOMES
+    for quarantined_report in terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, []):
+        terminalreporter.stats.setdefault("quarantined", []).append(quarantined_report)
+    for quarantined_report in terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, []):
+        terminalreporter.stats.setdefault("quarantined", []).append(quarantined_report)
+    terminalreporter._known_types.append("quarantined") # goddammit
 
     return failed_reports_initial_size
 
