@@ -9,42 +9,27 @@ namespace Datadog {
 std::optional<Sample*>
 SynchronizedSamplePool::take_sample()
 {
-    const std::lock_guard<std::mutex> lock(mtx);
-    if (!pool.empty()) {
-        // Reuse a sample from the pool
-        auto sample = pool.back().release();
-        pool.pop_back();
-        return sample;
+    std::unique_ptr<Sample> sample = nullptr;
+
+    pool.try_dequeue(sample);
+
+    if (sample == nullptr) {
+        return std::nullopt;
     }
-    return std::nullopt;
+    return sample.release();
 }
 
 std::optional<Sample*>
 SynchronizedSamplePool::return_sample(Sample* sample)
 {
-    const std::lock_guard<std::mutex> lock(mtx);
     // We don't want the pool to grow without a bound, so check the size and
     // discard the sample if it's larger than capacity.
-    if (capacity <= pool.size()) {
+    if (capacity.load() <= pool.size_approx()) {
         return sample;
     } else {
-        pool.emplace_back(sample);
+        auto ptr = std::make_unique<Sample>(*sample);
+        pool.enqueue(std::move(ptr));
         return std::nullopt;
     }
-}
-
-void
-SynchronizedSamplePool::clear()
-{
-    const std::lock_guard<std::mutex> lock(mtx);
-    pool.clear();
-}
-
-void
-SynchronizedSamplePool::postfork_child()
-{
-    mtx.~mutex();
-    new (&mtx) std::mutex();
-    clear();
 }
 } // namespace Datadog

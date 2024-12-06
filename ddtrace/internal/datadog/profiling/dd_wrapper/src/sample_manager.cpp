@@ -78,7 +78,7 @@ Datadog::SampleManager::postfork_child()
         // Clear the pool to make sure it's in a consistent state.
         // Suppose there was a thread that was adding/removing sample from the pool
         // and the fork happened in the middle of that operation.
-        sample_pool->postfork_child();
+        sample_pool = std::make_unique<SynchronizedSamplePool>(sample_pool_capacity);
     }
 }
 

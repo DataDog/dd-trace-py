@@ -12,15 +12,14 @@ namespace Datadog {
 class SynchronizedSamplePool
 {
   private:
-    std::mutex mtx;
-    std::vector<std::unique_ptr<Sample>> pool;
-    size_t capacity;
-    void clear();
+    moodycamel::ConcurrentQueue<std::unique_ptr<Sample>> pool;
+    std::atomic<size_t> capacity;
 
   public:
     SynchronizedSamplePool(size_t _capacity)
-      : capacity(_capacity)
     {
+        capacity.store(_capacity);
+        pool = moodycamel::ConcurrentQueue<std::unique_ptr<Sample>>(_capacity);
     }
 
     std::optional<Sample*> take_sample();
