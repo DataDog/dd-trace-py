@@ -2,6 +2,8 @@
 
 #include "sample.hpp"
 
+#include "vendored/concurrentqueue.h"
+
 #include <memory>
 #include <optional>
 

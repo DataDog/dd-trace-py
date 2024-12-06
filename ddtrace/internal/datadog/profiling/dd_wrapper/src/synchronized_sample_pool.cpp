@@ -2,6 +2,8 @@
 
 #include "libdatadog_helpers.hpp"
 
+#include "vendored/concurrentqueue.h"
+
 namespace Datadog {
 
 std::optional<Sample*>
