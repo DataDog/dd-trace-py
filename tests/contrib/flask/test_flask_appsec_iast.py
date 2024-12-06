@@ -19,6 +19,7 @@ from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_hea
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -35,7 +36,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         self._caplog = caplog
 
     def setUp(self):
-        with override_global_config(
+        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
             dict(
                 _iast_enabled=True,
                 _deduplication_enabled=False,
