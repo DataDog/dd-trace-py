@@ -97,6 +97,9 @@ components:
     - ddtrace/contrib/flask_cache/*
     - ddtrace/contrib/internal/flask_cache/*
     - ddtrace/contrib/flask_login/*
+  freezegun:
+    - ddtrace/contrib/freezegun/*
+    - ddtrace/contrib/internal/freezegun/*
   futures:
     - ddtrace/contrib/futures/*
     - ddtrace/contrib/internal/futures/*
@@ -609,6 +612,15 @@ suites:
       - memcached
       - redis
     snapshot: true
+  freezegun:
+    paths:
+        - '@bootstrap'
+        - '@core'
+        - '@contrib'
+        - '@tracing'
+        - '@freezegun'
+        - tests/contrib/freezegun/*
+    runner: hatch
   gevent:
     paths:
       - '@bootstrap'

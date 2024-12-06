@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
+from ddtrace import patch as dd_patch
 from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
@@ -163,6 +164,8 @@ def pytest_load_initial_conftests(early_config, parser, args):
     try:
         take_over_logger_stream_handler()
         log.warning("This version of the ddtrace pytest plugin is currently in beta.")
+        # Freezegun is proactively patched to avoid it interfering with internal timing
+        dd_patch(freezegun=True)
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
