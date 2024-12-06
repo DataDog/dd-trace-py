@@ -67,11 +67,15 @@ class SeleniumWrappingContextBase(WrappingContext):
             log.debug("Could not get Selenium WebDriver instance")
             return None
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> "SeleniumWrappingContextBase":
+        super().__enter__()
+
         try:
             self._handle_enter()
         except Exception:  # noqa: E722
             log.debug("Error handling selenium instrumentation enter", exc_info=True)
+
+        return self
 
     def __return__(self, value: T) -> T:
         """Always return the original value no matter what our instrumentation does"""
@@ -147,7 +151,12 @@ class SeleniumQuitWrappingContext(SeleniumWrappingContextBase):
 def get_version() -> str:
     import selenium
 
-    return selenium.__version__
+    try:
+        return selenium.__version__
+    except AttributeError:
+        log.debug("Could not get Selenium version")
+        return ""
+
 
 
 def patch() -> None:
