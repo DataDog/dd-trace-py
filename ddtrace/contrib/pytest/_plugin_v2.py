@@ -100,7 +100,7 @@ def _handle_itr_should_skip(item, test_id) -> bool:
             InternalTest.mark_itr_forced_run(test_id)
             return False
 
-        # InternalTest.mark_itr_skipped(test_id)
+        InternalTest.mark_itr_skipped(test_id)
         # Marking the test as skipped by ITR so that it appears in pytest's output
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
         return True
