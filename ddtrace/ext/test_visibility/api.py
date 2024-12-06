@@ -91,7 +91,8 @@ def enable_test_visibility(config: Optional[Any] = None):
 
 @_catch_and_log_exceptions
 def is_test_visibility_enabled():
-    return core.dispatch_with_results("test_visibility.is_enabled").is_enabled.value
+    core.dispatch("test_visibility.is_enabled")
+    return core.get_item("civisibility_enabled")
 
 
 @_catch_and_log_exceptions
