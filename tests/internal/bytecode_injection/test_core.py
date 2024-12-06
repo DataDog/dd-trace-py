@@ -7,6 +7,13 @@ from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
 
 
+skipif_bytecode_injection_not_supported = pytest.mark.skipif(
+    sys.version_info[:2] < (3, 11),
+    reason="Injection is only supported for 3.11+",
+)
+
+
+@skipif_bytecode_injection_not_supported
 def test_linetable_unchanged_when_no_injection():
     original = sample_function_1.__code__
     ic = InjectionContext(original, _sample_callback, lambda _: [])
@@ -16,6 +23,7 @@ def test_linetable_unchanged_when_no_injection():
     assert dict(dis.findlinestarts(original)) == dict(dis.findlinestarts(injected))
 
 
+@skipif_bytecode_injection_not_supported
 def test_injection_works():
     accumulate = []
 
@@ -38,6 +46,7 @@ def test_injection_works():
     assert accumulate == [1, 2, 3]
 
 
+@skipif_bytecode_injection_not_supported
 def test_injection_in_try_catch():
     accumulate = []
 
@@ -64,10 +73,7 @@ def test_injection_in_try_catch():
     assert accumulate == [1, 2, 3]
 
 
-@pytest.mark.skipif(
-    sys.version_info[:2] < (3, 11),
-    reason="Injection is only supported for 3.11+",
-)
+@skipif_bytecode_injection_not_supported
 def test_linetable_adjustment():
     selected_line_starts = [e for e in list(dis.findlinestarts(sample_function_short_jumps.__code__))[1:-1]]
     injection_offsets = [o for o, l in selected_line_starts]
@@ -94,10 +100,7 @@ def test_linetable_adjustment():
         ), "The corresponding argument is the same"
 
 
-@pytest.mark.skipif(
-    sys.version_info[:2] < (3, 11),
-    reason="Exception table is only available in python 3.11+",
-)
+@skipif_bytecode_injection_not_supported
 def test_exceptiontable_adjustment():
     selected_line_starts = [e for e in list(dis.findlinestarts(sample_function_short_jumps.__code__))[1:-1]]
     injection_offsets = [o for o, l in selected_line_starts]
