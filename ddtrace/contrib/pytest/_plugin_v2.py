@@ -300,6 +300,10 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
 
     collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
 
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+    if is_quarantined:
+        item.user_properties += [("dd_quarantined", True)]
+
     if collect_test_coverage:
         return _start_collecting_coverage()
 
@@ -431,11 +435,12 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
 
     test_id = _get_test_id_from_item(item)
 
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+
     test_outcome = _process_result(item, call, original_result)
 
     #print(f"\n==> ME OLHA:\n  {item=}\n  {call=}\n  {outcome=}\n  {test_outcome=}")
 
-    is_quarantined = InternalTest.is_quarantined_test(test_id)
     # if is_quarantined and test_outcome.status is not None:
     #     original_result.outcome = 'quarantined'
 
@@ -503,11 +508,11 @@ def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
             terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
     from ddtrace.contrib.pytest._atr_utils import _QUARANTINE_ATR_RETRY_OUTCOMES
-    for quarantined_report in terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, []):
-        terminalreporter.stats.setdefault("quarantined", []).append(quarantined_report)
-    for quarantined_report in terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, []):
-        terminalreporter.stats.setdefault("quarantined", []).append(quarantined_report)
-    terminalreporter._known_types.append("quarantined") # goddammit
+    # for quarantined_report in terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, []):
+    #     terminalreporter.stats.setdefault("quarantined", []).append(quarantined_report)
+    # for quarantined_report in terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, []):
+    #     terminalreporter.stats.setdefault("quarantined", []).append(quarantined_report)
+    # terminalreporter._known_types.append("quarantined") # goddammit
 
     return failed_reports_initial_size
 
@@ -535,6 +540,7 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
         atr_pytest_terminal_summary_post_yield(terminalreporter)
 
     quarantine_pytest_terminal_summary_post_yield(terminalreporter)
+
     return
 
 
@@ -614,9 +620,12 @@ def pytest_report_teststatus(
         if test_status is not None:
             return test_status
 
-    # if report.when in ("setup", "call") and is_quarantined(report.nodeid):
-    #     breakpoint()
-    #     return ('quarantined', 'q', ('QUARANTINED', {'blue': True}))
+    is_quarantined = ("dd_quarantined", True) in report.user_properties
+    if is_quarantined:
+        if report.when == 'teardown':
+            return ('quarantined', 'q', ('QUARANTINED', {'blue': True}))
+        else:
+            return ('', '', '')
 
 
 @pytest.hookimpl(trylast=True)
