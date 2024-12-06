@@ -1,0 +1,20 @@
+  services:
+    generic-http-framework:
+      build: ./${CONTRIB_NAME}
+      ports:
+        - 5000:5000
+      environment: &buildargs
+        - DD_VERSION=${DD_VERSION}
+        - CONTRIB_NAME=${CONTRIB_NAME}
+        - CONTRIB_VERSION=${CONTRIB_VERSION}
+        - PYTHON_VERSION=${PYTHON_VERSION}
+        - DD_TRACE_DEBUG=${DD_TRACE_DEBUG-false}
+        - DD_ENV="dev"
+        - DD_SERVICE="test-application-${CONTRIB_NAME}"
+        - DD_REMOTE_CONFIGURATION_ENABLED=false
+        - DD_TRACE_AGENT_URL=http://testagent:8126
+      #healthcheck:
+      #  test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      #  interval: 30s
+      #  timeout: 10s
+      #  retries: 5

@@ -1,0 +1,5 @@
+pyyaml
+docker
+PyGithub
+python-on-whales
+#locust # https://docs.locust.io/en/stable/configuration.html
