@@ -455,6 +455,7 @@ class _PprofConverter(object):
                     for _ in (
                         (packages.filename_to_package(filename), filename)
                         for filename, lineno, funcname in self._locations
+                        if not packages.is_user_code(filename)
                     )
                     if _[0] is not None
                 }, _ITEMGETTER_ZERO
