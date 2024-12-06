@@ -202,10 +202,10 @@ class TraceMiddleware:
             if not self.integration_config.trace_query_string:
                 query_string = None
             body = None
-            core.dispatch("asgi.request.parse.body", (ctx, receive, headers))
+            await core.dispatch_async("asgi.request.parse.body", (ctx, receive, headers))
             result = ctx.get_item("asgi.request.parse.body")
             if result:
-                receive, body = await result
+                receive, body = result
 
             client = scope.get("client")
             if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
@@ -273,10 +273,9 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message):
-                core.dispatch("asgi.block.started", (ctx, url))
-                result = ctx.get_item("asgi.block.started")
+                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
                 if result:
-                    status, headers, content = result
+                    status, headers, content = result.value
                 else:
                     status, headers, content = 403, [], b""
                 if span and message.get("type") == "http.response.start":
