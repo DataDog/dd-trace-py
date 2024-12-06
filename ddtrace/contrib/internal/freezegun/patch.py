@@ -14,6 +14,8 @@ class FreezegunConfigWrappingContext(WrappingContext):
     in as an argument
     """
 
+    # __exit__ comes from the parent class
+    # no-dd-sa:python-best-practices/ctx-manager-enter-exit-defined
     def __enter__(self) -> "FreezegunConfigWrappingContext":
         super().__enter__()
         try:

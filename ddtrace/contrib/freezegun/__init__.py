@@ -10,8 +10,9 @@ The freezegun integration is enabled by default. Use :func:`patch()<ddtrace.patc
 
 Configuration
 ~~~~~~~~~~~~~
-The freezegun integration is not configurable, but may be disabled using DD_PATCH_MODULES:freezegun=false.
+The freezegun integration is not configurable, but may be disabled using DD_PATCH_MODULES=freezegun:false .
 """
+
 from ...internal.utils.importlib import require_modules
 
 
