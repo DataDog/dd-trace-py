@@ -13,7 +13,7 @@ The Selenium integration is enabled by default in test contexts (eg: pytest, or 
 
 
 When using pytest, the `--ddtrace-patch-all` flag is required in order for this integration to
-be enabled..
+be enabled.
 
 Configuration
 ~~~~~~~~~~~~~
