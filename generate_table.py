@@ -1,16 +1,11 @@
-import json
 import csv
+import json
+
 
 with open("supported_versions_output.json", "r") as json_file:
     data = json.load(json_file)
 
-columns = [
-    "integration",
-    "minimum_tracer_supported",
-    "max_tracer_supported",
-    "minumum_available_supported",
-    "maximum_available_supported",
-]
+columns = ["integration", "minimum_tracer_supported", "max_tracer_supported", "auto-instrumented"]
 
 csv_rows = []
 

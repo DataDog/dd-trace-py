@@ -75,12 +75,6 @@
         "auto-instrumented": true
     },
     {
-        "integration": "cassandra-driver",
-        "minimum_tracer_supported": "3.24.0",
-        "max_tracer_supported": "3.28.0",
-        "auto-instrumented": true
-    },
-    {
         "integration": "celery",
         "minimum_tracer_supported": "4.4.7",
         "max_tracer_supported": "5.4.0",
@@ -90,12 +84,6 @@
         "integration": "cherrypy",
         "minimum_tracer_supported": "17.4.2",
         "max_tracer_supported": "18.10.0",
-        "auto-instrumented": false
-    },
-    {
-        "integration": "confluent-kafka",
-        "minimum_tracer_supported": "1.9.2",
-        "max_tracer_supported": "2.4.0",
         "auto-instrumented": false
     },
     {
@@ -136,33 +124,9 @@
         "auto-instrumented": true
     },
     {
-        "integration": "flask-cache",
-        "minimum_tracer_supported": "0.13.1",
-        "max_tracer_supported": "0.13.1",
-        "auto-instrumented": false
-    },
-    {
-        "integration": "flask-caching",
-        "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "2.3.0",
-        "auto-instrumented": false
-    },
-    {
         "integration": "gevent",
         "minimum_tracer_supported": "20.12.1",
         "max_tracer_supported": "24.11.1",
-        "auto-instrumented": true
-    },
-    {
-        "integration": "graphql-core",
-        "minimum_tracer_supported": "3.1.7",
-        "max_tracer_supported": "3.2.3",
-        "auto-instrumented": true
-    },
-    {
-        "integration": "grpcio",
-        "minimum_tracer_supported": "1.34.1",
-        "max_tracer_supported": "1.66.1",
         "auto-instrumented": true
     },
     {
@@ -282,21 +246,9 @@
         "auto-instrumented": true
     },
     {
-        "integration": "python-consul",
-        "minimum_tracer_supported": "1.1.0",
-        "max_tracer_supported": "1.1.0",
-        "auto-instrumented": true
-    },
-    {
         "integration": "redis",
         "minimum_tracer_supported": "2.10.6",
         "max_tracer_supported": "5.1.1",
-        "auto-instrumented": true
-    },
-    {
-        "integration": "redis-py-cluster",
-        "minimum_tracer_supported": "2.0.0",
-        "max_tracer_supported": "2.1.3",
         "auto-instrumented": true
     },
     {
@@ -310,12 +262,6 @@
         "minimum_tracer_supported": "20.12.7",
         "max_tracer_supported": "24.6.0",
         "auto-instrumented": true
-    },
-    {
-        "integration": "snowflake-connector-python",
-        "minimum_tracer_supported": "2.3.10",
-        "max_tracer_supported": "3.11.0",
-        "auto-instrumented": false
     },
     {
         "integration": "sqlalchemy",
@@ -346,12 +292,6 @@
         "integration": "urllib3",
         "minimum_tracer_supported": "1.24.3",
         "max_tracer_supported": "2.2.3",
-        "auto-instrumented": false
-    },
-    {
-        "integration": "vertica-python",
-        "minimum_tracer_supported": "0.6.14",
-        "max_tracer_supported": "0.7.4",
         "auto-instrumented": false
     },
     {
