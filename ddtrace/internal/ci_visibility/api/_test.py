@@ -141,6 +141,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             is_new=self._is_new if self._is_new is not None else None,
             is_retry=self._efd_is_retry or self._atr_is_retry,
             early_flake_detection_abort_reason=self._efd_abort_reason,
+            is_quarantined=self.is_quarantined(),
         )
 
     def finish_test(

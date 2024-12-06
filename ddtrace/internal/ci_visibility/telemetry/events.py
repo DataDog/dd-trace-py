@@ -29,6 +29,7 @@ def _record_event(
     is_benchmark: Optional[bool] = False,
     is_new: Optional[bool] = False,
     is_retry: Optional[bool] = False,
+    is_quarantined: Optional[bool] = False,
     early_flake_detection_abort_reason: Optional[str] = None,
 ):
     if has_codeowners and event_type != EVENT_TYPES.SESSION:
@@ -44,6 +45,10 @@ def _record_event(
     if is_retry and not (event_type == EVENT_TYPES.TEST and event == EVENTS_TELEMETRY.FINISHED):
         log.debug(
             "is_retry tag can only be set for test finishes, but event type is %s and event is %s", event_type, event
+        )
+    if is_quarantined and not (event_type == EVENT_TYPES.TEST and event == EVENTS_TELEMETRY.FINISHED):
+        log.debug(
+            "is_quarantined tag can only be set for test finishes, but event type is %s and event is %s", event_type, event
         )
     if early_flake_detection_abort_reason and (
         event_type not in [EVENT_TYPES.TEST, EVENT_TYPES.SESSION] or event != EVENTS_TELEMETRY.FINISHED
@@ -66,6 +71,8 @@ def _record_event(
                 _tags.append(("is_new", "true"))
             if is_retry:
                 _tags.append(("is_retry", "true"))
+            if is_quarantined:
+                _tags.append(("is_quarantined", "true"))
 
     if (
         early_flake_detection_abort_reason
@@ -106,6 +113,7 @@ def record_event_finished(
     is_benchmark: bool = False,
     is_new: bool = False,
     is_retry: bool = False,
+    is_quarantined: bool = None,
     early_flake_detection_abort_reason: Optional[str] = None,
 ):
     _record_event(
@@ -117,6 +125,7 @@ def record_event_finished(
         is_benchmark=is_benchmark,
         is_new=is_new,
         is_retry=is_retry,
+        is_quarantined=is_quarantined,
         early_flake_detection_abort_reason=early_flake_detection_abort_reason,
     )
 
