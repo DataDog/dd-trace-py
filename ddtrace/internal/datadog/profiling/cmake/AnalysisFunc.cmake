@@ -78,6 +78,17 @@ function(add_ddup_config target)
         target_compile_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS})
 
+      # If msan was chosen, also enable memory track origins.  This also needs to be propagated to gtest stuff.
+     if(SANITIZE_OPTIONS STREQUAL "memory")
+       target_compile_options(${target} PRIVATE -fsanitize-memory-track-origins)
+       #
+       #         target_compile_options(gtest PRIVATE -fsanitize-memory-track-origins)
+       #         target_compile_options(gtest_main PRIVATE -fsanitize-memory-track-origins)
+       #         target_compile_options(gmock PRIVATE -fsanitize-memory-track-origins)
+       #         target_compile_options(gmock_main PRIVATE -fsanitize-memory-track-origins)
+
+      endif()
+
 
     # Locate all directories containing relevant `.so` files
     execute_process(
