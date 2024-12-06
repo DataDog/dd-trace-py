@@ -73,6 +73,12 @@ _stack_v2_atfork_child()
         std::lock_guard<std::mutex> lock(thread_info_map_lock);
         thread_info_map.clear();
     }
+    task_link_map_lock.~mutex();
+    new (&task_link_map_lock) std::mutex();
+    {
+        std::lock_guard<std::mutex> lock(task_link_map_lock);
+        task_link_map.clear();
+    }
     ThreadSpanLinks::postfork_child();
 }
 
