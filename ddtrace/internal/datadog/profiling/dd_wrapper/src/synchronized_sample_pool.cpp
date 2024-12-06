@@ -27,7 +27,8 @@ SynchronizedSamplePool::return_sample(Sample* sample)
     if (capacity.load() <= pool.size_approx()) {
         return sample;
     } else {
-        auto ptr = std::make_unique<Sample>(*sample);
+        std::unique_ptr<Sample> ptr = nullptr;
+        ptr.reset(sample);
         pool.enqueue(std::move(ptr));
         return std::nullopt;
     }
