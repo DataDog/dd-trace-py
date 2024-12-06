@@ -1,5 +1,3 @@
-import typing as t
-
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
 
@@ -30,9 +28,6 @@ class FreezegunConfigWrappingContext(WrappingContext):
         return self
 
 
-_FREEZEGUN_WRAPPER: t.Optional[WrappingContext] = None
-
-
 def get_version() -> str:
     import freezegun
 
@@ -49,9 +44,7 @@ def patch() -> None:
     if getattr(freezegun, "_datadog_patch", False):
         return
 
-    global _FREEZEGUN_WRAPPER
-    _FREEZEGUN_WRAPPER = FreezegunConfigWrappingContext(freezegun.configure)
-    _FREEZEGUN_WRAPPER.wrap()
+    FreezegunConfigWrappingContext(freezegun.configure).wrap()
 
     freezegun.configure(extend_ignore_list=[DDTRACE_MODULE_NAME])
 
@@ -64,11 +57,8 @@ def unpatch() -> None:
     if not getattr(freezegun, "_datadog_patch", False):
         return
 
-    global _FREEZEGUN_WRAPPER
-
-    if _FREEZEGUN_WRAPPER is not None:
-        _FREEZEGUN_WRAPPER.unwrap()
-        _FREEZEGUN_WRAPPER = None
+    if FreezegunConfigWrappingContext.is_wrapped(freezegun.configure):
+        FreezegunConfigWrappingContext.extract(freezegun.configure).unwrap()
 
     # Note: we do not want to restore to the original ignore list, as it may have been modified by the user, but we do
     # want to remove the ddtrace module from the ignore list

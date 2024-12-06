@@ -19,6 +19,19 @@ class TestFreezegunTestCase:
         yield
         unpatch()
 
+    def test_freezegun_unpatch(self):
+        import freezegun
+
+        from ddtrace.contrib.freezegun import unpatch
+
+        unpatch()
+
+        with freezegun.freeze_time("2020-01-01"):
+            with dd_tracer.trace("freezegun.test") as span:
+                time.sleep(1)
+
+        assert span.duration == 0
+
     def test_freezegun_does_not_freeze_tracing(self):
         import freezegun
 
