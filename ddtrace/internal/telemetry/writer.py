@@ -137,6 +137,7 @@ class _TelemetryClient:
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
         container.update_headers_with_container_info(headers, container.get_container_info())
+        container.update_header_with_external_info(headers)
         return headers
 
     def get_endpoint(self, agentless: bool) -> str:

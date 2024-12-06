@@ -56,6 +56,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
         }
 
         container.update_headers_with_container_info(self._headers, container.get_container_info())
+        container.update_header_with_external_info(self._headers)
 
         if di_config._tags_in_qs and di_config.tags:
             self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"

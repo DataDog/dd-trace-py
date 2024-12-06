@@ -7,6 +7,8 @@ from typing import Optional
 
 from ..constants import CONTAINER_ID_HEADER_NAME
 from ..constants import ENTITY_ID_HEADER_NAME
+from ..constants import EXTERNAL_ENV_ENVIRONMENT_VARIABLE
+from ..constants import EXTERNAL_ENV_HEADER_NAME
 from ..logger import get_logger
 
 
@@ -160,18 +162,30 @@ def get_container_info(pid="self"):
 
 
 def update_headers_with_container_info(headers: Dict, container_info: Optional[CGroupInfo]) -> None:
+    """Get the container info (either the container ID or the cgroup inode) and add it to the headers."""
     if container_info is None:
         return
     if container_info.container_id:
         headers.update(
             {
                 CONTAINER_ID_HEADER_NAME: container_info.container_id,
-                ENTITY_ID_HEADER_NAME: f"cid-{container_info.container_id}",
+                ENTITY_ID_HEADER_NAME: f"ci-{container_info.container_id}",
             }
         )
     elif container_info.node_inode:
         headers.update(
             {
                 ENTITY_ID_HEADER_NAME: f"in-{container_info.node_inode}",
+            }
+        )
+
+
+def update_header_with_external_info(headers: Dict) -> None:
+    """Get the external environment info from the environment variable and add it to the headers."""
+    external_info = os.environ.get(EXTERNAL_ENV_ENVIRONMENT_VARIABLE)
+    if external_info:
+        headers.update(
+            {
+                EXTERNAL_ENV_HEADER_NAME: external_info,
             }
         )
