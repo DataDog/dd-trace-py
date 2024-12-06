@@ -3,7 +3,7 @@ The freezegun integration reconfigures freezegun's default ignore list to ignore
 
 Enabling
 ~~~~~~~~
-The freezegun integration is enabled by default. Use :func:`patch()<ddtrace.patch>` to enable the integration:
+The freezegun integration is enabled by default. Use :func:`patch()<ddtrace.patch>` to enable the integration::
     from ddtrace import patch
     patch(freezegun=True)
 
