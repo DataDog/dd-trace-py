@@ -499,15 +499,29 @@ def _generate_exception_table(
     """
     parsed_exception_table = dis._parse_exception_table(code)
 
-    def calculate_additional_offset(original_offset: int):
-        from_offsets = sum([codeunits << 1 for off, codeunits in offsets_map.items() if off <= original_offset])
-        from_extended_args = sum([codeunits << 1 for off, codeunits in extended_arg_offsets if off <= original_offset])
+    def calculate_additional_offset(original_offset: int, is_start: bool = False) -> int:
+        # We want to include the code we add in the exception table, so that the finally block is correctly executed
+        # if an error arises in the injected code.
+        if is_start:
+            relevant_offsets = [(offset, codeunits)
+                                for offset, codeunits in offsets_map.items() if offset < original_offset]
+            relevant_extended_args = [(off, codeunits)
+                                      for off, codeunits in extended_arg_offsets if off < original_offset]
+        else:
+            relevant_offsets = [(offset, codeunits)
+                                for offset, codeunits in offsets_map.items() if offset <= original_offset]
+            relevant_extended_args = [(off, codeunits)
+                                      for off, codeunits in extended_arg_offsets if off <= original_offset]
+
+        from_offsets = sum([codeunits << 1 for _, codeunits in relevant_offsets])
+        from_extended_args = sum([codeunits << 1 for _, codeunits in relevant_extended_args])
+
         return original_offset + from_offsets + from_extended_args
 
     table = bytearray()
 
     for entry in parsed_exception_table:
-        new_start = calculate_additional_offset(entry.start)
+        new_start = calculate_additional_offset(entry.start, is_start=True)
         new_end = calculate_additional_offset(entry.end - 2)
         new_target = calculate_additional_offset(entry.target)
 

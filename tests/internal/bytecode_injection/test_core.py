@@ -117,15 +117,111 @@ def test_exceptiontable_adjustment():
     assert len(original_exceptions) == len(injected_exceptions), "Same number of exceptions"
     exceptions_cnt = len(original_exceptions)
 
+    partially_translated_starts = []
+
     for idx in range(exceptions_cnt):
         original_entry = original_exceptions[idx]
         injected_entry = injected_exceptions[idx]
-        assert original_co_code[original_entry.start] == injected_co_code[injected_entry.start], "Start opcode is the same"
+        # Starts are tested differently, because they do not simply translate by the previously injected code.
+        # They might only partially translate to include the callback invocation.
+        # So we collect the starts that are not simply translated, and those indexes MUST be in the injection_offsets
+        if original_co_code[original_entry.start] != injected_co_code[injected_entry.start]:
+            partially_translated_starts.append(original_entry.start)
+
         assert original_co_code[original_entry.end -
                                 2] == injected_co_code[injected_entry.end - 2], "End (exclusive) opcode is the same"
         assert original_co_code[original_entry.target] == injected_co_code[injected_entry.target], "Target opcode is the same"
         assert original_entry.depth == injected_entry.depth, "Depth is the same"
         assert original_entry.lasti == injected_entry.lasti, "lasti is the same"
+
+    assert set(partially_translated_starts).issubset(set(injection_offsets)
+                                                     ), "All partially translated starts are in the injection offsets"
+
+
+@skipif_bytecode_injection_not_supported
+def test_try_finally_is_executed_when_callback_fails():
+    value = 0
+    BEFORE_TRY = 1
+    AFTER_CALLBACK_ERROR = BEFORE_TRY << 1
+    FINALLY = AFTER_CALLBACK_ERROR << 1
+    IN_CALLBACK = FINALLY << 1
+
+    def _broken_callback(*args):
+        nonlocal value
+        value |= IN_CALLBACK
+        raise ValueError("this is in the callback")
+
+    def the_function():
+        nonlocal value
+        try:
+            value |= BEFORE_TRY
+            raise ValueError("this is a value error")
+        except ValueError as _:
+            # in this spot we are going to inject the callback
+            value |= AFTER_CALLBACK_ERROR
+        finally:
+            pass
+            value |= FINALLY
+
+    # Injection index from dis.dis(<function to inject into>)
+    ic = InjectionContext(the_function.__code__, _broken_callback, lambda _: [66])
+    injected_code, _ = inject_invocation(ic, "some/path.py", "some.package")
+    the_function.__code__ = injected_code
+
+    try:
+        the_function()
+        pytest.fail("it should not be here")
+    except ValueError as e:
+        assert str(e) == "this is in the callback"
+
+    assert value == BEFORE_TRY + FINALLY + IN_CALLBACK  # DEV: make clear in docs that AFTER_CALLBACK_ERROR won't be executed
+
+
+@skipif_bytecode_injection_not_supported
+def test_try_finally_is_executed_when_callback_succeed():
+    value = 0
+    BEFORE_TRY = 1
+    AFTER_CALLBACK_ERROR = 2
+    FINALLY = 4
+    IN_CALLBACK = 8
+    SECOND_FINALLY = 16
+
+    def _callback(*args):
+        nonlocal value
+        value += IN_CALLBACK
+
+    def the_function():
+        nonlocal value
+        try:
+            value |= BEFORE_TRY
+            raise ValueError("this is a value error")
+        except ValueError as _:
+            # in this spot we are going to inject the callback
+            value |= AFTER_CALLBACK_ERROR
+        finally:
+            value |= FINALLY
+
+        a = 1
+        b = 2
+        c = a + b
+
+        try:
+            value |= BEFORE_TRY
+            raise ValueError("this is a value error")
+        except ValueError as _:
+            # in this spot we are going to inject the callback
+            value |= AFTER_CALLBACK_ERROR
+        finally:
+            value |= SECOND_FINALLY
+
+    # Injection index from dis.dis(<function to inject into>)
+    ic = InjectionContext(the_function.__code__, _callback, lambda _: [66])
+    injected_code, _ = inject_invocation(ic, "some/path.py", "some.package")
+    the_function.__code__ = injected_code
+
+    the_function()
+
+    assert value == BEFORE_TRY + AFTER_CALLBACK_ERROR + FINALLY + IN_CALLBACK + SECOND_FINALLY
 
 
 def sample_function_1():
