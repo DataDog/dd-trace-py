@@ -78,17 +78,27 @@ function(add_ddup_config target)
         target_compile_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS})
 
-      # If msan was chosen, also enable memory track origins.  This also needs to be propagated to gtest stuff.
-     if(SANITIZE_OPTIONS STREQUAL "memory")
-       target_compile_options(${target} PRIVATE -fsanitize-memory-track-origins)
-       #
-       #         target_compile_options(gtest PRIVATE -fsanitize-memory-track-origins)
-       #         target_compile_options(gtest_main PRIVATE -fsanitize-memory-track-origins)
-       #         target_compile_options(gmock PRIVATE -fsanitize-memory-track-origins)
-       #         target_compile_options(gmock_main PRIVATE -fsanitize-memory-track-origins)
+    # If msan was chosen, also enable memory track origins, which helps in diagnostics
+    if(SANITIZE_OPTIONS STREQUAL "memory")
+        target_compile_options(${target} PRIVATE -fsanitize-memory-track-origins)
 
-      endif()
+        # That was the easy part. Now we have to include an entire custom clang toolchain which has the msan runtime.
+        # Selecting a version is hard, so just build the latest one.
+        include(FindCxxMsan)
 
+        add_dependencies(${target} llvm-libcxx-msan)
+        target_compile_options(${target} PRIVATE
+           -stdlib=libc++,
+           -nostdinc++,
+           -isystem ${CMAKE_CURRENT_BINARY_DIR}/llvm-libcxx-msan/install/include/c++/v1
+        )
+
+        target_link_options(${target} PRIVATE
+            -stdlib=libc++
+            -L${INSTALLED_LIBCXX_PATH}
+            -lc++abi
+        )
+    endif()
 
     # Locate all directories containing relevant `.so` files
     execute_process(
@@ -118,3 +128,5 @@ function(add_ddup_config target)
     # for tests as they're loading those dynamic libraries.
     set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endfunction()
+
+set(INSTALLED_LIBCXX_PATH "${CMAKE_CURRENT_BINARY_DIR}/llvm-libcxx-msan/install/lib")
