@@ -115,7 +115,7 @@ async def _on_asgi_request_parse_body(ctx, receive, headers):
             ctx.set_item(key, (receive_wrapped, None))
             return receive_wrapped, None
 
-    ctx.set_item(key, (receive_wrapped, None))
+    ctx.set_item(key, (receive, None))
     return receive, None
 
 
