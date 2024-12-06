@@ -423,6 +423,9 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
         log = get_logger(__name__)
 
+        # Freezegun is proactively patched to avoid it interfering with internal timing
+        ddtrace.patch(freezegun=True)
+
         COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
 
         if USE_DD_COVERAGE:
