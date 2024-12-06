@@ -35,7 +35,7 @@ In addition, you will need `riot <https://ddriot.readthedocs.io/en/latest/>`_ an
 
 .. code-block:: bash
 
-    $ pip install riot==0.19.1
+    $ pip install riot==0.20.1
 
 Refer `hatch install <https://hatch.pypa.io/latest/install/>`_ for installation instructions
 
