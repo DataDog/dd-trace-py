@@ -99,7 +99,7 @@ class LoggingTestCase(TracerTestCase):
             else:
                 assert not isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
-    def _test_logging(self, create_span, service="", version="", env=""):
+    def _test_logging(self, create_span, service="tests.contrib.logging", version="", env=""):
         def func():
             span = create_span()
             logger.info("Hello!")
@@ -139,10 +139,10 @@ class LoggingTestCase(TracerTestCase):
         def create_span():
             return self.tracer.trace("test.logging")
 
-        self._test_logging(create_span=create_span)
+        self._test_logging(create_span=create_span, service="")
 
         with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="global.env")
+            self._test_logging(create_span=create_span, version="global.version", env="global.env", service="")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
     def test_log_trace_128bit_trace_ids(self):
@@ -157,7 +157,7 @@ class LoggingTestCase(TracerTestCase):
             return span
 
         with self.override_global_config(dict(version="v1.666", env="test")):
-            self._test_logging(create_span=create_span, version="v1.666", env="test")
+            self._test_logging(create_span=create_span, version="v1.666", env="test", service="")
             # makes sense that this fails because _test_logging looks for the 64 bit trace id
 
     def test_log_trace_service(self):
@@ -237,9 +237,8 @@ class LoggingTestCase(TracerTestCase):
 
             lines = output.splitlines()
             assert (
-                "Hello! [dd.service= dd.env= dd.version= dd.trace_id={:032x} dd.span_id={}]".format(
-                    span.trace_id, span.span_id
-                )
+                "Hello! [dd.service=tests.contrib.logging dd.env= dd.version= "
+                + "dd.trace_id={:032x} dd.span_id={}]".format(span.trace_id, span.span_id)
                 == lines[0]
             )
 
@@ -267,10 +266,9 @@ class LoggingTestCase(TracerTestCase):
                 record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)
                 log = formatter.format(record)
                 expected = (
-                    "Manual log record [dd.service= dd.env= dd.version= dd.trace_id={:032x} dd.span_id={}]".format(
-                        span.trace_id, span.span_id
-                    )
-                )
+                    "Manual log record [dd.service=tests.contrib.logging dd.env= dd.version= "
+                    + "dd.trace_id={:032x} dd.span_id={}]"
+                ).format(span.trace_id, span.span_id)
                 assert log == expected
 
                 assert not hasattr(record, "dd")

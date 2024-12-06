@@ -9,7 +9,7 @@
     "type": "worker",
     "error": 1,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.kafka",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65df90df00000000",
       "component": "kafka",
@@ -44,7 +44,7 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.kafka",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65df90dd00000000",
       "component": "kafka",

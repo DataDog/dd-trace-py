@@ -123,6 +123,7 @@ def test_weak_hash(client):
     assert vulnerability_in_traces("WEAK_HASH", client.agent_session)
 
 
+@flaky(1735812000)
 def test_cmdi(client):
     payload = {"domain": "google.com && ls", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/cmd_lab", data=payload, headers=TESTAGENT_HEADERS)

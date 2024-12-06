@@ -321,10 +321,10 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         """
 
         metric_names = APIRequestMetricNames(
-            count=GIT_TELEMETRY.SETTINGS_COUNT,
-            duration=GIT_TELEMETRY.SETTINGS_MS,
+            count=GIT_TELEMETRY.SETTINGS_COUNT.value,
+            duration=GIT_TELEMETRY.SETTINGS_MS.value,
             response_bytes=None,
-            error=GIT_TELEMETRY.SETTINGS_ERRORS,
+            error=GIT_TELEMETRY.SETTINGS_ERRORS.value,
         )
 
         payload = {
@@ -386,11 +386,12 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         )
 
         record_settings_response(
-            api_settings.coverage_enabled,
-            api_settings.skipping_enabled,
-            api_settings.require_git,
-            api_settings.itr_enabled,
-            api_settings.early_flake_detection.enabled,
+            coverage_enabled=api_settings.coverage_enabled,
+            skipping_enabled=api_settings.skipping_enabled,
+            require_git=api_settings.require_git,
+            itr_enabled=api_settings.itr_enabled,
+            flaky_test_retries_enabled=api_settings.flaky_test_retries_enabled,
+            early_flake_detection_enabled=api_settings.early_flake_detection.enabled,
         )
 
         return api_settings
@@ -402,10 +403,10 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             timeout = DEFAULT_ITR_SKIPPABLE_TIMEOUT
 
         metric_names = APIRequestMetricNames(
-            count=SKIPPABLE_TESTS_TELEMETRY.REQUEST,
-            duration=SKIPPABLE_TESTS_TELEMETRY.REQUEST_MS,
-            response_bytes=SKIPPABLE_TESTS_TELEMETRY.RESPONSE_BYTES,
-            error=SKIPPABLE_TESTS_TELEMETRY.REQUEST_ERRORS,
+            count=SKIPPABLE_TESTS_TELEMETRY.REQUEST.value,
+            duration=SKIPPABLE_TESTS_TELEMETRY.REQUEST_MS.value,
+            response_bytes=SKIPPABLE_TESTS_TELEMETRY.RESPONSE_BYTES.value,
+            error=SKIPPABLE_TESTS_TELEMETRY.REQUEST_ERRORS.value,
         )
 
         payload = {
@@ -470,10 +471,10 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
     def fetch_unique_tests(self) -> t.Optional[t.Set[InternalTestId]]:
         metric_names = APIRequestMetricNames(
-            count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST,
-            duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS,
-            response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES,
-            error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS,
+            count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
+            duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
+            response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES.value,
+            error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS.value,
         )
 
         unique_test_ids: t.Set[InternalTestId] = set()

@@ -51,7 +51,7 @@ class CIVisibilityEventClient(WriterClientBase):
             "*",
             {
                 "language": "python",
-                "env": config.env,
+                "env": os.getenv("_CI_DD_ENV", config.env),
                 "runtime-id": get_runtime_id(),
                 "library_version": ddtrace.__version__,
             },

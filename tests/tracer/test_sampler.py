@@ -154,67 +154,71 @@ class RateSamplerTest(unittest.TestCase):
         ), "Setting the sample rate to zero should result in the sample rate being zero"
 
 
-class RateByServiceSamplerTest(unittest.TestCase):
-    def test_default_key(self):
-        assert (
-            "service:,env:" == RateByServiceSampler._default_key
-        ), "default key should correspond to no service and no env"
+# RateByServiceSamplerTest Cases
+def test_default_key():
+    assert (
+        "service:,env:" == RateByServiceSampler._default_key
+    ), "default key should correspond to no service and no env"
 
-    def test_key(self):
-        assert (
-            RateByServiceSampler._default_key == RateByServiceSampler._key()
-        ), "_key() with no arguments returns the default key"
-        assert "service:mcnulty,env:" == RateByServiceSampler._key(
-            service="mcnulty"
-        ), "_key call with service name returns expected result"
-        assert "service:,env:test" == RateByServiceSampler._key(
-            env="test"
-        ), "_key call with env name returns expected result"
-        assert "service:mcnulty,env:test" == RateByServiceSampler._key(
-            service="mcnulty", env="test"
-        ), "_key call with service and env name returns expected result"
-        assert "service:mcnulty,env:test" == RateByServiceSampler._key(
-            "mcnulty", "test"
-        ), "_key call with service and env name as positional args returns expected result"
 
-    @run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
-    def test_sample_rate_deviation_128bit_trace_id(self):
-        self._test_sample_rate_deviation()
+def test_key():
+    assert (
+        RateByServiceSampler._default_key == RateByServiceSampler._key()
+    ), "_key() with no arguments returns the default key"
+    assert "service:mcnulty,env:" == RateByServiceSampler._key(
+        service="mcnulty"
+    ), "_key call with service name returns expected result"
+    assert "service:,env:test" == RateByServiceSampler._key(
+        env="test"
+    ), "_key call with env name returns expected result"
+    assert "service:mcnulty,env:test" == RateByServiceSampler._key(
+        service="mcnulty", env="test"
+    ), "_key call with service and env name returns expected result"
+    assert "service:mcnulty,env:test" == RateByServiceSampler._key(
+        "mcnulty", "test"
+    ), "_key call with service and env name as positional args returns expected result"
 
-    @run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="false"))
-    def test_sample_rate_deviation_64bit_trace_id(self):
-        self._test_sample_rate_deviation()
 
-    def _test_sample_rate_deviation(self):
-        for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = DummyTracer()
-            tracer.configure(sampler=RateByServiceSampler())
-            tracer._sampler.set_sample_rate(sample_rate)
+@run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
+def test_sample_rate_deviation_128bit_trace_id():
+    _test_sample_rate_deviation()
 
-            iterations = int(1e4 / sample_rate)
 
-            for i in range(iterations):
-                span = tracer.trace(str(i))
-                span.finish()
+@run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="false", DD_SERVICE="my-svc"))
+def test_sample_rate_deviation_64bit_trace_id():
+    _test_sample_rate_deviation()
 
-            samples = tracer.pop()
-            samples_with_high_priority = 0
-            for sample in samples:
-                sample_priority = sample.context.sampling_priority
-                samples_with_high_priority += int(bool(sample_priority > 0))
-                assert_sampling_decision_tags(
-                    sample,
-                    agent=sample_rate,
-                    trace_tag="-{}".format(SamplingMechanism.AGENT_RATE),
-                )
 
-            deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert (
-                deviation < 0.05
-            ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
-                deviation,
-                sample_rate,
+def _test_sample_rate_deviation():
+    for sample_rate in [0.1, 0.25, 0.5, 1]:
+        tracer = DummyTracer()
+        tracer.configure(sampler=RateByServiceSampler())
+        tracer._sampler.set_sample_rate(sample_rate)
+
+        iterations = int(1e4 / sample_rate)
+
+        for i in range(iterations):
+            span = tracer.trace(str(i))
+            span.finish()
+
+        samples = tracer.pop()
+        samples_with_high_priority = 0
+        for sample in samples:
+            sample_priority = sample.context.sampling_priority
+            samples_with_high_priority += int(bool(sample_priority > 0))
+            assert_sampling_decision_tags(
+                sample,
+                agent=sample_rate,
+                trace_tag="-{}".format(SamplingMechanism.AGENT_RATE),
             )
+
+        deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
+        assert (
+            deviation < 0.05
+        ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
+            deviation,
+            sample_rate,
+        )
 
 
 @pytest.mark.parametrize(
@@ -512,10 +516,10 @@ def test_sampling_rule_matches_name(span, rule, span_expected_to_match_rule):
         for service, pattern, expected_to_match in [
             ("my-service", SamplingRule.NO_RULE, True),
             ("my-service", None, False),
-            (None, None, True),
-            (None, "my-service", False),
-            (None, re.compile(r"my-service"), False),
-            (None, lambda service: "service" in service, False),
+            (None, "tests.tracer", True),
+            ("tests.tracer", "my-service", False),
+            ("tests.tracer", re.compile(r"my-service"), False),
+            ("tests.tracer", lambda service: "service" in service, False),
             ("my-service", "my-service", True),
             ("my-service", "my_service", False),
             ("my-service", re.compile(r"^my-"), True),

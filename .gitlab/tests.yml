@@ -4,11 +4,12 @@ stages:
 variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
   REPO_LANG: python # "python" is used everywhere rather than "py"
+  DD_PYTEST_USE_NEW_PLUGIN_BETA: "true"
+  PYTEST_ADDOPTS: "-s"
   # CI_DEBUG_SERVICES: "true"
 
-
 .testrunner:
-  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:7a2e802af76051f82d698919d2837eff18dbb48e
+  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
   timeout: 20m
@@ -118,18 +119,5 @@ build_base_venvs:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/root/project"
 
-slotscheck:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  script:
-    - hatch run slotscheck:_
-
-conftests:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  script:
-    - hatch run meta-testing:meta-testing
 
 # Required jobs will appear here

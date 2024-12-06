@@ -42,7 +42,7 @@ class Jinja2Test(TracerTestCase):
         assert len(spans) == 2
 
         for span in spans:
-            assert span.service is None
+            assert span.service == "tests.contrib.jinja2"
             assert span.span_type == "template"
             assert span.get_tag("jinja2.template_name") == "<memory>"
             assert span.get_tag("component") == "jinja2"
@@ -61,7 +61,7 @@ class Jinja2Test(TracerTestCase):
         assert len(spans) == 2
 
         for span in spans:
-            assert span.service is None
+            assert span.service == "tests.contrib.jinja2"
             assert span.span_type == "template"
             assert span.get_tag("jinja2.template_name") == "<memory>"
             assert span.get_tag("component") == "jinja2"
@@ -110,7 +110,7 @@ class Jinja2Test(TracerTestCase):
 
         for span in spans:
             assert span.span_type == "template"
-            assert span.service is None
+            assert span.service == "tests.contrib.jinja2"
 
         # templates.html extends base.html
         def get_def(s):
