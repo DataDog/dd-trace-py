@@ -66,7 +66,7 @@ build_base_venvs:
     PIP_VERBOSE: 1
     DD_PROFILING_NATIVE_TESTS: 1
   script:
-    - pip install riot==0.20.0
+    - pip install riot==0.20.1
     - riot -P -v generate --python=$PYTHON_VERSION
   artifacts:
     name: venv_$PYTHON_VERSION
@@ -86,7 +86,7 @@ build_base_venvs:
   # DEV: This is the max retries that GitLab currently allows for
   retry: 2
   script:
-    - pip install riot==0.20.0
+    - pip install riot==0.20.1
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
