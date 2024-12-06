@@ -208,7 +208,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         return self._is_new and (self._parameters is None)
 
     def is_quarantined(self):
-        return self._is_quarantined or self.get_tag(TEST_IS_QUARANTINED)
+        return self._session_settings.quarantine_settings.enabled and (
+            self._is_quarantined or self.get_tag(TEST_IS_QUARANTINED)
+        )
 
     #
     # EFD (Early Flake Detection) functionality

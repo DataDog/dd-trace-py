@@ -950,7 +950,7 @@ def _on_discover_session(
 
     quarantine_api_settings = CIVisibility.get_quarantine_api_settings()
     if quarantine_api_settings is None or not CIVisibility.is_quarantine_enabled():
-        quarantine_api_settings = QuarantineSettings() ### is this really needed?
+        quarantine_api_settings = QuarantineSettings()
 
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
@@ -1172,7 +1172,7 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
             source_file_info=discover_args.source_file_info,
             resource=discover_args.resource,
             is_new=is_new,
-            #is_quarantined=is_quarantined,
+            is_quarantined=is_quarantined,
         ),
     )
 

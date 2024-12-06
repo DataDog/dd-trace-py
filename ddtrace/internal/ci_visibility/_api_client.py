@@ -380,8 +380,10 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()
 
+            from ddtrace.internal.utils.formats import asbool
+            import os
             quarantine = QuarantineSettings(
-                enabled=attributes.get("quarantine", {}).get("enabled", True) # TODO: assume it's present in the settings output, no need to default here
+                enabled=attributes.get("quarantine", {}).get("enabled", False) or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE")) # ꙮ
             )
 
         except KeyError:

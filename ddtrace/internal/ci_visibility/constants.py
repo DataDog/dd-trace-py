@@ -86,3 +86,5 @@ TEST_IS_QUARANTINED = "test.quarantine.is_quarantined"
 TEST_EFD_ABORT_REASON = "test.early_flake.abort_reason"
 TEST_EFD_ENABLED = "test.early_flake.enabled"
 TEST_HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
+
+TEST_SESSION_QUARANTINE_ENABLED = "test_session.quarantine.enabled"
