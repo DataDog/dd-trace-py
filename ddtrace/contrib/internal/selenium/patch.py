@@ -28,8 +28,6 @@ if (window.DD_RUM && window.DD_RUM.stopSession) {
 
 _DEFAULT_FLUSH_SLEEP_MS = 500
 
-_WRAPPING_CONTEXTS_STORES = set()
-
 
 def _get_flush_sleep_ms() -> int:
     env_flush_sleep_ms = os.getenv("DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS")
@@ -166,26 +164,22 @@ def patch() -> None:
 
     @when_imported("selenium.webdriver.remote.webdriver")
     def _(m):
-        global _WRAPPING_CONTEXTS_STORES
-        for wrapper in [
-            SeleniumGetWrappingContext(m.WebDriver.get),
-            SeleniumQuitWrappingContext(m.WebDriver.quit),
-            SeleniumQuitWrappingContext(m.WebDriver.close),
-        ]:
-            wrapper.wrap()
-            _WRAPPING_CONTEXTS_STORES.add(wrapper)
+        SeleniumGetWrappingContext(m.WebDriver.get).wrap()
+        SeleniumQuitWrappingContext(m.WebDriver.quit).wrap()
+        SeleniumQuitWrappingContext(m.WebDriver.close).wrap()
 
     selenium._datadog_patch = True
 
 
 def unpatch() -> None:
     import selenium
+    from selenium.webdriver.remote.webdriver import WebDriver
 
     if not getattr(selenium, "_datadog_patch", False):
         return
 
-    global _WRAPPING_CONTEXTS_STORES
-    for wrapper in _WRAPPING_CONTEXTS_STORES:
-        wrapper.unwrap()
+    SeleniumGetWrappingContext.extract(WebDriver.get).unwrap()
+    SeleniumQuitWrappingContext.extract(WebDriver.quit).unwrap()
+    SeleniumQuitWrappingContext.extract(WebDriver.close).unwrap()
 
     selenium._datadog_patch = False
