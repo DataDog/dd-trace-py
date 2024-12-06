@@ -85,7 +85,7 @@ _stack_v2_atfork_child()
 __attribute__((constructor)) void
 _stack_v2_init()
 {
-    _stack_v2_atfork_child();
+    _set_pid(getpid());
 }
 
 void
