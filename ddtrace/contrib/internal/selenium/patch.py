@@ -167,12 +167,11 @@ def patch() -> None:
     @when_imported("selenium.webdriver.remote.webdriver")
     def _(m):
         global _WRAPPING_CONTEXTS_STORES
-        for wrapper_tup in [
-            (SeleniumGetWrappingContext, m.WebDriver.get),
-            (SeleniumQuitWrappingContext, m.WebDriver.quit),
-            (SeleniumQuitWrappingContext, m.WebDriver.close),
+        for wrapper in [
+            SeleniumGetWrappingContext(m.WebDriver.get),
+            SeleniumQuitWrappingContext(m.WebDriver.quit),
+            SeleniumQuitWrappingContext(m.WebDriver.close),
         ]:
-            wrapper = wrapper_tup[0](wrapper_tup[1])
             wrapper.wrap()
             _WRAPPING_CONTEXTS_STORES.add(wrapper)
 
