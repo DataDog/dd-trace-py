@@ -6,7 +6,7 @@ Enabling
 ~~~~~~~~
 
 The Selenium integration is enabled by default in test contexts (eg: pytest, or unittest). Use
-:func:`patch()<ddtrace.patch>` to enable the integration:
+:func:`patch()<ddtrace.patch>` to enable the integration::
 
     from ddtrace import patch
     patch(selenium=True)
