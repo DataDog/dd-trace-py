@@ -34,6 +34,9 @@ class StackRenderer : public RendererInterface
 {
     Sample* sample = nullptr;
     ThreadState thread_state = {};
+    // Whether task name has been pushed for the current sample. Whenever
+    // the sample is created, this has to be reset.
+    bool pushed_task_name = false;
 
     virtual void render_message(std::string_view msg) override;
     virtual void render_thread_begin(PyThreadState* tstate,
