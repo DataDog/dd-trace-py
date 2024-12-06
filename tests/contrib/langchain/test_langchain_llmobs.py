@@ -1057,12 +1057,10 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
     @staticmethod
     def _call_gemini_chat_model(ChatGoogleGenerativeAI, HumanMessage):
-        # TODO: fix mocking for gemini models
-        import google.generativeai
-        from google.generativeai import client as client_lib
-
+        from langchain_google_genai import _genai_extension as genaix
+        
         mock_client = MockGenerativeModelClient()
-        client_lib._client_manager.clients["generative"] = mock_client
+        genaix.build_generative_service = mock.MagicMock(return_value=mock_client)
         mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         chat = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
         messages = [HumanMessage(content="Why do bears hibernate?")]
@@ -1070,12 +1068,11 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
     @staticmethod
     def _call_gemini_llm(GoogleGenerativeAI):
-        # TODO: fix mocking for gemini models
         import google.generativeai
         from google.generativeai import client as client_lib
 
         mock_client = MockGenerativeModelClient()
-        client_lib._client_manager.clients["generative"] = mock_client
+        client_lib.get_default_generative_client = mock.MagicMock(return_value=mock_client)
         mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         llm = GoogleGenerativeAI(model="gemini-1.5-flash")
         messages = [HumanMessage(content="Why do bears hibernate?")]
@@ -1158,8 +1155,8 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True, vertexai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        
         self._call_vertexai_llm(VertexAI)
-
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess
@@ -1168,6 +1165,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+
         self._call_vertexai_llm(VertexAI)
         self._assert_trace_structure_from_writer_call_args(["llm"])
 
@@ -1180,7 +1178,18 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
 
         self._call_gemini_chat_model(ChatGoogleGenerativeAI, HumanMessage)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+    
+    @run_in_subprocess
+    def test_llmobs_with_chat_model_gemini_disabled(self):
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        from langchain_core.messages import HumanMessage
+
+        patch(langchain=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+
+        self._call_gemini_chat_model(ChatGoogleGenerativeAI, HumanMessage)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
     
     @run_in_subprocess
     def test_llmobs_with_llm_model_gemini_enabled(self):
@@ -1188,9 +1197,19 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True, google_generativeai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        
         self._call_gemini_llm(GoogleGenerativeAI)
-
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+    
+    @run_in_subprocess
+    def test_llmobs_with_llm_model_gemini_disabled(self):
+        from langchain_google_genai import GoogleGenerativeAI
+
+        patch(langchain=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        
+        self._call_gemini_llm(GoogleGenerativeAI)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
     
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_chat_model_bedrock_enabled(self):
