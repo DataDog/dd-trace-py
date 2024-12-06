@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestId
@@ -21,8 +22,8 @@ from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
 from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
-from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
-from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished_test
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -119,20 +120,20 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self._span.set_exc_info(self._exc_info.exc_type, self._exc_info.exc_value, self._exc_info.exc_traceback)
 
     def _telemetry_record_event_created(self):
-        record_event_created(
-            event_type=self._event_type_metric_name,
+        record_event_created_test(
             test_framework=self._session_settings.test_framework_metric_name,
-            is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
+            is_benchmark=self._is_benchmark,
         )
 
     def _telemetry_record_event_finished(self):
-        record_event_finished(
-            event_type=self._event_type_metric_name,
+        record_event_finished_test(
             test_framework=self._session_settings.test_framework_metric_name,
-            is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
-            is_new=self._is_new if self._is_new is not None else None,
+            is_benchmark=self._is_benchmark,
+            is_new=self.is_new(),
             is_retry=self._efd_is_retry or self._atr_is_retry,
             early_flake_detection_abort_reason=self._efd_abort_reason,
+            is_rum=self._is_rum(),
+            browser_driver=self._get_browser_driver(),
         )
 
     def finish_test(
@@ -143,6 +144,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         override_finish_time: Optional[float] = None,
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, reason: %s", self, status, reason)
+
+        self.set_tag(test.TYPE, SpanTypes.TEST)
+
         if status is not None:
             self.set_status(status)
         if reason is not None:
@@ -379,3 +383,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             return TestStatus.PASS
 
         return TestStatus.FAIL
+
+    #
+    # Selenium / RUM functionality
+    #
+    def _is_rum(self):
+        if self._span is None:
+            return False
+        return self._span.get_tag("is_rum_active") == "true"
+
+    def _get_browser_driver(self):
+        if self._span is None:
+            return None
+        return self._span.get_tag("test.browser.driver")

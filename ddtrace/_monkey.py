@@ -100,6 +100,7 @@ PATCH_MODULES = {
     "subprocess": True,
     "unittest": True,
     "coverage": False,
+    "selenium": True,
 }
 
 
