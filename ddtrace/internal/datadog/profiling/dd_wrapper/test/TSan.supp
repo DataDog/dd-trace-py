@@ -1,1 +1,2 @@
 race:moodycamel::ConcurrentQueueDefaultTraits::free
+race:moodycamel::ConcurrentQueue<std::__1::unique_ptr<Datadog::Sample
