@@ -23,7 +23,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Document
 from ddtrace.pin import Pin
 
@@ -148,19 +147,18 @@ class OpenAIIntegration(BaseLLMIntegration):
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = "embedding" if operation == "embedding" else "llm"
-        span.set_tag_str(SPAN_KIND, span_kind)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
-        span.set_tag_str(MODEL_NAME, model_name or "")
         model_provider = "azure_openai" if self._is_azure_openai(span) else "openai"
-        span.set_tag_str(MODEL_PROVIDER, model_provider)
         if operation == "completion":
             self._llmobs_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat(span, kwargs, response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
-        metrics = self._set_llmobs_metrics_tags(span, response)
-        span.set_tag_str(METRICS, safe_json(metrics))
+        metrics = self._extract_llmobs_metrics_tags(span, response)
+        span._set_ctx_items(
+            {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
+        )
 
     @staticmethod
     def _llmobs_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], completions: Any) -> None:
@@ -168,20 +166,18 @@ class OpenAIIntegration(BaseLLMIntegration):
         prompt = kwargs.get("prompt", "")
         if isinstance(prompt, str):
             prompt = [prompt]
-        span.set_tag_str(INPUT_MESSAGES, safe_json([{"content": str(p)} for p in prompt]))
-
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt")}
-        span.set_tag_str(METADATA, safe_json(parameters))
-
-        if span.error or not completions:
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
-            return
-        if hasattr(completions, "choices"):  # non-streaming response
-            choices = completions.choices
-        else:  # streamed response
-            choices = completions
-        messages = [{"content": _get_attr(choice, "text", "")} for choice in choices]
-        span.set_tag_str(OUTPUT_MESSAGES, safe_json(messages))
+        output_messages = [{"content": ""}]
+        if not span.error and completions:
+            choices = getattr(completions, "choices", completions)
+            output_messages = [{"content": _get_attr(choice, "text", "")} for choice in choices]
+        span._set_ctx_items(
+            {
+                INPUT_MESSAGES: [{"content": str(p)} for p in prompt],
+                METADATA: parameters,
+                OUTPUT_MESSAGES: output_messages,
+            }
+        )
 
     @staticmethod
     def _llmobs_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
@@ -189,16 +185,14 @@ class OpenAIIntegration(BaseLLMIntegration):
         input_messages = []
         for m in kwargs.get("messages", []):
             input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
-        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
-
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
-        span.set_tag_str(METADATA, safe_json(parameters))
+        span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
         if span.error or not messages:
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
+            span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
             return
-        output_messages = []
         if isinstance(messages, list):  # streamed response
+            output_messages = []
             for streamed_message in messages:
                 message = {"content": streamed_message["content"], "role": streamed_message["role"]}
                 tool_calls = streamed_message.get("tool_calls", [])
@@ -213,9 +207,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                         for tool_call in tool_calls
                     ]
                 output_messages.append(message)
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
+            span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
             return
         choices = _get_attr(messages, "choices", [])
+        output_messages = []
         for idx, choice in enumerate(choices):
             tool_calls_info = []
             choice_message = _get_attr(choice, "message", {})
@@ -241,7 +236,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                 output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
                 continue
             output_messages.append({"content": content, "role": role})
-        span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
+        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
     @staticmethod
     def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: Dict[str, Any], resp: Any) -> None:
@@ -250,7 +245,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         metadata = {"encoding_format": encoding_format}
         if kwargs.get("dimensions"):
             metadata["dimensions"] = kwargs.get("dimensions")
-        span.set_tag_str(METADATA, safe_json(metadata))
 
         embedding_inputs = kwargs.get("input", "")
         if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
@@ -258,20 +252,19 @@ class OpenAIIntegration(BaseLLMIntegration):
         input_documents = []
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
-        span.set_tag_str(INPUT_DOCUMENTS, safe_json(input_documents))
-
+        span._set_ctx_items({METADATA: metadata, INPUT_DOCUMENTS: input_documents})
         if span.error:
             return
         if encoding_format == "float":
             embedding_dim = len(resp.data[0].embedding)
-            span.set_tag_str(
+            span._set_ctx_item(
                 OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
             )
             return
-        span.set_tag_str(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
+        span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
-    def _set_llmobs_metrics_tags(span: Span, resp: Any) -> Dict[str, Any]:
+    def _extract_llmobs_metrics_tags(span: Span, resp: Any) -> Dict[str, Any]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         token_usage = _get_attr(resp, "usage", None)
         if token_usage is not None:
