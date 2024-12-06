@@ -106,6 +106,44 @@ class SpanProcessor(metaclass=abc.ABCMeta):
             log.warning("Span processor %r not registered", self)
 
 
+class ProductSpanProcessor:
+    def __init__(self) -> None:
+        log.debug("initialized product span processor %r", self)
+
+    def on_span_start(self, span: Span) -> None:
+        """Called when a span is started.
+
+        This method is useful for making upfront decisions on spans.
+
+        For example, a sampling decision can be made when the span is created
+        based on its resource name.
+        """
+        raise NotImplementedError
+
+    def on_span_finish(self, span: Span) -> None:
+        """Called with the result of any previous processors or initially with
+        the finishing span when a span finishes.
+
+        It can return any data which will be passed to any processors that are
+        applied afterward.
+        """
+        raise NotImplementedError
+
+    def on_fork(self):
+        """Called when the process forks.
+
+        Can be used to re-initialize threads.
+        """
+        pass
+
+    def shutdown(self, timeout: Optional[float]) -> None:
+        """Called when the processor is done being used.
+
+        Any clean-up or flushing should be performed with this method.
+        """
+        raise NotImplementedError
+
+
 class TraceSamplingProcessor(TraceProcessor):
     """Processor that runs both trace and span sampling rules.
 

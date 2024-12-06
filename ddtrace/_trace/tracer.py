@@ -20,6 +20,7 @@ from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.processor import ProductSpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
@@ -214,6 +215,7 @@ class Tracer(object):
         maybe_start_serverless_mini_agent()
 
         self._filters: List[TraceFilter] = []
+        self._product_span_processors = []
 
         # globally set tags
         self._tags = config.tags.copy()
@@ -312,6 +314,9 @@ class Tracer(object):
             key,
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
+
+    def _register_product_span_processor(self, processor: ProductSpanProcessor):
+        self._product_span_processors.append(processor)
 
     def sample(self, span):
         if self._sampler is not None:
@@ -661,6 +666,9 @@ class Tracer(object):
         if config.service:
             self._services.add(config.service)
 
+        for p in self._product_span_processors:
+            p.on_fork()
+
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
@@ -875,6 +883,9 @@ class Tracer(object):
         # is not the next active span then this is an error in synchronous tracing.
         if span._parent is not None and active is not span._parent:
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
+
+        for p in self._product_span_processors:
+            p.on_span_finish(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or self._apm_opt_out:

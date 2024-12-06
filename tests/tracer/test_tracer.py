@@ -6,6 +6,7 @@ tests for Tracer and utilities.
 import contextlib
 import gc
 import logging
+import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
@@ -15,9 +16,11 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace import Span
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _is_top_level
 from ddtrace._trace.tracer import Tracer
+from ddtrace._trace.processor import ProductSpanProcessor
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
@@ -2087,3 +2090,47 @@ def test_gc_not_used_on_root_spans():
     #     print("referrers:", [f"object {objects.index(r)}" for r in gc.get_referrers(obj)[:-2]])
     #     print("referents:", [f"object {objects.index(r)}" if r in objects else r for r in gc.get_referents(obj)])
     #     print("--------------------")
+
+
+class TestTracerSpanProcessor:
+
+    def test_register(self) -> None:
+        class SP(ProductSpanProcessor):
+            def __init__(self):
+                self.spans = []
+                super().__init__()
+
+            def on_span_finish(self, span: Span) -> None:
+                self.spans.append(span)
+
+        tracer = Tracer()
+        sp1 = SP()
+        tracer._register_product_span_processor(sp1)
+        with tracer.trace("test"):
+            pass
+        assert len(sp1.spans) == 1
+
+        sp2, sp3 = SP(), SP()
+        tracer._register_product_span_processor(sp2)
+        tracer._register_product_span_processor(sp3)
+        with tracer.trace("test"):
+            pass
+        assert len(sp2.spans) == 1
+        assert len(sp3.spans) == 1
+
+    def test_fork_recreate(self):
+        class SP(ProductSpanProcessor):
+            def __init__(self):
+                self.recreated = False
+                super().__init__()
+
+            def on_fork(self):
+                self.recreated = True
+
+        sp = SP()
+        tracer = Tracer()
+        tracer._register_product_span_processor(sp)
+        pid = os.fork()
+        if pid == 0:
+            assert sp.recreated is True
+            os._exit(0)
