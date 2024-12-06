@@ -87,6 +87,9 @@ jobs:
         run: |
           NEW_LATEST=$(python scripts/get_latest_version.py ${{ env.VENV_NAME }})
           echo "NEW_LATEST=$NEW_LATEST" >> $GITHUB_ENV
+      
+      - name: Update supported versions table
+        run: python generate_table.py
 
       - name: Create Pull Request
         id: pr
