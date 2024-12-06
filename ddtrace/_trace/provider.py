@@ -14,9 +14,46 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-_DD_CONTEXTVAR: contextvars.ContextVar[Optional[Union[Context, Span]]] = contextvars.ContextVar(
-    "datadog_contextvar", default=None
-)
+class ContextVarManager:
+    """
+    In the implementation of ContextVar, when a key is re-associated with a new value the underlying HAMT must clone
+    a level of the tree in order to maintain immutability. This operation requires de-referencing pointers to Python
+    objects stored in the Context, which typically includes objects not created or managed by this library. It's
+    possible for such objects to have mis-managed reference counts (speculatively:  in order to convert their
+    ContextVar storage from a strong to a weak reference). When such objects are de-referenced--as they would be when
+    a reassoc from this code forces a clone--it could cause heap corruption or a segmentation fault.
+
+    Accordingly, we try to prevent reassoc events when possible by storing a long-lived wrapper object and only setting
+    the target value within that object.
+
+    tl;dr: Don't call `set()` on a context var a second time.
+    """
+
+    def __init__(self) -> None:
+        pass
+
+    def get(self) -> Optional[Union[Context, Span]]:
+        wrapper = _DD_ACTUAL_CONTEXTVAR.get()
+        if wrapper is None:
+            return None
+        return wrapper.value
+
+    def set(self, value: Optional[Union[Context, Span]]) -> None:
+        wrapper = _DD_ACTUAL_CONTEXTVAR.get()
+        if wrapper is None:
+            wrapper = ContextVarWrapper()
+            _DD_ACTUAL_CONTEXTVAR.set(wrapper)
+        wrapper.value = value
+
+
+class ContextVarWrapper:
+    def __init__(self) -> None:
+        self.value: Optional[Union[Context, Span]] = None
+
+
+# Initialize the context manager
+_DD_ACTUAL_CONTEXTVAR = contextvars.ContextVar[Optional[ContextVarWrapper]]("datadog_contextvar", default=None)
+_DD_CONTEXTVAR = ContextVarManager()
 
 
 class BaseContextProvider(metaclass=abc.ABCMeta):
