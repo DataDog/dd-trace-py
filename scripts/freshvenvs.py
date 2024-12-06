@@ -13,6 +13,8 @@ from typing import Optional
 
 from packaging.version import Version
 from pip import _internal
+import ddtrace
+from ddtrace._monkey import PATCH_MODULES
 
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -204,6 +206,8 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
     # print(lock_packages)
     return lock_packages
 
+def _is_module_autoinstrumented(module: str) -> bool:
+    return module in PATCH_MODULES and PATCH_MODULES[module]
 
 def _versions_fully_cover_bounds(bounds: typing.Tuple[str, str], versions: typing.List[str]) -> bool:
     """Return whether the tested versions cover the full range of supported versions"""
@@ -257,28 +261,18 @@ def main():
     all_required_modules = _get_integrated_modules()
     all_required_packages = _get_updatable_packages_implementing(all_required_modules) # these are MODULE names
     contrib_modules = _get_all_modules(all_required_modules)
-    # print(contrib_modules, "\n")
     envs = _get_riot_envs_including_any(all_required_modules)
-    # print(envs)
+    patched = {}
 
-    # for package in all_required_packages:
-    #     ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
-    #     if not ordered:
-    #         continue
-
-    #     if not _versions_fully_cover_bounds(bounds[package], ordered) and package not in pinned_packages:
-    #         print(
-    #             f"{package}: policy supports version {bounds[package][0]} through {bounds[package][1]} "
-    #             f"but only these versions are used: {[str(v) for v in ordered]}"
-    #         )
     contrib_packages = contrib_modules
     # remap 
     for mod in mapping_module_to_package:
         contrib_packages.remove(mod)
         contrib_packages.add(mapping_module_to_package[mod])
-    # print(contrib_packages, "\n")
+        patched[mapping_module_to_package[mod]] = _is_module_autoinstrumented(mod)
+
+
     all_used_versions = _get_all_used_versions(envs, contrib_packages)
-    # print(all_used_versions)
     bounds = _get_version_bounds(contrib_packages)
     # print(bounds)
     # Generate supported versions
@@ -290,12 +284,14 @@ def main():
         if not ordered:
             continue
         json_format = {"integration": package, "minimum_tracer_supported": str(ordered[-1]),
-                "max_tracer_supported": str(ordered[0]),
-                "minumum_available_supported": bounds[package][0],
-                "maximum_available_supported": bounds[package][1] }
+                "max_tracer_supported": str(ordered[0])}
 
         if package in pinned_packages:
             json_format["pinned"] = "true"
+        
+        if package not in patched: 
+            patched[package] = _is_module_autoinstrumented(package)
+        json_format["auto-instrumented"] = patched[package]
         supported_versions.append(json_format)
 
     supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
