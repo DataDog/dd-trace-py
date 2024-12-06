@@ -4,6 +4,7 @@ import dataclasses
 from http.client import RemoteDisconnected
 import json
 from json import JSONDecodeError
+import os
 import socket
 import typing as t
 from uuid import uuid4
@@ -39,6 +40,7 @@ from ddtrace.internal.ci_visibility.utils import combine_url_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
@@ -380,8 +382,6 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()
 
-            from ddtrace.internal.utils.formats import asbool
-            import os
             quarantine = QuarantineSettings(
                 enabled=attributes.get("quarantine", {}).get("enabled", False) or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE")) # ꙮ
             )
@@ -395,7 +395,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skipping_enabled=skipping_enabled,
             require_git=require_git,
             itr_enabled=itr_enabled,
-            flaky_test_retries_enabled=flaky_test_retries_enabled,
+            flaky_test_retries_enabled=flaky_test_retries_enabled or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_ATR")), # ꙮ
             early_flake_detection=early_flake_detection,
             quarantine=quarantine,
         )
