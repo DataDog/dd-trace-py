@@ -51,8 +51,8 @@ def _get_outcome_from_retry(
     # _initrequest() needs to be called first because the test has already executed once
     item._initrequest()
 
-    #breakpoint()
-    item._report_sections = [] # ??
+    # Reset output capture across retries.
+    item._report_sections = []
 
     # Setup
     setup_call, setup_report = _retry_run_when(item, "setup", outcomes)
@@ -114,11 +114,10 @@ def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _p
     if report.outcome == "passed":
         report.outcome = outcomes.PASSED
     elif report.outcome == "failed" or report.outcome == "error":
-        report.outcome = outcomes.FAILED # QQQ
+        report.outcome = outcomes.FAILED
     elif report.outcome == "skipped":
         report.outcome = outcomes.SKIPPED
     # Only log for actual test calls, or failures
-    is_quarantined = True # DEBUG
-    if (when == "call" or "passed" not in report.outcome): # and not is_quarantined:
+    if when == "call" or "passed" not in report.outcome:
         item.ihook.pytest_runtest_logreport(report=report)
     return call, report

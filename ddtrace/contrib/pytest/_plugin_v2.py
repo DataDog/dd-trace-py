@@ -293,7 +293,7 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
         InternalTest.set_parameters(test_id, parameters)
 
     InternalTest.start(test_id)
-    #breakpoint()
+
     _handle_itr_should_skip(item, test_id)
 
     item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
@@ -426,7 +426,6 @@ def _process_result(item, call, result) -> _TestOutcome:
 
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
-
     # When ATR or EFD retries are active, we do not want makereport to generate results
     if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
         return
@@ -438,23 +437,6 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     is_quarantined = InternalTest.is_quarantined_test(test_id)
 
     test_outcome = _process_result(item, call, original_result)
-
-    #print(f"\n==> ME OLHA:\n  {item=}\n  {call=}\n  {outcome=}\n  {test_outcome=}")
-
-    # if is_quarantined and test_outcome.status is not None:
-    #     original_result.outcome = 'quarantined'
-
-    #### Quarantine shenanigans
-    # is_quarantined = 'fail' in item.name # DEBUG
-    # if is_quarantined:
-    # #     InternalTest.stash_set(test_id, "is_quarantined", True)
-    #     if ((test_outcome.status is not None and call.when == "setup")
-    #         or
-    #         (test_outcome.status is not None and call.when == "teardown")
-    #         or
-    #         (call.when == "call")):
-    #         original_result.outcome = 'quarantined'
-
 
     # A None value for test_outcome.status implies the test has not finished yet
     # Only continue to finishing the test if the test has finished, or if tearing down the test

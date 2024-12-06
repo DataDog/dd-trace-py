@@ -272,7 +272,7 @@ class TestVisibilityItemBase(abc.ABC):
         pass
 
     def _set_quarantine_tags(self) -> None:
-        """** TODO **"""
+        """Quarantine tags are only set at the test or session level"""
         pass
 
     def _set_span_tags(self):
