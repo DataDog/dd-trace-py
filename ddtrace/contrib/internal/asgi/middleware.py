@@ -273,9 +273,10 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message):
-                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
+                core.dispatch("asgi.block.started", (ctx, url))
+                result = ctx.get_item("asgi.block.started")
                 if result:
-                    status, headers, content = result.value
+                    status, headers, content = result
                 else:
                     status, headers, content = 403, [], b""
                 if span and message.get("type") == "http.response.start":

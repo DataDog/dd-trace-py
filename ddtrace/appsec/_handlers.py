@@ -173,6 +173,7 @@ def _on_request_span_modifier(
                     wsgi_input.seek(0)
                 else:
                     environ["wsgi.input"] = io.BytesIO(body)
+    ctx.set_item("flask.request_call_modifier", req_body)
     return req_body
 
 
@@ -202,7 +203,7 @@ def _wsgi_make_block_content(ctx, construct_url):
     headers = ctx.get_item("headers")
     environ = ctx.get_item("environ")
     if req_span is None:
-        raise ValueError("request span not found")
+        return
     block_config = get_blocked()
     desired_type = block_config.get("type", "auto")
     ctype = None
@@ -233,6 +234,7 @@ def _wsgi_make_block_content(ctx, construct_url):
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
     resp_headers.append(("Content-Length", str(len(content))))
+    ctx.set_item("wsgi.block.started", (status, resp_headers, content))
     return status, resp_headers, content
 
 
@@ -242,7 +244,7 @@ def _asgi_make_block_content(ctx, url):
     headers = ctx.get_item("headers")
     environ = ctx.get_item("environ")
     if req_span is None:
-        raise ValueError("request span not found")
+        return
     block_config = get_blocked()
     desired_type = block_config.get("type", "auto")
     ctype = None
@@ -276,6 +278,7 @@ def _asgi_make_block_content(ctx, url):
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
+    ctx.set_item("asgi.block.started", (status, resp_headers, content))
     return status, resp_headers, content
 
 
