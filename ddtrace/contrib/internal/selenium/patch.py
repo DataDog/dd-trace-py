@@ -158,7 +158,6 @@ def get_version() -> str:
         return ""
 
 
-
 def patch() -> None:
     import selenium
 
