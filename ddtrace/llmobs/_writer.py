@@ -55,8 +55,7 @@ class LLMObsSpanEvent(TypedDict):
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
-    span_id: str
-    trace_id: str
+    join_on: Dict[str, Dict[str, str]]
     metric_type: str
     label: str
     categorical_value: str
@@ -106,6 +105,13 @@ class BaseLLMObsWriter(PeriodicService):
                 return
             events = self._buffer
             self._buffer = []
+
+        if not self._headers.get("DD-API-KEY"):
+            logger.warning(
+                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. ",
+                "Ensure this configuration is set before running your application.",
+            )
+            return
 
         data = self._data(events)
         try:
@@ -158,7 +164,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
         self._event_type = "evaluation_metric"
         self._buffer = []
-        self._endpoint = "/api/intake/llm-obs/v1/eval-metric"
+        self._endpoint = "/api/intake/llm-obs/v2/eval-metric"
         self._intake = "api.%s" % self._site  # type: str
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
