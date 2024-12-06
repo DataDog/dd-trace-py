@@ -170,13 +170,10 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return false;
 
     /* Avoid loops */
-    if (memalloc_get_reentrant())
+    if (!memalloc_take_guard())
         return false;
 
-    memalloc_set_reentrant(true);
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory, domain);
-    memalloc_set_reentrant(false);
-
     if (tb) {
         if (global_heap_tracker.frozen)
             traceback_array_append(&global_heap_tracker.freezer.allocs, tb);
@@ -189,9 +186,11 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         /* Compute the new target sample size */
         global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(global_heap_tracker.sample_size);
 
+        memalloc_yield_guard();
         return true;
     }
 
+    memalloc_yield_guard();
     return false;
 }
 
