@@ -572,6 +572,9 @@ class TestRedisPatchSnapshot(TracerTestCase):
         # Global config
         with self.override_config("redis", dict(service="cfg-redis")):
             self.r.get("cheese")
+            spans = self.tracer.pop()
+            assert spans
+            assert spans[0].service == "cfg-redis", f"service name is {spans[0].service}"
 
         self.reset()
 
