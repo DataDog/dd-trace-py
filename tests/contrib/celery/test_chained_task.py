@@ -3,8 +3,6 @@ import signal
 import subprocess
 import time
 
-import celery
-
 
 # Ensure that when we call Celery chains, the root span has celery specific span tags
 # The test_integration.py setup doesn't perfectly mimic the condition of a worker process running.
