@@ -1,4 +1,5 @@
 import os
+import re
 import signal
 import subprocess
 import time
@@ -38,7 +39,8 @@ def test_task_chain_task_call_task():
     time.sleep(5)
     worker_process.wait()
     worker_logs = worker_process.stderr.read()
+    print(worker_logs)
 
-    # TODO FIX THIS ASSERTION (since this log will be removed)
-    # At the moment, this specific will fail on the `main` branch, which is exactly what we want
-    assert "The task_postrun signal was not called" not in str(worker_logs)
+    # Check that the root span was created with one of the Celery specific tags, such as celery.correlation_id
+    pattern_match = r"resource=\'tests.contrib.celery.tasks.fn_a\' type=\'worker\' start=.*. end=.*. duration=.* error=0 tags=.*correlation_id.*"
+    assert re.search(pattern_match, str(worker_logs)) is not None
