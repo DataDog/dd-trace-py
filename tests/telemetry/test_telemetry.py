@@ -66,7 +66,10 @@ else:
 
 
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
-    """assert app-heartbeat events are only sent in parent process when no other events are queued"""
+    """
+    assert app-heartbeat events are also sent in forked processes since otherwise the dependency collection
+    would be lost in pre-fork models after one hour.
+    """
     code = """
 import warnings
 # This test logs the following warning in py3.12:
@@ -76,11 +79,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
 
 import ddtrace # enables telemetry
-from ddtrace.internal.runtime import get_runtime_id
-
-if os.fork() > 0:
-    # Print the parent process runtime id for validation
-    print(get_runtime_id())
 
 # Heartbeat events are only sent if no other events are queued
 from ddtrace.internal.telemetry import telemetry_writer
@@ -94,13 +92,9 @@ telemetry_writer.periodic(force_flush=True)
     assert status == 0, stderr
     assert stderr == b"", stderr
 
-    runtime_id = stdout.strip().decode("utf-8")
-
     # Allow test agent session to capture all heartbeat events
     app_heartbeats = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False, subprocess=True)
-    assert len(app_heartbeats) > 0
-    for hb in app_heartbeats:
-        assert hb["runtime_id"] == runtime_id
+    assert len(app_heartbeats) > 1
 
 
 def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
