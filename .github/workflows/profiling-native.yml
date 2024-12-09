@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ddtrace/internal/datadog/profiling/**
+      -
     branches:
       - main
       - "mq-working-branch**"
@@ -32,6 +33,8 @@ jobs:
 
       - name: Install llvm 19
         run: |
+          # Ubuntu-24.04 GH actions image has llvm-18, but we use 19 as it's
+          # the latest one available.
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 19
