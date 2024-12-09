@@ -6,8 +6,7 @@ static py::object
 api_lower_text(const py::object& orig_function,
                   const int flag_added_args,
                   const py::args& args,
-                  const py::kwargs& kwargs,
-                  const std::string& lower_func)
+                  const py::kwargs& kwargs)
 {
     PyObject* result_or_args = process_flag_added_args(orig_function.ptr(), flag_added_args, args.ptr(), kwargs.ptr());
     py::tuple args_tuple;
@@ -18,6 +17,7 @@ api_lower_text(const py::object& orig_function,
     }
 
     const auto& text = args_tuple[0];
+    string lower_func = "lower";
 
     const py::tuple sliced_args = len(args) > 1 ? args[py::slice(1, len(args), 1)] : py::tuple(); // (,)
     auto result_o = text.attr(lower_func.c_str())(*sliced_args, **kwargs);
@@ -38,9 +38,9 @@ api_lower_text(const py::object& orig_function,
 
 void pyexport_aspect_lower(py::module& m){
     m.def(
-        "_aspect_lower",
+        "aspect_lower",
         [](const py::object& orig_function, const int flag_added_args, const py::args& args, const py::kwargs& kwargs) {
-            return api_lower_text(orig_function, flag_added_args, args, kwargs, "lower");
+            return api_lower_text(orig_function, flag_added_args, args, kwargs);
         },
         "orig_function"_a = py::none(),
         "flag_added_args"_a = 0,

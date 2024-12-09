@@ -13,14 +13,15 @@ struct ThreadContextCache_
 Initializer::Initializer()
 {
     // Fill the taintedobjects stack
-    for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
-        available_taintedobjects_stack.push(make_shared<TaintedObject>());
-    }
-
-    // Fill the ranges stack
-    for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
-        available_ranges_stack.push(make_shared<TaintRange>());
-    }
+    // for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
+    //     available_taintedobjects_stack.push(make_shared<TaintedObject>());
+    // }
+    //
+    // // Fill the ranges stack
+    // for (int i = 0; i < TAINTRANGES_STACK_SIZE; i++) {
+    //     available_ranges_stack.push(make_shared<TaintRange>());
+    // }
+    this->create_context();
 }
 
 TaintRangeMapTypePtr

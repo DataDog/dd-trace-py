@@ -22,49 +22,13 @@ from .._utils import _is_python_version_supported
 log = get_logger(__name__)
 
 if _is_python_version_supported():
-    from ._native import ops
-    from ._native.aspect_format import _format_aspect
-    from ._native.aspect_helpers import _convert_escaped_text_to_tainted_text
-    from ._native.aspect_helpers import as_formatted_evidence
-    from ._native.aspect_helpers import common_replace
-    from ._native.aspect_helpers import parse_params
-    from ._native.aspect_helpers import set_ranges_on_splitted
-    from ._native.aspect_split import _aspect_rsplit
-    from ._native.aspect_split import _aspect_split
-    from ._native.aspect_split import _aspect_splitlines
-    from ._native.aspect_lower import _aspect_lower
-    from ._native.aspects_ospath import _aspect_ospathbasename
-    from ._native.aspects_ospath import _aspect_ospathdirname
-    from ._native.aspects_ospath import _aspect_ospathjoin
-    from ._native.aspects_ospath import _aspect_ospathnormcase
-    from ._native.aspects_ospath import _aspect_ospathsplit
-    from ._native.aspects_ospath import _aspect_ospathsplitdrive
-    from ._native.aspects_ospath import _aspect_ospathsplitext
-    from ._native.aspects_ospath import _aspect_ospathsplitroot
-    from ._native.initializer import active_map_addreses_size
-    from ._native.initializer import create_context
-    from ._native.initializer import debug_taint_map
-    from ._native.initializer import initializer_size
-    from ._native.initializer import num_objects_tainted
-    from ._native.initializer import reset_context
-    from ._native.initializer import reset_contexts
-    from ._native.taint_tracking import OriginType
-    from ._native.taint_tracking import Source
-    from ._native.taint_tracking import TagMappingMode
-    from ._native.taint_tracking import are_all_text_all_ranges
-    from ._native.taint_tracking import copy_and_shift_ranges_from_strings
-    from ._native.taint_tracking import copy_ranges_from_strings
-    from ._native.taint_tracking import get_range_by_hash
-    from ._native.taint_tracking import get_ranges
-    from ._native.taint_tracking import is_notinterned_notfasttainted_unicode
-    from ._native.taint_tracking import is_tainted
-    from ._native.taint_tracking import origin_to_str
-    from ._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
-    from ._native.taint_tracking import set_ranges
-    from ._native.taint_tracking import shift_taint_range
-    from ._native.taint_tracking import shift_taint_ranges
-    from ._native.taint_tracking import str_to_origin
-    from ._native.taint_tracking import taint_range as TaintRange
+    from ._native import OriginType
+    from ._native import Source
+    from ._native import TagMappingMode
+    from ._native import get_ranges
+    from ._native import origin_to_str
+    from ._native import set_ranges
+    from ._native import taint_range as TaintRange
 
     new_pyobject_id = ops.new_pyobject_id
     set_ranges_from_values = ops.set_ranges_from_values
@@ -74,52 +38,7 @@ __all__ = [
     "Source",
     "TagMappingMode",
     "TaintRange",
-    "_aspect_modulo",
-    "_aspect_ospathbasename",
-    "_aspect_ospathdirname",
-    "_aspect_ospathjoin",
-    "_aspect_ospathnormcase",
-    "_aspect_ospathsplit",
-    "_aspect_ospathsplitdrive",
-    "_aspect_ospathsplitext",
-    "_aspect_ospathsplitroot",
-    "_aspect_rsplit",
-    "_aspect_split",
-    "_aspect_splitlines",
-    "_aspect_lower",
-    "_aspect_str",
-    "_convert_escaped_text_to_tainted_text",
-    "_format_aspect",
-    "active_map_addreses_size",
-    "are_all_text_all_ranges",
-    "as_formatted_evidence",
-    "aspect_helpers",
-    "common_replace",
-    "copy_and_shift_ranges_from_strings",
-    "copy_ranges_from_strings",
-    "create_context",
-    "debug_taint_map",
-    "get_range_by_hash",
-    "get_ranges",
-    "iast_taint_log_error",
-    "initializer_size",
-    "is_notinterned_notfasttainted_unicode",
-    "is_pyobject_tainted",
-    "modulo_aspect",
-    "new_pyobject_id",
-    "num_objects_tainted",
-    "origin_to_str",
-    "parse_params",
-    "reset_context",
-    "reset_contexts",
-    "set_fast_tainted_if_notinterned_unicode",
-    "set_ranges",
-    "set_ranges_on_splitted",
-    "setup",
-    "shift_taint_range",
-    "shift_taint_ranges",
-    "str_to_origin",
-    "taint_pyobject",
+    "lower_aspect",
 ]
 
 

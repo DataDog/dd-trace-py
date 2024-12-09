@@ -7,17 +7,17 @@ use crate::set_ranges;
 use pyo3::types::PyString;
 
 #[pyfunction]
-#[pyo3(signature = (orig_function=None, flag_added_args=0, lower_func="lower", *args, **kwargs))]
-pub fn api_lower_text(
+#[pyo3(signature = (orig_function=None, flag_added_args=0, *args, **kwargs))]
+pub fn aspect_lower(
     py: Python,
     orig_function: Option<&Bound<'_, PyAny>>,
     flag_added_args: i32,
-    lower_func: &str,
     args: &Bound<'_, PyTuple>,
     kwargs: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<PyObject> {
     // Call process_flag_added_args
     let result_or_args = utils::process_flag_added_args(py, orig_function, flag_added_args, args, kwargs)?;
+    let lower_func = "lower";
 
     // Check if result_or_args is a tuple
     if let Ok(args_tuple) = result_or_args.extract::<Bound<'_, PyTuple>>() {

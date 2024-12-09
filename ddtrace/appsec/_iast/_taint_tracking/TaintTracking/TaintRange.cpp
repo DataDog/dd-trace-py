@@ -214,7 +214,7 @@ pyexport_taintrange(py::module& m)
 
     // Fake constructor, used to force calling allocate_taint_range for performance reasons
     m.def(
-      "taint_range",
+      "TaintRange",
       [](const RANGE_START start, const RANGE_LENGTH length, const Source& source) {
           return initializer->allocate_taint_range(start, length, source);
       },

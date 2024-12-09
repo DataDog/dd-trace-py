@@ -28,7 +28,7 @@ fn native_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(reset_context_py, m)?)?;
     m.add_function(wrap_pyfunction!(get_ranges, m)?)?;
     m.add_function(wrap_pyfunction!(set_ranges, m)?)?;
-    m.add_function(wrap_pyfunction!(aspect_lower::api_lower_text, m)?)?;
+    m.add_function(wrap_pyfunction!(aspect_lower::aspect_lower, m)?)?;
 
     // Add your classes to the module
     m.add_class::<OriginType>()?;

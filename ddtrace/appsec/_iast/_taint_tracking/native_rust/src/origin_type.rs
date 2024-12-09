@@ -6,7 +6,7 @@ use pyo3::basic::CompareOp;
 #[pyclass(module = "native_rust")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OriginType {
-    Parameter = 0,
+    PARAMETER = 0,
     ParameterName = 1,
     Header = 2,
     HeaderName = 3,
@@ -31,7 +31,7 @@ impl OriginType {
     #[staticmethod]
     pub fn from_int(value: u32) -> PyResult<Self> {
         match value {
-            0 => Ok(OriginType::Parameter),
+            0 => Ok(OriginType::PARAMETER),
             1 => Ok(OriginType::ParameterName),
             2 => Ok(OriginType::Header),
             3 => Ok(OriginType::HeaderName),

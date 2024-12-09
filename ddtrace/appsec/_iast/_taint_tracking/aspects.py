@@ -22,25 +22,6 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
-from .._taint_tracking import _aspect_ospathbasename
-from .._taint_tracking import _aspect_ospathdirname
-from .._taint_tracking import _aspect_ospathjoin
-from .._taint_tracking import _aspect_ospathnormcase
-from .._taint_tracking import _aspect_ospathsplit
-from .._taint_tracking import _aspect_ospathsplitdrive
-from .._taint_tracking import _aspect_ospathsplitext
-from .._taint_tracking import _aspect_ospathsplitroot
-from .._taint_tracking import _aspect_rsplit
-from .._taint_tracking import _aspect_split
-from .._taint_tracking import _aspect_splitlines
-from .._taint_tracking import _aspect_lower
-from .._taint_tracking import _convert_escaped_text_to_tainted_text
-from .._taint_tracking import _format_aspect
-from .._taint_tracking import are_all_text_all_ranges
-from .._taint_tracking import as_formatted_evidence
-from .._taint_tracking import common_replace
-from .._taint_tracking import copy_and_shift_ranges_from_strings
-from .._taint_tracking import copy_ranges_from_strings
 from .._taint_tracking import copy_ranges_to_iterable_with_strings
 from .._taint_tracking import copy_ranges_to_string
 from .._taint_tracking import get_ranges
@@ -75,7 +56,6 @@ rsplit_aspect = _aspect_rsplit
 slice_aspect = aspects.slice_aspect
 split_aspect = _aspect_split
 splitlines_aspect = _aspect_splitlines
-lower_aspect = _aspect_lower
 str_aspect = aspects.str_aspect
 
 __all__ = [
@@ -97,7 +77,7 @@ __all__ = [
     "index_aspect",
     "join_aspect",
     "ljust_aspect",
-    "lower_aspect",
+    "aspect_lower",
     "modulo_aspect",
     "ospathbasename_aspect",
     "ospathdirname_aspect",
@@ -604,7 +584,7 @@ def upper_aspect(
         return candidate_text.upper(*args, **kwargs)
 
 
-def lower_aspect_python(
+def aspect_lower(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
 ) -> Union[TEXT_TYPES]:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
