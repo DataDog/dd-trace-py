@@ -39,7 +39,7 @@ run-tests-trigger:
   stage: tests-trigger
   trigger:
     include:
-      - local: dramatiq.yml
+      - local: .gitlab/dramatiq.yml
     strategy: depend
 
 # requirements_json_test:
