@@ -86,8 +86,7 @@ check_new_flaky_tests:
   stage: quality-gate
   extends: .testrunner
   script:
-    - npm install axios@latest
-    - npm install --save-dev @datadog/datadog-ci
+    - curl -L --fail "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64" --output "/usr/local/bin/datadog-ci" && chmod +x /usr/local/bin/datadog-ci
     - datadog-ci gate evaluate
   only:
     - erikayasuda/test-new-flake
