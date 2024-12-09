@@ -112,6 +112,13 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     // If we're here, we're about to create a new upload, so cancel any inflight ones
     cancel_inflight();
 
+    // Create a new cancellation token.  Maybe we can get away without doing this, but
+    // since we're recreating the uploader fresh every time anyway, we recreate one more thing.
+    // NB wrapping this in a unique_ptr to easily add RAII semantics; maybe should just wrap it in a
+    // class instead.
+    std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel_for_request(
+      ddog_CancellationToken_clone(cancel.get()));
+
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
     // we ensure exclusivity here.
     {
@@ -120,7 +127,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         // Build and check the response object
         ddog_prof_Exporter_Request* req = build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
         ddog_prof_Exporter_SendResult res =
-          ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel.get());
+          ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request.get());
         if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
             auto err = res.err;                              // NOLINT (cppcoreguidelines-pro-type-union-access)
             errmsg = err_to_msg(&err, "Error uploading");
