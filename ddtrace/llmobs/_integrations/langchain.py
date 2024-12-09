@@ -57,6 +57,9 @@ SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
+    def start_prompt_context(self, *args, **kwargs):
+        pass
+
     def _llmobs_set_tags(
         self,
         span: Span,
