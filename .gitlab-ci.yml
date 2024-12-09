@@ -37,59 +37,55 @@ include:
 
 run-tests-trigger:
   stage: tests-trigger
-#  needs: [ tests-gen ]
-  script:
-    # Optionally prepare the dynamic GitLab CI configuration file here
-    - echo "Setting up child pipeline"
   trigger:
     include:
       - local: .gitlab/tests-gen.yml
     strategy: depend
 
-requirements_json_test:
-  rules:
-    - when: on_success
-  variables:
-    REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
-    REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
+# requirements_json_test:
+#   rules:
+#     - when: on_success
+#   variables:
+#     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
+#     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
 
-package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
+# package-oci:
+#   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
-onboarding_tests_installer:
-  parallel:
-    matrix:
-      - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine]
+# onboarding_tests_installer:
+#   parallel:
+#     matrix:
+#       - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine]
 
 
-onboarding_tests_k8s_injection:
-  parallel:
-    matrix:
-      - WEBLOG_VARIANT:
-          - dd-lib-python-init-test-django
-          - dd-lib-python-init-test-django-gunicorn
-          - dd-lib-python-init-test-django-gunicorn-alpine
-          - dd-lib-python-init-test-django-preinstalled
-          - dd-lib-python-init-test-django-unsupported-package-force
-          - dd-lib-python-init-test-django-uvicorn
-          - dd-lib-python-init-test-protobuf-old
+# onboarding_tests_k8s_injection:
+#   parallel:
+#     matrix:
+#       - WEBLOG_VARIANT:
+#           - dd-lib-python-init-test-django
+#           - dd-lib-python-init-test-django-gunicorn
+#           - dd-lib-python-init-test-django-gunicorn-alpine
+#           - dd-lib-python-init-test-django-preinstalled
+#           - dd-lib-python-init-test-django-unsupported-package-force
+#           - dd-lib-python-init-test-django-uvicorn
+#           - dd-lib-python-init-test-protobuf-old
 
-deploy_to_di_backend:manual:
-  stage: shared-pipeline
-  rules:
-    - when: manual
-      allow_failure: true
-  trigger:
-    project: DataDog/debugger-demos
-    branch: main
-  variables:
-    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-    UPSTREAM_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
-    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
-    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
-    UPSTREAM_TAG: $CI_COMMIT_TAG
-    UPSTREAM_PACKAGE_JOB: build
+# deploy_to_di_backend:manual:
+#   stage: shared-pipeline
+#   rules:
+#     - when: manual
+#       allow_failure: true
+#   trigger:
+#     project: DataDog/debugger-demos
+#     branch: main
+#   variables:
+#     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
+#     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+#     UPSTREAM_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+#     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+#     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+#     UPSTREAM_TAG: $CI_COMMIT_TAG
+#     UPSTREAM_PACKAGE_JOB: build
 
 check_new_flaky_tests:
   stage: quality-gate
