@@ -95,7 +95,5 @@ deploy_to_di_backend:manual:
     script:
       - npm install --save-dev @datadog/datadog-ci
       - datadog-ci gate evaluate
-    rules:
-      - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "rndweek/qualitygates"
-        when: always
-      - when: never
+    only:
+      - erikayasuda/test-new-flake
