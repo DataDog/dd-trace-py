@@ -21,8 +21,6 @@ def test_task_chain_task_call_task():
         cwd=str(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
     )
 
-    # Wait a few seconds for the celery worker to start up before trying to run tasks
-    time.sleep(5)
     task_runner_process = subprocess.Popen(
         celery_task_runner_cmd.split(),
         stdout=subprocess.PIPE,
@@ -36,10 +34,9 @@ def test_task_chain_task_call_task():
 
     # Kill the process so it starts to send traces to the Trace Agent
     os.killpg(worker_process.pid, signal.SIGKILL)
-    time.sleep(5)
+
     worker_process.wait()
     worker_logs = worker_process.stderr.read()
-    print(worker_logs)
 
     # Check that the root span was created with one of the Celery specific tags, such as celery.correlation_id
     pattern_match = r"resource=\'tests.contrib.celery.tasks.fn_a\' type=\'worker\' .* tags=.*correlation_id.*"
