@@ -38,4 +38,7 @@ jobs:
 
       - name: Run tests with sanitizers
         run: |
+          # DEV: We currently have tests in dd_wrapper and stack_v2, setting
+          # stack_v2 here will also run tests in dd_wrapper. Revisit this when
+          # that changes.
           ./ddtrace/internal/datadog/profiling/build_standalone.sh --${{matrix.sanitizer}} RelWithDebInfo stack_v2_test
