@@ -34,6 +34,7 @@ RUN apt-get update \
       gnupg \
       jq \
       libbz2-dev \
+      libenchant-dev \
       libffi-dev \
       liblzma-dev \
       libmemcached-dev \
@@ -48,6 +49,7 @@ RUN apt-get update \
       libssh-dev \
       libssl-dev \
       patch \
+      python-openssl \
       unixodbc-dev \
       wget \
       zlib1g-dev \
