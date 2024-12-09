@@ -77,6 +77,10 @@ tests/coverage                                        @DataDog/apm-core-python @
 tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
 ddtrace/ext/git.py                                    @DataDog/ci-app-libraries @DataDog/apm-core-python
 scripts/ci_visibility/*                               @DataDog/ci-app-libraries
+# Test Visibility owns the freezegun integration because it's the team most affected by it
+ddtrace/contrib/freezegun                             @DataDog/ci-app-libraries
+ddtrace/contrib/internal/freezegun                    @DataDog/ci-app-libraries
+tests/contrib/freezegun                               @DataDog/ci-app-libraries
 # Test Visibility: Selenium integration
 ddtrace/contrib/selenium                              @DataDog/ci-app-libraries
 ddtrace/internal/selenium                             @DataDog/ci-app-libraries
