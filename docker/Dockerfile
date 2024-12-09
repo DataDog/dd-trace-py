@@ -68,7 +68,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; \
   then \
     curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg \
     && mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg \
-    && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-bookworm-prod bookwormmain" > /etc/apt/sources.list.d/dotnetdev.list \
+    && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-bookworm-prod bookworm main" > /etc/apt/sources.list.d/dotnetdev.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.0.6280-1; \
   fi
