@@ -221,7 +221,7 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
-        dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
+        dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)  # noqa: DDC001
         dd_env_msg = ""
 
         if ddconfig._ci_visibility_agentless_enabled:

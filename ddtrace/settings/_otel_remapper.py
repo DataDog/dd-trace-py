@@ -75,15 +75,8 @@ def _remap_traces_sampler(otel_value: str) -> Optional[str]:
     elif otel_value == "parentbased_always_off":
         return "0.0"
     elif otel_value == "parentbased_traceidratio":
-<<<<<<< HEAD
-        return os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
-    return None
-=======
         return os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")  # noqa: DDC001
-    else:
-        log.warning("Unknown sampling configuration: %s.", otel_value)
-        return otel_value
->>>>>>> 50992ad09 (v1)
+    return None
 
 
 def _remap_traces_exporter(otel_value: str) -> Optional[str]:
