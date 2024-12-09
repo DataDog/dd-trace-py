@@ -1,0 +1,2 @@
+# Probably a false positive from lock-free data structure
+race:moodycamel::ConcurrentQueue
