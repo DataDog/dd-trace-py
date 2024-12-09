@@ -8,11 +8,9 @@ To start the service manually, invoke the ``enable`` method::
 
 from ._experiments import Dataset
 from ._experiments import Experiment
-from ._experiments import ExperimentResults
-from ._experiments import FileType
 from ._experiments import task
 from ._experiments import evaluator
 from ._llmobs import LLMObs
 
 
-__all__ = ["LLMObs", "Dataset", "Experiment", "ExperimentResults", "FileType", "task", "evaluator"]
+__all__ = ["LLMObs", "Dataset", "Experiment", "task", "evaluator"]
