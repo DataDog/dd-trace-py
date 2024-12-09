@@ -2,7 +2,6 @@ import os
 import re
 import signal
 import subprocess
-import time
 
 
 # Ensure that when we call Celery chains, the root span has celery specific span tags
