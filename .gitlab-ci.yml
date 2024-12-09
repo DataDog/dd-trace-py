@@ -85,7 +85,6 @@ run-tests-trigger:
 check_new_flaky_tests:
   stage: quality-gate
   image: registry.ddbuild.io/images/mirror/kindest/node:v1.27.1-kind-v0.19.0
-  script:
     - npm install --save-dev @datadog/datadog-ci
     - datadog-ci gate evaluate
   only:
