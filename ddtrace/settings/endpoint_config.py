@@ -20,8 +20,8 @@ log = get_logger(__name__)
 
 RETRIES = 1
 try:
-    if CONFIG_ENDPOINT_RETRIES_ENV in os.environ:
-        RETRIES = int(os.getenv(CONFIG_ENDPOINT_RETRIES_ENV, str(RETRIES)))
+    if CONFIG_ENDPOINT_RETRIES_ENV in os.environ:  # noqa: DDC001
+        RETRIES = int(os.getenv(CONFIG_ENDPOINT_RETRIES_ENV, str(RETRIES)))  # noqa: DDC001
 except ValueError:
     log.error("Invalid value for %s. Using default value: %s", CONFIG_ENDPOINT_RETRIES_ENV, RETRIES)
 
@@ -32,8 +32,8 @@ def _get_retries():
 
 TIMEOUT = DEFAULT_TIMEOUT
 try:
-    if CONFIG_ENDPOINT_TIMEOUT_ENV in os.environ:
-        TIMEOUT = int(os.getenv(CONFIG_ENDPOINT_TIMEOUT_ENV, str(TIMEOUT)))
+    if CONFIG_ENDPOINT_TIMEOUT_ENV in os.environ:  # noqa: DDC001
+        TIMEOUT = int(os.getenv(CONFIG_ENDPOINT_TIMEOUT_ENV, str(TIMEOUT)))  # noqa: DDC001
 except ValueError:
     log.error("Invalid value for %s. Using default value: %s", CONFIG_ENDPOINT_TIMEOUT_ENV, TIMEOUT)
 
@@ -59,7 +59,7 @@ def fetch_config_from_endpoint() -> dict:
     """
     Fetch the configuration from the configuration endpoint.
     """
-    config_endpoint = os.getenv(CONFIG_ENDPOINT_ENV, None)
+    config_endpoint = os.getenv(CONFIG_ENDPOINT_ENV, None)  # noqa: DDC001
 
     if config_endpoint is None:
         log.debug("Configuration endpoint not set. Skipping fetching configuration.")

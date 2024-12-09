@@ -164,7 +164,7 @@ def detect_service(args: List[str]) -> Optional[str]:
         # List of detectors to try in order
         detectors = {}
         for detector_class in detector_classes:
-            detector_instance = detector_class(dict(os.environ))
+            detector_instance = detector_class(dict(os.environ))  # noqa: DDC001
 
             for i, command in enumerate(possible_commands):
                 detector_name = detector_instance.name

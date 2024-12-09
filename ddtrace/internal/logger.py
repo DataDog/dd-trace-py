@@ -113,7 +113,7 @@ class DDLogger(logging.Logger):
         # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
         # Allow configuring via `DD_TRACE_LOGGING_RATE`
         # DEV: `DD_TRACE_LOGGING_RATE=0` means to disable all rate limiting
-        rate_limit = os.getenv("DD_TRACE_LOGGING_RATE", default=None)
+        rate_limit = os.getenv("DD_TRACE_LOGGING_RATE", default=None)  # noqa: DDC001
 
         if rate_limit is not None:
             self.rate_limit = int(rate_limit)

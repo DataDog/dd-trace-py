@@ -46,9 +46,9 @@ class IntegrationConfig(AttrDict):
         analytics_enabled, analytics_sample_rate = self._get_analytics_settings()
         self.setdefault("analytics_enabled", analytics_enabled)
         self.setdefault("analytics_sample_rate", float(analytics_sample_rate))
-        service = os.getenv(
+        service = os.getenv(  # noqa: DDC001
             "DD_%s_SERVICE" % name.upper(),
-            default=os.getenv(
+            default=os.getenv(  # noqa: DDC001
                 "DD_%s_SERVICE_NAME" % name.upper(),
                 default=None,
             ),
@@ -72,7 +72,7 @@ class IntegrationConfig(AttrDict):
         # Inject environment variables for integration
         env = "DD_TRACE_%s_ANALYTICS_ENABLED" % self.integration_name.upper()
         legacy_env = "DD_%s_ANALYTICS_ENABLED" % self.integration_name.upper()
-        analytics_enabled = asbool(os.getenv(env, os.getenv(legacy_env, default=None)))
+        analytics_enabled = asbool(os.getenv(env, os.getenv(legacy_env, default=None)))  # noqa: DDC001
 
         if analytics_enabled:
             deprecate(
@@ -84,9 +84,9 @@ class IntegrationConfig(AttrDict):
             )
 
         analytics_sample_rate = float(
-            os.getenv(
+            os.getenv(  # noqa: DDC001
                 "DD_TRACE_%s_ANALYTICS_SAMPLE_RATE" % self.integration_name.upper(),
-                os.getenv("DD_%s_ANALYTICS_SAMPLE_RATE" % self.integration_name.upper(), default=1.0),
+                os.getenv("DD_%s_ANALYTICS_SAMPLE_RATE" % self.integration_name.upper(), default=1.0),  # noqa: DDC001
             )
         )
 
@@ -94,7 +94,9 @@ class IntegrationConfig(AttrDict):
 
     def get_http_tag_query_string(self, value):
         if self.global_config._http_tag_query_string:
-            dd_http_server_tag_query_string = value if value else os.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
+            dd_http_server_tag_query_string = (
+                value if value else os.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")  # noqa: DDC001
+            )
             # If invalid value, will default to True
             return dd_http_server_tag_query_string.lower() not in ("false", "0")
         return False

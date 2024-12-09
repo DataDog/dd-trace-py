@@ -28,7 +28,7 @@ config._add(
         _default_service=schematize_service_name("sqlite"),
         _dbapi_span_name_prefix="sqlite",
         _dbapi_span_operation_name=schematize_database_operation("sqlite.query", database_provider="sqlite"),
-        trace_fetch_methods=asbool(os.getenv("DD_SQLITE_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_SQLITE_TRACE_FETCH_METHODS", default=False)),  # noqa: DDC001
     ),
 )
 

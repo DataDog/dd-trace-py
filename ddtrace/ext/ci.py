@@ -97,7 +97,7 @@ def _get_runtime_and_os_metadata():
 def tags(env=None, cwd=None):
     # type: (Optional[MutableMapping[str, str]], Optional[str]) -> Dict[str, str]
     """Extract and set tags from provider environ, as well as git metadata."""
-    env = os.environ if env is None else env
+    env = os.environ if env is None else env  # noqa: DDC001
     tags = {}  # type: Dict[str, Optional[str]]
     for key, extract in PROVIDERS:
         if key in env:

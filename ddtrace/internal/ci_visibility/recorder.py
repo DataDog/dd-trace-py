@@ -153,12 +153,12 @@ class CIVisibility(Service):
         if tracer:
             self.tracer = tracer
         else:
-            if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+            if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):  # noqa: DDC001
                 log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
                 url = ddconfig._trace_agent_url
 
-                env_agent_url = os.getenv("_CI_DD_AGENT_URL")
+                env_agent_url = os.getenv("_CI_DD_AGENT_URL")  # noqa: DDC001
                 if env_agent_url is not None:
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     url = env_agent_url
@@ -178,9 +178,9 @@ class CIVisibility(Service):
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
 
-        self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
+        self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))  # noqa: DDC001
 
-        self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
+        self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)  # noqa: DDC001
         self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
         self._itr_skipping_level: ITR_SKIPPING_LEVEL = ddconfig.test_visibility.itr_skipping_level
         self._itr_skipping_ignore_parameters: bool = ddconfig.test_visibility._itr_skipping_ignore_parameters
@@ -306,7 +306,7 @@ class CIVisibility(Service):
     @staticmethod
     def _should_collect_coverage(coverage_enabled_by_api):
         if not coverage_enabled_by_api and not asbool(
-            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
+            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)  # noqa: DDC001
         ):
             return False
         if not is_coverage_available():
@@ -423,7 +423,9 @@ class CIVisibility(Service):
 
     @classmethod
     def test_skipping_enabled(cls):
-        if not cls.enabled or asbool(os.getenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False)):
+        if not cls.enabled or asbool(
+            os.getenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False)  # noqa: DDC001
+        ):
             return False
         return cls._instance and cls._instance._api_settings.skipping_enabled
 
@@ -441,13 +443,13 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return cls._instance._api_settings.flaky_test_retries_enabled and asbool(
-            os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True)
+            os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True)  # noqa: DDC001
         )
 
     @classmethod
     def should_collect_coverage(cls):
         return cls._instance._api_settings.coverage_enabled or asbool(
-            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
+            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)  # noqa: DDC001
         )
 
     def _fetch_tests_to_skip(self):
@@ -514,7 +516,7 @@ class CIVisibility(Service):
         # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
         log.debug("Enabling %s", cls.__name__)
         if ddconfig._ci_visibility_agentless_enabled:
-            if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
+            if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):  # noqa: DDC001
                 log.critical(
                     "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"
                     " DD_API_KEY is not set",
@@ -602,7 +604,7 @@ class CIVisibility(Service):
                 )
 
         if self._api_settings.flaky_test_retries_enabled and not asbool(
-            os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", True)
+            os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", True)  # noqa: DDC001
         ):
             log.warning(
                 "Auto Test Retries is enabled by API but disabled by "
@@ -794,7 +796,7 @@ class CIVisibility(Service):
             max_retries = 5
             max_session_total_retries = 1000
 
-            env_max_retries = os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT")
+            env_max_retries = os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT")  # noqa: DDC001
             if env_max_retries is not None:
                 try:
                     max_retries = int(env_max_retries)
@@ -803,7 +805,7 @@ class CIVisibility(Service):
                         "Failed to parse DD_CIVISIBILITY_FLAKY_RETRY_COUNT, using default value: %s", max_retries
                     )
 
-            env_max_session_total_retries = os.environ.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT")
+            env_max_session_total_retries = os.environ.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT")  # noqa: DDC001
             if env_max_session_total_retries is not None:
                 try:
                     max_session_total_retries = int(env_max_session_total_retries)

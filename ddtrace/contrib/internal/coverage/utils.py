@@ -21,6 +21,6 @@ def _command_invokes_coverage_run(sys_argv_command: List[str]) -> bool:
 
 
 def _is_coverage_invoked_by_coverage_run() -> bool:
-    if os.environ.get("COVERAGE_RUN", False):
+    if os.environ.get("COVERAGE_RUN", False):  # noqa: DDC001
         return True
     return _command_invokes_coverage_run(_original_sys_argv_command)

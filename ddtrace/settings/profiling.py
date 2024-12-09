@@ -109,9 +109,9 @@ def _parse_profiling_enabled(raw: str) -> bool:
     # Try to derive two bits of information
     # - Are we injected (DD_INJECTION_ENABLED set) (almost certainly already populated correctly by core_config)
     # - Is profiling enabled ("profiler" in the list)
-    if os.environ.get("DD_INJECTION_ENABLED") is not None:
+    if os.environ.get("DD_INJECTION_ENABLED") is not None:  # noqa: DDC001
         _profiling_injected = True
-        for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
+        for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):  # noqa: DDC001
             if tok.strip().lower() == "profiler":
                 return True
 
@@ -155,7 +155,7 @@ def _enrich_tags(tags) -> t.Dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
-            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),  # noqa: DDC001
             tags.items(),
         )
     }

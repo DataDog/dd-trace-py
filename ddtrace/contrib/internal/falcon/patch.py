@@ -17,7 +17,7 @@ FALCON_VERSION = parse_version(falcon.__version__)
 config._add(
     "falcon",
     dict(
-        distributed_tracing=asbool(os.getenv("DD_FALCON_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(os.getenv("DD_FALCON_DISTRIBUTED_TRACING", default=True)),  # noqa: DDC001
     ),
 )
 

@@ -316,11 +316,11 @@ IAST_DENYLIST: Tuple[Text, ...] = (
 )
 
 
-if IAST.PATCH_MODULES in os.environ:
-    IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
+if IAST.PATCH_MODULES in os.environ:  # noqa: DDC001
+    IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))  # noqa: DDC001
 
-if IAST.DENY_MODULES in os.environ:
-    IAST_DENYLIST += tuple(os.environ[IAST.DENY_MODULES].split(IAST.SEP_MODULES))
+if IAST.DENY_MODULES in os.environ:  # noqa: DDC001
+    IAST_DENYLIST += tuple(os.environ[IAST.DENY_MODULES].split(IAST.SEP_MODULES))  # noqa: DDC001
 
 
 ENCODING = ""

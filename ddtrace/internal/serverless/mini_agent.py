@@ -29,7 +29,7 @@ def maybe_start_serverless_mini_agent():
 
 
 def get_rust_binary_path():
-    rust_binary_path = os.getenv("DD_MINI_AGENT_PATH")
+    rust_binary_path = os.getenv("DD_MINI_AGENT_PATH")  # noqa: DDC001
 
     if rust_binary_path is not None:
         return rust_binary_path

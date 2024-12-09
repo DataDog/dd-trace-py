@@ -75,8 +75,15 @@ def _remap_traces_sampler(otel_value: str) -> Optional[str]:
     elif otel_value == "parentbased_always_off":
         return "0.0"
     elif otel_value == "parentbased_traceidratio":
+<<<<<<< HEAD
         return os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
     return None
+=======
+        return os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")  # noqa: DDC001
+    else:
+        log.warning("Unknown sampling configuration: %s.", otel_value)
+        return otel_value
+>>>>>>> 50992ad09 (v1)
 
 
 def _remap_traces_exporter(otel_value: str) -> Optional[str]:
@@ -162,7 +169,7 @@ def otel_remapping():
     Datadog Environment variables take precedence over OTEL, but if there isn't a Datadog value present,
     then OTEL values take their place.
     """
-    user_envs = {key.upper(): value for key, value in os.environ.items()}
+    user_envs = {key.upper(): value for key, value in os.environ.items()}  # noqa: DDC001
 
     for otel_env, otel_value in user_envs.items():
         if otel_env not in ENV_VAR_MAPPINGS:
@@ -198,6 +205,7 @@ def otel_remapping():
 
         telemetry_writer.add_configuration(otel_env, otel_value, "env_var")
         mapped_value = otel_config_validator(otel_value)
+
         if mapped_value is None:
             log.warning(
                 "Setting %s to %s is not supported by ddtrace, this configuration will be ignored.",
@@ -211,7 +219,7 @@ def otel_remapping():
                 (("config_opentelemetry", otel_env.lower()), ("config_datadog", dd_env.lower())),
             )
         elif mapped_value != "":
-            os.environ[dd_env] = mapped_value
+            os.environ[dd_env] = mapped_value  # noqa: DDC001
             log.debug(
                 "OpenTelemetry configuration %s has been remapped to ddtrace configuration %s=%s",
                 otel_env,

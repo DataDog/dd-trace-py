@@ -29,7 +29,7 @@ log = get_logger(__name__)
 
 def get_weak_cipher_algorithms() -> Set:
     CONFIGURED_WEAK_CIPHER_ALGORITHMS = None
-    DD_IAST_WEAK_CIPHER_ALGORITHMS = os.getenv("DD_IAST_WEAK_CIPHER_ALGORITHMS")
+    DD_IAST_WEAK_CIPHER_ALGORITHMS = os.getenv("DD_IAST_WEAK_CIPHER_ALGORITHMS")  # noqa: DDC001
     if DD_IAST_WEAK_CIPHER_ALGORITHMS:
         CONFIGURED_WEAK_CIPHER_ALGORITHMS = set(
             algo.strip() for algo in DD_IAST_WEAK_CIPHER_ALGORITHMS.lower().split(",")

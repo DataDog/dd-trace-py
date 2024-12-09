@@ -123,14 +123,17 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = intake_url if intake_url else config._ci_visibility_agentless_url
             intake_cov_url = intake_url
         if not intake_url:
-            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
+            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))  # noqa: DDC001
 
         clients = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
         if coverage_enabled:
             if not intake_cov_url:
-                intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
+                intake_cov_url = "%s.%s" % (
+                    AGENTLESS_COVERAGE_BASE_URL,
+                    os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE),  # noqa: DDC001
+                )
             clients.append(
                 CIVisibilityProxiedCoverageClient(
                     intake_url=intake_cov_url,

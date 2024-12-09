@@ -59,7 +59,7 @@ class EvaluatorRunnerSampler:
 
     def parse_rules(self) -> List[EvaluatorRunnerSamplingRule]:
         rules = []
-        sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR)
+        sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR)  # noqa: DDC001
         telemetry_writer.add_configuration("_DD_LLMOBS_EVALUATOR_SAMPLING_RULES", sampling_rules_str, origin="env")
 
         def parsing_failed_because(msg, maybe_throw_this):

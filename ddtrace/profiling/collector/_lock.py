@@ -69,7 +69,7 @@ def _current_thread():
 
 # We need to know if wrapt is compiled in C or not. If it's not using the C module, then the wrappers function will
 # appear in the stack trace and we need to hide it.
-if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
+if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):  # noqa: DDC001
     WRAPT_C_EXT = False
 else:
     try:

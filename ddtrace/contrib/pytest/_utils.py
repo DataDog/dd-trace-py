@@ -30,7 +30,7 @@ log = get_logger(__name__)
 
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
-_USE_PLUGIN_V2 = asbool(os.environ.get("DD_PYTEST_USE_NEW_PLUGIN_BETA", "false"))
+_USE_PLUGIN_V2 = asbool(os.environ.get("DD_PYTEST_USE_NEW_PLUGIN_BETA", "false"))  # noqa: DDC001
 
 
 class _PYTEST_STATUS:
@@ -128,8 +128,8 @@ def _get_session_command(session: pytest.Session):
     command = "pytest"
     if getattr(session.config, "invocation_params", None):
         command += " {}".format(" ".join(session.config.invocation_params.args))
-    if os.environ.get("PYTEST_ADDOPTS"):
-        command += " {}".format(os.environ.get("PYTEST_ADDOPTS"))
+    if os.environ.get("PYTEST_ADDOPTS"):  # noqa: DDC001
+        command += " {}".format(os.environ.get("PYTEST_ADDOPTS"))  # noqa: DDC001
     return command
 
 

@@ -37,8 +37,8 @@ def get_version():
 config._add(
     "httpx",
     {
-        "distributed_tracing": asbool(os.getenv("DD_HTTPX_DISTRIBUTED_TRACING", default=True)),
-        "split_by_domain": asbool(os.getenv("DD_HTTPX_SPLIT_BY_DOMAIN", default=False)),
+        "distributed_tracing": asbool(os.getenv("DD_HTTPX_DISTRIBUTED_TRACING", default=True)),  # noqa: DDC001
+        "split_by_domain": asbool(os.getenv("DD_HTTPX_SPLIT_BY_DOMAIN", default=False)),  # noqa: DDC001
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )

@@ -84,19 +84,19 @@ class LLMObs(Service):
 
         self._llmobs_span_writer = LLMObsSpanWriter(
             is_agentless=config._llmobs_agentless_enabled,
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),  # noqa: DDC001
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),  # noqa: DDC001
         )
 
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),  # noqa: DDC001
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),  # noqa: DDC001
         )
 
         self._evaluator_runner = EvaluatorRunner(
-            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
+            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),  # noqa: DDC001
             llmobs_service=self,
         )
 
@@ -192,7 +192,7 @@ class LLMObs(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
-        if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
+        if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):  # noqa: DDC001
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
 
@@ -201,9 +201,9 @@ class LLMObs(Service):
         config._dd_api_key = api_key or config._dd_api_key
         config.env = env or config.env
         config.service = service or config.service
-        if os.getenv("DD_LLMOBS_APP_NAME"):
+        if os.getenv("DD_LLMOBS_APP_NAME"):  # noqa: DDC001
             log.warning("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
-            config._llmobs_ml_app = ml_app or os.getenv("DD_LLMOBS_APP_NAME")
+            config._llmobs_ml_app = ml_app or os.getenv("DD_LLMOBS_APP_NAME")  # noqa: DDC001
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
@@ -226,7 +226,7 @@ class LLMObs(Service):
                     "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                     "Ensure this configuration is set before running your application."
                 )
-            if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
+            if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):  # noqa: DDC001
                 config._remote_config_enabled = False
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 remoteconfig_poller.disable()

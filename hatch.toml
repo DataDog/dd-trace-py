@@ -2,19 +2,18 @@
 detached = true
 python = "3.10"
 dependencies = [
-    "black==23.10.1",
-    "click==8.1.7",
-    "cython-lint==0.15.0",
-    "codespell==2.3.0",
     "bandit==1.7.5",
-    "mypy==0.991",
+    "black==23.10.1",
+    "clang-format==18.1.5",
+    "click==8.1.7",
+    "cmake-format==0.6.13",
+    "codespell==2.3.0",
     "coverage==7.3.0",
-    "envier==0.5.2",
-    "types-docutils==0.19.1.1",
-    "types-protobuf==3.20.4.5",
-    "types-PyYAML==6.0.12.2",
-    "types-setuptools==65.6.0.0",
+    "cython-lint==0.15.0",
     "ddapm-test-agent>=1.2.0",
+    "envier==0.5.2",
+    "flake8>=7.0.0",
+    "mypy==0.991",
     "packaging==23.1",
     "pygments==2.16.1",
     "riot==0.20.1",
@@ -35,6 +34,7 @@ cformat_check = [
     "bash scripts/cformat.sh"
 ]
 style = [
+    "flake8 {args:ddtrace} --select DDC",
     "black_check",
     "ruff check {args:.}",
     "cython-lint {args:.}",

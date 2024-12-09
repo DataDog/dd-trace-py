@@ -55,19 +55,21 @@ log = getLogger(__name__)
 
 
 class _TelemetryConfig:
-    API_KEY = os.environ.get("DD_API_KEY", None)
-    SITE = os.environ.get("DD_SITE", "datadoghq.com")
-    ENV = os.environ.get("DD_ENV", "")
-    SERVICE = os.environ.get("DD_SERVICE", _inferred_service or "unnamed-python-service")
-    VERSION = os.environ.get("DD_VERSION", "")
-    AGENTLESS_MODE = asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
-    HEARTBEAT_INTERVAL = float(os.environ.get("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
-    TELEMETRY_ENABLED = asbool(os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower())
-    DEPENDENCY_COLLECTION = asbool(os.environ.get("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "true"))
-    INSTALL_ID = os.environ.get("DD_INSTRUMENTATION_INSTALL_ID", None)
-    INSTALL_TYPE = os.environ.get("DD_INSTRUMENTATION_INSTALL_TYPE", None)
-    INSTALL_TIME = os.environ.get("DD_INSTRUMENTATION_INSTALL_TIME", None)
-    FORCE_START = asbool(os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false"))
+    API_KEY = os.environ.get("DD_API_KEY", None)  # noqa: DDC001
+    SITE = os.environ.get("DD_SITE", "datadoghq.com")  # noqa: DDC001
+    ENV = os.environ.get("DD_ENV", "")  # noqa: DDC001
+    SERVICE = os.environ.get("DD_SERVICE", _inferred_service or "unnamed-python-service")  # noqa: DDC001
+    VERSION = os.environ.get("DD_VERSION", "")  # noqa: DDC001
+    AGENTLESS_MODE = asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))  # noqa: DDC001
+    HEARTBEAT_INTERVAL = float(os.environ.get("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))  # noqa: DDC001
+    TELEMETRY_ENABLED = asbool(os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower())  # noqa: DDC001
+    DEPENDENCY_COLLECTION = asbool(os.environ.get("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "true"))  # noqa: DDC001
+    INSTALL_ID = os.environ.get("DD_INSTRUMENTATION_INSTALL_ID", None)  # noqa: DDC001
+    INSTALL_TYPE = os.environ.get("DD_INSTRUMENTATION_INSTALL_TYPE", None)  # noqa: DDC001
+    INSTALL_TIME = os.environ.get("DD_INSTRUMENTATION_INSTALL_TIME", None)  # noqa: DDC001
+    FORCE_START = asbool(
+        os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false")  # noqa: DDC001
+    )
 
 
 class LogData(dict):
@@ -192,7 +194,7 @@ class TelemetryWriter(PeriodicService):
         self.started = False
 
         # Debug flag that enables payload debug mode.
-        self._debug = os.environ.get("DD_TELEMETRY_DEBUG", "false").lower() in ("true", "1")
+        self._debug = os.environ.get("DD_TELEMETRY_DEBUG", "false").lower() in ("true", "1")  # noqa: DDC001
 
         self._enabled = _TelemetryConfig.TELEMETRY_ENABLED
 

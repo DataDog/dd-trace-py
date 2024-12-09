@@ -103,7 +103,7 @@ if config._llmobs_enabled:
 
     LLMObs.enable()
 
-if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
+if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):  # noqa: DDC001
     from ddtrace import patch_all
 
     @register_post_preload
@@ -111,7 +111,7 @@ if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         # We need to clean up after we have imported everything we need from
         # ddtrace, but before we register the patch-on-import hooks for the
         # integrations.
-        modules_to_patch = os.getenv("DD_PATCH_MODULES")
+        modules_to_patch = os.getenv("DD_PATCH_MODULES")  # noqa: DDC001
         modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         patch_all(**modules_to_bool)
@@ -119,8 +119,8 @@ if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
     if config._trace_methods:
         _install_trace_methods(config._trace_methods)
 
-if "DD_TRACE_GLOBAL_TAGS" in os.environ:
-    env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
+if "DD_TRACE_GLOBAL_TAGS" in os.environ:  # noqa: DDC001
+    env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")  # noqa: DDC001
     tracer.set_tags(parse_tags_str(env_tags))
 
 

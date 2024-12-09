@@ -121,7 +121,7 @@ class DataStreamsProcessor(PeriodicService):
     def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
         # type: (str, Optional[float], float, int) -> None
         if interval is None:
-            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)  # noqa: DDC001
         super(DataStreamsProcessor, self).__init__(interval=interval)
         self._agent_url = agent_url
         self._endpoint = "/v0.1/pipeline_stats"

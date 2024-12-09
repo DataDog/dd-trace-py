@@ -215,8 +215,8 @@ class _ConfigItem:
             self._default_value = default
         self._envs = envs
         for env_var, parser in envs:
-            if env_var in os.environ:
-                self._env_value = parser(os.environ[env_var])
+            if env_var in os.environ:  # noqa: DDC001
+                self._env_value = parser(os.environ[env_var])  # noqa: DDC001
                 break
         telemetry_writer.add_configuration(self._name, self.value(), self.source())
 
@@ -390,7 +390,7 @@ class Config(object):
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
 
-        sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+        sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")  # noqa: DDC001
         if sample_rate is not None:
             deprecate(
                 "DD_TRACE_SAMPLE_RATE is deprecated",
@@ -404,7 +404,7 @@ class Config(object):
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool)
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
-        rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
+        rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")  # noqa: DDC001
         if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
             # This warning will be logged when DD_TRACE_SAMPLE_RATE is set. This is intentional.
             # Even though DD_TRACE_SAMPLE_RATE is treated as a global trace sampling rule, this configuration
@@ -601,7 +601,7 @@ class Config(object):
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
-            os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+            os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"  # noqa: DDC001
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = _get_config("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True, asbool)
         if self._span_aggregator_rlock is False:

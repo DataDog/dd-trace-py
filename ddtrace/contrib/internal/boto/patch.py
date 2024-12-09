@@ -42,7 +42,7 @@ AWS_AUTH_TRACED_ARGS = {"path", "data", "host"}
 config._add(
     "boto",
     {
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),  # noqa: DDC001
     },
 )
 

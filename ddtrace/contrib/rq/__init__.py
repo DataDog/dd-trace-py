@@ -101,7 +101,7 @@ __all__ = ["patch", "unpatch", "get_version"]
 config._add(
     "rq",
     dict(
-        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
+        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),  # noqa: DDC001
         _default_service=schematize_service_name("rq"),
     ),
 )
@@ -109,7 +109,7 @@ config._add(
 config._add(
     "rq_worker",
     dict(
-        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
+        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),  # noqa: DDC001
         _default_service=schematize_service_name("rq-worker"),
     ),
 )

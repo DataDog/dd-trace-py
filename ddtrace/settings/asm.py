@@ -238,7 +238,10 @@ class ASMConfig(Env):
         # Is one click available?
         self._eval_asm_can_be_enabled()
         # Only for deprecation phase
-        if self._automatic_login_events_mode and APPSEC.AUTO_USER_INSTRUMENTATION_MODE not in os.environ:
+        if (
+            self._automatic_login_events_mode
+            and APPSEC.AUTO_USER_INSTRUMENTATION_MODE not in os.environ  # noqa: DDC001
+        ):
             self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode
         if not self._asm_libddwaf_available:
             self._asm_enabled = False
@@ -251,7 +254,7 @@ class ASMConfig(Env):
         self.__init__()
 
     def _eval_asm_can_be_enabled(self):
-        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled  # noqa: DDC001
 
     @property
     def _api_security_feature_active(self) -> bool:

@@ -14,9 +14,9 @@ from ddtrace.internal.utils.formats import asbool
 config._add(
     "celery",
     {
-        "distributed_tracing": asbool(os.getenv("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
-        "producer_service_name": os.getenv("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),
-        "worker_service_name": os.getenv("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),
+        "distributed_tracing": asbool(os.getenv("DD_CELERY_DISTRIBUTED_TRACING", default=False)),  # noqa: DDC001
+        "producer_service_name": os.getenv("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),  # noqa: DDC001
+        "worker_service_name": os.getenv("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),  # noqa: DDC001
     },
 )
 

@@ -54,7 +54,7 @@ def cleanup_loaded_modules():
         del sys.modules[module_name]
 
     MODULES_REQUIRING_CLEANUP = ("gevent",)
-    do_cleanup = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
+    do_cleanup = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()  # noqa: DDC001
     if do_cleanup == "auto":
         do_cleanup = any(is_module_installed(m) for m in MODULES_REQUIRING_CLEANUP)
 

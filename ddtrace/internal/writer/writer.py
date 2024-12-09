@@ -498,7 +498,7 @@ class AgentWriter(HTTPWriter):
         container.update_header_with_external_info(_headers)
 
         _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")  # noqa: DDC001
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
         self._response_cb = response_callback
@@ -582,7 +582,7 @@ class AgentWriter(HTTPWriter):
         try:
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
-            if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
+            if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (  # noqa: DDC001
                 asm_config._asm_enabled or config._remote_config_enabled
             ):
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc

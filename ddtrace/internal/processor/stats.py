@@ -92,7 +92,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
     def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
         # type: (str, Optional[float], float, int) -> None
         if interval is None:
-            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)  # noqa: DDC001
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self._agent_url = agent_url
         self._endpoint = "/v0.6/stats"
