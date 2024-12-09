@@ -66,13 +66,6 @@ _stack_v2_atfork_child()
     // The only thing we need to do at fork is to propagate the PID to echion
     // so we don't even reveal this function to the user
     _set_pid(getpid());
-    // We also need to recreate the lock used by echion
-    thread_info_map_lock.~mutex();
-    new (&thread_info_map_lock) std::mutex();
-    {
-        std::lock_guard<std::mutex> lock(thread_info_map_lock);
-        thread_info_map.clear();
-    }
     ThreadSpanLinks::postfork_child();
 }
 

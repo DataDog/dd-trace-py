@@ -162,21 +162,6 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     first_time.store(false);
 }
 
-std::string_view
-Datadog::Profile::insert_or_get(std::string_view str)
-{
-    const std::lock_guard<std::mutex> lock(string_table_mtx); // Serialize access
-
-    auto str_it = strings.find(str);
-    if (str_it != strings.end()) {
-        return *str_it;
-    }
-
-    string_storage.emplace_back(str);
-    strings.insert(string_storage.back());
-    return string_storage.back();
-}
-
 const Datadog::ValueIndex&
 Datadog::Profile::val()
 {
@@ -201,19 +186,6 @@ Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
 void
 Datadog::Profile::postfork_child()
 {
-    // DEV: Need to reset locks in child to avoid deadlock, and we recreate
-    // the data structures these lock protect.
-    profile_mtx.~mutex();
-    new (&profile_mtx) std::mutex();
+    profile_mtx.unlock();
     cycle_buffers();
-    string_table_mtx.~mutex();
-    new (&string_table_mtx) std::mutex();
-    reset_string_table();
-}
-
-void
-Datadog::Profile::reset_string_table()
-{
-    std::lock_guard<std::mutex> lock(string_table_mtx);
-    string_storage.clear();
 }
