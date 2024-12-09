@@ -36,7 +36,7 @@ pub fn process_flag_added_args<'a>(
             let arg_vec: Vec<PyObject> = args
                 .iter()
                 .skip(flag_added_args as usize)
-                .map(|item| item.into_py(py))
+                .map(|item| item.into())
                 .collect();
 
             // Create a new PyTuple

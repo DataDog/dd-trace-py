@@ -38,7 +38,7 @@ pub fn api_lower_text(
         // Check if the tx_map is empty
         let initializer = initializer::get_initializer();
         if initializer.is_empty() {
-            return Ok(result_o.into_py(py));
+            return Ok(result_o.into());
         }
 
         // Try-catch equivalent in Rust
@@ -61,9 +61,9 @@ pub fn api_lower_text(
             // Log or handle the error if needed
         }
 
-        Ok(result_o.into_py(py))
+        Ok(result_o.into())
     } else {
         // Return result_or_args as is
-        Ok(result_or_args.into_py(py))
+        Ok(result_or_args.into())
     }
 }

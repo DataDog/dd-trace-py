@@ -41,9 +41,4 @@ void
 pyexport_tainted_ops(py::module& m)
 {
     m.def("is_tainted", &api_is_tainted, "tainted_object"_a, py::return_value_policy::move);
-    m.def("are_all_text_all_ranges",
-          &are_all_text_all_ranges,
-          "candidate_text"_a,
-          "candidate_text"_a,
-          py::return_value_policy::move);
 }
