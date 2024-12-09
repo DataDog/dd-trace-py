@@ -1,7 +1,3 @@
-# TODO: Test failures on eval, how do we set errors, Report null when evaluator fails
-# TODO: Test workflows for re-evals and publishing results
-# TODO: Test pushing experiments without data 
-
 """
 Test coverage ideas:
 - Define task and evaluator wrong
@@ -10,20 +6,18 @@ Test coverage ideas:
 - Eval failures
 """
 
+import csv
 import concurrent.futures
-from datetime import datetime
+from enum import Enum
+from functools import wraps
+import hashlib
+import inspect
 import json
 import os
 import time
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
-import inspect
-from functools import wraps
 from urllib.parse import quote
 import uuid
-import csv
-from enum import Enum
-import itertools
-import hashlib
 
 from ._utils import HTTPResponse
 from ._utils import http_request
@@ -31,8 +25,10 @@ from ._utils import http_request
 import ddtrace
 
 DD_SITE = os.getenv("DD_SITE", "datadoghq.com")
-BASE_URL = f"https://api.{DD_SITE}" #TODO: Change to https://api.{DD_SITE} when testing is complete in staging
-
+if DD_SITE == "datadoghq.com":
+    BASE_URL = f"https://api.{DD_SITE}"
+else:
+    BASE_URL = f"https://{DD_SITE}"
 
 class FileType(Enum):
     CSV = 'csv'
@@ -660,7 +656,7 @@ class Experiment:
                 evaluations_dict = {}
                 for evaluator in evaluators_to_use:
                     try:
-                        evaluation_result = evaluator(expected_output, output, input_data)
+                        evaluation_result = evaluator(input_data, output, expected_output)
                         evaluations_dict[evaluator.__name__] = evaluation_result
                     except Exception as e:
                         error_count += 1
@@ -694,7 +690,11 @@ class Experiment:
             completed += 1
             _print_progress_bar(completed, total_rows, prefix='Evaluating:', suffix='Complete')
 
-        error_rate = (error_count / (total_rows * len(evaluators_to_use))) * 100
+        if len(evaluators_to_use) > 0:  
+            error_rate = (error_count / (total_rows * len(evaluators_to_use))) * 100
+        else:
+            error_rate = 0
+
         print(f"\nEvaluation completed with {error_count} errors ({error_rate:.2f}% error rate)")
 
         if error_count > 0:
@@ -1101,10 +1101,11 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
     full_url = BASE_URL + url
     resp = http_request(method, full_url, headers=headers, body=body)
     if resp.status_code == 403:
-        if DD_SITE != "datadoghq.com":
+        if not DD_SITE:
             raise ValueError("DD_SITE may be incorrect. Please check your DD_SITE environment variable.")
         else:
-            raise ValueError("API key or application key is incorrect.")
+            print(resp.text())
+            raise ValueError("DD_API_KEY or DD_APPLICATION_KEY is incorrect.")
     if resp.status_code >= 400:
         try:
             error_details = resp.json()
@@ -1138,8 +1139,8 @@ def task(func):
 
 def evaluator(func):
     @wraps(func)
-    def wrapper(expected_output: Union[str, Dict[str, Any]], output: Union[str, Dict[str, Any]], input: Union[str, Dict[str, Any]] = None) -> Any:
-        return func(expected_output, output, input)
+    def wrapper(input: Union[str, Dict[str, Any]] = None, output: Union[str, Dict[str, Any]] = None, expected_output: Union[str, Dict[str, Any]] = None) -> Any:
+        return func(input, output, expected_output)
     # Enforce signature compliance
     sig = inspect.signature(func)
     params = sig.parameters
@@ -1170,4 +1171,3 @@ class ExperimentTaskError(Exception):
         self.row_idx = row_idx
         self.original_error = original_error
         super().__init__(message)
-
