@@ -89,11 +89,11 @@ deploy_to_di_backend:manual:
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
 
-  check_new_flaky_tests:
-    stage: quality-gate
-    image: node:16
-    script:
-      - npm install --save-dev @datadog/datadog-ci
-      - datadog-ci gate evaluate
-    only:
-      - erikayasuda/test-new-flake
+check_new_flaky_tests:
+  stage: quality-gate
+  image: node:16
+  script:
+    - npm install --save-dev @datadog/datadog-ci
+    - datadog-ci gate evaluate
+  only:
+    - erikayasuda/test-new-flake
