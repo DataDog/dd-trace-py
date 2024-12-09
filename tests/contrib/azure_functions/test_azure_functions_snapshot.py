@@ -5,7 +5,6 @@ import time
 
 import pytest
 
-from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
 
 
@@ -22,8 +21,8 @@ def azure_functions_client():
     # (all of which will listen to signals sent to the parent) so that we can kill the whole application.
     proc = subprocess.Popen(
         ["func", "start"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         close_fds=True,
         env=os.environ.copy(),
         preexec_fn=os.setsid,
@@ -34,15 +33,7 @@ def azure_functions_client():
         # Wait for the server to start up
         try:
             client.wait()
-        except RetryError:
-            # process failed
-            stdout = proc.stdout.read()
-            stderr = proc.stderr.read()
-            raise TimeoutError(
-                "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
-            )
-        yield client
-        try:
+            yield client
             client.get_ignored("/shutdown")
         except Exception:
             pass
