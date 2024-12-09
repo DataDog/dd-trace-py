@@ -15,6 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Fixup git permissions
@@ -25,7 +26,7 @@ jobs:
         run: pyenv global 3.10 3.7 3.8 3.9 3.11 3.12
 
       - name: Install Dependencies
-        run: pip install --upgrade pip && pip install riot==0.20.0
+        run: pip install --upgrade pip && pip install riot==0.20.1
 
       - name: Generate riot locks
         run: scripts/compile-and-prune-test-requirements

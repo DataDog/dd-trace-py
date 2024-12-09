@@ -16,6 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Python 3.7
         uses: actions/setup-python@v5
@@ -77,7 +79,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install packaging
           pip install requests
-          pip install riot==0.20.0
+          pip install riot==0.20.1
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
@@ -104,7 +106,7 @@ jobs:
             This performs the following updates:
               1) Some ${{ env.VENV_NAME }} lockfiles use ${{ env.VENV_NAME }} `latest`. This will update ${{ env.VENV_NAME }} and dependencies.
               2) Some ${{ env.VENV_NAME }} lockfiles use a pinned (non-latest) version of ${{ env.VENV_NAME }}, but require the `latest` version of another package. This will update all such packages.
-            
+
             ## Checklist
             - [x] PR author has checked that all the criteria below are met
             - The PR description includes an overview of the change
@@ -117,7 +119,7 @@ jobs:
             - Backport labels are set (if [applicable](https://ddtrace.readthedocs.io/en/latest/contributing.html#backporting))
 
             ## Reviewer Checklist
-            - [ ] Reviewer has checked that all the criteria below are met 
+            - [ ] Reviewer has checked that all the criteria below are met
             - Title is accurate
             - All changes are related to the pull request's stated goal
             - Avoids breaking [API](https://ddtrace.readthedocs.io/en/stable/versioning.html#interfaces) changes
