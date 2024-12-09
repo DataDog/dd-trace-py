@@ -2,13 +2,13 @@ name: Profiling Native Tests with Sanitizers
 
 on:
   push:
-    paths:
-      - ddtrace/internal/datadog/profiling/**
-      - ddtrace/profiling/**
     branches:
       - main
       - "mq-working-branch**"
   pull_request:
+    paths:
+    - ddtrace/internal/datadog/profiling/**
+    - ddtrace/profiling/**
   workflow_dispatch: {}
 
 jobs:
