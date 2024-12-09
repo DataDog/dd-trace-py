@@ -34,7 +34,6 @@ RUN apt-get update \
       gnupg \
       jq \
       libbz2-dev \
-      libenchant-dev \
       libffi-dev \
       liblzma-dev \
       libmemcached-dev \
@@ -47,9 +46,7 @@ RUN apt-get update \
       libsqlite3-dev \
       libsqliteodbc \
       libssh-dev \
-      libssl-dev \
       patch \
-      python-openssl \
       unixodbc-dev \
       wget \
       zlib1g-dev \
@@ -61,7 +58,7 @@ RUN apt-get install -y --no-install-recommends nodejs npm \
 
 # MariaDB is a dependency for tests
 RUN curl https://mariadb.org/mariadb_release_signing_key.pgp | gpg --dearmor > /etc/apt/trusted.gpg.d/mariadb.gpg \
-  && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ buster main" > /etc/apt/sources.list.d/mariadb.list \
+  && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ bookworm main" > /etc/apt/sources.list.d/mariadb.list \
   && apt-get update \
   && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat
 
@@ -71,7 +68,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; \
   then \
     curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg \
     && mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg \
-    && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-buster-prod buster main" > /etc/apt/sources.list.d/dotnetdev.list \
+    && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-bookworm-prod bookwormmain" > /etc/apt/sources.list.d/dotnetdev.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.0.6280-1; \
   fi
