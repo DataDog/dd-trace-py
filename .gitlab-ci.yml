@@ -1,5 +1,5 @@
 stages:
-  - package
+  # - package
   # - tests-gen
   - tests-trigger
   - quality-gate
@@ -19,7 +19,7 @@ include:
   # - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   # - local: ".gitlab/benchmarks.yml"
-  - local: ".gitlab/package.yml"
+  # - local: ".gitlab/package.yml"
   # - local: ".gitlab/macrobenchmarks.yml"
   # - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
