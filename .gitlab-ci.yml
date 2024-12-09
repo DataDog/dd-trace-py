@@ -86,6 +86,7 @@ check_new_flaky_tests:
   stage: quality-gate
   extends: .testrunner
   script:
+    - npm install axios@latest
     - npm install --save-dev @datadog/datadog-ci
     - datadog-ci gate evaluate
   only:
