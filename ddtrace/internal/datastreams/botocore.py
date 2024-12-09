@@ -190,6 +190,7 @@ def handle_sqs_receive(_, params, result, *args):
 class StreamMetadataNotFound(Exception):
     pass
 
+
 def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record):
     from . import data_streams_processor as processor
 
