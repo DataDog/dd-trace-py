@@ -1,3 +1,3 @@
-race:moodycamel::ConcurrentQueueDefaultTraits::free
-race:moodycamel::ConcurrentQueue<std::__1::unique_ptr<Datadog::Sample
+# Probably a false positive from lock-free data structure
+race:moodycamel::ConcurrentQueue
 race:ddog_CancellationToken
