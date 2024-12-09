@@ -11,6 +11,7 @@ from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
+from ddtrace.internal import core
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -504,7 +505,12 @@ class StackCollector(collector.PeriodicCollector):
         self._last_wall_time: int = 0  # Placeholder for initial value
         self._thread_span_links: typing.Optional[_ThreadSpanLinks] = None
         self._stack_collector_v2_enabled: bool = _stack_collector_v2_enabled
+        self._link_span: typing.Optional[typing.Callable[[ddspan.Span], None]] = None
 
+    def link_span(self, span: ddspan.Span, tracer: Tracer) -> None:
+        if self.tracer is not tracer:
+            return
+        self._link_span(span)
 
     def __repr__(self):
         class_name = self.__class__.__name__
@@ -523,8 +529,8 @@ class StackCollector(collector.PeriodicCollector):
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
-            link_span = stack_v2.link_span if self._stack_collector_v2_enabled else self._thread_span_links.link_span
-            self.tracer.context_provider._on_activate(link_span)
+            self._link_span = stack_v2.link_span if self._stack_collector_v2_enabled else self._thread_span_links.link_span
+            core.on("span.activated", self.link_span)
 
         # If libdd is enabled, propagate the configuration
         if config.export.libdd_enabled:
@@ -551,8 +557,7 @@ class StackCollector(collector.PeriodicCollector):
         LOG.debug("Profiling StackCollector stopping")
         super(StackCollector, self)._stop_service()
         if self.tracer is not None:
-            link_span = stack_v2.link_span if self._stack_collector_v2_enabled else self._thread_span_links.link_span
-            self.tracer.context_provider._deregister_on_activate(link_span)
+            core.reset_listeners("span.activated", self.link_span)
         LOG.debug("Profiling StackCollector stopped")
 
         # Also tell the native thread running the v2 sampler to stop, if needed
