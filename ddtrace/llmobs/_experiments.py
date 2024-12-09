@@ -308,8 +308,8 @@ class Dataset:
                 expected_output_columns=expected_output_columns,
                 metadata_columns=metadata_columns,
             )
-        else:
-            raise ValueError(f"Unsupported file type: {filetype}")
+        
+        raise ValueError(f"Unsupported file type: {filetype}")
 
     def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
         """Convert the dataset to a pandas DataFrame.
@@ -378,20 +378,19 @@ class Dataset:
 
             return df
 
-        else:
-            data = []
-            for record in self._data:
-                new_record = {}
-                input_data = record.get('input', {})
-                new_record['input'] = input_data
-                expected_output = record.get('expected_output', {})
-                new_record['expected_output'] = expected_output
-                # Copy other fields
-                for k, v in record.items():
-                    if k not in ['input', 'expected_output']:
-                        new_record[k] = v
-                data.append(new_record)
-            return pd.DataFrame(data)
+        data = []
+        for record in self._data:
+            new_record = {}
+            input_data = record.get('input', {})
+            new_record['input'] = input_data
+            expected_output = record.get('expected_output', {})
+            new_record['expected_output'] = expected_output
+            # Copy other fields
+            for k, v in record.items():
+                if k not in ['input', 'expected_output']:
+                    new_record[k] = v
+            data.append(new_record)
+        return pd.DataFrame(data)
 
     def export_to_jsonl(self, file_path):
         """
@@ -896,11 +895,11 @@ class ExperimentResults:
 
             df = pd.DataFrame(records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
             return df
-        else:
-            df = pd.DataFrame(data_rows)
-            # Reorder columns according to COLUMN_ORDER
-            cols = [col for col in COLUMN_ORDER if col in df.columns]
-            return df[cols]
+
+        df = pd.DataFrame(data_rows)
+        # Reorder columns according to COLUMN_ORDER
+        cols = [col for col in COLUMN_ORDER if col in df.columns]
+        return df[cols]
 
     def push(self, overwrite: bool = False) -> None: # TODO: Implement overwrite
         """Push the experiment results to Datadog.
