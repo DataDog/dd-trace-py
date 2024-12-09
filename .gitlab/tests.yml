@@ -9,7 +9,7 @@ variables:
   # CI_DEBUG_SERVICES: "true"
 
 .testrunner:
-  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
+  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:96f7c7f6df1909cab2aad1f74f06fa016bc46451@sha256:46ee17a80159ffc19d8398fa2ba7dcb8e584afbeb8caf0145b9149ff1129868d
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
   timeout: 20m
