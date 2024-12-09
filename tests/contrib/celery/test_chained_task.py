@@ -10,7 +10,7 @@ import subprocess
 # See https://github.com/DataDog/dd-trace-py/issues/11479
 def test_task_chain_task_call_task():
     celery_worker_cmd = "ddtrace-run celery -A tests.contrib.celery.tasks worker -c 1 -l DEBUG -n uniquename1 -P solo"
-    celery_task_runner_cmd = "ddtrace-run python3.11 tests/contrib/celery/run_tasks.py"
+    celery_task_runner_cmd = "ddtrace-run python tests/contrib/celery/run_tasks.py"
     worker_process = subprocess.Popen(
         celery_worker_cmd.split(),
         stdout=subprocess.PIPE,
