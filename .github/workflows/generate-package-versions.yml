@@ -79,7 +79,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install packaging
           pip install requests
-          pip install riot==0.20.0
+          pip install riot==0.20.1
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
