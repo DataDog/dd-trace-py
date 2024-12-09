@@ -18,6 +18,7 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           repository: 'DataDog/system-tests'
 
       - name: Build agent
@@ -62,11 +63,13 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           repository: 'DataDog/system-tests'
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           path: 'binaries/dd-trace-py'
           fetch-depth: 0
           # NB this ref is necessary to keep the checkout out of detached HEAD state, which setuptools_scm requires for
@@ -112,6 +115,7 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           repository: 'DataDog/system-tests'
 
       - name: Build runner
@@ -280,10 +284,12 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           repository: 'DataDog/system-tests'
       - name: Checkout dd-trace-py
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           path: 'binaries/dd-trace-py'
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
