@@ -2,7 +2,7 @@ import os
 import re
 import signal
 import subprocess
-
+import time
 
 # Ensure that when we call Celery chains, the root span has celery specific span tags
 # The test_integration.py setup doesn't perfectly mimic the condition of a worker process running.
@@ -19,6 +19,8 @@ def test_task_chain_task_call_task():
         close_fds=True,
         cwd=str(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
     )
+
+    time.sleep(5)
 
     task_runner_process = subprocess.Popen(
         celery_task_runner_cmd.split(),
