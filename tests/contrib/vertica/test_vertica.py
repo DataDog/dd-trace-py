@@ -1,9 +1,9 @@
 import pytest
+import wrapt
 
 import ddtrace
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -11,7 +11,6 @@ from ddtrace.contrib.vertica.patch import patch
 from ddtrace.contrib.vertica.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.settings.config import _deepmerge
-from ddtrace.vendor import wrapt
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -391,47 +390,6 @@ class TestVertica(TracerTestCase):
         assert dd_span.get_metric("network.destination.port") == 5433
         assert dd_span.get_tag("db.system") == "vertica"
         assert dd_span.get_tag("component") == "vertica"
-
-    def test_analytics_default(self):
-        conn, cur = self.test_conn
-
-        Pin.override(cur, tracer=self.test_tracer)
-
-        with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
-
-        spans = self.test_tracer.pop()
-        self.assertEqual(len(spans), 2)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("vertica", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            conn, cur = self.test_conn
-
-            Pin.override(cur, tracer=self.test_tracer)
-
-            with conn:
-                cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-                cur.execute("SELECT * FROM {};".format(TEST_TABLE))
-
-        spans = self.test_tracer.pop()
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("vertica", dict(analytics_enabled=True)):
-            conn, cur = self.test_conn
-
-            Pin.override(cur, tracer=self.test_tracer)
-
-            with conn:
-                cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-                cur.execute("SELECT * FROM {};".format(TEST_TABLE))
-
-        spans = self.test_tracer.pop()
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"), use_pytest=True)
     @pytest.mark.usefixtures("test_tracer", "test_conn")

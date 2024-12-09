@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    DSM: Introduces new tracing and datastreams monitoring functionality for Google Protobuf.

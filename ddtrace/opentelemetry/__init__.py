@@ -106,7 +106,7 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
 
 """  # noqa: E501
 
-from ._trace import TracerProvider
+from ddtrace.internal.opentelemetry.trace import TracerProvider
 
 
 __all__ = [

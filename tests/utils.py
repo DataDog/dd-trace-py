@@ -1,19 +1,20 @@
 import contextlib
 from contextlib import contextmanager
+import dataclasses
 import datetime as dt
 from http.client import RemoteDisconnected
 import inspect
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
 from typing import List  # noqa:F401
 import urllib.parse
 
-import attr
-import pkg_resources
 import pytest
+import wrapt
 
 import ddtrace
 from ddtrace import Tracer
@@ -22,13 +23,14 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
+from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
+from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -38,11 +40,17 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
 
+try:
+    import importlib.metadata as importlib_metadata
+except ImportError:
+    import importlib_metadata
+
 NO_CHILDREN = object()
+DDTRACE_PATH = Path(__file__).resolve().parents[1]
+FILE_PATH = Path(__file__).resolve().parent
 
 
 def assert_is_measured(span):
@@ -69,7 +77,7 @@ def assert_span_http_status_code(span, code):
 
 
 @contextlib.contextmanager
-def override_env(env):
+def override_env(env, replace_os_env=False):
     """
     Temporarily override ``os.environ`` with provided values::
 
@@ -78,6 +86,10 @@ def override_env(env):
     """
     # Copy the full original environment
     original = dict(os.environ)
+
+    # We allow callers to clear out the environment to prevent leaking variables into the test
+    if replace_os_env:
+        os.environ.clear()
 
     for k in os.environ.keys():
         if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
@@ -105,11 +117,10 @@ def override_global_config(values):
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
         "_tracing_enabled",
-        "analytics_enabled",
-        "client_ip_header",
-        "retrieve_client_ip",
-        "report_hostname",
-        "health_metrics_enabled",
+        "_client_ip_header",
+        "_retrieve_client_ip",
+        "_report_hostname",
+        "_health_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
         "_x_datadog_tags_max_length",
@@ -122,7 +133,7 @@ def override_global_config(values):
         "_raise",
         "_trace_compute_stats",
         "_obfuscation_query_string_pattern",
-        "global_query_string_obfuscation_disabled",
+        "_global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
         "_subexec_sensitive_user_wildcards",
@@ -140,7 +151,7 @@ def override_global_config(values):
         "_trace_writer_connection_reuse",
         "_trace_writer_log_err_payload",
         "_span_traceback_max_size",
-        "propagation_http_baggage_enabled",
+        "_propagation_http_baggage_enabled",
         "_telemetry_enabled",
         "_telemetry_dependency_collection",
         "_dd_site",
@@ -148,6 +159,8 @@ def override_global_config(values):
         "_llmobs_enabled",
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
+        "_llmobs_agentless_enabled",
+        "_data_streams_enabled",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -163,18 +176,23 @@ def override_global_config(values):
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
     # rebuild asm config from env vars and global config
-    ddtrace.settings.asm.config.reset()
     for key, value in values.items():
         if key in asm_config_keys:
             setattr(ddtrace.settings.asm.config, key, value)
+    # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
+    ddtrace.settings.asm.config._eval_asm_can_be_enabled()
     try:
+        core.dispatch("test.config.override")
         yield
     finally:
         # Reset all to their original values
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
+
+        ddtrace.settings.asm.config.reset()
         for key, value in asm_originals.items():
             setattr(ddtrace.settings.asm.config, key, value)
+
         ddtrace.config._reset()
         ddtrace.config._subscriptions = subscriptions
 
@@ -977,10 +995,10 @@ class SnapshotFailed(Exception):
     pass
 
 
-@attr.s
-class SnapshotTest(object):
-    token = attr.ib(type=str)
-    tracer = attr.ib(type=ddtrace.Tracer, default=ddtrace.tracer)
+@dataclasses.dataclass
+class SnapshotTest:
+    token: str
+    tracer: ddtrace.Tracer = ddtrace.tracer
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
@@ -1056,7 +1074,6 @@ def snapshot_context(
             elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
                 pytest.fail(to_unicode(r.read()), pytrace=False)
-
         try:
             yield SnapshotTest(
                 tracer=tracer,
@@ -1097,7 +1114,7 @@ def snapshot_context(
         result = to_unicode(r.read())
         if r.status != 200:
             lowered = result.lower()
-            if "received unmatched traces" not in lowered and "did not receive expected traces" not in lowered:
+            if "received unmatched traces" not in lowered:
                 pytest.fail(result, pytrace=False)
             # we don't know why the test agent occasionally receives a different number of traces than it expects
             # during snapshot tests, but that does sometimes in an unpredictable manner
@@ -1108,14 +1125,10 @@ def snapshot_context(
             # "received unmatched traces" can sometimes happen
             else:
                 pytest.xfail(result)
-    except Exception as e:
-        # Even though it's unlikely any traces have been sent, make the
-        # final request to the test agent so that the test case is finished.
+    finally:
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         conn.getresponse()
-        pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
-    finally:
         conn.close()
 
 
@@ -1216,9 +1229,9 @@ def request_token(request):
 
 def package_installed(package_name):
     try:
-        pkg_resources.get_distribution(package_name)
+        importlib_metadata.distribution(package_name)
         return True
-    except pkg_resources.DistributionNotFound:
+    except importlib_metadata.PackageNotFoundError:
         return False
 
 
@@ -1278,7 +1291,7 @@ def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
     try:
-        encoded_traces = client.encoder.encode()
+        encoded_traces, _ = client.encoder.encode()
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)
@@ -1326,7 +1339,7 @@ def _should_skip(condition=None, until: int = None):
         until = dt.datetime(3000, 1, 1)
     else:
         until = dt.datetime.fromtimestamp(until)
-    if until and dt.datetime.utcnow() < until.replace(tzinfo=None):
+    if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
     if condition is not None and not condition:
         return False
@@ -1349,3 +1362,20 @@ def skip_if_until(until: int, condition=None, reason=None):
         return _get_skipped_item(function_or_class, full_reason)
 
     return decorator
+
+
+def _build_env(env=None, file_path=FILE_PATH):
+    """When a script runs in a subprocess, there are times in the CI or locally when it's assigned a different
+    path than expected. Even worse, we've seen scripts that worked for months suddenly stop working because of this.
+    With this function, we always set the path to ensure consistent results both locally and across different
+    CI environments
+    """
+    environ = dict(PATH="%s:%s" % (DDTRACE_PATH, file_path), PYTHONPATH="%s:%s" % (DDTRACE_PATH, file_path))
+    if os.environ.get("PATH"):
+        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
+    if os.environ.get("PYTHONPATH"):
+        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    if env:
+        for k, v in env.items():
+            environ[k] = v
+    return environ

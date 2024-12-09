@@ -34,7 +34,8 @@ Global Configuration
 
    Default: ``True``
 """
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
+
 from .patch import get_version
 from .patch import patch
 from .patch import unpatch

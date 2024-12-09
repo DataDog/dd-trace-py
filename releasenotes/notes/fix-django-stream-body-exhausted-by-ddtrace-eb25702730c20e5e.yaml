@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing(django): This fix resolves a bug where ddtrace was exhausting a Django stream response before returning it to user.

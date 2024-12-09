@@ -506,7 +506,7 @@ class ScopeContext:
 
 def is_module_included(module: ModuleType) -> bool:
     # Check if module name matches the include patterns
-    if symdb_config._includes_re.match(module.__name__):
+    if symdb_config.includes and symdb_config._includes_re.match(module.__name__):
         return True
 
     # Check if it is user code
@@ -518,9 +518,10 @@ def is_module_included(module: ModuleType) -> bool:
         return True
 
     # Check if the package name matches the include patterns
-    package = packages.filename_to_package(module_origin)
-    if package is not None and symdb_config._includes_re.match(package.name):
-        return True
+    if symdb_config.includes:
+        package = packages.filename_to_package(module_origin)
+        if package is not None and symdb_config._includes_re.match(package.name):
+            return True
 
     return False
 

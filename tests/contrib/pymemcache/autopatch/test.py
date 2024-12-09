@@ -2,8 +2,7 @@ import unittest
 
 import pymemcache
 from pymemcache.client import hash as pymemcache_hash
-
-from ddtrace.vendor import wrapt
+import wrapt
 
 
 class AutoPatchTestCase(unittest.TestCase):

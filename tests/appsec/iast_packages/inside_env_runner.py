@@ -16,6 +16,9 @@ def _iast_patched_module_and_patched_source(module_name):
     module = importlib.import_module(module_name)
     module_path, patched_module = astpatch_module(module)
 
+    if not patched_module:
+        assert False, "Module %s was not patched" % module_name
+
     compiled_code = compile(patched_module, module_path, "exec")
     exec(compiled_code, module.__dict__)
     return module, patched_module
@@ -31,17 +34,24 @@ def try_unpatched(module_name):
     return 0
 
 
-def try_patched(module_name):
+def try_patched(module_name, expect_no_change=False):
     try:
         module, patched_module = _iast_patched_module_and_patched_source(module_name)
+        if expect_no_change:
+            assert module, "Module is not OK after patching"
+            assert (
+                not patched_module
+            ), "Patched source is None after patching: Expected to be the same as the original source"
+            return 0
+
         assert module, "Module is None after patching: Maybe not an error, but something fishy is going on"
         assert (
             patched_module
         ), "Patched source is None after patching: Maybe not an error, but something fishy is going on"
         new_code = unparse(patched_module)
         assert (
-            "import ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
-            "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"
+            "import ddtrace.appsec._iast.taint_sinks as _ddtrace_taint_sinks"
+            "\nimport ddtrace.appsec._iast._taint_tracking.aspects as _ddtrace_aspects\n"
         ) in new_code, "Patched imports not found"
 
         assert "ddtrace_aspects." in new_code, "Patched aspects not found"
@@ -54,11 +64,13 @@ def try_patched(module_name):
 if __name__ == "__main__":
     mode = sys.argv[1]
     import_module = sys.argv[2]
+    if len(sys.argv) >= 4:
+        expect_no_change = sys.argv[3]
 
     if mode == "unpatched":
         sys.exit(try_unpatched(import_module))
     elif mode == "patched":
-        sys.exit(try_patched(import_module))
+        sys.exit(try_patched(import_module, expect_no_change=expect_no_change == "True"))
 
-    print("Use: [python from pyenv] inside_env_runner.py patched|unpatched module_name")
+    print("Use: [python from pyenv] inside_env_runner.py patched|unpatched module_name True|False")
     sys.exit(1)

@@ -33,7 +33,7 @@ jobs:
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux"}' \
               && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cR '{only: ., os: "macos-12"}'
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cR '{only: ., os: "macos-13"}'
             } | jq -sc
           )
           echo $MATRIX_INCLUDE
@@ -79,12 +79,11 @@ jobs:
           platforms: all
 
       - name: Build wheels arm64
-        if: matrix.os == 'arm-4core-linux'
+        if: always() && matrix.os == 'arm-4core-linux'
         run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --only ${{ matrix.only }}
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-          CMAKE_BUILD_PARALLEL_LEVEL: 12
           CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
@@ -93,7 +92,7 @@ jobs:
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
-          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
+          CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
@@ -114,14 +113,13 @@ jobs:
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
       - name: Build wheels
-        if: matrix.os != 'arm-4core-linux'
+        if: always() && matrix.os != 'arm-4core-linux'
         uses: pypa/cibuildwheel@v2.16.5
         with:
           only: ${{ matrix.only }}
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-          CMAKE_BUILD_PARALLEL_LEVEL: 12
           CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
@@ -130,7 +128,7 @@ jobs:
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
-          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
+          CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&

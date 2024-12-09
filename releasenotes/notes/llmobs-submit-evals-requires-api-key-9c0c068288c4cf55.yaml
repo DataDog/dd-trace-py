@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    LLM Observability: ``LLMObs.submit_evaluation()`` requires a Datadog API key to send custom evaluations to LLM Observability. 
+    If an API key is not set using either ``DD_API_KEY`` or ``LLMObs.enable(api_key="<api-key>")``, this method will log a warning and return ``None``.

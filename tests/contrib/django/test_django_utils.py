@@ -2,7 +2,7 @@ from django.test.client import RequestFactory
 import pytest
 
 from ddtrace.contrib.django.utils import DJANGO22
-from ddtrace.contrib.django.utils import _get_request_headers
+from ddtrace.contrib.internal.django.utils import _get_request_headers
 
 
 @pytest.mark.skipif(DJANGO22, reason="We only parse environ/headers on Django < 2.2.0")

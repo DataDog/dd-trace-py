@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fix for ``Already mutably borrowed`` error when rate limiter is accessed across threads.

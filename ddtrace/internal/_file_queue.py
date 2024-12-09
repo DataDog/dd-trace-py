@@ -5,6 +5,10 @@ import tempfile
 import typing
 
 from ddtrace.internal._unpatched import unpatched_open
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
 
 
 MAX_FILE_SIZE = 8192
@@ -56,23 +60,34 @@ class File_Queue:
     """A simple file-based queue implementation for multiprocess communication."""
 
     def __init__(self) -> None:
-        self.directory = tempfile.gettempdir()
-        self.filename = os.path.join(self.directory, secrets.token_hex(8))
+        try:
+            self._directory: typing.Optional[str] = tempfile.gettempdir()
+            self.filename: typing.Optional[str] = os.path.join(self._directory, secrets.token_hex(8))
+        except Exception as e:
+            info = f"Failed to create a temporary file for the file queue. {e}"
+            log.debug(info)
+            self._directory = None
+            self.filename = None
 
     def put(self, data: str) -> None:
         """Push a string to the queue."""
+        if self.filename is None:
+            return
         try:
             with open_file(self.filename, "ab") as f:
                 lock(f)
                 f.seek(0, os.SEEK_END)
-                if f.tell() < MAX_FILE_SIZE:
-                    f.write((data + "\x00").encode())
+                dt = (data + "\x00").encode()
+                if f.tell() + len(dt) <= MAX_FILE_SIZE:
+                    f.write(dt)
                 unlock(f)
         except Exception:  # nosec
             pass
 
     def get_all(self) -> typing.Set[str]:
         """Pop all unique strings from the queue."""
+        if self.filename is None:
+            return set()
         try:
             with open_file(self.filename, "r+b") as f:
                 lock(f)
@@ -82,7 +97,9 @@ class File_Queue:
                 f.truncate()
                 unlock(f)
             if data:
-                return set(data.split("\x00")[:-1])
+                res = data.split("\x00")
+                res.pop()
+                return set(res)
         except Exception:  # nosec
             pass
         return set()

@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import collections
 import email.parser
+import http.server as http_server
 import json
 import platform
 import sys
@@ -8,17 +9,12 @@ import threading
 import time
 
 import pytest
-from six.moves import BaseHTTPServer
 
 import ddtrace
-from ddtrace.internal import compat
-from ddtrace.internal import gitmetadata
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
-
-from . import test_pprof
+from ddtrace.settings.profiling import config
 
 
 # Skip this test on Windows:
@@ -32,7 +28,7 @@ _API_KEY = "my-api-key"
 _ENDPOINT_COUNTS = {"a": 1, "b": 2}
 
 
-class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
+class _APIEndpointRequestHandlerTest(http_server.BaseHTTPRequestHandler):
     error_message_format = "%(message)s\n"
     error_content_type = "text/plain"
     path_prefix = "/profiling/v1"
@@ -129,7 +125,7 @@ _UNKNOWN_ENDPOINT = "http://localhost:%d" % _UNKNOWN_PORT
 
 
 def _make_server(port, request_handler):
-    server = BaseHTTPServer.HTTPServer(("localhost", port), request_handler)
+    server = http_server.HTTPServer(("localhost", port), request_handler)
     t = threading.Thread(target=server.serve_forever)
     # Set daemon just in case something fails
     t.daemon = True
@@ -183,10 +179,17 @@ def _get_span_processor():
     return endpoint_call_counter_span_processor
 
 
+@pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL=_ENDPOINT))
 def test_wrong_api_key(endpoint_test_server):
+    import pytest
+
+    from ddtrace.profiling import exporter
+    from ddtrace.profiling.exporter import http
+    from tests.profiling.exporter import test_pprof
+    from tests.profiling.exporter.test_http import _get_span_processor
+
     # This is mostly testing our test server, not the exporter
     exp = http.PprofHTTPExporter(
-        endpoint=_ENDPOINT,
         api_key="this is not the right API key",
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
@@ -196,16 +199,29 @@ def test_wrong_api_key(endpoint_test_server):
     assert str(t.value) == "Server returned 400, check your API key"
 
 
+@pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL=_ENDPOINT))
 def test_export(endpoint_test_server):
-    exp = http.PprofHTTPExporter(
-        endpoint=_ENDPOINT, api_key=_API_KEY, endpoint_call_counter_span_processor=_get_span_processor()
-    )
+    from ddtrace.internal import compat
+    from ddtrace.profiling.exporter import http
+    from tests.profiling.exporter import test_pprof
+    from tests.profiling.exporter.test_http import _API_KEY
+    from tests.profiling.exporter.test_http import _get_span_processor
+
+    exp = http.PprofHTTPExporter(api_key=_API_KEY, endpoint_call_counter_span_processor=_get_span_processor())
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
+@pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL="http://localhost:2"))
 def test_export_server_down():
+    import pytest
+
+    from ddtrace.profiling import exporter
+    from ddtrace.profiling.exporter import http
+    from tests.profiling.exporter import test_pprof
+    from tests.profiling.exporter.test_http import _API_KEY
+    from tests.profiling.exporter.test_http import _get_span_processor
+
     exp = http.PprofHTTPExporter(
-        endpoint="http://localhost:2",
         api_key=_API_KEY,
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
@@ -214,9 +230,17 @@ def test_export_server_down():
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
+@pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL=_TIMEOUT_ENDPOINT))
 def test_export_timeout(endpoint_test_timeout_server):
+    import pytest
+
+    from ddtrace.profiling import exporter
+    from ddtrace.profiling.exporter import http
+    from tests.profiling.exporter import test_pprof
+    from tests.profiling.exporter.test_http import _API_KEY
+    from tests.profiling.exporter.test_http import _get_span_processor
+
     exp = http.PprofHTTPExporter(
-        endpoint=_TIMEOUT_ENDPOINT,
         api_key=_API_KEY,
         timeout=1,
         max_retry_delay=2,
@@ -226,9 +250,17 @@ def test_export_timeout(endpoint_test_timeout_server):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
+@pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL=_RESET_ENDPOINT))
 def test_export_reset(endpoint_test_reset_server):
+    import pytest
+
+    from ddtrace.profiling import exporter
+    from ddtrace.profiling.exporter import http
+    from tests.profiling.exporter import test_pprof
+    from tests.profiling.exporter.test_http import _API_KEY
+    from tests.profiling.exporter.test_http import _get_span_processor
+
     exp = http.PprofHTTPExporter(
-        endpoint=_RESET_ENDPOINT,
         api_key=_API_KEY,
         timeout=1,
         max_retry_delay=2,
@@ -238,8 +270,16 @@ def test_export_reset(endpoint_test_reset_server):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
+@pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL=_UNKNOWN_ENDPOINT))
 def test_export_404_agent(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT, endpoint_call_counter_span_processor=_get_span_processor())
+    import pytest
+
+    from ddtrace.profiling import exporter
+    from ddtrace.profiling.exporter import http
+    from tests.profiling.exporter import test_pprof
+    from tests.profiling.exporter.test_http import _get_span_processor
+
+    exp = http.PprofHTTPExporter(endpoint_call_counter_span_processor=_get_span_processor())
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == (
@@ -247,42 +287,23 @@ def test_export_404_agent(endpoint_test_unknown_server):
     )
 
 
+@pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL=_UNKNOWN_ENDPOINT))
 def test_export_404_agentless(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(
-        endpoint=_UNKNOWN_ENDPOINT, api_key="123", timeout=1, endpoint_call_counter_span_processor=_get_span_processor()
-    )
+    import pytest
+
+    from ddtrace.profiling import exporter
+    from ddtrace.profiling.exporter import http
+    from tests.profiling.exporter import test_pprof
+    from tests.profiling.exporter.test_http import _get_span_processor
+
+    exp = http.PprofHTTPExporter(api_key="123", timeout=1, endpoint_call_counter_span_processor=_get_span_processor())
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == "HTTP Error 404"
 
 
-def test_export_tracer_base_path(endpoint_test_server):
-    # Base path is prepended to the endpoint path because
-    # it does not start with a slash.
-    exp = http.PprofHTTPExporter(
-        endpoint=_ENDPOINT + "/profiling/",
-        api_key=_API_KEY,
-        endpoint_path="v1/input",
-        endpoint_call_counter_span_processor=_get_span_processor(),
-    )
-    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
-
-
-def test_export_tracer_base_path_agent_less(endpoint_test_server):
-    # Base path is ignored by the profiling HTTP exporter
-    # because the endpoint path starts with a slash.
-    exp = http.PprofHTTPExporter(
-        endpoint=_ENDPOINT + "/profiling/",
-        api_key=_API_KEY,
-        endpoint_path="/profiling/v1/input",
-        endpoint_call_counter_span_processor=_get_span_processor(),
-    )
-    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
-
-
 def test_get_tags():
-    tags = parse_tags_str(http.PprofHTTPExporter(env="foobar", endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
+    tags = parse_tags_str(http.PprofHTTPExporter(env="foobar", tags=config.tags)._get_tags("foobar"))
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -290,13 +311,16 @@ def test_get_tags():
     assert tags["env"] == "foobar"
     assert tags["runtime"] == "CPython"
     assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
 
 
-def test_get_malformed(monkeypatch):
-    monkeypatch.setenv("DD_TAGS", "mytagfoobar")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 7
+@pytest.mark.subprocess(env=dict(DD_TAGS="mytagfoobar"), err=None)
+def test_get_malformed_key_only():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
+    tags = parse_tags_str(http.PprofHTTPExporter(tags=config.tags)._get_tags("foobar"))
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -304,9 +328,15 @@ def test_get_malformed(monkeypatch):
     assert tags["runtime"] == "CPython"
     assert tags["profiler_version"] == ddtrace.__version__
 
-    monkeypatch.setenv("DD_TAGS", "mytagfoobar,")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 7
+
+@pytest.mark.subprocess(env=dict(DD_TAGS="mytagfoobar,"), err=None)
+def test_get_malformed_no_val():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
+    tags = parse_tags_str(http.PprofHTTPExporter(tags=config.tags)._get_tags("foobar"))
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -314,9 +344,15 @@ def test_get_malformed(monkeypatch):
     assert tags["runtime"] == "CPython"
     assert tags["profiler_version"] == ddtrace.__version__
 
-    monkeypatch.setenv("DD_TAGS", ",")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 7
+
+@pytest.mark.subprocess(env=dict(DD_TAGS=","), err=None)
+def test_get_malformed_comma_only():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
+    tags = parse_tags_str(http.PprofHTTPExporter(tags=config.tags)._get_tags("foobar"))
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -324,9 +360,16 @@ def test_get_malformed(monkeypatch):
     assert tags["runtime"] == "CPython"
     assert tags["profiler_version"] == ddtrace.__version__
 
-    monkeypatch.setenv("DD_TAGS", "foo:bar,")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
+
+@pytest.mark.subprocess(env=dict(DD_TAGS="foo:bar,"), err=None)
+def test_get_tags_trailing_comma():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
+    tags = parse_tags_str(http.PprofHTTPExporter(tags=config.tags)._get_tags("foobar"))
+
     assert tags["service"] == "foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
@@ -336,105 +379,27 @@ def test_get_malformed(monkeypatch):
     assert tags["profiler_version"] == ddtrace.__version__
 
 
-def test_get_tags_override(monkeypatch):
-    monkeypatch.setenv("DD_TAGS", "mytag:foobar")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
-    assert tags["service"] == "foobar"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["mytag"] == "foobar"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    monkeypatch.setenv("DD_TAGS", "mytag:foobar,author:jd")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 9
-    assert tags["service"] == "foobar"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["mytag"] == "foobar"
-    assert tags["author"] == "jd"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    monkeypatch.setenv("DD_TAGS", "")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 7
-    assert tags["service"] == "foobar"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    monkeypatch.setenv("DD_TAGS", "foobar:baz,service:mycustomservice")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
-    assert tags["service"] == "mycustomservice"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    monkeypatch.setenv("DD_TAGS", "foobar:baz,service:🤣")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
-    assert len(tags) == 8
-    assert tags["service"] == "🤣"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert "version" not in tags
-
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", version="123")._get_tags("foobar"))
-    assert len(tags) == 9
-    assert tags["service"] == "🤣"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert tags["version"] == "123"
-    assert "env" not in tags
-
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="", version="123", env="prod")._get_tags("foobar"))
-    assert len(tags) == 10
-    assert tags["service"] == "🤣"
-    assert len(tags["host"])
-    assert len(tags["runtime-id"])
-    assert tags["language"] == "python"
-    assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
-    assert tags["profiler_version"] == ddtrace.__version__
-    assert tags["version"] == "123"
-    assert tags["env"] == "prod"
-
-    tags = parse_tags_str(
-        http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags={"mytag": "123"})._get_tags("foobar")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TAGS="mytag:foobar,service:🤣",
     )
-    assert len(tags) == 11
+)
+def test_get_tags_override():
+    import ddtrace
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
+    tags = parse_tags_str(http.PprofHTTPExporter(version="123", env="prod", tags=config.tags)._get_tags("foobar"))
     assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
     assert tags["language"] == "python"
     assert tags["runtime"] == "CPython"
-    assert tags["foobar"] == "baz"
     assert tags["profiler_version"] == ddtrace.__version__
     assert tags["version"] == "123"
     assert tags["env"] == "prod"
-    assert tags["mytag"] == "123"
+    assert tags["mytag"] == "foobar"
 
 
 @pytest.mark.skip(reason="Needs investigation about the segfaulting")
@@ -452,33 +417,50 @@ def test_get_tags_legacy():
 def test_get_tags_precedence():
     from ddtrace.internal.utils.formats import parse_tags_str
     from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
 
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    tags = parse_tags_str(http.PprofHTTPExporter(tags=config.tags)._get_tags("foobar"))
     assert tags["mytag"] == "val2"
     assert tags["ddtag"] == "hi"
     assert tags["ddptag"] == "lo"
 
 
-def test_gitmetadata_ddtags(monkeypatch):
-    gitmetadata._GITMETADATA_TAGS = None
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
+    )
+)
+def test_gitmetadata_ddtags():
+    from ddtrace.internal import gitmetadata
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
 
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    gitmetadata._GITMETADATA_TAGS = None
+    tags = parse_tags_str(http.PprofHTTPExporter(tags=config.tags)._get_tags("foobar"))
 
     # must be from env variables
     assert tags["git.commit.sha"] == "12345"
     assert tags["git.repository_url"] == "github.com/user/tag_repo"
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
+        DD_GIT_COMMIT_SHA="123456",
+        DD_GIT_REPOSITORY_URL="github.com/user/env_repo",
+        DD_MAIN_PACKAGE="my_package",
+    )
+)
+def test_gitmetadata_env():
+    from ddtrace.internal import gitmetadata
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
     gitmetadata._GITMETADATA_TAGS = None
 
-
-def test_gitmetadata_env(monkeypatch):
-    gitmetadata._GITMETADATA_TAGS = None
-
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo")
-    monkeypatch.setenv("DD_GIT_COMMIT_SHA", "123456")
-    monkeypatch.setenv("DD_GIT_REPOSITORY_URL", "github.com/user/env_repo")
-    monkeypatch.setenv("DD_MAIN_PACKAGE", "my_package")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    tags = parse_tags_str(http.PprofHTTPExporter(tags=config.tags)._get_tags("foobar"))
 
     # must be from env variables
     assert tags["git.commit.sha"] == "123456"
@@ -487,18 +469,26 @@ def test_gitmetadata_env(monkeypatch):
     gitmetadata._GITMETADATA_TAGS = None
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
+        DD_GIT_COMMIT_SHA="123456",
+        DD_GIT_REPOSITORY_URL="github.com/user/env_repo",
+        DD_MAIN_PACKAGE="my_package",
+        DD_TRACE_GIT_METADATA_ENABLED="false",
+    )
+)
 def test_gitmetadata_disabled(monkeypatch):
+    from ddtrace.internal import gitmetadata
+    from ddtrace.internal.utils.formats import parse_tags_str
+    from ddtrace.profiling.exporter import http
+    from ddtrace.settings.profiling import config
+
     gitmetadata._GITMETADATA_TAGS = None
 
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo")
-    monkeypatch.setenv("DD_GIT_COMMIT_SHA", "123456")
-    monkeypatch.setenv("DD_GIT_REPOSITORY_URL", "github.com/user/env_repo")
-    monkeypatch.setenv("DD_MAIN_PACKAGE", "my_package")
-    monkeypatch.setenv("DD_TRACE_GIT_METADATA_ENABLED", "false")
-    tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
+    tags = parse_tags_str(http.PprofHTTPExporter(tags=config.tags)._get_tags("foobar"))
 
     # must not present
     assert "git.commit.sha" not in tags
     assert "git.repository_url" not in tags
     assert "python_main_package" not in tags
-    gitmetadata._GITMETADATA_TAGS = None

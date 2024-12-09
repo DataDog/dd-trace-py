@@ -4,7 +4,6 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.molten import patch
 from ddtrace.contrib.molten import unpatch
@@ -136,81 +135,6 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.get_tag("span.kind"), "server")
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.QUERY_STRING), "foo=bar")
-
-    def test_analytics_global_on_integration_default(self):
-        """
-        When making a request
-            When an integration trace search is not event sample rate is not set and globally trace search is enabled
-                We expect the root span to have the appropriate tag
-        """
-        with self.override_global_config(dict(analytics_enabled=True)):
-            response = self.make_request()
-            self.assertEqual(response.status_code, 200)
-            # TestResponse from TestClient is wrapper around Response so we must
-            # access data property
-            self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
-
-            root_span = self.get_root_span()
-            root_span.assert_matches(
-                name="molten.request",
-                metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0},
-            )
-
-    def test_analytics_global_on_integration_on(self):
-        """
-        When making a request
-            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
-                We expect the root span to have the appropriate tag
-        """
-        with self.override_global_config(dict(analytics_enabled=True)):
-            with self.override_config("molten", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                response = self.make_request()
-                self.assertEqual(response.status_code, 200)
-                # TestResponse from TestClient is wrapper around Response so we must
-                # access data property
-                self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
-
-                root_span = self.get_root_span()
-                root_span.assert_matches(
-                    name="molten.request",
-                    metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5},
-                )
-
-    def test_analytics_global_off_integration_default(self):
-        """
-        When making a request
-            When an integration trace search is not set and sample rate is set and globally trace search is disabled
-                We expect the root span to not include tag
-        """
-        with self.override_global_config(dict(analytics_enabled=False)):
-            response = self.make_request()
-            self.assertEqual(response.status_code, 200)
-            # TestResponse from TestClient is wrapper around Response so we must
-            # access data property
-            self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
-
-            root_span = self.get_root_span()
-            self.assertIsNone(root_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_global_off_integration_on(self):
-        """
-        When making a request
-            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
-                We expect the root span to have the appropriate tag
-        """
-        with self.override_global_config(dict(analytics_enabled=False)):
-            with self.override_config("molten", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                response = self.make_request()
-                self.assertEqual(response.status_code, 200)
-                # TestResponse from TestClient is wrapper around Response so we must
-                # access data property
-                self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
-
-                root_span = self.get_root_span()
-                root_span.assert_matches(
-                    name="molten.request",
-                    metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5},
-                )
 
     def test_route_failure(self):
         app = molten.App(routes=[molten.Route("/hello/{name}/{age}", hello)])

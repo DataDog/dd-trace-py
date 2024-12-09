@@ -1,16 +1,23 @@
 #include "crashtracker_interface.hpp"
 #include "crashtracker.hpp"
 
+#include <fcntl.h>
 #include <pthread.h>
+#include <unistd.h>
+
+// If the crashtracker exe target name is not set, then fail
+#ifndef CRASHTRACKER_EXE_TARGET_NAME
+#error "CRASHTRACKER_EXE_TARGET_NAME must be defined"
+#endif
 
 // A global instance of the crashtracker is created here.
 Datadog::Crashtracker crashtracker;
 bool crashtracker_initialized = false;
 
-void
-crashtracker_postfork_child()
+const char*
+crashtracker_get_exe_name() // cppcheck-suppress unusedFunction
 {
-    crashtracker.atfork_child();
+    return CRASHTRACKER_EXE_TARGET_NAME;
 }
 
 void
@@ -74,39 +81,51 @@ crashtracker_set_stderr_filename(std::string_view filename) // cppcheck-suppress
 }
 
 void
-crashtracker_set_alt_stack(bool alt_stack) // cppcheck-suppress unusedFunction
+crashtracker_set_create_alt_stack(bool create_alt_stack) // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_create_alt_stack(alt_stack);
+    crashtracker.set_create_alt_stack(create_alt_stack);
+}
+
+void
+crashtracker_set_use_alt_stack(bool use_alt_stack) // cppcheck-suppress unusedFunction
+{
+    crashtracker.set_use_alt_stack(use_alt_stack);
 }
 
 void
 crashtracker_set_resolve_frames_disable() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_DISABLED);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_DISABLED);
 }
 
 void
 crashtracker_set_resolve_frames_fast() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS);
 }
 
 void
 crashtracker_set_resolve_frames_full() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED_WITH_INPROCESS_SYMBOLS);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_ENABLED_WITH_INPROCESS_SYMBOLS);
 }
 
 void
 crashtracker_set_resolve_frames_safe() // cppcheck-suppress unusedFunction
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED_WITH_SYMBOLS_IN_RECEIVER);
+    crashtracker.set_resolve_frames(DDOG_CRASHT_STACKTRACE_COLLECTION_ENABLED_WITH_SYMBOLS_IN_RECEIVER);
 }
 
 bool
 crashtracker_set_receiver_binary_path(std::string_view path) // cppcheck-suppress unusedFunction
 {
     return crashtracker.set_receiver_binary_path(path);
+}
+
+void
+crashtracker_set_tag(std::string_view key, std::string_view value) // cppcheck-suppress unusedFunction
+{
+    crashtracker.set_tag(key, value);
 }
 
 void
@@ -117,8 +136,6 @@ crashtracker_start() // cppcheck-suppress unusedFunction
         crashtracker.start();
         crashtracker_initialized = true;
 
-        // Also install the post-fork handler for the child process
-        pthread_atfork(nullptr, nullptr, crashtracker_postfork_child);
         return true;
     }();
     (void)initialized;
@@ -175,4 +192,10 @@ crashtracker_profiling_state_serializing_stop() // cppcheck-suppress unusedFunct
     if (crashtracker_initialized) {
         crashtracker.serializing_stop();
     }
+}
+
+bool
+crashtracker_is_started() // cppcheck-suppress unusedFunction
+{
+    return crashtracker_initialized;
 }

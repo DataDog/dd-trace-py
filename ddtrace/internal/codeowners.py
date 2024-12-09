@@ -1,12 +1,11 @@
 import os
 import re
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 
-def path_to_regex(pattern):
-    # type: (str) -> re.Pattern
+def path_to_regex(pattern: str) -> re.Pattern:
     """
     source https://github.com/sbdchd/codeowners/blob/c95e13d384ac09cfa1c23be1a8601987f41968ea/codeowners/__init__.py
 
@@ -119,40 +118,48 @@ class Codeowners(object):
         ".gitlab/CODEOWNERS",
     )
 
-    def __init__(self, path=None, cwd=None):
-        # type: (Optional[str], Optional[str]) -> None
+    def __init__(self, path: Optional[str] = None, cwd: Optional[str] = None):
         """Initialize Codeowners object.
 
         :param path: path to CODEOWNERS file otherwise try to use any from known locations
         """
+        self.patterns: List[Tuple[re.Pattern, List[str]]] = []
+        self.path: Optional[str] = None
+
         path = path or self.location(cwd)
-        if path is not None:
-            self.path = path  # type: str
-        self.patterns = []  # type: List[Tuple[re.Pattern, List[str]]]
+
+        if path is None:
+            raise ValueError("CODEOWNERS file not found")
+
+        self.path = path
         self.parse()
 
-    def location(self, cwd=None):
-        # type: (Optional[str]) -> Optional[str]
+    def location(self, cwd: Optional[str] = None) -> Optional[str]:
         """Return the location of the CODEOWNERS file."""
         cwd = cwd or os.getcwd()
         for location in self.KNOWN_LOCATIONS:
             path = os.path.join(cwd, location)
             if os.path.isfile(path):
                 return path
-        raise ValueError("CODEOWNERS file not found")
+        return None
 
-    def parse(self):
-        # type: () -> None
+    def parse(self) -> None:
         """Parse CODEOWNERS file and store the lines and regexes."""
+        if self.path is None:
+            return
+
         with open(self.path) as f:
             patterns = []
             for line in f.readlines():
                 line = line.strip()
+
+                if "#" in line:
+                    # Strip out the comment from the line
+                    line = line.split("#", 1)[0].strip()
+
                 if line == "":
                     continue
-                # Lines starting with '#' are comments.
-                if line.startswith("#"):
-                    continue
+
                 if line.startswith("[") and line.endswith("]"):
                     # found a code owners section
                     continue
@@ -182,8 +189,7 @@ class Codeowners(object):
             patterns.reverse()
             self.patterns = patterns
 
-    def of(self, path):
-        # type: (str) -> List[str]
+    def of(self, path: str) -> List[str]:
         """Return code owners for a given path.
 
         :param path: path to check
@@ -192,4 +198,4 @@ class Codeowners(object):
         for pattern, owners in self.patterns:
             if pattern.search(path):
                 return owners
-        raise KeyError("no code owners found for {path}".format(path=path))
+        return []

@@ -3,7 +3,6 @@ import kombu
 import mock
 
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.kombu import utils
 from ddtrace.contrib.kombu.patch import patch
 from ddtrace.contrib.kombu.patch import unpatch
@@ -98,29 +97,6 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(consumer_span.get_tag("kombu.routing_key"), "tasks")
         self.assertEqual(consumer_span.get_tag("component"), "kombu")
         self.assertEqual(consumer_span.get_tag("span.kind"), "consumer")
-
-    def test_analytics_default(self):
-        self._publish_consume()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 2)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
-
-    def test_analytics_with_rate(self):
-        with self.override_config("kombu", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            self._publish_consume()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_analytics_without_rate(self):
-        with self.override_config("kombu", dict(analytics_enabled=True)):
-            self._publish_consume()
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def _gen_distributed_spans(self):
         self._publish_consume()
@@ -355,10 +331,10 @@ class TestKombuDsm(TracerTestCase):
         out_tags = ",".join(["direction:out", "exchange:dsm_tests", "has_routing_key:true", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
 
-        assert first[(out_tags, 72906486983046225, 0)].full_pathway_latency._count == 1
-        assert first[(out_tags, 72906486983046225, 0)].edge_latency._count == 1
-        assert first[(in_tags, 14415630735402874533, 72906486983046225)].full_pathway_latency._count == 1
-        assert first[(in_tags, 14415630735402874533, 72906486983046225)].edge_latency._count == 1
+        assert first[(out_tags, 72906486983046225, 0)].full_pathway_latency.count == 1
+        assert first[(out_tags, 72906486983046225, 0)].edge_latency.count == 1
+        assert first[(in_tags, 14415630735402874533, 72906486983046225)].full_pathway_latency.count == 1
+        assert first[(in_tags, 14415630735402874533, 72906486983046225)].edge_latency.count == 1
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_DATA_STREAMS_ENABLED="True", DD_KOMBU_DISTRIBUTED_TRACING="False")
@@ -378,10 +354,10 @@ class TestKombuDsm(TracerTestCase):
             for _bucket_name, bucket in first.items():
                 print(payload)
                 print(payload_size)
-                assert bucket.payload_size._count >= 1
+                assert bucket.payload_size.count >= 1
                 assert (
-                    bucket.payload_size._sum == expected_payload_size
-                ), f"Actual payload size: {bucket.payload_size._sum} != Expected payload size: {expected_payload_size}"
+                    bucket.payload_size.sum == expected_payload_size
+                ), f"Actual payload size: {bucket.payload_size.sum} != Expected payload size: {expected_payload_size}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
@@ -394,7 +370,7 @@ class TestKombuDsm(TracerTestCase):
         out_tags = ",".join(["direction:out", "exchange:", "has_routing_key:true", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
 
-        assert first[(out_tags, 2585352008533360777, 0)].full_pathway_latency._count == 1
-        assert first[(out_tags, 2585352008533360777, 0)].edge_latency._count == 1
-        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].full_pathway_latency._count == 1
-        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].edge_latency._count == 1
+        assert first[(out_tags, 2585352008533360777, 0)].full_pathway_latency.count == 1
+        assert first[(out_tags, 2585352008533360777, 0)].edge_latency.count == 1
+        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].full_pathway_latency.count == 1
+        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].edge_latency.count == 1

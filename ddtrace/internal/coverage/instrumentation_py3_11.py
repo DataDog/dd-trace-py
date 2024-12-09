@@ -7,6 +7,7 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal.injection import HookType
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
@@ -24,17 +25,16 @@ class JumpDirection(int, Enum):
 
 
 class Jump(ABC):
-    def __init__(self, start: int, argbytes: list[int]) -> None:
+    def __init__(self, start: int, arg: int) -> None:
         self.start = start
         self.end: t.Optional[int] = None
-        self.arg = int.from_bytes(argbytes, "big", signed=False)
-        self.argsize = len(argbytes)
+        self.arg = arg
 
 
 class RJump(Jump):
     __opcodes__ = set(dis.hasjrel)
 
-    def __init__(self, start: int, arg: list[int], direction: JumpDirection) -> None:
+    def __init__(self, start: int, arg: int, direction: JumpDirection) -> None:
         super().__init__(start, arg)
 
         self.direction = direction
@@ -62,13 +62,14 @@ class Branch:
 
 
 EXTENDED_ARG = dis.EXTENDED_ARG
+NO_OFFSET = -1
 
 
 def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
-    instructions = [Instruction(-1, opcode, arg & 0xFF)]
+    instructions = [Instruction(NO_OFFSET, opcode, arg & 0xFF)]
     arg >>= 8
     while arg:
-        instructions.insert(0, Instruction(-1, EXTENDED_ARG, arg & 0xFF))
+        instructions.insert(0, Instruction(NO_OFFSET, EXTENDED_ARG, arg & 0xFF))
         arg >>= 8
     return instructions
 
@@ -88,7 +89,7 @@ def to_varint(value: int, set_begin_marker: bool = False) -> bytes:
     # the begin marker if requested.
     temp = bytearray()
     if value < 0:
-        raise ValueError("varint must be positive")
+        raise ValueError("Invalid value for varint")
     while value:
         temp.insert(0, value & 63 | (64 if temp else 0))
         value >>= 6
@@ -221,28 +222,33 @@ CACHE = dis.opmap["CACHE"]
 CALL = dis.opmap["CALL"]
 POP_TOP = dis.opmap["POP_TOP"]
 RESUME = dis.opmap["RESUME"]
+RETURN_VALUE = dis.opmap["RETURN_VALUE"]
+IMPORT_NAME = dis.opmap["IMPORT_NAME"]
+IMPORT_FROM = dis.opmap["IMPORT_FROM"]
+
+EMPTY_BYTECODE = bytes([RESUME, 0, LOAD_CONST, 0, RETURN_VALUE, 0])
 
 
 def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     return (
-        Instruction(-1, PUSH_NULL, 0),
+        Instruction(NO_OFFSET, PUSH_NULL, 0),
         *instr_with_arg(LOAD_CONST, trap_index),
         *instr_with_arg(LOAD_CONST, arg_index),
-        Instruction(-1, PRECALL, 1),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, CALL, 1),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, CACHE, 0),
-        Instruction(-1, POP_TOP, 0),
+        Instruction(NO_OFFSET, PRECALL, 1),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CALL, 1),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, CACHE, 0),
+        Instruction(NO_OFFSET, POP_TOP, 0),
     )
 
 
 SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -252,7 +258,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
     trap_index = len(new_consts)
     new_consts.append(trap_func)
 
-    seen_lines = set()
+    seen_lines = CoverageLines()
 
     exc_table = list(parse_exception_table(code))
     exc_table_offsets = {_ for e in exc_table for _ in (e.start, e.end, e.target)}
@@ -264,12 +270,25 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
     line_map = {}
     line_starts = dict(dis.findlinestarts(code))
 
-    # Find the offset of the RESUME opcode. We should not add any
-    # instrumentation before this point.
-    try:
-        resume_offset = code.co_code[::2].index(RESUME) << 1
-    except ValueError:
-        resume_offset = -1
+    # Find the offset of the RESUME opcode. We should not add any instrumentation before this point.
+    resume_offset = NO_OFFSET
+    for i in range(0, len(code.co_code), 2):
+        if code.co_code[i] == RESUME:
+            resume_offset = i
+            break
+
+    # If we are looking at an empty module, we trick ourselves into instrumenting line 0 by skipping the RESUME at index
+    # and instrumenting the second offset:
+    if code.co_name == "<module>" and line_starts == {0: 0} and code.co_code == EMPTY_BYTECODE:
+        line_starts = {2: 0}
+
+    # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
+    # For example, from ...package import module
+    current_arg: int = 0
+    previous_arg: int = 0
+    _previous_previous_arg: int = 0
+    current_import_name: t.Optional[str] = None
+    current_import_package: t.Optional[str] = None
 
     try:
         code_iter = iter(enumerate(code.co_code))
@@ -290,7 +309,14 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
                     trap_instructions = trap_call(trap_index, len(new_consts))
                     traps[original_offset] = len(trap_instructions)
                     instructions.extend(trap_instructions)
-                    new_consts.append((line, trap_arg))
+
+                    # Make sure that the current module is marked as depending on its own package by instrumenting the
+                    # first executable line
+                    package_dep = None
+                    if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
+                        package_dep = (package, ("",))
+
+                    new_consts.append((line, trap_arg, package_dep))
 
                     line_map[original_offset] = trap_instructions[0]
 
@@ -303,14 +329,44 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
             # Propagate code
             instructions.append(Instruction(original_offset, opcode, arg))
 
-            # Collect branching instructions for processing
-            if opcode in RJump.__opcodes__:
-                jumps[offset] = RJump(original_offset, [*ext, arg], JumpDirection.from_opcode(opcode))
-
             if opcode is EXTENDED_ARG:
                 ext.append(arg)
+                continue
             else:
+                _previous_previous_arg = previous_arg
+                previous_arg = current_arg
+                current_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 ext.clear()
+
+            # Track imports names
+            if opcode == IMPORT_NAME:
+                import_depth = code.co_consts[_previous_previous_arg]
+                current_import_name = code.co_names[current_arg]
+                # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
+                current_import_package = (
+                    ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
+                )
+                new_consts[-1] = (
+                    new_consts[-1][0],
+                    new_consts[-1][1],
+                    (current_import_package, (current_import_name,)),
+                )
+
+            # Also track import from statements since it's possible that the "from" target is a module, eg:
+            # from my_package import my_module
+            # Since the package has not changed, we simply extend the previous import names with the new value
+            if opcode == IMPORT_FROM:
+                import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
+                new_consts[-1] = (
+                    new_consts[-1][0],
+                    new_consts[-1][1],
+                    (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
+                )
+
+            # Collect branching instructions for processing
+            if opcode in RJump.__opcodes__:
+                jumps[offset] = RJump(original_offset, current_arg, JumpDirection.from_opcode(opcode))
+
     except StopIteration:
         pass
 
@@ -375,7 +431,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
                     if jump_instr.targets:
                         for target in jump_instr.targets:
                             if target.end is not jump_instr:
-                                raise (ValueError("Jump instruction is not the end of the branch"))
+                                raise ValueError("Invalid target")
                             target.end = ext_instr
                         ext_instr.targets.extend(jump_instr.targets)
                         jump_instr.targets.clear()
@@ -403,21 +459,16 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
     # Instrument nested code objects recursively
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
-            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg)
+            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
             seen_lines.update(nested_lines)
 
-    new_linetable = update_location_data(code, traps, [(instr.offset, s) for instr, s in exts])
-    new_exceptiontable = compile_exception_table(exc_table)
-
-    replace = code.replace(
-        co_code=bytes(new_code),
-        co_consts=tuple(new_consts),
-        co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-        co_linetable=new_linetable,
-        co_exceptiontable=new_exceptiontable,
-    )
-
     return (
-        replace,
+        code.replace(
+            co_code=bytes(new_code),
+            co_consts=tuple(new_consts),
+            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+            co_linetable=update_location_data(code, traps, [(instr.offset, s) for instr, s in exts]),
+            co_exceptiontable=compile_exception_table(exc_table),
+        ),
         seen_lines,
     )

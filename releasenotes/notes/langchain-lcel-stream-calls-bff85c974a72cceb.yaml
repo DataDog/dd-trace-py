@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    langchain: Adds support for tracing ``stream`` calls on LCEL chains, chat completion models, or completion models.
+    Note that due to an upstream issue with the ``langchain`` library itself, streamed responses will not be tagged correctly based on the choice index when the underlying model is configured to return ``n>1`` choices.
+    Please refer to this github issue for more details: https://github.com/langchain-ai/langchain/issues/26719

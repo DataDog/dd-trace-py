@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add support for expanding AWS request/response Payloads into flattened span tags.
+

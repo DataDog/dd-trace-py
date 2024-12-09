@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes a bug where ``.git`` was incorrectly being stripped from repository URLs when extracting service names, 
+    resulting in ``g``, ``i``, or ``t`` being removed (eg: ``test-environment.git`` incorrectly becoming ``test-environmen``)

@@ -1,13 +1,12 @@
 from mock.mock import ANY
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
-from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
@@ -27,14 +26,14 @@ def _assert_vulnerability(data, value_parts, file_line_label):
     assert vulnerability["hash"] == hash_value
 
 
-def test_propagation_no_path(iast_span_defaults):
+def test_propagation_no_path(iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
     origin1 = "taintsource"
     tainted_string = taint_pyobject(origin1, source_name="path", source_value=origin1, source_origin=OriginType.PATH)
     for i in range(100):
         mod.propagation_no_path(tainted_string)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
 
     assert span_report is None
 
@@ -48,13 +47,13 @@ def test_propagation_no_path(iast_span_defaults):
         (bytearray(b"taintsource1")),
     ],
 )
-def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
+def test_propagation_path_1_origin_1_propagation(origin1, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
     tainted_string = taint_pyobject(origin1, source_name="path", source_value=origin1, source_origin=OriginType.PATH)
     mod.propagation_path_1_source_1_prop(tainted_string)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]
@@ -82,14 +81,14 @@ def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
         bytearray(b"taintsource1"),
     ],
 )
-def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
+def test_propagation_path_1_origins_2_propagations(origin1, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
     tainted_string_1 = taint_pyobject(origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH)
 
     mod.propagation_path_1_source_2_prop(tainted_string_1)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]
@@ -126,7 +125,7 @@ def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_defaults):
+def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
     tainted_string_1 = taint_pyobject(origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH)
@@ -135,7 +134,7 @@ def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_d
     )
     mod.propagation_path_2_source_2_prop(tainted_string_1, tainted_string_2)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]
@@ -177,7 +176,7 @@ def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_d
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_defaults):
+def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
     tainted_string_1 = taint_pyobject(origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH)
@@ -186,7 +185,7 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
     )
     mod.propagation_path_3_prop(tainted_string_1, tainted_string_2)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]
@@ -233,7 +232,7 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-def test_propagation_path_2_origins_5_propagation(origin1, origin2, iast_span_defaults):
+def test_propagation_path_2_origins_5_propagation(origin1, origin2, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
     tainted_string_1 = taint_pyobject(origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH)
@@ -242,7 +241,7 @@ def test_propagation_path_2_origins_5_propagation(origin1, origin2, iast_span_de
     )
     mod.propagation_path_5_prop(tainted_string_1, tainted_string_2)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = _get_span_report()
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]

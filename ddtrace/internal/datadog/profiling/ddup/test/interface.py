@@ -136,7 +136,7 @@ def SampleTest(value, name, exc_type, lineno, span, endpoint):
             h.push_task_id(value)
             h.push_task_name(name)
             h.push_exceptioninfo(exc_type, value)
-            h.push_span(span, endpoint)
+            h.push_span(span)
             h.push_frame(name, name, value, lineno)
             h.flush_sample()
         except Exception as e:

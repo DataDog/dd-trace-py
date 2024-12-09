@@ -15,8 +15,7 @@
 import functools
 import inspect
 
-import six
-from .. import wrapt
+import wrapt
 
 from . import _utils
 
@@ -270,7 +269,7 @@ def removed_class(cls_name, replacement=None, message=None,
 
     def _wrap_it(old_init, out_message):
 
-        @six.wraps(old_init, assigned=_utils.get_assigned(old_init))
+        @functools.wraps(old_init, assigned=_utils.get_assigned(old_init))
         def new_init(self, *args, **kwargs):
             _utils.deprecation(out_message, stacklevel=stacklevel,
                                category=category)
@@ -315,7 +314,7 @@ def removed_module(module, replacement=None, message=None,
     """
     if inspect.ismodule(module):
         module_name = _get_qualified_name(module)
-    elif isinstance(module, six.string_types):
+    elif isinstance(module, str):
         module_name = module
     else:
         _qual, type_name = _utils.get_qualified_name(type(module))

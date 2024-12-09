@@ -12,6 +12,7 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 
 import ddtrace
 from ddtrace import Tracer as DatadogTracer
+from ddtrace import config as ddconfig
 from ddtrace._trace.context import Context as DatadogContext  # noqa:F401
 from ddtrace._trace.span import Span as DatadogSpan
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
@@ -29,7 +30,7 @@ from .utils import get_context_provider_for_scope_manager
 
 log = get_logger(__name__)
 
-DEFAULT_CONFIG = {
+DEFAULT_CONFIG: Dict[str, Optional[Any]] = {
     keys.AGENT_HOSTNAME: None,
     keys.AGENT_HTTPS: None,
     keys.AGENT_PORT: None,
@@ -42,7 +43,7 @@ DEFAULT_CONFIG = {
     keys.SETTINGS: {
         "FILTERS": [],
     },
-}  # type: Dict[str, Any]
+}
 
 
 class Tracer(opentracing.Tracer):
@@ -50,12 +51,11 @@ class Tracer(opentracing.Tracer):
 
     def __init__(
         self,
-        service_name=None,  # type: Optional[str]
-        config=None,  # type: Optional[Dict[str, Any]]
-        scope_manager=None,  # type: Optional[ScopeManager]
-        dd_tracer=None,  # type: Optional[DatadogTracer]
-    ):
-        # type: (...) -> None
+        service_name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        scope_manager: Optional[ScopeManager] = None,
+        dd_tracer: Optional[DatadogTracer] = None,
+    ) -> None:
         """Initialize a new Datadog opentracer.
 
         :param service_name: (optional) the name of the service that this
@@ -81,14 +81,14 @@ class Tracer(opentracing.Tracer):
         self._service_name = service_name or get_application_name()
         self._debug = self._config.get(keys.DEBUG)
 
-        if self._debug:
+        if self._debug and ddconfig._raise:
             # Ensure there are no typos in any of the keys
             invalid_keys = config_invalid_keys(self._config)
             if invalid_keys:
                 str_invalid_keys = ",".join(invalid_keys)
                 raise ConfigException("invalid key(s) given ({})".format(str_invalid_keys))
 
-        if not self._service_name:
+        if not self._service_name and ddconfig._raise:
             raise ConfigException(
                 """ Cannot detect the \'service_name\'.
                                       Please set the \'service_name=\'
@@ -188,14 +188,13 @@ class Tracer(opentracing.Tracer):
 
     def start_span(
         self,
-        operation_name=None,  # type: Optional[str]
-        child_of=None,  # type: Optional[Union[Span, SpanContext]]
-        references=None,  # type: Optional[List[Any]]
-        tags=None,  # type: Optional[Dict[str, str]]
-        start_time=None,  # type: Optional[int]
-        ignore_active_span=False,  # type: bool
-    ):
-        # type: (...) -> Span
+        operation_name: Optional[str] = None,
+        child_of: Optional[Union[Span, SpanContext]] = None,
+        references: Optional[List[Any]] = None,
+        tags: Optional[Dict[str, str]] = None,
+        start_time: Optional[int] = None,
+        ignore_active_span: bool = False,
+    ) -> Span:
         """Starts and returns a new Span representing a unit of work.
 
         Starting a root Span (a Span with no causal references)::
@@ -285,7 +284,7 @@ class Tracer(opentracing.Tracer):
             # user wants to create a new parent span we don't have to do
             # anything
             pass
-        else:
+        elif ddconfig._raise:
             raise TypeError("invalid span configuration given")
 
         # create a new otspan and ddspan using the ddtracer and associate it

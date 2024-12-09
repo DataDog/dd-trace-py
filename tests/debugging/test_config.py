@@ -3,7 +3,6 @@ from contextlib import contextmanager
 import pytest
 
 from ddtrace.internal.agent import get_trace_url
-from ddtrace.internal.utils.config import get_application_name
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings.dynamic_instrumentation import DynamicInstrumentationConfig
 from ddtrace.version import get_version
@@ -12,7 +11,7 @@ from tests.utils import override_env
 
 @contextmanager
 def debugger_config(**kwargs):
-    with override_env(kwargs):
+    with override_env(kwargs, replace_os_env=True):
         from ddtrace.settings import Config
         import ddtrace.settings.dynamic_instrumentation
 
@@ -49,7 +48,7 @@ def test_snapshot_intake_url():
 
 
 def test_service_name():
-    assert DynamicInstrumentationConfig().service_name == get_application_name()
+    assert DynamicInstrumentationConfig().service_name == "tests.debugging"
 
     with debugger_config(DD_SERVICE="test-service") as config:
         assert config.service_name == "test-service"

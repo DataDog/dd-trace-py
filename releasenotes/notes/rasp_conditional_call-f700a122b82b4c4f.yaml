@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    ASM: This upgrade prevents the WAF from being invoked for exploit prevention if the corresponding rules are not enabled via remote configuration.

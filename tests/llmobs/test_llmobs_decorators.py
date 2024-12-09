@@ -69,23 +69,29 @@ def test_llm_decorator(LLMObs, mock_llmobs_span_writer):
     )
 
 
-def test_llm_decorator_no_model_name_raises_error(LLMObs, mock_llmobs_span_writer):
-    with pytest.raises(TypeError):
-
-        @llm(model_provider="test_provider", name="test_function", session_id="test_session_id")
-        def f():
-            pass
-
-
-def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
-    @llm(model_name="test_model")
+def test_llm_decorator_no_model_name_sets_default(LLMObs, mock_llmobs_span_writer):
+    @llm(model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
         pass
 
     f()
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_span_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="custom")
+        _expected_llmobs_llm_span_event(
+            span, "llm", model_name="custom", model_provider="test_provider", session_id="test_session_id"
+        )
+    )
+
+
+def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
+    @llm
+    def f():
+        pass
+
+    f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "llm", model_name="custom", model_provider="custom")
     )
 
 
@@ -105,23 +111,29 @@ def test_embedding_decorator(LLMObs, mock_llmobs_span_writer):
     )
 
 
-def test_embedding_decorator_no_model_name_raises_error(LLMObs):
-    with pytest.raises(TypeError):
-
-        @embedding(model_provider="test_provider", name="test_function", session_id="test_session_id")
-        def f():
-            pass
-
-
-def test_embedding_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
-    @embedding(model_name="test_model")
+def test_embedding_decorator_no_model_name_sets_default(LLMObs, mock_llmobs_span_writer):
+    @embedding(model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
         pass
 
     f()
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_span_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="custom")
+        _expected_llmobs_llm_span_event(
+            span, "embedding", model_name="custom", model_provider="test_provider", session_id="test_session_id"
+        )
+    )
+
+
+def test_embedding_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
+    @embedding
+    def f():
+        pass
+
+    f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "embedding", model_name="custom", model_provider="custom")
     )
 
 
@@ -524,3 +536,353 @@ def test_automatic_annotation_off_if_manually_annotated(LLMObs, mock_llmobs_span
                 output_value="my custom output",
             )
         )
+
+
+def test_generator_sync(LLMObs, mock_llmobs_span_writer):
+    """
+    Test that decorators work with generator functions.
+    The span should finish after the generator is exhausted.
+    """
+    for decorator_name, decorator in (
+        ("task", task),
+        ("workflow", workflow),
+        ("tool", tool),
+        ("agent", agent),
+        ("retrieval", retrieval),
+        ("llm", llm),
+        ("embedding", embedding),
+    ):
+
+        @decorator()
+        def f():
+            for i in range(3):
+                yield i
+
+            LLMObs.annotate(
+                input_data="hello",
+                output_data="world",
+            )
+
+        i = 0
+        for e in f():
+            assert e == i
+            i += 1
+
+        span = LLMObs._instance.tracer.pop()[0]
+        if decorator_name == "llm":
+            expected_span_event = _expected_llmobs_llm_span_event(
+                span,
+                decorator_name,
+                input_messages=[{"content": "hello"}],
+                output_messages=[{"content": "world"}],
+                model_name="custom",
+                model_provider="custom",
+            )
+        elif decorator_name == "embedding":
+            expected_span_event = _expected_llmobs_llm_span_event(
+                span,
+                decorator_name,
+                input_documents=[{"text": "hello"}],
+                output_value="world",
+                model_name="custom",
+                model_provider="custom",
+            )
+        elif decorator_name == "retrieval":
+            expected_span_event = _expected_llmobs_non_llm_span_event(
+                span, decorator_name, input_value="hello", output_documents=[{"text": "world"}]
+            )
+        else:
+            expected_span_event = _expected_llmobs_non_llm_span_event(
+                span, decorator_name, input_value="hello", output_value="world"
+            )
+
+        mock_llmobs_span_writer.enqueue.assert_called_with(expected_span_event)
+
+
+async def test_generator_async(LLMObs, mock_llmobs_span_writer):
+    """
+    Test that decorators work with generator functions.
+    The span should finish after the generator is exhausted.
+    """
+    for decorator_name, decorator in (
+        ("task", task),
+        ("workflow", workflow),
+        ("tool", tool),
+        ("agent", agent),
+        ("retrieval", retrieval),
+        ("llm", llm),
+        ("embedding", embedding),
+    ):
+
+        @decorator()
+        async def f():
+            for i in range(3):
+                yield i
+
+            LLMObs.annotate(
+                input_data="hello",
+                output_data="world",
+            )
+
+        i = 0
+        async for e in f():
+            assert e == i
+            i += 1
+
+        span = LLMObs._instance.tracer.pop()[0]
+        if decorator_name == "llm":
+            expected_span_event = _expected_llmobs_llm_span_event(
+                span,
+                decorator_name,
+                input_messages=[{"content": "hello"}],
+                output_messages=[{"content": "world"}],
+                model_name="custom",
+                model_provider="custom",
+            )
+        elif decorator_name == "embedding":
+            expected_span_event = _expected_llmobs_llm_span_event(
+                span,
+                decorator_name,
+                input_documents=[{"text": "hello"}],
+                output_value="world",
+                model_name="custom",
+                model_provider="custom",
+            )
+        elif decorator_name == "retrieval":
+            expected_span_event = _expected_llmobs_non_llm_span_event(
+                span, decorator_name, input_value="hello", output_documents=[{"text": "world"}]
+            )
+        else:
+            expected_span_event = _expected_llmobs_non_llm_span_event(
+                span, decorator_name, input_value="hello", output_value="world"
+            )
+
+        mock_llmobs_span_writer.enqueue.assert_called_with(expected_span_event)
+
+
+def test_generator_sync_with_llmobs_disabled(LLMObs, mock_logs):
+    LLMObs.disable()
+
+    @workflow()
+    def f():
+        for i in range(3):
+            yield i
+
+    i = 0
+    for e in f():
+        assert e == i
+        i += 1
+
+    mock_logs.warning.assert_called_with(SPAN_START_WHILE_DISABLED_WARNING)
+
+    @llm()
+    def g():
+        for i in range(3):
+            yield i
+
+    i = 0
+    for e in g():
+        assert e == i
+        i += 1
+
+    mock_logs.warning.assert_called_with(SPAN_START_WHILE_DISABLED_WARNING)
+
+
+async def test_generator_async_with_llmobs_disabled(LLMObs, mock_logs):
+    LLMObs.disable()
+
+    @workflow()
+    async def f():
+        for i in range(3):
+            yield i
+
+    i = 0
+    async for e in f():
+        assert e == i
+        i += 1
+
+    mock_logs.warning.assert_called_with(SPAN_START_WHILE_DISABLED_WARNING)
+
+    @llm()
+    async def g():
+        for i in range(3):
+            yield i
+
+    i = 0
+    async for e in g():
+        assert e == i
+        i += 1
+
+    mock_logs.warning.assert_called_with(SPAN_START_WHILE_DISABLED_WARNING)
+
+
+def test_generator_sync_finishes_span_on_error(LLMObs, mock_llmobs_span_writer):
+    """Tests that"""
+
+    @workflow()
+    def f():
+        for i in range(3):
+            if i == 1:
+                raise ValueError("test_error")
+            yield i
+
+    with pytest.raises(ValueError):
+        for _ in f():
+            pass
+
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "workflow",
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
+        )
+    )
+
+
+async def test_generator_async_finishes_span_on_error(LLMObs, mock_llmobs_span_writer):
+    @workflow()
+    async def f():
+        for i in range(3):
+            if i == 1:
+                raise ValueError("test_error")
+            yield i
+
+    with pytest.raises(ValueError):
+        async for _ in f():
+            pass
+
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "workflow",
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
+        )
+    )
+
+
+def test_generator_sync_send(LLMObs, mock_llmobs_span_writer):
+    @workflow()
+    def f():
+        while True:
+            i = yield
+            yield i**2
+
+    gen = f()
+    next(gen)
+    assert gen.send(2) == 4
+    next(gen)
+    assert gen.send(3) == 9
+    next(gen)
+    assert gen.send(4) == 16
+    gen.close()
+
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "workflow",
+        )
+    )
+
+
+async def test_generator_async_send(LLMObs, mock_llmobs_span_writer):
+    @workflow()
+    async def f():
+        while True:
+            value = yield
+            yield value**2
+
+    gen = f()
+    await gen.asend(None)  # Prime the generator
+
+    for i in range(5):
+        assert (await gen.asend(i)) == i**2
+        await gen.asend(None)
+
+    await gen.aclose()
+
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "workflow",
+        )
+    )
+
+
+def test_generator_sync_throw(LLMObs, mock_llmobs_span_writer):
+    @workflow()
+    def f():
+        for i in range(3):
+            yield i
+
+    with pytest.raises(ValueError):
+        gen = f()
+        next(gen)
+        gen.throw(ValueError("test_error"))
+
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "workflow",
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
+        )
+    )
+
+
+async def test_generator_async_throw(LLMObs, mock_llmobs_span_writer):
+    @workflow()
+    async def f():
+        for i in range(3):
+            yield i
+
+    with pytest.raises(ValueError):
+        gen = f()
+        await gen.asend(None)
+        await gen.athrow(ValueError("test_error"))
+
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "workflow",
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
+        )
+    )
+
+
+def test_generator_exit_exception_sync(LLMObs, mock_llmobs_span_writer):
+    @workflow()
+    def get_next_element(alist):
+        for element in alist:
+            try:
+                yield element
+            except BaseException:  # except Exception
+                pass
+
+    for element in get_next_element([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]):
+        if element == 5:
+            break
+
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "workflow",
+            input_value=json.dumps({"alist": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}),
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
+        )
+    )

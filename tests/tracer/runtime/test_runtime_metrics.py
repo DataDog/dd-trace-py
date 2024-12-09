@@ -17,6 +17,7 @@ from ddtrace.internal.service import ServiceStatus
 from tests.utils import BaseTestCase
 from tests.utils import TracerTestCase
 from tests.utils import call_program
+from tests.utils import flaky
 
 
 @contextlib.contextmanager
@@ -45,7 +46,7 @@ class TestRuntimeTags(TracerTestCase):
         with self.override_global_tracer():
             with self.trace("test", service="test"):
                 tags = [k for (k, v) in RuntimeTags(enabled=[SERVICE])]
-                self.assertEqual(tags, [SERVICE])
+                self.assertEqual(set(tags), set([SERVICE]))
 
     def test_env_tag(self):
         def filter_only_env_tags(tags):
@@ -75,10 +76,10 @@ def test_runtime_tags_empty():
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 
     tags = list(RuntimeTags())
-    assert len(tags) == 4
+    assert len(tags) == 5
 
     tags = dict(tags)
-    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version"])
+    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "service"])
 
 
 @pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"})
@@ -102,11 +103,11 @@ def test_runtime_tags_dd_tags():
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 
     tags = list(RuntimeTags())
-    assert len(tags) == 7, tags
+    assert len(tags) == 8, tags
 
     tags = dict(tags)
     assert set(tags.keys()) == set(
-        ["lang", "lang_interpreter", "lang_version", "tracer_version", "version", "custom", "test"]
+        ["lang", "lang_interpreter", "lang_version", "tracer_version", "version", "custom", "test", "service"]
     )
     assert tags["custom"] == "tag"
     assert tags["test"] == "key"
@@ -121,10 +122,10 @@ def test_runtime_tags_manual_tracer_tags():
     tracer.set_tags({"manual": "tag"})
 
     tags = list(RuntimeTags())
-    assert len(tags) == 5, tags
+    assert len(tags) == 6, tags
 
     tags = dict(tags)
-    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "manual"])
+    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "manual", "service"])
     assert tags["manual"] == "tag"
 
 
@@ -151,14 +152,18 @@ class TestRuntimeWorker(TracerTestCase):
                 with self.override_global_tracer(self.tracer):
                     # spans are started for three services but only web and worker
                     # span types should be included in tags for runtime metrics
-                    root = self.start_span("parent", service="parent", span_type=SpanTypes.WEB)
-                    context = root.context
-                    child = self.start_span("child", service="child", span_type=SpanTypes.WORKER, child_of=context)
-                    self.start_span("query", service="db", span_type=SpanTypes.SQL, child_of=child.context)
-                    time.sleep(interval * 4)
-                    # Get the mocked socket for inspection later
-                    statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
-                    received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+                    with self.start_span("parent", service="parent", span_type=SpanTypes.WEB) as root:
+                        context = root.context
+                        with self.start_span(
+                            "child", service="child", span_type=SpanTypes.WORKER, child_of=context
+                        ) as child:
+                            with self.start_span(
+                                "query", service="db", span_type=SpanTypes.SQL, child_of=child.context
+                            ):
+                                time.sleep(interval * 4)
+                                # Get the mocked socket for inspection later
+                                statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
+                                received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
 
         # we expect more than one flush since it is also called on shutdown
         assert len(received) > 1
@@ -213,6 +218,7 @@ class TestRuntimeWorker(TracerTestCase):
                 assert child.get_tag("language") is None
 
 
+@flaky(1731169429)
 def test_fork():
     _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_enable.py"))
     assert exitcode == 0

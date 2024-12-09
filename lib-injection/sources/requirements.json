@@ -1,0 +1,28 @@
+{
+    "$schema": "https://raw.githubusercontent.com/DataDog/auto_inject/refs/heads/main/preload_go/cmd/library_requirements_tester/testdata/requirements_schema.json",
+    "version": 1,
+    "native_deps": {
+      "glibc": [{
+        "arch": "x64",
+        "supported": true,
+        "description": "From manylinux_2_17",
+        "min": "2.17"
+      },
+      {
+        "arch": "arm64",
+        "supported": true,
+        "description": "From manylinux_2_17",
+        "min": "2.17"
+      }],
+      "musl": [{
+        "arch": "x64",
+        "supported": true,
+        "description": "From musllinux_1_2 "
+      },{
+        "arch": "arm64",
+        "supported": true,
+        "description": "From alpmusllinux_1_2 "
+      }]
+    },
+    "deny": []
+}

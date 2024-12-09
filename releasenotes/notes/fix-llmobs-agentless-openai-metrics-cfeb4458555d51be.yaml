@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue in the OpenAI integration where integration metrics would still be submitted even if 
+    ``LLMObs.enable(agentless_enabled=True)`` was set.

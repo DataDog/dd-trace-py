@@ -3,15 +3,17 @@ import os
 from typing import Union
 import unittest
 
+import wrapt
+
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.coverage.data import _coverage_data
-from ddtrace.contrib.coverage.patch import patch as patch_coverage
-from ddtrace.contrib.coverage.patch import run_coverage_report
-from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
-from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
-from ddtrace.contrib.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.internal.coverage.data import _coverage_data
+from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.internal.coverage.patch import run_coverage_report
+from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
+from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
+from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.unittest.constants import FRAMEWORK
 from ddtrace.contrib.unittest.constants import KIND
@@ -47,7 +49,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -649,6 +650,9 @@ def _start_test_session_span(instance) -> ddtrace.Span:
         test.ITR_TEST_CODE_COVERAGE_ENABLED,
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
+
+    _CIVisibility.set_test_session_name(test_command=test_command)
+
     if _CIVisibility.test_skipping_enabled():
         _set_test_skipping_tags_to_span(test_session_span)
     else:

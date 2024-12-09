@@ -8,6 +8,7 @@ from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
 from tests.utils import TracerTestCase
 
+from ..config import RABBITMQ_CONFIG
 from ..config import REDIS_CONFIG
 
 
@@ -15,10 +16,15 @@ REDIS_URL = "redis://127.0.0.1:{port}".format(port=REDIS_CONFIG["port"])
 BROKER_URL = "{redis}/{db}".format(redis=REDIS_URL, db=0)
 BACKEND_URL = "{redis}/{db}".format(redis=REDIS_URL, db=1)
 
+AMQP_URL = "amqp://{user}:{password}@127.0.0.1:{port}".format(
+    user=RABBITMQ_CONFIG["user"], password=RABBITMQ_CONFIG["password"], port=RABBITMQ_CONFIG["port"]
+)
+AMQP_BROKER_URL = "{amqp}//".format(amqp=AMQP_URL)
+
 
 @pytest.fixture(scope="session")
 def celery_config():
-    return {"broker_url": BROKER_URL, "result_backend": BACKEND_URL}
+    return {"broker_url": BROKER_URL, "result_backend": BACKEND_URL, "task_concurrency": 5}
 
 
 @pytest.fixture
@@ -26,6 +32,7 @@ def celery_worker_parameters():
     return {
         # See https://github.com/celery/celery/issues/3642#issuecomment-457773294
         "perform_ping_check": False,
+        "concurrency": 2,
     }
 
 

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Updates import path in FastAPI module to use the new ASGI module location.

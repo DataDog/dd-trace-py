@@ -9,7 +9,7 @@
     "type": "redis",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.aredis",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "component": "aredis",
@@ -18,6 +18,7 @@
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
       "runtime-id": "2bc441c84b6b45fc9d6f6fdef59a24f3",
+      "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {

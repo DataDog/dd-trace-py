@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 import flask
+import wrapt
 
 from ddtrace import Pin
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
-from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code

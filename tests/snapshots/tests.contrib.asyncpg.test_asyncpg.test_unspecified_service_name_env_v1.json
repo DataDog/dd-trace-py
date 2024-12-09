@@ -1,7 +1,7 @@
 [[
   {
     "name": "postgres.connect",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "postgres.connect",
     "trace_id": 0,
     "span_id": 1,
@@ -20,6 +20,7 @@
       "out.host": "127.0.0.1",
       "peer.service": "postgres",
       "runtime-id": "7c899677ad1a43d0af04b7c66e92a50f",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
@@ -35,7 +36,7 @@
 [
   {
     "name": "postgresql.query",
-    "service": "unnamed-python-service",
+    "service": "ddtrace_subprocess_dir",
     "resource": "SELECT 1",
     "trace_id": 1,
     "span_id": 1,
@@ -54,6 +55,7 @@
       "out.host": "127.0.0.1",
       "peer.service": "postgres",
       "runtime-id": "7c899677ad1a43d0af04b7c66e92a50f",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {

@@ -2,7 +2,6 @@ import os
 import platform
 
 import mock
-import six
 
 from ddtrace import ext
 from ddtrace.profiling.collector import _lock
@@ -14,7 +13,6 @@ from ddtrace.profiling.exporter import pprof
 TEST_EVENTS = {
     stack_event.StackExceptionSampleEvent: [
         stack_event.StackExceptionSampleEvent(
-            timestamp=1,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -28,7 +26,6 @@ TEST_EVENTS = {
             nframes=3,
         ),
         stack_event.StackExceptionSampleEvent(
-            timestamp=2,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -42,7 +39,6 @@ TEST_EVENTS = {
             nframes=3,
         ),
         stack_event.StackExceptionSampleEvent(
-            timestamp=3,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -56,7 +52,6 @@ TEST_EVENTS = {
             nframes=4,
         ),
         stack_event.StackExceptionSampleEvent(
-            timestamp=4,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -70,7 +65,6 @@ TEST_EVENTS = {
             nframes=6,
         ),
         stack_event.StackExceptionSampleEvent(
-            timestamp=5,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -84,7 +78,6 @@ TEST_EVENTS = {
             nframes=3,
         ),
         stack_event.StackExceptionSampleEvent(
-            timestamp=6,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -98,7 +91,6 @@ TEST_EVENTS = {
             nframes=3,
         ),
         stack_event.StackExceptionSampleEvent(
-            timestamp=7,
             thread_id=67892304,
             thread_native_id=123987,
             local_root_span_id=1322219321,
@@ -116,7 +108,6 @@ TEST_EVENTS = {
     ],
     memalloc.MemoryAllocSampleEvent: [
         memalloc.MemoryAllocSampleEvent(
-            timestamp=1,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -131,7 +122,6 @@ TEST_EVENTS = {
             nevents=1024,
         ),
         memalloc.MemoryAllocSampleEvent(
-            timestamp=2,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -146,7 +136,6 @@ TEST_EVENTS = {
             nevents=1024,
         ),
         memalloc.MemoryAllocSampleEvent(
-            timestamp=3,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -161,7 +150,6 @@ TEST_EVENTS = {
             nevents=1024,
         ),
         memalloc.MemoryAllocSampleEvent(
-            timestamp=4,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -176,7 +164,6 @@ TEST_EVENTS = {
             nevents=1024,
         ),
         memalloc.MemoryAllocSampleEvent(
-            timestamp=5,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -193,7 +180,6 @@ TEST_EVENTS = {
             nevents=2048,
         ),
         memalloc.MemoryAllocSampleEvent(
-            timestamp=6,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -208,7 +194,6 @@ TEST_EVENTS = {
             nevents=2048,
         ),
         memalloc.MemoryAllocSampleEvent(
-            timestamp=7,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -225,7 +210,6 @@ TEST_EVENTS = {
     ],
     memalloc.MemoryHeapSampleEvent: [
         memalloc.MemoryHeapSampleEvent(
-            timestamp=1,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -239,7 +223,6 @@ TEST_EVENTS = {
             sample_size=512 * 1024,
         ),
         memalloc.MemoryHeapSampleEvent(
-            timestamp=2,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -253,7 +236,6 @@ TEST_EVENTS = {
             sample_size=512 * 1024,
         ),
         memalloc.MemoryHeapSampleEvent(
-            timestamp=3,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -267,7 +249,6 @@ TEST_EVENTS = {
             sample_size=512 * 1024,
         ),
         memalloc.MemoryHeapSampleEvent(
-            timestamp=4,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -281,7 +262,6 @@ TEST_EVENTS = {
             sample_size=512 * 1024,
         ),
         memalloc.MemoryHeapSampleEvent(
-            timestamp=5,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -296,7 +276,6 @@ TEST_EVENTS = {
             sample_size=512 * 1024,
         ),
         memalloc.MemoryHeapSampleEvent(
-            timestamp=6,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -310,7 +289,6 @@ TEST_EVENTS = {
             sample_size=512 * 1024,
         ),
         memalloc.MemoryHeapSampleEvent(
-            timestamp=7,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -326,7 +304,6 @@ TEST_EVENTS = {
     ],
     stack_event.StackSampleEvent: [
         stack_event.StackSampleEvent(
-            timestamp=1,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -347,7 +324,6 @@ TEST_EVENTS = {
             nframes=3,
         ),
         stack_event.StackSampleEvent(
-            timestamp=2,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -366,7 +342,6 @@ TEST_EVENTS = {
             nframes=3,
         ),
         stack_event.StackSampleEvent(
-            timestamp=3,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -383,7 +358,6 @@ TEST_EVENTS = {
             nframes=4,
         ),
         stack_event.StackSampleEvent(
-            timestamp=4,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -398,7 +372,6 @@ TEST_EVENTS = {
             nframes=6,
         ),
         stack_event.StackSampleEvent(
-            timestamp=5,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -415,7 +388,6 @@ TEST_EVENTS = {
             nframes=3,
         ),
         stack_event.StackSampleEvent(
-            timestamp=6,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -430,7 +402,6 @@ TEST_EVENTS = {
             nframes=3,
         ),
         stack_event.StackSampleEvent(
-            timestamp=7,
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
@@ -448,7 +419,6 @@ TEST_EVENTS = {
     _lock.LockAcquireEvent: [
         _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
-            timestamp=1,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -468,7 +438,6 @@ TEST_EVENTS = {
         ),
         _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
-            timestamp=2,
             thread_id=67892304,
             thread_name="MainThread",
             local_root_span_id=23435,
@@ -486,7 +455,6 @@ TEST_EVENTS = {
         ),
         _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
-            timestamp=3,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -500,7 +468,6 @@ TEST_EVENTS = {
         ),
         _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
-            timestamp=4,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -514,7 +481,6 @@ TEST_EVENTS = {
         ),
         _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
-            timestamp=5,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -528,7 +494,6 @@ TEST_EVENTS = {
         ),
         _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
-            timestamp=6,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -542,7 +507,6 @@ TEST_EVENTS = {
         ),
         _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
-            timestamp=7,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -558,7 +522,6 @@ TEST_EVENTS = {
     _lock.LockReleaseEvent: [
         _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
-            timestamp=1,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -572,7 +535,6 @@ TEST_EVENTS = {
         ),
         _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
-            timestamp=2,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -586,7 +548,6 @@ TEST_EVENTS = {
         ),
         _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
-            timestamp=3,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -600,7 +561,6 @@ TEST_EVENTS = {
         ),
         _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
-            timestamp=4,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -614,7 +574,6 @@ TEST_EVENTS = {
         ),
         _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
-            timestamp=5,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -628,7 +587,6 @@ TEST_EVENTS = {
         ),
         _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
-            timestamp=6,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -642,7 +600,6 @@ TEST_EVENTS = {
         ),
         _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
-            timestamp=7,
             thread_id=67892304,
             thread_name="MainThread",
             frames=[
@@ -705,7 +662,6 @@ def test_pprof_exporter_libs(gan):
     TEST_EVENTS = {
         stack_event.StackSampleEvent: [
             stack_event.StackSampleEvent(
-                timestamp=1,
                 thread_id=67892304,
                 thread_native_id=123987,
                 thread_name="MainThread",
@@ -714,7 +670,6 @@ def test_pprof_exporter_libs(gan):
                 trace_type=ext.SpanTypes.WEB,
                 trace_resource_container=["myresource"],
                 frames=[
-                    (six.__file__, 23, "func1", ""),
                     (memalloc.__file__, 44, "func2", ""),
                     ("foobar.py", 19, "func5", ""),
                 ],
@@ -726,7 +681,6 @@ def test_pprof_exporter_libs(gan):
                 nframes=3,
             ),
             stack_event.StackSampleEvent(
-                timestamp=2,
                 thread_id=67892304,
                 thread_native_id=123987,
                 thread_name="MainThread",
@@ -762,7 +716,6 @@ def test_pprof_exporter_libs(gan):
 
     expected_libs = [
         # {"name": "ddtrace", "kind": "library", "paths": {__file__, memalloc.__file__}},
-        {"name": "six", "kind": "library", "version": six.__version__, "paths": {six.__file__}},
         {"kind": "standard library", "name": "stdlib", "version": platform.python_version()},
         {
             "kind": "library",

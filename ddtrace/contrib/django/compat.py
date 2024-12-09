@@ -1,31 +1,14 @@
-import django
+from ddtrace.contrib.internal.django.compat import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-if django.VERSION >= (1, 10, 1):
-    from django.urls import get_resolver
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-    def user_is_authenticated(user):
-        # Explicit comparison due to the following bug
-        # https://code.djangoproject.com/ticket/26988
-        return user.is_authenticated == True  # noqa E712
-
-else:
-    from django.conf import settings
-    from django.core import urlresolvers
-
-    def user_is_authenticated(user):
-        return user.is_authenticated()
-
-    if django.VERSION >= (1, 9, 0):
-
-        def get_resolver(urlconf=None):
-            urlconf = urlconf or settings.ROOT_URLCONF
-            urlresolvers.set_urlconf(urlconf)
-            return urlresolvers.get_resolver(urlconf)
-
-    else:
-
-        def get_resolver(urlconf=None):
-            urlconf = urlconf or settings.ROOT_URLCONF
-            urlresolvers.set_urlconf(urlconf)
-            return urlresolvers.RegexURLResolver(r"^/", urlconf)
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

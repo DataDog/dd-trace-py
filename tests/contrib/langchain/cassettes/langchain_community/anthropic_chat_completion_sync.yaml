@@ -1,8 +1,7 @@
 interactions:
 - request:
     body: '{"max_tokens": 15, "messages": [{"role": "user", "content": "When do you
-      use ''whom'' instead of ''who''?"}], "model": "claude-3-opus-20240229", "temperature":
-      0.0}'
+      use ''whom'' instead of ''who''?"}], "model": "claude-3-opus-20240229"}'
     headers:
       accept:
       - application/json
@@ -13,13 +12,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '160'
+      - '140'
       content-type:
       - application/json
       host:
       - api.anthropic.com
       user-agent:
-      - Anthropic/Python 0.28.0
+      - Anthropic/Python 0.31.1
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -29,26 +28,21 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 0.28.0
+      - 0.31.1
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.9
+      - 3.10.5
     method: POST
     uri: https://api.anthropic.com/v1/messages
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA0xPTUvDQBT8K8ucN5Ck9tA9ijePpVhrJWySZ7ua7It5b7US8t8lxYKngfliZkJo
-        4dDLqcqL/W7PtDrUu3r73H4/HOL9Zl08wkJ/BlpcJOJPBIuRu4XwIkHUR4VFzy11cGg6n1rKVhkP
-        SbIyL+/ystzAouGoFBXuZboVKl2W6BUcjng6c3+ECWKSUGu8GD2T4fqdGjX8Zrz5orE2PJphpIEl
-        aOCI+dVClIdqJC8cl6H+Uil/UBT8SUKfiWJDcDF1nUW6HnETQhyS3syuLC046X+qWM/zLwAAAP//
-        AwCVZ1cpJgEAAA==
+    content: '{"id":"msg_017JK8Vq2L5AyMmrmEeGTRh9","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[{"type":"text","text":"\"Whom\"
+      is used in place of \"who\" when it functions"}],"stop_reason":"max_tokens","stop_sequence":null,"usage":{"input_tokens":22,"output_tokens":15}}'
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88f280bf1ca11811-EWR
+      - 8a433cf0fd71ac48-YYZ
       Connection:
       - keep-alive
       Content-Encoding:
@@ -56,30 +50,29 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Wed, 05 Jun 2024 19:17:30 GMT
+      - Tue, 16 Jul 2024 16:06:13 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
       - chunked
       anthropic-ratelimit-requests-limit:
-      - '5'
+      - '4000'
       anthropic-ratelimit-requests-remaining:
-      - '4'
+      - '3999'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-05T19:17:57Z'
+      - '2024-07-16T16:06:35Z'
       anthropic-ratelimit-tokens-limit:
-      - '10000'
+      - '400000'
       anthropic-ratelimit-tokens-remaining:
-      - '10000'
+      - '400000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-05T19:17:57Z'
+      - '2024-07-16T16:06:13Z'
       request-id:
-      - req_01Wtyi2DFVCLRToeZc2tHttk
+      - req_01ArQvd5zaG74NXMhuaPVPrC
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - fc184fcf99f97f1199b087e4ddc2aee5
-    status:
-      code: 200
-      message: OK
+      - e59796ae849376973bbfa1675ddeaa9f
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

@@ -3,12 +3,12 @@ import os
 
 import aredis
 import pytest
+from wrapt import ObjectProxy
 
 from ddtrace import Pin
 from ddtrace.contrib.aredis.patch import patch
 from ddtrace.contrib.aredis.patch import unpatch
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
-from ddtrace.vendor.wrapt import ObjectProxy
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
@@ -97,22 +97,6 @@ async def test_unicode(snapshot_context):
 
 
 @pytest.mark.asyncio
-async def test_analytics_without_rate(snapshot_context):
-    with override_config("aredis", dict(analytics_enabled=True)):
-        with snapshot_context():
-            r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
-            await r.get("cheese")
-
-
-@pytest.mark.asyncio
-async def test_analytics_with_rate(snapshot_context):
-    with override_config("aredis", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        with snapshot_context():
-            r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
-            await r.get("cheese")
-
-
-@pytest.mark.asyncio
 async def test_pipeline_traced(snapshot_context):
     with snapshot_context():
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
@@ -155,7 +139,7 @@ async def test_meta_override(tracer, test_spans):
     [
         (None, None, "redis", "redis.command"),
         (None, "v0", "redis", "redis.command"),
-        (None, "v1", _DEFAULT_SPAN_SERVICE_NAMES["v1"], "redis.command"),
+        (None, "v1", DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME, "redis.command"),
         ("mysvc", None, "redis", "redis.command"),
         ("mysvc", "v0", "redis", "redis.command"),
         ("mysvc", "v1", "mysvc", "redis.command"),

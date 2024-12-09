@@ -210,6 +210,24 @@ def sqli_http_request_body(request):
     return HttpResponse(value, status=200)
 
 
+def source_body_view(request):
+    value = decode_aspect(bytes.decode, 1, request.body)
+    with connection.cursor() as cursor:
+        # label source_body_view
+        cursor.execute(add_aspect("SELECT 1 FROM sqlite_master WHERE type='1'", value))
+    return HttpResponse(value, status=200)
+
+
+def view_with_exception(request):
+    value = request.GET["q"]
+    from time import sleep_not_exists  # noqa:F401
+
+    with connection.cursor() as cursor:
+        # label value
+        cursor.execute(value)
+    return HttpResponse(value, status=200)
+
+
 def view_insecure_cookies_insecure(request):
     res = HttpResponse("OK")
     res.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
@@ -272,6 +290,7 @@ def validate_querydict(request):
 urlpatterns = [
     handler("response-header/$", magic_header_key, name="response-header"),
     handler("body/$", body_view, name="body_view"),
+    handler("view_with_exception/$", view_with_exception, name="view_with_exception"),
     handler("weak-hash/$", weak_hash_view, name="weak_hash"),
     handler("block/$", block_callable_view, name="block"),
     handler("command-injection/$", command_injection, name="command_injection"),
@@ -284,6 +303,7 @@ urlpatterns = [
     handler("sqli_http_request_cookie_name/$", sqli_http_request_cookie_name, name="sqli_http_request_cookie_name"),
     handler("sqli_http_request_cookie_value/$", sqli_http_request_cookie_value, name="sqli_http_request_cookie_value"),
     handler("sqli_http_request_body/$", sqli_http_request_body, name="sqli_http_request_body"),
+    handler("source/body/$", source_body_view, name="source_body"),
     handler("insecure-cookie/test_insecure_2_1/$", view_insecure_cookies_two_insecure_one_secure),
     handler("insecure-cookie/test_insecure_special/$", view_insecure_cookies_insecure_special_chars),
     handler("insecure-cookie/test_insecure/$", view_insecure_cookies_insecure),

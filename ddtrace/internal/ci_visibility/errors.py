@@ -21,3 +21,7 @@ class CIVisibilityProcessError(CIVisibilityError):
         - finishing an item that's already been finished
         - setting status for an item that's already had its status set
     """
+
+
+class CIVisibilityAuthenticationException(Exception):
+    pass

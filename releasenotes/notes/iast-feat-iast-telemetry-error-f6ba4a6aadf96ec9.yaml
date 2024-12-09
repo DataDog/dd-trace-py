@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Always report a telemetry log error when an IAST propagation error raises, 
+    regardless of whether the _DD_IAST_DEBUG environment variable is enabled or not.

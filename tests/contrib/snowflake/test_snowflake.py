@@ -127,34 +127,6 @@ def test_snowflake_settings_override(client):
             assert cur.fetchone() == ("4.30.2",)
 
 
-@snapshot()
-@req_mock.activate
-def test_snowflake_analytics_with_rate(client):
-    add_snowflake_query_response(
-        rowtype=["TEXT"],
-        rows=[("4.30.2",)],
-    )
-    with override_config("snowflake", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        with client.cursor() as cur:
-            res = cur.execute("select current_version();")
-            assert res == cur
-            assert cur.fetchone() == ("4.30.2",)
-
-
-@snapshot()
-@req_mock.activate
-def test_snowflake_analytics_without_rate(client):
-    add_snowflake_query_response(
-        rowtype=["TEXT"],
-        rows=[("4.30.2",)],
-    )
-    with override_config("snowflake", dict(analytics_enabled=True)):
-        with client.cursor() as cur:
-            res = cur.execute("select current_version();")
-            assert res == cur
-            assert cur.fetchone() == ("4.30.2",)
-
-
 @pytest.mark.subprocess(env=dict(DD_SNOWFLAKE_SERVICE="env-svc"), err=None)
 @snapshot()
 def test_snowflake_service_env():

@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 
 from ddtrace.settings import Config
@@ -8,54 +10,20 @@ from tests.utils import override_env
 
 
 class TestConfig(BaseTestCase):
-    def test_environment_analytics_enabled(self):
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.analytics_enabled)
-
-    def test_environment_analytics_overrides(self):
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="False", DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="False", DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True", DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True", DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.analytics_enabled)
-
     def test_logs_injection(self):
         with self.override_env(dict(DD_LOGS_INJECTION="True")):
             config = Config()
-            self.assertTrue(config.logs_injection)
+            self.assertTrue(config._logs_injection)
 
         with self.override_env(dict(DD_LOGS_INJECTION="false")):
             config = Config()
-            self.assertFalse(config.logs_injection)
+            self.assertFalse(config._logs_injection)
 
     def test_service(self):
         # If none is provided the default should be ``None``
         with self.override_env(dict()):
             config = Config()
-            self.assertEqual(config.service, None)
+            self.assertEqual(config.service, "tests.tracer")
 
         with self.override_env(dict(DD_SERVICE="my-service")):
             config = Config()
@@ -178,96 +146,6 @@ class TestIntegrationConfig(BaseTestCase):
         assert not self.integration_config.http.header_is_traced("global_header")
         assert not self.config.header_is_traced("integration_header")
 
-    def test_environment_analytics_enabled(self):
-        # default
-        self.assertFalse(self.config.analytics_enabled)
-        self.assertIsNone(self.config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-            self.assertIsNone(config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.analytics_enabled)
-            self.assertIsNone(config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.foo.analytics_enabled)
-            self.assertEqual(config.foo.analytics_sample_rate, 1.0)
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True")):
-            config = Config()
-            self.assertTrue(config.foo.analytics_enabled)
-            self.assertEqual(config.foo.analytics_sample_rate, 1.0)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="False")):
-            config = Config()
-            self.assertFalse(config.foo.analytics_enabled)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True", DD_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
-            config = Config()
-            self.assertTrue(config.foo.analytics_enabled)
-            self.assertEqual(config.foo.analytics_sample_rate, 0.5)
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True", DD_TRACE_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
-            config = Config()
-            self.assertTrue(config.foo.analytics_enabled)
-            self.assertEqual(config.foo.analytics_sample_rate, 0.5)
-
-    def test_analytics_enabled_attribute(self):
-        """Confirm environment variable and kwargs are handled properly"""
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=True)
-        self.assertTrue(ic.analytics_enabled)
-
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=False)
-        self.assertFalse(ic.analytics_enabled)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True")):
-            ic = IntegrationConfig(self.config, "foo", analytics_enabled=False)
-            self.assertFalse(ic.analytics_enabled)
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True")):
-            ic = IntegrationConfig(self.config, "foo", analytics_enabled=False)
-            self.assertFalse(ic.analytics_enabled)
-
-    def test_get_analytics_sample_rate(self):
-        """Check method for accessing sample rate based on configuration"""
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5)
-        self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
-
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=True)
-        self.assertEqual(ic.get_analytics_sample_rate(), 1.0)
-
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=False)
-        self.assertIsNone(ic.get_analytics_sample_rate())
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="True")):
-            config = Config()
-            ic = IntegrationConfig(config, "foo")
-            self.assertEqual(ic.get_analytics_sample_rate(use_global_config=True), 1.0)
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
-            ic = IntegrationConfig(config, "foo")
-            self.assertEqual(ic.get_analytics_sample_rate(use_global_config=True), 1.0)
-
-        with self.override_env(dict(DD_ANALYTICS_ENABLED="False")):
-            config = Config()
-            ic = IntegrationConfig(config, "foo")
-            self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
-
-        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
-            ic = IntegrationConfig(config, "foo")
-            self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
-
     def test_service(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service is None
@@ -328,15 +206,65 @@ def test_environment_header_tags():
         (dict(), (512, True)),
         (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="0"), (0, False)),
         (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="1024"), (1024, True)),
-        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="-1"), (ValueError, "Invalid value -1")),
+        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="-1"), (0, False)),
     ),
 )
 def test_x_datadog_tags(env, expected):
     with override_env(env):
-        if expected[0] == ValueError:
-            with pytest.raises(expected[0]) as exc:
-                _ = Config()
-            assert expected[1] in exc.value.args[0]
-        else:
-            _ = Config()
-            assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
+        _ = Config()
+        assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
+
+
+@pytest.mark.parametrize(
+    "deprecated_name,name,test_value,env",
+    (
+        ("http_tag_query_string", "_http_tag_query_string", True, "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING"),
+        ("trace_http_header_tags", "_trace_http_header_tags", {"x-dd": "x_dd"}, "DD_TRACE_HEADER_TAGS"),
+        ("report_hostname", "_report_hostname", True, "DD_TRACE_REPORT_HOSTNAME"),
+        ("health_metrics_enabled", "_health_metrics_enabled", True, "DD_TRACE_HEALTH_METRICS_ENABLED"),
+        ("analytics_enabled", "_analytics_enabled", True, "DD_TRACE_ANALYTICS_ENABLED"),
+        ("client_ip_header", "_client_ip_header", True, "DD_TRACE_CLIENT_IP_HEADER"),
+        ("retrieve_client_ip", "_retrieve_client_ip", True, "DD_TRACE_CLIENT_IP_ENABLED"),
+        (
+            "propagation_http_baggage_enabled",
+            "_propagation_http_baggage_enabled",
+            True,
+            "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED",
+        ),
+        (
+            "global_query_string_obfuscation_disabled",
+            "_global_query_string_obfuscation_disabled",
+            True,
+            'DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""',
+        ),
+        ("trace_methods", "_trace_methods", ["monkey.banana_melon"], "DD_TRACE_METHODS"),
+        ("ci_visibility_log_level", "_ci_visibility_log_level", True, "DD_CIVISIBILITY_LOG_LEVEL"),
+        ("test_session_name", "_test_session_name", "yessirapp", "DD_TEST_SESSION_NAME"),
+        ("logs_injection", "_logs_injection", False, "DD_LOGS_INJECTION"),
+    ),
+)
+def test_deprecated_config_attributes(deprecated_name, name, test_value, env):
+    """Ensures setting and getting deprecated attributes log a warning and still
+    set/return the expected values.
+    """
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("always")
+        config = Config()
+        # Test getting/setting a configuration by the expected name
+        setattr(config, name, test_value)
+        assert getattr(config, name) == test_value
+        assert len(warns) == 0
+        expected_warning = (
+            f"ddtrace.config.{deprecated_name} is deprecated and will be "
+            f"removed in version '3.0.0': Use the environment variable {env} "
+            "instead. This variable must be set before importing ddtrace."
+        )
+        # Test getting the configuration by the deprecated name
+        getattr(config, deprecated_name) == test_value
+        assert len(warns) == 1
+        assert str(warns[0].message) == expected_warning
+        # Test setting the configuration by the deprecated name
+        setattr(config, deprecated_name, None)
+        assert getattr(config, name) is None
+        assert len(warns) == 2
+        assert str(warns[1].message) == expected_warning

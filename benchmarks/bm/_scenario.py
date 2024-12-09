@@ -2,8 +2,6 @@ import abc
 import dataclasses
 import time
 
-import pyperf
-
 
 def str_to_bool(_input):
     return _input in (True, "True", "true", "Yes", "yes", "Y", "y", "On", "on", "1", 1)
@@ -11,6 +9,8 @@ def str_to_bool(_input):
 
 def _register(scenario_cls):
     """Registers a scenario for benchmarking."""
+
+    import pyperf
 
     # This extends pyperf's runner by registering arguments for the scenario config
     def add_cmdline_args(cmd, args):

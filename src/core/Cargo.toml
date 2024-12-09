@@ -10,6 +10,7 @@ opt-level = 3
 
 [dependencies]
 pyo3 = { version = "0.21.2", features = ["extension-module"] }
+datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v14.1.0" }
 
 [build-dependencies]
 pyo3-build-config = "0.21.2"
@@ -18,3 +19,9 @@ pyo3-build-config = "0.21.2"
 name = "_core"
 path = "lib.rs"
 crate-type = ["cdylib"]
+
+
+[net]
+# Use git binary from the system instead of the built-in git client
+# "Setting this to true can be helpful if you have special authentication requirements that Cargo does not support."
+git-fetch-with-cli = true

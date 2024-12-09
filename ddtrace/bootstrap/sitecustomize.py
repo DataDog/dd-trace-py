@@ -20,6 +20,7 @@ import os  # noqa:F401
 import sys
 import warnings  # noqa:F401
 
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace import config  # noqa:F401
 from ddtrace._logger import _configure_log_injection
 from ddtrace.internal.logger import get_logger  # noqa:F401
@@ -28,7 +29,7 @@ from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 
 # Debug mode from the tracer will do the same here, so only need to do this otherwise.
-if config.logs_injection:
+if config._logs_injection:
     _configure_log_injection()
 
 
@@ -78,6 +79,7 @@ def cleanup_loaded_modules():
             "attr",
             "google",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
+            "wrapt",
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
@@ -86,7 +88,7 @@ def cleanup_loaded_modules():
 
         drop(m)
 
-    # TODO: The better strategy is to identify the core modues in LOADED_MODULES
+    # TODO: The better strategy is to identify the core modules in LOADED_MODULES
     # that should not be unloaded, and then unload as much as possible.
     UNLOAD_MODULES = frozenset(
         [
@@ -157,7 +159,8 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    config._ddtrace_bootstrapped = True
+    telemetry_writer.add_configuration("ddtrace_bootstrapped", True, "unknown")
+    telemetry_writer.add_configuration("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown")
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.

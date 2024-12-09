@@ -140,32 +140,9 @@ void
 TaintedObject::reset()
 {
     move_ranges_to_stack();
-    rc_ = 0;
     if (initializer) {
         ranges_.reserve(RANGES_INITIAL_RESERVE);
     }
-}
-
-void
-TaintedObject::incref()
-{
-    rc_++;
-}
-
-void
-TaintedObject::decref()
-{
-    if (--rc_ <= 0) {
-        release();
-    }
-}
-
-void
-TaintedObject::release()
-{
-    // If rc_ is negative, there is a bug.
-    // assert(rc_ == 0);
-    initializer->release_tainted_object(this);
 }
 
 void

@@ -10,9 +10,7 @@ from typing import Optional  # noqa:F401
 
 import pytest
 
-from ddtrace.internal import compat
 from ddtrace.internal.utils.retry import RetryError  # noqa:F401
-from tests.utils import flaky
 from tests.utils import snapshot_context
 from tests.webclient import Client
 
@@ -56,7 +54,6 @@ def _gunicorn_settings_factory(
     debug_mode=False,  # type: bool
     dd_service=None,  # type: Optional[str]
     schema_version=None,  # type: Optional[str]
-    rlock=True,  # type: bool
 ):
     # type: (...) -> GunicornServerSettings
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
@@ -75,8 +72,6 @@ def _gunicorn_settings_factory(
         env["DD_SERVICE"] = dd_service
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    if rlock is not None:
-        env["DD_TRACE_SPAN_AGGREGATOR_RLOCK"] = "true"
     return GunicornServerSettings(
         env=env,
         directory=directory,
@@ -114,7 +109,7 @@ bind = "{bind}"
 def gunicorn_server(gunicorn_server_settings, tmp_path):
     cfg_file = tmp_path / "gunicorn.conf.py"
     cfg = build_config_file(gunicorn_server_settings)
-    cfg_file.write_text(compat.stringify(cfg))
+    cfg_file.write_text(cfg)
     cmd = []
     if gunicorn_server_settings.use_ddtracerun:
         cmd = ["ddtrace-run"]
@@ -168,15 +163,8 @@ SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
     debug_mode=True,
     enable_module_cloning=True,
 )
-SETTINGS_GEVENT_SPANAGGREGATOR_NO_RLOCK = _gunicorn_settings_factory(
-    worker_class="gevent",
-    use_ddtracerun=False,
-    import_auto_in_app=True,
-    rlock=False,
-)
 
 
-@flaky(until=1706677200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_no_known_errors_occur(tmp_path):
     for gunicorn_server_settings in [
@@ -185,7 +173,6 @@ def test_no_known_errors_occur(tmp_path):
         SETTINGS_GEVENT_DDTRACERUN,
         SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
         SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE,
-        SETTINGS_GEVENT_SPANAGGREGATOR_NO_RLOCK,
     ]:
         with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
             _, client = context
@@ -195,9 +182,8 @@ def test_no_known_errors_occur(tmp_path):
         assert payload["profiler"]["is_active"] is True
 
 
-@flaky(until=1706677200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
-def test_span_schematization(tmp_path):
+def test_span_schematization(ddtrace_tmp_path):
     for schema_version in [None, "v0", "v1"]:
         for service_name in [None, "mysvc"]:
             gunicorn_settings = _gunicorn_settings_factory(
@@ -211,7 +197,7 @@ def test_span_schematization(tmp_path):
                 ),
                 ignores=["meta.result_class"],
             ):
-                with gunicorn_server(gunicorn_settings, tmp_path) as context:
+                with gunicorn_server(gunicorn_settings, ddtrace_tmp_path) as context:
                     _, client = context
                     response = client.get("/")
                 assert response.status_code == 200

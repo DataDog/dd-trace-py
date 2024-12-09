@@ -98,8 +98,7 @@ def test_iast_flask_headers():
         tracer_enabled="true",
         remote_configuration_enabled="false",
         token=None,
-        # app="tests/appsec/iast_tdd_propagation/flask_propagation_app.py",
-        app="flask_propagation_app.py",
+        app="tests/appsec/iast_tdd_propagation/flask_propagation_app.py",
         port=_PORT,
     ) as context:
         server_process, client, pid = context
@@ -108,8 +107,8 @@ def test_iast_flask_headers():
         assert tainted_response.status_code == 200
         content = json.loads(tainted_response.content)
         assert content["param"] == [
-            ["Host", "0.0.0.0:8000"],
-            ["User-Agent", "python-requests/2.31.0"],
+            ["Host", f"0.0.0.0:{_PORT}"],
+            ["User-Agent", "python-requests/2.32.3"],
             ["Accept-Encoding", "gzip, deflate, br"],
             ["Accept", "*/*"],
             ["Connection", "keep-alive"],

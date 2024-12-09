@@ -2,7 +2,6 @@ import sqlalchemy
 from sqlalchemy import text
 
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlalchemy import get_version
 from ddtrace.contrib.sqlalchemy import patch
 from ddtrace.contrib.sqlalchemy import unpatch
@@ -73,41 +72,6 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         assert span.service == "replica-db"
         assert span.error == 0
         assert span.duration > 0
-
-    def test_analytics_sample_rate(self):
-        # [ <config>, <analytics sample rate metric value> ]
-        matrix = [
-            # Default, not enabled, not set
-            [dict(), None],
-            # Not enabled, but sample rate set
-            [dict(analytics_sample_rate=0.5), None],
-            # Enabled and rate set
-            [dict(analytics_enabled=True, analytics_sample_rate=0.5), 0.5],
-            [dict(analytics_enabled=True, analytics_sample_rate=1), 1.0],
-            [dict(analytics_enabled=True, analytics_sample_rate=0), 0],
-            [dict(analytics_enabled=True, analytics_sample_rate=True), 1.0],
-            [dict(analytics_enabled=True, analytics_sample_rate=False), 0],
-            # Disabled and rate set
-            [dict(analytics_enabled=False, analytics_sample_rate=0.5), None],
-            # Enabled and rate not set
-            [dict(analytics_enabled=True), 1.0],
-        ]
-        for config, metric_value in matrix:
-            with self.override_config("sqlalchemy", config):
-                self.conn.execute(text("SELECT 1")).fetchall()
-
-                root = self.get_root_span()
-                assert_is_measured(root)
-                root.assert_matches(name="postgres.query")
-
-                # If the value is None assert it was not set, otherwise assert the expected value
-                # DEV: root.assert_metrics(metrics, exact=True) won't work here since we have another sample
-                #      rate keys getting added
-                if metric_value is None:
-                    assert ANALYTICS_SAMPLE_RATE_KEY not in root.get_metrics()
-                else:
-                    assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == metric_value
-                self.reset()
 
     def test_and_emit_get_version(self):
         version = get_version()

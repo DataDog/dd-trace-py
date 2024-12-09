@@ -38,12 +38,7 @@ class AgentWriterClientV4(WriterClientBase):
         )
 
 
-class AgentWriterClientV3(AgentWriterClientV4):
-    ENDPOINT = "v0.3/traces"
-
-
 WRITER_CLIENTS = {
-    "v0.3": AgentWriterClientV3,
     "v0.4": AgentWriterClientV4,
     "v0.5": AgentWriterClientV5,
 }

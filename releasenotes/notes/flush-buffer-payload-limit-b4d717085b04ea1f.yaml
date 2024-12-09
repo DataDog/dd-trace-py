@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Flush the buffer of spans to be sent when the payload size would otherwise exceed the payload size limit for the event platform.

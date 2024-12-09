@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where LLM Observability spans were not being submitted in forked processes,  
+    such as when using ``celery`` or ``gunicorn`` workers. The LLM Observability writer thread now automatically restarts 
+    when a forked process is detected.

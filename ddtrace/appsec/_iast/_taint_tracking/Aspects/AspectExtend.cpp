@@ -30,7 +30,7 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
 
-    auto ctx_map = initializer->get_tainting_map();
+    auto ctx_map = Initializer::get_tainting_map();
     if (not ctx_map or ctx_map->empty()) {
         auto method_name = PyUnicode_FromString("extend");
         PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);

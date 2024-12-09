@@ -27,26 +27,66 @@ Datadog::SampleManager::set_timeline(bool enable)
     Datadog::Sample::set_timeline(enable);
 }
 
+void
+Datadog::SampleManager::set_sample_pool_capacity(size_t capacity)
+{
+    if (capacity > 0) {
+        sample_pool_capacity = capacity;
+    }
+}
+
 Datadog::Sample*
 Datadog::SampleManager::start_sample()
 {
+    if (sample_pool == nullptr) {
+        return new Datadog::Sample(type_mask, max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
+    }
+
+    auto sample_opt = sample_pool->take_sample();
+    if (sample_opt.has_value()) {
+        return sample_opt.value();
+    }
+
+    // Create a new Sample if we failed to get one.
+    // Note that this could be leaked if another thread calls fork() before
+    // the Sample is returned to the pool.
     return new Datadog::Sample(type_mask, max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void
 Datadog::SampleManager::drop_sample(Datadog::Sample* sample)
 {
-    delete sample; // NOLINT(cppcoreguidelines-owning-memory)
+    if (sample_pool == nullptr) {
+        delete sample; // NOLINT(cppcoreguidelines-owning-memory)
+        return;
+    }
+
+    sample->clear_buffers();
+
+    std::optional<Sample*> result_opt = sample_pool->return_sample(sample);
+    // If the pool is full, the pool returns the pointer and we need to delete the sample.
+    if (result_opt.has_value()) {
+        delete result_opt.value(); // NOLINT(cppcoreguidelines-owning-memory)
+    }
 }
 
 void
 Datadog::SampleManager::postfork_child()
 {
     Datadog::Sample::postfork_child();
+    if (sample_pool != nullptr) {
+        // Clear the pool to make sure it's in a consistent state.
+        // Suppose there was a thread that was adding/removing sample from the pool
+        // and the fork happened in the middle of that operation.
+        sample_pool = std::make_unique<SynchronizedSamplePool>(sample_pool_capacity);
+    }
 }
 
 void
 Datadog::SampleManager::init()
 {
+    if (sample_pool == nullptr) {
+        sample_pool = std::make_unique<SynchronizedSamplePool>(sample_pool_capacity);
+    }
     Datadog::Sample::profile_state.one_time_init(type_mask, max_nframes);
 }

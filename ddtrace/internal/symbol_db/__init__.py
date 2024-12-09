@@ -1,4 +1,3 @@
-from ddtrace.internal import forksafe
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.symbol_db.remoteconfig import SymbolDatabaseAdapter
 from ddtrace.settings.symbol_db import config as symdb_config
@@ -14,7 +13,7 @@ def bootstrap():
         # Start the RCM subscriber to determine if and when to upload symbols.
         remoteconfig_poller.register("LIVE_DEBUGGING_SYMBOL_DB", SymbolDatabaseAdapter())
 
-        @forksafe.register
-        def _():
-            remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
-            remoteconfig_poller.register("LIVE_DEBUGGING_SYMBOL_DB", SymbolDatabaseAdapter())
+
+def restart():
+    remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
+    remoteconfig_poller.register("LIVE_DEBUGGING_SYMBOL_DB", SymbolDatabaseAdapter())

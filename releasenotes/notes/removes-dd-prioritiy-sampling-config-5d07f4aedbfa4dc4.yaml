@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates the ``priority_sampling`` argument in ``ddtrace.tracer.Tracer.configure(...)``.
+other:
+  - |
+    tracing: Removes the ``DD_PRIORITY_SAMPLING`` configuration option. This option is not used in any ``ddtrace>=2.0`` releases.

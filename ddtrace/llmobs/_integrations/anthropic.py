@@ -17,8 +17,9 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-
-from .base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 
 
 log = get_logger(__name__)
@@ -47,18 +48,15 @@ class AnthropicIntegration(BaseLLMIntegration):
             else:
                 span.set_tag_str(API_KEY, api_key)
 
-    def llmobs_set_tags(
+    def _llmobs_set_tags(
         self,
-        resp: Any,
         span: Span,
         args: List[Any],
         kwargs: Dict[str, Any],
-        err: Optional[Any] = None,
+        response: Optional[Any] = None,
+        operation: str = "",
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
-        if not self.llmobs_enabled:
-            return
-
         parameters = {}
         if kwargs.get("temperature"):
             parameters["temperature"] = kwargs.get("temperature")
@@ -70,18 +68,19 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("anthropic.request.model") or "")
-        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
-        span.set_tag_str(METADATA, json.dumps(parameters))
+        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
+        span.set_tag_str(METADATA, safe_json(parameters))
         span.set_tag_str(MODEL_PROVIDER, "anthropic")
-        if err or resp is None:
+
+        if span.error or response is None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         else:
-            output_messages = self._extract_output_message(resp)
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+            output_messages = self._extract_output_message(response)
+            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
         usage = self._get_llmobs_metrics_tags(span)
-        if usage != {}:
-            span.set_tag_str(METRICS, json.dumps(usage))
+        if usage:
+            span.set_tag_str(METRICS, safe_json(usage))
 
     def _extract_input_message(self, messages, system_prompt=None):
         """Extract input messages from the stored prompt.
@@ -117,11 +116,19 @@ class AnthropicIntegration(BaseLLMIntegration):
                         input_messages.append({"content": "([IMAGE DETECTED])", "role": role})
 
                     elif _get_attr(block, "type", None) == "tool_use":
-                        name = _get_attr(block, "name", "")
-                        inputs = _get_attr(block, "input", "")
-                        input_messages.append(
-                            {"content": "[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
-                        )
+                        text = _get_attr(block, "text", None)
+                        input_data = _get_attr(block, "input", "")
+                        if isinstance(input_data, str):
+                            input_data = json.loads(input_data)
+                        tool_call_info = {
+                            "name": _get_attr(block, "name", ""),
+                            "arguments": input_data,
+                            "tool_id": _get_attr(block, "id", ""),
+                            "type": _get_attr(block, "type", ""),
+                        }
+                        if text is None:
+                            text = ""
+                        input_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
 
                     elif _get_attr(block, "type", None) == "tool_result":
                         content = _get_attr(block, "content", None)
@@ -143,7 +150,7 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _extract_output_message(self, response):
         """Extract output messages from the stored response."""
         output_messages = []
-        content = _get_attr(response, "content", None)
+        content = _get_attr(response, "content", "")
         role = _get_attr(response, "role", "")
 
         if isinstance(content, str):
@@ -156,11 +163,18 @@ class AnthropicIntegration(BaseLLMIntegration):
                     output_messages.append({"content": text, "role": role})
                 else:
                     if _get_attr(completion, "type", None) == "tool_use":
-                        name = _get_attr(completion, "name", "")
-                        inputs = _get_attr(completion, "input", "")
-                        output_messages.append(
-                            {"content": "[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
-                        )
+                        input_data = _get_attr(completion, "input", "")
+                        if isinstance(input_data, str):
+                            input_data = json.loads(input_data)
+                        tool_call_info = {
+                            "name": _get_attr(completion, "name", ""),
+                            "arguments": input_data,
+                            "tool_id": _get_attr(completion, "id", ""),
+                            "type": _get_attr(completion, "type", ""),
+                        }
+                        if text is None:
+                            text = ""
+                        output_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
@@ -190,11 +204,3 @@ class AnthropicIntegration(BaseLLMIntegration):
         if total_tokens is not None:
             usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
         return usage
-
-
-def _get_attr(o: Any, attr: str, default: Any):
-    # Since our response may be a dict or object, convenience method
-    if isinstance(o, dict):
-        return o.get(attr, default)
-    else:
-        return getattr(o, attr, default)

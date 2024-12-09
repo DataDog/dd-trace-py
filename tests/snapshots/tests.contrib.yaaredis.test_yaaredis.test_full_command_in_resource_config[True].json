@@ -9,7 +9,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.yaaredis",
       "_dd.p.dm": "-0",
       "language": "python",
       "runtime-id": "8684af00a9414982b4794ddcadcd26ec"
@@ -33,11 +33,12 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.yaaredis",
          "component": "yaaredis",
          "db.system": "redis",
          "out.host": "localhost",
          "redis.raw_command": "GET put_key_in_resource",
+         "server.address": "localhost",
          "span.kind": "client"
        },
        "metrics": {
@@ -61,11 +62,12 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.yaaredis",
          "component": "yaaredis",
          "db.system": "redis",
          "out.host": "localhost",
          "redis.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+         "server.address": "localhost",
          "span.kind": "client"
        },
        "metrics": {

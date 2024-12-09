@@ -4,7 +4,6 @@ import sys
 import tempfile
 
 import pytest
-import six
 
 import ddtrace
 
@@ -143,15 +142,6 @@ class DdtraceRunTest(BaseTestCase):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_dogstatsd.py"])
             assert out.startswith(b"Test success")
 
-    def test_priority_sampling_from_env(self):
-        """
-        DD_PRIORITY_SAMPLING enables Distributed Sampling
-        """
-
-        with self.override_env(dict(DD_PRIORITY_SAMPLING="True")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_priority_sampling.py"])
-            assert out.startswith(b"Test success")
-
     def test_patch_modules_from_env(self):
         """
         DD_PATCH_MODULES overrides the defaults for patch_all()
@@ -235,11 +225,10 @@ class DdtraceRunTest(BaseTestCase):
 
         p.wait()
         assert p.returncode == 0
-        assert p.stdout.read() == six.b("")
-        assert six.b("debug mode has been enabled for the ddtrace logger") in p.stderr.read()
+        assert p.stdout.read() == b""
+        assert b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Profiler not yet compatible with Python 3.11")
 def test_env_profiling_enabled(monkeypatch):
     """DD_PROFILING_ENABLED allows enabling the global profiler."""
     # Off by default
@@ -272,7 +261,7 @@ def test_version():
     p.wait()
     assert p.returncode == 0
 
-    assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
+    assert p.stdout.read() == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
 
     p = subprocess.Popen(
         ["ddtrace-run", "--version"],
@@ -281,7 +270,7 @@ def test_version():
     )
     p.wait()
     assert p.returncode == 0
-    assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
+    assert p.stdout.read() == ("ddtrace-run %s\n" % ddtrace.__version__).encode("utf-8")
 
 
 def test_bad_executable():
@@ -292,10 +281,9 @@ def test_bad_executable():
     )
     p.wait()
     assert p.returncode == 1
-    assert p.stdout.read() == six.b(
-        "ddtrace-run: failed to find executable 'executable-does-not-exist'.\n\n"
-        "usage: ddtrace-run <your usual python command>\n"
-    )
+    content = p.stdout.read()
+    assert b"ddtrace-run: failed to bootstrap: args" in content
+    assert b"'executable-does-not-exist'" in content
 
 
 def test_executable_no_perms():
@@ -309,12 +297,12 @@ def test_executable_no_perms():
     assert p.returncode == 1
 
     out = p.stdout.read()
-    assert out.startswith(six.b("ddtrace-run: permission error while launching '%s'" % path))
+    assert out.startswith(("ddtrace-run: permission error while launching '%s'" % path).encode("utf-8"))
 
 
 def test_command_flags():
     out = subprocess.check_output(["ddtrace-run", "python", "-c", "print('test!')"])
-    assert out.strip() == six.b("test!")
+    assert out.strip() == b"test!"
 
 
 def test_return_code():
@@ -344,7 +332,6 @@ def test_info_no_configs():
         b"App Analytics enabled(deprecated): False",
         b"Log injection enabled: False",
         b"Health metrics enabled: False",
-        b"Priority sampling enabled: True",
         b"Partial flushing enabled: True",
         b"Partial flush minimum number of spans: 300",
         b"WAF timeout: 5.0 msecs",
@@ -402,7 +389,6 @@ def test_info_w_configs():
         b"App Analytics enabled(deprecated): False",
         b"Log injection enabled: True",
         b"Health metrics enabled: False",
-        b"Priority sampling enabled: True",
         b"Partial flushing enabled: True",
         b"Partial flush minimum number of spans: 1000",
         b"WAF timeout: 5.0 msecs",
@@ -429,7 +415,7 @@ def test_no_args():
     )
     p.wait()
     assert p.returncode == 1
-    assert six.b("usage:") in p.stdout.read()
+    assert b"usage:" in p.stdout.read()
 
 
 MODULES_TO_CHECK = ["asyncio"]

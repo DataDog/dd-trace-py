@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates the ``DD_TRACE_SPAN_AGGREGATOR_RLOCK`` environment variable. It will be removed in 3.0.0.

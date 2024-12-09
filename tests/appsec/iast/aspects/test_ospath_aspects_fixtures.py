@@ -5,7 +5,6 @@ import sys
 import mock
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -14,10 +13,10 @@ from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
-mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.module_functions")
+mod = _iast_patched_module("benchmarks.bm.iast_fixtures.module_functions")
 
 
 def test_ospathjoin_tainted():
@@ -81,8 +80,8 @@ def test_ospathsplit_noaspect_dont_call_string_aspect():
             try:
                 del visitor._ASPECTS_SPEC["module_functions"]["os.path"]["split"]
                 del mod
-                del sys.modules["tests.appsec.iast.fixtures.aspects.module_functions"]
-                mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.module_functions")
+                del sys.modules["benchmarks.bm.iast_fixtures.module_functions"]
+                mod = _iast_patched_module("benchmarks.bm.iast_fixtures.module_functions")
                 string_input = taint_pyobject(
                     pyobject="/foo/bar",
                     source_name="first_element",
@@ -97,8 +96,8 @@ def test_ospathsplit_noaspect_dont_call_string_aspect():
                 assert not os_split_aspect.called
             finally:
                 visitor._ASPECTS_SPEC["module_functions"]["os.path"]["split"] = old_aspect
-                del sys.modules["tests.appsec.iast.fixtures.aspects.module_functions"]
-                mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.module_functions")
+                del sys.modules["benchmarks.bm.iast_fixtures.module_functions"]
+                mod = _iast_patched_module("benchmarks.bm.iast_fixtures.module_functions")
 
 
 def test_ospathsplitext_tainted():
@@ -162,7 +161,7 @@ def test_propagate_ranges_with_no_context(caplog):
     assert get_tainted_ranges(string_input)
 
     reset_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         result = mod.do_os_path_join(string_input, "bar")
         assert result == "abcde/bar"
     log_messages = [record.message for record in caplog.get_records("call")]

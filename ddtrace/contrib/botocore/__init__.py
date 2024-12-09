@@ -108,18 +108,67 @@ Configuration
 
    Default: ``128``
 
+
+.. py:data:: ddtrace.config.botocore['dynamodb_primary_key_names_for_tables']
+
+    This enables DynamoDB API calls to be instrumented with span pointers. Many
+    DynamoDB API calls do not include the Item's Primary Key fields as separate
+    values, so they need to be provided to the tracer separately. This field
+    should be structured as a ``dict`` keyed by the table names as ``str``.
+    Each value should be the ``set`` of primary key field names (as ``str``)
+    for the associated table. The set may have exactly one or two elements,
+    depending on the Table's Primary Key schema.
+
+    In python this would look like::
+
+        ddtrace.config.botocore['dynamodb_primary_key_names_for_tables'] = {
+            'table_name': {'key1', 'key2'},
+            'other_table': {'other_key'},
+        }
+
+    Can also be enabled with the ``DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS``
+    environment variable which is parsed as a JSON object with strings for keys
+    and lists of strings for values.
+
+    This would look something like::
+
+        export DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS='{
+            "table_name": ["key1", "key2"],
+            "other_table": ["other_key"]
+        }'
+
+    Default: ``{}``
+
+
+.. py:data:: ddtrace.config.botocore['add_span_pointers']
+
+    This enables the addition of span pointers to spans associated with
+    successful AWS API calls.
+
+    Alternatively, you can set this option with the
+    ``DD_BOTOCORE_ADD_SPAN_POINTERS`` environment variable.
+
+    Default: ``True``
+
 """
 
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["botocore.client"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
-        from .patch import patch_submodules
+        # Required to allow users to import from `ddtrace.contrib.botocore.patch` directly
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore", DeprecationWarning)
+            from . import patch as _  # noqa: F401, I001
+
+        from ddtrace.contrib.internal.botocore.patch import get_version
+        from ddtrace.contrib.internal.botocore.patch import patch
+        from ddtrace.contrib.internal.botocore.patch import patch_submodules
 
         __all__ = ["patch", "patch_submodules", "get_version"]

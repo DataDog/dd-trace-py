@@ -36,6 +36,7 @@ def _extract_conn_tags(conn_kwargs):
         conn_tags = {
             net.TARGET_HOST: conn_kwargs["host"],
             net.TARGET_PORT: conn_kwargs["port"],
+            net.SERVER_ADDRESS: conn_kwargs["host"],
             redisx.DB: conn_kwargs.get("db") or 0,
         }
         client_name = conn_kwargs.get("client_name")
@@ -68,6 +69,7 @@ async def _run_redis_command_async(ctx: core.ExecutionContext, func, args, kwarg
     parsed_command = stringify_cache_args(args)
     redis_command = parsed_command.split(" ")[0]
     rowcount = None
+    result = None
     try:
         result = await func(*args, **kwargs)
         return result

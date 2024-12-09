@@ -1,0 +1,4 @@
+fixes:
+  - |
+    botocore: This fix resolves a regression where trace context was not being injected into the input of Stepfunction
+      start_execution commands. This re-enables distributed tracing when a Python service invokes a properly instrumented Step Function.

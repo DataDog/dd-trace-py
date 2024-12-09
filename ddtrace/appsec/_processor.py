@@ -4,7 +4,6 @@ import json
 from json.decoder import JSONDecodeError
 import os
 import os.path
-import traceback
 from typing import Any
 from typing import Dict
 from typing import List
@@ -20,13 +19,12 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
-from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
@@ -128,7 +126,7 @@ def _get_rate_limiter() -> RateLimiter:
 
 @dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-    rules: str = dataclasses.field(default_factory=get_rules)
+    rule_filename: str = dataclasses.field(default_factory=get_rules)
     obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
     obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
@@ -140,38 +138,39 @@ class AppSecSpanProcessor(SpanProcessor):
         return self._ddwaf is not None
 
     def __post_init__(self) -> None:
+        from ddtrace.appsec import load_appsec
         from ddtrace.appsec._ddwaf import DDWaf
 
+        load_appsec()
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
-
+        self._rules = None
         try:
-            with open(self.rules, "r") as f:
-                rules = json.load(f)
+            with open(self.rule_filename, "r") as f:
+                self._rules = json.load(f)
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
-                log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules)
+                log.error(
+                    "[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist",
+                    self.rule_filename,
+                )
             else:
                 # TODO: try to log reasons
-                log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
+                log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rule_filename)
             raise
         except JSONDecodeError:
-            log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rules)
+            log.error(
+                "[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rule_filename
+            )
             raise
         except Exception:
             # TODO: try to log reasons
-            log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
+            log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rule_filename)
             raise
         try:
-            self._ddwaf = DDWaf(rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp)
-            if not self._ddwaf._handle or self._ddwaf.info.failed:
-                stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
-                    rules,
-                    self._ddwaf.info.loaded,
-                    self._ddwaf.info.errors,
-                )
-                _set_waf_error_metric("WAF init error. Invalid rules", stack_trace, self._ddwaf.info)
-
+            self._ddwaf = DDWaf(
+                self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+            )
             _set_waf_init_metric(self._ddwaf.info)
         except ValueError:
             # Partial of DDAS-0005-00
@@ -192,19 +191,26 @@ class AppSecSpanProcessor(SpanProcessor):
         result = False
         if asm_config._asm_static_rule_file is not None:
             return result
-        try:
-            result = self._ddwaf.update_rules(new_rules)
-            _set_waf_updates_metric(self._ddwaf.info)
-        except TypeError:
-            error_msg = "Error updating ASM rules. TypeError exception "
-            log.debug(error_msg, exc_info=True)
-            _set_waf_error_metric(error_msg, traceback.format_exc(), self._ddwaf.info)
-        if not result:
-            error_msg = "Error updating ASM rules. Invalid rules"
-            log.debug(error_msg)
-            _set_waf_error_metric(error_msg, "", self._ddwaf.info)
+        result = self._ddwaf.update_rules(new_rules)
+        _set_waf_updates_metric(self._ddwaf.info)
         self._update_required()
         return result
+
+    @property
+    def rasp_lfi_enabled(self) -> bool:
+        return WAF_DATA_NAMES.LFI_ADDRESS in self._addresses_to_keep
+
+    @property
+    def rasp_cmdi_enabled(self) -> bool:
+        return WAF_DATA_NAMES.CMDI_ADDRESS in self._addresses_to_keep
+
+    @property
+    def rasp_ssrf_enabled(self) -> bool:
+        return WAF_DATA_NAMES.SSRF_ADDRESS in self._addresses_to_keep
+
+    @property
+    def rasp_sqli_enabled(self) -> bool:
+        return WAF_DATA_NAMES.SQLI_ADDRESS in self._addresses_to_keep
 
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib import trace_utils
@@ -212,12 +218,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
 
-        if _asm_request_context.free_context_available():
-            _asm_request_context.register(span)
-        else:
-            new_asm_context = _asm_request_context.asm_request_context_manager()
-            new_asm_context.__enter__()
-            _asm_request_context.register(span, new_asm_context)
+        _asm_request_context.start_context(span)
 
         ctx = self._ddwaf._at_request_start()
         self._span_to_waf_ctx[span] = ctx
@@ -234,19 +235,18 @@ class AppSecSpanProcessor(SpanProcessor):
         _asm_request_context.set_waf_callback(waf_callable)
         _asm_request_context.add_context_callback(_set_waf_request_metrics)
         if headers is not None:
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
+            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
             _asm_request_context.set_waf_address(
-                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive, span
+                SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, headers_case_sensitive
             )
             if not peer_ip:
                 return
 
             ip = trace_utils._get_request_header_client_ip(headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
-            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip, span)
+            _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
             if ip and self._is_needed(WAF_DATA_NAMES.REQUEST_HTTP_IP):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
-                # _asm_request_context.call_callback()
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
     def _waf_action(
@@ -271,7 +271,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.GRPC):
             return None
 
-        if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
+        if _asm_request_context.get_blocked():
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
                 return None
@@ -289,10 +289,10 @@ class AppSecSpanProcessor(SpanProcessor):
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if key in data_already_sent:
                 continue
-            if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
-                value = custom_data.get(key) if custom_data else None
-                if value:
-                    ephemeral_data[waf_name] = value
+            # ensure ephemeral addresses are sent, event when value is None
+            if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES and custom_data:
+                if key in custom_data:
+                    ephemeral_data[waf_name] = custom_data[key]
 
             elif self._is_needed(waf_name) or force_keys:
                 value = None
@@ -307,9 +307,15 @@ class AppSecSpanProcessor(SpanProcessor):
                         data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
 
+        # small optimization to avoid running the waf if there is no data to check
+        if not data and not ephemeral_data:
+            return None
+
         waf_results = self._ddwaf.run(
             ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
         )
+
+        _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
 
         blocked = {}
         for action, parameters in waf_results.actions.items():
@@ -326,6 +332,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
 
+        # FingerPrinting
+        for key, value in waf_results.derivatives.items():
+            if key.startswith(FINGERPRINTING.PREFIX):
+                (span._local_root or span).set_tag_str(key, value)
+
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
@@ -339,22 +350,7 @@ class AppSecSpanProcessor(SpanProcessor):
             waf_results.total_runtime,
         )
         if blocked:
-            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked, span=span)
-            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked)
-
-        try:
-            info = self._ddwaf.info
-            if info.errors:
-                errors = json.dumps(info.errors)
-                span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, errors)
-                log.debug("Error in ASM In-App WAF: %s", errors)
-            span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-            span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-            span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-        except (JSONDecodeError, ValueError):
-            log.warning("Error parsing data ASM In-App WAF metrics report %s", info.errors)
-        except Exception:
-            log.warning("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
+            _asm_request_context.set_blocked(blocked)
 
         if waf_results.data or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
@@ -408,14 +404,15 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
 
                 # this call is only necessary for tests or frameworks that are not using blocking
-                if not has_triggers(span) and _asm_request_context.in_context():
+                if not has_triggers(span) and _asm_request_context.in_asm_context():
                     log.debug("metrics waf call")
                     _asm_request_context.call_waf_callback()
 
                 self._ddwaf._at_request_end()
+                _asm_request_context.end_context(span)
         finally:
-            # release asm context if it was created by the span
-            _asm_request_context.unregister(span)
+            # release asm context associated with that span if it was not already done
+            _asm_request_context.end_context(span)
 
             if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
                 return

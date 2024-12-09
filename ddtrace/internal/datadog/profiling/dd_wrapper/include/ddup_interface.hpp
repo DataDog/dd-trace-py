@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <stddef.h>
 #include <stdint.h>
 #include <string_view>
@@ -16,12 +17,14 @@ extern "C"
     void ddup_config_env(std::string_view dd_env);
     void ddup_config_service(std::string_view service);
     void ddup_config_version(std::string_view version);
-    void ddup_config_runtime(std::string_view runtime);
     void ddup_config_runtime_version(std::string_view runtime_version);
+    void ddup_config_runtime(std::string_view runtime);
     void ddup_config_profiler_version(std::string_view profiler_version);
     void ddup_config_url(std::string_view url);
     void ddup_config_max_nframes(int max_nframes);
     void ddup_config_timeline(bool enable);
+    void ddup_config_output_filename(std::string_view filename);
+    void ddup_config_sample_pool_capacity(uint64_t capacity);
 
     void ddup_config_user_tag(std::string_view key, std::string_view val);
     void ddup_config_sample_type(unsigned int type);
@@ -29,6 +32,8 @@ extern "C"
     bool ddup_is_initialized();
     void ddup_start();
     void ddup_set_runtime_id(std::string_view runtime_id);
+    void ddup_profile_set_endpoints(std::map<int64_t, std::string_view> span_ids_to_endpoints);
+    void ddup_profile_add_endpoint_counts(std::map<std::string_view, int64_t> trace_endpoints_to_counts);
     bool ddup_upload();
 
     // Proxy functions to the underlying sample
@@ -49,10 +54,9 @@ extern "C"
                               std::string_view thread_name);
     void ddup_push_task_id(Datadog::Sample* sample, int64_t task_id);
     void ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name);
-    void ddup_push_span_id(Datadog::Sample* sample, int64_t span_id);
-    void ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id);
+    void ddup_push_span_id(Datadog::Sample* sample, uint64_t span_id);
+    void ddup_push_local_root_span_id(Datadog::Sample* sample, uint64_t local_root_span_id);
     void ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type);
-    void ddup_push_trace_resource_container(Datadog::Sample* sample, std::string_view trace_resource_container);
     void ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count);
     void ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name);
     void ddup_push_gpu_device_name(Datadog::Sample*, std::string_view device_name);
@@ -63,6 +67,8 @@ extern "C"
                          int64_t line);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
+    // Stack v2 specific flush, which reverses the locations
+    void ddup_flush_sample_v2(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
 #ifdef __cplusplus
 } // extern "C"

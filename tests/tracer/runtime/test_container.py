@@ -1,3 +1,5 @@
+import sys
+
 import mock
 import pytest
 
@@ -253,7 +255,7 @@ def test_cgroup_info_from_line(line, expected_info):
             None,
         ),
         # PCF file
-        (
+        pytest.param(
             """
 12:rdma:/
 11:net_cls,net_prio:/garden/6f265890-5165-7fab-6b52-18d1
@@ -270,6 +272,10 @@ def test_cgroup_info_from_line(line, expected_info):
             """,
             None,
             1234,
+            marks=pytest.mark.skipif(
+                sys.platform == "darwin",
+                reason="Container info can't be retrieved on macOS",
+            ),
         ),
         # Linux non-containerized file
         (

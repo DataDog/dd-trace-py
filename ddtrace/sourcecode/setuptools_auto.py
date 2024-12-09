@@ -1,10 +1,12 @@
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from wrapt import wrap_function_wrapper as _w
 
 
 try:
-    import distutils.core as distutils_core
+    # DEV: We have to import setuptools first who will
+    # make sure distutils is available for us.
+    import setuptools  # noqa: I001
 
-    import setuptools
+    import distutils.core as distutils_core
 except ImportError:
     distutils_core = None  # type: ignore[assignment]
     setuptools = None  # type: ignore[assignment]

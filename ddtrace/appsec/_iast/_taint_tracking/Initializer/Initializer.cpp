@@ -5,7 +5,7 @@
 using namespace std;
 using namespace pybind11::literals;
 
-thread_local struct ThreadContextCache_
+struct ThreadContextCache_
 {
     TaintRangeMapTypePtr tx_map = nullptr;
 } ThreadContextCache;
@@ -14,7 +14,7 @@ Initializer::Initializer()
 {
     // Fill the taintedobjects stack
     for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
-        available_taintedobjects_stack.push(new TaintedObject());
+        available_taintedobjects_stack.push(make_shared<TaintedObject>());
     }
 
     // Fill the ranges stack
@@ -34,19 +34,31 @@ Initializer::create_tainting_map()
 void
 Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
 {
-    if (not tx_map or tx_map->empty())
+    if (tx_map == nullptr) {
         return;
-
+    }
     if (const auto it = active_map_addreses.find(tx_map.get()); it == active_map_addreses.end()) {
-        // Map wasn't in the active addresses, do nothing
         return;
     }
-
-    for (const auto& [fst, snd] : *tx_map) {
-        snd.second->decref();
-    }
-
+    std::lock_guard<std::mutex> lock(active_map_addreses_mutex);
     tx_map->clear();
+    active_map_addreses.erase(tx_map.get());
+}
+
+void
+Initializer::clear_tainting_maps()
+{
+    // Need to copy because free_tainting_map changes the set inside the iteration
+    auto copy_active_map_addreses(initializer->active_map_addreses);
+    for (auto& [fst, snd] : copy_active_map_addreses) {
+        if (copy_active_map_addreses.empty()) {
+            break;
+        }
+        clear_tainting_map(snd);
+        snd = nullptr;
+    }
+    std::lock_guard<std::mutex> lock(active_map_addreses_mutex);
+    active_map_addreses.clear();
 }
 
 // User must check for nullptr return
@@ -56,21 +68,10 @@ Initializer::get_tainting_map()
     return ThreadContextCache.tx_map;
 }
 
-void
-Initializer::clear_tainting_maps()
-{
-    // Need to copy because free_tainting_map changes the set inside the iteration
-    for (auto& [fst, snd] : initializer->active_map_addreses) {
-        clear_tainting_map(snd);
-        snd = nullptr;
-    }
-    active_map_addreses.clear();
-}
-
 int
 Initializer::num_objects_tainted()
 {
-    if (const auto ctx_map = initializer->get_tainting_map()) {
+    if (const auto ctx_map = get_tainting_map()) {
         return static_cast<int>(ctx_map->size());
     }
     return 0;
@@ -79,7 +80,7 @@ Initializer::num_objects_tainted()
 string
 Initializer::debug_taint_map()
 {
-    const auto ctx_map = initializer->get_tainting_map();
+    const auto ctx_map = get_tainting_map();
     if (!ctx_map) {
         return ("[]");
     }
@@ -110,12 +111,12 @@ TaintedObjectPtr
 Initializer::allocate_tainted_object()
 {
     if (!available_taintedobjects_stack.empty()) {
-        const auto& toptr = available_taintedobjects_stack.top();
+        const auto toptr = available_taintedobjects_stack.top();
         available_taintedobjects_stack.pop();
         return toptr;
     }
     // Stack is empty, create new object
-    return new TaintedObject();
+    return make_shared<TaintedObject>();
 }
 
 TaintedObjectPtr
@@ -141,24 +142,6 @@ Initializer::allocate_tainted_object_copy(const TaintedObjectPtr& from)
         return allocate_tainted_object();
     }
     return allocate_ranges_into_taint_object_copy(from->ranges_);
-}
-
-void
-Initializer::release_tainted_object(TaintedObjectPtr tobj)
-{
-    if (!tobj) {
-        return;
-    }
-
-    tobj->reset();
-    if (available_taintedobjects_stack.size() < TAINTEDOBJECTS_STACK_SIZE) {
-        available_taintedobjects_stack.push(tobj);
-        return;
-    }
-
-    // Stack full, just delete the object (but to a reset before so ranges are
-    // reused or freed)
-    delete tobj;
 }
 
 TaintRangePtr
@@ -198,21 +181,43 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
 void
 Initializer::create_context()
 {
-    if (ThreadContextCache.tx_map != nullptr) {
-        // Reset the current context
-        reset_context();
+    auto tx_map = get_tainting_map();
+    if (tx_map != nullptr) {
+        reset_context(tx_map);
     }
-
     // Create a new taint_map
     auto map_ptr = create_tainting_map();
     ThreadContextCache.tx_map = map_ptr;
 }
 
 void
+Initializer::reset_context(const TaintRangeMapTypePtr& tx_map)
+{
+    if (tx_map == nullptr) {
+        return;
+    }
+    clear_tainting_map(tx_map);
+}
+
+void
 Initializer::reset_context()
 {
-    clear_tainting_maps();
+    reset_context(ThreadContextCache.tx_map);
     ThreadContextCache.tx_map = nullptr;
+}
+
+void
+Initializer::reset_contexts()
+{
+    if (active_map_addreses_size() <= 0) {
+        return;
+    }
+
+    clear_tainting_maps();
+
+    if (ThreadContextCache.tx_map != nullptr) {
+        ThreadContextCache.tx_map = nullptr;
+    }
 }
 
 // Created in the PYBIND11_MODULE in _native.cpp
@@ -222,12 +227,13 @@ void
 pyexport_initializer(py::module& m)
 {
     m.def("clear_tainting_maps", [] { initializer->clear_tainting_maps(); });
-    m.def("debug_taint_map", [] { return initializer->debug_taint_map(); });
+    m.def("debug_taint_map", [] { return Initializer::debug_taint_map(); });
 
-    m.def("num_objects_tainted", [] { return initializer->num_objects_tainted(); });
+    m.def("num_objects_tainted", [] { return Initializer::num_objects_tainted(); });
     m.def("initializer_size", [] { return initializer->initializer_size(); });
     m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
 
     m.def("create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
     m.def("reset_context", [] { initializer->reset_context(); });
+    m.def("reset_contexts", [] { initializer->reset_contexts(); });
 }

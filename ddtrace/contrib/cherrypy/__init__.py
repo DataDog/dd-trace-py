@@ -53,14 +53,14 @@ Here is the end result, in a sample app::
     cherrypy.quickstart(HelloWorld())
 """
 
-from ...internal.utils.importlib import require_modules
+from ddtrace.internal.utils.importlib import require_modules
 
 
 required_modules = ["cherrypy"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .middleware import TraceMiddleware
-        from .middleware import get_version
+        from ddtrace.contrib.internal.cherrypy.middleware import TraceMiddleware
+        from ddtrace.contrib.internal.cherrypy.middleware import get_version
 
         __all__ = ["TraceMiddleware", "get_version"]

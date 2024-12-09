@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": "",
+    "service": "tests.contrib.openai",
     "resource": "createImage",
     "trace_id": 0,
     "span_id": 1,
@@ -17,6 +17,7 @@
       "openai.api_type": "open_ai",
       "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
+      "openai.request.client": "OpenAI",
       "openai.request.endpoint": "/v1/images/generations",
       "openai.request.method": "POST",
       "openai.request.model": "dall-e",

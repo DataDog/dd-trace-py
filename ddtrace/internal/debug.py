@@ -144,12 +144,11 @@ def collect(tracer):
         service=ddtrace.config.service or "",
         debug=log.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
-        analytics_enabled=ddtrace.config.analytics_enabled,
-        log_injection_enabled=ddtrace.config.logs_injection,
-        health_metrics_enabled=ddtrace.config.health_metrics_enabled,
+        analytics_enabled=ddtrace.config._analytics_enabled,
+        log_injection_enabled=ddtrace.config._logs_injection,
+        health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
-        priority_sampling_enabled=ddtrace.config._priority_sampling,
         global_tags=os.getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
@@ -264,5 +263,5 @@ def pretty_collect(tracer, color=True):
 
 
 def escape_ansi(line):
-    ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]")
+    ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-9:;<=>?]*[ -/]*[@-~]")
     return ansi_escape.sub("", line)

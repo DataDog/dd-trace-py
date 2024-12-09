@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Improves the error message when the native exporter fails to load and stops profiling from starting
+    if ddtrace is also being injected.

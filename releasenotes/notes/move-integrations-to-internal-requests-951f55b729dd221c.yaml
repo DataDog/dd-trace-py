@@ -1,0 +1,14 @@
+---
+deprecations:
+  - |
+    pynamodb: Deprecates all modules in the ``ddtrace.contrib.pynamodb`` package. Use attributes exposed in ``ddtrace.contrib.pynamodb.__all__`` instead.
+  - |
+    pyodbc: Deprecates all modules in the ``ddtrace.contrib.pyodbc`` package. Use attributes exposed in ``ddtrace.contrib.pyodbc.__all__`` instead.
+  - |
+    pyramid: Deprecates all modules in the ``ddtrace.contrib.pyramid`` package. Use attributes exposed in ``ddtrace.contrib.pyramid.__all__`` instead.
+  - |
+    redis: Deprecates all modules in the ``ddtrace.contrib.redis`` package. Use attributes exposed in ``ddtrace.contrib.redis.__all__`` instead.
+  - |
+    rediscluster: Deprecates all modules in the ``ddtrace.contrib.rediscluster`` package. Use attributes exposed in ``ddtrace.contrib.rediscluster.__all__`` instead.
+  - |
+    requests: Deprecates all modules in the ``ddtrace.contrib.requests`` package. Use attributes exposed in ``ddtrace.contrib.requests.__all__`` instead.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed an issue with some module imports with native specs that don't support
+    attribute assignments, resulting in a ``TypeError`` exception at runtime.

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: fixes bedrock model and model provider interpretation from ``modelId`` when using cross-region inference.

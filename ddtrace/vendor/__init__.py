@@ -8,18 +8,6 @@ whenever a dependency is imported. Doing this allows us to have a little more co
 Dependencies
 ============
 
-wrapt
------
-
-Website: https://wrapt.readthedocs.io/en/latest/
-Source: https://github.com/GrahamDumpleton/wrapt/
-Version: 1.14.1
-License: BSD 2-Clause "Simplified" License
-
-Notes:
-  `setup.py` will attempt to build the `wrapt/_wrappers.c` C module
-
-
 dogstatsd
 ---------
 
@@ -56,7 +44,7 @@ debtcollector
 
 Website: https://docs.openstack.org/debtcollector/latest/index.html
 Source: https://github.com/openstack/debtcollector
-Version: 1.22.0
+Version: 2.5.0
 License: Apache License 2.0
 
 Notes:
@@ -103,6 +91,33 @@ License: Apache License 2.0
 Notes:
   - We only vendor the packaging.version sub-module as this is all we currently
     need.
+
+
+ply
+---------
+
+Source: https://github.com/dabeaz/ply
+Version: 3.11
+License: BSD-3-Clause
+
+Notes:
+  - jsonpath-ng dependency
+    Did a "pip install jsonpath-ng"
+    Then went and looked at the contents of the ply packages
+    yacc.py and lex.py files here.
+    Didn't copy: cpp.py, ctokens.py, ygen.py (didn't see them used)
+
+    
+jsonpath-ng
+---------
+
+Source: https://github.com/h2non/jsonpath-ng
+Version: 1.6.1
+License: Apache License 2.0
+
+Notes:
+  - Copied ply into vendors as well.
+    Changed "-" to "_" as was causing errors when importing.
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger

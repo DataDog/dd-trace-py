@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 #    Copyright (C) 2015 Yahoo! Inc. All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,19 +12,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import six
-from .. import wrapt
-if six.PY3:
-    import inspect
-    Parameter = inspect.Parameter
-    Signature = inspect.Signature
-    get_signature = inspect.signature
-else:
-    # Provide an equivalent but use funcsigs instead...
-    import funcsigs
-    Parameter = funcsigs.Parameter
-    Signature = funcsigs.Signature
-    get_signature = funcsigs.signature
+import wrapt
+
+from inspect import signature
 
 from . import _utils
 
@@ -48,8 +36,8 @@ def updated_kwarg_default_value(name, old_value, new_value, message=None,
         prefix, postfix=postfix, message=message, version=version)
 
     def decorator(f):
-        sig = get_signature(f)
-        varnames = list(six.iterkeys(sig.parameters))
+        sig = signature(f)
+        varnames = list(sig.parameters.keys())
 
         @wrapt.decorator
         def wrapper(wrapped, instance, args, kwargs):

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
@@ -14,7 +12,7 @@
 
 from . import _utils, moves, removals, renames, updating
 
-__version__ = "1.22.0"
+__version__ = "2.5.0"
 
 
 def deprecate(prefix, postfix=None, message=None,

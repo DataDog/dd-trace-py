@@ -179,21 +179,6 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     first_time.store(false);
 }
 
-std::string_view
-Datadog::Profile::insert_or_get(std::string_view str)
-{
-    const std::lock_guard<std::mutex> lock(string_table_mtx); // Serialize access
-
-    auto str_it = strings.find(str);
-    if (str_it != strings.end()) {
-        return *str_it;
-    }
-
-    string_storage.emplace_back(str);
-    strings.insert(string_storage.back());
-    return string_storage.back();
-}
-
 const Datadog::ValueIndex&
 Datadog::Profile::val()
 {

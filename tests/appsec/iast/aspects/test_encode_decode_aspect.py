@@ -9,7 +9,7 @@ import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
-mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
+mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
 def catch_all(fun, args, kwargs):
@@ -142,9 +142,7 @@ def test_encode_error_with_tainted_gives_one_log_metric(telemetry_writer):
         mod.do_encode(string_input, "encoding-not-exists")
 
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 1
-    assert "message" in list_metrics_logs[0]
-    assert "IAST propagation error. encode_aspect. " in list_metrics_logs[0]["message"]
+    assert len(list_metrics_logs) == 0
 
 
 def test_encode_error_with_not_tainted_gives_no_log_metric(telemetry_writer):
@@ -167,9 +165,7 @@ def test_dencode_error_with_tainted_gives_one_log_metric(telemetry_writer):
         mod.do_decode(string_input, "decoding-not-exists")
 
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 1
-    assert "message" in list_metrics_logs[0]
-    assert "IAST propagation error. decode_aspect. " in list_metrics_logs[0]["message"]
+    assert len(list_metrics_logs) == 0
 
 
 def test_dencode_error_with_not_tainted_gives_no_log_metric(telemetry_writer):

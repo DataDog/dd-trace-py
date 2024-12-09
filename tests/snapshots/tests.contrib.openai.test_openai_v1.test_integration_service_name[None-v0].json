@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": "",
+    "service": "ddtrace_subprocess_dir",
     "resource": "createCompletion",
     "trace_id": 0,
     "span_id": 1,
@@ -15,6 +15,7 @@
       "language": "python",
       "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
+      "openai.request.client": "OpenAI",
       "openai.request.endpoint": "/v1/completions",
       "openai.request.method": "POST",
       "openai.request.model": "ada",

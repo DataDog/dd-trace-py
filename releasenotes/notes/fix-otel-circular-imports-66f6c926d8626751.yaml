@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    opentelemetry: Resolves circular imports raised by the OpenTelemetry API when the ``ddcontextvars_context`` entrypoint is loaded.
+    This resolves an incompatibility introduced in ``opentelemetry-api==1.25.0``.

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    celery: This fix resolves two issues with context propagation in celery
+    1. Invalid span parentage when task A calls task B async and task A errors out, causing A's queuing of B, and B itself to not be parented under A.
+    2. Invalid context propagation from client to workers, and across retries, causing multiple traces instead of a single trace

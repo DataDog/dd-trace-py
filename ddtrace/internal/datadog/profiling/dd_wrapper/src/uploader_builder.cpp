@@ -15,6 +15,7 @@ Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
         dd_env = _dd_env;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_service(std::string_view _service)
 {
@@ -22,6 +23,7 @@ Datadog::UploaderBuilder::set_service(std::string_view _service)
         service = _service;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_version(std::string_view _version)
 {
@@ -29,6 +31,7 @@ Datadog::UploaderBuilder::set_version(std::string_view _version)
         version = _version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_runtime(std::string_view _runtime)
 {
@@ -36,6 +39,15 @@ Datadog::UploaderBuilder::set_runtime(std::string_view _runtime)
         runtime = _runtime;
     }
 }
+
+void
+Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
+{
+    if (!_runtime_id.empty()) {
+        runtime_id = _runtime_id;
+    }
+}
+
 void
 Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
 {
@@ -43,6 +55,7 @@ Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
         runtime_version = _runtime_version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
 {
@@ -50,6 +63,7 @@ Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_versio
         profiler_version = _profiler_version;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_url(std::string_view _url)
 {
@@ -57,6 +71,7 @@ Datadog::UploaderBuilder::set_url(std::string_view _url)
         url = _url;
     }
 }
+
 void
 Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 {
@@ -68,10 +83,10 @@ Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 }
 
 void
-Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
+Datadog::UploaderBuilder::set_output_filename(std::string_view _output_filename)
 {
-    if (!_runtime_id.empty()) {
-        runtime_id = _runtime_id;
+    if (!_output_filename.empty()) {
+        output_filename = _output_filename;
     }
 }
 
@@ -109,6 +124,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::version, version },
         { ExportTagKey::language, language },
         { ExportTagKey::runtime, runtime },
+        { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::profiler_version, profiler_version },
     };
@@ -154,5 +170,19 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    return Datadog::Uploader{ url, ddog_exporter };
+    // 5s is a common timeout parameter for Datadog profilers
+    const uint64_t max_timeout_ms = 5000;
+    ddog_prof_MaybeError set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
+    if (set_timeout_result.tag == DDOG_PROF_OPTION_ERROR_SOME_ERROR) {
+        auto& err = set_timeout_result.some;
+        std::string errmsg = Datadog::err_to_msg(&err, "Error setting timeout on exporter");
+        ddog_Error_drop(&err); // errmsg contains a copy of err.message
+        // If set_timeout had failed, then the ddog_exporter must have been a
+        // null pointer, so it's redundant to drop it here but it should also
+        // be safe to do so.
+        ddog_prof_Exporter_drop(ddog_exporter);
+        return errmsg;
+    }
+
+    return Datadog::Uploader{ output_filename, ddog_exporter };
 }
