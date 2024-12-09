@@ -13,7 +13,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -24,7 +24,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -35,11 +35,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -53,9 +53,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -63,12 +64,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 1234661209,
-    "start": 1732017031398084177
+    "duration": 1234653417,
+    "start": 1733391727188543340
   }],
 [
   {
@@ -85,7 +86,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -96,7 +97,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -107,11 +108,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -126,9 +127,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -136,12 +138,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 84417,
-    "start": 1732017032647964594
+    "duration": 97916,
+    "start": 1733391728438344799
   }],
 [
   {
@@ -158,7 +160,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -169,7 +171,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -180,11 +182,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -199,9 +201,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -209,12 +212,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 50292,
-    "start": 1732017032648149219
+    "duration": 52958,
+    "start": 1733391728438541299
   }],
 [
   {
@@ -231,7 +234,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -242,7 +245,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -253,11 +256,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -272,9 +275,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -282,12 +286,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 45583,
-    "start": 1732017032648277594
+    "duration": 48959,
+    "start": 1733391728438675715
   }],
 [
   {
@@ -304,7 +308,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -315,7 +319,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -326,11 +330,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -345,9 +349,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -355,12 +360,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 42500,
-    "start": 1732017032648394761
+    "duration": 47666,
+    "start": 1733391728438800299
   }],
 [
   {
@@ -377,7 +382,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -388,7 +393,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -399,11 +404,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -418,9 +423,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -428,12 +434,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 42708,
-    "start": 1732017032648507386
+    "duration": 47958,
+    "start": 1733391728438925549
   }],
 [
   {
@@ -450,7 +456,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -461,7 +467,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -472,11 +478,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -491,9 +497,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -501,12 +508,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 42541,
-    "start": 1732017032648618636
+    "duration": 43833,
+    "start": 1733391728439044174
   }],
 [
   {
@@ -523,7 +530,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -534,7 +541,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -545,11 +552,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -564,9 +571,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -574,12 +582,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 43209,
-    "start": 1732017032648732052
+    "duration": 43833,
+    "start": 1733391728439156924
   }],
 [
   {
@@ -596,7 +604,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -607,7 +615,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -618,11 +626,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -637,9 +645,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -647,12 +656,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 56875,
-    "start": 1732017032648847719
+    "duration": 43542,
+    "start": 1733391728439268965
   }],
 [
   {
@@ -669,7 +678,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -680,7 +689,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -691,11 +700,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -710,9 +719,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -720,12 +730,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 66792,
-    "start": 1732017032648980219
+    "duration": 55542,
+    "start": 1733391728439381340
   }],
 [
   {
@@ -742,7 +752,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -753,7 +763,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -764,11 +774,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -783,9 +793,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -793,12 +804,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 64542,
-    "start": 1732017032649171969
+    "duration": 44250,
+    "start": 1733391728439513715
   }],
 [
   {
@@ -815,7 +826,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -826,7 +837,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -837,11 +848,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -854,9 +865,10 @@
       "test.name": "m1_s1_t2",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -864,10 +876,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 6543266750,
-    "start": 1732017026106176886
+    "duration": 6543251541,
+    "start": 1733391721896425424
   }],
 [
   {
@@ -884,7 +896,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -895,7 +907,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -906,11 +918,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -924,9 +936,10 @@
       "test.name": "m1_s1_t2",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -934,10 +947,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 38417,
-    "start": 1732017032649531219
+    "duration": 34000,
+    "start": 1733391728439749965
   }],
 [
   {
@@ -954,7 +967,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -965,7 +978,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -976,11 +989,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -994,9 +1007,10 @@
       "test.name": "m1_s1_t2",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -1004,10 +1018,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 37292,
-    "start": 1732017032649645802
+    "duration": 33625,
+    "start": 1733391728439851632
   }],
 [
   {
@@ -1024,7 +1038,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1035,7 +1049,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1046,11 +1060,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1064,9 +1078,10 @@
       "test.name": "m1_s1_t2",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -1074,10 +1089,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 48833,
-    "start": 1732017032649827761
+    "duration": 34291,
+    "start": 1733391728439954799
   }],
 [
   {
@@ -1094,7 +1109,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1105,7 +1120,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1116,11 +1131,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1134,9 +1149,10 @@
       "test.name": "m1_s1_t2",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -1144,10 +1160,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 37208,
-    "start": 1732017032649957136
+    "duration": 34250,
+    "start": 1733391728440056340
   }],
 [
   {
@@ -1164,7 +1180,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1175,7 +1191,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1186,11 +1202,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1204,9 +1220,10 @@
       "test.name": "m1_s1_t2",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -1214,10 +1231,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 33208,
-    "start": 1732017032650066219
+    "duration": 31834,
+    "start": 1733391728440157590
   }],
 [
   {
@@ -1234,7 +1251,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1245,7 +1262,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1256,11 +1273,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1274,9 +1291,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -1284,12 +1302,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 115459,
-    "start": 1732017032650352052
+    "duration": 67417,
+    "start": 1733391728440263090
   }],
 [
   {
@@ -1306,7 +1324,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1317,7 +1335,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1328,11 +1346,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1345,9 +1363,10 @@
       "test.parameters": "{\"param1\": \"value1\"}",
       "test.status": "skip",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -1355,10 +1374,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 43042,
-    "start": 1732017032650542802
+    "duration": 46000,
+    "start": 1733391728440388799
   }],
 [
   {
@@ -1375,7 +1394,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1386,7 +1405,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1397,11 +1416,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1414,9 +1433,10 @@
       "test.parameters": "{\"param1\": \"value2\"}",
       "test.status": "pass",
       "test.suite": "m1_s1",
-      "test_module_id": "5725003850113608623",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "5168108260619620972",
+      "test.type": "test",
+      "test_module_id": "10204182735731537153",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "2083142980793588842",
       "type": "test"
     },
     "metrics": {
@@ -1424,10 +1444,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
     "duration": 41291,
-    "start": 1732017032650651386
+    "start": 1733391728440540174
   }],
 [
   {
@@ -1444,7 +1464,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1455,7 +1475,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1466,11 +1486,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1481,7 +1501,7 @@
       "test.framework_version": "1.0.0",
       "test.itr.tests_skipping.enabled": "false",
       "test.status": "pass",
-      "test_session_id": "10359560244968602395",
+      "test_session_id": "11372754292406319631",
       "type": "test_session_end"
     },
     "metrics": {
@@ -1489,10 +1509,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 20544333,
-    "start": 1732017032632107886
+    "duration": 20031875,
+    "start": 1733391728422516090
   },
      {
        "name": "test_visibility.module",
@@ -1508,7 +1528,7 @@
          "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
          "_dd.origin": "ciapp-test",
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "673c7b8800000000",
+         "_dd.p.tid": "6751757000000000",
          "ci.job.name": "test-job",
          "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
          "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1519,7 +1539,7 @@
          "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
          "ci.provider.name": "gitlab",
          "ci.stage.name": "test-stage",
-         "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+         "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
          "component": "dd_manual_test_fw",
          "git.branch": "test.brancn/test_name",
          "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1530,7 +1550,7 @@
          "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
          "git.tag": "v1.0.0",
          "language": "python",
-         "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+         "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
          "os.architecture": "aarch64",
          "os.platform": "Linux",
          "os.version": "6.6.12-linuxkit",
@@ -1545,8 +1565,8 @@
          "test.module": "m1",
          "test.module_path": "",
          "test.status": "pass",
-         "test_module_id": "5725003850113608623",
-         "test_session_id": "10359560244968602395",
+         "test_module_id": "10204182735731537153",
+         "test_session_id": "11372754292406319631",
          "type": "test_module_end"
        },
        "metrics": {
@@ -1554,8 +1574,8 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1
        },
-       "duration": 18323375,
-       "start": 1732017032632584552
+       "duration": 17735667,
+       "start": 1733391728423034632
      },
         {
           "name": "test_visibility.suite",
@@ -1571,7 +1591,7 @@
             "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
-            "_dd.p.tid": "673c7b8800000000",
+            "_dd.p.tid": "6751757000000000",
             "ci.job.name": "test-job",
             "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
             "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1582,7 +1602,7 @@
             "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
             "ci.provider.name": "gitlab",
             "ci.stage.name": "test-stage",
-            "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+            "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
             "component": "dd_manual_test_fw",
             "git.branch": "test.brancn/test_name",
             "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1593,7 +1613,7 @@
             "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
             "git.tag": "v1.0.0",
             "language": "python",
-            "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+            "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
             "os.architecture": "aarch64",
             "os.platform": "Linux",
             "os.version": "6.6.12-linuxkit",
@@ -1607,9 +1627,9 @@
             "test.module_path": "",
             "test.status": "pass",
             "test.suite": "m1_s1",
-            "test_module_id": "5725003850113608623",
-            "test_session_id": "10359560244968602395",
-            "test_suite_id": "5168108260619620972",
+            "test_module_id": "10204182735731537153",
+            "test_session_id": "11372754292406319631",
+            "test_suite_id": "2083142980793588842",
             "type": "test_suite_end"
           },
           "metrics": {
@@ -1617,8 +1637,8 @@
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1
           },
-          "duration": 18177084,
-          "start": 1732017032632614302
+          "duration": 17608625,
+          "start": 1733391728423070215
         },
      {
        "name": "test_visibility.module",
@@ -1634,7 +1654,7 @@
          "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
          "_dd.origin": "ciapp-test",
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "673c7b8800000000",
+         "_dd.p.tid": "6751757000000000",
          "ci.job.name": "test-job",
          "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
          "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1645,7 +1665,7 @@
          "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
          "ci.provider.name": "gitlab",
          "ci.stage.name": "test-stage",
-         "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+         "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
          "component": "dd_manual_test_fw",
          "git.branch": "test.brancn/test_name",
          "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1656,7 +1676,7 @@
          "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
          "git.tag": "v1.0.0",
          "language": "python",
-         "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+         "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
          "os.architecture": "aarch64",
          "os.platform": "Linux",
          "os.version": "6.6.12-linuxkit",
@@ -1671,8 +1691,8 @@
          "test.module": "m2",
          "test.module_path": "",
          "test.status": "pass",
-         "test_module_id": "2177262413998606555",
-         "test_session_id": "10359560244968602395",
+         "test_module_id": "14844464421068762406",
+         "test_session_id": "11372754292406319631",
          "type": "test_module_end"
        },
        "metrics": {
@@ -1680,8 +1700,8 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1
        },
-       "duration": 1590458,
-       "start": 1732017032650960761
+       "duration": 1615458,
+       "start": 1733391728440822424
      },
         {
           "name": "test_visibility.suite",
@@ -1697,7 +1717,7 @@
             "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
-            "_dd.p.tid": "673c7b8800000000",
+            "_dd.p.tid": "6751757000000000",
             "ci.job.name": "test-job",
             "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
             "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1708,7 +1728,7 @@
             "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
             "ci.provider.name": "gitlab",
             "ci.stage.name": "test-stage",
-            "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+            "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
             "component": "dd_manual_test_fw",
             "git.branch": "test.brancn/test_name",
             "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1719,7 +1739,7 @@
             "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
             "git.tag": "v1.0.0",
             "language": "python",
-            "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+            "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
             "os.architecture": "aarch64",
             "os.platform": "Linux",
             "os.version": "6.6.12-linuxkit",
@@ -1733,9 +1753,9 @@
             "test.module_path": "",
             "test.status": "pass",
             "test.suite": "m2_s1",
-            "test_module_id": "2177262413998606555",
-            "test_session_id": "10359560244968602395",
-            "test_suite_id": "16321082474709595335",
+            "test_module_id": "14844464421068762406",
+            "test_session_id": "11372754292406319631",
+            "test_suite_id": "16936266246841821198",
             "type": "test_suite_end"
           },
           "metrics": {
@@ -1743,8 +1763,8 @@
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1
           },
-          "duration": 885792,
-          "start": 1732017032650986594
+          "duration": 899583,
+          "start": 1733391728440847507
         },
         {
           "name": "test_visibility.suite",
@@ -1760,7 +1780,7 @@
             "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
-            "_dd.p.tid": "673c7b8800000000",
+            "_dd.p.tid": "6751757000000000",
             "ci.job.name": "test-job",
             "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
             "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1771,7 +1791,7 @@
             "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
             "ci.provider.name": "gitlab",
             "ci.stage.name": "test-stage",
-            "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+            "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
             "component": "dd_manual_test_fw",
             "git.branch": "test.brancn/test_name",
             "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1782,7 +1802,7 @@
             "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
             "git.tag": "v1.0.0",
             "language": "python",
-            "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+            "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
             "os.architecture": "aarch64",
             "os.platform": "Linux",
             "os.version": "6.6.12-linuxkit",
@@ -1796,9 +1816,9 @@
             "test.module_path": "",
             "test.status": "pass",
             "test.suite": "m2_s2",
-            "test_module_id": "2177262413998606555",
-            "test_session_id": "10359560244968602395",
-            "test_suite_id": "9627260334977856774",
+            "test_module_id": "14844464421068762406",
+            "test_session_id": "11372754292406319631",
+            "test_suite_id": "7930343477805738115",
             "type": "test_suite_end"
           },
           "metrics": {
@@ -1806,8 +1826,8 @@
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1
           },
-          "duration": 545458,
-          "start": 1732017032651922719
+          "duration": 551375,
+          "start": 1733391728441798549
         }],
 [
   {
@@ -1824,7 +1844,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1835,7 +1855,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1846,11 +1866,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1862,9 +1882,10 @@
       "test.name": "m2_s1_t1",
       "test.status": "pass",
       "test.suite": "m2_s1",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "16321082474709595335",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "16936266246841821198",
       "type": "test"
     },
     "metrics": {
@@ -1872,10 +1893,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 39125,
-    "start": 1732017032651006219
+    "duration": 38542,
+    "start": 1733391728440868715
   }],
 [
   {
@@ -1892,7 +1913,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1903,7 +1924,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1914,11 +1935,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1930,9 +1951,10 @@
       "test.name": "m2_s1_t2",
       "test.status": "pass",
       "test.suite": "m2_s1",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "16321082474709595335",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "16936266246841821198",
       "type": "test"
     },
     "metrics": {
@@ -1940,10 +1962,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 36333,
-    "start": 1732017032651104219
+    "duration": 38667,
+    "start": 1733391728440965507
   }],
 [
   {
@@ -1960,7 +1982,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -1971,7 +1993,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -1982,11 +2004,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -1998,9 +2020,10 @@
       "test.name": "m2_s1_t3",
       "test.status": "pass",
       "test.suite": "m2_s1",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "16321082474709595335",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "16936266246841821198",
       "type": "test"
     },
     "metrics": {
@@ -2008,10 +2031,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 35375,
-    "start": 1732017032651196552
+    "duration": 37458,
+    "start": 1733391728441060257
   }],
 [
   {
@@ -2028,7 +2051,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2039,7 +2062,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2050,11 +2073,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2066,9 +2089,10 @@
       "test.name": "m2_s1_t4",
       "test.status": "pass",
       "test.suite": "m2_s1",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "16321082474709595335",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "16936266246841821198",
       "type": "test"
     },
     "metrics": {
@@ -2076,10 +2100,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 35000,
-    "start": 1732017032651288386
+    "duration": 36833,
+    "start": 1733391728441156049
   }],
 [
   {
@@ -2096,7 +2120,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2107,7 +2131,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2118,11 +2142,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2134,9 +2158,10 @@
       "test.name": "m2_s1_t5",
       "test.status": "pass",
       "test.suite": "m2_s1",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "16321082474709595335",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "16936266246841821198",
       "type": "test"
     },
     "metrics": {
@@ -2144,10 +2169,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 36292,
-    "start": 1732017032651380927
+    "duration": 35791,
+    "start": 1733391728441248924
   }],
 [
   {
@@ -2164,7 +2189,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2175,7 +2200,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2186,11 +2211,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2202,9 +2227,10 @@
       "test.name": "m2_s1_t6",
       "test.status": "pass",
       "test.suite": "m2_s1",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "16321082474709595335",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "16936266246841821198",
       "type": "test"
     },
     "metrics": {
@@ -2212,10 +2238,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 36583,
-    "start": 1732017032651485636
+    "duration": 37375,
+    "start": 1733391728441340257
   }],
 [
   {
@@ -2232,7 +2258,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2243,7 +2269,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2254,11 +2280,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2270,9 +2296,10 @@
       "test.name": "m2_s1_t7",
       "test.status": "pass",
       "test.suite": "m2_s1",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "16321082474709595335",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "16936266246841821198",
       "type": "test"
     },
     "metrics": {
@@ -2280,10 +2307,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 35375,
-    "start": 1732017032651576386
+    "duration": 36708,
+    "start": 1733391728441444049
   }],
 [
   {
@@ -2300,7 +2327,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2311,7 +2338,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2322,11 +2349,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2338,9 +2365,10 @@
       "test.name": "m2_s1_t8",
       "test.status": "pass",
       "test.suite": "m2_s1",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "16321082474709595335",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "16936266246841821198",
       "type": "test"
     },
     "metrics": {
@@ -2348,10 +2376,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 34542,
-    "start": 1732017032651667552
+    "duration": 38666,
+    "start": 1733391728441534424
   }],
 [
   {
@@ -2368,7 +2396,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2379,7 +2407,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2390,11 +2418,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2406,9 +2434,10 @@
       "test.name": "m2_s1_t9",
       "test.status": "pass",
       "test.suite": "m2_s1",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "16321082474709595335",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "16936266246841821198",
       "type": "test"
     },
     "metrics": {
@@ -2416,10 +2445,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 33708,
-    "start": 1732017032651755719
+    "duration": 39125,
+    "start": 1733391728441629632
   }],
 [
   {
@@ -2436,7 +2465,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2447,7 +2476,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2458,11 +2487,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2475,9 +2504,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "m2_s2",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "9627260334977856774",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "7930343477805738115",
       "type": "test"
     },
     "metrics": {
@@ -2485,12 +2515,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 52333,
-    "start": 1732017032651943344
+    "duration": 48834,
+    "start": 1733391728441819215
   }],
 [
   {
@@ -2507,7 +2537,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2518,7 +2548,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2529,11 +2559,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2547,9 +2577,10 @@
       "test.name": "m2_s2_t2",
       "test.status": "pass",
       "test.suite": "m2_s2",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "9627260334977856774",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "7930343477805738115",
       "type": "test"
     },
     "metrics": {
@@ -2557,10 +2588,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 301000042125,
-    "start": 1732016731652053344
+    "duration": 301000041250,
+    "start": 1733391427441925674
   }],
 [
   {
@@ -2577,7 +2608,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2588,7 +2619,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2599,11 +2630,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2618,9 +2649,10 @@
       "test.source.file": "my_file_1.py",
       "test.status": "pass",
       "test.suite": "m2_s2",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "9627260334977856774",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "7930343477805738115",
       "type": "test"
     },
     "metrics": {
@@ -2628,12 +2660,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724,
+      "process_id": 32557,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 54833,
-    "start": 1732017032652158344
+    "duration": 56500,
+    "start": 1733391728442030257
   }],
 [
   {
@@ -2650,7 +2682,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2661,7 +2693,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2672,11 +2704,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2688,9 +2720,10 @@
       "test.name": "m2_s2_t4",
       "test.status": "pass",
       "test.suite": "m2_s2",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "9627260334977856774",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "7930343477805738115",
       "type": "test"
     },
     "metrics": {
@@ -2698,10 +2731,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 34542,
-    "start": 1732017032652269802
+    "duration": 37000,
+    "start": 1733391728442144882
   }],
 [
   {
@@ -2718,7 +2751,7 @@
       "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "673c7b8800000000",
+      "_dd.p.tid": "6751757000000000",
       "ci.job.name": "test-job",
       "ci.job.url": "https://test.test.io/Test/test-test/test-test/-/jobs/633358062",
       "ci.node.labels": "[\"runner:test-test-test-test\"]",
@@ -2729,7 +2762,7 @@
       "ci.pipeline.url": "https://test.\u2020est.io/Test/test-\u2020est/test-test/-/pipelines/43949931",
       "ci.provider.name": "gitlab",
       "ci.stage.name": "test-stage",
-      "ci.workspace_path": "/tmp/pytest-of-root/pytest-6/test_manual_api_fake_efd_all_pass0",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-12/test_manual_api_fake_efd_all_pass0",
       "component": "dd_manual_test_fw",
       "git.branch": "test.brancn/test_name",
       "git.commit.author.date": "2024-09-10T10:11:13+01:00",
@@ -2740,11 +2773,11 @@
       "git.repository_url": "https://test.test.io/Test/test-test/test-test.git",
       "git.tag": "v1.0.0",
       "language": "python",
-      "library_version": "2.18.0.dev22+g4d6c975d3.d20241119",
+      "library_version": "2.18.0.dev124+gc03b9e422.d20241205",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "6.6.12-linuxkit",
-      "runtime-id": "0728e603bc8846889415595c15019eb7",
+      "runtime-id": "85d23ceb30e2493e8c42047bf9d2e100",
       "runtime.name": "CPython",
       "runtime.version": "3.9.19",
       "span.kind": "test",
@@ -2756,9 +2789,10 @@
       "test.name": "m2_s2_t5",
       "test.status": "pass",
       "test.suite": "m2_s2",
-      "test_module_id": "2177262413998606555",
-      "test_session_id": "10359560244968602395",
-      "test_suite_id": "9627260334977856774",
+      "test.type": "test",
+      "test_module_id": "14844464421068762406",
+      "test_session_id": "11372754292406319631",
+      "test_suite_id": "7930343477805738115",
       "type": "test"
     },
     "metrics": {
@@ -2766,8 +2800,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 38724
+      "process_id": 32557
     },
-    "duration": 34958,
-    "start": 1732017032652360261
+    "duration": 37541,
+    "start": 1733391728442238299
   }]]
