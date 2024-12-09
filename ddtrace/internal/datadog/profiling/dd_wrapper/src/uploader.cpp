@@ -116,8 +116,9 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     // since we're recreating the uploader fresh every time anyway, we recreate one more thing.
     // NB wrapping this in a unique_ptr to easily add RAII semantics; maybe should just wrap it in a
     // class instead
-    std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel_for_request(
-      ddog_CancellationToken_clone(cancel.get()));
+    cancel.reset(ddog_CancellationToken_new());
+    std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel_for_request;
+    cancel_for_request.reset(ddog_CancellationToken_clone(cancel.get()));
 
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
     // we ensure exclusivity here.
@@ -156,14 +157,14 @@ Datadog::Uploader::unlock()
 void
 Datadog::Uploader::cancel_inflight()
 {
-    ddog_CancellationToken_cancel(cancel.get());
+    cancel.reset();
 }
 
 void
 Datadog::Uploader::prefork()
 {
-    cancel_inflight();
     lock();
+    cancel_inflight();
 }
 
 void
