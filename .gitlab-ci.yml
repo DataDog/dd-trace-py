@@ -1,12 +1,12 @@
 stages:
   - package
-  - tests-gen
+  # - tests-gen
   - tests-trigger
-  - shared-pipeline
-  - benchmarks
-  - macrobenchmarks
   - quality-gate
-  - release
+  # - shared-pipeline
+  # - benchmarks
+  # - macrobenchmarks
+  # - release
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -16,33 +16,32 @@ default:
   interruptible: true
 
 include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  # - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
-  - local: ".gitlab/benchmarks.yml"
+  # - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
-  - local: ".gitlab/macrobenchmarks.yml"
-  - local: ".gitlab/release.yml"
+  # - local: ".gitlab/macrobenchmarks.yml"
+  # - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
 
-tests-gen:
-  stage: tests-gen
-  extends: .testrunner
-  script:
-    - pip install riot==0.20.1
-    - riot -v run --pass-env -s gitlab-gen-config -v
-  needs: []
-  artifacts:
-    paths:
-      - .gitlab/tests-gen.yml
+# tests-gen:
+#   stage: tests-gen
+#   extends: .testrunner
+#   script:
+#     - pip install riot==0.20.1
+#     - riot -v run --pass-env -s gitlab-gen-config -v
+#   needs: []
+#   artifacts:
+#     paths:
+#       - .gitlab/tests-gen.yml
 
 run-tests-trigger:
  stage: tests-trigger
- needs: [ tests-gen ]
+#  needs: [ tests-gen ]
  trigger:
-   include:
-     - artifact: .gitlab/tests-gen.yml
-       job: tests-gen
-   strategy: depend
+    include:
+      - local: .gitlab/tests-gen.yml
+    strategy: depend
 
 requirements_json_test:
   rules:
