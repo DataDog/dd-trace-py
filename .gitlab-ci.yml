@@ -38,6 +38,9 @@ include:
 run-tests-trigger:
  stage: tests-trigger
 #  needs: [ tests-gen ]
+ script:
+    # Optionally prepare the dynamic GitLab CI configuration file here
+    - echo "Setting up child pipeline"
  trigger:
     include:
       - local: .gitlab/tests-gen.yml
