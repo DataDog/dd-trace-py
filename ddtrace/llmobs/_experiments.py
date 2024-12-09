@@ -1,11 +1,3 @@
-"""
-Test coverage ideas:
-- Define task and evaluator wrong
-- Define experiment wrong
-- Experiments with failures
-- Eval failures
-"""
-
 import csv
 import concurrent.futures
 from enum import Enum
