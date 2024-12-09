@@ -1,2 +1,5 @@
-# Probably a false positive from lock-free data structure
-race:moodycamel::ConcurrentQueue
+# libdd is not compiled with sanitizers so probably that's why we get these
+# data races from ddog_ArrayQueue and Datadog::Sample operations
+race:ddog_ArrayQueue
+race:Datadog::Sample::push_
+race:Datadog::Sample::flush_
