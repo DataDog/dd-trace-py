@@ -87,6 +87,9 @@ check_new_flaky_tests:
   extends: .testrunner
   script:
     - curl -L --fail "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64" --output "/usr/local/bin/datadog-ci" && chmod +x /usr/local/bin/datadog-ci
+    - export DD_API_KEY=${{ secrets.DD_API_KEY }}
+    - export DD_SITE=datadoghq.com
+    - export DD_APP_KEY=${{ secrets.DD_APP_KEY }}
     - datadog-ci gate evaluate
   only:
     - erikayasuda/test-new-flake
