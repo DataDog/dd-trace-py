@@ -493,7 +493,7 @@ def config_str(config):
         configured_features.append("mem")
     if config.heap.sample_size > 0:
         configured_features.append("heap")
-    if config._pytorch_collector_enabled:
+    if config.pytorch.enabled:
         configured_features.append("pytorch")
     if config.export.libdd_enabled:
         configured_features.append("exp_dd")
