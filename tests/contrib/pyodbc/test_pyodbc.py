@@ -366,3 +366,19 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         assert span.name == "pyodbc.query", "Expected operation name to be 'pyodbc.query' but was '{}'".format(
             span.name
         )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_override_service_name(self):
+        from ddtrace import config
+
+        config.pyodbc["service"] = "pyodbc-service"
+
+        conn, tracer = self._get_conn_tracer()
+
+        conn.rollback()
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "pyodbc-service", "Expected service name to be 'pyodbc-service' but was '{}'".format(
+            span.service
+        )
