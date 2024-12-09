@@ -144,6 +144,8 @@ def wrap_bytecode(wrapper, wrapped):
             bc.Instr("RESUME", 0, lineno=lineno - 1),
             bc.Instr("PUSH_NULL", lineno=lineno),
         ]
+        if PY >= (3, 13):
+            instrs[1], instrs[2] = instrs[2], instrs[1]
 
         if code.co_cellvars:
             instrs[0:0] = [Instr("MAKE_CELL", bc.CellVar(_), lineno=lineno) for _ in code.co_cellvars]

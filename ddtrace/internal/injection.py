@@ -25,8 +25,25 @@ class InvalidLine(Exception):
     """
 
 
+# DEV: This is the bytecode equivalent of
+# >>> hook(arg)
+# Additionally, we must discard the return value (top of the stack) to restore
+# the stack to the state prior to the call.
+
 INJECTION_ASSEMBLY = Assembly()
-if PY >= (3, 12):
+if PY >= (3, 14):
+    raise NotImplementedError("Python >= 3.14 is not supported yet")
+elif PY >= (3, 13):
+    INJECTION_ASSEMBLY.parse(
+        r"""
+        load_const      {hook}
+        push_null
+        load_const      {arg}
+        call            1
+        pop_top
+        """
+    )
+elif PY >= (3, 12):
     INJECTION_ASSEMBLY.parse(
         r"""
         push_null
@@ -91,15 +108,11 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
     if not locs:
         raise InvalidLine("Line %d does not exist or is either blank or a comment" % lineno)
 
-    # DEV: This is the bytecode equivalent of
-    # >>> hook(arg)
-    # Additionally, we must discard the return value (top of the stack) to
-    # restore the stack to the state prior to the call.
     for i in locs:
         code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
 
-_INJECT_HOOK_OPCODE_POS = 0 if PY < (3, 11) else 1
+_INJECT_HOOK_OPCODE_POS = 0 if PY < (3, 11) or PY >= (3, 13) else 1
 _INJECT_ARG_OPCODE_POS = 1 if PY < (3, 11) else 2
 
 
