@@ -1605,7 +1605,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
             },
             venvs=[
                 Venv(
@@ -2720,6 +2720,8 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "google-generativeai": [latest],
                 "pillow": latest,
+                "google-ai-generativelanguage": [latest],
+                "vertexai": [latest],
             },
         ),
         Venv(
@@ -2729,6 +2731,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
+                "google-ai-generativelanguage": [latest],
             },
         ),
         Venv(

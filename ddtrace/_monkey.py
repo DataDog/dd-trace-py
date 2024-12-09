@@ -41,6 +41,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
+    "freezegun": True,
     "google_generativeai": True,
     "gevent": True,
     "graphql": True,
@@ -100,6 +101,7 @@ PATCH_MODULES = {
     "subprocess": True,
     "unittest": True,
     "coverage": False,
+    "selenium": True,
 }
 
 
