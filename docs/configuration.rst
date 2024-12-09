@@ -607,7 +607,7 @@ Test Visibility
         asynchronous function finishes before the driver is closed.
 
      version_added:
-        v2.19.0:
+        v2.18.0:
 
 Agent
 -----
