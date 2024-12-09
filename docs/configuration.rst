@@ -438,6 +438,29 @@ AppSec
      default: None
      description: Whether to enable/disable SCA (Software Composition Analysis).
 
+   DD_APPSEC_MAX_STACK_TRACES:
+     type: Integer
+     default: 2
+     description: Maximum number of stack traces reported for each trace.
+
+   DD_APPSEC_MAX_STACK_TRACE_DEPTH:
+     type: Integer
+     default: 32
+     description: Maximum number of frames in a stack trace report. 0 means no limit.
+
+   DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT:
+     type: Integer
+     default: 75
+     description: |
+       Percentage of reported stack trace frames to be taken from the top of the stack in case of a stack trace truncation.
+       For example, if DD_APPSEC_MAX_STACK_TRACE_DEPTH is set to 25 and DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT is set to 60,
+       if a stack trace has more than 25 frames, the top 15 (25*0.6=15)frames and the bottom 10 frames will be reported.
+
+   DD_APPSEC_STACK_TRACE_ENABLED:
+     type: Boolean
+     default: True
+     description: Whether to enable stack traces in reports for ASM. Currently used for exploit prevention reports.
+
    DD_IAST_ENABLED:
      type: Boolean
      default: False
@@ -484,6 +507,11 @@ AppSec
      
      version_added:
         v1.17.0:
+
+   DD_IAST_STACK_TRACE_ENABLED:
+     type: Boolean
+     default: True
+     description: Whether to enable stack traces in reports for Code Security/IAST.
 
    DD_IAST_VULNERABILITIES_PER_REQUEST:
      type: Integer
@@ -569,6 +597,17 @@ Test Visibility
      version_added:
         v2.16.0:
 
+   DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS:
+     type: Integer
+     default: 500
+
+     description: |
+        Configures how long, in milliseconds, the Selenium integration will wait after invoking the RUM flush function
+        during calls to the driver's ``quit()`` or ``close()`` methods. This helps ensure that the call to the
+        asynchronous function finishes before the driver is closed.
+
+     version_added:
+        v2.18.0:
 
 Agent
 -----
