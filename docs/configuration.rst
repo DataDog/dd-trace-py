@@ -597,6 +597,17 @@ Test Visibility
      version_added:
         v2.16.0:
 
+   DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS:
+     type: Integer
+     default: 500
+
+     description: |
+        Configures how long, in milliseconds, the Selenium integration will wait after invoking the RUM flush function
+        during calls to the driver's ``quit()`` or ``close()`` methods. This helps ensure that the call to the
+        asynchronous function finishes before the driver is closed.
+
+     version_added:
+        v2.19.0:
 
 Agent
 -----
