@@ -20,9 +20,15 @@ def _inject_handled_exception_reporting(func, callback: CallbackType | None = No
 
     callback = callback or _default_datadog_exc_callback
 
-    injection_indexes = _find_bytecode_indexes(original_code)
+    if sys.version_info[:2] == (3, 10):
+        injection_indexes = _find_bytecode_indexes_3_10(original_code)
+    elif sys.version_info[:2] == (3, 11):
+        injection_indexes = _find_bytecode_indexes_3_11(original_code)
+    else:
+        raise NotImplementedError(f"Unsupported python version: {sys.version_info}")
+
     if not injection_indexes:
-        return ()
+        return
 
     def injection_lines_cb(_: InjectionContext):
         return [opcode for opcode, _ in dis.findlinestarts(original_code) if opcode in injection_indexes]
@@ -38,11 +44,15 @@ CHECKING_EXC_MATCH = 1
 ANY_EXC_HANDLING_BLOCK = 2
 MATCHED_EXC_HANDLING_BLOCK = 3
 
-PUSH_EXC_INFO = dis.opmap["PUSH_EXC_INFO"]
-CHECK_EXC_MATCH = dis.opmap["CHECK_EXC_MATCH"]
+
+def _find_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
+    return []
 
 
-def _find_bytecode_indexes(code: CodeType) -> t.List[int]:
+def _find_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
+    PUSH_EXC_INFO = dis.opmap["PUSH_EXC_INFO"]
+    CHECK_EXC_MATCH = dis.opmap["CHECK_EXC_MATCH"]
+
     injection_indexes = []
     state = WAITING_FOR_EXC
 
