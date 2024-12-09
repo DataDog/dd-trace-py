@@ -4,9 +4,12 @@ from typing import Optional
 from typing import cast
 
 from ddtrace.debugging._metrics import probe_metrics
+from ddtrace.debugging._probe.model import MetricFunctionProbe
+from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
-from ddtrace.debugging._signal.model import LogSignal
+from ddtrace.debugging._signal.log import LogSignal
+from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.metrics import Metrics
 
 
@@ -50,3 +53,13 @@ class MetricSample(LogSignal):
 
     def has_message(self) -> bool:
         return bool(self.errors)
+
+
+@probe_to_signal.register
+def _(probe: MetricFunctionProbe, frame, thread, trace_context, meter):
+    return MetricSample(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)
+
+
+@probe_to_signal.register
+def _(probe: MetricLineProbe, frame, thread, trace_context, meter):
+    return MetricSample(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)

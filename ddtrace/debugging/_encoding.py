@@ -15,7 +15,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._signal.model import LogSignal
+from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import forksafe
 from ddtrace.internal._encoding import BufferFull

@@ -23,6 +23,7 @@ Full grammar:
     arg_operation           =>  {"<arg_op_type>": [<argument_list>]}
     arg_op_type             =>  filter | substring | getmember | index
 """  # noqa
+
 from dataclasses import dataclass
 from itertools import chain
 import re
