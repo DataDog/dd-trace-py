@@ -56,12 +56,10 @@ emulate_sampler_wrapper(void* argp)
 }
 
 void
-launch_pthread_samplers(const std::vector<EmulateSamplerArg>& args, std::vector<pthread_t>& threads)
+launch_pthread_samplers(std::vector<EmulateSamplerArg>& args, std::vector<pthread_t>& pthread_handles)
 {
     for (unsigned int i = 0; i < args.size(); i++) {
-        auto arg = args[i];
-        auto pthread_handle = threads[i];
-        pthread_create(&pthread_handle, nullptr, emulate_sampler_wrapper, reinterpret_cast<void*>(&arg));
+        pthread_create(&pthread_handles[i], nullptr, emulate_sampler_wrapper, reinterpret_cast<void*>(&args[i]));
     }
 }
 
