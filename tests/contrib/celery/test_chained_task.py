@@ -4,6 +4,7 @@ import signal
 import subprocess
 import time
 
+
 # Ensure that when we call Celery chains, the root span has celery specific span tags
 # The test_integration.py setup doesn't perfectly mimic the condition of a worker process running.
 # This test runs the worker as a side so we can check the tracer logs afterwards to ensure expected span results.
@@ -20,7 +21,7 @@ def test_task_chain_task_call_task():
         cwd=str(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
     )
 
-    time.sleep(5)
+    time.sleep(10)
 
     task_runner_process = subprocess.Popen(
         celery_task_runner_cmd.split(),
