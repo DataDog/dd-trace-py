@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - ddtrace/internal/datadog/profiling/**
-      -
+      - ddtrace/profiling/**
     branches:
       - main
       - "mq-working-branch**"
