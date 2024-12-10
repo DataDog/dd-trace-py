@@ -120,8 +120,8 @@ def handle_torch_trace(prof):
         handle = ddup.SampleHandle()
         data_added = False
 
+        # gpu time sample
         if str(e.device_type).startswith("DeviceType.CUDA"):
-            # gpu time sample
             data_added = True
             handle.push_gpu_gputime(int(e.time_range.elapsed_us() * NANOS_PER_MICROSECOND), 1)
             # TODO, is this common data or GPU Time only?
@@ -129,19 +129,20 @@ def handle_torch_trace(prof):
                 e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
             )
 
+        # gpu flops sample
         if e.flops is not None and e.flops > 0:
-            # gpu flops sample
             data_added = True
             handle.push_gpu_flops(e.flops, 1)
 
+        # gpu mem sample
         if e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
-            # gpu mem sample
             data_added = True
             handle.push_gpu_memory(e.cuda_memory_usage, 1)
 
+        # If there is data, flush it to the profile.
+        # Otherwise, do nothing and the sample object will be dropped when it goes out of scope
         if data_added:
+            handle.push_frame(e.name, "", 0, -1)
             handle.push_gpu_device_name("cuda " + str(e.device_index))
             handle.push_monotonic_ns(int((trace_start_us + e.time_range.end) * NANOS_PER_MICROSECOND))
-            handle.push_frame(e.name, "", 0, -1)
             handle.flush_sample()
-        # When the sample object goes out of scope, it gets dropped automatically
