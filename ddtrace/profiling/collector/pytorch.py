@@ -125,7 +125,7 @@ def handle_torch_trace(prof):
         )
 
     empty_events_count = 0
-    trace_start_us = prof.profiler.kineto_results.trace_start_us()
+    trace_start_ns = prof.profiler.kineto_results.trace_start_ns()
     for e in prof.events()[:num_events_collected]:
         handle = ddup.SampleHandle()
         data_added = False
@@ -159,7 +159,7 @@ def handle_torch_trace(prof):
         if data_added:
             handle.push_frame(e.name, "", 0, -1)
             handle.push_gpu_device_name("cuda " + str(e.device_index))
-            handle.push_monotonic_ns(int((trace_start_us + e.time_range.end) * NANOS_PER_MICROSECOND))
+            handle.push_monotonic_ns(int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND))
             handle.flush_sample()
         else:
             if empty_events_count % 1000 == 0:
