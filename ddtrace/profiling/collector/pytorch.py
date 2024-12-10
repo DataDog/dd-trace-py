@@ -125,6 +125,7 @@ def handle_torch_trace(prof):
             extra={"num_events_collected": num_events_collected, "len(prof.events())": len(prof.events())},
         )
 
+    empty_events_count = 0
     trace_start_us = prof.profiler.kineto_results.trace_start_us()
     for e in prof.events()[:num_events_collected]:
         handle = ddup.SampleHandle()
@@ -157,4 +158,6 @@ def handle_torch_trace(prof):
             handle.push_monotonic_ns(int((trace_start_us + e.time_range.end) * NANOS_PER_MICROSECOND))
             handle.flush_sample()
         else:
-            LOG.debug("event with no data to record", extra={"event": e})
+            if empty_events_count % 1000 == 0:
+                LOG.debug("%d events with no data to record: %s", empty_events_count, e)
+            empty_events_count += 1
