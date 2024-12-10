@@ -607,13 +607,13 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
 class TestDetails:
     def __init__(self):
-        self.test_properties: t.Dict[InternalTestId, t.Dict[str, Any]] = {}
+        self.test_properties: t.Dict[InternalTestId, t.Dict[str, t.Any]] = {}
 
     def unique_test_ids(self):
         return set(self.test_properties.keys())
 
     def is_quarantined_test(self, test_id: InternalTestId) -> bool:
-        return self.test_properties.get(test_id, {}).get("quarantined", false)
+        return self.test_properties.get(test_id, {}).get("quarantined", False)
 
 
 class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
