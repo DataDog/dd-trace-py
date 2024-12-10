@@ -22,6 +22,7 @@ dependencies = [
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
+    "flake8>=7.0.0",
 ]
 
 [envs.lint.scripts]
@@ -35,6 +36,7 @@ cformat_check = [
     "bash scripts/cformat.sh"
 ]
 style = [
+    "flake8 {args:ddtrace} --select DDC",
     "black_check",
     "ruff check {args:.}",
     "cython-lint {args:.}",

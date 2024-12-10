@@ -29,14 +29,16 @@ def _validate_schema(version):
 
 
 def _get_schema_version():
-    version = os.getenv("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
+    version = os.getenv("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")  # noqa: DDC001
     if not _validate_schema(version):
         version = "v0"
     return version
 
 
 SCHEMA_VERSION = _get_schema_version()
-_remove_client_service_names = asbool(os.getenv("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False))
+_remove_client_service_names = asbool(
+    os.getenv("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False)  # noqa: DDC001
+)
 _service_name_schema_version = "v0" if SCHEMA_VERSION == "v0" and not _remove_client_service_names else "v1"
 
 DEFAULT_SPAN_SERVICE_NAME = _DEFAULT_SPAN_SERVICE_NAMES[_service_name_schema_version]

@@ -32,8 +32,10 @@ def get_version():
 config._add(
     "anthropic",
     {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_ANTHROPIC_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_ANTHROPIC_SPAN_CHAR_LIMIT", 128)),
+        "span_prompt_completion_sample_rate": float(
+            os.getenv("DD_ANTHROPIC_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)  # noqa: DDC001
+        ),
+        "span_char_limit": int(os.getenv("DD_ANTHROPIC_SPAN_CHAR_LIMIT", 128)),  # noqa: DDC001
     },
 )
 

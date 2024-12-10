@@ -316,11 +316,11 @@ IAST_DENYLIST: Tuple[Text, ...] = (
 )
 
 
-if IAST.PATCH_MODULES in os.environ:
-    IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
+if IAST.PATCH_MODULES in os.environ:  # noqa: DDC001
+    IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))  # noqa: DDC001
 
-if IAST.DENY_MODULES in os.environ:
-    IAST_DENYLIST += tuple(os.environ[IAST.DENY_MODULES].split(IAST.SEP_MODULES))
+if IAST.DENY_MODULES in os.environ:  # noqa: DDC001
+    IAST_DENYLIST += tuple(os.environ[IAST.DENY_MODULES].split(IAST.SEP_MODULES))  # noqa: DDC001
 
 
 ENCODING = ""
@@ -485,7 +485,7 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     if remove_flask_run:
         source_text = _remove_flask_run(source_text)
 
-    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):
+    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):  # noqa: DDC001
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)
         # does not work in 3.7 because it enters into infinite recursion
         source_text += _DIR_WRAPPER

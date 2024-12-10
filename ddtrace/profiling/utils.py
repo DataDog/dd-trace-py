@@ -13,7 +13,7 @@ def _get_endpoint(tracer, agentless=False) -> str:
             "Agentless uploading is currently for internal usage only and not officially supported. "
             "You should not enable it unless somebody at Datadog instructed you to do so."
         )
-        endpoint = "https://intake.profile.{}".format(os.environ.get("DD_SITE", "datadoghq.com"))
+        endpoint = "https://intake.profile.{}".format(os.environ.get("DD_SITE", "datadoghq.com"))  # noqa: DDC001
     else:
         tracer_agent_url = tracer.agent_trace_url
         endpoint = tracer_agent_url if tracer_agent_url else agent.get_trace_url()

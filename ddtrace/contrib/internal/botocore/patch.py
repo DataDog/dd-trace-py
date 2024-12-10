@@ -64,7 +64,7 @@ log = get_logger(__name__)
 
 def _load_dynamodb_primary_key_names_for_tables() -> Dict[str, Set[str]]:
     try:
-        encoded_table_primary_keys = os.getenv("DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", "{}")
+        encoded_table_primary_keys = os.getenv("DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", "{}")  # noqa: DDC001
         raw_table_primary_keys = json.loads(encoded_table_primary_keys)
 
         table_primary_keys = {}
@@ -92,28 +92,34 @@ def _load_dynamodb_primary_key_names_for_tables() -> Dict[str, Set[str]]:
 config._add(
     "botocore",
     {
-        "_default_service": os.getenv("DD_BOTOCORE_SERVICE", default="aws"),
-        "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
-        "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
+        "_default_service": os.getenv("DD_BOTOCORE_SERVICE", default="aws"),  # noqa: DDC001
+        "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),  # noqa: DDC001
+        "invoke_with_legacy_context": asbool(
+            os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)  # noqa: DDC001
+        ),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_BEDROCK_SPAN_CHAR_LIMIT", 128)),
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
-        "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
-        "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
-        "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
+        "span_prompt_completion_sample_rate": float(
+            os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)  # noqa: DDC001
+        ),
+        "span_char_limit": int(os.getenv("DD_BEDROCK_SPAN_CHAR_LIMIT", 128)),  # noqa: DDC001
+        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),  # noqa: DDC001
+        "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),  # noqa: DDC001
+        "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),  # noqa: DDC001
+        "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),  # noqa: DDC001
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
-        "add_span_pointers": asbool(os.getenv("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),
-        "payload_tagging_request": os.getenv("DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING", default=None),
-        "payload_tagging_response": os.getenv("DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING", default=None),
+        "add_span_pointers": asbool(os.getenv("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),  # noqa: DDC001
+        "payload_tagging_request": os.getenv("DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING", default=None),  # noqa: DDC001
+        "payload_tagging_response": os.getenv("DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING", default=None),  # noqa: DDC001
         "payload_tagging_max_depth": int(
-            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH", 10)
+            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH", 10)  # noqa: DDC001
         ),  # RFC defined 10 levels (1.2.3.4...10) as max tagging depth
         "payload_tagging_max_tags": int(
-            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)
+            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)  # noqa: DDC001
         ),  # RFC defined default limit - spans are limited past 1000
         "payload_tagging_services": set(
-            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", default={"s3", "sns", "sqs", "kinesis", "eventbridge"})
+            os.getenv(  # noqa: DDC001
+                "DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", default={"s3", "sns", "sqs", "kinesis", "eventbridge"}
+            )
         ),
     },
 )

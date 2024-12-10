@@ -63,12 +63,12 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
         _patched_modules=set(),
         trace_fetch_methods=asbool(
-            os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
-            or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
+            os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)  # noqa: DDC001
+            or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)  # noqa: DDC001
         ),
         trace_connect=asbool(
-            os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)
-            or os.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)
+            os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)  # noqa: DDC001
+            or os.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)  # noqa: DDC001
         ),
         _dbm_propagator=_DBM_Propagator(0, "query", _psycopg_sql_injector),
         dbms_name="postgresql",

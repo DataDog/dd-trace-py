@@ -2,7 +2,7 @@ import os
 import socket
 
 
-_hostname = os.getenv("DD_HOSTNAME", "")  # type: str
+_hostname = os.getenv("DD_HOSTNAME", "")  # type: str  # noqa: DDC001
 
 
 def get_hostname():

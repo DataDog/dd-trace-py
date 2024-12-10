@@ -38,8 +38,8 @@ def get_config(
     source = "default"
     effective_env = envs[0]
     for env in envs:
-        if env in os.environ:
-            val = os.environ[env]
+        if env in os.environ:  # noqa: DDC001
+            val = os.environ[env]  # noqa: DDC001
             if modifier:
                 val = modifier(val)
             source = "env_var"

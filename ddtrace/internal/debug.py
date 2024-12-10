@@ -37,7 +37,7 @@ def in_venv():
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
-        "VIRTUAL_ENV" in os.environ
+        "VIRTUAL_ENV" in os.environ  # noqa: DDC001
         or hasattr(sys, "real_prefix")
         or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
     )
@@ -136,20 +136,20 @@ def collect(tracer):
         statsd_url=agent.get_stats_url(),
         env=ddtrace.config.env or "",
         is_global_tracer=tracer == ddtrace.tracer,
-        enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
+        enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),  # noqa: DDC001
         tracer_enabled=tracer.enabled,
         sampler_type=type(tracer._sampler).__name__ if tracer._sampler else "N/A",
         priority_sampler_type="N/A",
         sampler_rules=sampler_rules,
         service=ddtrace.config.service or "",
         debug=log.isEnabledFor(logging.DEBUG),
-        enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
+        enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),  # noqa: DDC001
         analytics_enabled=ddtrace.config._analytics_enabled,
         log_injection_enabled=ddtrace.config._logs_injection,
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
-        global_tags=os.getenv("DD_TAGS", ""),
+        global_tags=os.getenv("DD_TAGS", ""),  # noqa: DDC001
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,

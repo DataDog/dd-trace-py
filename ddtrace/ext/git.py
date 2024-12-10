@@ -344,7 +344,7 @@ def extract_git_metadata(cwd=None):
 def extract_user_git_metadata(env=None):
     # type: (Optional[MutableMapping[str, str]]) -> Dict[str, Optional[str]]
     """Extract git commit metadata from user-provided env vars."""
-    env = os.environ if env is None else env
+    env = os.environ if env is None else env  # noqa: DDC001
 
     branch = normalize_ref(env.get("DD_GIT_BRANCH"))
     tag = normalize_ref(env.get("DD_GIT_TAG"))

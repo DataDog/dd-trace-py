@@ -60,7 +60,7 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
 
 
 def _get_interval_or_default():
-    return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
+    return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))  # noqa: DDC001
 
 
 class RuntimeWorker(periodic.PeriodicService):
