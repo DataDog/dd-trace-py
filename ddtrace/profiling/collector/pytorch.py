@@ -115,6 +115,12 @@ def handle_torch_trace(prof):
     # For now, experiment with a default of 1_000_000 if nothing is set.
     # TODO, better values here.
     num_events_collected = min(len(prof.events()), config.pytorch.events_limit or 1_000_000)
+    if num_events_collected < len(prof.events()):
+        LOG.debug(
+            "Dropped events",
+            extra={"num_events_collected": num_events_collected, "len(prof.events())": len(prof.events())},
+        )
+
     trace_start_us = prof.profiler.kineto_results.trace_start_us()
     for e in prof.events()[:num_events_collected]:
         handle = ddup.SampleHandle()
@@ -146,3 +152,5 @@ def handle_torch_trace(prof):
             handle.push_gpu_device_name("cuda " + str(e.device_index))
             handle.push_monotonic_ns(int((trace_start_us + e.time_range.end) * NANOS_PER_MICROSECOND))
             handle.flush_sample()
+        else:
+            LOG.debug("event with no data to record: {e}")
