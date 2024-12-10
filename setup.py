@@ -612,7 +612,7 @@ setup(
                 "ddtrace.profiling.collector.stack",
                 sources=["ddtrace/profiling/collector/stack.pyx"],
                 language="c",
-                extra_compile_args=extra_compile_args,
+                extra_compile_args=extra_compile_args + ["-Wno-int-conversion"],
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",
