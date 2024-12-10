@@ -10,6 +10,9 @@ components:
     - ddtrace/contrib/pytest/*
     - ddtrace/contrib/pytest_bdd/*
     - ddtrace/contrib/pytest_benchmark/*
+  selenium:
+    - ddtrace/contrib/selenium/*
+    - ddtrace/contrib/internal/selenium/*
   unittest:
     - ddtrace/contrib/unittest/*
 suites:
@@ -68,6 +71,21 @@ suites:
       - tests/contrib/pytest_bdd/*
       - tests/snapshots/tests.contrib.pytest.*
     pattern: pytest_plugin_v2
+    runner: hatch
+    snapshot: true
+  selenium:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ci_visibility'
+      - '@pytest'
+      - '@unittest'
+      - '@selenium'
+      - tests/contrib/selenium/*
+      - tests/snapshots/test_selenium*
     runner: hatch
     snapshot: true
   unittest:
