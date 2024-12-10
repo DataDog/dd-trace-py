@@ -37,6 +37,26 @@ def test_call_script_gevent(monkeypatch):
     assert exitcode == 0, (stdout, stderr)
 
 
+@pytest.mark.skipif(not os.getenv("DD_PROFILING_PYTORCH_ENABLED", False), reason="Not testing pytorch GPU")
+def test_call_script_pytorch_gpu(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    stdout, stderr, exitcode, pid = call_program(
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
+    )
+    assert exitcode == 0, (stdout, stderr)
+
+
+@pytest.mark.skipif(not os.getenv("DD_PROFILING_PYTORCH_ENABLED", False), reason="Not testing pytorch CPU")
+def test_call_script_pytorch_cpu(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    stdout, stderr, exitcode, pid = call_program(
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_cpu.py")
+    )
+    print("stdout:", stdout.decode())
+    print("stderr:", stderr.decode())
+    assert exitcode == 0, (stdout, stderr)
+
+
 def test_call_script_pprof_output(tmp_path, monkeypatch):
     """This checks if the pprof output and atexit register work correctly.
 

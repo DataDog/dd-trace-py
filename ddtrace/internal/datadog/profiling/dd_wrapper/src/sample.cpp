@@ -263,6 +263,42 @@ Datadog::Sample::push_heap(int64_t size)
 }
 
 bool
+Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
+{
+    if (0U != (type_mask & SampleType::GPUTime)) {
+        values[profile_state.val().gpu_time] += time * count;
+        values[profile_state.val().gpu_count] += count;
+        return true;
+    }
+    std::cout << "bad push gpu" << std::endl;
+    return false;
+}
+
+bool
+Datadog::Sample::push_gpu_memory(int64_t size, int64_t count)
+{
+    if (0U != (type_mask & SampleType::GPUMemory)) {
+        values[profile_state.val().gpu_alloc_space] += size * count;
+        values[profile_state.val().gpu_alloc_count] += count;
+        return true;
+    }
+    std::cout << "bad push gpu memory" << std::endl;
+    return false;
+}
+
+bool
+Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
+{
+    if (0U != (type_mask & SampleType::GPUFlops)) {
+        values[profile_state.val().gpu_flops] += size * count;
+        values[profile_state.val().gpu_flops_samples] += count;
+        return true;
+    }
+    std::cout << "bad push gpu flops" << std::endl;
+    return false;
+}
+
+bool
 Datadog::Sample::push_lock_name(std::string_view lock_name)
 {
     push_label(ExportLabelKey::lock_name, lock_name);
@@ -345,6 +381,16 @@ bool
 Datadog::Sample::push_class_name(std::string_view class_name)
 {
     if (!push_label(ExportLabelKey::class_name, class_name)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool
+Datadog::Sample::push_gpu_device_name(std::string_view device_name)
+{
+    if (!push_label(ExportLabelKey::gpu_device_name, device_name)) {
         std::cout << "bad push" << std::endl;
         return false;
     }
