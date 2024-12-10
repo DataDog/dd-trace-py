@@ -110,6 +110,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     }
 
     // If we're here, we're about to create a new upload, so cancel any inflight ones
+    const std::lock_guard<std::mutex> lock_guard(upload_lock);
     cancel_inflight();
 
     // Create a new cancellation token.  Maybe we can get away without doing this, but
@@ -123,8 +124,6 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
     // we ensure exclusivity here.
     {
-        const std::lock_guard<std::mutex> lock_guard(upload_lock);
-
         // Build and check the response object
         ddog_prof_Exporter_Request* req = build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
         ddog_prof_Exporter_SendResult res =
