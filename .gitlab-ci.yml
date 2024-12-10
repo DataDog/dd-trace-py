@@ -91,9 +91,9 @@ check_new_flaky_tests:
       DD_APP_KEY: invalid_but_fine
   script:
     - curl -L --fail "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64" --output "/usr/local/bin/datadog-ci" && chmod +x /usr/local/bin/datadog-ci
-    - export DD_API_KEY=$DD_API_KEY
     - export DD_SITE=datadoghq.com
-    - export DD_APP_KEY=$DD_APP_KEY
+    - export DD_API_KEY_ONBOARDING=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-onboarding --with-decryption --query "Parameter.Value" --out text)
+    - export DD_APP_KEY_ONBOARDING=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-onboarding --with-decryption --query "Parameter.Value" --out text)
     - datadog-ci gate evaluate
   only:
     - erikayasuda/test-new-flake
