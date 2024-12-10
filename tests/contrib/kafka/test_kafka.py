@@ -885,7 +885,9 @@ def test_context_header_injection_works_no_client_added_headers(kafka_topic, pro
         assert propagation_asserted is True
 
 
-def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(kafka_topic, producer, consumer, dummy_tracer):
+def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
+    kafka_topic, producer, consumer, dummy_tracer
+):
     # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "producer doesnt inject context test " + str(random.randint(0, 1000))
     test_key = "producer doesnt inject context test " + str(random.randint(0, 1000))
