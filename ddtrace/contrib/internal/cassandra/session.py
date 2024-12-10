@@ -27,6 +27,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import cassandra as cassx
@@ -208,7 +209,7 @@ def _start_span_and_set_tags(
 ) -> Span:
     span = pin.tracer.trace(
         schematize_database_operation("cassandra.query", database_provider="cassandra"),
-        service=pin.service,
+        service=trace_utils.int_service(pin, config.cassandra),
         span_type=SpanTypes.CASSANDRA,
     )
     span.set_tag_str(COMPONENT, config.cassandra.integration_name)
