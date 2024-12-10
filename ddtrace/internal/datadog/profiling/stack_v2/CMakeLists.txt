@@ -36,8 +36,9 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
 endif()
 
 # Add echion
+# NOTE:  the commit is a very localized cherry-pick of an update made in #11623.  It is needed to build on alpine
 set(ECHION_COMMIT
-    "9d5bcc5867d7aefff73c837adcba4ef46eecebc6"
+    "ed744987f224fae3f93c842b2b5ffb083984ff8b"
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
