@@ -363,7 +363,7 @@ python = ["3.10", "3.11", "3.12"]
 
 
 
-## pytorch profling test
+## pytorch profiling test
 
 [envs.profiling_pytorch]
 dependencies = [
@@ -371,6 +371,7 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
+    "torch",
 ]
 
 [envs.profiling_pytorch.env-vars]
