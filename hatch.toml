@@ -382,7 +382,7 @@ DD_PROFILING_EXPORT_LIBDD_ENABLED = "true"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/profiling/test_main.py:test_call_script_pytorch -vvv -s",
+    "python -m pytest tests/profiling/test_main.py::test_call_script_pytorch -vvv -s",
 ]
 
 [[envs.profiling_pytorch.matrix]]
