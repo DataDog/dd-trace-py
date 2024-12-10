@@ -141,7 +141,7 @@ def handle_torch_trace(prof):
             handle.push_frame(e.name, "", 0, -1)
             handle.flush_sample()
 
-        if e.flops is not None and e.cuda_memory_usage > 0:
+        if e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
             # gpu mem sample
             handle = ddup.SampleHandle()
             handle.push_gpu_memory(e.cuda_memory_usage, 1)
