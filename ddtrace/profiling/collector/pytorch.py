@@ -117,34 +117,31 @@ def handle_torch_trace(prof):
     num_events_collected = min(len(prof.events()), config.pytorch.events_limit or 1_000_000)
     trace_start_us = prof.profiler.kineto_results.trace_start_us()
     for e in prof.events()[:num_events_collected]:
-        device_name = "cuda " + str(e.device_index)
+        handle = ddup.SampleHandle()
+        data_added = False
 
         if str(e.device_type).startswith("DeviceType.CUDA"):
             # gpu time sample
-            end_time_us = int(trace_start_us + e.time_range.end)
-            event_duration_us = e.time_range.elapsed_us()
-            handle = ddup.SampleHandle()
-            handle.push_gpu_gputime(int(event_duration_us * NANOS_PER_MICROSECOND), 1)
-            handle.push_gpu_device_name(device_name)
-            handle.push_monotonic_ns(int(end_time_us * NANOS_PER_MICROSECOND))
+            data_added = True
+            handle.push_gpu_gputime(int(e.time_range.elapsed_us() * NANOS_PER_MICROSECOND), 1)
+            # TODO, is this common data or GPU Time only?
             handle.push_threadinfo(
                 e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
             )
-            handle.push_frame(e.name, "", 0, -1)
-            handle.flush_sample()
 
         if e.flops is not None and e.flops > 0:
             # gpu flops sample
-            handle = ddup.SampleHandle()
+            data_added = True
             handle.push_gpu_flops(e.flops, 1)
-            handle.push_gpu_device_name(device_name)
-            handle.push_frame(e.name, "", 0, -1)
-            handle.flush_sample()
 
         if e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
             # gpu mem sample
-            handle = ddup.SampleHandle()
+            data_added = True
             handle.push_gpu_memory(e.cuda_memory_usage, 1)
-            handle.push_gpu_device_name(device_name)
+
+        if data_added:
+            handle.push_gpu_device_name("cuda " + str(e.device_index))
+            handle.push_monotonic_ns(int((trace_start_us + e.time_range.end) * NANOS_PER_MICROSECOND))
             handle.push_frame(e.name, "", 0, -1)
             handle.flush_sample()
+        # When the sample object goes out of scope, it gets dropped automatically
