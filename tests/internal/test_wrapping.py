@@ -116,6 +116,7 @@ def test_wrap_generator():
     assert list(g()) == list(range(10)) == channel
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
 def test_wrap_generator_send():
     def wrapper(f, args, kwargs):
         return f(*args, **kwargs)

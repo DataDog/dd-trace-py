@@ -262,7 +262,7 @@ venv = Venv(
                 ),
                 # Flask 3.x.x
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
                         "flask": "~=3.0",
                         "langchain": "==0.0.354",
@@ -395,7 +395,7 @@ venv = Venv(
                 "msgpack": [latest],
                 "pytest-randomly": latest,
             },
-            pys=select_pys(),
+            pys=select_pys(max_version="3.12"),
             venvs=[
                 Venv(
                     name="datastreams-latest",
@@ -1231,7 +1231,7 @@ venv = Venv(
                             },
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12"),
+                            pys=select_pys(min_version="3.12", max_version="3.12"),
                             pkgs={
                                 "pytest-asyncio": "==0.23.7",
                             },
@@ -1334,7 +1334,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "sqlalchemy": ["~=1.3.0", latest],
                         "psycopg2-binary": latest,
@@ -1435,7 +1435,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
                 ),
             ],
@@ -1504,7 +1504,7 @@ venv = Venv(
                     pkgs={"pymysql": "~=0.10"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "pymysql": [
                             "~=1.0",
@@ -1560,7 +1560,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys=select_pys(min_version="3.12", max_version="3.12"),
                     pkgs={"aiobotocore": latest},
                 ),
             ],
@@ -1590,7 +1590,7 @@ venv = Venv(
         ),
         Venv(
             name="aiomysql",
-            pys=select_pys(min_version="3.7"),
+            pys=select_pys(min_version="3.7", max_version="3.13"),
             command="pytest {cmdargs} tests/contrib/aiomysql",
             pkgs={
                 "pytest-randomly": latest,
@@ -1974,7 +1974,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "aiopg": ["~=1.0", "~=1.4.0"],
                     },
@@ -2294,7 +2294,7 @@ venv = Venv(
                     pkgs={"asyncpg": ["~=0.27", latest]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys=select_pys(min_version="3.12", max_version="3.12"),
                     pkgs={"asyncpg": [latest]},
                 ),
             ],
@@ -2392,7 +2392,7 @@ venv = Venv(
         ),
         Venv(
             name="consul",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.12"),
             command="pytest {cmdargs} tests/contrib/consul",
             pkgs={
                 "python-consul": [
