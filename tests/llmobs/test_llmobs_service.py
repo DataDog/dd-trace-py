@@ -31,6 +31,7 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
 from ddtrace.llmobs.utils import Prompt
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
@@ -142,6 +143,32 @@ def test_service_enable_already_enabled(mock_logs):
         assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
         llmobs_service.disable()
         mock_logs.debug.assert_has_calls([mock.call("%s already enabled", "LLMObs")])
+
+
+@mock.patch("ddtrace.llmobs._llmobs.patch")
+def test_service_enable_patches_llmobs_integrations(mock_tracer_patch):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        llmobs_service.enable()
+        mock_tracer_patch.assert_called_once()
+        kwargs = mock_tracer_patch.call_args[1]
+        for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
+            assert kwargs[module] is True
+        llmobs_service.disable()
+
+
+@mock.patch("ddtrace.llmobs._llmobs.patch")
+def test_service_enable_does_not_override_global_configs(mock_tracer_patch, monkeypatch):
+    monkeypatch.setenv("DD_PATCH_MODULES", "openai:false")
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        llmobs_service.enable()
+        mock_tracer_patch.assert_called_once()
+        kwargs = mock_tracer_patch.call_args[1]
+        for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
+            if module == "openai":
+                assert kwargs[module] is False
+                continue
+            assert kwargs[module] is True
+        llmobs_service.disable()
 
 
 def test_start_span_while_disabled_logs_warning(LLMObs, mock_logs):
