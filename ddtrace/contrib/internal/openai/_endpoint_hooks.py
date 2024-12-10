@@ -255,7 +255,9 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 span.set_tag_str("openai.request.messages.%d.content" % idx, integration.trunc(str(content)))
             span.set_tag_str("openai.request.messages.%d.role" % idx, str(role))
             span.set_tag_str("openai.request.messages.%d.name" % idx, str(name))
-        if kwargs.get("stream") and not kwargs.get("stream_options", {}).get("include_usage", False):
+        if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
+            if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
+                return
             span._set_ctx_item("openai_stream_magic", True)
             stream_options = kwargs.get("stream_options", {})
             stream_options["include_usage"] = True

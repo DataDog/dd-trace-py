@@ -191,9 +191,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
         span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
 
-        if span._get_ctx_item("openai_stream_magic"):
-            kwargs.pop("stream_options", None)
-
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
         span.set_tag_str(METADATA, safe_json(parameters))
 
