@@ -111,8 +111,7 @@ def _expected_llmobs_llm_span_event(
         meta_dict.update({"model_name": model_name})
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
-    if metadata is not None:
-        meta_dict.update({"metadata": metadata})
+    meta_dict.update({"metadata": metadata or {}})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
     span_event["meta"].update(meta_dict)
@@ -163,8 +162,7 @@ def _expected_llmobs_non_llm_span_event(
         meta_dict["input"].update({"value": input_value})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
-    if metadata is not None:
-        meta_dict.update({"metadata": metadata})
+    meta_dict.update({"metadata": metadata or {}})
     if output_value is not None:
         meta_dict["output"].update({"value": output_value})
     if not meta_dict["input"]:
@@ -301,6 +299,45 @@ def _chat_completion_event():
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
             "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "Ah, a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very well, little creature, I shall play along. But know that I am always watching, and your quest will not go unnoticed",  # noqa: E501
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
+def _chat_completion_event_with_unserializable_field():
+    return {
+        "span_id": "12345678902",
+        "trace_id": "98765432102",
+        "parent_id": "",
+        "session_id": "98765432102",
+        "name": "chat_completion_span",
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "metadata": {"unserializable": object()},
             "input": {
                 "messages": [
                     {
@@ -552,6 +589,7 @@ def _expected_ragas_spans(ragas_inputs=None):
                 "span.kind": "workflow",
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
+                "metadata": {},
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
@@ -568,6 +606,7 @@ def _expected_ragas_spans(ragas_inputs=None):
                 "span.kind": "workflow",
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
+                "metadata": {},
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
@@ -580,7 +619,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
-            "meta": {"span.kind": "task"},
+            "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
         },
@@ -596,6 +635,7 @@ def _expected_ragas_spans(ragas_inputs=None):
                 "span.kind": "workflow",
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
+                "metadata": {},
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
@@ -608,7 +648,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
-            "meta": {"span.kind": "task"},
+            "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
         },
