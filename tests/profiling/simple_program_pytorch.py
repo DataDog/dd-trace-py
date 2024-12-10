@@ -1,14 +1,13 @@
-import ddtrace.profiling.auto
 import torch
 import torch.nn
 import torch.optim
+from torch.profiler import ProfilerActivity
 import torch.utils.data
 import torchvision.datasets
 import torchvision.models
+from torchvision.models import ResNet18_Weights
+from torchvision.models import resnet18
 import torchvision.transforms as T
-from torchvision.models import resnet18, ResNet18_Weights
-
-from torch.profiler import ProfilerActivity
 
 
 def cifar():
