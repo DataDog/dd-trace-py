@@ -150,9 +150,9 @@ def handle_torch_trace(prof):
             handle.push_gpu_flops(e.flops, 1)
 
         # gpu mem sample
-        if e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
+        if e.device_memory_usage is not None and e.device_memory_usage > 0:
             data_added = True
-            handle.push_gpu_memory(e.cuda_memory_usage, 1)
+            handle.push_gpu_memory(e.device_memory_usage, 1)
 
         # If there is data, flush it to the profile.
         # Otherwise, do nothing and the sample object will be dropped when it goes out of scope
