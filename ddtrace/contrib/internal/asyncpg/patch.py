@@ -111,7 +111,7 @@ async def _traced_query(pin, method, query, args, kwargs):
         resource=query,
         service=ext_service(pin, config.asyncpg),
         span_type=SpanTypes.SQL,
-    ) as span:
+    ) as span, core.context_with_data("asyncpg.execute") as ctx:
         span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
         span.set_tag_str(db.SYSTEM, DBMS_NAME)
 
@@ -121,9 +121,10 @@ async def _traced_query(pin, method, query, args, kwargs):
         span.set_tags(pin.tags)
 
         # dispatch DBM
-        result = core.dispatch_with_results("asyncpg.execute", (config.asyncpg, method, span, args, kwargs)).result
+        core.dispatch("asyncpg.execute", (ctx, config.asyncpg, method, span, args, kwargs))
+        result = ctx.get_item("asyncpg.execute")
         if result:
-            span, args, kwargs = result.value
+            span, args, kwargs = result
 
         return await method(*args, **kwargs)
 
