@@ -959,12 +959,23 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
             and langchain_core
             and isinstance(instance.steps[-1], langchain_core.output_parsers.JsonOutputParser)
         ):
-            # it's possible that the chain has a json output parser
-            # this will have already concatenated the chunks into a json object
+            # it's possible that the chain has a json output parser type
+            # this will have already concatenated the chunks into an object
 
-            # it's also possible the json output parser isn't the last step,
+            # it's also possible the this parser type isn't the last step,
             # but one of the last steps, in which case we won't act on it here
-            content = json.dumps(streamed_chunks[-1])
+            result = streamed_chunks[-1]
+            if isinstance(instance.steps[-1], langchain_core.output_parsers.PydanticOutputParser):
+                # if the last step is a PydanticOutputParser, we just need to stringify it
+                # there are no other JSON output parser types aside from these two
+                content = str(result)
+            else:
+                try:
+                    content = json.dumps(result)
+                except TypeError:
+                    # there's a chance a new output parser is added that will break this logic
+                    log.error("Failed to serialize JSON content for chain stream", exc_info=True)
+                    content = str(result)
         else:
             # best effort to join chunks together
             content = "".join([str(chunk) for chunk in streamed_chunks])

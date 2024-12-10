@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langchain: streamed outputs from chains ending with a PydanticOutputParser do not throw and are tagged appropriately.
