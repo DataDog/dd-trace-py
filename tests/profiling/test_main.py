@@ -52,6 +52,8 @@ def test_call_script_pytorch_cpu(monkeypatch):
     stdout, stderr, exitcode, pid = call_program(
         sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_cpu.py")
     )
+    print("stdout:", stdout.decode())
+    print("stderr:", stderr.decode())
     assert exitcode == 0, (stdout, stderr)
 
 
