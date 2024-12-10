@@ -186,6 +186,9 @@ Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
 void
 Datadog::Profile::postfork_child()
 {
-    profile_mtx.unlock();
+    // DEV: Need to reset locks in child to avoid deadlock, and we recreate
+    // the data structures these lock protect.
+    profile_mtx.~mutex();
+    new (&profile_mtx) std::mutex();
     cycle_buffers();
 }
