@@ -62,7 +62,7 @@ Use the following patterns to identify the deprecated environment variables in a
     git grep -e "DD_GEVENT_PATCH_ALL" \
       -e "DD_AWS_TAG_ALL_PARAMS" \
       -e "DD_REMOTECONFIG_POLL_SECONDS" \
-      -e "DD_CALL_BASIC_CONFIG" \
+      -e "DD_CALL_BASIC_CONFIG"
 
 
 Legacy tracing interfaces
