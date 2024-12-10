@@ -1,3 +1,4 @@
+from abc import ABC
 from contextvars import ContextVar
 from inspect import iscoroutinefunction
 import sys
@@ -30,8 +31,9 @@ T = t.TypeVar("T")
 #
 # Because we also want to capture the return value, our context manager extends
 # the Python one by implementing a __return__ method that will be called with
-# the return value of the function. The __exit__ method is only called if the
-# function raises an exception.
+# the return value of the function. Contrary to ordinary context managers,
+# though, the __exit__ method is only called if the function raises an
+# exception.
 #
 # Because CPython 3.11 introduced zero-cost exceptions, we cannot nest try
 # blocks in the function's bytecode. In this case, we call the context manager
@@ -256,7 +258,7 @@ elif sys.version_info >= (3, 7):
 
 
 # This is abstract and should not be used directly
-class BaseWrappingContext(t.ContextManager):
+class BaseWrappingContext(ABC):
     __priority__: int = 0
 
     def __init__(self, f: FunctionType):
