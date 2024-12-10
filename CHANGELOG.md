@@ -4,6 +4,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.16.6
+
+
+### Bug Fixes
+
+  - Ensure that Telemetry heartbeats are not skipped for forked processes, as doing so could result in the dependency list being lost over time.
+  - Code security: This fix resolves a patching issue with <span class="title-ref">psycopg3</span>.
+  - lib-injection: Fix injection guardrail check when `sys.argv` is not available.
+  - Code Security: This fix resolves an issue where the modulo (%) operator would not be replaced correctly for bytes and bytesarray if IAST is enabled.
+  - Code Security: Ensure IAST SSRF vulnerability redacts the url query parameters correctly.
+
+
+---
+
 ## 2.17.2
 
 ### Bug Fixes
