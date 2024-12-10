@@ -153,4 +153,4 @@ def handle_torch_trace(prof):
             handle.push_monotonic_ns(int((trace_start_us + e.time_range.end) * NANOS_PER_MICROSECOND))
             handle.flush_sample()
         else:
-            LOG.debug("event with no data to record: {e}")
+            LOG.debug("event with no data to record", extra={"event": e})
