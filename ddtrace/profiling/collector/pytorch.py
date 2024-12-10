@@ -130,6 +130,11 @@ def handle_torch_trace(prof):
         handle = ddup.SampleHandle()
         data_added = False
 
+        # cpu time sample
+        if str(e.device_type).startswith("DeviceType.CPU"):
+            data_added = True
+            handle.push_cputime(int(e.time_range.elapsed_us() * NANOS_PER_MICROSECOND), 1)
+
         # gpu time sample
         if str(e.device_type).startswith("DeviceType.CUDA"):
             data_added = True
