@@ -141,7 +141,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.12"),
             command="pytest -v {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
@@ -163,7 +163,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_memcheck",
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.12"),
             command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
             pkgs={
                 "requests": latest,
@@ -827,7 +827,7 @@ venv = Venv(
                 ),
                 Venv(
                     # django started supporting psycopg3 in 4.2 for versions >3.1.8
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
                         "django": ["~=4.2"],
                         "psycopg": latest,
@@ -1311,7 +1311,7 @@ venv = Venv(
                     pkgs={"starlette": ["~=0.21.0", "~=0.33.0", latest]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys="3.12",
                     pkgs={"starlette": latest},
                 ),
             ],
@@ -1583,7 +1583,7 @@ venv = Venv(
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
-                    pys=select_pys(min_version="3.11"),
+                    pys=select_pys(min_version="3.11", max_version="3.12"),
                     pkgs={"fastapi": ["~=0.86.0", latest], "anyio": ">=3.4.0,<4.0"},
                 ),
             ],
@@ -1637,7 +1637,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
                         "pytest": [
                             "~=6.0",
@@ -1772,7 +1772,7 @@ venv = Venv(
                 ),
                 Venv(
                     # grpcio added support for Python 3.12 in 1.59
-                    pys=select_pys(min_version="3.12"),
+                    pys=select_pys(min_version="3.12", max_version="3.12"),
                     pkgs={
                         "grpcio": ["~=1.59.0", latest],
                         "pytest-asyncio": "==0.23.7",
@@ -2219,7 +2219,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys="3.12",
                     pkgs={
                         "sanic": [latest],
                         "sanic-testing": "~=22.3.0",
@@ -2529,7 +2529,7 @@ venv = Venv(
                 ),
                 Venv(
                     # pyodbc added support for Python 3.11 in 4.0.35
-                    pys=select_pys(min_version="3.11"),
+                    pys=select_pys(min_version="3.11", max_version="3.12"),
                     pkgs={"pyodbc": [latest]},
                 ),
             ],
@@ -2596,7 +2596,7 @@ venv = Venv(
                 ),
                 Venv(
                     # tornado added support for Python 3.10 in 6.2
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={"tornado": ["==6.2", "==6.3.1"]},
                 ),
             ],
@@ -2706,7 +2706,7 @@ venv = Venv(
         Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
-            pys=select_pys(min_version="3.8"),
+            pys=select_pys(min_version="3.8", max_version="3.12"),
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
@@ -2716,7 +2716,7 @@ venv = Venv(
         Venv(
             name="google_generativeai",
             command="pytest {cmdargs} tests/contrib/google_generativeai",
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.12"),
             pkgs={
                 "pytest-asyncio": latest,
                 "google-generativeai": [latest],
@@ -2728,7 +2728,7 @@ venv = Venv(
         Venv(
             name="vertexai",
             command="pytest {cmdargs} tests/contrib/vertexai",
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.12"),
             pkgs={
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
@@ -2792,7 +2792,7 @@ venv = Venv(
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(pys=select_pys(min_version="3.11"), pkgs={"confluent-kafka": latest}),
+                        Venv(pys=select_pys(min_version="3.11", max_version="3.12"), pkgs={"confluent-kafka": latest}),
                     ],
                 ),
             ],
@@ -2821,7 +2821,7 @@ venv = Venv(
         Venv(
             name="ci_visibility",
             command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.12"),
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
