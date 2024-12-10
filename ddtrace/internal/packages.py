@@ -80,8 +80,8 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
             pass
         names = pkgs.get(module_name, [])
         if not names:
-            if module_name in sys.stdlib_module_names:
-                # ignore standard library modules
+            if module_name in getattr(sys, "stdlib_module_names", ()):
+                # ignore standard library modules if possible
                 return None
             # try to resolve the parent package
             p = module_name.rfind(".")
