@@ -4,7 +4,6 @@ import abc
 import logging
 import typing
 
-import attr
 import wrapt
 
 from ddtrace._trace.tracer import Tracer
@@ -33,20 +32,21 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
         self._self_tracer = tracer
 
 
-@attr.s
 class MLProfilerCollector(collector.CaptureSamplerCollector):
     """Record ML framework (i.e. pytorch) profiler usage."""
 
-    tracer = attr.ib(default=None)
-    _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
+    def __init__(self, tracer=None):
+        self.tracer = tracer
+        # Holds the pytorch profiler object which is wrapped by this class
+        self._original: typing.Any = None
 
     @abc.abstractmethod
-    def _get_original(self):
+    def _get_patch_target(self):
         # type: (...) -> typing.Any
         pass
 
     @abc.abstractmethod
-    def _set_original(
+    def _set_patch_target(
         self,
         value,  # type: typing.Any
     ):
@@ -74,7 +74,7 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
         # type: (...) -> None
         """Patch the module for tracking profiling data."""
         # We only patch the profile call from the `torch.profiler` module.
-        self.original = self._get_original()
+        self._original = self._get_patch_target()
 
         def profiler_init(wrapped, instance, args, kwargs):
             profiler = wrapped(*args, **kwargs)
@@ -84,25 +84,24 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
                 self.tracer,
             )
 
-        self._set_original(wrapt.FunctionWrapper(self.original, profiler_init))
+        self._set_patch_target(wrapt.FunctionWrapper(self._original, profiler_init))
 
     def unpatch(self):
         # type: (...) -> None
         """Unpatch the torch.profiler module for tracking profiling data."""
-        self._set_original(self.original)
+        self._set_patch_target(self._original)
 
 
-@attr.s
 class TorchProfilerCollector(MLProfilerCollector):
     """Monkey patch torch.profiler.profile usage."""
 
     PROFILED_TORCH_CLASS = _WrappedTorchProfiler
 
-    def _get_original(self):
+    def _get_patch_target(self):
         # type: (...) -> typing.Any
         return self._torch_module.profiler.profile
 
-    def _set_original(
+    def _set_patch_target(
         self, value  # type: typing.Any
     ):
         # type: (...) -> None
