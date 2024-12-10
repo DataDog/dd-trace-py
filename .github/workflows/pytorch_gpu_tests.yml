@@ -10,9 +10,11 @@ on:
 
 jobs:
    unit-tests:
-    runs-on:
-      os: ubuntu-latest 
-      archs: x86_64
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        arch: [x86_64]
+    runs-on: ${{ matrix.os }} 
     steps:
       - uses: actions/checkout@v4
         # Include all history and tags
