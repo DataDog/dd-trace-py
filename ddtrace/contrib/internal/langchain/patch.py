@@ -966,7 +966,7 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
             # it's also possible the this parser type isn't the last step,
             # but one of the last steps, in which case we won't act on it here
             result = streamed_chunks[-1]
-            if maybe_parser.__class__.__name__ == 'JsonOutputParser':
+            if maybe_parser.__class__.__name__ == "JsonOutputParser":
                 content = json.dumps(result)
             else:
                 # for something that isn't guaranteed to be a JSON type, we'll just stringify
