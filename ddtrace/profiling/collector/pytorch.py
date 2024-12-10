@@ -121,8 +121,7 @@ def handle_torch_trace(prof):
     num_events_collected = min(len(prof.events()), config.pytorch.events_limit or 1_000_000)
     if num_events_collected < len(prof.events()):
         LOG.debug(
-            "Dropped events",
-            extra={"num_events_collected": num_events_collected, "len(prof.events())": len(prof.events())},
+            "Dropped events.  num_events_collected %d. len(prof.events()): %d", num_events_collected, len(prof.events())
         )
 
     empty_events_count = 0
