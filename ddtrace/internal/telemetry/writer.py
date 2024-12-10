@@ -23,7 +23,6 @@ from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
-from ..runtime import container
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
@@ -136,8 +135,6 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
-        container.update_headers_with_container_info(headers, container.get_container_info())
-        container.update_header_with_external_info(headers)
         return headers
 
     def get_endpoint(self, agentless: bool) -> str:
