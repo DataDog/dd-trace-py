@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: Adds support for `Selenium and RUM integration <https://docs.datadoghq.com/tests/browser_tests/>`_
