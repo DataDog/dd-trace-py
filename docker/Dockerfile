@@ -90,7 +90,7 @@ RUN curl https://sh.rustup.rs -sSf | \
     sh -s -- --default-toolchain stable -y
 
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch v2.4.14 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch v2.4.22 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
