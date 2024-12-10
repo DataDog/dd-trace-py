@@ -9,7 +9,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65cbae1700000000",
       "banana": "True",
@@ -28,7 +28,7 @@
 [
   {
     "name": "should_send1",
-    "service": "",
+    "service": "tests.integration",
     "resource": "should_send1",
     "trace_id": 1,
     "span_id": 1,
@@ -54,7 +54,7 @@
 [
   {
     "name": "should_send2",
-    "service": "",
+    "service": "tests.integration",
     "resource": "banana",
     "trace_id": 2,
     "span_id": 1,
@@ -88,7 +88,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-3",
       "_dd.p.tid": "65cbae1700000000",
       "language": "python",

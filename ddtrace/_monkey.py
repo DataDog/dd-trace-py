@@ -5,12 +5,13 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
+from ddtrace.appsec import load_common_appsec_modules
+
 from .appsec._iast._utils import _is_iast_enabled
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .settings import _config as config
-from .settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -40,6 +41,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
+    "freezegun": True,
     "google_generativeai": True,
     "gevent": True,
     "graphql": True,
@@ -69,6 +71,7 @@ PATCH_MODULES = {
     "aiobotocore": False,
     "httplib": False,
     "urllib3": False,
+    "vertexai": True,
     "vertica": True,
     "molten": True,
     "jinja2": True,
@@ -98,6 +101,7 @@ PATCH_MODULES = {
     "subprocess": True,
     "unittest": True,
     "coverage": False,
+    "selenium": True,
 }
 
 
@@ -233,10 +237,7 @@ def patch_all(**patch_modules):
         patch_iast()
         enable_iast_propagation()
 
-    if asm_config._ep_enabled or asm_config._iast_enabled:
-        from ddtrace.appsec._common_module_patches import patch_common_modules
-
-        patch_common_modules()
+    load_common_appsec_modules()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):

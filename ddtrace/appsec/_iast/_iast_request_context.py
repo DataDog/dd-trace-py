@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -17,7 +18,6 @@ from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
-from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -47,6 +47,7 @@ class IASTEnvironment:
 
         self.request_enabled: bool = False
         self.iast_reporter: Optional[IastSpanReporter] = None
+        self.iast_span_metrics: Dict[str, int] = {}
 
 
 def _get_iast_context() -> Optional[IASTEnvironment]:
@@ -130,7 +131,6 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 if report_data:
                     report_data.build_and_scrub_value_parts()
                     req_span.set_tag_str(IAST.JSON, report_data._to_str())
-                    _asm_manual_keep(req_span)
                 _set_metric_iast_request_tainted()
                 _set_span_tag_iast_request_tainted(req_span)
                 _set_span_tag_iast_executed_sink(req_span)

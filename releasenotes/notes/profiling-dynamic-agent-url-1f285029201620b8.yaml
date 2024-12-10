@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: profiler uses agent url configured via ``tracer.configure()``

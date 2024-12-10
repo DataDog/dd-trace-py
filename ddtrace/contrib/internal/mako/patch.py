@@ -4,6 +4,7 @@ from mako.template import Template
 
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap as _u
 from ddtrace.contrib.trace_utils import wrap as _w
 from ddtrace.ext import SpanTypes
@@ -26,7 +27,7 @@ def patch():
         return
     mako.__datadog_patch = True
 
-    Pin(service=config.service or schematize_service_name("mako")).onto(Template)
+    Pin().onto(Template)
 
     _w(mako, "template.Template.render", _wrap_render)
     _w(mako, "template.Template.render_unicode", _wrap_render)
@@ -57,7 +58,9 @@ def _wrap_render(wrapped, instance, args, kwargs):
         template_name = getattr(instance, "filename", None)
     template_name = template_name or DEFAULT_TEMPLATE_NAME
 
-    with pin.tracer.trace(func_name(wrapped), pin.service, span_type=SpanTypes.TEMPLATE) as span:
+    with pin.tracer.trace(
+        func_name(wrapped), int_service(pin, config.mako, schematize_service_name("mako")), span_type=SpanTypes.TEMPLATE
+    ) as span:
         span.set_tag_str(COMPONENT, "mako")
 
         span.set_tag(SPAN_MEASURED_KEY)

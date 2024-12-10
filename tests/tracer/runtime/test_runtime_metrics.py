@@ -46,7 +46,7 @@ class TestRuntimeTags(TracerTestCase):
         with self.override_global_tracer():
             with self.trace("test", service="test"):
                 tags = [k for (k, v) in RuntimeTags(enabled=[SERVICE])]
-                self.assertEqual(tags, [SERVICE])
+                self.assertEqual(set(tags), set([SERVICE]))
 
     def test_env_tag(self):
         def filter_only_env_tags(tags):
