@@ -1,20 +1,10 @@
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.15.2)
-set(gtest_force_shared_crt
-    ON
-    CACHE BOOL "" FORCE)
-set(INSTALL_GTEST
-    OFF
-    CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 include(AnalysisFunc)
 
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
     target_include_directories(${name} PRIVATE ../include)
+
     # this has to refer to the stack_v2 extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
     set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/../stack_v2")
