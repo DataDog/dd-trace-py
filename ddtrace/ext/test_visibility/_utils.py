@@ -32,9 +32,9 @@ def _catch_and_log_exceptions(func):
 
 def _get_item_tag(item_id: TestVisibilityItemId, tag_name: str) -> Any:
     log.debug("Getting tag for item %s: %s", item_id, tag_name)
-    tag_value = core.dispatch_with_results(
-        "test_visibility.item.get_tag", (_TestVisibilityAPIBase.GetTagArgs(item_id, tag_name),)
-    ).tag_value.value
+    tag_args = _TestVisibilityAPIBase.GetTagArgs(item_id, tag_name)
+    core.dispatch("test_visibility.item.get_tag", (tag_args,))
+    tag_value = core.get_item(f"civisibility.{tag_args.item_id}.{tag_args.name}")
     return tag_value
 
 
@@ -60,6 +60,7 @@ def _delete_item_tags(item_id: TestVisibilityItemId, tag_names: List[str], recur
 
 def _is_item_finished(item_id: TestVisibilityItemId) -> bool:
     log.debug("Checking if item %s is finished", item_id)
-    _is_finished = bool(core.dispatch_with_results("test_visibility.item.is_finished", (item_id,)).is_finished.value)
+    core.dispatch("test_visibility.item.is_finished", (item_id,))
+    _is_finished = bool(core.get_item("test_visibility.item.is_finished"))
     log.debug("Item %s is finished: %s", item_id, _is_finished)
     return _is_finished

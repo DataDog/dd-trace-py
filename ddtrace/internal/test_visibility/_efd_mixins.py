@@ -23,7 +23,8 @@ class EFDSessionMixin:
     @_catch_and_log_exceptions
     def efd_enabled() -> bool:
         log.debug("Checking if Early Flake Detection is enabled for the session")
-        is_enabled = core.dispatch_with_results("test_visibility.efd.is_enabled").is_enabled.value
+        core.dispatch("test_visibility.efd.is_enabled")
+        is_enabled = core.get_item("test_visibility.efd.is_enabled")
         log.debug("Early Flake Detection enabled: %s", is_enabled)
         return is_enabled
 
@@ -31,7 +32,8 @@ class EFDSessionMixin:
     @_catch_and_log_exceptions
     def efd_is_faulty_session() -> bool:
         log.debug("Checking if session is faulty for Early Flake Detection")
-        is_faulty_session = core.dispatch_with_results("test_visibility.efd.session_is_faulty").is_faulty_session.value
+        core.dispatch("test_visibility.efd.session_is_faulty")
+        is_faulty_session = core.get_item("test_visibility.efd.session_is_faulty")
         log.debug("Session faulty: %s", is_faulty_session)
         return is_faulty_session
 
@@ -39,9 +41,8 @@ class EFDSessionMixin:
     @_catch_and_log_exceptions
     def efd_has_failed_tests() -> bool:
         log.debug("Checking if session has failed tests for Early Flake Detection")
-        has_failed_tests = core.dispatch_with_results(
-            "test_visibility.efd.session_has_failed_tests"
-        ).has_failed_tests.value
+        core.dispatch("test_visibility.efd.session_has_failed_tests")
+        has_failed_tests = core.get_item("test_visibility.efd.session_has_failed_tests")
         log.debug("Session has EFD failed tests: %s", has_failed_tests)
         return has_failed_tests
 
@@ -56,18 +57,16 @@ class EFDTestMixin:
         session maximums having been reached.
         """
         log.debug("Checking if item %s should be retried for Early Flake Detection", item_id)
-        should_retry_test = core.dispatch_with_results(
-            "test_visibility.efd.should_retry_test", (item_id,)
-        ).should_retry_test.value
+        core.dispatch("test_visibility.efd.should_retry_test", (item_id,))
+        should_retry_test = core.get_item(f"test_visibility.efd.should_retry_test.{item_id}")
         return should_retry_test
 
     @staticmethod
     @_catch_and_log_exceptions
     def efd_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
         log.debug("Adding Early Flake Detection retry for item %s", item_id)
-        retry_number = core.dispatch_with_results(
-            "test_visibility.efd.add_retry", (item_id, start_immediately)
-        ).retry_number.value
+        core.dispatch("test_visibility.efd.add_retry", (item_id, start_immediately))
+        retry_number = core.get_item(f"test_visibility.efd.add_retry.{item_id}")
         log.debug("Added Early Flake Detection retry number %s for item %s", retry_number, item_id)
         return retry_number
 
@@ -114,7 +113,6 @@ class EFDTestMixin:
     @_catch_and_log_exceptions
     def efd_get_final_status(item_id) -> EFDTestStatus:
         log.debug("Getting final status for item %s in Early Flake Detection", item_id)
-        final_status = core.dispatch_with_results(
-            "test_visibility.efd.get_final_status", (item_id,)
-        ).efd_final_status.value
+        core.dispatch("test_visibility.efd.get_final_status", (item_id,))
+        final_status = core.get_item(f"test_visibility.efd.get_final_status.{item_id}")
         return final_status

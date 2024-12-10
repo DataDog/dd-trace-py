@@ -75,7 +75,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             service=trace_utils.ext_service(pin, config.aiomysql),
             resource=resource,
             span_type=SpanTypes.SQL,
-        ) as s:
+        ) as s, core.context_with_data("aiomysql.execute") as ctx:
             s.set_tag_str(COMPONENT, config.aiomysql.integration_name)
 
             # set span.kind to the type of request being performed
@@ -89,9 +89,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.aiomysql.get_analytics_sample_rate())
 
             # dispatch DBM
-            result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs)).result
+            core.dispatch("aiomysql.execute", (ctx, config.aiomysql, s, args, kwargs))
+            result = ctx.get_item("aiomysql.execute")
             if result:
-                s, args, kwargs = result.value
+                s, args, kwargs = result
 
             try:
                 result = await method(*args, **kwargs)
