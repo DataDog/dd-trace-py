@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 from typing import Any
@@ -967,9 +966,8 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
             # but one of the last steps, in which case we won't act on it here
             result = streamed_chunks[-1]
             if maybe_parser.__class__.__name__ == "JsonOutputParser":
-                content = json.dumps(result)
+                content = safe_json(result)
             else:
-                # for something that isn't guaranteed to be a JSON type, we'll just stringify
                 content = str(result)
         else:
             # best effort to join chunks together

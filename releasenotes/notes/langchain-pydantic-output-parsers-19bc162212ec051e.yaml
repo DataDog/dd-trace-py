@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    langchain: streamed outputs from chains ending with a PydanticOutputParser do not throw and are tagged appropriately.
+    langchain: resolves a JSON decoding issue resulting from tagging streamed outputs from chains ending with a PydanticOutputParser.
