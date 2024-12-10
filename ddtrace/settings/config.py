@@ -20,6 +20,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
+from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.constants import DEFAULT_BUFFER_SIZE
 from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
@@ -540,6 +541,10 @@ class Config(object):
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
 
+        self._propagation_behavior_extract = _get_config(
+            ["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"], _PROPAGATION_BEHAVIOR_DEFAULT, self._lower
+        )
+
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
         if x_datadog_tags_max_length < 0:
@@ -978,3 +983,6 @@ class Config(object):
             return json.dumps(rc_rules)
         else:
             return None
+
+    def _lower(self, value):
+        return value.lower()
