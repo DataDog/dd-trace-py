@@ -20,6 +20,8 @@ jobs:
       include: ${{steps.set-matrix.outputs.include}}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.8'
@@ -51,6 +53,7 @@ jobs:
       - uses: actions/checkout@v4
         # Include all history and tags
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: actions/setup-python@v5

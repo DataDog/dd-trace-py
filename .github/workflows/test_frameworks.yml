@@ -1,11 +1,19 @@
 name: Framework tests
 
 on:
-  push:
-    branches:
-      - main
-      - 'mq-working-branch**'
-  pull_request:
+  # DEV: Removing these from PRs for now while
+  # we investigate the value of framework tests.
+  # They will run nightly instead, and manual
+  # workflow dispatch will be enabled
+  # push:
+  #   branches:
+  #     - main
+  #     - 'mq-working-branch**'
+  # pull_request:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 5 * * *'
+
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,6 +26,8 @@ jobs:
       outcome: ${{ steps.run_needed.outcome }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - id: run_needed
         name: Check if run is needed
         run:  |
@@ -69,9 +79,11 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
+          persist-credentials: false
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: bottlepy/bottle
           ref: 0.12.25
           path: bottle
@@ -138,10 +150,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: sanic-org/sanic
           ref: v24.6.0
           path: sanic
@@ -221,10 +235,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: django/django
           ref: 5.0.7
           path: django
@@ -317,10 +333,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: graphql-python/graphene
           # TODO: bump ref to `graphene>3.0.0`.
           # Unreleased CI fix: https://github.com/graphql-python/graphene/pull/1412
@@ -389,10 +407,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: tiangolo/fastapi
           ref: 0.92.0
           path: fastapi
@@ -454,10 +474,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: pallets/flask
           ref: 3.0.3
           path: flask
@@ -504,10 +526,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: encode/httpx
           ref: 0.22.0
           path: httpx
@@ -576,10 +600,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: sqlalchemy/mako
           ref: rel_1_3_5
           path: mako
@@ -646,10 +672,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: encode/starlette
           ref: 0.38.4
           path: starlette
@@ -711,10 +739,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: psf/requests
           ref: v2.26.0
           path: requests
@@ -778,10 +808,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: magicstack/asyncpg
           ref: v0.29.0
           path: asyncpg
@@ -833,10 +865,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: benoitc/gunicorn
           ref: 20.1.0
           path: gunicorn
@@ -890,10 +924,12 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: unbit/uwsgi
           ref: 2.0.21
           path: uwsgi
@@ -967,6 +1003,7 @@ jobs:
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
       - name: Checkout beautifulsoup
         if: needs.needs-run.outputs.outcome == 'success'

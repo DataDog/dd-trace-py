@@ -30,7 +30,16 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 def _run_gunicorn(*args):
     cmd = (
-        ["ddtrace-run", "gunicorn", "--bind", "127.0.0.1:7644", "--chdir", os.path.dirname(__file__)]
+        [
+            "ddtrace-run",
+            "gunicorn",
+            "--bind",
+            "127.0.0.1:7644",
+            "--worker-tmp-dir",
+            "/dev/shm",
+            "--chdir",
+            os.path.dirname(__file__),
+        ]
         + list(args)
         + ["tests.profiling.gunicorn-app:app"]
     )
@@ -75,6 +84,9 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
             response = f.read().decode()
             debug_print(response)
     except Exception as e:
+        proc.terminate()
+        output = proc.stdout.read().decode()
+        print(output)
         pytest.fail("Failed to make request to gunicorn server %s" % e)
     finally:
         # Need to terminate the process to get the output and release the port

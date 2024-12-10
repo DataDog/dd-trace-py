@@ -1,3 +1,4 @@
+import itertools
 import re
 import sys
 from typing import Any  # noqa:F401
@@ -912,21 +913,23 @@ class _BaggageHeader:
         if not baggage_items:
             return
 
-        if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
-            log.warning("Baggage item limit exceeded")
-            return
-
         try:
-            header_value = ",".join(
-                f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
-                for key, value in baggage_items
-            )
+            if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
+                log.warning("Baggage item limit exceeded, dropping excess items")
+                baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
-            buf = bytes(header_value, "utf-8")
-            if len(buf) > DD_TRACE_BAGGAGE_MAX_BYTES:
-                log.warning("Baggage header size exceeded")
-                return
+            encoded_items: List[str] = []
+            total_size = 0
+            for key, value in baggage_items:
+                item = f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
+                item_size = len(item.encode("utf-8")) + (1 if encoded_items else 0)  # +1 for comma if not first item
+                if total_size + item_size > DD_TRACE_BAGGAGE_MAX_BYTES:
+                    log.warning("Baggage header size exceeded, dropping excess items")
+                    break  # stop adding items when size limit is reached
+                encoded_items.append(item)
+                total_size += item_size
 
+            header_value = ",".join(encoded_items)
             headers[_HTTP_HEADER_BAGGAGE] = header_value
 
         except Exception:
