@@ -16,8 +16,6 @@ from ddtrace.settings.profiling import config
 
 LOG = logging.getLogger(__name__)
 
-pytorch_events_limit = config.pytorch.events_limit or 1_000_000
-
 
 class _WrappedTorchProfiler(wrapt.ObjectProxy):
     def __init__(
@@ -111,8 +109,12 @@ class TorchProfilerCollector(MLProfilerCollector):
 def handle_torch_trace(prof):
     NANOS_PER_MICROSECOND = 1e3
     LOG.debug("handle_torch_trace called")
-    # need an upper bound of events collected, can be adjusted based on profile size
-    num_events_collected = min(len(prof.events()), pytorch_events_limit)
+    # need an upper bound of events collected, can be adjusted based on profile size.
+    # Sadly, there is no way AFAICT to tell the PyTorch profiler itself to limit the num of samples.
+    # We truncate to keep the uploaded profile to a reasonable size.
+    # For now, experiment with a default of 1_000_000 if nothing is set.
+    # TODO, better values here.
+    num_events_collected = min(len(prof.events()), config.pytorch.events_limit or 1_000_000)
     trace_start_us = prof.profiler.kineto_results.trace_start_us()
     for e in prof.events()[:num_events_collected]:
         device_name = "cuda " + str(e.device_index)
