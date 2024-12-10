@@ -83,7 +83,7 @@ def test_patch():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
 def test_user_threads_have_native_id():
     from os import getpid
     from threading import Thread
