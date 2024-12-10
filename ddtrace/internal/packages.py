@@ -76,7 +76,7 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
                 module_name,
                 importlib_metadata.distribution(module_name).version,
             )
-        except Exception:
+        except Exception:  # nosec
             pass
         names = pkgs.get(module_name, [])
         if not names:
