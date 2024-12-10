@@ -61,12 +61,12 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
             raise collector.CollectorUnavailable(e)
         self._torch_module = torch
         self.patch()
-        super(MLProfilerCollector, self)._start_service()
+        super()._start_service()
 
     def _stop_service(self):
         # type: (...) -> None
         """Stop collecting framework profiler usage."""
-        super(MLProfilerCollector, self)._stop_service()
+        super()._stop_service()
         self.unpatch()
 
     def patch(self):
@@ -95,6 +95,9 @@ class TorchProfilerCollector(MLProfilerCollector):
     """Monkey patch torch.profiler.profile usage."""
 
     PROFILED_TORCH_CLASS = _WrappedTorchProfiler
+
+    def __init__(self, recorder=None):
+        super().__init__(recorder)
 
     def _get_patch_target(self):
         # type: (...) -> typing.Any
