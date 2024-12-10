@@ -80,9 +80,6 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
             pass
         names = pkgs.get(module_name, [])
         if not names:
-            if module_name in getattr(sys, "stdlib_module_names", ()):
-                # ignore standard library modules if possible
-                return None
             # try to resolve the parent package
             p = module_name.rfind(".")
             if p > 0:
@@ -348,8 +345,7 @@ def _get_toplevel_name(name) -> str:
     """
     return _topmost(name) or (
         # python/typeshed#10328
-        inspect.getmodulename(name)
-        or str(name)
+        inspect.getmodulename(name) or str(name)
     )
 
 
