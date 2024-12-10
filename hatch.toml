@@ -363,6 +363,31 @@ python = ["3.10", "3.11", "3.12"]
 
 
 
+## pytorch profling test
+
+[envs.profiling_pytorch]
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+]
+
+[envs.profiling_pytorch.env-vars]
+DD_PROFILING_PYTORCH_ENABLED = "true"
+DD_PROFILING_ENABLED = "true"
+DD_PROFILING_EXPORT_LIBDD_ENABLED = "true"
+
+[envs.profiling_pytorch.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/profiling/test_main.py:test_call_script_pytorch -vvv -s",
+]
+
+[[envs.profiling_pytorch.matrix]]
+python = ["3.12"]
+
 ## Unit Tests
 
 [envs.ddtrace_unit_tests]

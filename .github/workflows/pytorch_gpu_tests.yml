@@ -1,0 +1,38 @@
+name: Pytorch Unit Tests (with GPU) 
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+    paths:
+      - 'ddtrace/profiling/collector/pytorch.py'
+  workflow_dispatch: 
+
+jobs:
+   unit-tests:
+    runs-on:
+      os: ubuntu-latest 
+      archs: x86_64
+    steps:
+      - uses: actions/checkout@v4
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        name: Install Python
+        with:
+          python-version: '3.12'
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install latest stable toolchain and rustfmt
+        run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
+
+      - name: Install hatch
+        run: pip install hatch
+      
+      - name: Install PyTorch
+        run: pip install torch
+
+      - name: Run tests
+        run: hatch run profiling_pytorch:test 
