@@ -31,8 +31,7 @@ function(dd_wrapper_add_test name)
     set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
     if(LIB_INSTALL_DIR)
-        install(TARGETS ${name}
-            RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+        install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
     endif()
 endfunction()
 
