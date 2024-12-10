@@ -60,7 +60,7 @@ config._add(
     "graphql",
     dict(
         _default_service=schematize_service_name("graphql"),
-        resolvers_enabled=asbool(os.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
+        resolvers_enabled=asbool(os.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),  # noqa: DDC001
     ),
 )
 

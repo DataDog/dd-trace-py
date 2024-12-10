@@ -29,7 +29,7 @@ log = get_logger(__name__)
 
 def get_weak_hash_algorithms() -> Set:
     CONFIGURED_WEAK_HASH_ALGORITHMS = None
-    DD_IAST_WEAK_HASH_ALGORITHMS = os.getenv("DD_IAST_WEAK_HASH_ALGORITHMS")
+    DD_IAST_WEAK_HASH_ALGORITHMS = os.getenv("DD_IAST_WEAK_HASH_ALGORITHMS")  # noqa: DDC001
     if DD_IAST_WEAK_HASH_ALGORITHMS:
         CONFIGURED_WEAK_HASH_ALGORITHMS = set(algo.strip() for algo in DD_IAST_WEAK_HASH_ALGORITHMS.lower().split(","))
 

@@ -44,10 +44,10 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    user_supplied_host = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
-    user_supplied_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
+    user_supplied_host = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))  # noqa: DDC001
+    user_supplied_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))  # noqa: DDC001
 
-    url = os.environ.get("DD_TRACE_AGENT_URL")
+    url = os.environ.get("DD_TRACE_AGENT_URL")  # noqa: DDC001
 
     if not url:
         if user_supplied_host is not None or user_supplied_port is not None:
@@ -66,9 +66,9 @@ def get_trace_url():
 
 def get_stats_url():
     # type: () -> str
-    user_supplied_host = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
-    user_supplied_port = os.getenv("DD_DOGSTATSD_PORT")
-    url = os.getenv("DD_DOGSTATSD_URL")
+    user_supplied_host = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))  # noqa: DDC001
+    user_supplied_port = os.getenv("DD_DOGSTATSD_PORT")  # noqa: DDC001  # noqa: DDC001
+    url = os.getenv("DD_DOGSTATSD_URL")  # noqa: DDC001  # noqa: DDC001
 
     if not url:
         if user_supplied_host is not None or user_supplied_port is not None:
@@ -86,7 +86,7 @@ def get_stats_url():
 
 def info(url=None):
     agent_url = get_trace_url() if url is None else url
-    timeout = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
+    timeout = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))  # noqa: DDC001
     _conn = get_connection(agent_url, timeout=timeout)
     try:
         _conn.request("GET", "info", headers={"content-type": "application/json"})

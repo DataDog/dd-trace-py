@@ -121,7 +121,7 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
 
 
 def _get_rate_limiter() -> RateLimiter:
-    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
+    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))  # noqa: DDC001
 
 
 @dataclasses.dataclass(eq=False)

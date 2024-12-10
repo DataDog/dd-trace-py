@@ -333,9 +333,9 @@ def _get_blocked_template(accept_header_value):
         return _JSON_BLOCKED_TEMPLATE_CACHE
 
     if need_html_template:
-        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
+        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")  # noqa: DDC001
     else:
-        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
+        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")  # noqa: DDC001
 
     if template_path:
         try:

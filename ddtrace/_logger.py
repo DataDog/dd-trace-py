@@ -37,7 +37,7 @@ def configure_ddtrace_logger():
 
     """
     ddtrace_logger = logging.getLogger("ddtrace")
-    if asbool(os.environ.get("DD_TRACE_LOG_STREAM_HANDLER", "true")):
+    if asbool(os.environ.get("DD_TRACE_LOG_STREAM_HANDLER", "true")):  # noqa: DDC001
         ddtrace_logger.addHandler(logging.StreamHandler())
 
     _configure_ddtrace_debug_logger(ddtrace_logger)
@@ -45,13 +45,13 @@ def configure_ddtrace_logger():
 
 
 def _configure_ddtrace_debug_logger(logger):
-    if asbool(os.environ.get("DD_TRACE_DEBUG", "false")):
+    if asbool(os.environ.get("DD_TRACE_DEBUG", "false")):  # noqa: DDC001
         logger.setLevel(logging.DEBUG)
         logger.debug("debug mode has been enabled for the ddtrace logger")
 
 
 def _configure_ddtrace_file_logger(logger):
-    log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
+    log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()  # noqa: DDC001
     try:
         file_log_level_value = getattr(logging, log_file_level)
     except AttributeError:
@@ -59,8 +59,8 @@ def _configure_ddtrace_file_logger(logger):
             "DD_TRACE_LOG_FILE_LEVEL is invalid. Log level must be CRITICAL/ERROR/WARNING/INFO/DEBUG.",
             log_file_level,
         )
-    max_file_bytes = int(os.environ.get("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
-    log_path = os.environ.get("DD_TRACE_LOG_FILE")
+    max_file_bytes = int(os.environ.get("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))  # noqa: DDC001
+    log_path = os.environ.get("DD_TRACE_LOG_FILE")  # noqa: DDC001
     _add_file_handler(logger=logger, log_path=log_path, log_level=file_log_level_value, max_file_bytes=max_file_bytes)
 
 

@@ -182,7 +182,7 @@ def update_headers_with_container_info(headers: Dict, container_info: Optional[C
 
 def update_header_with_external_info(headers: Dict) -> None:
     """Get the external environment info from the environment variable and add it to the headers."""
-    external_info = os.environ.get(EXTERNAL_ENV_ENVIRONMENT_VARIABLE)
+    external_info = os.environ.get(EXTERNAL_ENV_ENVIRONMENT_VARIABLE)  # noqa: DDC001
     if external_info:
         headers.update(
             {

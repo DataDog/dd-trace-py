@@ -34,8 +34,8 @@ config._add(
     "rediscluster",
     dict(
         _default_service=schematize_service_name("rediscluster"),
-        cmd_max_length=int(os.getenv("DD_REDISCLUSTER_CMD_MAX_LENGTH", CMD_MAX_LEN)),
-        resource_only_command=asbool(os.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
+        cmd_max_length=int(os.getenv("DD_REDISCLUSTER_CMD_MAX_LENGTH", CMD_MAX_LEN)),  # noqa: DDC001
+        resource_only_command=asbool(os.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),  # noqa: DDC001
     ),
 )
 

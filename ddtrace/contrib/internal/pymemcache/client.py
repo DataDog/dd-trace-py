@@ -38,7 +38,7 @@ log = get_logger(__name__)
 config._add(
     "pymemcache",
     {
-        "command_enabled": asbool(os.getenv("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
+        "command_enabled": asbool(os.getenv("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),  # noqa: DDC001
     },
 )
 

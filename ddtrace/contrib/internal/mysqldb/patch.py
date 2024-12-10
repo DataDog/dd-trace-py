@@ -31,8 +31,8 @@ config._add(
         _default_service=schematize_service_name("mysql"),
         _dbapi_span_name_prefix="mysql",
         _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
-        trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
-        trace_connect=asbool(os.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),  # noqa: DDC001
+        trace_connect=asbool(os.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),  # noqa: DDC001
         _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )

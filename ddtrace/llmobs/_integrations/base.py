@@ -54,8 +54,12 @@ class BaseLLMIntegration:
             self._log_writer = V2LogWriter(
                 site=config._dd_site,
                 api_key=config._dd_api_key,
-                interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
-                timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+                interval=float(
+                    os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")  # noqa: DDC001
+                ),
+                timeout=float(
+                    os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")  # noqa: DDC001
+                ),
             )
             self._log_pc_sampler = RateSampler(sample_rate=integration_config.log_prompt_completion_sample_rate)
             self.start_log_writer()

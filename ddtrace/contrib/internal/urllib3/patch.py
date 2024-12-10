@@ -35,9 +35,9 @@ config._add(
     "urllib3",
     {
         "_default_service": schematize_service_name("urllib3"),
-        "distributed_tracing": asbool(os.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing": asbool(os.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),  # noqa: DDC001
         "default_http_tag_query_string": config._http_client_tag_query_string,
-        "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
+        "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),  # noqa: DDC001
     },
 )
 

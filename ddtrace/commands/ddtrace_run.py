@@ -42,13 +42,13 @@ def _add_bootstrap_to_pythonpath(bootstrap_dir):
     Add our bootstrap directory to the head of $PYTHONPATH to ensure
     it is loaded before program code
     """
-    python_path = os.environ.get("PYTHONPATH", "")
+    python_path = os.environ.get("PYTHONPATH", "")  # noqa: DDC001
 
     if python_path:
-        new_path = "%s%s%s" % (bootstrap_dir, os.path.pathsep, os.environ["PYTHONPATH"])
-        os.environ["PYTHONPATH"] = new_path
+        new_path = "%s%s%s" % (bootstrap_dir, os.path.pathsep, os.environ["PYTHONPATH"])  # noqa: DDC001
+        os.environ["PYTHONPATH"] = new_path  # noqa: DDC001
     else:
-        os.environ["PYTHONPATH"] = bootstrap_dir
+        os.environ["PYTHONPATH"] = bootstrap_dir  # noqa: DDC001
 
 
 def _get_arg_parser() -> argparse.ArgumentParser:
@@ -78,11 +78,11 @@ def _get_arg_parser() -> argparse.ArgumentParser:
 def _prepare_env(parser: argparse.ArgumentParser):
     args = parser.parse_args()
     if args.profiling:
-        os.environ["DD_PROFILING_ENABLED"] = "true"
+        os.environ["DD_PROFILING_ENABLED"] = "true"  # noqa: DDC001
 
     if args.debug or ddtrace.config._debug_mode:
         logging.basicConfig(level=logging.DEBUG)
-        os.environ["DD_TRACE_DEBUG"] = "true"
+        os.environ["DD_TRACE_DEBUG"] = "true"  # noqa: DDC001
 
     if args.info:
         # Inline imports for performance.
@@ -98,7 +98,7 @@ def _prepare_env(parser: argparse.ArgumentParser):
     log.debug("ddtrace bootstrap: %s", bootstrap_dir)
 
     _add_bootstrap_to_pythonpath(bootstrap_dir)
-    log.debug("PYTHONPATH: %s", os.environ["PYTHONPATH"])
+    log.debug("PYTHONPATH: %s", os.environ["PYTHONPATH"])  # noqa: DDC001
     log.debug("sys.path: %s", sys.path)
 
     if not args.command:
