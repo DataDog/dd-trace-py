@@ -310,7 +310,7 @@ class _ProfilerInstance(service.Service):
 
             def start_collector(collector_class: Type) -> None:
                 with self._service_lock:
-                    col = collector_class(r, tracer=self.tracer)
+                    col = collector_class(r, recorder=self._recorder)
 
                     if self.status == service.ServiceStatus.RUNNING:
                         # The profiler is already running so we need to start the collector
