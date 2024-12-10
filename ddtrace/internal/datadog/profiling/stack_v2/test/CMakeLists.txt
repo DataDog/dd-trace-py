@@ -29,8 +29,7 @@ function(dd_wrapper_add_test name)
     endif()
 
     if(LIB_INSTALL_DIR)
-        install(TARGETS ${name}
-            RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+        install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
     endif()
 endfunction()
 
