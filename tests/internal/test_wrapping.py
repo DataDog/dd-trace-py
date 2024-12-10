@@ -231,6 +231,7 @@ async def test_wrap_async_context_manager_exception_on_exit():
     await acm.__aexit__(ValueError, None, None)
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
 def test_wrap_generator_yield_from():
     channel = []
 

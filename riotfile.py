@@ -519,7 +519,7 @@ venv = Venv(
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.12"),
                     pkgs={
                         "redis": latest,
                         "gevent": latest,
@@ -918,7 +918,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys="3.12",
                     pkgs={
                         "sqlalchemy": latest,
                         "django": latest,
@@ -1709,7 +1709,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
                         "pytest-bdd": [
                             ">=4.0,<5.0",
