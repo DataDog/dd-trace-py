@@ -36,11 +36,11 @@ class AsyncioLockCollector(_lock.LockCollector):
         self._asyncio_module = asyncio
         return super(AsyncioLockCollector, self)._start_service()
 
-    def _get_original(self):
+    def _get_patch_target(self):
         # type: (...) -> typing.Any
         return self._asyncio_module.Lock
 
-    def _set_original(
+    def _set_patch_target(
         self, value  # type: typing.Any
     ):
         # type: (...) -> None

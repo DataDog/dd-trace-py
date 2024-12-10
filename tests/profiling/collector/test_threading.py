@@ -56,12 +56,12 @@ def test_patch():
     lock = threading.Lock
     collector = collector_threading.ThreadingLockCollector(r)
     collector.start()
-    assert lock == collector.original
+    assert lock == collector._original
     # wrapt makes this true
     assert lock == threading.Lock
     collector.stop()
     assert lock == threading.Lock
-    assert collector.original == threading.Lock
+    assert collector._original == threading.Lock
 
 
 def test_lock_acquire_events():
