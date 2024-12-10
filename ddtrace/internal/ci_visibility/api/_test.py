@@ -18,10 +18,10 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettin
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
 from ddtrace.internal.ci_visibility.constants import TEST_IS_QUARANTINED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
-from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished

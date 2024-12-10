@@ -30,7 +30,9 @@ class TestTestVisibilityAPIClientDetailedTestResponses(TestTestVisibilityAPIClie
                 set(_make_fqdn_test_ids([("module1", "suite1.py", "test1")])),
             ),
             (
-                _get_detailed_tests_api_response({"module1": {"suite1.py": ["test1"]}, "module2": {"suite2.py": ["test2"]}}),
+                _get_detailed_tests_api_response(
+                    {"module1": {"suite1.py": ["test1"]}, "module2": {"suite2.py": ["test2"]}}
+                ),
                 set(_make_fqdn_test_ids([("module1", "suite1.py", "test1"), ("module2", "suite2.py", "test2")])),
             ),
             # Multiple items with same name

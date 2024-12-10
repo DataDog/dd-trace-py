@@ -37,9 +37,9 @@ from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
-from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
 from ddtrace.internal.ci_visibility._api_client import TestDetails
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
@@ -906,7 +906,7 @@ class CIVisibility(Service):
         if instance is None:
             return False
 
-        return ('quarantined' in test_id.name) # DEBUG
+        return "quarantined" in test_id.name  # DEBUG
 
 
 def _requires_civisibility_enabled(func):

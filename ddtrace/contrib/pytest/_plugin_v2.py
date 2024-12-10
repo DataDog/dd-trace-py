@@ -70,9 +70,9 @@ if _pytest_version_supports_efd():
 if _pytest_version_supports_atr():
     from ddtrace.contrib.pytest._atr_utils import atr_get_failed_reports
     from ddtrace.contrib.pytest._atr_utils import atr_get_teststatus
-    from ddtrace.contrib.pytest._atr_utils import quarantine_atr_get_teststatus
     from ddtrace.contrib.pytest._atr_utils import atr_handle_retries
     from ddtrace.contrib.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.pytest._atr_utils import quarantine_atr_get_teststatus
     from ddtrace.contrib.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
@@ -302,6 +302,7 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
 
     is_quarantined = InternalTest.is_quarantined_test(test_id)
     if is_quarantined:
+        # We add this information to user_properties to have it available in pytest_runtest_makereport().
         item.user_properties += [("dd_quarantined", True)]
 
     if collect_test_coverage:
@@ -489,13 +490,6 @@ def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
             failed_report.outcome = PYTEST_STATUS.FAILED
             terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
-    from ddtrace.contrib.pytest._atr_utils import _QUARANTINE_ATR_RETRY_OUTCOMES
-    # for quarantined_report in terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, []):
-    #     terminalreporter.stats.setdefault("quarantined", []).append(quarantined_report)
-    # for quarantined_report in terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, []):
-    #     terminalreporter.stats.setdefault("quarantined", []).append(quarantined_report)
-    # terminalreporter._known_types.append("quarantined") # goddammit
-
     return failed_reports_initial_size
 
 
@@ -604,10 +598,11 @@ def pytest_report_teststatus(
 
     is_quarantined = ("dd_quarantined", True) in report.user_properties
     if is_quarantined:
-        if report.when == 'teardown':
-            return ('quarantined', 'q', ('QUARANTINED', {'blue': True}))
+        if report.when == "teardown":
+            return ("quarantined", "q", ("QUARANTINED", {"blue": True}))
         else:
-            return ('', '', '')
+            # Don't show anything for setup and call of quarantined tests, regardless of whether there were errors or not.
+            return ("", "", "")
 
 
 @pytest.hookimpl(trylast=True)

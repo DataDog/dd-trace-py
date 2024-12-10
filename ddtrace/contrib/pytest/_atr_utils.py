@@ -29,7 +29,7 @@ class _ATR_RETRY_OUTCOMES:
     ATR_FINAL_FAILED = "dd_atr_final_failed"
 
 
-class _QUARANTINE_ATR_RETRY_OUTCOMES:
+class _QUARANTINE_ATR_RETRY_OUTCOMES(_ATR_RETRY_OUTCOMES):
     ATR_ATTEMPT_PASSED = "dd_quarantine_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_quarantine_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_quarantine_atr_attempt_skipped"
@@ -57,25 +57,20 @@ def atr_handle_retries(
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
-
     if is_quarantined:
-        outcomes = RetryOutcomes(
-            PASSED=_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
-            FAILED=_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
-            SKIPPED=_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED,
-            XFAIL=_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
-            XPASS=_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
-        )
+        retry_outcomes = _QUARANTINE_ATR_RETRY_OUTCOMES
         final_outcomes = _QUARANTINE_FINAL_OUTCOMES
     else:
-        outcomes = RetryOutcomes(
-            PASSED=_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
-            FAILED=_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
-            SKIPPED=_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED,
-            XFAIL=_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
-            XPASS=_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
-        )
+        retry_outcomes = _ATR_RETRY_OUTCOMES
         final_outcomes = _FINAL_OUTCOMES
+
+    outcomes = RetryOutcomes(
+        PASSED=retry_outcomes.ATR_ATTEMPT_PASSED,
+        FAILED=retry_outcomes.ATR_ATTEMPT_FAILED,
+        SKIPPED=retry_outcomes.ATR_ATTEMPT_SKIPPED,
+        XFAIL=retry_outcomes.ATR_ATTEMPT_PASSED,
+        XPASS=retry_outcomes.ATR_ATTEMPT_FAILED,
+    )
 
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
     if when == "call":
@@ -310,9 +305,17 @@ def quarantine_atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
             (f"QUARANTINED RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"blue": True}),
         )
     if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
-        return (_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, ".", ("QUARANTINED FINAL STATUS: PASSED", {"blue": True}))
+        return (
+            _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
+            ".",
+            ("QUARANTINED FINAL STATUS: PASSED", {"blue": True}),
+        )
     if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED:
-        return (_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, "F", ("QUARANTINED FINAL STATUS: FAILED", {"blue": True}))
+        return (
+            _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
+            "F",
+            ("QUARANTINED FINAL STATUS: FAILED", {"blue": True}),
+        )
     return None
 
 

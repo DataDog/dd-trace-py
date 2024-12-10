@@ -14,6 +14,7 @@ from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
+from ddtrace.internal.ci_visibility.constants import DETAILED_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
@@ -22,7 +23,6 @@ from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.constants import DETAILED_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import UNIQUE_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
@@ -383,7 +383,8 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 early_flake_detection = EarlyFlakeDetectionSettings()
 
             quarantine = QuarantineSettings(
-                enabled=attributes.get("quarantine", {}).get("enabled", False) or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE")) # ꙮ
+                enabled=attributes.get("quarantine", {}).get("enabled", False)
+                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE"))  # ꙮ
             )
 
         except KeyError:
@@ -395,7 +396,8 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skipping_enabled=skipping_enabled,
             require_git=require_git,
             itr_enabled=itr_enabled,
-            flaky_test_retries_enabled=flaky_test_retries_enabled or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_ATR")), # ꙮ
+            flaky_test_retries_enabled=flaky_test_retries_enabled
+            or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_ATR")),  # ꙮ
             early_flake_detection=early_flake_detection,
             quarantine=quarantine,
         )
@@ -548,7 +550,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS,
             response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES,
             error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS,
-        ) # ꙮ
+        )  # ꙮ
 
         payload = {
             "data": {

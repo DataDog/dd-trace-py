@@ -206,7 +206,10 @@ class TestVisibilityItemBase(abc.ABC):
         if self._session_settings.atr_settings is not None and self._session_settings.atr_settings.enabled:
             self._set_atr_tags()
 
-        if self._session_settings.quarantine_settings is not None and self._session_settings.quarantine_settings.enabled:
+        if (
+            self._session_settings.quarantine_settings is not None
+            and self._session_settings.quarantine_settings.enabled
+        ):
             self._set_quarantine_tags()
 
         # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
