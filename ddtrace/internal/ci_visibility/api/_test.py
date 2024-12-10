@@ -337,7 +337,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             codeowners=self._codeowners,
             source_file_info=self._source_file_info,
             initial_tags=self._tags,
-            is_quarantined=self._is_quarantined,
+            is_quarantined=self.is_quarantined(),
             is_atr_retry=True,
         )
         retry_test.parent = self.parent

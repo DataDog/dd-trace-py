@@ -906,7 +906,7 @@ class CIVisibility(Service):
         if instance is None:
             return False
 
-        return "quarantined" in test_id.name  # DEBUG
+        self._test_details.is_quarantined_test(test_id)
 
 
 def _requires_civisibility_enabled(func):
