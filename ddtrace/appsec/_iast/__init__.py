@@ -60,7 +60,7 @@ def ddtrace_iast_flask_patch():
     module_name = inspect.currentframe().f_back.f_globals["__name__"]
     module = sys.modules[module_name]
     try:
-        module_path, patched_ast = astpatch_module(module, remove_flask_run=True)
+        module_path, patched_ast = astpatch_module(module, remove_flask_run=False)
     except Exception:
         log.debug("Unexpected exception while AST patching", exc_info=True)
         return
@@ -70,11 +70,12 @@ def ddtrace_iast_flask_patch():
         return
 
     compiled_code = compile(patched_ast, module_path, "exec")
-    # creating a new module to execute the patched code from scratch
+    # creating a new module environment to execute the patched code from scratch
     new_module = types.ModuleType(module_name)
-    # module must be loaded in sys.modules before executing the compiled code
-    sys.modules[module_name] = new_module
-    exec(compiled_code, new_module.__dict__)  # nosec B102
+    module.__dict__.clear()
+    module.__dict__.update(new_module.__dict__)
+    # executing the compiled code in the new module environment
+    exec(compiled_code, module.__dict__)  # nosec B102
 
 
 _iast_propagation_enabled = False
