@@ -790,6 +790,11 @@ class Tracer(object):
 
         links = context._span_links if not parent else []
 
+        if config._trace_low_cpu_mode:
+            on_finish = []
+        else:
+            on_finish = [self._on_span_finish]
+
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
@@ -802,7 +807,7 @@ class Tracer(object):
                 span_type=span_type,
                 span_api=span_api,
                 links=links,
-                on_finish=[self._on_span_finish],
+                on_finish=on_finish,
             )
 
             # Extra attributes when from a local parent
@@ -824,7 +829,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 span_api=span_api,
-                on_finish=[self._on_span_finish],
+                on_finish=on_finish,
             )
             if config._report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
@@ -860,7 +865,7 @@ class Tracer(object):
             self._services.add(service)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or self._apm_opt_out:
+        if (not config._trace_low_cpu_mode) and (self.enabled or self._apm_opt_out):
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)

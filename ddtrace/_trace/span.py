@@ -37,6 +37,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
+from ddtrace.ddsidecar_utils import update_sidecar
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
@@ -93,24 +94,24 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     return "{:032x}".format(large_int)[:16]
 
 
-class Span(object):
+class SpanBase(object):
     __slots__ = [
         # Public span attributes
-        "service",
+        "_service",
         "name",
         "_resource",
         "_span_api",
-        "span_id",
-        "trace_id",
-        "parent_id",
+        "_span_id",
+        "_trace_id",
+        "_parent_id",
         "_meta",
         "_meta_struct",
-        "error",
+        "_error",
         "_metrics",
         "_store",
-        "span_type",
-        "start_ns",
-        "duration_ns",
+        "_span_type",
+        "_start_ns",
+        "_duration_ns",
         # Internal attributes
         "_context",
         "_local_root_value",
@@ -133,7 +134,7 @@ class Span(object):
         parent_id: Optional[int] = None,
         start: Optional[int] = None,
         context: Optional[Context] = None,
-        on_finish: Optional[List[Callable[["Span"], None]]] = None,
+        on_finish: Optional[List[Callable[["SpanBase"], None]]] = None,
         span_api: str = SPAN_API_DATADOG,
         links: Optional[List[SpanLink]] = None,
     ) -> None:
@@ -172,28 +173,28 @@ class Span(object):
             return
 
         self.name = name
-        self.service = service
+        self._service = service
         self._resource = [resource or name]
-        self.span_type = span_type
+        self._span_type = span_type
         self._span_api = span_api
 
         self._meta: _MetaDictType = {}
-        self.error = 0
+        self._error = 0
         self._metrics: _MetricDictType = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        self.start_ns: int = time_ns() if start is None else int(start * 1e9)
-        self.duration_ns: Optional[int] = None
+        self._start_ns: int = time_ns() if start is None else int(start * 1e9)
+        self._duration_ns: Optional[int] = None
 
         if trace_id is not None:
-            self.trace_id: int = trace_id
+            self._trace_id: int = trace_id
         elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = _rand128bits()  # type: ignore[no-redef]
+            self._trace_id: int = _rand128bits()  # type: ignore[no-redef]
         else:
-            self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
-        self.span_id: int = span_id or _rand64bits()
-        self.parent_id: Optional[int] = parent_id
+            self._trace_id: int = _rand64bits()  # type: ignore[no-redef]
+        self._span_id: int = span_id or _rand64bits()
+        self._parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._context: Optional[Context] = context._with_span(self) if context else None
@@ -204,9 +205,9 @@ class Span(object):
                 self._set_link_or_append_pointer(new_link)
 
         self._events: List[SpanEvent] = []
-        self._parent: Optional["Span"] = None
+        self._parent: Optional["SpanBase"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
-        self._local_root_value: Optional["Span"] = None  # None means this is the root span.
+        self._local_root_value: Optional["SpanBase"] = None  # None means this is the root span.
         self._store: Optional[Dict[str, Any]] = None
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
@@ -235,6 +236,18 @@ class Span(object):
         return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     @property
+    def trace_id(self) -> int:
+        return self._trace_id
+
+    @property
+    def span_id(self) -> int:
+        return self._span_id
+
+    @property
+    def parent_id(self) -> Optional[int]:
+        return self._parent_id
+
+    @property
     def start(self) -> float:
         """The start timestamp in Unix epoch seconds."""
         return self.start_ns / 1e9
@@ -244,12 +257,52 @@ class Span(object):
         self.start_ns = int(value * 1e9)
 
     @property
+    def service(self) -> Optional[str]:
+        return self._service
+
+    @service.setter
+    def service(self, value: Optional[str]) -> None:
+        self._service = value
+
+    @property
     def resource(self) -> str:
         return self._resource[0]
 
     @resource.setter
     def resource(self, value: str) -> None:
         self._resource[0] = value
+
+    @property
+    def error(self) -> int:
+        return self._error
+
+    @error.setter
+    def error(self, value: int) -> None:
+        self._error = value
+
+    @property
+    def span_type(self) -> Optional[str]:
+        return self._span_type
+
+    @span_type.setter
+    def span_type(self, value: Optional[str]) -> None:
+        self._span_type = value
+
+    @property
+    def start_ns(self) -> int:
+        return self._start_ns
+
+    @start_ns.setter
+    def start_ns(self, value: int) -> None:
+        self._start_ns = value
+
+    @property
+    def duration_ns(self) -> Optional[int]:
+        return self._duration_ns
+
+    @duration_ns.setter
+    def duration_ns(self, value: Optional[int]) -> None:
+        self._duration_ns = value
 
     @property
     def finished(self) -> bool:
@@ -331,6 +384,9 @@ class Span(object):
                 if key in self._local_root._metrics:
                     del self._local_root._metrics[key]
 
+    def _set_meta(self, key: _TagNameType, value: Any) -> None:
+        self._meta[key] = str(value)
+
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
@@ -410,9 +466,10 @@ class Span(object):
             return
 
         try:
-            self._meta[key] = str(value)
-            if key in self._metrics:
-                del self._metrics[key]
+            self._set_meta(key, value)
+            # TODO: find out why we need this
+            # if key in self._metrics:
+            #     del self._metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -433,7 +490,8 @@ class Span(object):
         U+FFFD.
         """
         try:
-            self._meta[key] = ensure_text(value, errors="replace")
+            value = ensure_text(value, errors="replace")
+            self._set_meta(key, value)
         except Exception as e:
             if config._raise:
                 raise e
@@ -454,6 +512,9 @@ class Span(object):
         if tags:
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
+
+    def _set_metric(self, key: _TagNameType, value: NumericType) -> None:
+        self._metrics[key] = value
 
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
@@ -481,9 +542,10 @@ class Span(object):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
-        if key in self._meta:
-            del self._meta[key]
-        self._metrics[key] = value
+        # TODO: why do we need this?
+        # if key in self._meta:
+        #     del self._meta[key]
+        self._set_metric(key, value)
 
     def set_metrics(self, metrics: _MetricDictType) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
@@ -520,7 +582,7 @@ class Span(object):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self._meta[ERROR_STACK] = tb
+            self._set_meta(ERROR_STACK, tb)
 
     def set_exc_info(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
@@ -546,9 +608,9 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self._meta[ERROR_MSG] = str(exc_val)
-        self._meta[ERROR_TYPE] = exc_type_str
-        self._meta[ERROR_STACK] = tb
+        self._set_meta(ERROR_MSG, str(exc_val))
+        self._set_meta(ERROR_TYPE, exc_type_str)
+        self._set_meta(ERROR_STACK, tb)
 
         core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
 
@@ -585,13 +647,13 @@ class Span(object):
         return self._context
 
     @property
-    def _local_root(self) -> "Span":
+    def _local_root(self) -> "SpanBase":
         if self._local_root_value is None:
             return self
         return self._local_root_value
 
     @_local_root.setter
-    def _local_root(self, value: "Span") -> None:
+    def _local_root(self, value: "SpanBase") -> None:
         if value is not self:
             self._local_root_value = value
         else:
@@ -684,12 +746,12 @@ class Span(object):
         This method is useful if a sudden program shutdown is required and finishing
         the trace is desired.
         """
-        span: Optional["Span"] = self
+        span: Optional["SpanBase"] = self
         while span is not None:
             span.finish()
             span = span._parent
 
-    def __enter__(self) -> "Span":
+    def __enter__(self) -> "SpanBase":
         return self
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]) -> None:
@@ -709,7 +771,140 @@ class Span(object):
         )
 
 
-def _is_top_level(span: Span) -> bool:
+class SpanLowOverhead(SpanBase):
+    def __init__(
+        self,
+        name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        parent_id: Optional[int] = None,
+        start: Optional[int] = None,
+        context: Optional[Context] = None,
+        on_finish: Optional[List[Callable[["SpanBase"], None]]] = None,
+        span_api: str = SPAN_API_DATADOG,
+        links: Optional[List[SpanLink]] = None,
+    ) -> None:
+        super().__init__(
+            name, service, resource, span_type, trace_id, span_id, parent_id, start, context, on_finish, span_api, links
+        )
+        update_sidecar(
+            "/trace/span/start",
+            body={
+                "span_id": self.span_id,
+                "trace_id": self.trace_id,
+                "parent_id": self.parent_id,
+                "name": self.name,
+                "service": self._service,
+                "resource": self._resource[0],
+                "type": self._span_type,
+            },
+        )
+
+    def _set_metric(self, key: _TagNameType, value: NumericType) -> None:
+        update_sidecar("/trace/span/set_metric", body={"span_id": self.span_id, "key": key, "value": value})
+        return super()._set_metric(key, value)
+
+    def _set_meta(self, key: _TagNameType, value: Any = None) -> None:
+        update_sidecar("/trace/span/set_meta", body={"span_id": self.span_id, "key": key, "value": value})
+        return super()._set_meta(key, value)
+
+    @property
+    def resource(self) -> str:
+        return self._resource[0]
+
+    @resource.setter
+    def resource(self, value: str) -> None:
+        update_sidecar("/trace/span/set_resource", body={"span_id": self.span_id, "resource": value})
+        self._resource[0] = value
+
+    @property
+    def service(self) -> Optional[str]:
+        return self._service
+
+    @service.setter
+    def service(self, value: Optional[str]) -> None:
+        update_sidecar("/trace/span/set_service", body={"span_id": self.span_id, "service": value})
+        self._service = value
+
+    @property
+    def error(self) -> int:
+        return self._error
+
+    @error.setter
+    def error(self, value: int) -> None:
+        update_sidecar("/trace/span/set_error", body={"span_id": self.span_id, "error": value})
+        self._error = value
+
+    @property
+    def span_type(self) -> Optional[str]:
+        return self._span_type
+
+    @span_type.setter
+    def span_type(self, value: Optional[str]) -> None:
+        update_sidecar("/trace/span/set_type", body={"span_id": self.span_id, "type": value})
+        self._span_type = value
+
+    @property
+    def start_ns(self) -> int:
+        return self._start_ns
+
+    @start_ns.setter
+    def start_ns(self, value: int) -> None:
+        update_sidecar("/trace/span/set_start_ns", body={"span_id": self.span_id, "start_ns": value})
+        self._start_ns = value
+
+    @property
+    def duration_ns(self) -> Optional[int]:
+        return self._duration_ns
+
+    @duration_ns.setter
+    def duration_ns(self, value: Optional[int]) -> None:
+        update_sidecar("/trace/span/set_duration_ns", body={"span_id": self.span_id, "duration_ns": value})
+        self._duration_ns = value
+
+    def set_link(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        update_sidecar(
+            "/trace/span/set_link",
+            body={
+                "span_id": self.span_id,
+                "linked_trace_id": trace_id,
+                "linked_span_id": span_id,
+                "tracestate": tracestate,
+                "flags": flags,
+                "attributes": attributes,
+            },
+        )
+        return super().set_link(trace_id, span_id, tracestate, flags, attributes)
+
+    def _add_event(self, name, attributes=None, timestamp=None):
+        update_sidecar(
+            "/trace/span/set_event",
+            body={"span_id": self.span_id, "name": name, "attributes": attributes, "timestamp": timestamp},
+        )
+        return super()._add_event(name, attributes, timestamp)
+
+    def finish(self, finish_time=None):
+        update_sidecar("/trace/span/finish", body={"span_id": self.span_id, "finish_time": finish_time})
+        return super().finish(finish_time)
+
+
+if config._trace_low_cpu_mode:
+    Span = SpanLowOverhead
+else:
+    Span = SpanBase
+
+
+def _is_top_level(span: Union[SpanBase]) -> bool:
     """Return whether the span is a "top level" span.
 
     Top level meaning the root of the trace or a child span
