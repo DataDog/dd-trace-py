@@ -41,7 +41,7 @@ def test_call_script_gevent(monkeypatch):
 def test_call_script_pytorch_gpu(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
     stdout, stderr, exitcode, pid = call_program(
-        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
+        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
     print("stdout:", stdout.decode())
     print("stderr:", stderr.decode())

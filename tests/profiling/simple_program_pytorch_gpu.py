@@ -1,4 +1,3 @@
-import ddtrace.profiling.auto  # noqa: I001 F401
 import torch
 import torch.nn
 import torch.optim
