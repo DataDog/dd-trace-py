@@ -2,7 +2,7 @@ include(ExternalProject)
 
 if(NOT TARGET llvm-libcxx-msan)
     ExternalProject_Add(llvm-libcxx-msan
-        PREFIX            ${CMAKE_CURRENT_BINARY_DIR}/llvm-libcxx-msan
+        PREFIX            ${CMAKE_BINARY_DIR}/llvm-libcxx-msan
         GIT_REPOSITORY    https://github.com/llvm/llvm-project.git
         GIT_TAG           llvmorg-19.1.5 # chosen to make msan build straightforward
         GIT_SHALLOW       TRUE
@@ -17,7 +17,8 @@ if(NOT TARGET llvm-libcxx-msan)
         BUILD_COMMAND     cmake --build .
         INSTALL_COMMAND   ""
     )
-
-  set(INSTALLED_LIBCXX_ROOT "${CMAKE_CURRENT_BINARY_DIR}/llvm-libcxx-msan/src/llvm-libcxx-msan-build")
-  set(INSTALLED_LIBCXX_PATH "${INSTALLED_LIBCXX_ROOT}/lib")
 endif()
+
+set(INSTALLED_LIBCXX_ROOT "${CMAKE_BINARY_DIR}/llvm-libcxx-msan/src/llvm-libcxx-msan-build")
+set(INSTALLED_LIBCXX_PATH "${INSTALLED_LIBCXX_ROOT}/lib")
+set(INSTALLED_LIBCXX_INCLUDE_DIR "${INSTALLED_LIBCXX_ROOT}/include/c++/v1")

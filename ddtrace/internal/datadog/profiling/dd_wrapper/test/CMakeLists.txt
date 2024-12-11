@@ -1,14 +1,3 @@
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.15.2)
-set(gtest_force_shared_crt
-    ON
-    CACHE BOOL "" FORCE)
-set(INSTALL_GTEST
-    OFF
-    CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 include(AnalysisFunc)
 
@@ -19,11 +8,11 @@ function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
     target_include_directories(${name} PRIVATE ../include)
     set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
-    target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper nlohmann_json::nlohmann_json)
-    gtest_discover_tests(${name})
+    gtest_add_tests(TARGET ${name})
 
     # Done last so it can fixup the rpath
     add_ddup_config(${name})
+    target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper nlohmann_json::nlohmann_json)
 
 
     if(LIB_INSTALL_DIR)

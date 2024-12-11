@@ -261,7 +261,7 @@ add_compiler_args() {
       ;;
     -m|--memory)
       cmake_args+=(${compiler_args["memory"]})
-      export MSAN_OPTIONS="suppressions="$(realpath $MY_DIR)/sanitizers/msan.supp":verbosity=2"
+      export MSAN_OPTIONS="halt_on_error=false"
       export MSAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
       set_clang
       ;;

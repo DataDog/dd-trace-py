@@ -1,8 +1,5 @@
 include(CheckIPOSupported)
 
-include(FindGoogleTest)
-include(GoogleTest)
-
 function(add_ddup_config target)
     # Profiling native extensions are built with C++17, even though underlying
     # repo adheres to the manylinux 2014 standard. This isn't currently a
@@ -80,7 +77,7 @@ function(add_ddup_config target)
 
         # If msan was chosen, also enable memory track origins, which helps in diagnostics
         if(SANITIZE_OPTIONS STREQUAL "memory")
-            target_compile_options(${target} PRIVATE -fsanitize-memory-track-origins)
+            target_compile_options(${target} PRIVATE -fsanitize-memory-track-origins -stdlib=libc++)
 
             # This section is tricky.
             # 1. In order for msan to work, libc and libc++ both must be instrumented.  We get libc from the system, but
@@ -91,18 +88,21 @@ function(add_ddup_config target)
             #    handle the merge correctly.
             include(FindCxxMsan)
             add_dependencies(${target} llvm-libcxx-msan)
+            set(INSTALLED_LIBCXX_PATH "${CMAKE_CURRENT_BINARY_DIR}/llvm-libcxx-msan/install/lib")
 
             # Now merge the RPATHs
-            set(libcxx_rpath "${INSTALLED_LIBCXX_PATH}")
             get_target_property(existing_rpath ${target} INSTALL_RPATH)
             if(existing_rpath)
-              #set(new_rpath ${existing_rpath};${libcxx_rpath})
-                set(new_rpath ${libcxx_rpath})
+                set(new_rpath ${existing_rpath};${INSTALL_LIBCXX_PATH})
             else()
-                set(new_rpath ${libcxx_rpath})
+                set(new_rpath ${INSTALL_LIBCXX_PATH})
             endif()
-            #            set_target_properties(${target} PROPERTIES INSTALL_RPATH "${new_rpath}")
-            set_target_properties(${target} PROPERTIES INSTALL_RPATH ${INSTALLED_LIBCXX_PATH})
+            set_target_properties(${target} PROPERTIES INSTALL_RPATH "${new_rpath}")
+
+            # I guess since we're using a custom libc++, we still need to specify headers
+            target_include_directories(${target} PRIVATE ${INSTALLED_LIBCXX_INCLUDE_DIR})
+            target_link_directories(${target} PRIVATE ${INSTALLED_LIBCXX_PATH})
+            target_link_libraries(${target} PRIVATE c++)
         else()
             execute_process(
                 COMMAND bash -c "find $(${CMAKE_CXX_COMPILER} -print-file-name=) -name '*.so' -exec dirname {} \; | uniq"
@@ -147,4 +147,4 @@ function(add_ddup_config target)
     set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endfunction()
 
-set(INSTALLED_LIBCXX_PATH "${CMAKE_CURRENT_BINARY_DIR}/llvm-libcxx-msan/install/lib")
+include(FindGoogleTest)
