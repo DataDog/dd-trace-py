@@ -42,6 +42,11 @@ class InjectionContext:
 
 
 def inject_invocation(injection_context: InjectionContext, path: str, package: str) -> t.Tuple[CodeType, t.List[int]]:
+    """
+    Inject invocation of the hook function at the specified source code lines, or more specifically offsets, in the given code object.
+    Injection is recursive, in case of nested code objects (e.g. inline functions).
+    """
+
     code = injection_context.original_code
     new_code, new_consts, new_linetable, new_exctable, seen_lines = _inject_invocation_nonrecursive(
         injection_context, path, package
@@ -148,6 +153,10 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
 ) -> t.Tuple[bytearray, t.List[object], bytes, bytes, t.List[int]]:
+    """
+    Inject invocation of the hook function at the specified source code lines, or more specifically offsets, in the given code object.
+    Injection is non-recursive, i.e. it does not instrument nested code objects.
+    """
     code = injection_context.original_code
     old_code = code.co_code
     new_code = bytearray()
@@ -367,6 +376,11 @@ def _inject_invocation_nonrecursive(
 def _generate_adjusted_location_data(
     code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
 ) -> bytes:
+    """
+    Generate python version's specific adjusted location data. This is needed to adjust the line number information since the
+    format changed notably, for example, between Python 3.10 and 3.11.
+    """
+
     if is_python_3_10:
         return _generate_adjusted_location_data_3_10(code, offsets_map, extended_arg_offsets)
     elif is_python_3_11:
