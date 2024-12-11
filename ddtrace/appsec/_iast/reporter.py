@@ -123,13 +123,10 @@ class IastSpanReporter(NotNoneDictable):
 
     def _merge(self, other: "IastSpanReporter") -> None:
         """
-        Merges the IAST span reporter with another IAST span reporter.
+        Merges the current IAST span reporter with another IAST span reporter.
 
         Args:
         - other (IastSpanReporter): IAST span reporter to merge.
-
-        Returns:
-        - IastSpanReporter: Merged IAST span reporter.
         """
         len_previous_sources = len(self.sources)
         self.sources = self.sources + other.sources

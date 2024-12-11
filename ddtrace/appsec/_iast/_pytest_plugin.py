@@ -41,12 +41,6 @@ except ImportError:
 
 
 vuln_data: List[dict] = []
-DD_DOCS = "https://docs.datadoghq.com"
-
-remediation = {
-    "SQL_INJECTION": f"{DD_DOCS}/code_analysis/static_analysis_rules/python-flask/sqlalchemy-injection/",
-    "WEAK_HASH": "f{DD_DOCS}/code_analysis/static_analysis_rules/python-security/insecure-hash-functions/",
-}
 
 
 def extract_code_snippet(filepath, line_number, context=3):
@@ -74,13 +68,14 @@ def print_iast_report(terminalreporter):
 
         for entry in vuln_data:
             terminalreporter.write(f"Test: {entry['nodeid']}\n", bold=True)
-            critical = entry["vulnerability"].endswith("INJECTION")
+            high_severity = entry["vulnerability"].endswith("INJECTION")
             terminalreporter.write(
-                f"Vulnerability: {entry['vulnerability']} - \033]8;;"
-                f"{remediation[entry['vulnerability']]}\033\\Remediation\033]8;;\033\\ \n",
+                f"Vulnerability: {entry['vulnerability']}"
+                # TODO(@gnufede): Add remediation links, wheree remediation is a dict with the vulnerability as key
+                # f" - \033]8;;{remediation[entry['vulnerability']]}\033\\Remediation\033]8;;\033\\ \n",
                 bold=True,
-                red=critical,
-                yellow=not critical,
+                red=high_severity,
+                yellow=not high_severity,
             )
             terminalreporter.write(f"Location: {entry['file']}:{entry['line']}\n")
             code_snippet, start_line = extract_code_snippet(entry["file"], entry["line"])
