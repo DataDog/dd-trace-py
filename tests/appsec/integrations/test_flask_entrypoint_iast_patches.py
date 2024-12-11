@@ -7,10 +7,18 @@ from tests.utils import flaky
 def test_ddtrace_iast_flask_patch():
     import dis
     import io
+    import re
     import sys
 
     from tests.utils import override_env
     from tests.utils import override_global_config
+
+    PATTERN = r"""Disassembly of add_test:
+\s*7           0 RESUME                   0
+\s*8           2 LOAD_GLOBAL              1 \(NULL \+ _ddtrace_aspects\)
+\s*14 LOAD_ATTR                1 \(add_aspect\)
+\s*24 LOAD_FAST                0 \(a\)
+\s*26 LOAD_FAST                1 \(b\)"""
 
     with override_global_config(dict(_iast_enabled=True)), override_env(
         dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")
@@ -21,8 +29,7 @@ def test_ddtrace_iast_flask_patch():
         dis.dis(flask_entrypoint, file=dis_output)
         str_output = dis_output.getvalue()
         # Should have replaced the binary op with the aspect in add_test:
-        assert "(add_aspect)" in str_output
-        assert "BINARY_ADD" in str_output or "BINARY_OP" not in str_output, str_output
+        assert re.search(PATTERN, str_output), str_output
         # Should have replaced the app.run() with a pass:
         # assert "Disassembly of run" not in str_output, str_output
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
