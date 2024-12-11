@@ -4,6 +4,23 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.17.3
+
+
+### Bug Fixes
+
+  - Ensure that Telemetry heartbeats are not skipped for forked processes, as doing so could result in the dependency list being lost over time.
+  - celery: This fix resolves two issues with context propagation in celery
+    1.  Invalid span parentage when task A calls task B async and task A errors out, causing A's queuing of B, and B itself to not be parented under A.
+    2.  Invalid context propagation from client to workers, and across retries, causing multiple traces instead of a single trace
+  - Code security: This fix resolves a patching issue with <span class="title-ref">psycopg3</span>.
+  - Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file. This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14, and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.
+  - Code Security: This fix resolves an issue where the modulo (%) operator would not be replaced correctly for bytes and bytesarray if IAST is enabled.
+  - Code Security: Ensure IAST SSRF vulnerability redacts the url query parameters correctly.
+
+
+---
+
 ## 2.17.2
 
 ### Bug Fixes
