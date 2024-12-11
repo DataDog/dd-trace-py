@@ -125,7 +125,16 @@ def handle_torch_trace(prof):
         )
 
     empty_events_count = 0
-    trace_start_ns = prof.profiler.kineto_results.trace_start_ns()
+
+    # earlier versions use microsecond, later versions use nanosecond
+    kineto_results = prof.profiler.kineto_results
+    if hasattr(kineto_results, "trace_start_ns"):
+        trace_start_ns = kineto_results.trace_start_ns()
+    elif hasattr(kineto_results, "trace_start_us"):
+        trace_start_ns = kineto_results.trace_start_us() * NANOS_PER_MICROSECOND
+    else:
+        raise AttributeError("Neither trace_start_ns nor trace_start_us exists")
+
     for e in prof.events()[:num_events_collected]:
         handle = ddup.SampleHandle()
         data_added = False

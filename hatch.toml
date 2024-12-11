@@ -376,9 +376,10 @@ dependencies = [
 ]
 
 [envs.profiling_pytorch.env-vars]
-DD_PROFILING_PYTORCH_ENABLED = "true"
 DD_PROFILING_ENABLED = "true"
+DD_PROFILING_PYTORCH_ENABLED = "true"
 DD_PROFILING_EXPORT_LIBDD_ENABLED = "true"
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.profiling_pytorch.scripts]
 test = [
