@@ -380,6 +380,7 @@ DD_PROFILING_ENABLED = "true"
 DD_PROFILING_PYTORCH_ENABLED = "true"
 DD_PROFILING_EXPORT_LIBDD_ENABLED = "true"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+DD_TRACE_DEBUG = "true"
 
 [envs.profiling_pytorch.scripts]
 test = [
