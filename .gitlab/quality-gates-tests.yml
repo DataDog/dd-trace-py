@@ -199,12 +199,27 @@ build_base_venvs:
 
 
 # Required jobs will appear here
-tracer:
+langchain:
   extends: .test_base_riot
-  variables:
-    DD_TRACE_AGENT_URL: http://localhost:8126
-  parallel: 9
-  retry: 2
+  parallel: 6
   artifacts:
     paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@langchain'
+      - '@requests'
       - '@llmobs'
+      - tests/contrib/langchain/*
+      - tests/snapshots/tests.contrib.langchain.*
+
+llmobs:
+  extends: .test_base_riot
+  artifacts:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@llmobs'
+      - tests/llmobs/*
