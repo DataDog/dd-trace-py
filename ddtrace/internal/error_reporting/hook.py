@@ -30,4 +30,4 @@ def _default_datadog_exc_callback(*args):
     )
 
     if _internal_debug_logger:
-        _internal_debug_logger.error("Handled exception", exc_info=True)
+        _internal_debug_logger.exception("Handled exception")

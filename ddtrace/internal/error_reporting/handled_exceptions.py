@@ -55,7 +55,6 @@ class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
                 self._instrument_obj(obj)
 
     def _instrument_obj(self, obj):
-
         if inject_handled_exception_reporting is None:
             return
 
