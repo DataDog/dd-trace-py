@@ -16,7 +16,10 @@ def parse_modules(value: t.Union[str, None]) -> t.List[str]:
 class ErrorReportingConfig(Env):
     __prefix__ = "dd_trace"
 
-    reported_handled_exceptions = Env.var(list, "reported_handled_exceptions", parser=parse_modules, default=[])
+    reported_handled_exceptions = Env.var(
+        list, "experimental_reported_handled_exceptions", parser=parse_modules, default=[])
+
+    _internal_logger = Env.var(str, "experimental_reported_handled_exceptions_logger", default="")
 
 
 _er_config = ErrorReportingConfig()
