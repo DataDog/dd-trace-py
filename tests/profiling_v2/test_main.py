@@ -12,11 +12,12 @@ from tests.utils import flaky
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_call_script(stack_v2_enabled, monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1" if stack_v2_enabled else "0")
+def test_call_script(stack_v2_enabled):
+    env = os.environ.copy()
+    env["DD_PROFILING_ENABLED"] = "1"
+    env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
     stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py")
+        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py"), env=env
     )
     if sys.platform == "win32":
         assert exitcode == 0, (stdout, stderr)
@@ -30,28 +31,33 @@ def test_call_script(stack_v2_enabled, monkeypatch):
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_call_script_gevent(stack_v2_enabled, monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1" if stack_v2_enabled else "0")
+def test_call_script_gevent(stack_v2_enabled):
+    env = os.environ.copy()
+    env["DD_PROFILING_ENABLED"] = "1"
+    env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
     stdout, stderr, exitcode, pid = call_program(
-        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py")
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py"), env=env
     )
     assert exitcode == 0, (stdout, stderr)
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_call_script_pprof_output(stack_v2_enabled, tmp_path, monkeypatch):
+def test_call_script_pprof_output(stack_v2_enabled, tmp_path):
     """This checks if the pprof output and atexit register work correctly.
 
     The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
     """
     filename = str(tmp_path / "pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")
-    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1" if stack_v2_enabled else "0")
+    env = os.environ.copy()
+    env["DD_PROFILING_OUTPUT_PPROF"] = filename
+    env["DD_PROFILING_CAPTURE_PCT"] = "1"
+    env["DD_PROFILING_ENABLED"] = "1"
+    env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
     stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "../profiling", "simple_program.py")
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "../profiling", "simple_program.py"),
+        env=env,
     )
     if sys.platform == "win32":
         assert exitcode == 0, (stdout, stderr)
@@ -65,13 +71,14 @@ def test_call_script_pprof_output(stack_v2_enabled, tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
-def test_fork(stack_v2_enabled, tmp_path, monkeypatch):
+def test_fork(stack_v2_enabled, tmp_path):
     filename = str(tmp_path / "pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1" if stack_v2_enabled else "0")
+    env = os.environ.copy()
+    env["DD_PROFILING_OUTPUT_PPROF"] = filename
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
+    env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
     stdout, stderr, exitcode, pid = call_program(
-        "python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py")
+        "python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
     )
     assert exitcode == 0
     child_pid = stdout.decode().strip()
@@ -128,10 +135,11 @@ def test_fork(stack_v2_enabled, tmp_path, monkeypatch):
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
-def test_fork_gevent(stack_v2_enabled, monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1" if stack_v2_enabled else "0")
+def test_fork_gevent(stack_v2_enabled):
+    env = os.environ.copy()
+    env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
     stdout, stderr, exitcode, pid = call_program(
-        "python", os.path.join(os.path.dirname(__file__), "../profiling", "gevent_fork.py")
+        "python", os.path.join(os.path.dirname(__file__), "../profiling", "gevent_fork.py"), env=env
     )
     assert exitcode == 0
 
@@ -144,18 +152,19 @@ methods = multiprocessing.get_all_start_methods()
     "method",
     set(methods) - {"forkserver", "fork"},
 )
-def test_multiprocessing(stack_v2_enabled, method, tmp_path, monkeypatch):
+def test_multiprocessing(stack_v2_enabled, method, tmp_path):
     filename = str(tmp_path / "pprof")
-    print(filename)
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1" if stack_v2_enabled else "0")
+    env = os.environ.copy()
+    env["DD_PROFILING_OUTPUT_PPROF"] = filename
+    env["DD_PROFILING_ENABLED"] = "1"
+    env["DD_PROFILING_CAPTURE_PCT"] = "1"
+    env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
         sys.executable,
         os.path.join(os.path.dirname(__file__), "../profiling", "_test_multiprocessing.py"),
         method,
+        env=env,
     )
     assert exitcode == 0, (stdout, stderr)
     pid, child_pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
