@@ -98,6 +98,7 @@ variables:
     name: registry.ddbuild.io/images/mirror/rabbitmq:3.12.7-management-alpine
     alias: rabbitmq
 
+
 .test_base_hatch:
   extends: .testrunner
   stage: tests
@@ -199,3 +200,10 @@ build_base_venvs:
 
 
 # Required jobs will appear here
+profile:
+  extends: .test_base_riot
+  variables:
+    DD_TRACE_AGENT_URL: 
+    SUITE_NAME: profile$|profile-v2
+  parallel: 20
+  retry: 2
