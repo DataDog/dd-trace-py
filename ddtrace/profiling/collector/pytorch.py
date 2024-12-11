@@ -148,19 +148,23 @@ def handle_torch_trace(prof):
         data_added = False
 
         # cpu time sample
-        if str(e.device_type).startswith("DeviceType.CPU"):
+        if e.cpu_time > 0:
             data_added = True
-            handle.push_cputime(int(e.time_range.elapsed_us() * NANOS_PER_MICROSECOND), 1)
+            handle.push_cputime(int(e.cpu_time * NANOS_PER_MICROSECOND), e.count)
 
-        # gpu time sample
-        if str(e.device_type).startswith("DeviceType.CUDA"):
+        # gpu time sample - both device_time and cuda_time are in microseconds
+        if hasattr(e, "device_time") and e.device_time > 0:
             data_added = True
-            handle.push_gpu_gputime(int(e.time_range.elapsed_us() * NANOS_PER_MICROSECOND), 1)
+            time_elapsed = int(e.device_time * NANOS_PER_MICROSECOND)
+            handle.push_gpu_gputime(time_elapsed, e.count)
+        elif hasattr(e, "cuda_time") and e.cuda_time > 0:
+            data_added = True
+            handle.push_gpu_gputime(time_elapsed, e.count)
 
         # gpu flops sample
         if e.flops is not None and e.flops > 0:
             data_added = True
-            handle.push_gpu_flops(e.flops, 1)
+            handle.push_gpu_flops(e.flops, e.count)
 
         # GPU memory usage
         # earlier versions of torch use cuda_memory_usage, recent versions use device_memory_usage
@@ -176,6 +180,9 @@ def handle_torch_trace(prof):
         if data_added:
             handle.push_frame(e.name, "", 0, -1)
             handle.push_gpu_device_name("cuda " + str(e.device_index))
+            handle.push_threadinfo(
+                e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
+            )
             handle.push_monotonic_ns(int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND))
             handle.push_threadinfo(
                 e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
