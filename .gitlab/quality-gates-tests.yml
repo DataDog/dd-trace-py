@@ -205,21 +205,6 @@ langchain:
   artifacts:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@langchain'
-      - '@requests'
-      - '@llmobs'
       - tests/contrib/langchain/*
       - tests/snapshots/tests.contrib.langchain.*
-
-llmobs:
-  extends: .test_base_riot
-  artifacts:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@llmobs'
-      - tests/llmobs/*
