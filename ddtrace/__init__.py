@@ -73,6 +73,7 @@ _DEPRECATED_MODULE_ATTRIBUTES = [
 
 if _er_config.reported_handled_exceptions:
     from ddtrace.internal.error_reporting.handled_exceptions import HandledExceptionReportingWatchdog
+
     HandledExceptionReportingWatchdog.install()
 
 

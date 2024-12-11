@@ -76,7 +76,7 @@ def _find_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
             continue
 
         if state == CHECKING_EXC_MATCH:
-            if CHECK_EXC_MATCH in code.co_code[exc_entry.start: exc_entry.end: 2]:
+            if CHECK_EXC_MATCH in code.co_code[exc_entry.start : exc_entry.end : 2]:
                 # we need to move forward, because this block of code is just checking
                 # if the exception handled matches the one that was raised
                 state = MATCHED_EXC_HANDLING_BLOCK
