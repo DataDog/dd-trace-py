@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: patch the module dir function so original pre-patch results are not changed.

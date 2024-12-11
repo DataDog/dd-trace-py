@@ -49,24 +49,13 @@ add_custom_command(
 # Specify the target C-extension that we want to build
 add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
 
-# We can't add common Profiling configuration because cython generates messy code, so we just setup some basic flags and
-# features
-target_link_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Release>:-Os>" -ffunction-sections)
-
-if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    # macOS-specific options
-    target_compile_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Debug>:-Og;-g>")
-    target_link_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Release>:-Wl,-dead_strip>")
-else()
-    # Linux/ELF-based options
-    target_compile_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Debug>:-Og;-ggdb3>" -fno-semantic-interposition)
-    target_link_options(${EXTENSION_NAME} PRIVATE "$<$<CONFIG:Release>:-s>" -Wl,--as-needed -Wl,-Bsymbolic-functions
-        -Wl,--gc-sections)
-endif()
-
-set_property(TARGET ${EXTENSION_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-
-target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
+add_ddup_config(${EXTENSION_NAME})
+# Cython generates code that produces errors for the following, so relax compile
+# options
+target_compile_options(
+    ${EXTENSION_NAME}
+    PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address
+)
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries). This suppresses that behavior,
 # which is required to ensure all paths can be inferred correctly by setup.py.
@@ -84,9 +73,6 @@ if(Python3_LIBRARIES)
 else()
     target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 endif()
-
-# Extensions are built as dynamic libraries, so PIC is required.
-set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)

@@ -38,6 +38,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.propagation.http import _TraceContext
 from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
@@ -284,7 +285,7 @@ def test_extract(tracer):  # noqa: F811
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.test=value,any=tag",
         "ot-baggage-key1": "value1",
-        "baggage": "foo=bar,racoon=cute,serverNode=DF%2028",
+        "baggage": "foo=bar,raccoon=cute,serverNode=DF%2028",
     }
 
     context = HTTPPropagator.extract(headers)
@@ -312,13 +313,20 @@ def test_extract(tracer):  # noqa: F811
                 "_dd.p.test": "value",
             }
         assert context.get_baggage_item("foo") == "bar"
-        assert context.get_baggage_item("racoon") == "cute"
+        assert context.get_baggage_item("raccoon") == "cute"
         assert context.get_baggage_item("serverNode") == "DF 28"
         assert len(context.get_all_baggage_items()) == 3
 
 
-def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(tracer):  # noqa: F811
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
+def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
+    tracer, appsec_enabled, iast_enabled  # noqa: F811
+):
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         headers = {
             "x-datadog-trace-id": "1234",
@@ -362,8 +370,15 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(t
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
-def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(tracer):  # noqa: F811
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
+def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
+    tracer, appsec_enabled, iast_enabled  # noqa: F811
+):
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -428,10 +443,15 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
-    tracer,  # noqa: F811
+    tracer, appsec_enabled, iast_enabled  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -526,10 +546,15 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_user_keep(
-    tracer, upstream_priority  # noqa: F811
+    tracer, upstream_priority, appsec_enabled, iast_enabled  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -585,10 +610,15 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_force_keep(
-    tracer, upstream_priority  # noqa: F811
+    tracer, upstream_priority, appsec_enabled, iast_enabled  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    if not appsec_enabled and not iast_enabled:
+        pytest.skip("AppSec or IAST must be enabled")
+
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -3134,16 +3164,15 @@ def test_llmobs_parent_id_not_injected_by_default():
     ],
 )
 def test_baggageheader_inject(span_context, expected_headers):
-    from ddtrace.propagation.http import _BaggageHeader
-
     headers = {}
     _BaggageHeader._inject(span_context, headers)
     assert headers == expected_headers
 
 
 def test_baggageheader_maxitems_inject():
+    import urllib.parse
+
     from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
-    from ddtrace.propagation.http import _BaggageHeader
 
     headers = {}
     baggage_items = {}
@@ -3151,18 +3180,45 @@ def test_baggageheader_maxitems_inject():
         baggage_items[f"key{i}"] = f"val{i}"
     span_context = Context(baggage=baggage_items)
     _BaggageHeader._inject(span_context, headers)
-    assert "baggage" not in headers
+    assert "baggage" in headers
+    header_value = headers["baggage"]
+    items = header_value.split(",")
+    assert len(items) == DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    expected_keys = [f"key{i}" for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS)]
+    for item in items:
+        key, value = item.split("=", 1)
+        key = urllib.parse.unquote(key)
+        assert key in expected_keys
 
 
 def test_baggageheader_maxbytes_inject():
     from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
-    from ddtrace.propagation.http import _BaggageHeader
 
     headers = {}
-    baggage_items = {"foo": ("a" * DD_TRACE_BAGGAGE_MAX_BYTES)}
+    # baggage item that exceeds the maximum byte size
+    baggage_items = {"foo": "a" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)}
     span_context = Context(baggage=baggage_items)
     _BaggageHeader._inject(span_context, headers)
-    assert "baggage" not in headers
+    # since the baggage item exceeds the max bytes, no header should be injected
+    header_value = headers["baggage"]
+    assert header_value == ""
+
+    # multiple baggage items to test dropping items when the total size exceeds the limit
+    headers = {}
+    baggage_items = {
+        "key1": "a" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key2": "b" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key3": "c" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key4": "d",
+    }
+    span_context = Context(baggage=baggage_items)
+    _BaggageHeader._inject(span_context, headers)
+    header_value = headers["baggage"]
+    header_size = len(header_value.encode("utf-8"))
+    assert header_size <= DD_TRACE_BAGGAGE_MAX_BYTES
+    assert "key4" not in header_value
+    assert "key2" in header_value
 
 
 @pytest.mark.parametrize(
@@ -3188,8 +3244,6 @@ def test_baggageheader_maxbytes_inject():
     ],
 )
 def test_baggageheader_extract(headers, expected_baggage):
-    from ddtrace.propagation.http import _BaggageHeader
-
     context = _BaggageHeader._extract(headers)
     assert context._baggage == expected_baggage
 
@@ -3210,8 +3264,6 @@ def test_baggageheader_extract(headers, expected_baggage):
     ],
 )
 def test_baggage_malformedheader_extract(headers, expected_baggage):
-    from ddtrace.propagation.http import _BaggageHeader
-
     context = _BaggageHeader._extract(headers)
     assert context._baggage == expected_baggage
 

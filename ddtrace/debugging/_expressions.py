@@ -23,6 +23,7 @@ Full grammar:
     arg_operation           =>  {"<arg_op_type>": [<argument_list>]}
     arg_op_type             =>  filter | substring | getmember | index
 """  # noqa
+
 from dataclasses import dataclass
 from itertools import chain
 import re
@@ -84,6 +85,13 @@ def instanceof(value: Any, type_qname: str) -> bool:
             log.debug("Failed to check instanceof %s for value of type %s", type_qname, type(value))
 
     return False
+
+
+def get_local(_locals: Mapping[str, Any], name: str) -> Any:
+    try:
+        return _locals[name]
+    except KeyError:
+        raise NameError(f"No such local variable: '{name}'")
 
 
 class DDCompiler:
@@ -235,11 +243,9 @@ class DDCompiler:
             if arg == "@it":
                 return [Instr("LOAD_FAST", "_dd_it")]
 
-            return [
-                Instr("LOAD_FAST", "_locals"),
-                Instr("LOAD_CONST", self.__ref__(arg)),
-                Instr("BINARY_SUBSCR"),
-            ]
+            return self._call_function(
+                get_local, [Instr("LOAD_FAST", "_locals")], [Instr("LOAD_CONST", self.__ref__(arg))]
+            )
 
         return None
 

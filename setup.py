@@ -53,11 +53,15 @@ DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
+BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.20.1"
+LIBDDWAF_VERSION = "1.22.0"
 
-RUST_MINIMUM_VERSION = "1.71"  # Safe guess:  1.71 is about a year old as of 2024-07-03
+# DEV: update this accordingly when src/core upgrades libdatadog dependency.
+# libdatadog v14.1.0 requires rust 1.76.
+RUST_MINIMUM_VERSION = "1.76"
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
@@ -349,6 +353,9 @@ class CMakeBuild(build_ext):
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
 
+        if BUILD_PROFILING_NATIVE_TESTS:
+            cmake_args += ["-DBUILD_TESTING=ON"]
+
         # If it's been enabled, also propagate sccache to the CMake build.  We have to manually set the default CC/CXX
         # compilers here, because otherwise the way we wrap sccache will conflict with the CMake wrappers
         sccache_path = os.getenv("DD_SCCACHE_PATH")
@@ -567,7 +574,9 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling": ["libdd_wrapper*.*"],
+        "ddtrace.internal.datadog.profiling": (
+            ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
+        ),
         "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
@@ -603,7 +612,11 @@ setup(
                 "ddtrace.profiling.collector.stack",
                 sources=["ddtrace/profiling/collector/stack.pyx"],
                 language="c",
-                extra_compile_args=extra_compile_args,
+                # cython generated code errors on build in toolchains that are strict about int->ptr conversion
+                # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying toolchain and
+                # emit the right flags, but as a compromise we assume Windows implies MSVC and everything else is on a
+                # GNU-like toolchain
+                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",

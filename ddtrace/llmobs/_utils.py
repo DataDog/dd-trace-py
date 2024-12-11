@@ -1,5 +1,6 @@
 import json
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -9,25 +10,30 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
+from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 
 
 log = get_logger(__name__)
 
 
-def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict]]:
-    validated_prompt = {}  # type: Dict[str, Union[str, dict]]
+def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
+    validated_prompt = {}  # type: Dict[str, Union[str, dict, List[str]]]
     if not isinstance(prompt, dict):
         raise TypeError("Prompt must be a dictionary")
     variables = prompt.get("variables")
     template = prompt.get("template")
     version = prompt.get("version")
     prompt_id = prompt.get("id")
+    ctx_variable_keys = prompt.get("rag_context_variables")
+    rag_query_variable_keys = prompt.get("rag_query_variables")
     if variables is not None:
         if not isinstance(variables, dict):
             raise TypeError("Prompt variables must be a dictionary.")
@@ -46,6 +52,22 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict]]:
         if not isinstance(prompt_id, str):
             raise TypeError("Prompt id must be a string.")
         validated_prompt["id"] = prompt_id
+    if ctx_variable_keys is not None:
+        if not isinstance(ctx_variable_keys, list):
+            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
+        if not all(isinstance(k, str) for k in ctx_variable_keys):
+            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
+        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ctx_variable_keys
+    else:
+        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ["context"]
+    if rag_query_variable_keys is not None:
+        if not isinstance(rag_query_variable_keys, list):
+            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
+        if not all(isinstance(k, str) for k in rag_query_variable_keys):
+            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
+        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = rag_query_variable_keys
+    else:
+        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = ["question"]
     return validated_prompt
 
 
@@ -97,7 +119,7 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
 
 
 def _get_span_name(span: Span) -> str:
-    if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME) and span.resource != "":
+    if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME, VERTEXAI_APM_SPAN_NAME) and span.resource != "":
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
         client_name = span.get_tag("openai.request.client") or "OpenAI"
@@ -160,6 +182,6 @@ def safe_json(obj):
     if isinstance(obj, str):
         return obj
     try:
-        return json.dumps(obj, skipkeys=True, default=_unserializable_default_repr)
+        return json.dumps(obj, ensure_ascii=False, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
