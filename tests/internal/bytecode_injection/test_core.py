@@ -110,7 +110,8 @@ def test_linetable_adjustment():
 
         # offset of line points to the same instructions
         assert (
-            original_code.co_code[original_offset] == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET]]
+            original_code.co_code[original_offset]
+            == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET]]
         ), "The corresponding opcode is the same"
 
         if original_code.co_code[original_offset] in dis.hasjrel:
@@ -121,13 +122,13 @@ def test_linetable_adjustment():
 
             # dereferencing the jump target (DEV: only depth 1, for now)
             assert (
-                original_code.co_code[original_offset + (
-                    original_arg << 1)] == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + (injected_arg << 1)]
+                original_code.co_code[original_offset + (original_arg << 1)]
+                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + (injected_arg << 1)]
             ), "The corresponding target opcode is the same"
         else:
             assert (
-                original_code.co_code[original_offset +
-                                      1] == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
+                original_code.co_code[original_offset + 1]
+                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
             ), "The corresponding argument is the same"
 
 
@@ -137,7 +138,7 @@ def test_linetable_adjustment():
 )
 def test_exceptiontable_adjustment():
     selected_line_starts = [e for e in list(dis.findlinestarts(sample_function_short_jumps.__code__))[1:-1]]
-    injection_offsets = [o for o, l in selected_line_starts]
+    injection_offsets = [o for o, _ in selected_line_starts]
 
     original_code = sample_function_short_jumps.__code__
     original_co_code = original_code.co_code
@@ -250,7 +251,7 @@ def test_try_finally_is_executed_when_callback_succeed():
 
         a = 1
         b = 2
-        c = a + b
+        _ = a + b
 
         try:
             value |= BEFORE_TRY_2
@@ -276,7 +277,9 @@ def test_try_finally_is_executed_when_callback_succeed():
 
     assert callback_invocations == 2
 
-    assert value == BEFORE_TRY_1 + AFTER_CALLBACK_ERROR_1 + FINALLY_1 + BEFORE_TRY_2 + AFTER_CALLBACK_ERROR_2 + FINALLY_2
+    assert (
+        value == BEFORE_TRY_1 + AFTER_CALLBACK_ERROR_1 + FINALLY_1 + BEFORE_TRY_2 + AFTER_CALLBACK_ERROR_2 + FINALLY_2
+    )
 
 
 def sample_function_1():
