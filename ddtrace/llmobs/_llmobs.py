@@ -348,17 +348,19 @@ class LLMObs(Service):
 
     @staticmethod
     def _patch_integrations() -> None:
-        """Patch LLM integrations. Ensure that we do not ignore DD_PATCH_MODULES or DD_TRACE_%_ENABLED settings."""
+        """
+        Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
+        """
         integrations_to_patch = {integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+        for module, _ in integrations_to_patch.items():
+            env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+            if env_var in os.environ:
+                integrations_to_patch[module] = asbool(os.environ[env_var])
         dd_patch_modules = os.getenv("DD_PATCH_MODULES")
         dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
         integrations_to_patch.update(
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
         )
-        for module, _ in integrations_to_patch.items():
-            env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-            if env_var in os.environ:
-                integrations_to_patch[module] = asbool(os.environ[env_var])
         patch(**integrations_to_patch)  # type: ignore[arg-type]
         log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
