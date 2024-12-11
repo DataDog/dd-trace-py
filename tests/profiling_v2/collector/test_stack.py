@@ -15,7 +15,6 @@ from ddtrace.profiling.collector import stack
 from ddtrace.settings.profiling import config
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
-from tests.profiling.collector.test_stack import func1
 
 
 # Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
@@ -27,45 +26,40 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
 )
 
 
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_collect_truncate(stack_v2_enabled, tmp_path):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
-        pytest.skip("stack_v2 is not supported on Python 3.7")
+# Use subprocess as ddup config persists across tests.
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_MAX_FRAMES="5",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
+        DD_PROFILING_STACK_V2_ENABLED="1",
+    )
+)
+def test_collect_truncate():
+    import os
 
-    test_name = "test_collect_truncate"
-    pprof_prefix = str(tmp_path / test_name)
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import func1
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
     output_filename = pprof_prefix + "." + str(os.getpid())
 
-    max_nframes = 5
+    max_nframes = int(os.environ["DD_PROFILING_MAX_FRAMES"])
 
-    assert ddup.is_available
-    ddup.config(
-        env="test",
-        service="test_collect_truncate",
-        version="my_version",
-        max_nframes=max_nframes,
-        output_filename=pprof_prefix,
-    )
-    ddup.start()
+    p = profiler.Profiler()
+    p.start()
 
-    with stack.StackCollector(None, _stack_collector_v2_enabled=stack_v2_enabled, nframes=max_nframes):
-        func1()
+    func1()
 
-    ddup.upload()
+    p.stop()
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
-    if stack_v2_enabled:
-        # stack v2 reserves one extra frame for "%d frames omitted" message
-        # And a single sample could have multiple location ids if the location
-        # shows up multiple times in the stack trace.
-        # Also, allow max_nframes + 1 frames in the locations, so we add 2
-        # to the max_nframes.
-        assert len(profile.location) <= max_nframes + 2
-    else:
-        for sample in samples:
-            assert len(sample.location_id) <= max_nframes
+    for sample in samples:
+        # stack v2 adds one extra frame for "%d frames omitted" message
+        # Also, it allows max_nframes + 1 frames, so we add 2 here.
+        assert len(sample.location_id) <= max_nframes + 2, len(sample.location_id)
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
