@@ -129,6 +129,54 @@ def test_push_span(stack_v2_enabled, tmp_path):
         )
 
 
+@pytest.mark.parametrize("stack_v2_enabled", [True, False])
+def test_push_span_v2_gates(stack_v2_enabled, tmp_path): # quality gates testing
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    test_name = "test_push_span"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    tracer._endpoint_call_counter_span_processor.enable()
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    resource = str(uuid.uuid4())
+    span_type = ext.SpanTypes.WEB
+
+    with stack.StackCollector(
+        None,
+        tracer=tracer,
+        endpoint_collection_enabled=True,
+        ignore_profiler=True,  # this is not necessary, but it's here to trim samples
+        _stack_collector_v2_enabled=stack_v2_enabled,
+    ):
+        with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
+            span_id = span.span_id
+            local_root_span_id = span._local_root.span_id
+            for _ in range(10):
+                time.sleep(0.1)
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "span id")
+    assert len(samples) > 0
+    for sample in samples:
+        pprof_utils.assert_stack_event(
+            profile,
+            sample,
+            expected_event=pprof_utils.StackEvent(
+                span_id=span_id,
+                local_root_span_id=local_root_span_id,
+                trace_type=span_type,
+                trace_endpoint=resource,
+            ),
+        )
+
+
 def test_push_span_unregister_thread(tmp_path, monkeypatch):
     if sys.version_info[:2] == (3, 7):
         pytest.skip("stack_v2 is not supported on Python 3.7")
@@ -188,53 +236,6 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 def test_push_non_web_span(stack_v2_enabled, tmp_path):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
-    tracer._endpoint_call_counter_span_processor.enable()
-
-    test_name = "test_push_non_web_span"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-
-    resource = str(uuid.uuid4())
-    span_type = ext.SpanTypes.SQL
-
-    with stack.StackCollector(
-        None,
-        tracer=tracer,
-        endpoint_collection_enabled=True,
-        ignore_profiler=True,  # this is not necessary, but it's here to trim samples
-        _stack_collector_v2_enabled=stack_v2_enabled,
-    ):
-        with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
-            span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
-            for _ in range(10):
-                time.sleep(0.1)
-    ddup.upload()
-
-    profile = pprof_utils.parse_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "span id")
-    assert len(samples) > 0
-    for sample in samples:
-        pprof_utils.assert_stack_event(
-            profile,
-            sample,
-            expected_event=pprof_utils.StackEvent(
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                trace_type=span_type,
-                # trace_endpoint is not set for non-web spans
-            ),
-        )
-
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_push_non_web_span_v2_gate(stack_v2_enabled, tmp_path):
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
