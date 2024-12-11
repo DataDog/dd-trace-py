@@ -14,6 +14,7 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
 from ddtrace.settings.profiling import config
 from tests.profiling.collector import pprof_utils
+from tests.profiling.collector.test_stack import func1
 
 
 # Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
@@ -23,6 +24,47 @@ from tests.profiling.collector import pprof_utils
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
     sys.version_info < (3, 11, 9) or sys.version_info >= (3, 12, 5)
 )
+
+
+@pytest.mark.parametrize("stack_v2_enabled", [True, False])
+def test_collect_truncate(stack_v2_enabled, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
+    test_name = "test_collect_truncate"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    max_nframes = 5
+
+    assert ddup.is_available
+    ddup.config(
+        env="test",
+        service="test_collect_truncate",
+        version="my_version",
+        max_nframes=max_nframes,
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+
+    with stack.StackCollector(None, _stack_collector_v2_enabled=stack_v2_enabled, nframes=max_nframes):
+        func1()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
+    if stack_v2_enabled:
+        # stack v2 reserves one extra frame for "%d frames omitted" message
+        # And a single sample could have multiple location ids if the location
+        # shows up multiple times in the stack trace.
+        # Also, allow max_nframes + 1 frames in the locations, so we add 2
+        # to the max_nframes.
+        assert len(profile.location) <= max_nframes + 2
+    else:
+        for sample in samples:
+            assert len(sample.location_id) <= max_nframes
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
