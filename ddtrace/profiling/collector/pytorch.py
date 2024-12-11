@@ -159,6 +159,7 @@ def handle_torch_trace(prof):
             handle.push_gpu_gputime(time_elapsed, e.count)
         elif hasattr(e, "cuda_time") and e.cuda_time > 0:
             data_added = True
+            time_elapsed = int(e.cuda_time * NANOS_PER_MICROSECOND)
             handle.push_gpu_gputime(time_elapsed, e.count)
 
         # gpu flops sample
