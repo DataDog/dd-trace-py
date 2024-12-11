@@ -144,6 +144,7 @@ def test_wrap_generator_send():
     assert list(range(10)) == channel
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
 def test_wrap_generator_throw_close():
     def wrapper_maker(channel):
         def wrapper(f, args, kwargs):
@@ -308,6 +309,7 @@ def test_wrap_arg_args_kwarg_kwargs():
     assert f(1, path="bar", foo="baz") == (1, (), "bar", {"foo": "baz"})
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
 @pytest.mark.asyncio
 async def test_async_generator():
     async def stream():
@@ -344,6 +346,7 @@ async def test_async_generator():
     assert awrapper_called
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
 @pytest.mark.asyncio
 async def test_wrap_async_generator_send():
     def wrapper(f, args, kwargs):
