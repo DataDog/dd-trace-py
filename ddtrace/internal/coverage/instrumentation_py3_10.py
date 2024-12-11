@@ -6,6 +6,7 @@ import typing as t
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
 from ddtrace.internal.injection import HookType
+from ddtrace.internal.bytecode_injection.core import InjectionContext, inject_invocation
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
