@@ -254,7 +254,7 @@ with mock.patch(
 def test_ragas_context_precision_evaluator_init(ragas, LLMObs):
     rcp_evaluator = RagasContextPrecisionEvaluator(LLMObs)
     assert rcp_evaluator.llmobs_service == LLMObs
-    assert rcp_evaluator.ragas_context_precision_instance == ragas.metrics.faithfulness
+    assert rcp_evaluator.ragas_context_precision_instance == ragas.metrics.context_precision
     assert rcp_evaluator.ragas_context_precision_instance.llm == ragas.llms.llm_factory()
 
 
