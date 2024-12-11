@@ -28,4 +28,5 @@ for _ in range(5000000):
     object()
 
 print(os.getpid())
+print(bootstrap.profiler._profiler._stack_v2_enabled)
 sys.exit(42)
