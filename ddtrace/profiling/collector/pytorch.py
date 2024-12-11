@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import abc
 import logging
+import random
 import typing
 
 import wrapt
@@ -113,16 +114,20 @@ class TorchProfilerCollector(MLProfilerCollector):
 def handle_torch_trace(prof):
     NANOS_PER_MICROSECOND = 1e3
     LOG.debug("handle_torch_trace called")
+    events = prof.events()
+    if len(events) == 0:
+        return
+
     # need an upper bound of events collected, can be adjusted based on profile size.
     # Sadly, there is no way AFAICT to tell the PyTorch profiler itself to limit the num of samples.
     # We truncate to keep the uploaded profile to a reasonable size.
     # For now, experiment with a default of 1_000_000 if nothing is set.
     # TODO, better values here.
-    num_events_collected = min(len(prof.events()), config.pytorch.events_limit or 1_000_000)
-    if num_events_collected < len(prof.events()):
-        LOG.debug(
-            "Dropped events.  num_events_collected %d. len(prof.events()): %d", num_events_collected, len(prof.events())
-        )
+    collection_fraction = 1.0
+    num_events_to_report = min(len(events), config.pytorch.events_limit or 1_000_000)
+    if num_events_to_report < len(events):
+        LOG.debug("Dropped events.  num_events_to_report %d. len(events): %d", num_events_to_report, len(events))
+        collection_fraction = num_events_to_report / len(events)
 
     empty_events_count = 0
 
@@ -135,17 +140,10 @@ def handle_torch_trace(prof):
     else:
         raise AttributeError("Neither trace_start_ns nor trace_start_us exists")
 
-    using_cuda_mem = False
-    using_device_mem = False
-    events = prof.events()[:num_events_collected]
-    if len(events) > 0:
-        # earlier versions of torch use cuda_memory_usage, recent versions use device_memory_usage
-        using_cuda_mem = hasattr(events[0], "cuda_memory_usage")
-        using_device_mem = hasattr(events[0], "device_memory_usage")
-        if not using_cuda_mem and not using_device_mem:
-            raise AttributeError("Neither cuda_memory_usage nor device_memory_usage exist in event")
-
     for e in events:
+        if collection_fraction < random.random():
+            continue
+
         handle = ddup.SampleHandle()
         data_added = False
 
@@ -158,23 +156,20 @@ def handle_torch_trace(prof):
         if str(e.device_type).startswith("DeviceType.CUDA"):
             data_added = True
             handle.push_gpu_gputime(int(e.time_range.elapsed_us() * NANOS_PER_MICROSECOND), 1)
-            # TODO, is this common data or GPU Time only?
-            handle.push_threadinfo(
-                e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
-            )
 
         # gpu flops sample
         if e.flops is not None and e.flops > 0:
             data_added = True
             handle.push_gpu_flops(e.flops, 1)
 
-        # gpu mem sample - see comment above about api changes
-        if using_device_mem and e.device_memory_usage is not None and e.device_memory_usage > 0:
+        # GPU memory usage
+        # earlier versions of torch use cuda_memory_usage, recent versions use device_memory_usage
+        if hasattr(e, "device_memory_usage") and e.device_memory_usage is not None and e.device_memory_usage > 0:
             data_added = True
-            handle.push_gpu_memory(e.device_memory_usage, 1)
-        elif using_cuda_mem and e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
+            handle.push_gpu_memory(e.device_memory_usage, e.count)
+        elif hasattr(e, "cuda_memory_usage") and e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
             data_added = True
-            handle.push_gpu_memory(e.cuda_memory_usage, 1)
+            handle.push_gpu_memory(e.cuda_memory_usage, e.count)
 
         # If there is data, flush it to the profile.
         # Otherwise, do nothing and the sample object will be dropped when it goes out of scope
@@ -182,6 +177,9 @@ def handle_torch_trace(prof):
             handle.push_frame(e.name, "", 0, -1)
             handle.push_gpu_device_name("cuda " + str(e.device_index))
             handle.push_monotonic_ns(int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND))
+            handle.push_threadinfo(
+                e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
+            )
             handle.flush_sample()
         else:
             if empty_events_count % 1000 == 0:
