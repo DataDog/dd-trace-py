@@ -40,6 +40,9 @@ def test_call_script_gevent(monkeypatch):
 @pytest.mark.skipif(not os.getenv("DD_PROFILING_PYTORCH_ENABLED", False), reason="Not testing pytorch GPU")
 def test_call_script_pytorch_gpu(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "true")
+    monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "true")
+    monkeypatch.setenv("DD_PROFILING_EXPORT_LIBDD_ENABLED", "true")
     stdout, stderr, exitcode, pid = call_program(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
