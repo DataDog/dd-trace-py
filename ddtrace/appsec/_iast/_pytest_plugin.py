@@ -70,8 +70,8 @@ def print_iast_report(terminalreporter):
             terminalreporter.write(f"Test: {entry['nodeid']}\n", bold=True)
             high_severity = entry["vulnerability"].endswith("INJECTION")
             terminalreporter.write(
-                f"Vulnerability: {entry['vulnerability']}"
-                # TODO(@gnufede): Add remediation links, wheree remediation is a dict with the vulnerability as key
+                f"Vulnerability: {entry['vulnerability']}",
+                # TODO(@gnufede): Add remediation links, where remediation is a dict with the vulnerability as key
                 # f" - \033]8;;{remediation[entry['vulnerability']]}\033\\Remediation\033]8;;\033\\ \n",
                 bold=True,
                 red=high_severity,
