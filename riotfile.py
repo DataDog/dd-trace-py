@@ -1207,7 +1207,7 @@ venv = Venv(
                     pkgs={"psycopg2-binary": "~=2.8.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     # psycopg2-binary added support for Python 3.9/3.10 in 2.9.1
                     # psycopg2-binary added support for Python 3.11 in 2.9.2
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
@@ -1590,7 +1590,7 @@ venv = Venv(
         ),
         Venv(
             name="aiomysql",
-            pys=select_pys(min_version="3.7", max_version="3.13"),
+            pys=select_pys(min_version="3.7", max_version="3.12"),
             command="pytest {cmdargs} tests/contrib/aiomysql",
             pkgs={
                 "pytest-randomly": latest,

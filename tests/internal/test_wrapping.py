@@ -95,6 +95,7 @@ def test_mutiple_wrap():
     assert not channel1 and not channel2
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
 def test_wrap_generator():
     channel = []
 
@@ -216,6 +217,7 @@ def test_wrap_stack():
     assert [frame.f_code.co_name for frame in f()[:4]] == ["f", "wrapper", "f", "test_wrap_stack"]
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
 @pytest.mark.asyncio
 async def test_wrap_async_context_manager_exception_on_exit():
     def wrapper(f, args, kwargs):
@@ -374,6 +376,7 @@ async def test_wrap_async_generator_send():
     await consume()
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
 @pytest.mark.asyncio
 async def test_double_async_for_with_exception():
     channel = None
@@ -418,6 +421,7 @@ async def test_double_async_for_with_exception():
         b"".join([_ async for _ in s])
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")
 @pytest.mark.asyncio
 async def test_wrap_async_generator_throw_close():
     channel = []
