@@ -48,6 +48,7 @@ add_custom_command(
 
 # Specify the target C-extension that we want to build
 add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
+set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
 add_ddup_config(${EXTENSION_NAME})
 # Cython generates code that produces errors for the following, so relax compile
@@ -61,10 +62,6 @@ target_compile_options(
 # which is required to ensure all paths can be inferred correctly by setup.py.
 set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
 set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
-
-# RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
-# typical.
-set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
     ${Python3_INCLUDE_DIRS})
 

@@ -78,44 +78,62 @@ function(add_ddup_config target)
         target_compile_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=${SANITIZE_OPTIONS})
 
-    # If msan was chosen, also enable memory track origins, which helps in diagnostics
-    if(SANITIZE_OPTIONS STREQUAL "memory")
-        target_compile_options(${target} PRIVATE -fsanitize-memory-track-origins)
+        # If msan was chosen, also enable memory track origins, which helps in diagnostics
+        if(SANITIZE_OPTIONS STREQUAL "memory")
+            target_compile_options(${target} PRIVATE -fsanitize-memory-track-origins)
 
-        # That was the easy part. Now we have to include an entire custom clang toolchain which has the msan runtime.
-        # Selecting a version is hard, so just build the latest one.
-        include(FindCxxMsan)
+            # This section is tricky.
+            # 1. In order for msan to work, libc and libc++ both must be instrumented.  We get libc from the system, but
+            #    we need to build libc++ with msan instrumentation. Moreover, the resulting library must be used at runtime,
+            #    but not build time.
+            # 2. After building libc++, it gets added to the target's RPATH. BUT the RPATH has to be merged with any existing
+            #    RPATH.  If the caller sets their RPATH _after_ they call this function, then it's their responsibility to
+            #    handle the merge correctly.
+            include(FindCxxMsan)
+            add_dependencies(${target} llvm-libcxx-msan)
 
-        add_dependencies(${target} llvm-libcxx-msan)
-        target_compile_options(${target} PRIVATE
-           -stdlib=libc++,
-           -nostdinc++,
-           -isystem ${CMAKE_CURRENT_BINARY_DIR}/llvm-libcxx-msan/install/include/c++/v1
-        )
+            # Now merge the RPATHs
+            set(libcxx_rpath "${INSTALLED_LIBCXX_PATH}")
+            get_target_property(existing_rpath ${target} INSTALL_RPATH)
+            if(existing_rpath)
+              #set(new_rpath ${existing_rpath};${libcxx_rpath})
+                set(new_rpath ${libcxx_rpath})
+            else()
+                set(new_rpath ${libcxx_rpath})
+            endif()
+            #            set_target_properties(${target} PROPERTIES INSTALL_RPATH "${new_rpath}")
+            set_target_properties(${target} PROPERTIES INSTALL_RPATH ${INSTALLED_LIBCXX_PATH})
+        else()
+            execute_process(
+                COMMAND bash -c "find $(${CMAKE_CXX_COMPILER} -print-file-name=) -name '*.so' -exec dirname {} \; | uniq"
+                OUTPUT_VARIABLE LIBSAN_LIB_PATHS
+                OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
 
-        target_link_options(${target} PRIVATE
-            -stdlib=libc++
-            -L${INSTALLED_LIBCXX_PATH}
-            -lc++abi
-        )
-    endif()
+            # Print for debugging
+            message(STATUS "LIBSAN_LIB_PATHS: ${LIBSAN_LIB_PATHS}")
 
-    # Locate all directories containing relevant `.so` files
-    execute_process(
-        COMMAND bash -c "find $(${CMAKE_CXX_COMPILER} -print-file-name=) -name '*.so' -exec dirname {} \; | uniq"
-        OUTPUT_VARIABLE LIBSAN_LIB_PATHS
-        OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+            # Split the paths into a semicolon-separated list for CMake
+            string(REPLACE "\n" ";" LIBSAN_LIB_PATHS_LIST "${LIBSAN_LIB_PATHS}")
 
-    # Print for debugging
-    message(STATUS "LIBSAN_LIB_PATHS: ${LIBSAN_LIB_PATHS}")
+            # Set RPATH to include all identified paths
+            # (note that these have to be merged)
+            get_target_property(existing_irpath ${target} INSTALL_RPATH)
+            get_target_property(existing_brpath ${target} BUILD_RPATH)
+            if(existing_irpath)
+                set(new_irpath "${existing_irpath};${LIBSAN_LIB_PATHS_LIST}")
+            else()
+                set(new_irpath "${LIBSAN_LIB_PATHS_LIST}")
+            endif()
+            if(existing_brpath)
+                set(new_brpath "${existing_brpath}:${LIBSAN_LIB_PATHS_LIST}")
+            else()
+                set(new_brpath "${LIBSAN_LIB_PATHS_LIST}")
+            endif()
 
-    # Split the paths into a semicolon-separated list for CMake
-    string(REPLACE "\n" ";" LIBSAN_LIB_PATHS_LIST "${LIBSAN_LIB_PATHS}")
-
-    # Set RPATH to include all identified paths
-    set_target_properties(${target} PROPERTIES
-        BUILD_RPATH "${LIBSAN_LIB_PATHS_LIST}"
-        INSTALL_RPATH "${LIBSAN_LIB_PATHS_LIST}")
+            set_target_properties(${target} PROPERTIES
+                BUILD_RPATH "${new_brpath}"
+                INSTALL_RPATH "${new_irpath}")
+        endif()
     endif()
 
     # If DO_FANALYZER is specified and we're using gcc, then we can use -fanalyzer

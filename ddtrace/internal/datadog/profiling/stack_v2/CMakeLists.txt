@@ -51,6 +51,7 @@ endif()
 
 # Specify the target C-extension that we want to build
 add_library(${EXTENSION_NAME} SHARED src/sampler.cpp src/stack_renderer.cpp src/stack_v2.cpp src/thread_span_links.cpp)
+set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
@@ -91,10 +92,6 @@ endif()
 # which is required to ensure all paths can be inferred correctly by setup.py.
 set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
 set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
-
-# RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
-# typical.
-set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads)
 
