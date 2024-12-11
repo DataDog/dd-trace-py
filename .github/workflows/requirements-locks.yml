@@ -11,10 +11,11 @@ jobs:
   validate:
     name: Check requirements lockfiles
     runs-on: ubuntu-latest
-    container: ghcr.io/datadog/dd-trace-py/testrunner@sha256:8ca43d46ff34e078bd7bc0662e74e6be38547a98140a5cd4203805f6b214b583
+    container: ghcr.io/datadog/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Fixup git permissions
@@ -25,7 +26,7 @@ jobs:
         run: pyenv global 3.10 3.7 3.8 3.9 3.11 3.12
 
       - name: Install Dependencies
-        run: pip install --upgrade pip && pip install riot==0.20.0
+        run: pip install --upgrade pip && pip install riot==0.20.1
 
       - name: Generate riot locks
         run: scripts/compile-and-prune-test-requirements
