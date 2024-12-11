@@ -145,7 +145,6 @@ methods = multiprocessing.get_all_start_methods()
     set(methods) - {"forkserver", "fork"},
 )
 def test_multiprocessing(stack_v2_enabled, method, tmp_path, monkeypatch):
-
     filename = str(tmp_path / "pprof")
     print(filename)
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)

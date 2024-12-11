@@ -14,6 +14,7 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
 from ddtrace.settings.profiling import config
 from tests.profiling.collector import pprof_utils
+from tests.profiling.collector import test_collector
 from tests.profiling.collector.test_stack import func1
 
 
@@ -694,8 +695,23 @@ def test_collect_gevent_thread_task():
     assert checked_thread, "No samples found for the expected threads"
 
 
+def test_max_time_usage():
+    with pytest.raises(ValueError):
+        stack.StackCollector(None, max_time_usage_pct=0)
+
+
+def test_max_time_usage_over():
+    with pytest.raises(ValueError):
+        stack.StackCollector(None, max_time_usage_pct=200)
+
+
 @pytest.mark.parametrize(
-    ("stack_v2_enabled", "ignore_profiler"), [(True, True), (True, False), (False, True), (False, False)]
+    "stack_v2_enabled",
+    [True, False],
+)
+@pytest.mark.parametrize(
+    "ignore_profiler",
+    [True, False],
 )
 def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
@@ -734,3 +750,79 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
         assert collector_worker_thread_id in thread_ids
     else:
         assert collector_worker_thread_id not in thread_ids
+
+
+# TODO: support ignore profiler with stack_v2 and update this test
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_OUTPUT_PPROF="/tmp/test_ignore_profiler_gevent_task"),
+)
+def test_ignore_profiler_gevent_task():
+    import gevent.monkey
+
+    gevent.monkey.patch_all()
+
+    import os
+    import time
+    import typing
+
+    from ddtrace.profiling import collector
+    from ddtrace.profiling import event as event_mod
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    def _fib(n):
+        if n == 1:
+            return 1
+        elif n == 0:
+            return 0
+        else:
+            return _fib(n - 1) + _fib(n - 2)
+
+    class CollectorTest(collector.PeriodicCollector):
+        def collect(self) -> typing.Iterable[typing.Iterable[event_mod.Event]]:
+            _fib(22)
+            return []
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+
+    p = profiler.Profiler()
+
+    p.start()
+
+    for c in p._profiler._collectors:
+        if isinstance(c, stack.StackCollector):
+            c.ignore_profiler
+
+    c = CollectorTest(None, interval=0.00001)
+    c.start()
+
+    time.sleep(3)
+
+    worker_ident = c._worker.ident
+
+    c.stop()
+    p.stop()
+
+    profile = pprof_utils.parse_profile(output_filename + "." + str(os.getpid()))
+
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+
+    thread_ids = set()
+    for sample in samples:
+        thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+        thread_id = int(thread_id_label.num)
+        thread_ids.add(thread_id)
+
+    assert worker_ident not in thread_ids
+
+
+def test_repr():
+    test_collector._test_repr(
+        stack.StackCollector,
+        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
+        "recorder=Recorder(default_max_events=16384, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
+        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None)",
+    )
