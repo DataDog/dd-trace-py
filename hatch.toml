@@ -384,7 +384,7 @@ DD_PROFILING_EXPORT_LIBDD_ENABLED = "true"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/profiling/test_main.py::test_call_script_pytorch_cpu -vvv --capture=tee-sys",
+    "python -m pytest tests/profiling/test_main.py::test_call_script_pytorch_gpu -vvv --capture=tee-sys",
 ]
 
 [[envs.profiling_pytorch.matrix]]

@@ -3,8 +3,10 @@ name: Pytorch Unit Tests (with GPU)
 on:
   push:
     branches:
-  	  - 'main'
-  	  - 'mq-working-branch**'
+      - 'main'
+      - 'mq-working-branch**'
+    paths:
+      - 'ddtrace/profiling/collector/pytorch.py'
   pull_request:
     paths:
       - 'ddtrace/profiling/collector/pytorch.py'
@@ -12,11 +14,7 @@ on:
 
 jobs:
    unit-tests:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        arch: [x86_64]
-    runs-on: ${{ matrix.os }} 
+    runs-on: APM-4-CORE-GPU-LINUX
     steps:
       - uses: actions/checkout@v4
         # Include all history and tags
