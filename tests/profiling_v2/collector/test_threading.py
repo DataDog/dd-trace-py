@@ -74,16 +74,16 @@ def test_patch():
     lock = threading.Lock
     collector = collector_threading.ThreadingLockCollector(None)
     collector.start()
-    assert lock == collector.original
+    assert lock == collector._original
     # wrapt makes this true
     assert lock == threading.Lock
     collector.stop()
     assert lock == threading.Lock
-    assert collector.original == threading.Lock
+    assert collector._original == threading.Lock
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess()
 def test_user_threads_have_native_id():
     from os import getpid
     from threading import Thread

@@ -44,6 +44,8 @@ TYPE = "langchain.request.type"
 ANTHROPIC_PROVIDER_NAME = "anthropic"
 BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
+VERTEXAI_PROVIDER_NAME = "vertexai"
+GEMINI_PROVIDER_NAME = "google_palm"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -81,6 +83,12 @@ class LangChainIntegration(BaseLLMIntegration):
         if model_provider:
             if model_provider.startswith(BEDROCK_PROVIDER_NAME):
                 llmobs_integration = "bedrock"
+            # only the llm interface for Vertex AI will get instrumented
+            elif model_provider.startswith(VERTEXAI_PROVIDER_NAME) and operation == "llm":
+                llmobs_integration = "vertexai"
+            # only the llm interface for Gemini will get instrumented
+            elif model_provider.startswith(GEMINI_PROVIDER_NAME) and operation == "llm":
+                llmobs_integration = "google_generativeai"
             elif model_provider.startswith(OPENAI_PROVIDER_NAME):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
