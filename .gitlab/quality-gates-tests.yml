@@ -204,6 +204,6 @@ profile:
   extends: .test_base_riot
   variables:
     DD_TRACE_AGENT_URL: 
-    SUITE_NAME: profile$|profile-v2
+    SUITE_NAME: profile-v2
   parallel: 20
   retry: 2
