@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 import time
 
@@ -8,14 +7,12 @@ import pytest
 
 import ddtrace
 from ddtrace.profiling import collector
-from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.profiling.exporter import http
 
 
 def test_status():
