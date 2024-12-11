@@ -135,7 +135,7 @@ def test_gunicorn(gunicorn, tmp_path, monkeypatch):
     args = ("-k", "gevent") if TESTING_GEVENT else tuple()
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)
 
-def test_gunicorn_v2(gunicorn, tmp_path, monkeypatch): # quality gates testing
+def test_gunicorn_v2_gates(gunicorn, tmp_path, monkeypatch): # quality gates testing
     # type: (...) -> None
     args = ("-k", "gevent") if TESTING_GEVENT else tuple()
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)
