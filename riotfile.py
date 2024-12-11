@@ -395,7 +395,7 @@ venv = Venv(
                 "msgpack": [latest],
                 "pytest-randomly": latest,
             },
-            pys=select_pys(max_version="3.12"),
+            pys=select_pys(),
             venvs=[
                 Venv(
                     name="datastreams-latest",
@@ -605,15 +605,31 @@ venv = Venv(
         Venv(
             name="falcon",
             command="pytest {cmdargs} tests/contrib/falcon",
-            pys=select_pys(min_version="3.7", max_version="3.12"),
             pkgs={
-                "falcon": [
-                    "~=3.0.0",
-                    "~=3.0",  # latest 3.x
-                    latest,
-                ],
                 "pytest-randomly": latest,
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pkgs={
+                        "falcon": [
+                            "~=3.0.0",
+                            "~=3.0",  # latest 3.x
+                            latest,
+                        ],
+                    },
+                ),
+                # TODO - update integration to support falcon 4
+                # Venv(
+                #    pys=select_pys(min_version="3.13"),
+                #    pkgs={
+                #        "falcon": [
+                #            "~=4.0",  # latest 4.x
+                #            latest,
+                #        ],
+                #    },
+                # ),
+            ],
         ),
         Venv(
             name="bottle",
@@ -791,14 +807,11 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/django",
             pkgs={
                 "django-redis": ">=4.5,<4.6",
-                "django-pylibmc": ">=0.6,<0.7",
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django[testing]": "==3.10.0",
-                "pylibmc": latest,
-                "python-memcached": latest,
                 "pytest-randomly": latest,
                 "django-q": latest,
                 "spyne": latest,
@@ -810,30 +823,56 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # django dropped support for Python 3.6/3.7 in 4.0
-                    pys=select_pys(max_version="3.7"),
                     pkgs={
-                        "django": "~=3.2",
-                        "channels": ["~=3.0", latest],
-                    },
-                ),
-                Venv(
-                    # django dropped support for Python 3.8/3.9 in 5.0
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={
-                        "django": ["~=4.0"],
                         "channels": latest,
+                        "pylibmc": latest,
+                        "python-memcached": latest,
+                        "django-pylibmc": ">=0.6,<0.7",
                     },
+                    venvs=[
+                        Venv(
+                            # django dropped support for Python 3.6/3.7 in 4.0
+                            pys=select_pys(max_version="3.7"),
+                            pkgs={
+                                "django": "~=3.2",
+                                "channels": ["~=3.0", latest],
+                                "pylibmc": latest,
+                                "python-memcached": latest,
+                                "django-pylibmc": ">=0.6,<0.7",
+                            },
+                        ),
+                        Venv(
+                            # django dropped support for Python 3.8/3.9 in 5.0
+                            pys=select_pys(min_version="3.8", max_version="3.9"),
+                            pkgs={
+                                "django": ["~=4.0"],
+                                "channels": latest,
+                                "pylibmc": latest,
+                                "python-memcached": latest,
+                                "django-pylibmc": ">=0.6,<0.7",
+                            },
+                        ),
+                        Venv(
+                            # django started supporting psycopg3 in 4.2 for versions >3.1.8
+                            pys=select_pys(min_version="3.8", max_version="3.12"),
+                            pkgs={
+                                "django": ["~=4.2"],
+                                "psycopg": latest,
+                                "channels": latest,
+                                "pylibmc": latest,
+                                "python-memcached": latest,
+                                "django-pylibmc": ">=0.6,<0.7",
+                            },
+                        ),
+                    ],
                 ),
-                Venv(
-                    # django started supporting psycopg3 in 4.2 for versions >3.1.8
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
-                    pkgs={
-                        "django": ["~=4.2"],
-                        "psycopg": latest,
-                        "channels": latest,
-                    },
-                ),
+                # TODO - udpate django integration to support 5.x
+                # Venv(
+                #    pys=select_pys(min_version="3.12"),
+                #    pkgs={
+                #        "django": [">=5.1.3"],
+                #    },
+                # ),
             ],
         ),
         Venv(
@@ -1207,7 +1246,7 @@ venv = Venv(
                     pkgs={"psycopg2-binary": "~=2.8.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7"),
                     # psycopg2-binary added support for Python 3.9/3.10 in 2.9.1
                     # psycopg2-binary added support for Python 3.11 in 2.9.2
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
@@ -1231,7 +1270,7 @@ venv = Venv(
                             },
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12", max_version="3.12"),
+                            pys=select_pys(min_version="3.12"),
                             pkgs={
                                 "pytest-asyncio": "==0.23.7",
                             },
@@ -1330,15 +1369,22 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             pkgs={
                 "pytest-randomly": latest,
-                "greenlet": "==3.0.3",
+                "psycopg2-binary": latest,
+                "mysql-connector-python": latest,
+                "sqlalchemy": latest,
             },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
+                        "greenlet": "==3.0.3",
                         "sqlalchemy": ["~=1.3.0", latest],
-                        "psycopg2-binary": latest,
-                        "mysql-connector-python": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "greenlet": "==3.1.0",
                     },
                 ),
             ],
@@ -1504,7 +1550,7 @@ venv = Venv(
                     pkgs={"pymysql": "~=0.10"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
                         "pymysql": [
                             "~=1.0",
@@ -1569,7 +1615,7 @@ venv = Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
             pkgs={
-                "httpx": latest,
+                "httpx": "<=0.27.2",
                 "pytest-asyncio": "==0.21.1",
                 "python-multipart": latest,
                 "pytest-randomly": latest,
@@ -1583,7 +1629,7 @@ venv = Venv(
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
-                    pys=select_pys(min_version="3.11", max_version="3.12"),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={"fastapi": ["~=0.86.0", latest], "anyio": ">=3.4.0,<4.0"},
                 ),
             ],
@@ -1637,7 +1683,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={
                         "pytest": [
                             "~=6.0",
@@ -1693,26 +1739,23 @@ venv = Venv(
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
+                "pytest-bdd": [
+                    ">=4.0,<5.0",
+                    # FIXME: add support for v6.1
+                    ">=6.0,<6.1",
+                ],
             },
             env={
                 "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={
-                        "pytest-bdd": [
-                            ">=4.0,<5.0",
-                            # FIXME: add support for v6.1
-                            ">=6.0,<6.1",
-                        ]
-                    },
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.13"),
                     pkgs={
                         "pytest-bdd": [
-                            ">=4.0,<5.0",
                             # FIXME: add support for v6.1
                             ">=6.0,<6.1",
                         ]
@@ -1772,10 +1815,17 @@ venv = Venv(
                 ),
                 Venv(
                     # grpcio added support for Python 3.12 in 1.59
-                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pys="3.12",
                     pkgs={
                         "grpcio": ["~=1.59.0", latest],
                         "pytest-asyncio": "==0.23.7",
+                    },
+                ),
+                Venv(
+                    # grpcio added support for Python 3.13 in 1.66.2
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "grpcio": ["~=1.66.2", latest],
                     },
                 ),
             ],
