@@ -183,7 +183,7 @@ def test_memalloc_no_init_error_on_fork():
     os.waitpid(pid, 0)
 
 
-# Not parametrizing with stack_v2_enabled as subprocess mark doens't support
+# Not parametrizing with stack_v2_enabled as subprocess mark doesn't support
 # parametrized tests and this only tests our start up code.
 @pytest.mark.subprocess(
     ddtrace_run=True,
