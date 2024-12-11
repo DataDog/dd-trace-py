@@ -135,7 +135,17 @@ def handle_torch_trace(prof):
     else:
         raise AttributeError("Neither trace_start_ns nor trace_start_us exists")
 
-    for e in prof.events()[:num_events_collected]:
+    using_cuda_mem = False
+    using_device_mem = False
+    events = prof.events()[:num_events_collected]
+    if len(events) > 0:
+        # earlier versions of torch use cuda_memory_usage, recent versions use device_memory_usage
+        using_cuda_mem = hasattr(events[0], "cuda_memory_usage")
+        using_device_mem = hasattr(events[0], "device_memory_usage")
+        if not using_cuda_mem and not using_device_mem:
+            raise AttributeError("Neither cuda_memory_usage nor device_memory_usage exist in event")
+
+    for e in events:
         handle = ddup.SampleHandle()
         data_added = False
 
@@ -158,10 +168,13 @@ def handle_torch_trace(prof):
             data_added = True
             handle.push_gpu_flops(e.flops, 1)
 
-        # gpu mem sample
-        if e.device_memory_usage is not None and e.device_memory_usage > 0:
+        # gpu mem sample - see comment above about api changes
+        if using_device_mem and e.device_memory_usage is not None and e.device_memory_usage > 0:
             data_added = True
             handle.push_gpu_memory(e.device_memory_usage, 1)
+        elif using_cuda_mem and e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
+            data_added = True
+            handle.push_gpu_memory(e.cuda_memory_usage, 1)
 
         # If there is data, flush it to the profile.
         # Otherwise, do nothing and the sample object will be dropped when it goes out of scope
