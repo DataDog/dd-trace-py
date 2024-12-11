@@ -199,11 +199,11 @@ build_base_venvs:
 
 
 # Required jobs will appear here
-  tracer:
-    env:
-      DD_TRACE_AGENT_URL: http://localhost:8126
-    parallelism: 9
-    paths:
-      - '@llmobs'
-    retry: 2
-    runner: riot
+tracer:
+  env:
+    DD_TRACE_AGENT_URL: http://localhost:8126
+  parallelism: 9
+  paths:
+    - '@llmobs'
+  retry: 2
+  runner: riot
