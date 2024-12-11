@@ -22,7 +22,7 @@ def test_ddtrace_iast_flask_patch():
         str_output = dis_output.getvalue()
         # Should have replaced the binary op with the aspect in add_test:
         assert "(add_aspect)" in str_output
-        assert "BINARY_ADD" in str_output or "BINARY_OP" not in str_output
+        assert "BINARY_ADD" in str_output or "BINARY_OP" not in str_output, str_output
         # Should have replaced the app.run() with a pass:
         # assert "Disassembly of run" not in str_output, str_output
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
