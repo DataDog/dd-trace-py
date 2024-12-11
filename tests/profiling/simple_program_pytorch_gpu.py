@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn
 import torch.optim
@@ -36,6 +38,10 @@ def cifar():
             if step >= (1 + 1 + 3) * 2:
                 break
             train(batch_data)
+    print("DD_PROFILING_API_TIMEOUT =", os.getenv("DD_PROFILING_API_TIMEOUT"))
+    print("DD_PROFILING_ENABLED =", os.getenv("DD_PROFILING_ENABLED"))
+    print("DD_PROFILING_PYTORCH_ENABLED =", os.getenv("DD_PROFILING_PYTORCH_ENABLED"))
+    print("DD_PROFILING_EXPORT_LIBDD_ENABLED =", os.getenv("DD_PROFILING_EXPORT_LIBDD_ENABLED"))
 
 
 if __name__ == "__main__":
