@@ -308,13 +308,7 @@ class LangChainIntegration(BaseLLMIntegration):
         formatted_outputs = ""
         if not span.error and outputs is not None:
             formatted_outputs = self.format_io(outputs)
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "workflow",
-                INPUT_VALUE: str(formatted_inputs),
-                OUTPUT_VALUE: str(formatted_outputs),
-            }
-        )
+        span._set_ctx_items({SPAN_KIND: "workflow", INPUT_VALUE: formatted_inputs, OUTPUT_VALUE: formatted_outputs})
 
     def _llmobs_set_meta_tags_from_embedding(
         self,
