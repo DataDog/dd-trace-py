@@ -113,21 +113,27 @@ def handle_torch_trace(prof):
     print("********* HANDLE TRACE CALLED *******")
     print("********* HANDLE TRACE CALLED *******")
     print("********* HANDLE TRACE CALLED *******")
-    time.sleep(1)
+    time.sleep(15)
     print("********* HANDLE TRACE CALLED *******")
     print("********* HANDLE TRACE CALLED *******")
     print("********* HANDLE TRACE CALLED *******")
 
     LOG.debug("handle_torch_trace called")
     for i in range(20):
+        print("********* HANDLE TRACE GPU SAMPLE START *******")
         handle = ddup.SampleHandle()
         handle.push_gpu_gputime(10000000, 1)
         handle.push_frame("test_cuda_kernel" + str(i), "", 0, i)
         handle.push_gpu_device_name("cuda 0")
         handle.flush_sample()
+        print("********* HANDLE TRACE GPU SAMPLE END *******")
+
 
     for i in range(20):
+        print("********* HANDLE TRACE CPU SAMPLE START *******")
         handle = ddup.SampleHandle()
         handle.push_cputime(1234567, 1)
         handle.push_frame("test_cpu_kernel" + str(i), "", 0, i)
         handle.flush_sample()
+        print("********* HANDLE TRACE GPU SAMPLE END *******")
+
