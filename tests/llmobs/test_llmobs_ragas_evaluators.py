@@ -230,7 +230,7 @@ from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import logs_vcr
 
 ctx = logs_vcr.use_cassette(
-    "tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit.yaml"
+    "tests.llmobs.test_llmobs_ragas_evaluators.emits_traces_and_evaluations_on_exit.yaml"
 )
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
