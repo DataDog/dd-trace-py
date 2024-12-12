@@ -4,8 +4,6 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
@@ -65,28 +63,6 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
         if not ragas_context_precision_instance.llm:
             ragas_context_precision_instance.llm = self.mini_ragas.llm_factory()
         return ragas_context_precision_instance
-
-    def run_and_submit_evaluation(self, span_event: dict):
-        if not span_event:
-            return
-        score_result_or_failure, metric_metadata = self.evaluate(span_event)
-        telemetry_writer.add_count_metric(
-            TELEMETRY_APM_PRODUCT.LLMOBS,
-            "evaluators.run",
-            1,
-            tags=(
-                ("evaluator_label", self.LABEL),
-                ("state", score_result_or_failure if isinstance(score_result_or_failure, str) else "success"),
-            ),
-        )
-        if isinstance(score_result_or_failure, float):
-            self.llmobs_service.submit_evaluation(
-                span_context={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
-                label=self.LABEL,
-                metric_type=self.METRIC_TYPE,
-                value=score_result_or_failure,
-                metadata=metric_metadata,
-            )
 
     def _extract_inputs(self, span_event: dict) -> Optional[dict]:
         """
@@ -180,7 +156,7 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
                 contexts = cp_inputs["contexts"]
                 answer = cp_inputs["answer"]
 
-                # create a prompt to evaluate each context chunk
+                # create a prompt to evaluate the relevancy of each context chunk
                 ctx_precision_prompts = [
                     self.ragas_context_precision_instance.context_precision_prompt.format(
                         question=question, context=c, answer=answer
