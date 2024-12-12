@@ -596,7 +596,8 @@ def pytest_report_teststatus(
         if test_status is not None:
             return test_status
 
-    is_quarantined = ("dd_quarantined", True) in report.user_properties
+    user_properties = getattr(report, "user_properties", [])
+    is_quarantined = ("dd_quarantined", True) in user_properties
     if is_quarantined:
         if report.when == "teardown":
             return ("quarantined", "q", ("QUARANTINED", {"blue": True}))
