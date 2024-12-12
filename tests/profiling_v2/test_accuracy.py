@@ -1,4 +1,6 @@
 # -*- encoding: utf-8 -*-
+import sys
+
 import pytest
 
 
@@ -54,20 +56,15 @@ def test_accuracy_libdd():
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_STACK_V2_ENABLED="1", DD_PROFILING_OUTPUT_PPROF="/tmp/test_accuracy_stack_v2.pprof")
 )
+@pytest.mark.skipif(sys.version_info[:2] == (3, 7), reason="stack_v2 is not supported on Python 3.7")
 def test_accuracy_stack_v2():
     import collections
     import os
-    import sys
-
-    import pytest
 
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.test_accuracy import almost_equal
     from tests.profiling.test_accuracy import spend_16
-
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
 
     # Set this to 100 so we don't sleep too often and mess with the precision.
     p = profiler.Profiler()
