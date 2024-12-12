@@ -72,7 +72,7 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
     uint64_t alloc_count = atomic_inc_clamped(&global_alloc_tracker->alloc_count, ALLOC_TRACKER_MAX_COUNT);
 
-    // Return if we've reached the maximum number of allocations
+    /* Return if we've reached the maximum number of allocations */
     if (alloc_count == 0)
         return;
 
@@ -81,18 +81,19 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         return;
     }
 
+    // In this implementation, the `global_alloc_tracker` isn't really protected.  Before we read or modify it, let's
+    // take the lock.  The count of allocations is already forward-attributed elsewhere, so if we can't take the lock
+    // there's nothing to do.
+    if (!memlock_lock_timed(&g_memalloc_lock, g_memalloc_lock_timeout)) {
+        return;
+    }
+
     /* Determine if we can capture or if we need to sample */
     if (global_alloc_tracker->allocs.count < ctx->max_events) {
         /* Buffer is not full, fill it */
         traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
         if (tb) {
-            if (memlock_lock_timed(&g_memalloc_lock, g_memalloc_lock_timeout)) {
-                traceback_array_append(&global_alloc_tracker->allocs, tb);
-                memlock_unlock(&g_memalloc_lock);
-            } else {
-                // Couldn't get the lock, so we have to dump the traceback
-                traceback_free(tb);
-            }
+            traceback_array_append(&global_alloc_tracker->allocs, tb);
         }
     } else {
         /* Sampling mode using a reservoir sampling algorithm: replace a random
@@ -102,24 +103,18 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         if (r < ctx->max_events) {
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
-            if (tb) {
-                if (memlock_lock_timed(&g_memalloc_lock, g_memalloc_lock_timeout)) {
-                    // Disgusting hack: we shouldn't have to check to see if `tab` is NULL
-                    if (global_alloc_tracker->allocs.tab != NULL) {
-                        traceback_free(global_alloc_tracker->allocs.tab[r]);
-                        global_alloc_tracker->allocs.tab[r] = tb;
-                    } else {
-                        traceback_free(tb);
-                    }
-                    memlock_unlock(&g_memalloc_lock);
-                } else {
-                    // Couldn't get the lock, so we have to dump the traceback
-                    traceback_free(tb);
-                }
+
+            // Need to check not only that the tb returned, but also that the global alloc tracker is in a good state
+            if (tb && global_alloc_tracker->allocs.tab != NULL) {
+                traceback_free(global_alloc_tracker->allocs.tab[r]);
+                global_alloc_tracker->allocs.tab[r] = tb;
+            } else if (tb) {
+                traceback_free(tb);
             }
         }
     }
 
+    memlock_unlock(&g_memalloc_lock);
     memalloc_yield_guard();
 }
 

@@ -28,58 +28,56 @@
 #endif
 extern bool _MEMALLOC_ON_THREAD;
 
-// Simple CAS for bools
-static inline bool
-cas_thread_local_bool(bool* target, bool expected, bool desired)
-{
-    bool ret = false;
-#if defined(_MSC_VER)
-    ret = (LONG)expected == InterlockedCompareExchange((volatile LONG*)target, (LONG)desired, (LONG)expected);
-#elif defined(__GNUC__) || defined(__clang__) // GCC or Clang
-    ret = __atomic_compare_exchange_n(target, &expected, desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-#else
-#error "Unsupported compiler for atomic operations"
-#endif
-    return ret;
-}
-
-// This is a simple clamped atomic increment
-// On 64-bit systems, do thigns the normal way
-// On 32-bit systems, do a CAS loop on the low word; this is an `inc` and not an `add`, so this word must mutate.
+// This is a saturating atomic increment for 32- and 64-bit platforms.
+// In order to implement the saturation logic, use a CAS loop.
+// From the GCC docs:
+// "‘__atomic’ builtins can be used with any integral scalar or pointer type that is 1, 2, 4, or 8 bytes in length"
+// From the MSVC docs:
+// "_InterlockedCompareExchange64 is available on x86 systems running on any Pentium architecture; it is not
+// available on 386 or 486 architectures."
 static inline uint64_t
 atomic_inc_clamped(uint64_t* target, uint64_t max)
 {
-    uint64_t old_val = *target;
-    // Counters will _never_ return 0 after an increment, so the caller knows this is capped.
-    if (old_val > max)
-        return 0;
+    // In reality, there's virtually no scenario in which this deadlocks.  Just the same, give it some arbitrarily high
+    // limit in order to prevent unpredicted deadlocks.  96 is chosen since it's the number of cores on the largest
+    // consumer CPU generally used by our customers.
+    int attempts = 96;
+    while (attempts--) {
+        uint64_t old_val = (volatile uint64_t)*target;
+        uint64_t new_val;
 
-    uint64_t new_val;
+        // Saturation check
+        if (old_val == UINT64_MAX) {
+            return 0;
+        }
 
-#if UINTPTR_MAX == UINT64_MAX && defined(_MSC_VER)
-    // 64-bit MSVC
-    new_val = _InterlockedIncrement64((volatile long long*)target);
-#elif UINTPTR_MAX == UINT64_MAX && (defined(__GNUC__) || defined(__clang__))
-    // 64-bit gcc/clang
-    new_val = __atomic_add_fetch(target, 1, __ATOMIC_SEQ_CST);
-#elif defined(_MSC_VER)
-    // 32-bit MSVC must support uint64_t values, but can't do atomic operations on them.
-    new_val = old_val + 1;
-    while (InterlockedCompareExchange64((volatile LONGLONG*)target, new_val, old_val) != old_val) {
-        // Do nothing, just try again.  This will terminate eventually.
-    }
-#elif defined(__GNUC__) || defined(__clang__)
-    // 32-bit gcc/clang is in a similar boat as 32-bit Windows.
-    new_val = old_val + 1;
-    while (!__atomic_compare_exchange_n(target, &old_val, &new_val, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
-        // Do nothing, just try again.  This will terminate eventually.
-    }
+        // CAS loop
+        new_val = old_val + 1;
+#if defined(_MSC_VER)
+        uint64_t prev_val = (uint64_t)InterlockedCompareExchange64((volatile LONG*)target,
+                                                                   (LONG)new_val,
+                                                                   (LONG)old_val);
+        if (prev_val == old_val) {
+            return new_val;
+        }
+#elif defined(__clang__) || defined(__GNUC__)
+        if (atomic_compare_exchange_strong_explicit((_Atomic uint64_t*)target,
+                                                    &old_val,
+                                                    new_val,
+                                                    memory_order_seq_cst,
+                                                    memory_order_seq_cst)) {
+            return new_val;
+        }
 #else
 #error "Unsupported compiler for atomic operations"
 #endif
+        // If we reach here, CAS failed; another thread changed `target`
+        // Retry until success or until we detect max.
+    }
 
-    return new_val;
+    return 0;
 }
+
 
 // Opaque lock type
 typedef struct
@@ -124,10 +122,10 @@ memlock_unlock(memlock_t* lock)
 static inline bool
 memlock_lock_timed(memlock_t* lock, uint32_t timeout_ms)
 {
-#ifdef __linux__
     if (!lock)
         return false;
 
+#ifdef __linux__
     // On Linux, we need to make sure we didn't just fork
     // pthreads will guarantee the lock is consistent, but we at least need to clear it
     static pid_t my_pid = 0;
@@ -178,7 +176,8 @@ memlock_lock_timed(memlock_t* lock, uint32_t timeout_ms)
     return result == 0;
 #endif
 
-    // We should never get here, since each platform should return from its block
+    // We should never get here, since each platform should return from its block, but we add it to silence static
+    // analysis warnings
     return false;
 }
 
@@ -199,7 +198,11 @@ memlock_destroy(memlock_t* lock)
 static inline bool
 memalloc_take_guard()
 {
-    return cas_thread_local_bool(&_MEMALLOC_ON_THREAD, false, true);
+    // Ordinarilly, a process-wide semaphore would require a CAS, but since this is thread-local we can just set it.
+    if (_MEMALLOC_ON_THREAD)
+        return false;
+    _MEMALLOC_ON_THREAD = true;
+    return true;
 }
 
 static inline void
