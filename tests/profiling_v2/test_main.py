@@ -13,6 +13,8 @@ from tests.utils import flaky
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 def test_call_script(stack_v2_enabled):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
@@ -32,6 +34,8 @@ def test_call_script(stack_v2_enabled):
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 def test_call_script_gevent(stack_v2_enabled):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
@@ -43,6 +47,9 @@ def test_call_script_gevent(stack_v2_enabled):
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 def test_call_script_pprof_output(stack_v2_enabled, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
     """This checks if the pprof output and atexit register work correctly.
 
     The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
@@ -72,6 +79,9 @@ def test_call_script_pprof_output(stack_v2_enabled, tmp_path):
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork(stack_v2_enabled, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
+
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
@@ -136,6 +146,8 @@ def test_fork(stack_v2_enabled, tmp_path):
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_fork_gevent(stack_v2_enabled):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
     env = os.environ.copy()
     env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
     stdout, stderr, exitcode, pid = call_program(
@@ -153,6 +165,8 @@ methods = multiprocessing.get_all_start_methods()
     set(methods) - {"forkserver", "fork"},
 )
 def test_multiprocessing(stack_v2_enabled, method, tmp_path):
+    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+        pytest.skip("stack_v2 is not supported on Python 3.7")
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
