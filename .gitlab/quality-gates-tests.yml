@@ -199,12 +199,8 @@ build_base_venvs:
 
 
 # Required jobs will appear here
-langchain:
-  extends: .test_base_riot
+llmobs::langchain:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: langchain
   parallel: 6
-  artifacts:
-    paths:
-      - '@bootstrap'
-      - '@langchain'
-      - tests/contrib/langchain/*
-      - tests/snapshots/tests.contrib.langchain.*
