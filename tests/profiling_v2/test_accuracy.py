@@ -57,11 +57,17 @@ def test_accuracy_libdd():
 def test_accuracy_stack_v2():
     import collections
     import os
+    import sys
+
+    import pytest
 
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.test_accuracy import almost_equal
     from tests.profiling.test_accuracy import spend_16
+
+    if sys.version_info[:2] == (3, 7):
+        pytest.skip("stack_v2 is not supported on Python 3.7")
 
     # Set this to 100 so we don't sleep too often and mess with the precision.
     p = profiler.Profiler()
