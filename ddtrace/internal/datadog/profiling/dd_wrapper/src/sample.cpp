@@ -162,6 +162,24 @@ Datadog::Sample::flush_sample(bool reverse_locations)
         if (i == profile_state.val().cpu_time) std::cerr << "cputime ";
         if (i == profile_state.val().cpu_count) std::cerr << "cpu_count ";
         if (i == profile_state.val().gpu_count) std::cerr << "gpu_count ";
+        if (i == profile_state.val().cpu_time) std::cerr << "cpu_time ";
+        if (i == profile_state.val().cpu_count) std::cerr << "cpu_count ";
+        if (i == profile_state.val().wall_time) std::cerr << "wall_time ";
+        if (i == profile_state.val().wall_count) std::cerr << "wall_count ";
+        if (i == profile_state.val().exception_count) std::cerr << "exception_count ";
+        if (i == profile_state.val().lock_acquire_time) std::cerr << "lock_acquire_time ";
+        if (i == profile_state.val().lock_acquire_count) std::cerr << "lock_acquire_count ";
+        if (i == profile_state.val().lock_release_time) std::cerr << "lock_release_time ";
+        if (i == profile_state.val().lock_release_count) std::cerr << "lock_release_count ";
+        if (i == profile_state.val().alloc_space) std::cerr << "alloc_space ";
+        if (i == profile_state.val().alloc_count) std::cerr << "alloc_count ";
+        if (i == profile_state.val().heap_space) std::cerr << "heap_space ";
+        if (i == profile_state.val().gpu_time) std::cerr << "gpu_time ";
+        if (i == profile_state.val().gpu_count) std::cerr << "gpu_count ";
+        if (i == profile_state.val().gpu_alloc_space) std::cerr << "gpu_alloc_space ";
+        if (i == profile_state.val().gpu_alloc_count) std::cerr << "gpu_alloc_count ";
+        if (i == profile_state.val().gpu_flops) std::cerr << "gpu_flops ";
+        if (i == profile_state.val().gpu_flops_samples) std::cerr << "gpu_flops_samples ";
 
         std::cerr << values[i] << ", ";
     }
@@ -186,6 +204,7 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
     if (0U != (type_mask & SampleType::CPU)) {
         values[profile_state.val().cpu_time] += cputime * count;
         values[profile_state.val().cpu_count] += count;
+        std::cerr << "Pushing CPU time: " << cputime << " " << profile_state.val().cpu_time << " " << count << " " << profile_state.val().cpu_count << std::endl;
         return true;
     }
     std::cout << "bad push cpu" << std::endl;
@@ -279,7 +298,7 @@ Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
     if (0U != (type_mask & SampleType::GPUTime)) {
         values[profile_state.val().gpu_time] += time * count;
         values[profile_state.val().gpu_count] += count;
-        std::cout << "gpu time got added!, it has value: " <<  values[profile_state.val().gpu_time] << " and count " << values[profile_state.val().gpu_count] << std::endl;
+        std::cerr << "Pushing GPU time: " << time << " " << profile_state.val().gpu_time << " " << count << " " << profile_state.val().gpu_count << std::endl;
         return true;
     }
     std::cout << "bad push gpu" << std::endl;

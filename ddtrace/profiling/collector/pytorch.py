@@ -5,6 +5,7 @@ import logging
 import typing
 
 import wrapt
+import time
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
@@ -109,6 +110,14 @@ class TorchProfilerCollector(MLProfilerCollector):
 
 
 def handle_torch_trace(prof):
+    print("********* HANDLE TRACE CALLED *******")
+    print("********* HANDLE TRACE CALLED *******")
+    print("********* HANDLE TRACE CALLED *******")
+    time.sleep(1)
+    print("********* HANDLE TRACE CALLED *******")
+    print("********* HANDLE TRACE CALLED *******")
+    print("********* HANDLE TRACE CALLED *******")
+
     LOG.debug("handle_torch_trace called")
     for i in range(20):
         handle = ddup.SampleHandle()
