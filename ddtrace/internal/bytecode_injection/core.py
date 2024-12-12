@@ -60,17 +60,15 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
             )
             seen_lines.extend(nested_lines)
 
-    code_attrs = {
-        "co_code": bytes(new_code),
-        "co_consts": tuple(new_consts),
-        "co_linetable": new_linetable,
-        "co_stacksize": code.co_stacksize + 4,  # TODO: Compute the value!
-    }
-
-    if is_python_3_11:
-        code_attrs["co_exceptiontable"] = new_exctable
-
-    code = code.replace(**code_attrs)
+    if is_python_3_10:
+        code = code.replace(co_code=bytes(new_code), co_consts=tuple(new_consts), co_linetable=new_linetable,
+                            co_stacksize=code.co_stacksize + 4  # TODO: Compute the value!
+                            )
+    else:
+        code = code.replace(co_code=bytes(new_code), co_consts=tuple(new_consts), co_linetable=new_linetable,
+                            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+                            co_exceptiontable=new_exctable  # type:ignore[call-arg]
+                            )
 
     return (
         code,
@@ -153,6 +151,8 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
+
+
 ) -> t.Tuple[bytearray, t.List[object], bytes, bytes, t.List[int]]:
     """
     Inject invocation of the hook function at the specified source code lines, or more specifically offsets, in the
@@ -358,7 +358,10 @@ def _inject_invocation_nonrecursive(
             arg >>= 8
             arg_offset -= 2
 
-    exception_table = _generate_exception_table(code, offsets_map, extended_arg_offsets) if is_python_3_11 else b""
+    if is_python_3_11:
+        exception_table = _generate_exception_table(code, offsets_map, extended_arg_offsets)
+    else:
+        exception_table = b""
 
     return (
         new_code,
@@ -499,7 +502,7 @@ def _generate_adjusted_location_data_3_11(
 
             # Extend the line table record if we added any EXTENDED_ARGs
             offset += offset_delta
-            if ext_arg_offset is not None and original_offset >= ext_arg_offset:
+            if ext_arg_offset is not None and ext_arg_size is not None and original_offset >= ext_arg_offset:
                 # if ext_arg_offset is not None and offset > ext_arg_offset:
                 room = 7 - offset_delta
                 chunk[0] += min(room, t.cast(int, ext_arg_size))
@@ -544,7 +547,7 @@ def _generate_exception_table(
     For format see:
     https://github.com/python/cpython/blob/208b0fb645c0e14b0826c0014e74a0b70c58c9d6/InternalDocs/exception_handling.md#format-of-the-exception-table
     """
-    parsed_exception_table = dis._parse_exception_table(code)
+    parsed_exception_table = dis._parse_exception_table(code)  # type: ignore[attr-defined]
 
     def calculate_additional_offset(original_offset: int, is_start: bool = False) -> int:
         # We want to include the code we add in the exception table, so that the finally block is correctly executed
