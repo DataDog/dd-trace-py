@@ -43,7 +43,7 @@ atomic_inc_clamped(uint64_t* target, uint64_t max)
     // consumer CPU generally used by our customers.
     int attempts = 96;
     while (attempts--) {
-        uint64_t old_val = (volatile uint64_t)*target;
+        uint64_t old_val = (volatile uint64_t) * target;
         uint64_t new_val;
 
         // Saturation check
@@ -54,18 +54,14 @@ atomic_inc_clamped(uint64_t* target, uint64_t max)
         // CAS loop
         new_val = old_val + 1;
 #if defined(_MSC_VER)
-        uint64_t prev_val = (uint64_t)InterlockedCompareExchange64((volatile LONG*)target,
-                                                                   (LONG)new_val,
-                                                                   (LONG)old_val);
+        uint64_t prev_val =
+          (uint64_t)InterlockedCompareExchange64((volatile LONG*)target, (LONG)new_val, (LONG)old_val);
         if (prev_val == old_val) {
             return new_val;
         }
 #elif defined(__clang__) || defined(__GNUC__)
-        if (atomic_compare_exchange_strong_explicit((_Atomic uint64_t*)target,
-                                                    &old_val,
-                                                    new_val,
-                                                    memory_order_seq_cst,
-                                                    memory_order_seq_cst)) {
+        if (atomic_compare_exchange_strong_explicit(
+              (_Atomic uint64_t*)target, &old_val, new_val, memory_order_seq_cst, memory_order_seq_cst)) {
             return new_val;
         }
 #else
@@ -77,7 +73,6 @@ atomic_inc_clamped(uint64_t* target, uint64_t max)
 
     return 0;
 }
-
 
 // Opaque lock type
 typedef struct
