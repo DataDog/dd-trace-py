@@ -184,7 +184,6 @@ class TelemetryWriter(PeriodicService):
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
-        self._service_lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, str] = dict()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._send_product_change_updates = False
