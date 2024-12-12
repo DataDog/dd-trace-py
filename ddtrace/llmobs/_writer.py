@@ -108,11 +108,7 @@ class BaseLLMObsWriter(PeriodicService):
             self._buffer = []
 
         data = self._data(events)
-        try:
-            enc_llm_events = safe_json(data)
-        except TypeError:
-            logger.error("failed to encode %d LLMObs %s events", len(events), self._event_type, exc_info=True)
-            return
+        enc_llm_events = safe_json(data)
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, enc_llm_events, self._headers)
