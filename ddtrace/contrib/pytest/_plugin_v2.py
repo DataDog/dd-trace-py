@@ -259,7 +259,7 @@ def _pytest_collection_finish(session) -> None:
         workspace_path = InternalTestSession.get_workspace_path()
         repo_relative_path = item_path.relative_to(workspace_path) if workspace_path else item_path
 
-        item_codeowners = InternalTestSession.get_path_codeowners(repo_relative_path)
+        item_codeowners = InternalTestSession.get_path_codeowners(repo_relative_path) if repo_relative_path else None
 
         source_file_info = _get_source_file_info(item, item_path)
 
