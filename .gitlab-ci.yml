@@ -92,10 +92,6 @@ deploy_to_di_backend:manual:
 check_new_flaky_tests:
   stage: quality-gate
   extends: .testrunner
-  variables:
-      DD_SITE: datadoghq.com
-      DD_API_KEY: invalid_but_this_is_fine
-      DD_APP_KEY: invalid_but_fine
   script:
     - curl -L --fail "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64" --output "/usr/local/bin/datadog-ci" && chmod +x /usr/local/bin/datadog-ci
     - export DD_SITE=datadoghq.com
