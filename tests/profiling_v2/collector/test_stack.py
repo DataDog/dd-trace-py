@@ -34,18 +34,13 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
         DD_PROFILING_STACK_V2_ENABLED="1",
     )
 )
+@pytest.mark.skipif(sys.version_info[:2] == (3, 7), reason="stack_v2 is not supported on Python 3.7")
 def test_collect_truncate():
     import os
-    import sys
-
-    import pytest
 
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import func1
-
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
 
     pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
     output_filename = pprof_prefix + "." + str(os.getpid())
