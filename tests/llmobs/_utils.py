@@ -532,7 +532,6 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
                 "span.kind": "workflow",
                 "input": {"value": mock.ANY},
                 "output": {"value": "1.0"},
-                "metadata": {},
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),

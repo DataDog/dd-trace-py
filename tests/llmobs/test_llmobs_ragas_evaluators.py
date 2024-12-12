@@ -251,7 +251,7 @@ with mock.patch(
     assert err == b""
 
 
-def test_ragas_context_precision_evaluator_init(ragas, LLMObs):
+def test_ragas_context_precision_init(ragas, LLMObs):
     rcp_evaluator = RagasContextPrecisionEvaluator(LLMObs)
     assert rcp_evaluator.llmobs_service == LLMObs
     assert rcp_evaluator.ragas_context_precision_instance == ragas.metrics.context_precision
@@ -328,7 +328,10 @@ def test_ragas_context_precision_submits_evaluation(ragas, LLMObs, mock_llmobs_s
                 label=RagasContextPrecisionEvaluator.LABEL,
                 metric_type=RagasContextPrecisionEvaluator.METRIC_TYPE,
                 value=1.0,
-                metadata={"_dd.evaluation_kind": "context_precision"},
+                metadata={
+                    "_dd.evaluation_kind": "context_precision",
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                },
             )
         ]
     )
@@ -352,7 +355,10 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_question_in_mes
                 label=RagasContextPrecisionEvaluator.LABEL,
                 metric_type=RagasContextPrecisionEvaluator.METRIC_TYPE,
                 value=1.0,
-                metadata={"_dd.evaluation_kind": "context_precision"},
+                metadata={
+                    "_dd.evaluation_kind": "context_precision",
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                },
             )
         ]
     )
@@ -388,7 +394,10 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
                 label=RagasContextPrecisionEvaluator.LABEL,
                 metric_type=RagasContextPrecisionEvaluator.METRIC_TYPE,
                 value=0.5,
-                metadata={"_dd.evaluation_kind": "context_precision"},
+                metadata={
+                    "_dd.evaluation_kind": "context_precision",
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                },
             )
         ]
     )
@@ -396,10 +405,10 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
 
 @pytest.mark.vcr_logs
 def test_ragas_context_precision_emits_traces(ragas, LLMObs):
-    rf_evaluator = RagasContextPrecisionEvaluator(LLMObs)
-    rf_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
-    assert rf_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 2
-    calls = rf_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_args_list
+    rcp_evaluator = RagasContextPrecisionEvaluator(LLMObs)
+    rcp_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
+    assert rcp_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 2
+    calls = rcp_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_args_list
 
     spans = [call[0][0] for call in calls]
 

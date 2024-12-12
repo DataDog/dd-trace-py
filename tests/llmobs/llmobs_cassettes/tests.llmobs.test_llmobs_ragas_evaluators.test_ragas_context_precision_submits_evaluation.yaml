@@ -1,0 +1,160 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "Given question, answer and context verify if
+      the context was useful in arriving at the given answer. Give verdict as \"1\"
+      if useful and \"0\" if not with json output.\n\nThe output should be a well-formatted
+      JSON instance that conforms to the JSON schema below.\n\nAs an example, for
+      the schema {\"properties\": {\"foo\": {\"title\": \"Foo\", \"description\":
+      \"a list of strings\", \"type\": \"array\", \"items\": {\"type\": \"string\"}}},
+      \"required\": [\"foo\"]}\nthe object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted
+      instance of the schema. The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}}
+      is not well-formatted.\n\nHere is the output JSON schema:\n```\n{\"description\":
+      \"Answer for the verification task wether the context was useful.\", \"type\":
+      \"object\", \"properties\": {\"reason\": {\"title\": \"Reason\", \"description\":
+      \"Reason for verification\", \"type\": \"string\"}, \"verdict\": {\"title\":
+      \"Verdict\", \"description\": \"Binary (0/1) verdict of verification\", \"type\":
+      \"integer\"}}, \"required\": [\"reason\", \"verdict\"]}\n```\n\nDo not return
+      any preamble or explanations, return only a pure JSON string surrounded by triple
+      backticks (```).\n\nExamples:\n\nquestion: \"What can you tell me about albert
+      Albert Einstein?\"\ncontext: \"Albert Einstein (14 March 1879 \u2013 18 April
+      1955) was a German-born theoretical physicist, widely held to be one of the
+      greatest and most influential scientists of all time. Best known for developing
+      the theory of relativity, he also made important contributions to quantum mechanics,
+      and was thus a central figure in the revolutionary reshaping of the scientific
+      understanding of nature that modern physics accomplished in the first decades
+      of the twentieth century. His mass\u2013energy equivalence formula E = mc2,
+      which arises from relativity theory, has been called \\\"the world''s most famous
+      equation\\\". He received the 1921 Nobel Prize in Physics \\\"for his services
+      to theoretical physics, and especially for his discovery of the law of the photoelectric
+      effect\\\", a pivotal step in the development of quantum theory. His work is
+      also known for its influence on the philosophy of science. In a 1999 poll of
+      130 leading physicists worldwide by the British journal Physics World, Einstein
+      was ranked the greatest physicist of all time. His intellectual achievements
+      and originality have made Einstein synonymous with genius.\"\nanswer: \"Albert
+      Einstein born in 14 March 1879 was German-born theoretical physicist, widely
+      held to be one of the greatest and most influential scientists of all time.
+      He received the 1921 Nobel Prize in Physics for his services to theoretical
+      physics. He published 4 papers in 1905. Einstein moved to Switzerland in 1895\"\nverification:
+      ```{\"reason\": \"The provided context was indeed useful in arriving at the
+      given answer. The context includes key information about Albert Einstein''s
+      life and contributions, which are reflected in the answer.\", \"verdict\": 1}```\n\nquestion:
+      \"who won 2020 icc world cup?\"\ncontext: \"The 2022 ICC Men''s T20 World Cup,
+      held from October 16 to November 13, 2022, in Australia, was the eighth edition
+      of the tournament. Originally scheduled for 2020, it was postponed due to the
+      COVID-19 pandemic. England emerged victorious, defeating Pakistan by five wickets
+      in the final to clinch their second ICC Men''s T20 World Cup title.\"\nanswer:
+      \"England\"\nverification: ```{\"reason\": \"the context was useful in clarifying
+      the situation regarding the 2020 ICC World Cup and indicating that England was
+      the winner of the tournament that was intended to be held in 2020 but actually
+      took place in 2022.\", \"verdict\": 1}```\n\nquestion: \"What is the tallest
+      mountain in the world?\"\ncontext: \"The Andes is the longest continental mountain
+      range in the world, located in South America. It stretches across seven countries
+      and features many of the highest peaks in the Western Hemisphere. The range
+      is known for its diverse ecosystems, including the high-altitude Andean Plateau
+      and the Amazon rainforest.\"\nanswer: \"Mount Everest.\"\nverification: ```{\"reason\":
+      \"the provided context discusses the Andes mountain range, which, while impressive,
+      does not include Mount Everest or directly relate to the question about the
+      world''s tallest mountain.\", \"verdict\": 0}```\n\nYour actual task:\n\nquestion:
+      \"What is the capital of France?\"\ncontext: \"The capital of France is Paris.\"\nanswer:
+      \"The capital of France is Paris\"\nverification: \n", "role": "user"}], "model":
+      "gpt-4o-mini", "n": 1, "stream": false, "temperature": 1e-08}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '4637'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.52.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.52.0
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFJBbtswELzrFQuercCyAzvxrZf20qIpEqOHqpAociXRpUiCXMcODP+9
+        IO1YNppDL4K0szOYndEhA2BKshUw0XMSg9P5J/n89fuP55/Ft123XTfFk5qpL6Zbv6z3irNJZNhm
+        g4LeWXfCDk4jKWtOsPDICaNqsZzPHxfLopgmYLASdaR1jvJ7mw/KqHw2nd3n02VePJzZvVUCA1vB
+        rwwA4JCe0aeRuGcrSFppMmAIvEO2uiwBMG91nDAeggrEDbHJCAprCE2yXtf1JlhTmkPJPPL4ylZQ
+        spcewXn7qiRKSPt7Aqk8CtJvEIgTBqCeE1CPILhTxDXYFj57bgSCCvDEvQoT2PVK9PEb9zyRPbYa
+        BaEEZRKbm7BDf1eyCZTsFb1UgqKL4liauq6vnXtst4HH9MxW6/P8eIlC285524Qzfpm3yqjQV6cD
+        49mBrGMJPWYAv1Pk25sUmfN2cFSR/YMmCj4uzpGzsekRnS/OIFni+or1+A7c6FUSiSsdrkpjgose
+        5UgdG+ZbqewVkF1d/a+bj7RPlyvT/Y/8CAiBjlBWzmMs5ebicc3jJvX58dol5WSYhbdAOFStMh16
+        59XpN2xd1TR8Lh5wOW1Ydsz+AgAA//8DAJLjX/OUAwAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8f09f507cc477281-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 12 Dec 2024 01:31:51 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=2N0lRp5YNIBKY6AUc.tpQsJVlWEga7Ys924AChkX4qk-1733967111-1.0.1.1-IJEARyUXuMN2pbqt5jU4yaj77.QHaVM0uVSztZt49GpbAV1HXoPr6.uIdz2viIUlRExuu5tYN_.v5wUpYjyBSQ;
+        path=/; expires=Thu, 12-Dec-24 02:01:51 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=TvHcCPz7N_.kfviRP.Y0iD_HMeA.0uxvji5nzbbTR5w-1733967111302-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '564'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149998898'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_db048be5fbcb3bc4136d9c89ace1249a
+    status:
+      code: 200
+      message: OK
+version: 1

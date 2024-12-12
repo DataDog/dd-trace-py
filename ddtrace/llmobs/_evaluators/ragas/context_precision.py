@@ -48,7 +48,7 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
 
 
-def _get_context_precision_instance() -> Optional[object]:
+def _get_context_precision_instance():
     """
     This helper function ensures the context precision instance used in
     ragas evaluator is updated with the latest ragas context precision instance
@@ -289,7 +289,7 @@ class RagasContextPrecisionEvaluator:
                         ]
                     )
 
-                answers = []
+                answers = []  # type: list[MiniRagas.ContextPrecisionVerification]
                 for response in responses:
                     agg_answer = MiniRagas.ensembler.from_discrete([response], "verdict")
                     if agg_answer:
@@ -307,7 +307,8 @@ class RagasContextPrecisionEvaluator:
                     return "fail_no_answers", evaluation_metadata
 
                 verdict_list = [1 if ver.verdict else 0 for ver in answers]
-                return sum(verdict_list) / len(verdict_list), evaluation_metadata
+                score = sum(verdict_list) / len(verdict_list)
+                return score, evaluation_metadata
             finally:
                 self.llmobs_service.annotate(
                     span=ragas_cp_workflow,
