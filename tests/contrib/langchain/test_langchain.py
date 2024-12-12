@@ -274,7 +274,7 @@ def test_openai_chat_model_sync_generate(langchain, request_vcr):
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
-def test_openai_chat_model_sync_generate_v2(langchain, request_vcr):
+def test_openai_chat_model_sync_generate_v2_gates(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_generate.yaml"):
         chat.generate(
@@ -322,17 +322,6 @@ async def test_openai_chat_model_async_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_call.yaml"):
         await chat._call_async([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
-    ignores=["metrics.langchain.tokens.total_cost", "resource"],
-)
-async def test_openai_chat_model_async_call_v2_gate(langchain, request_vcr): # for testing
-    chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
-    with request_vcr.use_cassette("openai_chat_completion_async_call.yaml"):
-        await chat._call_async([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
-
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
