@@ -20,6 +20,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -396,16 +397,16 @@ def _get_endpoint(tracer)-> str:
     return endpoint
 
 
-def upload() -> None:
+def upload(tracer: Optional[Tracer] = ddtrace.tracer) -> None:
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
-    processor = ddtrace.tracer._endpoint_call_counter_span_processor
+    processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
 
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
-    endpoint = _get_endpoint(ddtrace.tracer)
+    endpoint = _get_endpoint(tracer)
     call_func_with_str(ddup_config_url, endpoint)
 
     with nogil:
