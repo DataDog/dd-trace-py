@@ -14,11 +14,11 @@ def test_ddtrace_iast_flask_patch():
     from tests.utils import override_global_config
 
     PATTERN = r"""Disassembly of add_test:
-\s*7           0 RESUME                   0
-\s*8           2 LOAD_GLOBAL              1 \(NULL \+ _ddtrace_aspects\)
-\s*14 LOAD_ATTR                1 \(add_aspect\)
-\s*24 LOAD_FAST                0 \(a\)
-\s*26 LOAD_FAST                1 \(b\)"""
+(\s*7           0 RESUME                   0
+)?\s*8           \d LOAD_GLOBAL              \d \((NULL \+ )?_ddtrace_aspects\)
+\s*\d+ LOAD_(ATTR|METHOD)\s+1 \(add_aspect\)
+\s*\d+ LOAD_FAST                0 \(a\)
+\s*\d+ LOAD_FAST                1 \(b\)"""
 
     with override_global_config(dict(_iast_enabled=True)), override_env(
         dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")
