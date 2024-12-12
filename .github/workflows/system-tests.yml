@@ -18,6 +18,7 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           repository: 'DataDog/system-tests'
 
       - name: Build agent
@@ -62,11 +63,13 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           repository: 'DataDog/system-tests'
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           path: 'binaries/dd-trace-py'
           fetch-depth: 0
           # NB this ref is necessary to keep the checkout out of detached HEAD state, which setuptools_scm requires for
@@ -112,6 +115,7 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           repository: 'DataDog/system-tests'
 
       - name: Build runner
@@ -148,6 +152,14 @@ jobs:
       - name: Run CROSSED_TRACING_LIBRARIES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh CROSSED_TRACING_LIBRARIES
+
+      - name: Run PROFILING
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: |
+          cat /proc/sys/kernel/perf_event_paranoid
+          sudo sysctl kernel.perf_event_paranoid=1
+          sudo sysctl -p
+          ./run.sh PROFILING
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
@@ -197,6 +209,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE
 
+      - name: Run IAST_STANDALONE
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh IAST_STANDALONE
+
       - name: Run APPSEC_RUNTIME_ACTIVATION
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RUNTIME_ACTIVATION
@@ -229,17 +245,9 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
         run: ./run.sh DEBUGGER_PROBES_STATUS
 
-      - name: Run DEBUGGER_METHOD_PROBES_SNAPSHOT
+      - name: Run DEBUGGER_PROBES_SNAPSHOT
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-        run: ./run.sh DEBUGGER_METHOD_PROBES_SNAPSHOT
-
-      - name: Run DEBUGGER_LINE_PROBES_SNAPSHOT
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-        run: ./run.sh DEBUGGER_LINE_PROBES_SNAPSHOT
-
-      - name: Run DEBUGGER_MIX_LOG_PROBE
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-        run: ./run.sh DEBUGGER_MIX_LOG_PROBE
+        run: ./run.sh DEBUGGER_PROBES_SNAPSHOT
 
       - name: Run DEBUGGER_PII_REDACTION
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
@@ -276,10 +284,12 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           repository: 'DataDog/system-tests'
       - name: Checkout dd-trace-py
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           path: 'binaries/dd-trace-py'
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}

@@ -29,7 +29,6 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
-from ddtrace.internal.runtime import container
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import parse_isoformat
 
@@ -239,8 +238,6 @@ class RemoteConfigClient:
         additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
-
-        container.update_headers_with_container_info(self._headers, container.get_container_info())
 
         tags = ddtrace.config.tags.copy()
 

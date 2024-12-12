@@ -8,13 +8,14 @@ import json
 import logging
 import os
 from pathlib import Path
-import re
 from subprocess import check_output
 import sys
 import typing as t
 from urllib.parse import urlencode
 from urllib.request import Request
 from urllib.request import urlopen
+
+from lxml import html
 
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -26,20 +27,34 @@ logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 
 LOGGER = logging.getLogger(__name__)
 
-BASE_BRANCH_PATTERN = re.compile(r':<span class="css-truncate-target">([^<]+)')
-
 
 @cache
 def get_base_branch(pr_number: int) -> str:
     """Get the base branch of a PR
 
-    >>> get_base_branch(6412)
+    >>> import vcr
+    >>> with vcr.use_cassette(
+    ...   "scripts/vcr/needs_testrun.yaml",
+    ...   filter_headers=["authorization", "user-agent"],
+    ...   record_mode="all"):
+    ...     get_base_branch(6412)
+    ...     get_base_branch(11534)
+    ...     get_base_branch(11690)
     '1.x'
+    '2.15'
+    'main'
     """
 
     pr_page_content = urlopen(f"https://github.com/DataDog/dd-trace-py/pull/{pr_number}").read().decode("utf-8")
 
-    return BASE_BRANCH_PATTERN.search(pr_page_content).group(1)
+    tree = html.fromstring(pr_page_content)
+    base_ref = tree.find_class("base-ref")
+    if base_ref:
+        ref = base_ref[0].text_content().strip()
+        # We might have `DataDog:1.x` or `DataDog:main` so we need to strip the prefix
+        _, _, ref = ref.rpartition(":")
+        return ref.strip()
+    return "main"
 
 
 @cache
@@ -116,7 +131,12 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
     or if there is a specific SHA given, use the less accurate method of
     diffing against a base commit, either the given SHA or the merge-base.
 
-    >>> sorted(get_changed_files(6388))  # doctest: +NORMALIZE_WHITESPACE
+    >>> import vcr
+    >>> with vcr.use_cassette(
+    ...   "scripts/vcr/needs_testrun.yaml",
+    ...   filter_headers=["authorization", "user-agent"],
+    ...   record_mode="all"):
+    ...     sorted(get_changed_files(6388))  # doctest: +NORMALIZE_WHITESPACE
     ['ddtrace/debugging/_expressions.py',
     'releasenotes/notes/fix-debugger-expressions-none-literal-30f3328d2e386f40.yaml',
     'tests/debugging/test_expressions.py']
@@ -141,12 +161,19 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
 def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bool:
     """Check if a testrun is needed for a suite and PR
 
-    >>> needs_testrun("debugger", 6485)
+    >>> import vcr
+    >>> with vcr.use_cassette(
+    ...   "scripts/vcr/needs_testrun.yaml",
+    ...   filter_headers=["authorization", "user-agent"],
+    ...   record_mode="all"):
+    ...     needs_testrun("debugger", 6485)
+    ...     needs_testrun("debugger", 6388)
+    ...     needs_testrun("foobar", 6412)
+    ...     needs_testrun("profile", 11690)
     True
-    >>> needs_testrun("debugger", 6388)
     True
-    >>> needs_testrun("foobar", 6412)
     True
+    False
     """
     if "itr:noskip" in get_latest_commit_message().lower():
         return True
@@ -189,6 +216,7 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     return bool(matches)
 
 
+@cache
 def _get_pr_number() -> int:
     # CircleCI
     number = os.environ.get("CIRCLE_PR_NUMBER")

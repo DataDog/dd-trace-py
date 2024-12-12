@@ -431,7 +431,7 @@ def test_validate_headers_in_payload_to_intake():
     if container.get_container_info():
         assert "Datadog-Container-Id" in headers
         assert "Datadog-Entity-ID" in headers
-        assert headers["Datadog-Entity-ID"].startswith("cid")
+        assert headers["Datadog-Entity-ID"].startswith("ci")
 
 
 @skip_if_testagent
@@ -450,6 +450,26 @@ def test_inode_entity_id_header_present():
     headers = t._writer._put.call_args[0][1]
     assert "Datadog-Entity-ID" in headers
     assert headers["Datadog-Entity-ID"].startswith("in")
+
+
+@skip_if_testagent
+@parametrize_with_all_encodings
+def test_external_env_header_present():
+    import mock
+
+    from ddtrace import tracer as t
+
+    mocked_external_env = "it-false,cn-nginx-webserver,pu-75a2b6d5-3949-4afb-ad0d-92ff0674e759"
+
+    t._writer._put = mock.Mock(wraps=t._writer._put)
+    with mock.patch("os.environ.get") as oegmock:
+        oegmock.return_value = mocked_external_env
+        t.trace("op").finish()
+        t.shutdown()
+    assert t._writer._put.call_count == 1
+    headers = t._writer._put.call_args[0][1]
+    assert "Datadog-External-Env" in headers
+    assert headers["Datadog-External-Env"] == mocked_external_env
 
 
 @skip_if_testagent
@@ -772,6 +792,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     ), "stderr should not contain any exception logs"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
 def test_no_warnings_when_Wall():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

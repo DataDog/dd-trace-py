@@ -3,6 +3,7 @@ from typing import Optional
 from typing import Union
 from .._types import StringType
 from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
 
 def config(
     env: StringType,
@@ -10,14 +11,13 @@ def config(
     version: StringType,
     tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]],
     max_nframes: Optional[int],
-    url: Optional[str],
     timeline_enabled: Optional[bool],
     output_filename: Optional[str],
     sample_pool_capacity: Optional[int],
     enable_code_provenance: Optional[bool],
 ) -> None: ...
 def start() -> None: ...
-def upload() -> None: ...
+def upload(tracer: Optional[Tracer]) -> None: ...
 
 class SampleHandle:
     def push_cputime(self, value: int, count: int) -> None: ...

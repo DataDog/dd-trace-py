@@ -15,10 +15,12 @@ import ddtrace
 import platform
 from .._types import StringType
 from ..util import sanitize_string
+from ddtrace.internal import agent
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -339,7 +341,6 @@ def config(
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
@@ -354,8 +355,6 @@ def config(
         call_func_with_str(ddup_config_env, env)
     if version:
         call_func_with_str(ddup_config_version, version)
-    if url:
-        call_func_with_str(ddup_config_url, url)
     if output_filename:
         call_func_with_str(ddup_config_output_filename, output_filename)
 
@@ -388,14 +387,27 @@ def start() -> None:
     ddup_start()
 
 
-def upload() -> None:
+def _get_endpoint(tracer)-> str:
+    # DEV: ddtrace.profiling.utils has _get_endpoint but importing that function
+    # leads to a circular import, so re-implementing it here.
+    # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
+    # build exporter for agentless mode too.
+    tracer_agent_url = tracer.agent_trace_url
+    endpoint = tracer_agent_url if tracer_agent_url else agent.get_trace_url()
+    return endpoint
+
+
+def upload(tracer: Optional[Tracer] = ddtrace.tracer) -> None:
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
-    processor = ddtrace.tracer._endpoint_call_counter_span_processor
+    processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
 
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
+
+    endpoint = _get_endpoint(tracer)
+    call_func_with_str(ddup_config_url, endpoint)
 
     with nogil:
         ddup_upload()

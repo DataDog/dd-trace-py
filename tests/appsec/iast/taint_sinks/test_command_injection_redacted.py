@@ -40,6 +40,7 @@ def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_
     source["origin"] = origin_to_str(source["origin"])
 
     assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"] == vulnerabilities_expected["evidence"]
     assert source == sources_expected
 
 

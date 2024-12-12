@@ -22,6 +22,7 @@ from _pytest.nodes import get_fslocation_from_item
 import pytest
 
 import ddtrace
+from ddtrace import DDTraceDeprecationWarning
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
@@ -70,6 +71,7 @@ from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -421,6 +423,9 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
         log = get_logger(__name__)
 
+        # Freezegun is proactively patched to avoid it interfering with internal timing
+        ddtrace.patch(freezegun=True)
+
         COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
 
         if USE_DD_COVERAGE:
@@ -446,6 +451,12 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
 
 def pytest_configure(config):
+    deprecate(
+        "this version of the pytest ddtrace plugin is slated for deprecation",
+        message="set DD_PYTEST_USE_NEW_PLUGIN_BETA=true in your environment to preview the next version of the plugin.",
+        removal_version="3.0.0",
+        category=DDTraceDeprecationWarning,
+    )
     unpatch_unittest()
     if is_enabled(config):
         ddtrace.config.test_visibility._itr_skipping_ignore_parameters = True
