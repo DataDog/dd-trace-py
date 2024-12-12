@@ -667,9 +667,6 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        if self._is_running():
-            self.stop(join=False)
-
         # Enable writer service in child process to avoid interpreter shutdown
         # error in Python 3.12
         self.enable()
