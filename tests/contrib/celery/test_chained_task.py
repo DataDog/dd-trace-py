@@ -1,8 +1,9 @@
 import os
 import re
-import signal
 import subprocess
 import time
+from celery import Celery
+from pathlib import Path
 
 
 # Ensure that when we call Celery chains, the root span has celery specific span tags
@@ -10,34 +11,43 @@ import time
 # This test runs the worker as a side so we can check the tracer logs afterwards to ensure expected span results.
 # See https://github.com/DataDog/dd-trace-py/issues/11479
 def test_task_chain_task_call_task():
-    celery_worker_cmd = "ddtrace-run celery -A tests.contrib.celery.tasks worker -c 1 -l DEBUG -n uniquename1 -P solo"
-    celery_task_runner_cmd = "ddtrace-run python tests/contrib/celery/run_tasks.py"
+    app = Celery("tasks")
+
+    celery_worker_cmd = "ddtrace-run celery -A tasks worker -c 1 -l DEBUG -n uniquename1 -P solo"
+    celery_task_runner_cmd = "ddtrace-run python run_tasks.py"
+
+    # The commands run from the root of the directory
+    current_directory = str(os.path.dirname(__file__))
+
     worker_process = subprocess.Popen(
         celery_worker_cmd.split(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         preexec_fn=os.setsid,
         close_fds=True,
-        cwd=str(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
+        cwd=current_directory,
     )
 
-    time.sleep(10)
+    max_wait_time = 10
+    waited_so_far = 0
+    # {app.control.inspect().active() returns {'celery@uniquename1': []} when the worker is running}
+    while (app.control.inspect().active() is None and waited_so_far < max_wait_time):
+        time.sleep(1)
+        waited_so_far += 1
 
+    # The task should only run after the Celery worker has sufficient time to start up
     task_runner_process = subprocess.Popen(
         celery_task_runner_cmd.split(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         preexec_fn=os.setsid,
         close_fds=True,
-        cwd=str(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
+        cwd=current_directory,
     )
 
     task_runner_process.wait()
-
     # Kill the process so it starts to send traces to the Trace Agent
-    os.killpg(worker_process.pid, signal.SIGKILL)
-
-    worker_process.wait()
+    worker_process.kill()
     worker_logs = worker_process.stderr.read()
 
     # Check that the root span was created with one of the Celery specific tags, such as celery.correlation_id
