@@ -68,50 +68,6 @@ def _assert_expected_llmobs_llm_span(
         )
     )
 
-    def _assert_expected_llmobs_llm_span_v2_gates(
-    span, mock_llmobs_span_writer, input_role=None, mock_io=False, mock_token_metrics=False
-): # testing for quality gates
-        provider = span.get_tag("langchain.request.provider")
-
-        metadata = {}
-        temperature_key = "temperature"
-        if provider == "huggingface_hub":
-            temperature_key = "model_kwargs.temperature"
-            max_tokens_key = "model_kwargs.max_tokens"
-        elif provider == "ai21":
-            max_tokens_key = "maxTokens"
-        else:
-            max_tokens_key = "max_tokens"
-        temperature = span.get_tag(f"langchain.request.{provider}.parameters.{temperature_key}")
-        max_tokens = span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}")
-        if temperature is not None:
-            metadata["temperature"] = float(temperature)
-        if max_tokens is not None:
-            metadata["max_tokens"] = int(max_tokens)
-
-        input_messages = [{"content": mock.ANY}]
-        output_messages = [{"content": mock.ANY}]
-        if input_role is not None:
-            input_messages[0]["role"] = input_role
-            output_messages[0]["role"] = "assistant"
-
-        metrics = (
-            {"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY} if mock_token_metrics else {}
-        )
-
-        mock_llmobs_span_writer.enqueue.assert_any_call(
-            _expected_llmobs_llm_span_event(
-                span,
-                model_name=span.get_tag("langchain.request.model"),
-                model_provider=span.get_tag("langchain.request.provider"),
-                input_messages=input_messages if not mock_io else mock.ANY,
-                output_messages=output_messages if not mock_io else mock.ANY,
-                metadata=metadata,
-                token_metrics=metrics,
-                tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
-            )
-        )
-
 
 def _assert_expected_llmobs_chain_span(span, mock_llmobs_span_writer, input_value=None, output_value=None):
     expected_chain_span_event = _expected_llmobs_non_llm_span_event(
