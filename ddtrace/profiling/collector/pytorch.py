@@ -2,17 +2,14 @@ from __future__ import absolute_import
 
 import abc
 import logging
-import random
 import typing
 
 import wrapt
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.recorder import Recorder
-from ddtrace.settings.profiling import config
 
 
 LOG = logging.getLogger(__name__)
@@ -112,7 +109,6 @@ class TorchProfilerCollector(MLProfilerCollector):
 
 
 def handle_torch_trace(prof):
-    NANOS_PER_MICROSECOND = 1e3
     LOG.debug("handle_torch_trace called")
     events = prof.events()
     if len(events) == 0:
@@ -123,73 +119,82 @@ def handle_torch_trace(prof):
     # We truncate to keep the uploaded profile to a reasonable size.
     # For now, experiment with a default of 1_000_000 if nothing is set.
     # TODO, better values here.
-    collection_fraction = 1.0
-    num_events_to_report = min(len(events), config.pytorch.events_limit or 1_000_000)
-    if num_events_to_report < len(events):
-        LOG.debug("Dropped events.  num_events_to_report %d. len(events): %d", num_events_to_report, len(events))
-        collection_fraction = num_events_to_report / len(events)
+    # collection_fraction = 1.0
+    # num_events_to_report = min(len(events), config.pytorch.events_limit or 1_000_000)
+    # if num_events_to_report < len(events):
+    #     LOG.debug("Dropped events.  num_events_to_report %d. len(events): %d", num_events_to_report, len(events))
+    #     collection_fraction = num_events_to_report / len(events)
 
-    empty_events_count = 0
+    # empty_events_count = 0
 
     # earlier versions use microsecond, later versions use nanosecond
-    kineto_results = prof.profiler.kineto_results
-    if hasattr(kineto_results, "trace_start_ns"):
-        trace_start_ns = kineto_results.trace_start_ns()
-    elif hasattr(kineto_results, "trace_start_us"):
-        trace_start_ns = kineto_results.trace_start_us() * NANOS_PER_MICROSECOND
-    else:
-        raise AttributeError("Neither trace_start_ns nor trace_start_us exists")
+    # kineto_results = prof.profiler.kineto_results
+    # if hasattr(kineto_results, "trace_start_ns"):
+    #     trace_start_ns = kineto_results.trace_start_ns()
+    # elif hasattr(kineto_results, "trace_start_us"):
+    #     trace_start_ns = kineto_results.trace_start_us() * NANOS_PER_MICROSECOND
+    # else:
+    #     raise AttributeError("Neither trace_start_ns nor trace_start_us exists")
 
     for e in events:
-        if collection_fraction < random.random():
-            continue
+        # if collection_fraction < random.random():
+        #     continue
 
         handle = ddup.SampleHandle()
-        data_added = False
+        handle.push_gpu_gputime(10000000, 1)
+        handle.push_frame("test_cuda_kernel", "", 0, -1)
+        handle.push_gpu_device_name("cuda 0")
+        handle.flush_sample()
 
-        # cpu time sample
-        if e.cpu_time > 0:
-            data_added = True
-            handle.push_cputime(int(e.cpu_time * NANOS_PER_MICROSECOND), e.count)
+        handle = ddup.SampleHandle()
+        handle.push_cputime(10000000, 1)
+        handle.push_frame("test_cuda_kernel", "", 0, -1)
+        handle.push_gpu_device_name("cuda 0")
+        handle.flush_sample()
 
-        # gpu time sample - both device_time and cuda_time are in microseconds
-        if hasattr(e, "device_time") and e.device_time > 0:
-            data_added = True
-            time_elapsed = int(e.device_time * NANOS_PER_MICROSECOND)
-            handle.push_gpu_gputime(time_elapsed, e.count)
-        elif hasattr(e, "cuda_time") and e.cuda_time > 0:
-            data_added = True
-            time_elapsed = int(e.cuda_time * NANOS_PER_MICROSECOND)
-            handle.push_gpu_gputime(time_elapsed, e.count)
+        # # cpu time sample
+        # if e.cpu_time > 0:
+        #     data_added = True
+        #     handle.push_cputime(int(e.cpu_time * NANOS_PER_MICROSECOND), e.count)
 
-        # gpu flops sample
-        if e.flops is not None and e.flops > 0:
-            data_added = True
-            handle.push_gpu_flops(e.flops, e.count)
+        # # gpu time sample - both device_time and cuda_time are in microseconds
+        # if hasattr(e, "device_time") and e.device_time > 0:
+        #     data_added = True
+        #     time_elapsed = int(e.device_time * NANOS_PER_MICROSECOND)
+        #     handle.push_gpu_gputime(time_elapsed, e.count)
+        # elif hasattr(e, "cuda_time") and e.cuda_time > 0:
+        #     data_added = True
+        #     time_elapsed = int(e.cuda_time * NANOS_PER_MICROSECOND)
+        #     handle.push_gpu_gputime(time_elapsed, e.count)
 
-        # GPU memory usage
-        # earlier versions of torch use cuda_memory_usage, recent versions use device_memory_usage
-        if hasattr(e, "device_memory_usage") and e.device_memory_usage is not None and e.device_memory_usage > 0:
-            data_added = True
-            handle.push_gpu_memory(e.device_memory_usage, e.count)
-        elif hasattr(e, "cuda_memory_usage") and e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
-            data_added = True
-            handle.push_gpu_memory(e.cuda_memory_usage, e.count)
+        # # gpu flops sample
+        # if e.flops is not None and e.flops > 0:
+        #     data_added = True
+        #     handle.push_gpu_flops(e.flops, e.count)
 
-        # If there is data, flush it to the profile.
-        # Otherwise, do nothing and the sample object will be dropped when it goes out of scope
-        if data_added:
-            handle.push_frame(e.name, "", 0, -1)
-            handle.push_gpu_device_name("cuda " + str(e.device_index))
-            handle.push_threadinfo(
-                e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
-            )
-            handle.push_monotonic_ns(int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND))
-            handle.push_threadinfo(
-                e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
-            )
-            handle.flush_sample()
-        else:
-            if empty_events_count % 1000 == 0:
-                LOG.debug("%d events with no data to record: %s", empty_events_count, e)
-            empty_events_count += 1
+        # # GPU memory usage
+        # # earlier versions of torch use cuda_memory_usage, recent versions use device_memory_usage
+        # if hasattr(e, "device_memory_usage") and e.device_memory_usage is not None and e.device_memory_usage > 0:
+        #     data_added = True
+        #     handle.push_gpu_memory(e.device_memory_usage, e.count)
+        # elif hasattr(e, "cuda_memory_usage") and e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
+        #     data_added = True
+        #     handle.push_gpu_memory(e.cuda_memory_usage, e.count)
+
+        # # If there is data, flush it to the profile.
+        # # Otherwise, do nothing and the sample object will be dropped when it goes out of scope
+        # if data_added:
+        #     handle.push_frame(e.name, "", 0, -1)
+        #     handle.push_gpu_device_name("cuda " + str(e.device_index))
+        #     handle.push_threadinfo(
+        #         e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
+        #     )
+        #     handle.push_monotonic_ns(int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND))
+        #     handle.push_threadinfo(
+        #         e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
+        #     )
+        #     handle.flush_sample
+        # else:
+        #     if empty_events_count % 1000 == 0:
+        #         LOG.debug("%d events with no data to record: %s", empty_events_count, e)
+        #     empty_events_count += 1
