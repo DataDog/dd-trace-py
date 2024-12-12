@@ -6,7 +6,7 @@ from uuid import uuid4
 import mock
 
 from ddtrace.debugging._signal.collector import SignalCollector
-from ddtrace.debugging._signal.model import LogSignal
+from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
 from tests.debugging.utils import create_snapshot_line_probe

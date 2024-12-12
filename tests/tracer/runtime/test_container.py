@@ -307,6 +307,7 @@ def test_get_container_info(file_contents, container_id, node_inode):
         if file_contents is None:
             mock_open.side_effect = FileNotFoundError
 
+        get_container_info.cache_clear()
         info = get_container_info()
 
         if info is not None:
@@ -344,6 +345,7 @@ def test_get_container_info_exception(mock_log, mock_from_line):
     # DEV: We need at least 1 line for the loop to call `CGroupInfo.from_line`
     with get_mock_open(read_data="\r\n") as mock_open:
         # Assert calling `get_container_info()` does not bubble up the exception
+        get_container_info.cache_clear()
         assert get_container_info() is None
 
         # Assert we called everything we expected
