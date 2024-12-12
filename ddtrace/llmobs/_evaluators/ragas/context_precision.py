@@ -1,5 +1,4 @@
 import math
-import traceback
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -7,62 +6,18 @@ from typing import Union
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
+from ddtrace.llmobs._evaluators.ragas.base import RagasBaseEvaluator
+from ddtrace.llmobs._evaluators.ragas.base import _get_ml_app_for_ragas_trace
 
 
 logger = get_logger(__name__)
 
 
-class MiniRagas:
-    """
-    A helper class to store instances of ragas classes and functions
-    that may or may not exist in a user's environment.
-    """
-
-    llm_factory = None
-    RagasoutputParser = None
-    ensembler = None
-    context_precision = None
-    ContextPrecisionVerification = None
-
-
-def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
-    """
-    The `ml_app` spans generated from traces of ragas will be named as `dd-ragas-<ml_app>`
-    or `dd-ragas` if `ml_app` is not present in the span event.
-    """
-    tags = span_event.get("tags", [])  # list[str]
-    ml_app = None
-    for tag in tags:
-        if isinstance(tag, str) and tag.startswith("ml_app:"):
-            ml_app = tag.split(":")[1]
-            break
-    if not ml_app:
-        return RAGAS_ML_APP_PREFIX
-    return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
-
-
-def _get_context_precision_instance():
-    """
-    This helper function ensures the context precision instance used in
-    ragas evaluator is updated with the latest ragas context precision instance
-    instance AND has an non-null llm
-    """
-    if MiniRagas.context_precision is None:
-        return None
-    ragas_context_precision_instance = MiniRagas.context_precision
-    if not ragas_context_precision_instance.llm:
-        ragas_context_precision_instance.llm = MiniRagas.llm_factory()
-    return ragas_context_precision_instance
-
-
-class RagasContextPrecisionEvaluator:
+class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
     """A class used by EvaluatorRunner to conduct ragas context precision evaluations
     on LLM Observability span events. The job of an Evaluator is to take a span and
     submit evaluation metrics based on the span's attributes.
@@ -92,65 +47,24 @@ class RagasContextPrecisionEvaluator:
 
         Raises: NotImplementedError if the ragas library is not found or if ragas version is not supported.
         """
-        self.llmobs_service = llmobs_service
-        self.ragas_version = "unknown"
-        telemetry_state = "ok"
-        try:
-            import ragas
-
-            self.ragas_version = parse_version(ragas.__version__)
-            if self.ragas_version >= (0, 2, 0) or self.ragas_version < (0, 1, 10):
-                raise NotImplementedError(
-                    "Ragas version: {} is not supported for `ragas_context_precision` evaluator".format(
-                        self.ragas_version
-                    ),
-                )
-
-            from ragas.llms import llm_factory
-
-            MiniRagas.llm_factory = llm_factory
-
-            from ragas.llms.output_parser import RagasoutputParser
-
-            MiniRagas.RagasoutputParser = RagasoutputParser
-
-            from ragas.metrics import context_precision
-
-            MiniRagas.context_precision = context_precision
-
-            from ragas.metrics.base import ensembler
-
-            MiniRagas.ensembler = ensembler
-
-            from ddtrace.llmobs._evaluators.ragas.models import ContextPrecisionVerification
-
-            MiniRagas.ContextPrecisionVerification = ContextPrecisionVerification
-
-        except Exception as e:
-            telemetry_state = "fail"
-            telemetry_writer.add_log(
-                level=TELEMETRY_LOG_LEVEL.ERROR,
-                message="Failed to import Ragas dependencies",
-                stack_trace=traceback.format_exc(),
-                tags={"ragas_version": self.ragas_version},
-            )
-            raise NotImplementedError("Failed to load dependencies for `ragas_context_precision` evaluator") from e
-        finally:
-            telemetry_writer.add_count_metric(
-                namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
-                name="evaluators.init",
-                value=1,
-                tags=(
-                    ("evaluator_label", self.LABEL),
-                    ("state", telemetry_state),
-                    ("ragas_version", self.ragas_version),
-                ),
-            )
-
-        self.ragas_context_precision_instance = _get_context_precision_instance()
-        self.context_precision_output_parser = MiniRagas.RagasoutputParser(
-            pydantic_object=MiniRagas.ContextPrecisionVerification
+        super().__init__(llmobs_service)
+        self.ragas_context_precision_instance = self._get_context_precision_instance()
+        self.context_precision_output_parser = self.mini_ragas.RagasoutputParser(
+            pydantic_object=self.mini_ragas.ContextPrecisionVerification
         )
+
+    def _get_context_precision_instance(self):
+        """
+        This helper function ensures the context precision instance used in
+        ragas evaluator is updated with the latest ragas context precision instance
+        instance AND has an non-null llm
+        """
+        if self.mini_ragas.context_precision is None:
+            return None
+        ragas_context_precision_instance = self.mini_ragas.context_precision
+        if not ragas_context_precision_instance.llm:
+            ragas_context_precision_instance.llm = self.mini_ragas.llm_factory()
+        return ragas_context_precision_instance
 
     def run_and_submit_evaluation(self, span_event: dict):
         if not span_event:
@@ -235,7 +149,7 @@ class RagasContextPrecisionEvaluator:
         If the ragas context precision instance does not have `llm` set, we set `llm` using the `llm_factory()`
         method from ragas which currently defaults to openai's gpt-4o-turbo.
         """
-        self.ragas_context_precision_instance = _get_context_precision_instance()
+        self.ragas_context_precision_instance = self._get_context_precision_instance()
         if not self.ragas_context_precision_instance:
             return "fail_context_precision_is_none", {}
 
@@ -289,12 +203,12 @@ class RagasContextPrecisionEvaluator:
                         ]
                     )
 
-                answers = []  # type: list[MiniRagas.ContextPrecisionVerification]
+                answers = []
                 for response in responses:
-                    agg_answer = MiniRagas.ensembler.from_discrete([response], "verdict")
+                    agg_answer = self.mini_ragas.ensembler.from_discrete([response], "verdict")
                     if agg_answer:
                         try:
-                            agg_answer = MiniRagas.ContextPrecisionVerification.parse_obj(agg_answer[0])
+                            agg_answer = self.mini_ragas.ContextPrecisionVerification.parse_obj(agg_answer[0])
                         except Exception as e:
                             logger.debug(
                                 "Failed to parse context precision verification for `ragas_context_precision`",

@@ -17,6 +17,7 @@ from ddtrace.llmobs._constants import FAITHFULNESS_DISAGREEMENTS_METADATA
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
+from ddtrace.llmobs._evaluators.ragas.base import RagasBaseEvaluator
 
 
 logger = get_logger(__name__)
@@ -67,7 +68,7 @@ def _get_faithfulness_instance() -> Optional[object]:
     return ragas_faithfulness_instance
 
 
-class RagasFaithfulnessEvaluator:
+class RagasFaithfulnessEvaluator(RagasBaseEvaluator):
     """A class used by EvaluatorRunner to conduct ragas faithfulness evaluations
     on LLM Observability span events. The job of an Evaluator is to take a span and
     submit evaluation metrics based on the span's attributes.
