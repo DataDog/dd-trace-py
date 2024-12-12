@@ -146,6 +146,7 @@ Datadog::Sample::clear_buffers()
 bool
 Datadog::Sample::flush_sample(bool reverse_locations)
 {
+    std::cerr << "flushing in sample.cpp" << std::endl;
     if (dropped_frames > 0) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";

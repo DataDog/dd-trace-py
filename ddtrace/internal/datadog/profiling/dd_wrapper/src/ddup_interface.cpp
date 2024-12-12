@@ -295,6 +295,7 @@ ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppchec
 void
 ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
+    std::cerr << "Flushing in ddup_interface.cpp" << std::endl;
     sample->flush_sample();
 }
 
