@@ -269,7 +269,8 @@ def _extract_body(request):
     if request.method in _BODY_METHODS:
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
-        headers = core.dispatch_with_results("django.extract_body").headers.value
+        core.dispatch("django.extract_body")
+        headers = core.get_item("django.extract_body")
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
@@ -377,7 +378,8 @@ def _after_request_tags(pin, span: Span, request, response):
 
             url = get_request_uri(request)
 
-            request_headers = core.dispatch_with_results("django.after_request_headers").headers.value
+            core.dispatch("django.after_request_headers")
+            request_headers = core.get_item("django.extract_body")
             if not request_headers:
                 request_headers = _get_request_headers(request)
 

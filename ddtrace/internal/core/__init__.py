@@ -119,6 +119,7 @@ from . import event_hub  # noqa:F401
 from ._core import DDSketch  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
+from .event_hub import dispatch_async  # noqa:F401
 from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
