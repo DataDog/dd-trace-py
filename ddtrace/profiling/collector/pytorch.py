@@ -179,14 +179,22 @@ def handle_torch_trace(prof):
         # If there is data, flush it to the profile.
         # Otherwise, do nothing and the sample object will be dropped when it goes out of scope
         if data_added:
-            handle.push_frame(e.name, "undefined", 0, -1)
+            # Pushing the device name ("device.CPU" or "device.CUDA")
+            # onto the stack allows differentation of pytorch frames from other profiling frames
+            # in the flame graph.
+            handle.push_frame(str(e.device_type), "undefined", 0, 0)
+            handle.push_frame(e.name, "undefined", 0, 0)
             handle.push_gpu_device_name("cuda " + str(e.device_index))
             handle.push_threadinfo(
                 e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
             )
             handle.push_monotonic_ns(int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND))
+            # There is a known issue with getting thread ids and names from pytorch.
+            # If we can't get one, just use a default name.
             handle.push_threadinfo(
-                e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
+                e.thread,
+                _threading.get_thread_native_id(e.thread),
+                _threading.get_thread_name(e.thread) or "CUDA-PROCESS-" + str(e.thread),
             )
             handle.flush_sample()
         else:
