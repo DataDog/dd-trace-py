@@ -1031,7 +1031,7 @@ def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
     codeowners = CIVisibility.get_codeowners()
     if codeowners is None:
         return None
-    return codeowners.of(str(path))
+    return codeowners.of(str(path.absolute()))
 
 
 def _register_session_handlers():
