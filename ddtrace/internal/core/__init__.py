@@ -153,7 +153,7 @@ def _deprecate_span_kwarg(span):
         and "fastapi.applications" not in sys.modules
     ):
         DEPRECATION_MEMO.add(id(_CURRENT_CONTEXT))
-        deprecate(
+        deprecate( # CLEAN UP
             SPAN_DEPRECATION_MESSAGE,
             message=SPAN_DEPRECATION_SUGGESTION,
             category=DDTraceDeprecationWarning,

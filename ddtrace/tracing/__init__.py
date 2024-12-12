@@ -4,7 +4,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 
-deprecate(
+deprecate( # CLEAN UP
     "The tracing module is deprecated and will be moved.",
     message="A new interface will be provided by the _trace sub-package.",
     category=DDTraceDeprecationWarning,

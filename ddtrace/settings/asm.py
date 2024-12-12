@@ -79,7 +79,7 @@ class ASMConfig(Env):
     # Deprecation phase, to be removed in ddtrace 3.0.0
     if _automatic_login_events_mode is not None:
         if _automatic_login_events_mode == "extended":
-            deprecate(
+            deprecate( # CLEAN UP
                 "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=extended is deprecated",
                 message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=identification instead",
                 removal_version="3.0.0",
@@ -87,7 +87,7 @@ class ASMConfig(Env):
             )
             _automatic_login_events_mode = LOGIN_EVENTS_MODE.IDENT
         elif _automatic_login_events_mode == "safe":
-            deprecate(
+            deprecate( # CLEAN UP
                 "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=safe is deprecated",
                 message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=anonymisation instead",
                 removal_version="3.0.0",
@@ -95,7 +95,7 @@ class ASMConfig(Env):
             )
             _automatic_login_events_mode = LOGIN_EVENTS_MODE.ANON
         elif _automatic_login_events_mode == "disabled":
-            deprecate(
+            deprecate( # CLEAN UP
                 "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=disabled is deprecated",
                 message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=disabled"
                 " instead or DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED=false"

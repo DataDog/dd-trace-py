@@ -540,7 +540,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 def __getattr__(name):
-    deprecate(
+    deprecate( # CLEAN UP
         ("%s.%s is deprecated" % (__name__, name)),
         category=DDTraceDeprecationWarning,
     )

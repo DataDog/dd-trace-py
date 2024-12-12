@@ -6,7 +6,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 
-deprecate(
+deprecate( # CLEAN UP
     "The context provider interface is deprecated.",
     message="The trace context is an internal interface and will no longer be supported.",
     category=DDTraceDeprecationWarning,

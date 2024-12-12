@@ -321,7 +321,7 @@ class Tracer(object):
 
     @property
     def sampler(self):
-        deprecate(
+        deprecate( # CLEAN UP
             "tracer.sampler is deprecated and will be removed.",
             message="To manually sample call tracer.sample(span) instead.",
             category=DDTraceDeprecationWarning,
@@ -330,7 +330,7 @@ class Tracer(object):
 
     @sampler.setter
     def sampler(self, value):
-        deprecate(
+        deprecate( # CLEAN UP
             "Setting a custom sampler is deprecated and will be removed.",
             message="""Please use DD_TRACE_SAMPLING_RULES to configure the sampler instead:
     https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_TRACE_SAMPLING_RULES""",
@@ -474,7 +474,7 @@ class Tracer(object):
             self.enabled = enabled
 
         if priority_sampling is not None:
-            deprecate(
+            deprecate( # CLEAN UP
                 "Configuring priority sampling on tracing clients is deprecated",
                 version="3.0.0",
                 category=DDTraceDeprecationWarning,
