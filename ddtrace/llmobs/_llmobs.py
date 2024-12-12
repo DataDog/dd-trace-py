@@ -564,6 +564,7 @@ class LLMObs(Service):
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
         prompt: Optional[dict] = None,
+        span_links = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -630,6 +631,8 @@ class LLMObs(Service):
             cls._tag_params(span, parameters)
         if _name is not None:
             span.name = _name
+        if span_links is not None:
+            span.set_tag("_ml_obs.span_links", safe_json(span_links))
         if prompt is not None:
             cls._tag_prompt(span, prompt)
         if not span_kind:
