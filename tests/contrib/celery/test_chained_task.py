@@ -2,8 +2,8 @@ import os
 import re
 import subprocess
 import time
+
 from celery import Celery
-from pathlib import Path
 
 
 # Ensure that when we call Celery chains, the root span has celery specific span tags
@@ -31,7 +31,7 @@ def test_task_chain_task_call_task():
     max_wait_time = 10
     waited_so_far = 0
     # {app.control.inspect().active() returns {'celery@uniquename1': []} when the worker is running}
-    while (app.control.inspect().active() is None and waited_so_far < max_wait_time):
+    while app.control.inspect().active() is None and waited_so_far < max_wait_time:
         time.sleep(1)
         waited_so_far += 1
 
