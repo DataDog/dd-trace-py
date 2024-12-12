@@ -90,8 +90,10 @@ Datadog::Profile::setup_samplers()
         val_idx.heap_space = get_value_idx("heap-space", "bytes");
     }
     if (0U != (type_mask & SampleType::GPUTime)) {
+        std::cout << "checking GPU time value idx:" << val_idx.gpu_time << std::endl;
         val_idx.gpu_time = get_value_idx("gpu-time", "nanoseconds");
         val_idx.gpu_count = get_value_idx("gpu-samples", "count");
+        std::cout << "GPU time value idx:" << val_idx.gpu_time << std::endl;
     }
     if (0U != (type_mask & SampleType::GPUMemory)) {
         // In the backend the unit is called 'gpu-space', but maybe for consistency

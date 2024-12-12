@@ -268,6 +268,7 @@ Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
     if (0U != (type_mask & SampleType::GPUTime)) {
         values[profile_state.val().gpu_time] += time * count;
         values[profile_state.val().gpu_count] += count;
+        std::cout << "gpu time got added!, it has value: " <<  values[profile_state.val().gpu_time] << std::endl;
         return true;
     }
     std::cout << "bad push gpu" << std::endl;
