@@ -76,12 +76,7 @@ def test_truncating_oversized_events(mock_writer_logs, mock_http_writer_send_pay
 
 
 def test_send_completion_event(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
-    with override_global_config(
-        dict(
-            _dd_site=DATADOG_SITE,
-            _dd_api_key="foobar.baz",
-        )
-    ):
+    with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
         llmobs_span_writer.start()
         llmobs_span_writer.enqueue(_completion_event())
@@ -91,12 +86,7 @@ def test_send_completion_event(mock_writer_logs, mock_http_writer_logs, mock_htt
 
 
 def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
-    with override_global_config(
-        dict(
-            _dd_site=DATADOG_SITE,
-            _dd_api_key="foobar.baz",
-        )
-    ):
+    with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
         llmobs_span_writer.start()
         llmobs_span_writer.enqueue(_chat_completion_event())
@@ -120,12 +110,7 @@ def test_send_completion_bad_api_key(mock_http_writer_logs, mock_http_writer_put
 
 
 def test_send_timed_events(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
-    with override_global_config(
-        dict(
-            _dd_site=DATADOG_SITE,
-            _dd_api_key="foobar.baz",
-        )
-    ):
+    with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=1)
         llmobs_span_writer.start()
         mock_writer_logs.reset_mock()
@@ -141,12 +126,7 @@ def test_send_timed_events(mock_writer_logs, mock_http_writer_logs, mock_http_wr
 
 
 def test_send_multiple_events(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
-    with override_global_config(
-        dict(
-            _dd_site=DATADOG_SITE,
-            _dd_api_key="foobar.baz",
-        )
-    ):
+    with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=1)
         llmobs_span_writer.start()
         mock_writer_logs.reset_mock()
