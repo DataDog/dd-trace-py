@@ -250,10 +250,6 @@ class TelemetryWriter(PeriodicService):
         self._enabled = False
         modules.uninstall_import_hook()
         self.reset_queues()
-        if self._is_running():
-            self.stop()
-        else:
-            self.status = ServiceStatus.STOPPED
 
     def enable_agentless_client(self, enabled=True):
         # type: (bool) -> None
