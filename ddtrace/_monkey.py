@@ -102,6 +102,7 @@ PATCH_MODULES = {
     "unittest": True,
     "coverage": False,
     "selenium": True,
+    "langgraph": True,
 }
 
 
@@ -146,6 +147,7 @@ _MODULES_FOR_CONTRIB = {
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
+    "langgraph": ("langgraph.graph",),
 }
 
 
