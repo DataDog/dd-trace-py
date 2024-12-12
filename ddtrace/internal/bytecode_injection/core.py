@@ -60,14 +60,14 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
             )
             seen_lines.extend(nested_lines)
 
-    if is_python_3_10:
+    if sys.version_info >= (3, 11):
         code = code.replace(co_code=bytes(new_code), co_consts=tuple(new_consts), co_linetable=new_linetable,
-                            co_stacksize=code.co_stacksize + 4  # TODO: Compute the value!
+                            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+                            co_exceptiontable=new_exctable
                             )
     else:
         code = code.replace(co_code=bytes(new_code), co_consts=tuple(new_consts), co_linetable=new_linetable,
-                            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-                            co_exceptiontable=new_exctable  # type:ignore[call-arg]
+                            co_stacksize=code.co_stacksize + 4  # TODO: Compute the value!
                             )
 
     return (
