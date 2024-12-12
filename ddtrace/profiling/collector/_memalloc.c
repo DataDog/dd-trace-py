@@ -81,7 +81,7 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         return;
     }
 
-    // In this implementation, the `global_alloc_tracker` isn't really protected.  Before we read or modify it, let's
+    // In this implementation, the `global_alloc_tracker` isn't intrinsically protected.  Before we read or modify,
     // take the lock.  The count of allocations is already forward-attributed elsewhere, so if we can't take the lock
     // there's nothing to do.
     if (!memlock_lock_timed(&g_memalloc_lock, g_memalloc_lock_timeout)) {
@@ -100,16 +100,15 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
          * traceback with this one */
         uint64_t r = random_range(alloc_count);
 
-        if (r < ctx->max_events) {
+        // In addition to event size, need to check that the tab is in a good state
+        if (r < ctx->max_events && global_alloc_tracker->allocs.tab != NULL) {
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
 
-            // Need to check not only that the tb returned, but also that the global alloc tracker is in a good state
-            if (tb && global_alloc_tracker->allocs.tab != NULL) {
+            // Need to check not only that the tb returned
+            if (tb) {
                 traceback_free(global_alloc_tracker->allocs.tab[r]);
                 global_alloc_tracker->allocs.tab[r] = tb;
-            } else if (tb) {
-                traceback_free(tb);
             }
         }
     }
