@@ -338,12 +338,12 @@ class LockCollector(collector.CaptureSamplerCollector):
             self.export_libdd_enabled = False
 
     @abc.abstractmethod
-    def _get_original(self):
+    def _get_patch_target(self):
         # type: (...) -> typing.Any
         pass
 
     @abc.abstractmethod
-    def _set_original(
+    def _set_patch_target(
         self,
         value,  # type: typing.Any
     ):
@@ -367,7 +367,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Patch the module for tracking lock allocation."""
         # We only patch the lock from the `threading` module.
         # Nobody should use locks from `_thread`; if they do so, then it's deliberate and we don't profile.
-        self.original = self._get_original()
+        self._original = self._get_patch_target()
 
         def _allocate_lock(wrapped, instance, args, kwargs):
             lock = wrapped(*args, **kwargs)
@@ -381,9 +381,9 @@ class LockCollector(collector.CaptureSamplerCollector):
                 self.export_libdd_enabled,
             )
 
-        self._set_original(FunctionWrapper(self.original, _allocate_lock))
+        self._set_patch_target(FunctionWrapper(self._original, _allocate_lock))
 
     def unpatch(self):
         # type: (...) -> None
         """Unpatch the threading module for tracking lock allocation."""
-        self._set_original(self.original)
+        self._set_patch_target(self._original)

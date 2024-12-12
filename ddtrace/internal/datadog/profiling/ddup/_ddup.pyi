@@ -3,6 +3,7 @@ from typing import Optional
 from typing import Union
 from .._types import StringType
 from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
 
 def config(
     env: StringType,
@@ -16,7 +17,7 @@ def config(
     enable_code_provenance: Optional[bool],
 ) -> None: ...
 def start() -> None: ...
-def upload() -> None: ...
+def upload(tracer: Optional[Tracer]) -> None: ...
 
 class SampleHandle:
     def push_cputime(self, value: int, count: int) -> None: ...
