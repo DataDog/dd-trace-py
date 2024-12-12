@@ -5,13 +5,13 @@ import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
 from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
 from ddtrace.internal.utils.http import parse_form_params  # noqa:F401
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.internal._unpatched import unpatched_json_loads  # noqa: A001
 
 
 log = get_logger(__name__)
