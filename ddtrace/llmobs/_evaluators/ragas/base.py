@@ -51,6 +51,22 @@ class MiniRagas:
 
         self.ContextPrecisionVerification = ContextPrecisionVerification
 
+        from ragas.metrics import faithfulness
+
+        self.faithfulness = faithfulness
+
+        from ragas.metrics.base import get_segmenter
+
+        self.get_segmenter = get_segmenter
+
+        from ddtrace.llmobs._evaluators.ragas.models import StatementFaithfulnessAnswers
+
+        self.StatementFaithfulnessAnswers = StatementFaithfulnessAnswers
+
+        from ddtrace.llmobs._evaluators.ragas.models import StatementsAnswers
+
+        self.StatementsAnswers = StatementsAnswers
+
 
 def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     """
