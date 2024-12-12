@@ -183,7 +183,6 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 ## ASM Django
 
 [envs.appsec_threats_django]
-python = ["3.7", "3.9", "3.10"]
 template = "appsec_threats_django"
 dependencies = [
     "pytest",
