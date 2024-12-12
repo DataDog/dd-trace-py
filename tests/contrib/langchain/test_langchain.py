@@ -269,6 +269,28 @@ def test_openai_chat_model_sync_generate(langchain, request_vcr):
             ]
         )
 
+@pytest.mark.skipif(PY39, reason="Python 3.10+ specific test")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
+)
+def test_openai_chat_model_sync_generate_v2(langchain, request_vcr):
+    chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
+    with request_vcr.use_cassette("openai_chat_completion_sync_generate.yaml"):
+        chat.generate(
+            [
+                [
+                    langchain.schema.SystemMessage(content="Respond like a frat boy."),
+                    langchain.schema.HumanMessage(
+                        content="Where's the nearest equinox gym from Hudson Yards manhattan?"
+                    ),
+                ],
+                [
+                    langchain.schema.SystemMessage(content="Respond with a pirate accent."),
+                    langchain.schema.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
+                ],
+            ]
+        )
 
 @pytest.mark.skipif(not PY39, reason="Python 3.9 specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])

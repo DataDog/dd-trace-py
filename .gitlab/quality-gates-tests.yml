@@ -204,3 +204,9 @@ llmobs::langchain:
   variables:
     SUITE_NAME: langchain
   parallel: 6
+
+llmobs::openai:
+  extends: .test_base_riot_snapshot
+  variables:
+    SUITE_NAME: openai
+  parallel: 10
