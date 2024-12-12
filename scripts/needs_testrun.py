@@ -11,7 +11,9 @@ from pathlib import Path
 import re
 from subprocess import check_output
 import sys
+import time
 import typing as t
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request
 from urllib.request import urlopen
@@ -105,6 +107,16 @@ def github_api(path: str, query: t.Optional[dict] = None) -> t.Any:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
     if query is not None:
         url += "?" + urlencode(query)
+    growth_factor = 1.618
+    waiting_time = 0.5
+    for i in range(20):
+        try:
+            return json.load(urlopen(Request(url, headers=headers)))
+        except HTTPError:
+            message = f"Failed to get data from GitHub API on attempt {i+1}, waiting {waiting_time:g}s"
+            LOGGER.warning(message, exc_info=True)
+            time.sleep(waiting_time)
+            waiting_time *= growth_factor
     return json.load(urlopen(Request(url, headers=headers)))
 
 
