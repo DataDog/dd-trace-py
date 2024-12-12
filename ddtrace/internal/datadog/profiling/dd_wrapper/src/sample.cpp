@@ -156,6 +156,17 @@ Datadog::Sample::flush_sample(bool reverse_locations)
         std::reverse(locations.begin(), locations.end());
     }
 
+    std::cerr << "Flushing sample. endtime_ns: " << endtime_ns << ".\n\tValues [";
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (i == profile_state.val().gpu_time) std::cerr << "gputime ";
+        if (i == profile_state.val().cpu_time) std::cerr << "cputime ";
+        if (i == profile_state.val().cpu_count) std::cerr << "cpu_count ";
+        if (i == profile_state.val().gpu_count) std::cerr << "gpu_count ";
+
+        std::cerr << values[i] << ", ";
+    }
+    std::cerr << "]" << std::endl;
+
     const ddog_prof_Sample sample = {
         .locations = { locations.data(), locations.size() },
         .values = { values.data(), values.size() },
@@ -268,7 +279,7 @@ Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
     if (0U != (type_mask & SampleType::GPUTime)) {
         values[profile_state.val().gpu_time] += time * count;
         values[profile_state.val().gpu_count] += count;
-        std::cout << "gpu time got added!, it has value: " <<  values[profile_state.val().gpu_time] << std::endl;
+        std::cout << "gpu time got added!, it has value: " <<  values[profile_state.val().gpu_time] << " and count " << values[profile_state.val().gpu_count] << std::endl;
         return true;
     }
     std::cout << "bad push gpu" << std::endl;
