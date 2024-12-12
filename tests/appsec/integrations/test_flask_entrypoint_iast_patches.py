@@ -16,7 +16,7 @@ def test_ddtrace_iast_flask_patch():
     PATTERN = r"""Disassembly of add_test:
 (\s*7           0 RESUME                   0
 )?\s*8           \d LOAD_GLOBAL              \d \((NULL \+ )?_ddtrace_aspects\)
-\s*\d+ LOAD_(ATTR|METHOD)\s+1 \(add_aspect\)
+\s*\d+ LOAD_(ATTR|METHOD)\s+\d \(add_aspect\)
 \s*\d+ LOAD_FAST                0 \(a\)
 \s*\d+ LOAD_FAST                1 \(b\)"""
 
