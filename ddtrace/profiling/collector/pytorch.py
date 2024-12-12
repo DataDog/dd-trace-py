@@ -179,7 +179,7 @@ def handle_torch_trace(prof):
         # If there is data, flush it to the profile.
         # Otherwise, do nothing and the sample object will be dropped when it goes out of scope
         if data_added:
-            handle.push_frame(e.name, "", 0, -1)
+            handle.push_frame(e.name, "undefined", 0, -1)
             handle.push_gpu_device_name("cuda " + str(e.device_index))
             handle.push_threadinfo(
                 e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
