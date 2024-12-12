@@ -4,8 +4,6 @@ from urllib import request
 
 from ddtrace import config
 from ddtrace.contrib.aiohttp.middlewares import trace_app
-from ddtrace.contrib.aiohttp.patch import patch
-from ddtrace.contrib.aiohttp.patch import unpatch
 from tests.utils import assert_is_measured
 from tests.utils import override_global_config
 
@@ -76,9 +74,7 @@ async def test_user_specified_service(tracer, aiohttp_client, loop):
     When a service name is specified by the user
         The aiohttp integration should use it as the service name
     """
-    unpatch()
     with override_global_config(dict(service="mysvc")):
-        patch()
         app = setup_app()
         trace_app(app, tracer)
         client = await aiohttp_client(app)
