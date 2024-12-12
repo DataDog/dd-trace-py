@@ -11,14 +11,13 @@ from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
 from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
 from ddtrace.internal.utils.http import parse_form_params  # noqa:F401
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal._unpatched import unpatched_json_loads  # noqa: A001
 
 
 log = get_logger(__name__)
 
 
 def parse_response_body(raw_body):
-    import json
-
     import xmltodict
 
     from ddtrace.appsec import _asm_request_context
@@ -54,7 +53,7 @@ def parse_response_body(raw_body):
     try:
         # TODO handle charset
         if "json" in content_type:
-            req_body = json.loads(access_body(raw_body))
+            req_body = unpatched_json_loads(access_body(raw_body))
         elif "xml" in content_type:
             req_body = xmltodict.parse(access_body(raw_body))
         else:
