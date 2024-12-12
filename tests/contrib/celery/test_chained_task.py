@@ -16,7 +16,7 @@ def test_task_chain_task_call_task():
     celery_worker_cmd = "ddtrace-run celery -A tasks worker -c 1 -l DEBUG -n uniquename1 -P solo"
     celery_task_runner_cmd = "ddtrace-run python run_tasks.py"
 
-    # The commands run from the root of the directory
+    # The commands need to run from the directory where this test file lives
     current_directory = str(os.path.dirname(__file__))
 
     worker_process = subprocess.Popen(
