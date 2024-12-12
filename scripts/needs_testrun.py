@@ -113,7 +113,10 @@ def github_api(path: str, query: t.Optional[dict] = None) -> t.Any:
         try:
             return json.load(urlopen(Request(url, headers=headers)))
         except HTTPError:
-            message = f"Failed to get data from GitHub API on attempt {i+1}, waiting {waiting_time:g}s"
+            message = (
+                f"Failed to get data from GitHub API on attempt {i+1},"
+                f" waiting {waiting_time:g}s, GITHUB_TOKEN: {bool(GITHUB_TOKEN)}"
+            )
             LOGGER.warning(message, exc_info=True)
             time.sleep(waiting_time)
             waiting_time *= growth_factor
