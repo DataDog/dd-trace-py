@@ -179,6 +179,8 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         for _module in self._children.values():
             for _suite in _module._children.values():
                 for _test in _suite._children.values():
+                    if _test.is_quarantined():
+                        continue
                     if _test.atr_has_retries() and _test.atr_get_final_status() == TestStatus.FAIL:
                         return True
         return False

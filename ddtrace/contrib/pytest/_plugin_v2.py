@@ -448,6 +448,11 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
+    if original_result.failed and is_quarantined:
+        # Mark the test as xfailed so that it does not count as a failed test for pytest's exit status logic
+        # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
+        original_result.wasxfail = "quarantined"
+
     # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
     # NOTE: this mutates the original result's outcome
     if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
@@ -549,7 +554,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.atr_has_failed_tests() and InternalTestSession.atr_has_failed_tests():
+    if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
