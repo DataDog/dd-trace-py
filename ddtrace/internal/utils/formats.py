@@ -89,8 +89,11 @@ def parse_tags_str(tags_str):
         invalids = []
 
         for tag in tags:
+            print("tag: ", tag)
             key, sep, value = tag.partition(":")
+            print("key: ", key, " sep: ", sep, " value: ", value)
             if not key.strip() or "," in key or (sep and not value):
+                print("invalid")
                 invalids.append(tag)
             elif sep:
                 # parse key:val,key2:value2
@@ -101,13 +104,16 @@ def parse_tags_str(tags_str):
 
         return parsed_tags, invalids
 
+    print("pre_strip: ", tags_str)
     tags_str = tags_str.strip(TAGSEP)
 
     # Take the maximal set of tags that can be parsed correctly for a given separator
     tag_list = []  # type: List[Tuple[str, str]]
     invalids = []
+    print("post_strip: ", tags_str)
     for sep in TAGSEP:
         ts = tags_str.split(sep)
+        print("post_split: ", tags_str)
         tags, invs = parse_tags(ts)
         if len(tags) > len(tag_list):
             tag_list = tags
