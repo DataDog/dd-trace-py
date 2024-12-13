@@ -256,8 +256,16 @@ def _pytest_collection_finish(session) -> None:
         InternalTestSuite.discover(suite_id)
 
         item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
+        workspace_path = InternalTestSession.get_workspace_path()
+        if workspace_path:
+            try:
+                repo_relative_path = item_path.relative_to(workspace_path)
+            except ValueError:
+                repo_relative_path = item_path
+        else:
+            repo_relative_path = item_path
 
-        item_codeowners = InternalTestSession.get_path_codeowners(item_path)
+        item_codeowners = InternalTestSession.get_path_codeowners(repo_relative_path) if repo_relative_path else None
 
         source_file_info = _get_source_file_info(item, item_path)
 

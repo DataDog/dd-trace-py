@@ -311,6 +311,7 @@ class _ProfilerInstance(service.Service):
                 recorder=r,
                 exporters=exporters,
                 before_flush=self._collectors_snapshot,
+                tracer=self.tracer,
             )
 
     def _collectors_snapshot(self):
