@@ -101,8 +101,10 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
 
         # NOTE: The is_new tag is currently only being set in the context of EFD (since that is the only context in
-        # which unique tests are fetched).
-        if self.is_new():
+        # which unique tests are fetched). Additionally, if a session is considered faulty, we do not want to tag the
+        # test as new.
+        session = self.get_session()
+        if self.is_new() and session is not None and not session.efd_is_faulty_session():
             self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_atr_tags(self) -> None:

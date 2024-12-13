@@ -299,6 +299,7 @@ uvicorn
 uWSGI
 vendored
 versioned
+vertexai
 vertica
 w3c
 websocket
