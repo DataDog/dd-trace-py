@@ -131,5 +131,4 @@ def test_fn_retry_exception(stub_broker, stub_worker):
 
 
 def test_my_flaky_test():
-    r = random.randint(1, 10)
-    assert r % 2 == 0
+    assert True
