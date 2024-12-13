@@ -32,7 +32,7 @@ def azure_functions_client():
         client = Client("http://0.0.0.0:7071")
         # Wait for the server to start up
         try:
-            client.wait()
+            client.wait(delay=0.5)
             yield client
             client.get_ignored("/shutdown")
         except Exception:
