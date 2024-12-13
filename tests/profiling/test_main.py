@@ -43,6 +43,8 @@ def test_call_script_gevent(monkeypatch):
 def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "1")
     stdout, stderr, exitcode, pid = call_program(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
