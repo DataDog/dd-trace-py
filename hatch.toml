@@ -387,7 +387,7 @@ DD_TRACE_DEBUG = "true"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/profiling/test_main.py::test_call_script_pytorch_gpu -vvv --capture=tee-sys",
+    "python -m pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys",
 ]
 
 [[envs.profiling_pytorch.matrix]]

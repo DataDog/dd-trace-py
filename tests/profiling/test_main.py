@@ -5,7 +5,6 @@ import sys
 
 import pytest
 
-from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
 from tests.utils import flaky
 
@@ -36,21 +35,6 @@ def test_call_script_gevent(monkeypatch):
         sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py")
     )
     assert exitcode == 0, (stdout, stderr)
-
-
-@pytest.mark.skipif(not os.getenv("DD_PROFILING_PYTORCH_ENABLED", False), reason="Not testing pytorch GPU")
-def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
-    filename = str(tmp_path / "pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "1")
-    stdout, stderr, exitcode, pid = call_program(
-        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
-    )
-    profile = pprof_utils.parse_profile(filename)
-    print(profile)
-
-    assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
 
 
 def test_call_script_pprof_output(tmp_path, monkeypatch):
