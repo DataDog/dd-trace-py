@@ -270,8 +270,13 @@ def extract_git_commit_selections(git_commit_message: str) -> t.Set[str]:
 def main() -> bool:
     argp = ArgumentParser()
 
+    try:
+        default_pr_number = _get_pr_number()
+    except RuntimeError:
+        default_pr_number = None
+
     argp.add_argument("suite", help="The suite to use", type=str)
-    argp.add_argument("--pr", help="The PR number", type=int, default=_get_pr_number())
+    argp.add_argument("--pr", help="The PR number", type=int, default=default_pr_number)
     argp.add_argument(
         "--sha", help="Commit hash to use as diff base (defaults to PR merge root)", type=lambda v: v or None
     )
@@ -281,6 +286,9 @@ def main() -> bool:
 
     if args.verbose:
         LOGGER.setLevel(logging.INFO)
+
+    if not args.pr:
+        raise RuntimeError("Could not determine PR number")
 
     return needs_testrun(args.suite, args.pr, sha=args.sha)
 
