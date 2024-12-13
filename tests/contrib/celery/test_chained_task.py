@@ -55,5 +55,8 @@ def test_task_chain_task_call_task():
     old_pattern_match = r"resource=\\'tests.contrib.celery.tasks.fn_a\\' type=\\'worker\\' .* tags=.*correlation_id.*"
     new_pattern_match = r"resource=\'tests.contrib.celery.tasks.fn_a\' type=\'worker\' .* tags=.*correlation_id.*"
 
-    pattern_exists = re.search(old_pattern_match, str(worker_logs)) is not None or re.search(new_pattern_match, str(worker_logs)) is not None
+    pattern_exists = (
+        re.search(old_pattern_match, str(worker_logs)) is not None
+        or re.search(new_pattern_match, str(worker_logs)) is not None
+    )
     assert pattern_exists is not None
