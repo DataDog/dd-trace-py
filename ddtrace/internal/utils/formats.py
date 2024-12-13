@@ -95,7 +95,7 @@ def parse_tags_str(tags_str):
             if(value):
                 print("VALUE IS TRUE")
             print(value == "")
-            if not key.strip() or "," in key or (sep and not value):
+            if not key.strip() or "," in key or not sep:
                 print("invalid")
                 invalids.append(tag)
             elif sep:
