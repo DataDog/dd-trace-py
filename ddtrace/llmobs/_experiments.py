@@ -193,7 +193,7 @@ class Dataset:
         data = resp.json()
 
         # Print url to the dataset in Datadog
-        print(f"Dataset '{self.name}' created: {BASE_URL}/llm/experiments/datasets/{dataset_id}")
+        print(f"Dataset '{self.name}' created: {BASE_URL}/llm/experiments/datasets/{dataset_id}\n\n")
 
     @classmethod
     def from_csv(
@@ -488,7 +488,6 @@ class Experiment:
         total_rows = len(self.dataset)
         completed = 0
         error_count = 0 
-        error_messages = []  
 
         def process_row(idx_row):
             idx, row = idx_row
@@ -522,7 +521,6 @@ class Experiment:
 
             except Exception as e:
                 error_message = str(e)
-                error_messages.append(f"Row {idx}: {error_message}")
                 return {
                     "idx": idx,
                     "output": None,
@@ -581,7 +579,6 @@ class Experiment:
                             raise e
                         else:
                             error_count += 1
-                            error_messages.append(f"Row {idx}: {str(e)}")
 
                     completed += 1
                     _print_progress_bar(completed, total_rows, prefix='Processing:', suffix='Complete')
@@ -596,13 +593,9 @@ class Experiment:
         self.has_run = True
 
         error_rate = (error_count / total_rows) * 100
-        print(f"\nTask completed with {error_count} errors ({error_rate:.2f}% error rate)")
-
+        print(f"Task completed with {error_count} errors ({error_rate:.2f}% error rate)")
         if error_count > 0:
-            print("\nError Summary:")
-            for error_msg in error_messages:
-                print(f"- {error_msg}")
-            print("\nIf you'd like to halt execution on errors and see the full traceback, set `raise_errors=True` when running the experiment.\n")
+            print("If you'd like to halt execution on errors and see the full traceback, set `raise_errors=True` when running the experiment.")
 
     def run_evaluations(self, evaluators: Optional[List[Callable]] = None, raise_errors: bool = False) -> "ExperimentResults":
         """Run evaluators on the outputs and return ExperimentResults.
@@ -632,7 +625,6 @@ class Experiment:
         total_rows = len(self.outputs)
         completed = 0
         error_count = 0  
-        error_messages = [] 
 
         _print_progress_bar(0, total_rows, prefix='Evaluating:', suffix='Complete')
 
@@ -651,8 +643,6 @@ class Experiment:
                         evaluations_dict[evaluator.__name__] = evaluation_result
                     except Exception as e:
                         error_count += 1
-                        error_message = f"Row {idx}, Evaluator {evaluator.__name__}: {type(e).__name__}: {e}"
-                        error_messages.append(error_message)
                         if raise_errors:
                             raise e
 
@@ -666,8 +656,7 @@ class Experiment:
                 if raise_errors:
                     raise e
                 error_count += 1
-                error_message = f"Row {idx}: {type(e).__name__}: {e}"
-                error_messages.append(error_message)
+            
                 evaluations.append({
                     "idx": idx,
                     "evaluations": {},
@@ -686,14 +675,10 @@ class Experiment:
         else:
             error_rate = 0
 
-        print(f"\nEvaluation completed with {error_count} errors ({error_rate:.2f}% error rate)")
+        print(f"Evaluation completed with {error_count} errors ({error_rate:.2f}% error rate)")
 
         if error_count > 0:
-           
-            print("\nError Summary:")
-            for error_msg in error_messages:
-                print(f"- {error_msg}")
-            print("\nIf you'd like to halt execution on errors and see the full traceback, set `raise_errors=True` when running the experiment.\n")
+            print("If you'd like to halt execution on errors and see the full traceback, set `raise_errors=True` when running the experiment.")
       
         self.has_evaluated = True
         return ExperimentResults(self.dataset, self, self.outputs, evaluations)
@@ -716,7 +701,6 @@ class Experiment:
         """
         self.run_task(_jobs=_jobs, raise_errors=raise_errors)
         experiment_results = self.run_evaluations(raise_errors=raise_errors)
-        print()  
         return experiment_results
 
 
@@ -803,103 +787,86 @@ class ExperimentResults:
         # Define the desired column order
         COLUMN_ORDER = ['input', 'expected_output', 'output', 'evaluations', 'metadata', 'config', 'error']
         
-        data_rows = []
-        column_tuples = set()
-
-        for result in self.merged_results:
-            record = {}
-
-            if multiindex:
-                input_data = result.get('input', {})
-                if isinstance(input_data, dict):
-                    for k, v in input_data.items():
-                        record[('input', k)] = v
-                        column_tuples.add(('input', k))
-                else:
-                    record[('input', '')] = input_data
-                    column_tuples.add(('input', ''))
-
-                expected_output = result.get('expected_output', {})
-                if isinstance(expected_output, dict):
-                    for k, v in expected_output.items():
-                        record[('expected_output', k)] = v
-                        column_tuples.add(('expected_output', k))
-                else:
-                    record[('expected_output', '')] = expected_output
-                    column_tuples.add(('expected_output', ''))
-
-                output = result.get('output', {})
-                if isinstance(output, dict):
-                    for k, v in output.items():
-                        record[('output', k)] = v
-                        column_tuples.add(('output', k))
-                else:
-                    record[('output', '')] = output
-                    column_tuples.add(('output', ''))
-
-                # Handle 'evaluations' fields
-                evaluations = result.get('evaluations', {})
-                for eval_name, eval_result in evaluations.items():
-                    if isinstance(eval_result, dict):
-                        for k, v in eval_result.items():
-                            record[('evaluations', eval_name, k)] = v
-                            column_tuples.add(('evaluations', eval_name, k))
-                    else:
-                        record[('evaluations', eval_name)] = eval_result
-                        column_tuples.add(('evaluations', eval_name))
-
-                # Handle 'metadata' fields
-                for k, v in result.get('metadata', {}).items():
-                    record[('metadata', k)] = v
-                    column_tuples.add(('metadata', k))
-
-                # Handle 'config' fields
-                if self.experiment.config:
-                    for k, v in self.experiment.config.items():
-                        record[('config', k)] = v
-                        column_tuples.add(('config', k))
-
-                # Handle 'error' fields
-                error = result.get('error', {})
-                if error:
-                    for k, v in error.items():
-                        record[('error', k)] = v
-                        column_tuples.add(('error', k))
-
-                data_rows.append(record)
-            else:
-                # Non-multiindex implementation remains the same
-                new_record = {}
-                input_data = result.get('input', {})
-                new_record['input'] = input_data
-                expected_output = result.get('expected_output', {})
-                new_record['expected_output'] = expected_output
-                output = result.get('output', {})
-                new_record['output'] = output
-                new_record['evaluations'] = result.get('evaluations', {})
-                new_record['metadata'] = result.get('metadata', {})
-                new_record['config'] = self.experiment.config
-                new_record['error'] = result.get('error', {})
-                data_rows.append(new_record)
-
-        if multiindex:
-            # Sort column_tuples based on the desired order
-            column_tuples = sorted(list(column_tuples), 
-                                key=lambda x: (COLUMN_ORDER.index(x[0]), x[1:] if len(x) > 1 else ''))
-
-            # Build the DataFrame
-            records_list = []
-            for record in data_rows:
-                row = [record.get(col, None) for col in column_tuples]
-                records_list.append(row)
-
-            df = pd.DataFrame(records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
-            return df
-
-        df = pd.DataFrame(data_rows)
-        # Reorder columns according to COLUMN_ORDER
-        cols = [col for col in COLUMN_ORDER if col in df.columns]
-        return df[cols]
+        # Convert merged_results to DataFrame directly
+        df = pd.DataFrame(self.merged_results)
+        
+        if not multiindex:
+            # Reorder columns according to COLUMN_ORDER
+            cols = [col for col in COLUMN_ORDER if col in df.columns]
+            return df[cols]
+        
+        # For multiindex, we need to handle each column type differently
+        result_dfs = []
+        
+        # Handle input column
+        input_df = pd.DataFrame({'input': df['input'].values})
+        
+        # Handle expected_output column
+        expected_output_df = pd.DataFrame({'expected_output': df['expected_output'].values})
+        
+        # Handle output column - expand the nested structure
+        output_df = pd.json_normalize(
+            df['output'].fillna({}).values,
+            sep='_'
+        ).add_prefix('output_')
+        
+        # Handle evaluations - flatten the dictionary
+        evaluations_df = pd.DataFrame(df['evaluations'].values.tolist())
+        if not evaluations_df.empty:
+            evaluations_df = evaluations_df.astype(object)  # Ensure columns are of object type
+            evaluations_df = evaluations_df.add_prefix('evaluations_')
+            # Replace NaN with None
+            evaluations_df = evaluations_df.where(pd.notna(evaluations_df), None)
+        
+        # Handle metadata - flatten the dictionary
+        metadata_df = pd.DataFrame(df['metadata'].values.tolist())
+        if not metadata_df.empty:
+            metadata_df = metadata_df.add_prefix('metadata_')
+        
+        # Handle config if it exists
+        if 'config' in df.columns:
+            config_df = pd.json_normalize(
+                df['config'].fillna({}).values,
+                sep='_'
+            ).add_prefix('config_')
+        else:
+            config_df = pd.DataFrame()
+        
+        # Handle error column - flatten the dictionary and preserve None values
+        error_dicts = df['error'].values.tolist()
+        error_df = pd.DataFrame(error_dicts)
+        if not error_df.empty:
+            error_df = error_df.add_prefix('error_')
+        
+        # Combine all DataFrames
+        result_dfs = [
+            input_df,
+            expected_output_df,
+            output_df,
+            evaluations_df,
+            metadata_df,
+            config_df,
+            error_df
+        ]
+        
+        # Filter out empty DataFrames and concatenate
+        result_dfs = [df for df in result_dfs if not df.empty]
+        final_df = pd.concat(result_dfs, axis=1)
+        
+        # Replace NaN with None
+        final_df = final_df.where(pd.notna(final_df), None)
+        
+        # Create MultiIndex columns
+        new_columns = pd.MultiIndex.from_tuples([
+            tuple(col.split('_', 1)) if '_' in col else (col, '')
+            for col in final_df.columns
+        ])
+        final_df.columns = new_columns
+        
+        # Replace NaN with None for the entire DataFrame
+        final_df = final_df.where(pd.notna(final_df), None)
+        
+        return final_df
 
     def push(self, overwrite: bool = False) -> None: # TODO: Implement overwrite
         """Push the experiment results to Datadog.
@@ -1007,15 +974,21 @@ class ExperimentResults:
 
             # Add evaluation metrics
             for metric_name, metric_value in evaluations.items():
+                # Skip None values
+                if metric_value is None:
+                    print(f"Skipping None value for metric: {metric_name}")
+                    continue
+                    
                 timestamp_ms = int(metadata.get("timestamp", time.time()) * 1000)
 
                 # Check for bool first, since bool is a subclass of int
-                if isinstance(metric_value, bool):
+                if isinstance(metric_value, (bool, str)):
                     metric_type = "categorical"
                     metric_value = str(metric_value).lower()
                 elif isinstance(metric_value, (int, float)):
                     metric_type = "score"
                 else:
+                    print(f"Unknown metric type: {type(metric_value)}")
                     metric_type = "categorical"
                     metric_value = str(metric_value)
 
@@ -1045,7 +1018,7 @@ class ExperimentResults:
         exp_http_request("POST", url, body=json.dumps(results_payload).encode("utf-8"))
 
         # Print URL to the experiment in Datadog
-        print(f"Experiment '{self.experiment.name}' created: {BASE_URL}/llm/experiments/experiment-list/{experiment_id}")
+        print(f"Experiment '{self.experiment.name}' created: {BASE_URL}/llm/experiments/experiment-list/{experiment_id} \n\n")
 
     def export_to_jsonl(self, file_path):
         """
@@ -1095,7 +1068,6 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
         if not DD_SITE:
             raise ValueError("DD_SITE may be incorrect. Please check your DD_SITE environment variable.")
         else:
-            print(resp.text())
             raise ValueError("DD_API_KEY or DD_APPLICATION_KEY is incorrect.")
     if resp.status_code >= 400:
         try:

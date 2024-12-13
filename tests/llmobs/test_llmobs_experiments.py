@@ -1,3 +1,12 @@
+"""
+Test coverage ideas:
+- Define task and evaluator wrong
+- Define experiment wrong
+- Experiments with failures
+- Eval failures
+- Test workflows for re-evals and publishing results
+"""
+
 import itertools
 import os
 from typing import Any
