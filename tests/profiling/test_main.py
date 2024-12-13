@@ -44,9 +44,12 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     stdout, stderr, exitcode, pid = call_program(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
-    print("stdout:", stdout.decode())
-    print("stderr:", stderr.decode())
-    assert exitcode == 0, (stdout, stderr)
+    hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    print("stacks: ", stacks)
+    print("pid: ", pid)
+    utils.check_pprof_file(filename + "." + str(pid) + ".1")
+    assert exitcode == 0
+    return filename, pid
 
 
 def test_call_script_pprof_output(tmp_path, monkeypatch):
