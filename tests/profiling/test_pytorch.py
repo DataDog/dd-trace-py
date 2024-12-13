@@ -25,14 +25,16 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     print("first sample: ", samples[0])
 
     expected_sample = pprof_utils.StackEvent(
+        thread_id=1,
+        thread_name="PYTORCH-CUDA-0",
         locations=[
             pprof_utils.StackLocation(
-                function_name="device.CUDA",
+                function_name="PYTORCH_DeviceType.CUDA",
                 filename="undefined",
                 line_no=0,
             ),
             pprof_utils.StackLocation(
-                function_name="cudaLaunchKernel",
+                function_name="Memset (Device)",
                 filename="undefined",
                 line_no=0,
             ),
