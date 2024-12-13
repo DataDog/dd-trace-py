@@ -89,7 +89,7 @@ jobs:
           echo "NEW_LATEST=$NEW_LATEST" >> $GITHUB_ENV
       
       - name: Update supported versions table
-        run: python generate_table.py
+        run: python scripts/generate_table.py
 
       - name: Create Pull Request
         id: pr
