@@ -62,9 +62,13 @@ class Contrib_TestClass_For_Threats:
     def body(self, response) -> str:
         raise NotImplementedError
 
-    def check_for_stack_trace(self, root_span):
+    def get_stack_trace(self, root_span, namespace):
         appsec_traces = root_span().get_struct_tag(asm_constants.EXPLOIT_PREVENTION.STACK_TRACES) or {}
-        exploit = appsec_traces.get("exploit", [])
+        stacks = appsec_traces.get(namespace, [])
+        return stacks
+
+    def check_for_stack_trace(self, root_span):
+        exploit = self.get_stack_trace(root_span, "exploit")
         stack_ids = sorted(set(t["id"] for t in exploit))
         triggers = get_triggers(root_span())
         stack_id_in_triggers = sorted(set(t["stack_id"] for t in (triggers or []) if "stack_id" in t))
@@ -1505,21 +1509,25 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
 
     def test_iast(self, interface, root_span, get_tag):
-        if interface.name == "fastapi" and asm_config._iast_enabled:
-            raise pytest.xfail("fastapi does not fully support IAST for now")
+        # if interface.name == "fastapi" and asm_config._iast_enabled:
+        #     raise pytest.xfail("fastapi does not fully support IAST for now")
 
         from ddtrace.ext import http
 
-        url = "/rasp/command_injection/?cmd=ls"
+        url = "/rasp/command_injection/?cmd=."
         self.update_tracer(interface)
         response = interface.client.get(url)
         assert self.status(response) == 200
         assert get_tag(http.STATUS_CODE) == "200"
         assert self.body(response).startswith("command_injection endpoint")
+        stack_traces = self.get_stack_trace(root_span, "vulnerability")
         if asm_config._iast_enabled:
             assert get_tag("_dd.iast.json") is not None
+            # checking for iast stack traces
+            assert stack_traces
         else:
             assert get_tag("_dd.iast.json") is None
+            assert stack_traces == []
 
 
 @contextmanager
