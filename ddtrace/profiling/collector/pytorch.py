@@ -179,11 +179,12 @@ def handle_torch_trace(prof):
         # If there is data, flush it to the profile.
         # Otherwise, do nothing and the sample object will be dropped when it goes out of scope
         if data_added:
+            handle.push_frame(e.name, "unknown-file", 0, 0)
             # Pushing pseudoframes for the device name ("device.CPU" or "device.CUDA")
             # onto the stack allows differentation of pytorch frames from other profiling frames
             # in the flame graph.
-            handle.push_frame("PYTORCH_" + str(e.device_type), "undefined", 0, 0)
-            handle.push_frame(e.name, "undefined", 0, 0)
+            # Note that stacks go root last, so this goes at the end
+            handle.push_frame("PYTORCH_" + str(e.device_type), "unknown-file", 0, 0)
 
             handle.push_gpu_device_name("cuda " + str(e.device_index))
 
