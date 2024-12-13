@@ -113,7 +113,8 @@ def parse_tags_str(tags_str):
     print("post_strip: ", tags_str)
     for sep in TAGSEP:
         ts = tags_str.split(sep)
-        print("post_split: ", tags_str)
+        print("sep: ", sep)
+        print("post_split: ", ts)
         tags, invs = parse_tags(ts)
         if len(tags) > len(tag_list):
             tag_list = tags
