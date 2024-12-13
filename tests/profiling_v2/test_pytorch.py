@@ -27,13 +27,13 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     expected_sample = pprof_utils.StackEvent(
         locations=[
             pprof_utils.StackLocation(
-                function_name="PYTORCH_DeviceType.CUDA",
-                filename="undefined",
+                function_name="Memset (Device)",
+                filename="unknown-file",
                 line_no=0,
             ),
             pprof_utils.StackLocation(
-                function_name="Memset (Device)",
-                filename="undefined",
+                function_name="PYTORCH_DeviceType.CUDA",
+                filename="unknown-file",
                 line_no=0,
             ),
         ],

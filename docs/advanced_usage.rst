@@ -749,7 +749,7 @@ to automatically export this data to Datadog for visualization without having to
 The requirements for using this feature are:
 
 - must be using the `torch.profiler` module which was introduced in PyTorch version `1.8.1`.
-- must set the environment variable `DD_PROFILING_PYTORCH_ENABLED=true` and also enable our new exporter with the environment variable `DD_PROFILING_EXPORT_LIBDD_ENABLED=true`.
+- must set the environment variable `DD_PROFILING_PYTORCH_ENABLED=true`.
 
 It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and CPU overhead. This 
 is an experimental feature which should be run with caution as it can add significant overhead. Additionally, please note that running this feature in certain 
@@ -762,7 +762,7 @@ This can be run through the command line (assuming that a Datadog agent is runni
 
 .. code-block:: bash
 
-    DD_SERVICE=test-pytorch-service DD_PROFILING_PYTORCH_ENABLED=true DD_PROFILING_EXPORT_LIBDD_ENABLED=true DD_PROFILING_ENABLED=true ddtrace-run python cifar10.py
+    DD_SERVICE=test-pytorch-service DD_PROFILING_PYTORCH_ENABLED=true DD_PROFILING_ENABLED=true ddtrace-run python cifar10.py
 
 .. code-block:: python
     

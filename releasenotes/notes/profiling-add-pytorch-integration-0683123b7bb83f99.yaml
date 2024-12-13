@@ -5,5 +5,4 @@ features:
     by setting ``DD_PROFILING_PYTORCH_ENABLED=true``. This feature instruments the PyTorch 
     profiler API (https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html)
     so that GPU profiling data can be sent to Datadog for visualization.
-    This feature requires the environment variable ``DD_PROFILING_EXPORT_LIBDD_ENABLED=true``
-    and supports torch version >= 1.8.1. 
+    This feature supports torch version >= 1.8.1.

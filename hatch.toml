@@ -371,7 +371,7 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
-    "torch",
+    "torch>=1.8.1",
     "torchvision",
     "lz4",
 ]
@@ -379,15 +379,13 @@ dependencies = [
 [envs.profiling_pytorch.env-vars]
 DD_PROFILING_ENABLED = "true"
 DD_PROFILING_PYTORCH_ENABLED = "true"
-DD_PROFILING_EXPORT_LIBDD_ENABLED = "true"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
-DD_TRACE_DEBUG = "true"
 
 [envs.profiling_pytorch.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys",
+    "python -m pytest tests/profiling_v2/test_pytorch.py -vvv --capture=tee-sys",
 ]
 
 [[envs.profiling_pytorch.matrix]]
