@@ -5,6 +5,7 @@ import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
@@ -17,8 +18,6 @@ log = get_logger(__name__)
 
 
 def parse_response_body(raw_body):
-    import json
-
     import xmltodict
 
     from ddtrace.appsec import _asm_request_context
@@ -54,7 +53,7 @@ def parse_response_body(raw_body):
     try:
         # TODO handle charset
         if "json" in content_type:
-            req_body = json.loads(access_body(raw_body))
+            req_body = unpatched_json_loads(access_body(raw_body))
         elif "xml" in content_type:
             req_body = xmltodict.parse(access_body(raw_body))
         else:
