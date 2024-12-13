@@ -564,7 +564,7 @@ class LLMObs(Service):
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
         prompt: Optional[dict] = None,
-        span_links = None,
+        span_links=None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
