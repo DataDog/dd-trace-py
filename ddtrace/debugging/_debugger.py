@@ -24,7 +24,7 @@ from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._function.store import FullyNamedContextWrappedFunction
+from ddtrace.debugging._function.store import FullyNamedWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import FunctionLocationMixin
@@ -382,7 +382,7 @@ class Debugger(Service):
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
-        probes_for_function: Dict[FullyNamedContextWrappedFunction, List[Probe]] = defaultdict(list)
+        probes_for_function: Dict[FullyNamedWrappedFunction, List[Probe]] = defaultdict(list)
         for probe in self._probe_registry.get_pending(str(origin(module))):
             if not isinstance(probe, LineLocationMixin):
                 continue
@@ -406,7 +406,7 @@ class Debugger(Service):
                 log.error(message)
                 self._probe_registry.set_error(probe, "NoFunctionsAtLine", message)
                 continue
-            for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
+            for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
                 probes_for_function[function].append(cast(LineProbe, probe))
 
         for function, probes in probes_for_function.items():
@@ -481,14 +481,14 @@ class Debugger(Service):
             module = self.__watchdog__.get_by_origin(resolved_source)
             if module is not None:
                 # The module is still loaded, so we can try to eject the hooks
-                probes_for_function: Dict[FullyNamedContextWrappedFunction, List[LineProbe]] = defaultdict(list)
+                probes_for_function: Dict[FullyNamedWrappedFunction, List[LineProbe]] = defaultdict(list)
                 for probe in probes:
                     if not isinstance(probe, LineLocationMixin):
                         continue
                     line = probe.line
                     assert line is not None, probe  # nosec
                     functions = FunctionDiscovery.from_module(module).at_line(line)
-                    for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
+                    for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
                         probes_for_function[function].append(probe)
 
                 for function, ps in probes_for_function.items():
@@ -595,7 +595,7 @@ class Debugger(Service):
                     context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
                     context.remove_probe(probe)
                     if not context.has_probes():
-                        self._function_store.unwrap(cast(FullyNamedContextWrappedFunction, function))
+                        self._function_store.unwrap(cast(FullyNamedWrappedFunction, function))
                     log.debug("Unwrapped %r", registered_probe)
                 else:
                     log.error("Attempted to unwrap %r, but no wrapper found", registered_probe)
