@@ -4,8 +4,6 @@ Add all monkey-patching that needs to run by default here
 """
 
 import os  # noqa:I001
-import subprocess
-import sys
 
 from ddtrace import config  # noqa:F401
 from ddtrace.appsec._iast._utils import _is_iast_enabled

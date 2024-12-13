@@ -1,11 +1,8 @@
-# This is a sidecar server that listens for trace data from the Datadog tracer.
-# It should be run in a separate process from the tracer.
-# Ex: DD_INSTRUMENTATION_TELEMETRY_ENABLED=false DD_REMOTE_CONFIGURATION_ENABLED=false DD_TRACE_DEBUG=true python ddtrace/ddsidecar.py
 import os
 
 
 # Ensure low overhead mode is disabled for sidecar.
-assert os.environ.get("DD_TRACE_LOW_CPU_MODE") in ("0", "", "false", None)
+assert os.environ.get("DD_TRACE_LOW_CPU_MODE", "").lower() in ("0", "", "false")
 
 from http.server import BaseHTTPRequestHandler  # noqa: E402
 from itertools import chain  # noqa: E402
@@ -22,8 +19,6 @@ from ddtrace._trace.processor import SpanProcessor  # noqa: E402
 # Initialize global variables
 spans: Dict[int, ddtrace.Span] = {}
 from ddtrace.ddsidecar_utils import SIDECAR_HOST  # noqa: E402
-from ddtrace.ddsidecar_utils import SIDECAR_PORT  # noqa: E402
-from ddtrace.ddsidecar_utils import kill_process_on_port  # noqa: E402
 
 
 # Create the HTTP request handler class
@@ -213,18 +208,9 @@ class SideCarHTTPRequestHandler(BaseHTTPRequestHandler):
         ddtrace.tracer.flush()
         self._send_response(200, {})
 
-    # def trace_delete(self, args: list):
-    #     """Delete spans"""
-    #     global spans
-
-    #     for id in json.loads(args.get("span_ids", "[]")):
-    #         spans.pop(id, None)
-    #     #print("remaining spans:", spans)
-    #     self._send_response(200, {})
-
 
 if __name__ == "__main__":
-    kill_process_on_port(SIDECAR_PORT)
-    with socketserver.TCPServer((SIDECAR_HOST, int(SIDECAR_PORT)), SideCarHTTPRequestHandler) as httpd:
-        print("Serving at port", SIDECAR_PORT)
+    port = int(ddtrace.config._trace_sidecar_port)
+    with socketserver.TCPServer((SIDECAR_HOST, port), SideCarHTTPRequestHandler) as httpd:
+        print("Serving at port", port)
         httpd.serve_forever()
