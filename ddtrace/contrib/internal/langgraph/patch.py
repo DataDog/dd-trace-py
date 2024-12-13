@@ -1,95 +1,150 @@
+import sys
+import os
+
 import langgraph
 
+from ddtrace import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.pin import Pin
+from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
+
+from typing import Dict, Any
+from collections import defaultdict
 
 def get_version():
     return getattr(langgraph, "__version__", "")
 
-import random
+config._add(
+    "langgraph",
+    {
+        "span_prompt_completion_sample_rate": float(os.getenv("DD_VERTEXAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        "span_char_limit": int(os.getenv("DD_VERTEXAI_SPAN_CHAR_LIMIT", 128)),
+    },
+)
 
 # def set_span_for_route(route)
 
-@with_traced_module
-def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
-    # might not be needed...
-    # print("---traced_runnable_seq_invoke start---")
-    steps = instance.steps
-    traced = steps[0].name not in ("_write", "_route")
-    if not traced:
-        return func(*args, **kwargs)
+node_invokes: Dict[str, Any] = {}
 
-    # node = steps[0]
-    # write = steps[1]
-    # setattr(node, "_dd_set_span_for_route", )
+# @with_traced_module
+# def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
+#     # might not be needed...
+#     # print("---traced_runnable_seq_invoke start---")
+#     steps = instance.steps
+#     traced = steps[0].name not in ("_write", "_route")
+#     if not traced:
+#         return func(*args, **kwargs)
 
-    result = func(*args, **kwargs)
-    # print("---traced_runnable_seq_invoke end---")
-    return result
+#     # node = steps[0]
+#     # write = steps[1]
+#     # setattr(node, "_dd_set_span_for_route", )
+#     print("running node", steps[0].name, steps[-1].name)
+
+#     result = func(*args, **kwargs)
+#     # print("---traced_runnable_seq_invoke end---")
+#     return result
 
 @with_traced_module
 def traced_runnable_callable_invoke(langgraph, pin, func, instance, args, kwargs):
     # used for tracing function executions
     node_name = instance.name
-    # print("traced_runnable_callable_invoke", node_name, getattr(instance.func, "__name__", instance.func.__class__.__name__))
-    config = args[1]
-    if node_name not in ("_write", "_route", "_control_branch"):
-        print("running node", node_name)
-        trace_id = 'trace_id.' + str(random.random())
-        span_id = 'span_id.' + str(random.random())
-        link = { 'trace_id': trace_id, 'span_id': span_id }
+    integration = langgraph._datadog_integration
+    
+    inputs = get_argument_value(args, kwargs, 0, "input")
+    config = get_argument_value(args, kwargs, 1, "config")
+    metadata = config.get("metadata", {}) if isinstance(config, dict) else {}
+    if node_name in ("_write", "_route", "_control_branch") or metadata.get("visited", False):
+        return func(*args, **kwargs)
 
-        metadata = config["metadata"]
+    node_instance_id = metadata["langgraph_checkpoint_ns"].split(":")[-1]
 
-        old_link = metadata.get("link", None) # use this on the current span to say where we're coming from
-        # breakpoint()
-        metadata["link"] = link # propagate it down
+    span = integration.trace(
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name),
+        submit_to_llmobs=True,
+        interface_type="agent",
+    )
 
-    result = func(*args, **kwargs)
-    # if node_name == "_control_branch":
-    #     print("control_branch", result)
+    node_invoke = node_invokes[node_instance_id] = node_invokes.get(node_instance_id, {})
+    node_invoke["span"] = {
+        "trace_id": "{:x}".format(span.trace_id),
+        "span_id": str(span.span_id),
+    }
+
+    result = None
+    inputs = get_argument_value(args, kwargs, 0, "input")
+
+    try:
+        result = func(*args, **kwargs)
+        if isinstance(config, dict): # this needs to be better - we need another way to see if a runnablecallable is a node vs routing function
+            config["metadata"]["visited"] = True
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.metric(span, "incr", "request.error", 1)
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=inputs, kwargs={ **kwargs, "_dd_from": node_invoke.get("from", {}), "name": node_name }, response=result, operation="llm")
+        span.finish()
+
     return result
 
 @with_traced_module
 def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
     # used for starting spans
-    print("\nStarting a new Pregel (Graph)")
-    result = func(*args, **kwargs)
-    print("Ending a Pregel (Graph)\n")
+    integration = langgraph._datadog_integration
+    inputs = get_argument_value(args, kwargs, 0, "input")
+    span = integration.trace(
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name),
+        submit_to_llmobs=True,
+        interface_type="agent"
+    )
+
+    result = None
+
+    try:
+        result = func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.metric(span, "incr", "request.error", 1)
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=inputs, kwargs=kwargs, response=result, operation="llm")
+        span.finish()
+
     return result
 
 @with_traced_module
 def traced_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
-    # grab instance.tasks (could not exist, grab safely)
-    curr_tasks = getattr(instance, "tasks", {})
-    # set on instance.config a list of where we are coming from (could be multiple tasks)
-    config = getattr(instance, "config", {})
-    # in prepare_single_task, use this list to set the link for the task
-    links = [task.config.get("metadata", {}).get("link", {}) for task in curr_tasks.values()]
-    print("my current tasks are", {task.name: task.config["metadata"]["langgraph_checkpoint_ns"] for task in curr_tasks.values()})
+    finished_tasks = getattr(instance, "tasks", {})
     result = func(*args, **kwargs)
-    # how do we assign links to next tasks? we could have two links from [b, c] to [d, e], but d should have a link from b and e should have a link from c
-    # for non-conditional edges, we could look at next_tasks.values()[i].config["metadata"]["langgraph_triggers"], and find the appropriate task from the curr_tasks
     next_tasks = getattr(instance, "tasks", {}) # they should have been updated at this point
-    print("my next tasks are", [task.name for task in next_tasks.values()])
-    print("they came from", {task.name: task.config["metadata"]["langgraph_triggers"] for task in next_tasks.values()})
-    print("and their IDs are", {task.name: task.config["metadata"]["langgraph_checkpoint_ns"] for task in next_tasks.values()})
-    print()
-    # [task.name for task in curr_tasks.values()]
-    # [task.name for task in next_tasks.values()]
-    # [task.config["metadata"]["langgraph_triggers"] for task in next_tasks.values()]
 
-    # possible triggers: "node", "prev:node", "branch:prev:router_fn:node"
-    return result
+    for task_id, task in next_tasks.items():
+        task_config = getattr(task, "config", {})
+        task_triggers = task_config.get("metadata", {}).get("langgraph_triggers", [])
 
-@with_traced_module
-def traced_pepare_single_task(langgraph, pin, func, instance, args, kwargs):
-    result = func(*args, **kwargs)
-    if result is not None:
-        pass
+        def extract_parent (trigger):
+            split = trigger.split(":")
+            if len(split) < 3:
+                return split[0]
+            return split[1]
+        
+        parent_node_names = [extract_parent(trigger) for trigger in task_triggers]
+        parent_ids = [task_id for parent_node_name in parent_node_names for task_id, task in finished_tasks.items() if task.name == parent_node_name]
+
+        for parent_id in parent_ids:
+            parent_span_link = node_invokes.get(parent_id, {}).get("span", {})
+            if not parent_span_link:
+                continue
+            node_invoke = node_invokes[task_id] = node_invokes.get(task_id, {})
+            from_nodes = node_invoke["from"] = node_invoke.get("from", [])
+
+            from_nodes.append(parent_span_link)
+
     return result
 
 def patch():
@@ -101,15 +156,14 @@ def patch():
     from langgraph import graph
 
     Pin().onto(langgraph)
-    integration = None # make integration
+    integration = LangGraphIntegration(integration_config=config.langgraph) # make integration
     langgraph._datadog_integration = integration
 
 
-    wrap("langgraph", "utils.runnable.RunnableSeq.invoke", traced_runnable_seq_invoke(langgraph))
+    # wrap("langgraph", "utils.runnable.RunnableSeq.invoke", traced_runnable_seq_invoke(langgraph))
     wrap("langgraph", "utils.runnable.RunnableCallable.invoke", traced_runnable_callable_invoke(langgraph))
     wrap("langgraph", "pregel.Pregel.invoke", traced_pregel_invoke(langgraph))
     wrap("langgraph", "pregel.loop.PregelLoop.tick", traced_pregel_loop_tick(langgraph))
-    wrap("langgraph", "pregel.algo.prepare_single_task", traced_pepare_single_task(langgraph))
 
 def unpatch():
     if not getattr(langgraph, "_datadog_patch", False):

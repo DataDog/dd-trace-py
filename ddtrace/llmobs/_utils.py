@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import NAME
 
 
 log = get_logger(__name__)
@@ -124,7 +125,7 @@ def _get_span_name(span: Span) -> str:
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
         client_name = span.get_tag("openai.request.client") or "OpenAI"
         return "{}.{}".format(client_name, span.resource)
-    return span.name
+    return span._get_ctx_item(NAME) or span.name
 
 
 def _get_ml_app(span: Span) -> str:
