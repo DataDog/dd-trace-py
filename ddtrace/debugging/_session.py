@@ -9,14 +9,14 @@ SessionId = str
 
 
 def _sessions_from_debug_tag(debug_tag: str) -> t.Generator["Session", None, None]:
-    for session in debug_tag.split(","):
+    for session in debug_tag.split("."):
         ident, _, level = session.partition(":")
         yield Session(ident=ident, level=int(level or 0))
 
 
 def _sessions_to_debug_tag(sessions: t.Iterable["Session"]) -> str:
     # TODO: Validate tag length
-    return ",".join(f"{session.ident}:{session.level}" for session in sessions)
+    return ".".join(f"{session.ident}:{session.level}" for session in sessions)
 
 
 @dataclass
@@ -34,7 +34,8 @@ class Session:
             session.link_to_trace(context)
 
     def propagate(self, context: t.Any) -> None:
-        sessions = list(_sessions_from_debug_tag(context))
+        debug_tag = context._meta.get("_dd.p.debug")
+        sessions = list(_sessions_from_debug_tag(debug_tag)) if debug_tag is not None else []
         for session in sessions:
             if self.ident == session.ident:
                 # The session is already in the tags so we don't need to add it

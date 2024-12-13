@@ -118,6 +118,8 @@ class EntrySpanLocation:
 
 
 class EntrySpanWrappingContext(WrappingContext):
+    __priority__ = 199
+
     def __init__(self, collector: SignalCollector, f: FunctionType) -> None:
         super().__init__(f)
 

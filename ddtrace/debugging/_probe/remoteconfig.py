@@ -214,7 +214,9 @@ class TriggerProbeFactory(ProbeFactory):
         args.update(
             rate=attribs.get("sampling", {}).get("cooldownInSeconds", DEFAULT_TRIGGER_PROBE_RATE),
             session_id=attribs["sessionId"],
-            level=attribs["level"],
+            level=int(attribs["level"]),
+            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
+            condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,
         )
 
 

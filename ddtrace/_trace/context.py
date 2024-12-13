@@ -269,7 +269,6 @@ class Context(object):
             with self._lock:
                 return (
                     self.trace_id == other.trace_id
-                    and self.span_id == other.span_id
                     and self._meta == other._meta
                     and self._metrics == other._metrics
                     and self._span_links == other._span_links
@@ -290,6 +289,6 @@ class Context(object):
         )
 
     def __hash__(self) -> int:
-        return hash((self.trace_id, self.span_id))
+        return hash(self.trace_id)
 
     __str__ = __repr__

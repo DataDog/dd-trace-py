@@ -3,8 +3,11 @@ import typing as t
 
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import SessionMixin
+from ddtrace.debugging._probe.model import TriggerFunctionProbe
+from ddtrace.debugging._probe.model import TriggerLineProbe
 from ddtrace.debugging._session import Session
-from ddtrace.debugging._signal.model import LogSignal
+from ddtrace.debugging._signal.log import LogSignal
+from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 
@@ -29,6 +32,9 @@ class Trigger(LogSignal):
         # propagation tag for distributed debugging
         session.propagate(self.trace_context)
 
+        # DEV: Unfortunately we don't have an API for this :(
+        self.trace_context._meta[f"_dd.ld.probe_id.{self.probe.probe_id}"] = "true"  # type: ignore[union-attr]
+
     def enter(self, scope: t.Mapping[str, t.Any]) -> None:
         self._link_session()
 
@@ -46,3 +52,13 @@ class Trigger(LogSignal):
 
     def has_message(self) -> bool:
         return bool(self.errors)
+
+
+@probe_to_signal.register
+def _(probe: TriggerFunctionProbe, frame, thread, trace_context, meter):
+    return Trigger(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
+
+
+@probe_to_signal.register
+def _(probe: TriggerLineProbe, frame, thread, trace_context, meter):
+    return Trigger(probe=probe, frame=frame, thread=thread, trace_context=trace_context)

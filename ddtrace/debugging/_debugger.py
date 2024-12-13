@@ -37,7 +37,6 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
