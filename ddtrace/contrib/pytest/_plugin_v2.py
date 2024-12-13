@@ -531,9 +531,6 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         print_iast_report(terminalreporter)
     except Exception:  # noqa: E722
         log.debug("Encountered error during code security summary", exc_info=True)
-    # from ddtrace.appsec._iast._pytest_plugin import print_iast_report
-
-    # print_iast_report(terminalreporter)
 
     if not is_test_visibility_enabled():
         yield
