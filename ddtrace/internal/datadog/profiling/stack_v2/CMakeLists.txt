@@ -34,7 +34,7 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
 endif()
 
 # Add echion
-set(ECHION_COMMIT "b2f2d49f2f5d5c4dd78d1d9b83280db8ac2949c0" CACHE STRING "Commit hash of echion to use")
+set(ECHION_COMMIT "9235e98c8cce7af76f971bbe75da030f3d1620e6" CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
     GIT_REPOSITORY "https://github.com/sanchda/echion.git"
