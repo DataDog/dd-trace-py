@@ -120,6 +120,12 @@ class DDLogger(logging.Logger):
         else:
             self.rate_limit = 60
 
+        self.telemetry_log_buckets = None
+        if _TelemetryConfig.LOG_COLLECTION_ENABLED and self.name.startswith("ddtrace.contrib."):
+            self.telemetry_log_buckets = collections.defaultdict(
+                lambda: DDLogger.LoggingBucket(0, 0)
+            )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
+
     def handle(self, record):
         # type: (logging.LogRecord) -> None
         """
@@ -141,6 +147,10 @@ class DDLogger(logging.Logger):
             # currently we only have one error code
             full_file_name = os.path.join(record.pathname, record.filename)
             telemetry.telemetry_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
+
+        if self.telemetry_log_buckets is not None:
+            # TODO exclude debug logs:: and record.levelno > logging.DEBUG:
+            self._report_telemetry_log(record)
 
         # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
         # If the logging is in debug, then do not apply any limits to any log
@@ -178,3 +188,29 @@ class DDLogger(logging.Logger):
             # Increment the count of records we have skipped
             # DEV: `self.buckets[key]` is a tuple which is immutable so recreate instead
             self.buckets[key] = DDLogger.LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
+
+    def _report_telemetry_log(self, record):
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        key = (record.name, record.levelno, record.pathname, record.lineno)
+        current_bucket = int(record.created / _TelemetryConfig.TELEMETRY_HEARTBEAT_INTERVAL)
+        key_bucket = self.telemetry_log_buckets[key]
+        if key_bucket.bucket == current_bucket:
+            self.telemetry_log_buckets[key] = DDLogger.LoggingBucket(key_bucket.bucket, key_bucket.skipped + 1)
+        else:
+            self.telemetry_log_buckets[key] = DDLogger.LoggingBucket(current_bucket, 0)
+            level = (
+                TELEMETRY_LOG_LEVEL.ERROR if record.levelno >= logging.ERROR
+                else TELEMETRY_LOG_LEVEL.WARNING if record.levelno == logging.WARNING
+                else TELEMETRY_LOG_LEVEL.DEBUG
+            )
+            from ddtrace.internal import telemetry
+            # TODO stack_trace = record.exc_info if "".join(format_exception(*record.exc_info)) else None
+            # TODO tags
+            telemetry.telemetry_writer.add_log(level, record.msg)  # TODO stacktrace and tags
+
+class _TelemetryConfig:
+    TELEMETRY_ENABLED = os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower() in ("true", "1")
+    LOG_COLLECTION_ENABLED = TELEMETRY_ENABLED and os.getenv("DD_TELEMETRY_LOG_COLLECTION_ENABLED", "true").lower() in ("true", "1")
+    TELEMETRY_HEARTBEAT_INTERVAL = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
+
+
