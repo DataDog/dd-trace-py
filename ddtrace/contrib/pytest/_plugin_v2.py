@@ -449,9 +449,9 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     if original_result.failed and is_quarantined:
-        # Mark the test as xfailed so that it does not count as a failed test for pytest's exit status logic
+        # Ensure test doesn't count as failed for pytest's exit status logic
         # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
-        original_result.wasxfail = "quarantined"
+        original_result.outcome = "quarantined"
 
     # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
     # NOTE: this mutates the original result's outcome
