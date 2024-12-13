@@ -7,9 +7,7 @@ import pytest
 
 import ddtrace
 from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
-from ddtrace.filters import TraceFilter
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -31,7 +29,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
-from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
 from ddtrace.llmobs.utils import Prompt
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -48,13 +45,9 @@ def mock_logs():
 
 
 def run_llmobs_trace_filter(dummy_tracer):
-    for trace_filter in dummy_tracer._filters:
-        if isinstance(trace_filter, LLMObsTraceProcessor):
-            root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
-            root_llm_span.set_tag_str(SPAN_KIND, "llm")
-            trace1 = [root_llm_span]
-            return trace_filter.process_trace(trace1)
-    raise ValueError("LLMObsTraceProcessor not found in tracer filters.")
+    with dummy_tracer.trace("span1", span_type=SpanTypes.LLM) as span:
+        span.set_tag_str(SPAN_KIND, "llm")
+    return dummy_tracer.writer.pop()
 
 
 def test_service_enable():
@@ -65,7 +58,6 @@ def test_service_enable():
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
-        assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
         assert run_llmobs_trace_filter(dummy_tracer) is not None
 
         llmobs_service.disable()
@@ -79,7 +71,6 @@ def test_service_enable_with_apm_disabled(monkeypatch):
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
-        assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
         assert run_llmobs_trace_filter(dummy_tracer) is None
 
         llmobs_service.disable()
@@ -139,7 +130,6 @@ def test_service_enable_already_enabled(mock_logs):
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
-        assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
         llmobs_service.disable()
         mock_logs.debug.assert_has_calls([mock.call("%s already enabled", "LLMObs")])
 
@@ -1667,42 +1657,6 @@ def test_llmobs_fork_evaluator_runner_run(monkeypatch):
         llmobs_service.disable()
 
 
-def test_llmobs_fork_custom_filter(monkeypatch):
-    """Test that forking a process correctly keeps any custom filters."""
-
-    class CustomFilter(TraceFilter):
-        def process_trace(self, trace):
-            return trace
-
-    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", 5.0)
-    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
-        tracer = DummyTracer()
-        custom_filter = CustomFilter()
-        tracer.configure(settings={"FILTERS": [custom_filter]})
-        llmobs_service.enable(_tracer=tracer, ml_app="test_app")
-        assert custom_filter in llmobs_service._instance.tracer._filters
-        pid = os.fork()
-        if pid:  # parent
-            assert custom_filter in llmobs_service._instance.tracer._filters
-            assert any(
-                isinstance(tracer_filter, LLMObsTraceProcessor)
-                for tracer_filter in llmobs_service._instance.tracer._filters
-            )
-        else:  # child
-            assert custom_filter in llmobs_service._instance.tracer._filters
-            assert any(
-                isinstance(tracer_filter, LLMObsTraceProcessor)
-                for tracer_filter in llmobs_service._instance.tracer._filters
-            )
-            llmobs_service.disable()
-            os._exit(12)
-
-        _, status = os.waitpid(pid, 0)
-        exit_code = os.WEXITSTATUS(status)
-        assert exit_code == 12
-        llmobs_service.disable()
-
-
 def test_llmobs_fork_disabled(monkeypatch):
     """Test that after being disabled the service remains disabled when forking"""
     monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
@@ -1994,3 +1948,4 @@ def test_service_enable_does_not_start_evaluator_runner():
         assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
         llmobs_service.disable()
+
