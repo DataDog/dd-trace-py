@@ -183,6 +183,9 @@ class TestVisibilityItemBase(abc.ABC):
             span_type=SpanTypes.TEST,
             activate=True,
         )
+        # Setting initial tags is necessary for integrations that might look at the span before it is finished
+        self._span.set_tag(EVENT_TYPE, self._event_type)
+        self._span.set_tag(SPAN_KIND, "test")
         log.debug("Started span %s for item %s", self._span, self)
 
     @_require_span
@@ -219,8 +222,6 @@ class TestVisibilityItemBase(abc.ABC):
 
         self.set_tags(
             {
-                EVENT_TYPE: self._event_type,
-                SPAN_KIND: "test",
                 COMPONENT: self._session_settings.test_framework,
                 test.FRAMEWORK: self._session_settings.test_framework,
                 test.FRAMEWORK_VERSION: self._session_settings.test_framework_version,
