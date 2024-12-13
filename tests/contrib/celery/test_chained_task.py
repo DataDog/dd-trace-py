@@ -51,5 +51,5 @@ def test_task_chain_task_call_task():
     worker_logs = worker_process.stderr.read()
 
     # Check that the root span was created with one of the Celery specific tags, such as celery.correlation_id
-    pattern_match = r"resource=\'tests.contrib.celery.tasks.fn_a\' type=\'worker\' .* tags=.*correlation_id.*"
+    pattern_match = r"resource=\\'tests.contrib.celery.tasks.fn_a\\' type=\\'worker\\' .* tags=.*correlation_id.*"
     assert re.search(pattern_match, str(worker_logs)) is not None
