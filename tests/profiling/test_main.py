@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from ddtrace.profiling.exporter import pprof
+from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
 from tests.utils import flaky
 
@@ -55,14 +55,8 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     # Verify the file exists and is not empty
     assert os.path.exists(output_pprof_filename), f"File {output_pprof_filename} does not exist."
     assert os.path.getsize(output_pprof_filename) > 0, "Profiling output file is empty."
-
-    with open(output_pprof_filename, "rb") as f:
-        content = f.read()
-        print("profile contents: ")
-        print(content)
-        p = pprof.pprof_pb2.Profile()
-        p.ParseFromString(content)
-        print(p)
+    profile = pprof_utils.parse_profile(output_pprof_filename)
+    print(profile)
 
     assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
 
