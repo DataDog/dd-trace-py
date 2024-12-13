@@ -15,10 +15,6 @@ from packaging.version import Version
 from pip import _internal
 
 
-# import ddtrace
-# from ddtrace._monkey import PATCH_MODULES
-
-
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 import riotfile  # noqa: E402
 
@@ -45,25 +41,6 @@ suite_to_package = {
     "vertica": "vertica_python",
 }
 
-# package_to_contrib = {
-#     "confluent-kafka": "kafka",
-#     "confluent_kafka": "kafka", # TODO: hacky, check this
-#     "python-consul": "consul",
-#     "snowflake-connector-python": "snowflake",
-#     "flask-caching": "flask-cache",
-#     "graphql-core": "graphql",
-#     "mysql-connector-python": "mysql",
-#     "pytest-asyncio": "asyncio",
-#     "pysqlite3-binary": "sqlite3",
-#     "grpcio": "grpc",
-#     "google-generativeai": "google_generativeai",
-#     "psycopg2-binary": "psycopg2",
-#     "cassandra-driver": "cassandra",
-#     "redis-py-cluster": "rediscluster",
-#     "dogpile-cache": "dogpile_cache",
-#     "vertica_python": "vertica"
-# }
-
 
 # mapping the name of the module to the name of the package (on pypi and as defined in lockfiles)
 mapping_module_to_package = {
@@ -80,12 +57,6 @@ mapping_module_to_package = {
     "mysql": "pymysql",
 }
 
-# contrib_to_package = {
-#     "cassandra": "cassandra-driver"
-# }
-
-# invert the previous dictionary
-mapping_package_to_module = {v: k for k, v in mapping_module_to_package.items()}
 
 supported_versions = []  # list of dicts
 pinned_packages = set()
@@ -207,7 +178,7 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
         # remap the package -> module name
         if package in packages:
             lock_packages.append((package, versions))
-    # print(lock_packages)
+
     return lock_packages
 
 
@@ -313,7 +284,6 @@ def generate_supported_versions(contrib_packages, all_used_versions, patched):
         supported_versions.append(json_format)
 
     supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
-    # print(supported_versions_output)
     with open("supported_versions_output.json", "w") as file:
         json.dump(supported_versions_output, file, indent=4)
 
@@ -325,7 +295,6 @@ def main():
     patched = {}
 
     contrib_packages = contrib_modules
-    # remap
     all_used_versions = _get_all_used_versions(envs, contrib_packages)
     bounds = _get_version_bounds(contrib_packages)
 
