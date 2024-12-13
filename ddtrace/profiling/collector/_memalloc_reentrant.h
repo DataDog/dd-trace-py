@@ -1,18 +1,19 @@
 #ifndef _DDTRACE_MEMALLOC_REENTRANT_H
 #define _DDTRACE_MEMALLOC_REENTRANT_H
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <time.h>
 #ifdef _WIN32
 #include <windows.h>
 #else
+#define _POSIX_C_SOURCE 200809L
 #include <stdatomic.h>
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <time.h>
 #endif
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 // This is a simple thread-local reentrance guard.
 // Note the use of dynamic TLS.  Since this is a dynamic library it isn't in control of how much static TLS is
