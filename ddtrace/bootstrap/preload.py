@@ -50,7 +50,7 @@ manager.run_protocol()
 register_post_preload(manager.post_preload_products)
 
 
-if config._trace_low_cpu_mode:
+if config._sidecar_enabled:
     start_sidecar_server()
 
 # TODO: Migrate the following product logic to the new product plugin interface

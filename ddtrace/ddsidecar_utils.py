@@ -40,7 +40,7 @@ def start_sidecar_server():
     global SIDECAR_PROCESS
     kill_process_on_port(config._trace_sidecar_port)
     env = os.environ.copy()
-    env["DD_TRACE_LOW_CPU_MODE"] = "false"
+    env["DD_SIDECAR_ENABLED"] = "false"
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "false"
     env["DD_TRACE_DEBUG"] = "true"

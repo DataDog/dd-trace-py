@@ -2,7 +2,7 @@ import os
 
 
 # Ensure low overhead mode is disabled for sidecar.
-assert os.environ.get("DD_TRACE_LOW_CPU_MODE", "").lower() in ("0", "", "false")
+assert os.environ.get("DD_SIDECAR_ENABLED", "").lower() in ("0", "", "false")
 
 from http.server import BaseHTTPRequestHandler  # noqa: E402
 from itertools import chain  # noqa: E402

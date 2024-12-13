@@ -790,7 +790,7 @@ class Tracer(object):
 
         links = context._span_links if not parent else []
 
-        if config._trace_low_cpu_mode:
+        if config._sidecar_enabled:
             on_finish = []
         else:
             on_finish = [self._on_span_finish]
@@ -865,7 +865,7 @@ class Tracer(object):
             self._services.add(service)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if (not config._trace_low_cpu_mode) and (self.enabled or self._apm_opt_out):
+        if (not config._sidecar_enabled) and (self.enabled or self._apm_opt_out):
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)

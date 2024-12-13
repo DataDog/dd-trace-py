@@ -898,7 +898,7 @@ class SpanLowOverhead(SpanBase):
         return super().finish(finish_time)
 
 
-if config._trace_low_cpu_mode:
+if config._sidecar_enabled:
     Span = SpanLowOverhead
 else:
     Span = SpanBase
