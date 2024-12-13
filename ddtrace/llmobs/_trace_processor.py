@@ -139,11 +139,14 @@ class LLMObsTraceProcessor(TraceProcessor):
             "metrics": metrics,
         }
 
+        links = [{"trace_id": "{:x}".format(span.trace_id), "span_id": parent_id}]
+
         if span.get_tag("_ml_obs.span_links") is not None:
-            links = span._meta.pop("_ml_obs.span_links")
-            # implicit parent id link
-            links.append({"trace_id": "{:x}".format(span.trace_id), "span_id": parent_id})
-            llmobs_span_event["span_links"] = json.loads(span._meta.pop("_ml_obs.span_links"))
+            links += json.loads(span._meta.pop("_ml_obs.span_links"))
+
+        if parent_id != "undefined":
+            print(links)
+            llmobs_span_event["span_links"] = links
 
         session_id = _get_session_id(span)
         if session_id is not None:
@@ -152,7 +155,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         llmobs_span_event["tags"] = self._llmobs_tags(
             span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
         )
-        print(llmobs_span_event)
+        # print(llmobs_span_event)
         return llmobs_span_event, is_ragas_integration_span
 
     @staticmethod
