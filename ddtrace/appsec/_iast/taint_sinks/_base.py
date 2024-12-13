@@ -61,11 +61,9 @@ class VulnerabilityBase(Operation):
             vulnerability and update the context with the report information.
             """
             if not is_iast_request_enabled():
-                if _is_iast_debug_enabled():
-                    log.debug(
-                        "[IAST] VulnerabilityBase.wrapper. No request quota or this vulnerability "
-                        "is outside the context"
-                    )
+                log.debug(
+                    "[IAST] VulnerabilityBase.wrapper. No request quota or this vulnerability is outside the context"
+                )
                 return wrapped(*args, **kwargs)
             elif cls.has_quota():
                 return func(wrapped, instance, args, kwargs)
