@@ -92,8 +92,9 @@ def parse_tags_str(tags_str):
             print("tag: ", tag)
             key, sep, value = tag.partition(":")
             print("key: ", key, " sep: ", sep, " value: ", value)
-            print(value)
-            print(value =="")
+            if(value):
+                print("VALUE IS TRUE")
+            print(value == "")
             if not key.strip() or "," in key or (sep and not value):
                 print("invalid")
                 invalids.append(tag)
