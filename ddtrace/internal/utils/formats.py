@@ -72,8 +72,7 @@ def parse_tags_str(tags_str):
     The expected string is of the form::
         "key1:value1,key2:value2"
         "key1:value1 key2:value2"
-        "key1,key2"
-        "key1 key2"
+        "key1:"
 
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
@@ -83,66 +82,22 @@ def parse_tags_str(tags_str):
 
     TAGSEP = ", "
 
-    def parse_tags(tags):
-        # type: (List[str]) -> Tuple[List[Tuple[str, str]], List[str]]
-        parsed_tags = []
-        invalids = []
+    result = []
+    key_value_pairs  = tags_str.split(',')
+    if(len(key_value_pairs) == 1):
+        key_value_pairs = tags_str.split()
+    print("key_value_pairs: ", key_value_pairs)
+    for pair in key_value_pairs:
+        # Split by colon to get key and value
+        if ':' in pair:
+            key, value = pair.split(':', 1)
+        else:
+            key, value = pair, ""
+        key, value = key.strip(), value.strip()
+        if key:
+            result.append((key, value))
 
-        for tag in tags:
-            print("tag: ", tag)
-            key, sep, value = tag.partition(":")
-            print("key: ", key, " sep: ", sep, " value: ", value)
-            if(value):
-                print("VALUE IS TRUE")
-            print(value == "")
-            if not key.strip() or "," in key or not sep:
-                print("invalid")
-                invalids.append(tag)
-            elif sep:
-                # parse key:val,key2:value2
-                parsed_tags.append((key, value))
-            else:
-                # parse key,key2
-                parsed_tags.append((key, ""))
-
-        return parsed_tags, invalids
-
-    print("pre_strip: ", tags_str)
-    tags_str = tags_str.strip(TAGSEP)
-
-    # Take the maximal set of tags that can be parsed correctly for a given separator
-    tag_list = []  # type: List[Tuple[str, str]]
-    invalids = []
-    print("post_strip: ", tags_str)
-    for sep in TAGSEP:
-        ts = tags_str.split(sep)
-        print("separator: ", sep)
-        print("post_split: ", ts)
-        tags, invs = parse_tags(ts)
-        if len(tags) > len(tag_list):
-            tag_list = tags
-            invalids = invs
-        elif len(tags) == len(tag_list) > 1:
-            # Both separators produce the same number of tags.
-            # DEV: This only works when checking between two separators.
-            tag_list[:] = []
-            invalids[:] = []
-
-    if not tag_list:
-        log.error(
-            (
-                "Failed to find separator for tag string: '%s'.\n"
-                "Tag strings must be comma or space separated:\n"
-                "  key1:value1,key2:value2\n"
-                "  key1:value1 key2:value2"
-            ),
-            tags_str,
-        )
-
-    for tag in invalids:
-        log.error("Malformed tag in tag pair '%s' from tag string '%s'.", tag, tags_str)
-
-    return dict(tag_list)
+    return dict(result)
 
 
 def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_LEN):
