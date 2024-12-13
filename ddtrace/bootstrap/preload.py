@@ -4,6 +4,8 @@ Add all monkey-patching that needs to run by default here
 """
 
 import os  # noqa:I001
+import subprocess
+import sys
 
 from ddtrace import config  # noqa:F401
 from ddtrace.appsec._iast._utils import _is_iast_enabled
@@ -18,6 +20,7 @@ from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace import tracer
+from ddtrace.ddsidecar_utils import start_sidecar_server
 
 
 import typing as t
@@ -48,6 +51,9 @@ manager.run_protocol()
 # Post preload operations
 register_post_preload(manager.post_preload_products)
 
+
+if config._trace_low_cpu_mode:
+    start_sidecar_server()
 
 # TODO: Migrate the following product logic to the new product plugin interface
 

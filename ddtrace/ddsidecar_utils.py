@@ -1,12 +1,13 @@
 from concurrent.futures import ThreadPoolExecutor
 import http
 import json
-import multiprocessing
 import os
 import subprocess
+import sys
 import time
 
 from ddtrace.vendor import psutil
+
 
 
 # Port on which the sidecar server will run
@@ -14,9 +15,11 @@ SIDECAR_PORT = os.getenv("DD_TRACE_SIDECAR_PORT", "8129")
 # Host on which the sidecar server will run
 # Using localhost here prevents outside connections to the sidecar server.
 SIDECAR_HOST = "127.0.0.1"
-
 # Create a ThreadPoolExecutor with a maximum of 10 workers
 executor = ThreadPoolExecutor(max_workers=100)
+
+
+SIDECAR_PROCESS = None
 
 
 def kill_process_on_port(port):
@@ -38,16 +41,24 @@ def kill_process_on_port(port):
 
 # Function to start the HTTP server
 def start_sidecar_server():
+    global SIDECAR_PROCESS
     # The command to start a simple HTTP server on port 8000
     kill_process_on_port(SIDECAR_PORT)
-    subprocess.run(["python3", "-m", "ddtrace.ddsidecar", SIDECAR_PORT])
+    env = os.environ.copy()
+    env["DD_TRACE_LOW_CPU_MODE"] = "false"
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "false"
+    env["DD_TRACE_DEBUG"] = "true"
 
-
-def run_tracing_sidecar():
-    server_process = multiprocessing.Process(target=start_sidecar_server)
-    server_process.start()
-
-    # Give the server some time to start up
+    SIDECAR_PROCESS = subprocess.Popen(
+        [sys.executable, "ddtrace/ddsidecar.py"],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        close_fds=True,
+        env=env,
+        preexec_fn=os.setsid,
+        cwd=str(os.path.dirname(os.path.dirname(__file__))),
+    )
     time.sleep(1)
     assert is_sidecar_alive(), "sidecar failed to start"
 
@@ -55,7 +66,7 @@ def run_tracing_sidecar():
 def is_sidecar_alive():
     # Send a GET request to the root endpoint
     conn = http.client.HTTPConnection("localhost", SIDECAR_PORT)
-    conn.request("POST", "/alive")
+    conn.request("POST", "/alive", body="{}")
     response = conn.getresponse()
     return response.status == 200
 
