@@ -44,18 +44,10 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "1")
-
     stdout, stderr, exitcode, pid = call_program(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
-
-    output_pprof_filename = f"{filename}.{pid}.1"
-    print("filename: ", output_pprof_filename)
-
-    # Verify the file exists and is not empty
-    assert os.path.exists(output_pprof_filename), f"File {output_pprof_filename} does not exist."
-    assert os.path.getsize(output_pprof_filename) > 0, "Profiling output file is empty."
-    profile = pprof_utils.parse_profile(output_pprof_filename)
+    profile = pprof_utils.parse_profile(filename)
     print(profile)
 
     assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
