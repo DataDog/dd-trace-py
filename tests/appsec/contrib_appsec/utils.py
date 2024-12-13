@@ -63,7 +63,7 @@ class Contrib_TestClass_For_Threats:
         raise NotImplementedError
 
     def get_stack_trace(self, root_span, namespace):
-        appsec_traces = root_span().get_struct_tag(asm_constants.EXPLOIT_PREVENTION.STACK_TRACES) or {}
+        appsec_traces = root_span().get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
         stacks = appsec_traces.get(namespace, [])
         return stacks
 
@@ -1509,9 +1509,6 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
 
     def test_iast(self, interface, root_span, get_tag):
-        # if interface.name == "fastapi" and asm_config._iast_enabled:
-        #     raise pytest.xfail("fastapi does not fully support IAST for now")
-
         from ddtrace.ext import http
 
         url = "/rasp/command_injection/?cmd=."

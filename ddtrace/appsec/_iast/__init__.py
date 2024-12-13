@@ -60,7 +60,7 @@ def ddtrace_iast_flask_patch():
     module_name = inspect.currentframe().f_back.f_globals["__name__"]
     module = sys.modules[module_name]
     try:
-        module_path, patched_ast = astpatch_module(module, remove_flask_run=False)
+        module_path, patched_ast = astpatch_module(module)
     except Exception:
         log.debug("Unexpected exception while AST patching", exc_info=True)
         return
