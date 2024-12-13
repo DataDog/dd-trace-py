@@ -92,6 +92,8 @@ def parse_tags_str(tags_str):
             print("tag: ", tag)
             key, sep, value = tag.partition(":")
             print("key: ", key, " sep: ", sep, " value: ", value)
+            print(value)
+            print(value =="")
             if not key.strip() or "," in key or (sep and not value):
                 print("invalid")
                 invalids.append(tag)
@@ -113,7 +115,7 @@ def parse_tags_str(tags_str):
     print("post_strip: ", tags_str)
     for sep in TAGSEP:
         ts = tags_str.split(sep)
-        print("sep: ", sep)
+        print("separator: ", sep)
         print("post_split: ", ts)
         tags, invs = parse_tags(ts)
         if len(tags) > len(tag_list):
