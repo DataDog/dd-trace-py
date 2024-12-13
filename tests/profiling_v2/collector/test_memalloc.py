@@ -4,15 +4,8 @@ import threading
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
-from tests.profiling.collector import pprof_utils
-
-
-try:
-    from ddtrace.profiling.collector import _memalloc
-except ImportError:
-    pytestmark = pytest.mark.skip("_memalloc not available")
-
 from ddtrace.profiling.collector import memalloc
+from tests.profiling.collector import pprof_utils
 
 
 def _allocate_1k():
