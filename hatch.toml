@@ -373,6 +373,7 @@ dependencies = [
     "hypothesis",
     "torch",
     "torchvision",
+    "lz4",
 ]
 
 [envs.profiling_pytorch.env-vars]
