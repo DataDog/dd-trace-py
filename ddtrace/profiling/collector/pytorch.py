@@ -141,7 +141,7 @@ def handle_torch_trace(prof):
         raise AttributeError("Neither trace_start_ns nor trace_start_us exists")
 
     for e in events:
-        if collection_fraction < random.random():
+        if collection_fraction < random.random():  # nosec: used for sampling, not security
             continue
 
         handle = ddup.SampleHandle()
