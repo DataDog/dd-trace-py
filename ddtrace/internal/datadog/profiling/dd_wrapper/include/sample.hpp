@@ -115,6 +115,7 @@ class Sample
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
     bool push_class_name(std::string_view class_name);
     bool push_monotonic_ns(int64_t monotonic_ns);
+    bool push_absolute_ns(int64_t timestamp_ns);
 
     // Interacts with static Sample state
     bool is_timeline_enabled() const;

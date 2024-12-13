@@ -287,6 +287,12 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns) // cppcheck-suppress unusedFunction
+{
+    sample->push_absolute_ns(timestamp_ns);
+}
+
+void
 ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppcheck-suppress unusedFunction
 {
     sample->push_monotonic_ns(monotonic_ns);

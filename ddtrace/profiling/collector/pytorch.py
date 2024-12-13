@@ -202,7 +202,7 @@ def handle_torch_trace(prof):
             else:
                 raise AttributeError(f"Unexpected device_type {e.device_type}")
 
-            handle.push_monotonic_ns(int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND))
+            handle.push_absolute_ns(int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND))
             handle.flush_sample()
         else:
             if empty_events_count % 1000 == 0:

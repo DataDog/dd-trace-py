@@ -65,6 +65,7 @@ extern "C"
                          std::string_view _filename,
                          uint64_t address,
                          int64_t line);
+    void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
     // Stack v2 specific flush, which reverses the locations

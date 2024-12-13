@@ -82,6 +82,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
+    void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
 
@@ -542,6 +543,10 @@ cdef class SampleHandle:
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
             ddup_push_monotonic_ns(self.ptr, <int64_t>monotonic_ns)
+
+    def push_absolute_ns(self, timestamp_ns: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_absolute_ns(self.ptr, <int64_t>timestamp_ns)
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use
