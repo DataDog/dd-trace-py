@@ -1389,9 +1389,9 @@ class Contrib_TestClass_For_Threats:
                 # there may have been multiple evaluations of other rules too
                 assert (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)) in evals
                 if action_level == 2:
-                    assert get_tag("rasp.request.done") is None
+                    assert get_tag("rasp.request.done") is None, get_tag("rasp.request.done")
                 else:
-                    assert get_tag("rasp.request.done") == endpoint
+                    assert get_tag("rasp.request.done") == endpoint, get_tag("rasp.request.done")
                 assert get_metric(APPSEC.RASP_DURATION) is not None
                 assert get_metric(APPSEC.RASP_DURATION_EXT) is not None
                 assert get_metric(APPSEC.RASP_RULE_EVAL) is not None
@@ -1402,7 +1402,7 @@ class Contrib_TestClass_For_Threats:
                     assert "rasp" not in n
                 assert get_triggers(root_span()) is None
                 assert self.check_for_stack_trace(root_span) == []
-                assert get_tag("rasp.request.done") == endpoint
+                assert get_tag("rasp.request.done") == endpoint, get_tag("rasp.request.done")
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("auto_events_enabled", [True, False])

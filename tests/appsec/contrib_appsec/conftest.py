@@ -45,7 +45,7 @@ def check_waf_timeout(request):
 
 
 @pytest.fixture
-def get_tag(test_spans):
+def get_tag(test_spans, root_span):
     # checking both root spans and web spans for the tag
     def get(name):
         for span in test_spans.spans:
@@ -53,7 +53,7 @@ def get_tag(test_spans):
                 res = span.get_tag(name)
                 if res is not None:
                     return res
-        return None
+        return root_span().get_tag(name)
 
     yield get
 
