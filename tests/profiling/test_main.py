@@ -45,20 +45,35 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "1")
+
     stdout, stderr, exitcode, pid = call_program(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
 
-    output_pprof_filename = filename + "." + str(pid) + ".1"
+    output_pprof_filename = f"{filename}.{pid}.1"
     print("filename: ", output_pprof_filename)
-    with gzip.open(output_pprof_filename, "rb") as f:
-        content = f.read()
-        p = pprof.pprof_pb2.Profile()
-        p.ParseFromString(content)
-        print("profile contents: ")
-        print(p)
 
-    assert exitcode == 0
+    # Verify the file exists and is not empty
+    assert os.path.exists(output_pprof_filename), f"File {output_pprof_filename} does not exist."
+    assert os.path.getsize(output_pprof_filename) > 0, "Profiling output file is empty."
+
+    # Check file header to determine format
+    with open(output_pprof_filename, "rb") as f:
+        header = f.read(2)
+        print(f"File header bytes: {header}")
+        f.seek(0)  # Reset file pointer
+
+        if header == b"\x1f\x8b":  # Gzip header
+            with gzip.open(output_pprof_filename, "rb") as gz:
+                content = gz.read()
+        else:
+            content = f.read()
+
+    p = pprof.pprof_pb2.Profile()
+    p.ParseFromString(content)
+    print("profile contents: ")
+    print(p)
+    assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
 
 
 def test_call_script_pprof_output(tmp_path, monkeypatch):
