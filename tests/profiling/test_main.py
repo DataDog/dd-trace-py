@@ -1,10 +1,12 @@
 # -*- encoding: utf-8 -*-
+import gzip
 import multiprocessing
 import os
 import sys
 
 import pytest
 
+from ddtrace.profiling.exporter import pprof
 from tests.utils import call_program
 from tests.utils import flaky
 
@@ -44,12 +46,14 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     stdout, stderr, exitcode, pid = call_program(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
-    hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    print("stacks: ", stacks)
-    print("pid: ", pid)
-    utils.check_pprof_file(filename + "." + str(pid) + ".1")
+
+    print("filename: ", filename)
+    with gzip.open(filename, "rb") as f:
+        content = f.read()
+        p = pprof.pprof_pb2.Profile()
+        p.ParseFromString(content)
+
     assert exitcode == 0
-    return filename, pid
 
 
 def test_call_script_pprof_output(tmp_path, monkeypatch):
