@@ -16,6 +16,8 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     stdout, stderr, exitcode, pid = call_program(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
+    assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
+
     profile = pprof_utils.parse_profile(filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "gpu-time")
     assert len(samples) > 0
@@ -25,13 +27,18 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     expected_sample = pprof_utils.StackEvent(
         locations=[
             pprof_utils.StackLocation(
+                function_name="device.CUDA",
+                filename="undefined",
+                line_no=0,
+            ),
+            pprof_utils.StackLocation(
                 function_name="cudaLaunchKernel",
                 filename="undefined",
                 line_no=0,
             ),
         ],
     )
-
     pprof_utils.assert_profile_has_sample(profile, samples=samples, expected_sample=expected_sample)
 
-    assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
+    gpu_device_label_samples = pprof_utils.get_samples_with_label_key(profile, "gpu device name")
+    assert len(gpu_device_label_samples) > 0
