@@ -1,9 +1,13 @@
 from io import BytesIO
 from io import StringIO
 import itertools
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
-from typing import Sequence
 from typing import Tuple
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Sequence  # noqa:F401
 
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
