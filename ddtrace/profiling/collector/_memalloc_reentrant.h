@@ -5,11 +5,11 @@
 #include <windows.h>
 #else
 #define _POSIX_C_SOURCE 200809L
+#include <time.h>
 #include <stdatomic.h>
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <time.h>
 #endif
 #include <stdbool.h>
 #include <stdint.h>
