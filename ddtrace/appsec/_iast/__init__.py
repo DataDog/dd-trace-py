@@ -1,4 +1,4 @@
-"""IAST (interactive application security testing) analyzes code for security vulnerabilities.
+"""IAST (Interactive Application Security Testing) analyzes code for security vulnerabilities.
 
 To add new vulnerabilities analyzers (Taint sink) we should update `IAST_PATCH` in
 `ddtrace/appsec/iast/_patch_modules.py`
