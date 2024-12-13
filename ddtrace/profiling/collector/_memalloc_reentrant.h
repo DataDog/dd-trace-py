@@ -8,8 +8,10 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <stdatomic.h>
 #include <errno.h>
 #include <pthread.h>
+#include <unistd.h>
 #endif
 
 // This is a simple thread-local reentrance guard.
