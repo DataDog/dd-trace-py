@@ -47,7 +47,7 @@ set -e
 if ! [[ -v CIRCLECI && $CIRCLE_BRANCH =~ main ]]; then
     if [[ -f "$CHECKPOINT_FILENAME" ]]; then
         latest_success_commit=$(cat $CHECKPOINT_FILENAME)
-        if ! ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit; then
+        if ! hatch run scripts:needs_testrun $CIRCLE_JOB --sha $latest_success_commit; then
             echo "The $CIRCLE_JOB job succeeded at commit $latest_success_commit."
             echo "None of the changes on this branch since that commit affect the $CIRCLE_JOB job."
             echo "Skipping this job."

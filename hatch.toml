@@ -143,6 +143,9 @@ extra-dependencies = [
 test = [
     "python -m doctest {args} scripts/get-target-milestone.py scripts/needs_testrun.py tests/suitespec.py",
 ]
+needs_testrun = [
+  "scripts/needs_testrun.py {args}",
+]
 
 [envs.meta-testing]
 python = "3.10"
