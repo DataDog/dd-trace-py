@@ -49,11 +49,14 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
     )
 
-    print("filename: ", filename)
-    with gzip.open(filename, "rb") as f:
+    output_pprof_filename = filename + "." + str(pid) + ".1"
+    print("filename: ", output_pprof_filename)
+    with gzip.open(output_pprof_filename, "rb") as f:
         content = f.read()
         p = pprof.pprof_pb2.Profile()
         p.ParseFromString(content)
+        print("profile contents: ")
+        print(p)
 
     assert exitcode == 0
 
