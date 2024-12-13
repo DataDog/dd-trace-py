@@ -512,7 +512,9 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_heap.c",
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
             ],
-            extra_compile_args=debug_compile_args + ["-std=c11"] if CURRENT_OS != "Windows" else ["/std:c11"],
+            extra_compile_args=debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
+            if CURRENT_OS != "Windows"
+            else ["/std:c11"],
         ),
         Extension(
             "ddtrace.internal._threads",
