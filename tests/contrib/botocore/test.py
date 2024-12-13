@@ -57,10 +57,12 @@ BOTOCORE_VERSION = parse_version(botocore.__version__)
 
 # Span data which isn't static to ignore in the snapshots.
 snapshot_ignores = [
-    "meta.aws.response.body.HTTPHeaders.date",
     "meta.aws.requestid",
     "meta.aws.response.body.RequestId",
+    "meta.aws.response.body.HTTPHeaders.connection",
     "meta.aws.response.body.HTTPHeaders.content-length",
+    "meta.aws.response.body.HTTPHeaders.date",
+    "meta.aws.response.body.HTTPHeaders.server",
     "meta.aws.response.body.HTTPHeaders.x-amzn-requestid",
     "meta.error.stack",
 ]
