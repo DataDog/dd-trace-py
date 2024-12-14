@@ -67,7 +67,7 @@ def _find_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
             start += 2
         return start
 
-    def nth_opcode(start, n):
+    def nth_non_cache_opcode(start, n):
         for _ in range(n - 1):
             while code.co_code[start + 2] == CACHE:
                 start += 2
@@ -88,7 +88,7 @@ def _find_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
                 mark_for_injection(jump_pointed_offset)
 
         # Generic exception handlers
-        if co_code[idx] == PUSH_EXC_INFO and CHECK_EXC_MATCH != nth_opcode(idx, 3):
+        if co_code[idx] == PUSH_EXC_INFO and CHECK_EXC_MATCH != nth_non_cache_opcode(idx, 3):
             injection_indexes.add(first_offset_not_matching(idx + 2, POP_TOP, CACHE))
 
     return sorted(list(injection_indexes))
