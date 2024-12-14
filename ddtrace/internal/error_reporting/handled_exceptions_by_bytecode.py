@@ -39,56 +39,56 @@ def _inject_handled_exception_reporting(func, callback: CallbackType | None = No
     func.__code__ = code
 
 
-WAITING_FOR_EXC = 0
-CHECKING_EXC_MATCH = 1
-ANY_EXC_HANDLING_BLOCK = 2
-MATCHED_EXC_HANDLING_BLOCK = 3
-
-
 def _find_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
     return []
 
 
 def _find_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
-    PUSH_EXC_INFO = dis.opmap["PUSH_EXC_INFO"]
+    CACHE = dis.opmap["CACHE"]
     CHECK_EXC_MATCH = dis.opmap["CHECK_EXC_MATCH"]
+    POP_JUMP_FORWARD_IF_FALSE = dis.opmap["POP_JUMP_FORWARD_IF_FALSE"]
+    POP_TOP = dis.opmap["POP_TOP"]
+    PUSH_EXC_INFO = dis.opmap["PUSH_EXC_INFO"]
+    STORE_FAST = dis.opmap["STORE_FAST"]
 
-    injection_indexes = []
-    state = WAITING_FOR_EXC
+    def mark_for_injection(index: int):
+        if code.co_code[index] != POP_TOP:
+            injection_indexes.add(index)
+        else:
+            mark_for_injection(index + 2)
 
-    exc_entries = dis._parse_exception_table(code)
-    for exc_entry in exc_entries:
-        # we are currently not supporting exc table entry targets as instructions
-        # if (
-        #     isinstance(exc_entry.target, Instruction)
-        #     or isinstance(exc_entry.start, Instruction)
-        #     or isinstance(exc_entry.end, Instruction)
-        # ):
-        #     break
+    def first_opcode_not_matching(start: int, *opcodes: int):
+        while code.co_code[start] in opcodes:
+            start += 2
+        return code.co_code[start]
 
-        if state == WAITING_FOR_EXC and code.co_code[exc_entry.target] == PUSH_EXC_INFO:
-            # at this point either the exception is checked for a match, for example
-            #   ...except >>>ValueError as e<<<:
-            # or the exception handling code starts, for example
-            #   ...except:
-            #          print('...')
-            state = CHECKING_EXC_MATCH
-            continue
+    def first_offset_not_matching(start: int, *opcodes: int):
+        while code.co_code[start] in opcodes:
+            start += 2
+        return start
 
-        if state == CHECKING_EXC_MATCH:
-            if CHECK_EXC_MATCH in code.co_code[exc_entry.start : exc_entry.end : 2]:
-                # we need to move forward, because this block of code is just checking
-                # if the exception handled matches the one that was raised
-                state = MATCHED_EXC_HANDLING_BLOCK
-                continue
-            else:
-                state = ANY_EXC_HANDLING_BLOCK
+    def nth_opcode(start, n):
+        for _ in range(n - 1):
+            while code.co_code[start + 2] == CACHE:
+                start += 2
+            start += 2
+        return co_code[start]
 
-        if state == ANY_EXC_HANDLING_BLOCK:
-            injection_indexes.append(exc_entry.start + 2)
-            state = WAITING_FOR_EXC
-        elif state == MATCHED_EXC_HANDLING_BLOCK:
-            injection_indexes.append(exc_entry.start)
-            state = WAITING_FOR_EXC
+    injection_indexes = set()
+    co_code = code.co_code
+    for idx in range(len(code.co_code)):
+        # Typed exception handlers
+        if co_code[idx] == CHECK_EXC_MATCH and co_code[idx + 2] == POP_JUMP_FORWARD_IF_FALSE:
+            if co_code[idx + 2 + 2] == STORE_FAST:
+                injection_indexes.add(idx + 2 + 2 + 2)
+            # if the code unit AFTER the value pointed by POP_JUMP_FORWARD_IF_FALSE is not a CHECK_EXC_MATCH, then
+            # we should inject, as it could be an generic except
+            jump_pointed_offset = idx + 2 + (co_code[idx + 2 + 1] << 1) + 2
+            if first_opcode_not_matching(jump_pointed_offset + 2, CACHE) != CHECK_EXC_MATCH:
+                mark_for_injection(jump_pointed_offset)
 
-    return injection_indexes
+        # Generic exception handlers
+        if co_code[idx] == PUSH_EXC_INFO and CHECK_EXC_MATCH != nth_opcode(idx, 3):
+            injection_indexes.add(first_offset_not_matching(idx + 2, POP_TOP, CACHE))
+
+    return sorted(list(injection_indexes))

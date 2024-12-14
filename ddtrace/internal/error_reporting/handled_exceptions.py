@@ -30,7 +30,8 @@ class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
     def after_install(self):
         # There might be modules that are already loaded at the time of installation, so we need to instrument them
         # if they have been configured.
-        for module_name in sys.modules.keys():
+        existing_modules = set(sys.modules.keys())
+        for module_name in existing_modules:
             self._instrument_conditionally(module_name)
 
     def _instrument_conditionally(self, module_name: str):
