@@ -40,7 +40,53 @@ def _inject_handled_exception_reporting(func, callback: CallbackType | None = No
 
 
 def _find_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
-    return []
+    DUP_TOP = dis.opmap["DUP_TOP"]
+    JUMP_IF_NOT_EXC_MATCH = dis.opmap["JUMP_IF_NOT_EXC_MATCH"]
+    POP_TOP = dis.opmap["POP_TOP"]
+    SETUP_FINALLY = dis.opmap["SETUP_FINALLY"]
+
+    injection_indexes = set()
+
+    lines_offsets = [o for o, _ in dis.findlinestarts(code)]
+
+    def inject_conditionally(offset: int):
+        if offset in lines_offsets:
+            injection_indexes.add(offset)
+
+    def first_offset_not_matching(start: int, *opcodes: int):
+        while code.co_code[start] in opcodes:
+            start += 2
+        return start
+
+    potential_marks = set()
+
+    co_code = code.co_code
+    waiting_for_except = False
+    for idx in range(0, len(code.co_code), 2):
+        current_opcode = co_code[idx]
+        current_arg = co_code[idx + 1]
+        if current_opcode == JUMP_IF_NOT_EXC_MATCH:
+            target = current_arg << 1
+            potential_marks.add(target)
+            continue
+
+        if idx in potential_marks:
+            if current_opcode == DUP_TOP:
+                waiting_for_except = True
+            elif current_opcode == POP_TOP:
+                inject_conditionally(first_offset_not_matching(idx, POP_TOP))
+            continue
+
+        if current_opcode == SETUP_FINALLY:
+            if waiting_for_except:
+                waiting_for_except = False
+                inject_conditionally(idx + 2)
+            else:
+                target = idx + (current_arg << 1) + 2
+                potential_marks.add(target)
+                continue
+
+    return sorted(list(injection_indexes))
 
 
 def _find_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:

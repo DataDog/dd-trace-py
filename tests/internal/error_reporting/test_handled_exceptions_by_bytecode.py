@@ -43,48 +43,50 @@ def test_generic_except():
 
 @skipif_bytecode_injection_not_supported
 def test_generic_finally():
-    value = 0
+    value = ''
 
     def callback(*args):
         nonlocal value
-        value |= CALLBACK
+        _, e, _ = sys.exc_info()
+        value += str(e)
 
     def func():
         nonlocal value
         try:
-            value |= TRY
-            raise ValueError('value error')
+            value += '<try>'
+            raise ValueError('<error>')
         except:
-            value |= EXCEPT_VALUEERROR
+            value += '<except>'
         finally:
-            value |= FINALLY
+            value += '<finally>'
 
     _inject_handled_exception_reporting(func, callback)
     func()
 
-    assert value == TRY + CALLBACK + EXCEPT_VALUEERROR + FINALLY
+    assert value == '<try><error><except><finally>'
 
 
 @skipif_bytecode_injection_not_supported
 def test_matched_except():
-    value = 0
+    value = ''
 
     def callback(*args):
         nonlocal value
-        value |= CALLBACK
+        _, e, _ = sys.exc_info()
+        value += str(e)
 
     def func():
         nonlocal value
         try:
-            value |= TRY
-            raise ValueError('value error')
+            value += '<try>'
+            raise ValueError('<error>')
         except ValueError as _:
-            value |= EXCEPT_VALUEERROR
+            value += '<except>'
 
     _inject_handled_exception_reporting(func, callback)
     func()
 
-    assert value == TRY + CALLBACK + EXCEPT_VALUEERROR
+    assert value == '<try><error><except>'
 
 
 @skipif_bytecode_injection_not_supported

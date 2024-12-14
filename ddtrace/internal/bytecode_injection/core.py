@@ -399,8 +399,6 @@ def _generate_adjusted_location_data_3_10(
     """
     See format here: https://github.com/python/cpython/blob/3.10/Objects/lnotab_notes.txt
     """
-    print("Offsets map:", offsets_map)
-    print("Extended arg offsets:", extended_arg_offsets)
     old_data = code.co_linetable
     old_data_size = len(old_data)
     new_data = bytearray()
