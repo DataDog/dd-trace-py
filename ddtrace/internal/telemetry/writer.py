@@ -478,8 +478,8 @@ class TelemetryWriter(PeriodicService):
                     "value": value,
                 }
 
-    def add_log(self, level, message, stack_trace="", tags=None):
-        # type: (TELEMETRY_LOG_LEVEL, str, str, Optional[Dict]) -> None
+    def add_log(self, level, message, stack_trace="", tags=None, count=1):
+        # type: (TELEMETRY_LOG_LEVEL, str, str, Optional[Dict], int) -> None
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -499,6 +499,8 @@ class TelemetryWriter(PeriodicService):
                 data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
             if stack_trace:
                 data["stack_trace"] = stack_trace
+            if count > 1:
+                data["count"] = count
             self._logs.add(data)
 
     def add_gauge_metric(self, namespace, name, value, tags=None):

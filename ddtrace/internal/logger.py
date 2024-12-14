@@ -218,7 +218,7 @@ class DDLogger(logging.Logger):
                     # TODO redact absolute file paths and unknown packages
             if record.levelno >= logging.ERROR or stack_trace is not None:
                 # Report only an error or an exception with a stack trace
-                telemetry.telemetry_writer.add_log(level, record.msg, tags=tags, stack_trace=stack_trace)
+                telemetry.telemetry_writer.add_log(level, record.msg, tags=tags, stack_trace=stack_trace, count=key_bucket.skipped + 1)
 
 
 class _TelemetryConfig:
