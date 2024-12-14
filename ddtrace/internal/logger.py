@@ -1,6 +1,7 @@
 import collections
 import logging
 import os
+import traceback
 import typing
 from typing import Optional  # noqa:F401
 from typing import cast  # noqa:F401
@@ -121,10 +122,12 @@ class DDLogger(logging.Logger):
             self.rate_limit = 60
 
         self.telemetry_log_buckets = None
-        if _TelemetryConfig.LOG_COLLECTION_ENABLED and self.name.startswith("ddtrace.contrib."):
-            self.telemetry_log_buckets = collections.defaultdict(
-                lambda: DDLogger.LoggingBucket(0, 0)
-            )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
+        if _TelemetryConfig.LOG_COLLECTION_ENABLED:
+            if self.name.startswith("ddtrace.contrib."):
+                # Collect only errors logged within the integration package
+                self.telemetry_log_buckets = collections.defaultdict(
+                    lambda: DDLogger.LoggingBucket(0, 0)
+                )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
 
     def handle(self, record):
         # type: (logging.LogRecord) -> None
@@ -149,7 +152,6 @@ class DDLogger(logging.Logger):
             telemetry.telemetry_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
 
         if self.telemetry_log_buckets is not None:
-            # TODO exclude debug logs:: and record.levelno > logging.DEBUG:
             self._report_telemetry_log(record)
 
         # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
@@ -190,6 +192,7 @@ class DDLogger(logging.Logger):
             self.buckets[key] = DDLogger.LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
 
     def _report_telemetry_log(self, record):
+        # type: (logging.LogRecord) -> None
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
         key = (record.name, record.levelno, record.pathname, record.lineno)
         current_bucket = int(record.created / _TelemetryConfig.TELEMETRY_HEARTBEAT_INTERVAL)
@@ -204,9 +207,19 @@ class DDLogger(logging.Logger):
                 else TELEMETRY_LOG_LEVEL.DEBUG
             )
             from ddtrace.internal import telemetry
-            # TODO stack_trace = record.exc_info if "".join(format_exception(*record.exc_info)) else None
-            # TODO tags
-            telemetry.telemetry_writer.add_log(level, record.msg)  # TODO stacktrace and tags
+            tags = {
+                "lib_language": "python",
+            }
+            stack_trace = None
+            if record.exc_info:
+                _, _, traceback_object = record.exc_info
+                if traceback_object:
+                    stack_trace = ''.join(traceback.format_tb(traceback_object))
+                    # TODO redact absolute file paths and unknown packages
+            if record.levelno >= logging.ERROR or stack_trace is not None:
+                # Report only an error or an exception with a stack trace
+                telemetry.telemetry_writer.add_log(level, record.msg, tags=tags, stack_trace=stack_trace)
+
 
 class _TelemetryConfig:
     TELEMETRY_ENABLED = os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower() in ("true", "1")
