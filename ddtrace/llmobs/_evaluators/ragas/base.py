@@ -90,7 +90,7 @@ class RagasBaseEvaluator(ABC):
     submit evaluation metrics based on the span's attributes.
     """
 
-    LABEL = "ragas_context_precision"
+    LABEL = "ragas"
     METRIC_TYPE = "score"
 
     def __init__(self, llmobs_service):

@@ -70,12 +70,13 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
         evaluation from a span event.
 
         question - input.prompt.variables.question OR input.messages[-1].content
-        context - input.prompt.variables.context
+        contexts - list of context prompt variables specified by
+                        `input.prompt._dd_context_variable_keys` or defaults to `input.prompt.variables.context`
         answer - output.messages[-1].content
         """
         with self.llmobs_service.workflow("dd-ragas.extract_context_precision_inputs") as extract_inputs_workflow:
             self.llmobs_service.annotate(span=extract_inputs_workflow, input_data=span_event)
-            question, answer, context = None, None, None
+            question, answer, contexts = None, None, None
 
             meta_io = span_event.get("meta")
             if meta_io is None:
@@ -109,7 +110,7 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
                 question = input_messages[-1].get("content")
 
             self.llmobs_service.annotate(
-                span=extract_inputs_workflow, output_data={"question": question, "context": context, "answer": answer}
+                span=extract_inputs_workflow, output_data={"question": question, "contexts": contexts, "answer": answer}
             )
             if any(field is None for field in (question, contexts, answer)):
                 logger.debug("Failed to extract inputs required for faithfulness evaluation")

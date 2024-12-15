@@ -250,7 +250,8 @@ class RagasFaithfulnessEvaluator(RagasBaseEvaluator):
         evaluation from a span event.
 
         question - input.prompt.variables.question OR input.messages[-1].content
-        context - input.prompt.variables.context
+        context - joined string of context prompt variables specified by
+                        `input.prompt._dd_context_variable_keys` or defaults to `input.prompt.variables.context`
         answer - output.messages[-1].content
         """
         with self.llmobs_service.workflow("dd-ragas.extract_faithfulness_inputs") as extract_inputs_workflow:
