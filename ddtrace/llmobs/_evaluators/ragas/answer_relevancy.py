@@ -18,7 +18,7 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
     submit evaluation metrics based on the span's attributes.
     """
 
-    LABEL = "ragas_context_precision"
+    LABEL = "ragas_answer_relevancy"
     METRIC_TYPE = "score"
 
     def __init__(self, llmobs_service):
@@ -76,8 +76,9 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
         evaluation_metadata = {}  # type: dict[str, Union[str, dict, list]]
 
         # initialize data we annotate for tracing ragas
-        score, question, answer = (
+        score, question, answer, answer_classifications = (
             math.nan,
+            None,
             None,
             None,
         )
@@ -118,13 +119,9 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
 
                 # calculate score
                 gen_questions = [answer.question for answer in answers]
-                evaluation_metadata.update(
-                    {
-                        "answer_classifications": [
-                            {"question": answer.question, "noncommittal": answer.noncommittal} for answer in answers
-                        ]
-                    }
-                )
+                answer_classifications = [
+                    {"question": answer.question, "noncommittal": answer.noncommittal} for answer in answers
+                ]
                 if all(q == "" for q in gen_questions):
                     logger.warning("Invalid JSON response. Expected dictionary with key 'question'")
                     return "fail_parse_answer_relevancy_output", evaluation_metadata
@@ -133,5 +130,8 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
                 return score, evaluation_metadata
             finally:
                 self.llmobs_service.annotate(
-                    span=ragas_ar_workflow, input_data=span_event, output_data=score, metadata=evaluation_metadata
+                    span=ragas_ar_workflow,
+                    input_data=span_event,
+                    output_data=score,
+                    metadata={"answer_classifications": answer_classifications},
                 )
