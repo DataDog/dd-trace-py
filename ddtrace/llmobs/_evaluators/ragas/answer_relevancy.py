@@ -28,8 +28,8 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
         """
         Initialize an evaluator that uses the ragas library to generate a context precision score on finished LLM spans.
 
-        ResponseRelevancy metric focuses on assessing how pertinent the generated answer is to a given question. 
-        A lower score is assigned to answers that are incomplete or contain redundant information and higher scores 
+        ResponseRelevancy metric focuses on assessing how pertinent the generated answer is to a given question.
+        A lower score is assigned to answers that are incomplete or contain redundant information and higher scores
         indicate better relevancy. This metric is computed using the question, contexts, and answer.
 
         For more information, see https://docs.ragas.io/en/latest/concepts/metrics/available_metrics/answer_relevance/
@@ -64,7 +64,7 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
 
     def _extract_inputs(self, span_event: dict) -> Optional[dict]:
         """
-        Extracts the question, answer, and context used as inputs to faithfulness
+        Extracts the question, answer, and context used as inputs to a answer relevancy
         evaluation from a span event.
 
         question - input.prompt.variables.question OR input.messages[-1].content
@@ -118,17 +118,17 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
 
     def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
         """
-        Performs a context precision evaluation on a retrieval span event, returning either
-            - context precision score (float) OR failure reason (str)
+        Performs a answer relevancy evaluation on an llm span event, returning either
+            - answer relevancy score (float) OR failure reason (str)
             - evaluation metadata (dict)
-        If the ragas context precision instance does not have `llm` set, we set `llm` using the `llm_factory()`
+        If the ragas answer relevancy instance does not have `llm` set, we set `llm` using the `llm_factory()`
         method from ragas which currently defaults to openai's gpt-4o-turbo.
         """
         self.ragas_context_precision_instance = self._get_context_precision_instance()
         if not self.ragas_context_precision_instance:
-            return "fail_context_precision_is_none", {}
+            return "fail_answer_relevancy_is_none", {}
 
-        evaluation_metadata = {EVALUATION_KIND_METADATA: "context_precision"}  # type: dict[str, Union[str, dict, list]]
+        evaluation_metadata = {}  # type: dict[str, Union[str, dict, list]]
 
         # initialize data we annotate for tracing ragas
         score, question, answer = (
@@ -138,7 +138,7 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
         )
 
         with self.llmobs_service.workflow(
-            "dd-ragas.context_precision", ml_app=_get_ml_app_for_ragas_trace(span_event)
+            "dd-ragas.answer_relevancy", ml_app=_get_ml_app_for_ragas_trace(span_event)
         ) as ragas_cp_workflow:
             try:
                 evaluation_metadata[EVALUATION_SPAN_METADATA] = self.llmobs_service.export_span(span=ragas_cp_workflow)
@@ -147,21 +147,22 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
                 if cp_inputs is None:
                     logger.debug(
                         "Failed to extract question and contexts from "
-                        "span sampled for `ragas_context_precision` evaluation"
+                        "span sampled for `ragas_answer_relevancy` evaluation"
                     )
-                    return "fail_extract_context_precision_inputs", evaluation_metadata
+                    return "fail_extract_answer_relevancy_inputs", evaluation_metadata
 
                 question = cp_inputs["question"]
-                contexts = cp_inputs["contexts"]
+                contexts = cp_inputs["context"]
                 answer = cp_inputs["answer"]
 
-                # create a prompt to evaluate the relevancy of each context chunk
-                ctx_precision_prompts = [
-                    self.ragas_context_precision_instance.context_precision_prompt.format(
-                        question=question, context=c, answer=answer
-                    )
-                    for c in contexts
-                ]
+                prompt = self.ragas_answer_relevancy_instance.question_generation.format(
+                    answer=answer,
+                    context="\n".join(contexts),
+                )
+
+                result = self.ragas_answer_relevancy_instance.llm.generate_text(
+                    prompt, n=self.ragas_answer_relevancy_instance.strictness
+                )
 
                 responses = []
 
