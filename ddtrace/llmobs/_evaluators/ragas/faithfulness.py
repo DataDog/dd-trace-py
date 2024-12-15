@@ -9,8 +9,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
 from ddtrace.llmobs._constants import FAITHFULNESS_DISAGREEMENTS_METADATA
-from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
-from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._evaluators.ragas.base import RagasBaseEvaluator
 
@@ -134,16 +132,16 @@ class RagasFaithfulnessEvaluator(RagasBaseEvaluator):
                     span=ragas_faithfulness_workflow
                 )
 
-                faithfulness_inputs = self._extract_faithfulness_inputs(span_event)
+                faithfulness_inputs = self._extract_evaluation_inputs_from_span(span_event)
                 if faithfulness_inputs is None:
                     logger.debug(
-                        "Failed to extract question and context from span sampled for ragas_faithfulness evaluation"
+                        "Failed to extract evaluation inputs from span sampled for `ragas_faithfulness` evaluation"
                     )
                     return "fail_extract_faithfulness_inputs", evaluation_metadata
 
                 question = faithfulness_inputs["question"]
                 answer = faithfulness_inputs["answer"]
-                context = faithfulness_inputs["context"]
+                context = " ".join(faithfulness_inputs["contexts"])
 
                 statements = self._create_statements(question, answer)
                 if statements is None:
@@ -243,60 +241,6 @@ class RagasFaithfulnessEvaluator(RagasBaseEvaluator):
                     span=create_verdicts_workflow,
                     output_data=faithfulness_list,
                 )
-
-    def _extract_faithfulness_inputs(self, span_event: dict) -> Optional[dict]:
-        """
-        Extracts the question, answer, and context used as inputs to faithfulness
-        evaluation from a span event.
-
-        question - input.prompt.variables.question OR input.messages[-1].content
-        context - joined string of context prompt variables specified by
-                        `input.prompt._dd_context_variable_keys` or defaults to `input.prompt.variables.context`
-        answer - output.messages[-1].content
-        """
-        with self.llmobs_service.workflow("dd-ragas.extract_faithfulness_inputs") as extract_inputs_workflow:
-            self.llmobs_service.annotate(span=extract_inputs_workflow, input_data=span_event)
-            question, answer, context = None, None, None
-
-            meta_io = span_event.get("meta")
-            if meta_io is None:
-                return None
-
-            meta_input = meta_io.get("input")
-            meta_output = meta_io.get("output")
-
-            if not (meta_input and meta_output):
-                return None
-
-            prompt = meta_input.get("prompt")
-            if prompt is None:
-                logger.debug("Failed to extract `prompt` from span for `ragas_faithfulness` evaluation")
-                return None
-            prompt_variables = prompt.get("variables")
-
-            input_messages = meta_input.get("messages")
-
-            messages = meta_output.get("messages")
-            if messages is not None and len(messages) > 0:
-                answer = messages[-1].get("content")
-
-            if prompt_variables:
-                context_keys = prompt.get(INTERNAL_CONTEXT_VARIABLE_KEYS, ["context"])
-                question_keys = prompt.get(INTERNAL_QUERY_VARIABLE_KEYS, ["question"])
-                context = " ".join([prompt_variables.get(key) for key in context_keys if prompt_variables.get(key)])
-                question = " ".join([prompt_variables.get(key) for key in question_keys if prompt_variables.get(key)])
-
-            if not question and input_messages is not None and len(input_messages) > 0:
-                question = input_messages[-1].get("content")
-
-            self.llmobs_service.annotate(
-                span=extract_inputs_workflow, output_data={"question": question, "context": context, "answer": answer}
-            )
-            if any(field is None for field in (question, context, answer)):
-                logger.debug("Failed to extract inputs required for faithfulness evaluation")
-                return None
-
-            return {"question": question, "context": context, "answer": answer}
 
     def _create_statements_prompt(self, answer, question):
         # Returns: `ragas.llms.PromptValue` object
