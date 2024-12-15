@@ -120,7 +120,7 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
 
     def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
         """
-        Performs a context precision evaluation on a retrieval span event, returning either
+        Performs a context precision evaluation on an llm span event, returning either
             - context precision score (float) OR failure reason (str)
             - evaluation metadata (dict)
         If the ragas context precision instance does not have `llm` set, we set `llm` using the `llm_factory()`
