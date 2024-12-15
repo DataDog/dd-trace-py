@@ -147,7 +147,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         if parent_id != "undefined":
             print(links)
             llmobs_span_event["span_links"] = links
-
+        print(llmobs_span_event)
         session_id = _get_session_id(span)
         if session_id is not None:
             span.set_tag_str(SESSION_ID, session_id)

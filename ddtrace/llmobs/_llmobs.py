@@ -71,6 +71,18 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "google_generativeai": "google_generativeai",
 }
 
+import wrapt
+
+
+class CustomProxy(wrapt.ObjectProxy):
+    def add_span_links(self, span_links):
+        if not hasattr(self, "span_links"):
+            setattr(self, span_links, [])
+        self.span_links += span_links
+
+    def get_span_links(self):
+        return getattr(self, "span_links", [])
+
 
 class LLMObs(Service):
     _instance = None  # type: LLMObs
