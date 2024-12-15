@@ -71,6 +71,7 @@ class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
             obj = mod.__dict__[name]
             if type(obj) in INSTRUMENTABLE_TYPES and obj.__module__ == module_name and not name.startswith("__"):
                 self._instrument_obj(obj)
+                self._instrumented_modules.add(module_name)
 
     def _instrument_obj(self, obj):
         if type(obj) in (types.FunctionType, types.MethodType):
