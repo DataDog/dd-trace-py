@@ -116,13 +116,20 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
                     reproducibility = getattr(self.ragas_context_precision_instance, "_reproducibility", 1)
 
                     results = [result.generations[0][i].text for i in range(reproducibility)]
-                    responses.append(
-                        [
-                            res.dict()
-                            for res in [self.context_precision_output_parser.parse(text) for text in results]
-                            if res is not None
-                        ]
-                    )
+                    try:
+                        responses.append(
+                            [
+                                res.dict()
+                                for res in [self.context_precision_output_parser.parse(text) for text in results]
+                                if res is not None
+                            ]
+                        )
+                    except Exception as e:
+                        logger.debug(
+                            "Failed to parse context precision verification for `ragas_context_precision`",
+                            exc_info=e,
+                        )
+                        return "fail_context_precision_parsing", evaluation_metadata
 
                 answers = []
                 for response in responses:
@@ -135,7 +142,7 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
                                 "Failed to parse context precision verification for `ragas_context_precision`",
                                 exc_info=e,
                             )
-                            continue
+                            return "fail_context_precision_parsing", evaluation_metadata
                     answers.append(agg_answer)
 
                 if len(answers) == 0:
