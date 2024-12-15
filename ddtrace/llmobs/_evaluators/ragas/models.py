@@ -11,6 +11,11 @@ and outputs of LLM calls used for Ragas
 """
 
 
+class AnswerRelevanceClassification(BaseModel):
+    question: str
+    noncommittal: int
+
+
 class ContextPrecisionVerification(BaseModel):
     """Answer for the verification task whether the context was useful."""
 

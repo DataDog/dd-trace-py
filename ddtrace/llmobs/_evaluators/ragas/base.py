@@ -10,6 +10,8 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
+from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 
 
@@ -66,6 +68,18 @@ class MiniRagas:
         from ddtrace.llmobs._evaluators.ragas.models import StatementsAnswers
 
         self.StatementsAnswers = StatementsAnswers
+
+        from ddtrace.llmobs._evaluators.ragas.models import AnswerRelevanceClassification
+
+        self.AnswerRelevanceClassification = AnswerRelevanceClassification
+
+        from ragas.metrics import answer_relevancy
+
+        self.answer_relevancy = answer_relevancy
+
+        from ragas.embeddings import embedding_factory
+
+        self.embedding_factory = embedding_factory
 
 
 def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
@@ -127,6 +141,61 @@ class RagasBaseEvaluator(ABC):
                     ("ragas_version", self.ragas_version),
                 ),
             )
+
+    def _extract_evaluation_inputs_from_span(self, span_event: dict) -> Optional[dict]:
+        """
+        Extracts the question, answer, and context used as inputs for a ragas evaluation on a span event.
+
+        question - input.prompt.variables.question OR input.messages[-1].content
+        contexts - list of context prompt variables specified by
+                        `input.prompt._dd_context_variable_keys` or defaults to `input.prompt.variables.context`
+        answer - output.messages[-1].content
+        """
+        with self.llmobs_service.workflow("dd-ragas.extract_evaluation_inputs_from_span") as extract_inputs_workflow:
+            self.llmobs_service.annotate(span=extract_inputs_workflow, input_data=span_event)
+            question, answer, contexts = None, None, None
+
+            meta_io = span_event.get("meta")
+            if meta_io is None:
+                return None
+
+            meta_input = meta_io.get("input")
+            meta_output = meta_io.get("output")
+
+            if not (meta_input and meta_output):
+                return None
+
+            prompt = meta_input.get("prompt")
+            if prompt is None:
+                logger.debug(
+                    "Failed to extract `prompt` from span for ragas evaluation",
+                )
+                return None
+            prompt_variables = prompt.get("variables")
+
+            input_messages = meta_input.get("messages")
+
+            messages = meta_output.get("messages")
+            if messages is not None and len(messages) > 0:
+                answer = messages[-1].get("content")
+
+            if prompt_variables:
+                context_keys = prompt.get(INTERNAL_CONTEXT_VARIABLE_KEYS, ["context"])
+                question_keys = prompt.get(INTERNAL_QUERY_VARIABLE_KEYS, ["question"])
+                contexts = [prompt_variables.get(key) for key in context_keys if prompt_variables.get(key)]
+                question = " ".join([prompt_variables.get(key) for key in question_keys if prompt_variables.get(key)])
+
+            if not question and input_messages is not None and len(input_messages) > 0:
+                question = input_messages[-1].get("content")
+
+            self.llmobs_service.annotate(
+                span=extract_inputs_workflow, output_data={"question": question, "contexts": contexts, "answer": answer}
+            )
+            if any(field is None for field in (question, contexts, answer)):
+                logger.debug("Failed to extract inputs required for ragas evaluation")
+                return None
+
+            return {"question": question, "contexts": contexts, "answer": answer}
 
     def run_and_submit_evaluation(self, span_event: dict):
         if not span_event:

@@ -6,8 +6,6 @@ from typing import Union
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
-from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
-from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._evaluators.ragas.base import RagasBaseEvaluator
 from ddtrace.llmobs._evaluators.ragas.base import _get_ml_app_for_ragas_trace
 
@@ -64,60 +62,6 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
             ragas_context_precision_instance.llm = self.mini_ragas.llm_factory()
         return ragas_context_precision_instance
 
-    def _extract_inputs(self, span_event: dict) -> Optional[dict]:
-        """
-        Extracts the question, answer, and context used as inputs to a context precision
-        evaluation from a span event.
-
-        question - input.prompt.variables.question OR input.messages[-1].content
-        contexts - list of context prompt variables specified by
-                        `input.prompt._dd_context_variable_keys` or defaults to `input.prompt.variables.context`
-        answer - output.messages[-1].content
-        """
-        with self.llmobs_service.workflow("dd-ragas.extract_context_precision_inputs") as extract_inputs_workflow:
-            self.llmobs_service.annotate(span=extract_inputs_workflow, input_data=span_event)
-            question, answer, contexts = None, None, None
-
-            meta_io = span_event.get("meta")
-            if meta_io is None:
-                return None
-
-            meta_input = meta_io.get("input")
-            meta_output = meta_io.get("output")
-
-            if not (meta_input and meta_output):
-                return None
-
-            prompt = meta_input.get("prompt")
-            if prompt is None:
-                logger.debug("Failed to extract `prompt` from span for `ragas_faithfulness` evaluation")
-                return None
-            prompt_variables = prompt.get("variables")
-
-            input_messages = meta_input.get("messages")
-
-            messages = meta_output.get("messages")
-            if messages is not None and len(messages) > 0:
-                answer = messages[-1].get("content")
-
-            if prompt_variables:
-                context_keys = prompt.get(INTERNAL_CONTEXT_VARIABLE_KEYS, ["context"])
-                question_keys = prompt.get(INTERNAL_QUERY_VARIABLE_KEYS, ["question"])
-                contexts = [prompt_variables.get(key) for key in context_keys if prompt_variables.get(key)]
-                question = " ".join([prompt_variables.get(key) for key in question_keys if prompt_variables.get(key)])
-
-            if not question and input_messages is not None and len(input_messages) > 0:
-                question = input_messages[-1].get("content")
-
-            self.llmobs_service.annotate(
-                span=extract_inputs_workflow, output_data={"question": question, "contexts": contexts, "answer": answer}
-            )
-            if any(field is None for field in (question, contexts, answer)):
-                logger.debug("Failed to extract inputs required for faithfulness evaluation")
-                return None
-
-            return {"question": question, "contexts": contexts, "answer": answer}
-
     def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
         """
         Performs a context precision evaluation on an llm span event, returning either
@@ -145,10 +89,10 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
             try:
                 evaluation_metadata[EVALUATION_SPAN_METADATA] = self.llmobs_service.export_span(span=ragas_cp_workflow)
 
-                cp_inputs = self._extract_inputs(span_event)
+                cp_inputs = self._extract_evaluation_inputs_from_span(span_event)
                 if cp_inputs is None:
                     logger.debug(
-                        "Failed to extract question and contexts from "
+                        "Failed to extract evaluation inputs from "
                         "span sampled for `ragas_context_precision` evaluation"
                     )
                     return "fail_extract_context_precision_inputs", evaluation_metadata
