@@ -219,7 +219,7 @@ def _inject_invocation_nonrecursive(
         new_offsets[old_offset] = new_offset
 
         line = line_starts.get(old_offset)
-        injected_opcodes_count = 0
+        injection_occurred = False
         if line is not None:
             seen_lines.append(line)
             if old_offset in line_injection_offsets:
@@ -255,7 +255,7 @@ def _inject_invocation_nonrecursive(
                 instructions.append(0)
 
                 offsets_map[old_offset] = len(instructions) // 2
-                injected_opcodes_count += len(instructions)
+                injection_occurred = True
                 new_code.extend(instructions)
 
                 # Make sure that the current module is marked as depending on its own package by instrumenting the
@@ -302,30 +302,31 @@ def _inject_invocation_nonrecursive(
         else:
             new_code.extend(append_instruction(opcode, arg))
 
-            # Track imports names
-            if opcode == IMPORT_NAME:
-                import_depth = code.co_consts[previous_previous_arg]
-                current_import_name = code.co_names[arg]
-                # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
-                current_import_package = (
-                    ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
-                )
-                new_consts[-1] = (
-                    new_consts[-1][0],
-                    new_consts[-1][1],
-                    (current_import_package, (current_import_name,)),
-                )
+            if injection_occurred:
+                # Track imports names
+                if opcode == IMPORT_NAME:
+                    import_depth = code.co_consts[previous_previous_arg]
+                    current_import_name = code.co_names[arg]
+                    # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
+                    current_import_package = (
+                        ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
+                    )
+                    new_consts[-1] = (
+                        new_consts[-1][0],
+                        new_consts[-1][1],
+                        (current_import_package, (current_import_name,)),
+                    )
 
-            # Also track import from statements since it's possible that the "from" target is a module, eg:
-            # from my_package import my_module
-            # Since the package has not changed, we simply extend the previous import names with the new value
-            if opcode == IMPORT_FROM:
-                import_from_name = f"{current_import_name}.{code.co_names[arg]}"
-                new_consts[-1] = (
-                    new_consts[-1][0],
-                    new_consts[-1][1],
-                    (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
-                )
+                # Also track import from statements since it's possible that the "from" target is a module, eg:
+                # from my_package import my_module
+                # Since the package has not changed, we simply extend the previous import names with the new value
+                if opcode == IMPORT_FROM:
+                    import_from_name = f"{current_import_name}.{code.co_names[arg]}"
+                    new_consts[-1] = (
+                        new_consts[-1][0],
+                        new_consts[-1][1],
+                        (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
+                    )
 
         original_extended_arg_count = 0
         previous_previous_arg = previous_arg
