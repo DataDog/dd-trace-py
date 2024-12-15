@@ -64,7 +64,7 @@ def test_injection_in_try_catch():
             raise ValueError("this is a value error")
         except ValueError as _:
             # in this spot we are going to inject accumulate(2)
-            print("I am handling the exception")
+            some_var = 10
         accumulate.append(3)
 
     def accumulate_2(*args):
@@ -262,7 +262,6 @@ def test_try_finally_is_executed_when_callback_succeed():
         finally:
             value |= FINALLY_2
 
-    dis.dis(the_function)
     # Injection index from dis.dis(<function to inject into>)
     INJECTION_INDEXES = {
         (3, 10): [34, 136],
@@ -282,6 +281,61 @@ def test_try_finally_is_executed_when_callback_succeed():
     )
 
 
+@skipif_bytecode_injection_not_supported
+def test_import_adjustment_if_injection_did_not_occur():
+    value = ''
+
+    def _callback(*args):
+        nonlocal value
+        value += '<callback>'
+
+    def the_function():
+        from ddtrace.internal.compat import httplib
+
+    original = the_function.__code__
+
+    ic = InjectionContext(original, _callback, lambda _: [])
+    injected, _ = inject_invocation(ic, the_function.__code__.co_filename, __name__)
+
+    the_function.__code__ = injected
+
+    the_function()
+    # if the test gets here without an exception, it passed, as the error which occurs is that argument
+    # for imports adjustment happened at the wrong time
+
+
+@skipif_bytecode_injection_not_supported
+def test_import_adjustment_if_injection_did_occur():
+    value = ''
+    callback_args = tuple()
+
+    def _callback(*args):
+        nonlocal value
+        nonlocal callback_args
+        value += '<callback>'
+        callback_args = args
+
+    def the_function():
+        nonlocal value
+        value += '<before>'
+        from ddtrace.internal.compat import httplib
+        value += '<after>'
+
+    original = the_function.__code__
+
+    # Injection index from dis.dis(<function to inject into>)
+    ic = InjectionContext(original, _callback, lambda _: [14])
+    injected, _ = inject_invocation(ic, the_function.__code__.co_filename, __name__)
+    the_function.__code__ = injected
+
+    the_function()
+
+    assert value == '<before><callback><after>'
+    assert len(callback_args) == 1
+    # if the test gets here without an exception, it passed, as the error which occurs is that argument
+    # for imports adjustment happened at the wrong time
+
+
 def sample_function_1():
     a = 1
     b = 2
@@ -299,7 +353,7 @@ def sample_function_short_jumps():
         raise ValueError("this is a value error")
     except ValueError as _:
         # in this spot we are going to inject accumulate(2)
-        print("I am handling the exception")
+        some_var = 10
 
     for i in range(3):
         print(i > 1)
@@ -312,7 +366,7 @@ def sample_function_short_jumps():
         raise ValueError("another value error")
     except ValueError as _:
         # in this spot we are going to inject accumulate(2)
-        print("I am handling the exception differently")
+        some_var = 11
 
     for i in range(3):
         print(i > 1)
