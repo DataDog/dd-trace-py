@@ -9,11 +9,6 @@ from ..bytecode_injection.core import inject_invocation
 from .hook import _default_datadog_exc_callback
 
 
-# This is primarily to make mypy happy without having to nest the rest of this module behind a version check
-# NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-assert sys.version_info >= (3, 10)  # and sys.version_info < (3, 12)  # nosec
-
-
 def _inject_handled_exception_reporting(func, callback: CallbackType | None = None):
     func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
     original_code = func.__code__  # type: CodeType

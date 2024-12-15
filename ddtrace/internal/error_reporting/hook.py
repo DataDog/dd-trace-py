@@ -3,6 +3,7 @@ import traceback
 import ddtrace
 import importlib
 
+import typing as t
 from ddtrace.settings.error_reporting import _er_config
 
 
@@ -15,8 +16,9 @@ if _er_config._internal_logger:
     _internal_debug_logger = getattr(module, logger_name)
 
 
-def _default_datadog_exc_callback(*args):
-    _, exc, _ = sys.exc_info()
+def _default_datadog_exc_callback(*args, exc=None):
+    if not exc:
+        _, exc, _ = sys.exc_info()
     if not exc:
         return
 

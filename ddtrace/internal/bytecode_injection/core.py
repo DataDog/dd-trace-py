@@ -7,10 +7,6 @@ import typing as t
 
 CallbackType = t.Callable[[t.Any], t.Any]
 
-# This is primarily to make mypy happy without having to nest the rest of this module behind a version check
-# NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-assert sys.version_info >= (3, 10) and sys.version_info < (3, 12)  # nosec
-
 EXTENDED_ARG = dis.EXTENDED_ARG
 LOAD_CONST = dis.opmap["LOAD_CONST"]
 CALL = dis.opmap["CALL_FUNCTION" if sys.version_info[:2] == (3, 10) else "CALL"]
