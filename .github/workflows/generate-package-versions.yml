@@ -80,6 +80,7 @@ jobs:
           pip install packaging
           pip install requests
           pip install riot==0.20.1
+          pip install wrapt==1.16.0
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
