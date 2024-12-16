@@ -143,6 +143,9 @@ extra-dependencies = [
 test = [
     "python -m doctest {args} scripts/get-target-milestone.py scripts/needs_testrun.py tests/suitespec.py",
 ]
+needs_testrun = [
+  "scripts/needs_testrun.py {args}",
+]
 
 [envs.meta-testing]
 python = "3.10"
@@ -364,6 +367,34 @@ test = [
 python = ["3.10", "3.11", "3.12"]
 
 
+
+## pytorch profiling test
+
+[envs.profiling_pytorch]
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "torch>=1.8.1",
+    "torchvision",
+    "lz4",
+]
+
+[envs.profiling_pytorch.env-vars]
+DD_PROFILING_ENABLED = "true"
+DD_PROFILING_PYTORCH_ENABLED = "true"
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
+[envs.profiling_pytorch.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/profiling_v2/test_pytorch.py -vvv --capture=tee-sys",
+]
+
+[[envs.profiling_pytorch.matrix]]
+python = ["3.12"]
 
 ## Unit Tests
 
