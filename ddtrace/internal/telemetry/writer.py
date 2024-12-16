@@ -703,7 +703,7 @@ class TelemetryWriter(PeriodicService):
                         internal_index = dir_parts.index("internal")
                         integration_name = dir_parts[internal_index + 1]
                     self.add_count_metric(
-                        "tracers",
+                        TELEMETRY_NAMESPACE.TRACERS,
                         "integration_errors",
                         1,
                         (("integration_name", integration_name), ("error_type", tp.__name__)),
