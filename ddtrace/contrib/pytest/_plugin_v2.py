@@ -533,6 +533,13 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report flaky or failed tests"""
+    try:
+        from ddtrace.appsec._iast._pytest_plugin import print_iast_report
+
+        print_iast_report(terminalreporter)
+    except Exception:  # noqa: E722
+        log.debug("Encountered error during code security summary", exc_info=True)
+
     if not is_test_visibility_enabled():
         yield
         return
