@@ -6,6 +6,20 @@ on:
     - cron: "0 0 * * 0" # weekly on Sunday at midnight
 
 jobs:
+  setup-python-37:
+    # python 3.7 does not work on ubuntu-latest
+    name: Setup Python 3.7
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      
+      - name: Setup Python 3.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.7"
+
   generate-package-versions:
     name: Generate package versions
     runs-on: ${{ matrix.python-version.os }}
@@ -13,32 +27,36 @@ jobs:
       actions: read
       contents: write
       pull-requests: write
-  
-    strategy:
-      matrix:
-        python-version:
-          # - version: "3.7"
-          #   os: ubuntu-22.04
-          - version: "3.8"
-            os: ubuntu-latest
-          - version: "3.9"
-            os: ubuntu-latest
-          - version: "3.10"
-            os: ubuntu-latest
-          - version: "3.11"
-            os: ubuntu-latest
-          - version: "3.12"
-            os: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       
-      - name: Setup Python
+      - name: Setup Python 3.8
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version.version }}
+          python-version: "3.8"
+
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
