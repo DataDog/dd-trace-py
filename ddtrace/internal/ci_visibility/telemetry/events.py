@@ -127,7 +127,10 @@ def record_manual_api_event_created(event_type: EVENT_TYPES):
 
 
 def record_events_enqueued_for_serialization(events_count: int):
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION, events_count)
+    telemetry_writer.add_count_metric(
+        TELEMETRY_NAMESPACE.CIVISIBILITY,
+        EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION,
+        events_count)
 
 
 def record_event_created_test(
