@@ -94,6 +94,7 @@ compiler_args["cppcheck"]="-DDO_CPPCHECK=ON"
 compiler_args["infer"]="-DDO_INFER=ON"
 compiler_args["clangtidy"]="-DDO_CLANGTIDY=ON"
 compiler_args["clangtidy_cmd"]="-DCLANGTIDY_CMD=${CLANGTIDY_CMD}"
+compiler_args["valgrind"]="-DDO_VALGRIND=ON"
 
 # Initial cmake args
 cmake_args=(
