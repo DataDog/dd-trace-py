@@ -552,6 +552,7 @@ def __getattr__(name):
 
     contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
 
+    mods = set()
     missing_deprecations = set()
     for directory, _, file_names in os.walk(contrib_dir):
         if directory.startswith(str(contrib_dir / "internal")):
@@ -569,7 +570,11 @@ def __getattr__(name):
                     content = f.read()
                     if deprecation_template.format(sub_modules) != content:
                         missing_deprecations.add(f"ddtrace.contrib.{sub_modules}")
+            mods.add(directory.split("/")[-1])
 
+    import pdb
+
+    pdb.set_trace()
     assert missing_deprecations == set(
         [
             # Note: The following ddtrace.contrib modules are expected to be part of the public API
