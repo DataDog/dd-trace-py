@@ -65,7 +65,7 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
-from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
@@ -74,6 +74,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
+from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -221,7 +222,15 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
+        dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
+        dd_env_msg = ""
+
         if ddconfig._ci_visibility_agentless_enabled:
+            # In agentless mode, normalize an unset env to none (this is already done by the backend in most cases, so
+            # it does not override default behavior)
+            if dd_env is None:
+                dd_env = "none"
+                dd_env_msg = " (not set in environment)"
             if not self._api_key:
                 raise EnvironmentError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
@@ -237,9 +246,14 @@ class CIVisibility(Service):
                 self._dd_site,
                 ddconfig._ci_visibility_agentless_url if ddconfig._ci_visibility_agentless_url else None,
                 self._service,
-                ddconfig.env,
+                dd_env,
             )
         elif self._agent_evp_proxy_is_available():
+            # In EVP-proxy cases, if an env is not provided, we need to get the agent's default env in order to make
+            # the correct decision:
+            if dd_env is None:
+                dd_env = self._agent_get_default_env()
+                dd_env_msg = " (default environment provided by agent)"
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
             requests_mode_str = "EVP Proxy"
             self._api_client = EVPProxyTestVisibilityAPIClient(
@@ -248,7 +262,7 @@ class CIVisibility(Service):
                 self._configurations,
                 self.tracer._agent_url,
                 self._service,
-                ddconfig.env,
+                dd_env,
             )
         else:
             requests_mode_str = "APM (some features will be disabled)"
@@ -267,7 +281,7 @@ class CIVisibility(Service):
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
-        log.info("Service: %s (env: %s)", self._service, ddconfig.env)
+        log.info("Service: %s (env: %s%s)", self._service, dd_env, dd_env_msg)
         log.info("Requests mode: %s", requests_mode_str)
         log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
         log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
@@ -391,6 +405,17 @@ class CIVisibility(Service):
             if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
                 return True
         return False
+
+    def _agent_get_default_env(self):
+        # type: () -> Optional[str]
+        try:
+            info = agent.info(self.tracer._agent_url)
+        except Exception:
+            return "none"
+
+        if info:
+            return info.get("config", {}).get("default_env", "none")
+        return "none"
 
     @classmethod
     def is_itr_enabled(cls):
@@ -866,6 +891,12 @@ class CIVisibility(Service):
         if instance is None:
             return False
 
+        # The assumption that we were not able to fetch unique tests properly if the length is 0 is acceptable
+        # because the current EFD usage would cause the session to be faulty even if the query was successful but
+        # not unique tests exist. In this case, we assume all tests are unique.
+        if len(instance._unique_test_ids) == 0:
+            return True
+
         return test_id in instance._unique_test_ids
 
 
@@ -880,9 +911,7 @@ def _requires_civisibility_enabled(func):
 
 
 @_requires_civisibility_enabled
-def _on_discover_session(
-    discover_args: TestSession.DiscoverArgs, test_framework_telemetry_name: Optional[TEST_FRAMEWORKS] = None
-):
+def _on_discover_session(discover_args: TestSession.DiscoverArgs):
     log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
@@ -898,7 +927,8 @@ def _on_discover_session(
     # If we're not provided a root directory, try and extract it from workspace, defaulting to CWD
     workspace_path = discover_args.root_dir or Path(CIVisibility.get_workspace_path() or os.getcwd())
 
-    test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
+    # Prevent high cardinality of test framework telemetry tag by matching with known frameworks
+    test_framework_telemetry_name = _get_test_framework_telemetry_name(discover_args.test_framework)
 
     efd_api_settings = CIVisibility.get_efd_api_settings()
     if efd_api_settings is None or not CIVisibility.is_efd_enabled():
@@ -1002,7 +1032,7 @@ def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
     codeowners = CIVisibility.get_codeowners()
     if codeowners is None:
         return None
-    return codeowners.of(str(path.absolute()))
+    return codeowners.of(str(path))
 
 
 def _register_session_handlers():
@@ -1104,8 +1134,10 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
-    # New tests are currently only considered for EFD
-    if CIVisibility.is_efd_enabled():
+    # New tests are currently only considered for EFD:
+    # - if known tests were fetched properly (enforced by is_unique_test)
+    # - if they have no parameters
+    if CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None:
         is_new = not CIVisibility.is_unique_test(discover_args.test_id)
     else:
         is_new = False
@@ -1150,6 +1182,15 @@ def _on_set_test_parameters(item_id: TestId, parameters: str):
     CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
 
 
+@_requires_civisibility_enabled
+def _on_set_benchmark_data(set_benchmark_data_args: BenchmarkTestMixin.SetBenchmarkDataArgs):
+    item_id = set_benchmark_data_args.test_id
+    data = set_benchmark_data_args.benchmark_data
+    is_benchmark = set_benchmark_data_args.is_benchmark
+    log.debug("Handling set benchmark data for test id %s, data %s, is_benchmark %s", item_id, data, is_benchmark)
+    CIVisibility.get_test_by_id(item_id).set_benchmark_data(data, is_benchmark)
+
+
 def _register_test_handlers():
     log.debug("Registering test handlers")
     core.on("test_visibility.test.discover", _on_discover_test)
@@ -1157,6 +1198,7 @@ def _register_test_handlers():
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
     core.on("test_visibility.test.set_parameters", _on_set_test_parameters)
+    core.on("test_visibility.test.set_benchmark_data", _on_set_benchmark_data)
 
 
 @_requires_civisibility_enabled

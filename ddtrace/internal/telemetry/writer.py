@@ -23,7 +23,6 @@ from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
-from ..runtime import container
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
@@ -136,7 +135,6 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
-        container.update_headers_with_container_info(headers, container.get_container_info())
         return headers
 
     def get_endpoint(self, agentless: bool) -> str:
@@ -235,9 +233,8 @@ class TelemetryWriter(PeriodicService):
             self.start()
             return True
 
+        # currently self._is_periodic is always true
         self.status = ServiceStatus.RUNNING
-        if _TelemetryConfig.DEPENDENCY_COLLECTION:
-            modules.install_import_hook()
         return True
 
     def disable(self):
@@ -247,7 +244,6 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
-        modules.uninstall_import_hook()
         self.reset_queues()
         if self._is_running():
             self.stop()
@@ -364,14 +360,6 @@ class TelemetryWriter(PeriodicService):
 
     def _app_heartbeat_event(self):
         # type: () -> None
-        if self._forked:
-            # TODO: Enable app-heartbeat on forks
-            #   Since we only send app-started events in the main process
-            #   any forked processes won't be able to access the list of
-            #   dependencies for this app, and therefore app-heartbeat won't
-            #   add much value today.
-            return
-
         self.add_event({}, "app-heartbeat")
 
     def _app_closing_event(self):

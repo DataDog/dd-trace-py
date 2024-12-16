@@ -104,7 +104,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         self.assertEqual(span.name, "bp.test")
         self.assertEqual(span.resource, "/")
         self.assertNotEqual(span.parent_id, 0)
-        self.assertEqual(span.get_tags(), {"component": "flask", "_dd.base_service": ""})
+        self.assertEqual(span.get_tags(), {"component": "flask", "_dd.base_service": "tests.contrib.flask"})
 
     def test_blueprint_request_pin_override(self):
         """
@@ -132,7 +132,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         self.assertEqual(span.name, "bp.test")
         self.assertEqual(span.resource, "/")
         self.assertNotEqual(span.parent_id, 0)
-        self.assertEqual(span.get_tags(), {"component": "flask", "_dd.base_service": ""})
+        self.assertEqual(span.get_tags(), {"component": "flask", "_dd.base_service": "tests.contrib.flask"})
 
     def test_blueprint_request_pin_disabled(self):
         """

@@ -166,7 +166,7 @@ def test_completion(
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:ada",
         "model:ada",
         "openai.request.endpoint:/v1/completions",
@@ -236,7 +236,7 @@ async def test_acompletion(
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:curie",
         "model:curie",
         "openai.request.endpoint:/v1/completions",
@@ -300,7 +300,7 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
                     "message": mock.ANY,
                     "hostname": mock.ANY,
                     "ddsource": "openai",
-                    "service": "",
+                    "service": "tests.contrib.openai",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": "{:x}".format(trace_id),
@@ -589,7 +589,7 @@ def test_logs_image_create(openai_vcr, openai, ddtrace_config_openai, mock_logs,
                     "message": mock.ANY,
                     "hostname": mock.ANY,
                     "ddsource": "openai",
-                    "service": "",
+                    "service": "tests.contrib.openai",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/images/generations,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
                     "dd.trace_id": "{:x}".format(trace_id),
@@ -942,7 +942,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:ada",
         "model:ada",
         "openai.request.endpoint:/v1/completions",
@@ -981,7 +981,7 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:ada",
         "model:ada",
         "openai.request.endpoint:/v1/completions",
@@ -1024,7 +1024,7 @@ def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, moc
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:ada",
         "model:ada",
         "openai.request.endpoint:/v1/completions",
@@ -1071,7 +1071,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:gpt-3.5-turbo",
         "model:gpt-3.5-turbo",
         "openai.request.endpoint:/v1/chat/completions",
@@ -1120,7 +1120,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:gpt-3.5-turbo",
         "model:gpt-3.5-turbo",
         "openai.request.endpoint:/v1/chat/completions",
@@ -1170,7 +1170,7 @@ def test_chat_completion_stream_tokens(openai, openai_vcr, mock_metrics, snapsho
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:gpt-3.5-turbo",
         "model:gpt-3.5-turbo",
         "openai.request.endpoint:/v1/chat/completions",
@@ -1223,7 +1223,7 @@ async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, 
     expected_tags = [
         "version:",
         "env:",
-        "service:",
+        "service:tests.contrib.openai",
         "openai.request.model:gpt-3.5-turbo",
         "model:gpt-3.5-turbo",
         "openai.request.endpoint:/v1/chat/completions",

@@ -295,6 +295,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_APPSEC_MAX_STACK_TRACES", "origin": "default", "value": 2},
         {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH", "origin": "default", "value": 32},
+        {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT", "origin": "default", "value": 75.0},
         {
             "name": "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP",
             "origin": "default",
@@ -355,6 +356,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": None},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
         {"name": "DD_IAST_REDACTION_ENABLED", "origin": "default", "value": True},
         {
             "name": "DD_IAST_REDACTION_NAME_PATTERN",
@@ -377,7 +379,9 @@ import ddtrace.settings.exception_replay
             "[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
         {"name": "DD_IAST_REQUEST_SAMPLING", "origin": "default", "value": 30.0},
+        {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
+        {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
         {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
         {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": None},
@@ -813,3 +817,64 @@ def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available(
     assert telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
     assert telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
     assert "dd-api-key" not in telemetry_writer._client._headers
+
+
+def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess, tmpdir):
+    """
+    asserts that telemetry data is submitted for OpenTelemetry configurations
+    """
+
+    env = os.environ.copy()
+    env["DD_SERVICE"] = "dd_service"
+    env["OTEL_SERVICE_NAME"] = "otel_service"
+    env["OTEL_LOG_LEVEL"] = "DEBUG"
+    env["OTEL_PROPAGATORS"] = "tracecontext"
+    env["OTEL_TRACES_SAMPLER"] = "always_on"
+    env["OTEL_TRACES_EXPORTER"] = "none"
+    env["OTEL_LOGS_EXPORTER"] = "otlp"
+    env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
+    env["OTEL_SDK_DISABLED"] = "true"
+    env["OTEL_UNSUPPORTED_CONFIG"] = "value"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    assert status == 0, stderr
+
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations()}
+
+    assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
+    assert configurations["OTEL_LOG_LEVEL"] == {"name": "OTEL_LOG_LEVEL", "origin": "env_var", "value": "debug"}
+    assert configurations["OTEL_PROPAGATORS"] == {
+        "name": "OTEL_PROPAGATORS",
+        "origin": "env_var",
+        "value": "tracecontext",
+    }
+    assert configurations["OTEL_TRACES_SAMPLER"] == {
+        "name": "OTEL_TRACES_SAMPLER",
+        "origin": "env_var",
+        "value": "always_on",
+    }
+    assert configurations["OTEL_TRACES_EXPORTER"] == {
+        "name": "OTEL_TRACES_EXPORTER",
+        "origin": "env_var",
+        "value": "none",
+    }
+    assert configurations["OTEL_LOGS_EXPORTER"] == {"name": "OTEL_LOGS_EXPORTER", "origin": "env_var", "value": "otlp"}
+    assert configurations["OTEL_RESOURCE_ATTRIBUTES"] == {
+        "name": "OTEL_RESOURCE_ATTRIBUTES",
+        "origin": "env_var",
+        "value": "team=apm,component=web",
+    }
+    assert configurations["OTEL_SDK_DISABLED"] == {"name": "OTEL_SDK_DISABLED", "origin": "env_var", "value": "true"}
+
+    env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
+    tags = [m["tags"] for m in env_hiding_metrics]
+    assert tags == [["config_opentelemetry:otel_service_name", "config_datadog:dd_service"]]
+
+    env_unsupported_metrics = test_agent_session.get_metrics("otel.env.unsupported")
+    tags = [m["tags"] for m in env_unsupported_metrics]
+    assert tags == [["config_opentelemetry:otel_unsupported_config"]]
+
+    env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
+    tags = [m["tags"] for m in env_invalid_metrics]
+    assert tags == [["config_opentelemetry:otel_logs_exporter", "config_datadog:"]]

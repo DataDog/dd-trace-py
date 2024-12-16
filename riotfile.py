@@ -10,18 +10,17 @@ logger = logging.getLogger(__name__)
 latest = ""
 
 
-SUPPORTED_PYTHON_VERSIONS = [
+SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
     (3, 7),
     (3, 8),
     (3, 9),
     (3, 10),
     (3, 11),
     (3, 12),
-]  # type: List[Tuple[int, int]]
+]
 
 
-def version_to_str(version):
-    # type: (Tuple[int, int]) -> str
+def version_to_str(version: Tuple[int, int]) -> str:
     """Convert a Python version tuple to a string
 
     >>> version_to_str((3, 7))
@@ -42,8 +41,7 @@ def version_to_str(version):
     return ".".join(str(p) for p in version)
 
 
-def str_to_version(version):
-    # type: (str) -> Tuple[int, int]
+def str_to_version(version: str) -> Tuple[int, int]:
     """Convert a Python version string to a tuple
 
     >>> str_to_version("3.7")
@@ -68,8 +66,7 @@ MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
 MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
 
 
-def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
-    # type: (str, str) -> List[str]
+def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> List[str]:
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
@@ -105,6 +102,7 @@ venv = Venv(
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
+        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "true",
     },
     venvs=[
         Venv(
@@ -118,6 +116,16 @@ venv = Venv(
             pys=["3"],
             pkgs={
                 "ruamel.yaml": latest,
+                "lxml": latest,
+            },
+        ),
+        Venv(
+            name="gitlab-gen-config",
+            command="python scripts/gen_gitlab_config.py {cmdargs}",
+            pys=["3"],
+            pkgs={
+                "ruamel.yaml": latest,
+                "lxml": latest,
             },
         ),
         Venv(
@@ -127,6 +135,9 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "docker": latest,
+            },
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
         ),
         Venv(
@@ -284,6 +295,7 @@ venv = Venv(
                 "httpx": latest,
                 "pytest-randomly": latest,
                 "setuptools": latest,
+                "boto3": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
@@ -710,10 +722,9 @@ venv = Venv(
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
                     },
                     pkgs={
-                        "celery": [
+                        "celery[redis]": [
                             latest,
                         ],
-                        "redis": "~=3.5",
                     },
                 ),
             ],
@@ -1103,7 +1114,7 @@ venv = Venv(
                         "pytest": "~=4.0",
                         "pytest-mock": "==2.0.0",
                         "pytest-cov": "~=3.0",
-                        "Jinja2": "~=2.11.0",
+                        "Jinja2": "~=2.10.0",
                         "more_itertools": "<8.11.0",
                         # https://github.com/pallets/itsdangerous/issues/290
                         # DEV: Breaking change made in 2.0 release
@@ -1257,7 +1268,7 @@ venv = Venv(
                         "pynamodb": ["~=5.0", "~=5.3", "<6.0"],
                         "moto": ">=1.0,<2.0",
                         "cfn-lint": "~=0.53.1",
-                        "Jinja2": "~=2.11.0",
+                        "Jinja2": "~=2.10.0",
                         "pytest-randomly": latest,
                     },
                 ),
@@ -1596,7 +1607,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
             },
             venvs=[
                 Venv(
@@ -1685,7 +1696,7 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             env={
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
             },
             venvs=[
                 Venv(
@@ -1712,26 +1723,32 @@ venv = Venv(
         ),
         Venv(
             name="pytest-benchmark",
-            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
+            pys=select_pys(min_version="3.7", max_version="3.12"),
+            command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
             },
-            env={
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
-            },
             venvs=[
                 Venv(
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.7", max_version="3.10"),
-                            pkgs={
-                                "pytest-benchmark": [
-                                    ">=3.1.0,<=4.0.0",
-                                ]
-                            },
-                        )
-                    ],
+                    pkgs={
+                        "pytest-benchmark": [
+                            ">=3.1.0,<=4.0.0",
+                        ]
+                    },
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "pytest-benchmark": [
+                            ">=3.1.0,<=4.0.0",
+                        ]
+                    },
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                    },
                 ),
             ],
         ),
@@ -2038,7 +2055,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.9"),
                     pkgs={
-                        "jinja2": "~=2.11.0",
+                        "jinja2": "~=2.10.0",
                         # https://github.com/pallets/markupsafe/issues/282
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
@@ -2711,6 +2728,18 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "google-generativeai": [latest],
                 "pillow": latest,
+                "google-ai-generativelanguage": [latest],
+                "vertexai": [latest],
+            },
+        ),
+        Venv(
+            name="vertexai",
+            command="pytest {cmdargs} tests/contrib/vertexai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vertexai": [latest],
+                "google-ai-generativelanguage": [latest],
             },
         ),
         Venv(
@@ -2834,6 +2863,7 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "CPUCOUNT": "12",
             },
             pkgs={
                 "gunicorn": latest,
@@ -2970,7 +3000,8 @@ venv = Venv(
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
                 # Enable pytest v2 plugin to handle pytest-cpp items in the test suite
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                "CPUCOUNT": "12",
             },
             pkgs={
                 "gunicorn": latest,

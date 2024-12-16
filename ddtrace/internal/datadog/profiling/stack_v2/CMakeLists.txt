@@ -37,7 +37,7 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "9d5bcc5867d7aefff73c837adcba4ef46eecebc6"
+    "ed744987f224fae3f93c842b2b5ffb083984ff8b"
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
@@ -67,10 +67,6 @@ add_cppcheck_target(
     SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# This project is build with C++17, even though the underlying repo adheres to the manylinux 2014 standard. This isn't
-# currently a problem, but if it becomes one, we may have to structure the library differently.
-target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
-
 # Never build with native unwinding, since this is not currently used
 target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 
@@ -78,9 +74,9 @@ target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 # warning(push, 0 then pop for the same effect.
 target_include_directories(
     ${EXTENSION_NAME} PRIVATE .. # include dd_wrapper from the root in order to make its paths transparent in the code
-    include)
+                              include)
 target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE ${echion_SOURCE_DIR} ${Python3_INCLUDE_DIRS}
-    include/vendored include/util)
+                                                            include/vendored include/util)
 
 # Echion sources need to be given the current platform
 if(WIN32)
@@ -106,9 +102,6 @@ if(Python3_LIBRARIES)
     target_link_libraries(${EXTENSION_NAME} PRIVATE ${Python3_LIBRARIES})
 endif()
 
-# Extensions are built as dynamic libraries, so PIC is required.
-set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)
     install(
@@ -122,4 +115,3 @@ if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
 endif()
-

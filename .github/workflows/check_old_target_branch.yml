@@ -1,0 +1,36 @@
+name: Check for Old Target Branch
+
+on:
+  pull_request:
+
+jobs:
+  check_target_branch:
+    name: "Check for old target branch"
+    runs-on: ubuntu-latest
+    permissions:
+       pull-requests: write
+    steps:
+      - name: Check if target branch is too old to backport
+        id: check-branch
+        run: |
+          # Define regex for branches with major version 0 or 1, or versions from 2.0 to 2.12
+          old_branch_regex="^(0|1)(\\.|$)|^2\\.([0-9]|1[0-2])(\\.|$)"
+          target_branch="${{ github.event.pull_request.base.ref }}"
+          
+          if [[ "$target_branch" =~ $old_branch_regex ]]; then
+              echo "Old target branch detected: $target_branch"
+              echo "old_branch=true" >> $GITHUB_ENV
+          else
+              echo "old_branch=false" >> $GITHUB_ENV
+          fi
+
+      - name: Old branch warning on PR
+        if: env.old_branch == 'true'
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          message: |
+            🚫 **This target branch is too old or unsupported. Please update the target branch to continue.**
+
+      - name: Fail the job if branch is old
+        if: env.old_branch == 'true'
+        run: exit 1

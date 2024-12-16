@@ -21,6 +21,7 @@ riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
 CHANGELOG.md                        @DataDog/apm-python
 README.md                           @DataDog/apm-python
+tests/telemetry                     @DataDog/apm-python
 
 # Guild
 setup.py                            @DataDog/python-guild
@@ -39,7 +40,7 @@ ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-pyt
 ddtrace/settings/config.py          @DataDog/python-guild  @DataDog/apm-sdk-api-python
 docs/                               @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
-tests/.suitespec.json               @DataDog/python-guild  @DataDog/apm-core-python
+tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 
 # Core / Language Platform
@@ -50,7 +51,7 @@ tests/opentracer                    @DataDog/apm-core-python
 tests/runtime                       @DataDog/apm-core-python
 tests/tracer                        @DataDog/apm-core-python
 
-# CI App and related
+# Test Visibility and related
 ddtrace/contrib/asynctest                             @DataDog/ci-app-libraries
 ddtrace/contrib/coverage                              @DataDog/ci-app-libraries
 ddtrace/contrib/pytest                                @DataDog/ci-app-libraries
@@ -76,6 +77,15 @@ tests/coverage                                        @DataDog/apm-core-python @
 tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
 ddtrace/ext/git.py                                    @DataDog/ci-app-libraries @DataDog/apm-core-python
 scripts/ci_visibility/*                               @DataDog/ci-app-libraries
+# Test Visibility owns the freezegun integration because it's the team most affected by it
+ddtrace/contrib/freezegun                             @DataDog/ci-app-libraries
+ddtrace/contrib/internal/freezegun                    @DataDog/ci-app-libraries
+tests/contrib/freezegun                               @DataDog/ci-app-libraries
+# Test Visibility: Selenium integration
+ddtrace/contrib/selenium                              @DataDog/ci-app-libraries
+ddtrace/internal/selenium                             @DataDog/ci-app-libraries
+tests/contrib/selenium                                @DataDog/ci-app-libraries
+tests/snapshots/test_selenium_*                       @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
@@ -134,6 +144,8 @@ ddtrace/contrib/internal/anthropic                      @DataDog/ml-observabilit
 ddtrace/contrib/anthropic                               @DataDog/ml-observability
 ddtrace/contrib/internal/google_generativeai            @DataDog/ml-observability
 ddtrace/contrib/google_generativeai                     @DataDog/ml-observability
+ddtrace/contrib/internal/vertexai                       @DataDog/ml-observability
+ddtrace/contrib/vertexai                                @DataDog/ml-observability
 tests/llmobs                                            @DataDog/ml-observability
 tests/contrib/openai                                    @DataDog/ml-observability
 tests/contrib/langchain                                 @DataDog/ml-observability
@@ -142,6 +154,7 @@ tests/contrib/botocore/test_bedrock_llmobs.py           @DataDog/ml-observabilit
 tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observability
 tests/contrib/anthropic                                 @DataDog/ml-observability
 tests/contrib/google_generativeai                       @DataDog/ml-observability
+tests/contrib/vertexai                                  @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                @DataDog/ml-observability
 
 # Remote Config

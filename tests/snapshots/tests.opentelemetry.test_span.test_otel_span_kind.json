@@ -1,7 +1,7 @@
 [[
   {
     "name": "client",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "otel-client",
     "trace_id": 0,
     "span_id": 1,
@@ -27,7 +27,7 @@
 [
   {
     "name": "server",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "otel-server",
     "trace_id": 1,
     "span_id": 1,
@@ -53,7 +53,7 @@
 [
   {
     "name": "producer",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "otel-producer",
     "trace_id": 2,
     "span_id": 1,
@@ -79,7 +79,7 @@
 [
   {
     "name": "consumer",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "otel-consumer",
     "trace_id": 3,
     "span_id": 1,
@@ -105,7 +105,7 @@
 [
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "otel-internal",
     "trace_id": 4,
     "span_id": 1,

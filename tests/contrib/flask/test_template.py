@@ -48,7 +48,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 3)
 
-        self.assertIsNone(spans[0].service)
+        self.assertEqual(spans[0].service, "tests.contrib.flask")
         self.assertEqual(spans[0].name, "flask.render_template")
         resource = "tests.contrib.flask" if flask_version >= (2, 2, 0) else "test.html"
         self.assertEqual(spans[0].resource, resource)  # FIXME: should always be 'test.html'?
@@ -92,7 +92,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 3)
 
-        self.assertIsNone(spans[0].service)
+        self.assertEqual(spans[0].service, "tests.contrib.flask")
         self.assertEqual(spans[0].name, "flask.render_template_string")
         resource = "tests.contrib.flask" if flask_version >= (2, 2, 0) else "<memory>"
         self.assertEqual(spans[0].resource, resource)  # FIXME: should always be '<memory>'?
