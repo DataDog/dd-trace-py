@@ -47,8 +47,8 @@ interactions:
       content-type:
       - application/json
       cookie:
-      - __cf_bm=nxPGrcXhbymyBih2t7CgJx2kdUAj2c8FEUM6SgQuXQA-1734303554-1.0.1.1-0gC9PrWCtGQtTp5RVHnIIDJR3yD.DgFli7YVq20QDgOcIMxDrBJn9wXO3e.Fak8_HP_bRTKACpjVZuouGgX1ig;
-        _cfuvid=GidLrZtG7TkkHj.qFUWUeIOOu8KdGLixVP6dtmMZgV4-1734303554457-0.0.1.1-604800000
+      - __cf_bm=KxfM6APw09zrJass.4OtAFMoUu2vRIbwSxiTzDsvK18-1734361136-1.0.1.1-ziXwyO6Y2EVlj7avwtfxuCobMUBGVXaF4V0POP9dVYb7lePh2DTCi3wGND0Bfqx44OdTFy0.IruHQWWlbKLdYg;
+        _cfuvid=nZLW2HYfOt4n61DxTEcgN8TpbBbjLbo4wSNNVqPlytw-1734361136731-0.0.1.1-604800000
       host:
       - api.openai.com
       user-agent:
@@ -74,19 +74,19 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAAwAAAP//7FTBjtMwEL3nK6w5Nyhpu+kqF7QXBHvgCCoEJa4zSQyObewJsKr678hp
-        2qTaReIOlxzemzd58+zxMWIMZA05A9FxEr1V8QM693P/7vHH+w/Np2zztE8P+zp7kHxn3j7CKijM
-        4SsKuqheCdNbhSSNPtPCIScMXdPdZrtJNnd32Uj0pkYVZK2leGviXmoZr5P1Nk52cXo/qTsjBXrI
-        2eeIMcaO4zf41DX+gpwlqwvSo/e8RcivRYyBMyogwL2XnrgmWM2kMJpQj9arqjoW8H1AH5wXkLMC
-        PnacmPSMOmSCW0lcMdOwN45rga8LWLECtNHC9L0k4iqoklNVVct/OGwGz8OcelBqwk9X08q01pmD
-        n/gr3kgtfVc65N7oYNCTsRAtxM+SSP8nMSWx/veSiBj7Mi7McDMvWGd6SyWZb6hDw2w9LQzMe7pg
-        s4kkQ1wt8PsLcdOvrJG4VH4RLwguOqxn6byffKilWRDLI3zu5qXe58mlbv+m/UwIgZawLq3DWorb
-        iecyh+EZ+1PZNeXRMPgnT9iXjdQtOuvk+cI0tswakSaYJniA6BT9BgAA//8DAI+legpSBQAA
+        H4sIAAAAAAAAA+xUwY6bMBC98xXWnEMFJCIrLlV7aA89VatqD6UCxwzgrbEde5C6ivLvlQkJRLuV
+        em8vHN6bN7x59vgUMQaygYKB6DmJwar4Q5sfWy+/9J8fm28vffJVuEf/8fjcZE95BpugMIdnFHRV
+        vRNmsApJGn2hhUNOGLqm++1um6fpdj8Rg2lQBVlnKd6ZeJBaxlmS7eJkH6cPs7o3UqCHgn2PGGPs
+        NH2DT93gLyhYsrkiA3rPO4TiVsQYOKMCAtx76Ylrgs1CCqMJ9WS9rutTCccRfXBeQsFKeOo5MekZ
+        9cgEt5K4YqZlnxzXAt+XsGElaKOFGQZJxFVQJee6rtf/cNiOnoc59ajUjJ9vppXprDMHP/M3vJVa
+        +r5yyL3RwaAnYyFaiV8lkf5PYk4i+/eSiBj7MS3MeDcvWGcGSxWZn6hDwzybFwaWPV2x+UySIa5W
+        +MOVuOtXNUhcKr+KFwQXPTaLdNlPPjbSrIj1Eb5281bvy+RSd3/TfiGEQEvYVNZhI8X9xEuZw/CM
+        /anslvJkGPyLJxyqVuoOnXXycmFaW+WtSBNMEzxAdI5+AwAA//8DAGwlKy5SBQAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8f2a0b081a3818b8-EWR
+      - 8f2f88d44f252082-IAD
       Connection:
       - keep-alive
       Content-Encoding:
@@ -94,7 +94,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 15 Dec 2024 22:59:16 GMT
+      - Mon, 16 Dec 2024 14:58:58 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -108,7 +108,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '595'
+      - '667'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -126,7 +126,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_d2c1df90b6180c0a455b1e3d44a12030
+      - req_7af26d0531fb33160e3e0eadd5629fbd
     status:
       code: 200
       message: OK
@@ -145,8 +145,8 @@ interactions:
       content-type:
       - application/json
       cookie:
-      - __cf_bm=qFuKHUwUyX4U8CFs8XC220DWcjeeBGYLadwc.3OJfGM-1734303555-1.0.1.1-kO6Fp04B.IJjdga6J9PEtG3FtC9pfiZojy2nu8Zk.sqhCMhy9Id0Rv4M_EYAOukf7kitJDxq0xgjZ3NVlK9_bQ;
-        _cfuvid=YghfZ57MPwYwLm7Ol.1SqjHtkwctAfmkTEDH_.h6Ddk-1734303555238-0.0.1.1-604800000
+      - __cf_bm=P4tnLTGTLXNDMgrxvNM3_Mym.RNoPLh465HIc1BqRnY-1734361137-1.0.1.1-K.ErNa61CTMep7IAqgYh.YjE25TB8fFqpil9ma2Mo8untSEJFHro3wcRrnRYdjciM0Rshlbix9iHwHzov4BgTA;
+        _cfuvid=yQv8PrlaGn8AboPjIVwjUoFWTLDWPv2DU63sj9U8D5k-1734361137103-0.0.1.1-604800000
       host:
       - api.openai.com
       user-agent:
@@ -285,7 +285,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8f2a0b0ccbbdf78d-EWR
+      - 8f2f88d9d864c974-IAD
       Connection:
       - keep-alive
       Content-Encoding:
@@ -293,7 +293,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 15 Dec 2024 22:59:17 GMT
+      - Mon, 16 Dec 2024 14:58:58 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -311,7 +311,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '108'
+      - '84'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -329,7 +329,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_8dc90305ed6ad294095c7572ef16918f
+      - req_3d4e6cd066737fa1302df6d55657ea31
     status:
       code: 200
       message: OK
@@ -349,8 +349,8 @@ interactions:
       content-type:
       - application/json
       cookie:
-      - __cf_bm=qFuKHUwUyX4U8CFs8XC220DWcjeeBGYLadwc.3OJfGM-1734303555-1.0.1.1-kO6Fp04B.IJjdga6J9PEtG3FtC9pfiZojy2nu8Zk.sqhCMhy9Id0Rv4M_EYAOukf7kitJDxq0xgjZ3NVlK9_bQ;
-        _cfuvid=YghfZ57MPwYwLm7Ol.1SqjHtkwctAfmkTEDH_.h6Ddk-1734303555238-0.0.1.1-604800000
+      - __cf_bm=P4tnLTGTLXNDMgrxvNM3_Mym.RNoPLh465HIc1BqRnY-1734361137-1.0.1.1-K.ErNa61CTMep7IAqgYh.YjE25TB8fFqpil9ma2Mo8untSEJFHro3wcRrnRYdjciM0Rshlbix9iHwHzov4BgTA;
+        _cfuvid=yQv8PrlaGn8AboPjIVwjUoFWTLDWPv2DU63sj9U8D5k-1734361137103-0.0.1.1-604800000
       host:
       - api.openai.com
       user-agent:
@@ -492,7 +492,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8f2a0b0fcdb3f78d-EWR
+      - 8f2f88dbae80c974-IAD
       Connection:
       - keep-alive
       Content-Encoding:
@@ -500,7 +500,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 15 Dec 2024 22:59:17 GMT
+      - Mon, 16 Dec 2024 14:58:58 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -518,7 +518,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '105'
+      - '207'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -536,7 +536,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_483b922409dfd3fd0f1fbe0f18b132fe
+      - req_6440b538ec2a83849de7a8e33aad1c45
     status:
       code: 200
       message: OK

@@ -33,7 +33,9 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
 
         The `ragas.metrics.answer_relevancy` instance is used for answer relevancy scores.
         If there is no llm attribute set on this instance, it will be set to the
-        default `llm_factory()` which uses openai.
+        default `llm_factory()` from ragas which uses openai.
+        If there is no embedding attribute set on this instance, it will be to to the
+        default `embedding_factory()` from ragas which uses openai
 
         :param llmobs_service: An instance of the LLM Observability service used for tracing the evaluation and
                                       submitting evaluation metrics.
@@ -74,6 +76,7 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
             return "fail_answer_relevancy_is_none", {}
 
         evaluation_metadata = {}  # type: dict[str, Union[str, dict, list]]
+        trace_metadata = {}  # type: dict[str, Union[str, dict, list]]
 
         # initialize data we annotate for tracing ragas
         score, question, answer, answer_classifications = (
@@ -106,6 +109,8 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
                     context="\n".join(contexts),
                 )
 
+                # 'strictness' is a parameter that can be set to control the number of generations
+                trace_metadata["strictness"] = self.ragas_answer_relevancy_instance.strictness
                 result = self.ragas_answer_relevancy_instance.llm.generate_text(
                     prompt, n=self.ragas_answer_relevancy_instance.strictness
                 )
@@ -117,15 +122,24 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
                     logger.debug("Failed to parse answer relevancy output: %s", e)
                     return "fail_parse_answer_relevancy_output", evaluation_metadata
 
-                # calculate score
                 gen_questions = [answer.question for answer in answers]
                 answer_classifications = [
                     {"question": answer.question, "noncommittal": answer.noncommittal} for answer in answers
                 ]
+                trace_metadata["answer_classifications"] = answer_classifications
                 if all(q == "" for q in gen_questions):
                     logger.warning("Invalid JSON response. Expected dictionary with key 'question'")
                     return "fail_parse_answer_relevancy_output", evaluation_metadata
-                cosine_sim = self.ragas_answer_relevancy_instance.calculate_similarity(question, gen_questions)
+
+                # calculate cosine similarity between the question and generated questions
+                with self.llmobs_service.workflow("dd-ragas.calculate_similarity") as ragas_cs_workflow:
+                    cosine_sim = self.ragas_answer_relevancy_instance.calculate_similarity(question, gen_questions)
+                    self.llmobs_service.annotate(
+                        span=ragas_cs_workflow,
+                        input_data={"question": question, "generated_questions": gen_questions},
+                        output_data=cosine_sim.mean(),
+                    )
+
                 score = cosine_sim.mean() * int(not any(answer.noncommittal for answer in answers))
                 return score, evaluation_metadata
             finally:
@@ -133,5 +147,5 @@ class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
                     span=ragas_ar_workflow,
                     input_data=span_event,
                     output_data=score,
-                    metadata={"answer_classifications": answer_classifications},
+                    metadata=trace_metadata,
                 )

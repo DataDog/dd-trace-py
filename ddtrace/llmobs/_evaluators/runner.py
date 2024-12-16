@@ -18,9 +18,9 @@ logger = get_logger(__name__)
 
 
 SUPPORTED_EVALUATORS = {
+    RagasAnswerRelevancyEvaluator.LABEL: RagasAnswerRelevancyEvaluator,
     RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,
     RagasContextPrecisionEvaluator.LABEL: RagasContextPrecisionEvaluator,
-    RagasAnswerRelevancyEvaluator.LABEL: RagasAnswerRelevancyEvaluator,
 }
 
 
@@ -54,7 +54,7 @@ class EvaluatorRunner(PeriodicService):
             if evaluator in SUPPORTED_EVALUATORS:
                 evaluator_init_state = "ok"
                 try:
-                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator](llmobs_service=llmobs_service))
+                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator](llmobs_service=llmobs_service))  # noqa: E501
                 except NotImplementedError as e:
                     evaluator_init_state = "error"
                     raise e

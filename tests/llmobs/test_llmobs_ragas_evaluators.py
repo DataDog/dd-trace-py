@@ -638,7 +638,7 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
 def test_ragas_answer_relevancy_emits_traces(ragas, LLMObs):
     rar_evaluator = RagasAnswerRelevancyEvaluator(LLMObs)
     rar_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
-    assert rar_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 2
+    assert rar_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 3
     calls = rar_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_args_list
 
     spans = [call[0][0] for call in calls]
