@@ -13,7 +13,9 @@ endif()
 
 # Set version if not already set
 if(NOT DEFINED TAG_LIBDATADOG)
-    set(TAG_LIBDATADOG "v14.3.1" CACHE STRING "libdatadog github tag")
+    set(TAG_LIBDATADOG
+        "v14.3.1"
+        CACHE STRING "libdatadog github tag")
 endif()
 
 if(NOT DEFINED DD_CHECKSUMS)
@@ -22,8 +24,7 @@ if(NOT DEFINED DD_CHECKSUMS)
         "2be2efa98dfc32f109abdd79242a8e046a7a300c77634135eb293e000ecd4a4c libdatadog-aarch64-apple-darwin.tar.gz"
         "36db8d50ccabb71571158ea13835c0f1d05d30b32135385f97c16343cfb6ddd4 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
         "2f61fd21cf2f8147743e414b4a8c77250a17be3aecc42a69ffe54f0a603d5c92 libdatadog-x86_64-alpine-linux-musl.tar.gz"
-        "f01f05600591063eba4faf388f54c155ab4e6302e5776c7855e3734955f7daf7 libdatadog-x86_64-unknown-linux-gnu.tar.gz"
-    )
+        "f01f05600591063eba4faf388f54c155ab4e6302e5776c7855e3734955f7daf7 libdatadog-x86_64-unknown-linux-gnu.tar.gz")
 endif()
 
 # Determine platform-specific tarball name
@@ -68,8 +69,12 @@ if(NOT DEFINED DD_HASH)
 endif()
 
 # Set the FetchContent paths
-set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/_deps" CACHE PATH "FetchContent base directory")
-set(FETCHCONTENT_DOWNLOADS_DIR "${FETCHCONTENT_BASE_DIR}/downloads" CACHE PATH "FetchContent downloads directory")
+set(FETCHCONTENT_BASE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/_deps"
+    CACHE PATH "FetchContent base directory")
+set(FETCHCONTENT_DOWNLOADS_DIR
+    "${FETCHCONTENT_BASE_DIR}/downloads"
+    CACHE PATH "FetchContent downloads directory")
 
 # Clean up any existing downloads if they exist
 set(TARBALL_PATH "${FETCHCONTENT_DOWNLOADS_DIR}/${DD_TARBALL}")
@@ -87,8 +92,7 @@ FetchContent_Declare(
     libdatadog
     URL "https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${DD_TARBALL}"
     URL_HASH SHA256=${DD_HASH}
-    DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}"
-)
+    DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}")
 
 # Make the content available
 FetchContent_MakeAvailable(libdatadog)
