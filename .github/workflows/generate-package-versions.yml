@@ -17,8 +17,8 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - version: "3.7"
-            os: ubuntu-22.04
+          # - version: "3.7"
+          #   os: ubuntu-22.04
           - version: "3.8"
             os: ubuntu-latest
           - version: "3.9"
@@ -29,7 +29,7 @@ jobs:
             os: ubuntu-latest
           - version: "3.12"
             os: ubuntu-latest
-  
+
     steps:
       - uses: actions/checkout@v4
         with:
