@@ -71,14 +71,17 @@ class HandledExceptionReportingInjector:
                 self._instrument_obj(obj)
 
     def _instrument_obj(self, obj):
-        if type(obj) in (types.FunctionType, types.MethodType, staticmethod) and not obj.__name__.startswith("__"):
+        if type(obj) in (types.FunctionType, types.MethodType, staticmethod) and not self._is_reserved(obj.__name__):
             # functions/methods
             _inject_handled_exception_reporting(obj, callback=self._callback)  # type: ignore
         elif type(obj) is type:
             # classes
-            for candidate in dir(obj):
-                if type(obj) in INSTRUMENTABLE_TYPES and not candidate.startswith("__"):
+            for candidate in obj.__dict__.keys():
+                if type(obj) in INSTRUMENTABLE_TYPES and not self._is_reserved(candidate):
                     self._instrument_obj(obj.__dict__[candidate])
+
+    def _is_reserved(self, name: str) -> bool:
+        return name.startswith("__") and name != '__call__'
 
 
 class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
