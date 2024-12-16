@@ -153,10 +153,12 @@ class LLMObsTraceProcessor(TraceProcessor):
         span_links = span._get_ctx_item(SPAN_LINKS) or []
         if (not span_links or len(span_links) == 0) and parent_id != "undefined":
             # default to parent_id if no span links are provided
-            span_links = [{
-                "trace_id": "{:x}".format(span.trace_id),
-                "span_id": parent_id,
-            }]
+            span_links = [
+                {
+                    "trace_id": "{:x}".format(span.trace_id),
+                    "span_id": parent_id,
+                }
+            ]
         if span_links:
             llmobs_span_event["span_links"] = span_links
 

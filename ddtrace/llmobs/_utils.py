@@ -14,12 +14,12 @@ from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
+from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
-from ddtrace.llmobs._constants import NAME
 
 
 log = get_logger(__name__)
