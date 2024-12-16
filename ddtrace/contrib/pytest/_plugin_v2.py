@@ -13,7 +13,7 @@ from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
-from ddtrace.contrib.pytest._benchmark_util import _set_benchmark_data_from_item
+from ddtrace.contrib.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
