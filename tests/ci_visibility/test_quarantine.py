@@ -1,8 +1,5 @@
 from pathlib import Path
-import typing as t
 from unittest import mock
-
-import pytest
 
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
@@ -35,7 +32,7 @@ class TestCIVisibilityTestQuarantine:
             workspace_path=Path().absolute(),
             efd_settings=EarlyFlakeDetectionSettings(enabled=False),
             atr_settings=AutoTestRetriesSettings(enabled=False),
-            quarantine_settings=QuarantineSettings(enabled=True)
+            quarantine_settings=QuarantineSettings(enabled=True),
         )
 
     def test_quarantine_tags_set(self):
@@ -55,5 +52,5 @@ class TestCIVisibilityTestQuarantine:
             test.finish_test(TestStatus.FAIL)
             session.finish()
 
-        assert test.get_tag("test.quarantine.is_quarantined") == True
-        assert session.get_tag("test_session.quarantine.enabled") == True
+        assert test.get_tag("test.quarantine.is_quarantined") == "true"
+        assert session.get_tag("test_session.quarantine.enabled") == "true"

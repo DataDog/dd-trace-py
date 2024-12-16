@@ -48,7 +48,9 @@ def _record_event(
         )
     if is_quarantined and not (event_type == EVENT_TYPES.TEST and event == EVENTS_TELEMETRY.FINISHED):
         log.debug(
-            "is_quarantined tag can only be set for test finishes, but event type is %s and event is %s", event_type, event
+            "is_quarantined tag can only be set for test finishes, but event type is %s and event is %s",
+            event_type,
+            event
         )
     if early_flake_detection_abort_reason and (
         event_type not in [EVENT_TYPES.TEST, EVENT_TYPES.SESSION] or event != EVENTS_TELEMETRY.FINISHED

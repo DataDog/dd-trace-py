@@ -607,7 +607,8 @@ def pytest_report_teststatus(
         if report.when == "teardown":
             return ("quarantined", "q", ("QUARANTINED", {"blue": True}))
         else:
-            # Don't show anything for setup and call of quarantined tests, regardless of whether there were errors or not.
+            # Don't show anything for setup and call of quarantined tests, regardless of
+            # whether there were errors or not.
             return ("", "", "")
 
 

@@ -323,12 +323,7 @@ def quarantine_pytest_terminal_summary_post_yield(terminalreporter: _pytest.term
     terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED, None)
     terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED, None)
     terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED, None)
+    terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, [])
+    terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, [])
 
-    final_passed_tests = terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, [])
-    final_failed_tests = terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, [])
-
-    # quarantined_tests = terminalreporter.stats.setdefault('quarantined', [])
-    # quarantined_tests.extend(final_passed_tests)
-    # quarantined_tests.extend(final_failed_tests)
-
-    # todo: report list of fully failed quarantined tests, possibly inside the ATR report.
+    # TODO: report list of fully failed quarantined tests, possibly inside the ATR report.

@@ -12,15 +12,11 @@ import pytest
 
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
-from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
-from tests.ci_visibility.util import _fetch_unique_tests_side_effect
-from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
-from tests.utils import override_env
-from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
+
 
 pytestmark = pytest.mark.skipif(
     not (_USE_PLUGIN_V2 and _pytest_version_supports_efd()),
@@ -82,13 +78,14 @@ def test_fail_teardown(fail_teardown):
     assert True
 """
 
+
 def assert_stats(rec, **outcomes):
     """
     Assert that the correct number of test results of each type is present in a test run.
 
     This is similar to `rec.assertoutcome()`, but works with test statuses other than 'passed', 'failed' and 'skipped'.
     """
-    stats = {**rec.getcall('pytest_terminal_summary').terminalreporter.stats}
+    stats = {**rec.getcall("pytest_terminal_summary").terminalreporter.stats}
     stats.pop("", None)
 
     for outcome, expected_count in outcomes.items():
@@ -96,7 +93,6 @@ def assert_stats(rec, **outcomes):
         assert actual_count == expected_count, f"Expected {expected_count} {outcome} tests, got {actual_count}"
 
     assert not stats, "Found unexpected stats in test results: {', '.join(stats.keys())}"
-
 
 
 class PytestQuarantineTestCase(PytestTestCaseBase):
@@ -159,7 +155,9 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         assert len(self.pop_spans()) > 0
 
     def test_env_var_does_not_override_api(self):
-        """Environment variable works as a kill-switch; if quarantine is disabled in the API, the env var cannot make it enabled."""
+        """Environment variable works as a kill-switch; if quarantine is disabled in the API,
+        the env var cannot make it enabled.
+        """
         self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
 
         with mock.patch(
@@ -182,7 +180,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         assert rec.ret == 0
         assert_stats(rec, quarantined=1)
 
-        outcomes = [(call.report.when, call.report.outcome) for call in rec.getcalls('pytest_report_teststatus')]
+        outcomes = [(call.report.when, call.report.outcome) for call in rec.getcalls("pytest_report_teststatus")]
         assert outcomes == [
             ("setup", "passed"),
             ("call", "quarantined"),
@@ -204,7 +202,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         assert rec.ret == 0
         assert_stats(rec, quarantined=1)
 
-        outcomes = [(call.report.when, call.report.outcome) for call in rec.getcalls('pytest_report_teststatus')]
+        outcomes = [(call.report.when, call.report.outcome) for call in rec.getcalls("pytest_report_teststatus")]
         assert outcomes == [
             ("setup", "passed"),
             ("call", "dd_quarantine_atr_attempt_failed"),
