@@ -58,6 +58,22 @@ jobs:
         with:
           python-version: "3.12"
 
+  run-generate-package-versions:
+    name: Generate package versions
+    runs-on: ubuntu-latest
+    needs:
+      - setup-python-37
+      - setup-python-and-dependencies
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+  
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -90,23 +106,7 @@ jobs:
           pip install requests
           pip install wrapt==1.16.0
           pip install riot==0.20.1
-
-  run-generate-package-versions:
-    name: Generate package versions
-    runs-on: ubuntu-latest
-    needs:
-      - setup-python-37
-      - setup-python-and-dependencies
-    permissions:
-      actions: read
-      contents: write
-      pull-requests: write
-  
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      
+        
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
 
