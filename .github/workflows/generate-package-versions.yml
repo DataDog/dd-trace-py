@@ -82,6 +82,10 @@ jobs:
           pip install riot==0.20.1
           pip install wrapt==1.16.0
 
+      - name: Install ddtrace
+        run: |
+          pip install ../ddtrace
+
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
 
