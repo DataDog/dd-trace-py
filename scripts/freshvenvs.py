@@ -183,7 +183,6 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
 
 
 def _is_module_autoinstrumented(module: str) -> bool:
-    import ddtrace
     from ddtrace._monkey import PATCH_MODULES
 
     return module in PATCH_MODULES and PATCH_MODULES[module]
