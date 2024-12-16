@@ -1,5 +1,3 @@
-from abc import ABC
-from abc import abstractmethod
 import traceback
 from typing import Optional
 from typing import Tuple
@@ -86,7 +84,7 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
 
 
-class RagasBaseEvaluator(ABC):
+class RagasBaseEvaluator:
     """A class used by EvaluatorRunner to conduct ragas evaluations
     on LLM Observability span events. The job of an Evaluator is to take a span and
     submit evaluation metrics based on the span's attributes.
@@ -207,6 +205,5 @@ class RagasBaseEvaluator(ABC):
                 metadata=metric_metadata,
             )
 
-    @abstractmethod
     def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
-        pass
+        raise NotImplementedError("evaluate method must be implemented by individual ragas metrics")
