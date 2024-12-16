@@ -91,6 +91,10 @@ jobs:
         run: |
           pip install ./ddtrace
 
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
 
