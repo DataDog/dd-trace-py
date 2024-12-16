@@ -134,22 +134,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         assert rec.ret == 0
         assert_stats(rec, quarantined=2)
 
-        spans = self.pop_spans()
-
-        [session_span] = _get_spans_from_list(spans, "session")
-        assert session_span.get_tag("test_session.quarantine.enabled") == "true"
-
-        [module_span] = _get_spans_from_list(spans, "module")
-        [suite_span_fail_quarantined] = _get_spans_from_list(spans, "suite", "test_fail_quarantined.py")
-        [suite_span_pass_quarantined] = _get_spans_from_list(spans, "suite", "test_pass_quarantined.py")
-
-        [test_span_fail_quarantined] = _get_spans_from_list(spans, "test", "test_fail_quarantined")
-        assert test_span_fail_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
-        assert test_span_fail_quarantined.get_tag("test.status") == "fail"
-
-        [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
-        assert test_span_pass_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
-        assert test_span_pass_quarantined.get_tag("test.status") == "pass"
+        assert len(self.pop_spans()) > 0
 
     def test_failing_and_passing_quarantined_and_unquarantined_tests(self):
         self.testdir.makepyfile(test_pass_quarantined=_TEST_PASS_QUARANTINED)
@@ -251,3 +236,65 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         assert_stats(rec, quarantined=1)
 
         assert len(self.pop_spans()) > 0
+
+    def test_quarantine_spans_without_atr(self):
+        self.testdir.makepyfile(test_pass_quarantined=_TEST_PASS_QUARANTINED)
+        self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
+
+        rec = self.inline_run("--ddtrace", "-q")
+
+        assert rec.ret == 0
+        assert_stats(rec, quarantined=2)
+
+        spans = self.pop_spans()
+
+        [session_span] = _get_spans_from_list(spans, "session")
+        assert session_span.get_tag("test_session.quarantine.enabled") == "true"
+
+        [module_span] = _get_spans_from_list(spans, "module")
+        [suite_span_fail_quarantined] = _get_spans_from_list(spans, "suite", "test_fail_quarantined.py")
+        [suite_span_pass_quarantined] = _get_spans_from_list(spans, "suite", "test_pass_quarantined.py")
+
+        [test_span_fail_quarantined] = _get_spans_from_list(spans, "test", "test_fail_quarantined")
+        assert test_span_fail_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_fail_quarantined.get_tag("test.status") == "fail"
+
+        [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
+        assert test_span_pass_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_pass_quarantined.get_tag("test.status") == "pass"
+
+    def test_quarantine_spans_with_atr(self):
+        self.testdir.makepyfile(test_pass_quarantined=_TEST_PASS_QUARANTINED)
+        self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                quarantine=QuarantineSettings(enabled=True),
+                flaky_test_retries_enabled=True,
+            ),
+        ):
+            rec = self.inline_run("--ddtrace", "-q")
+
+        assert rec.ret == 0
+        assert_stats(rec, quarantined=2)
+
+        spans = self.pop_spans()
+
+        [session_span] = _get_spans_from_list(spans, "session")
+        assert session_span.get_tag("test_session.quarantine.enabled") == "true"
+
+        [module_span] = _get_spans_from_list(spans, "module")
+        [suite_span_fail_quarantined] = _get_spans_from_list(spans, "suite", "test_fail_quarantined.py")
+        [suite_span_pass_quarantined] = _get_spans_from_list(spans, "suite", "test_pass_quarantined.py")
+
+        test_spans_fail_quarantined = _get_spans_from_list(spans, "test", "test_fail_quarantined")
+        assert len(test_spans_fail_quarantined) == 6
+        assert all(span.get_tag("test.quarantine.is_quarantined") == "true" for span in test_spans_fail_quarantined)
+        assert all(span.get_tag("test.status") == "fail" for span in test_spans_fail_quarantined)
+        assert test_spans_fail_quarantined[0].get_tag("test.is_retry") is None
+        assert all(span.get_tag("test.is_retry") for span in test_spans_fail_quarantined[1:])
+
+        [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
+        assert test_span_pass_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_pass_quarantined.get_tag("test.status") == "pass"
