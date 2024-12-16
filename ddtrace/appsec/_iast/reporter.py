@@ -77,7 +77,7 @@ class Vulnerability(NotNoneDictable):
     evidence: Evidence
     location: Location
     hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
-    stackId: Optional[str] = None
+    stackId: Optional[str] = dataclasses.field(init=False, compare=False)
 
     def __post_init__(self):
         # avoid circular import
@@ -85,6 +85,7 @@ class Vulnerability(NotNoneDictable):
 
         self.hash = zlib.crc32(repr(self).encode())
         stacktrace_id = get_iast_stacktrace_id()
+        self.stackId = None
         if stacktrace_id:
             str_id = str(stacktrace_id)
             if report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
