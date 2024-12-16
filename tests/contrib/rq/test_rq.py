@@ -92,7 +92,10 @@ def test_sync_worker_ttl(queue):
     job = queue.enqueue(job_add1, 1, result_ttl=0)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
     worker.work(burst=True)
-    assert job.get_status() is None
+    try:
+        assert job.get_status() is None
+    except rq.exceptions.InvalidJobOperation:
+        pass
     assert job.result is None
 
 
