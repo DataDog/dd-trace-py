@@ -109,8 +109,6 @@ jobs:
 
       - run: git diff
     
-      - run: git add .
-
       - name: Create Pull Request
         id: pr
         uses: peter-evans/create-pull-request@v6
@@ -120,6 +118,10 @@ jobs:
           commit-message: "Update package version"
           delete-branch: true
           base: main
+          add-paths: |
+            supported_versions_table.csv
+            supported_versions_output.json
+            .riot/requirements/*
           title: "chore: update ${{ env.VENV_NAME }} latest version to ${{ env.NEW_LATEST }}"
           labels: changelog/no-changelog
           body: |
