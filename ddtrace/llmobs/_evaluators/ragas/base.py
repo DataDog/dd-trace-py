@@ -67,6 +67,18 @@ class MiniRagas:
 
         self.StatementsAnswers = StatementsAnswers
 
+        from ddtrace.llmobs._evaluators.ragas.models import AnswerRelevanceClassification
+
+        self.AnswerRelevanceClassification = AnswerRelevanceClassification
+
+        from ragas.metrics import answer_relevancy
+
+        self.answer_relevancy = answer_relevancy
+
+        from ragas.embeddings import embedding_factory
+
+        self.embedding_factory = embedding_factory
+
 
 def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     """
