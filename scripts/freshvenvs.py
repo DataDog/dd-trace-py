@@ -14,7 +14,6 @@ from typing import Optional
 from packaging.version import Version
 from pip import _internal
 
-
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 import riotfile  # noqa: E402
 
@@ -283,6 +282,7 @@ def generate_supported_versions(contrib_packages, all_used_versions, patched):
         supported_versions.append(json_format)
 
     supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
+    print("Writing to supported_versions_output.json") # TODO: remove, for logging output in CI
     with open("supported_versions_output.json", "w") as file:
         json.dump(supported_versions_output, file, indent=4)
 
