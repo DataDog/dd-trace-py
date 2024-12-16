@@ -20,8 +20,8 @@ jobs:
         with:
           python-version: "3.7"
 
-  generate-package-versions:
-    name: Generate package versions
+  setup-python-and-dependencies:
+    name: Setup other Python versions & deps
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -91,6 +91,15 @@ jobs:
           pip install wrapt==1.16.0
           pip install riot==0.20.1
 
+  run-generate-package-versions:
+    name: Generate package versions
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+  
+    steps:
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
 
