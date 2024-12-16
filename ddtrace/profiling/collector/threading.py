@@ -32,11 +32,11 @@ class ThreadingLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
-    def _get_original(self):
+    def _get_patch_target(self):
         # type: (...) -> typing.Any
         return threading.Lock
 
-    def _set_original(
+    def _set_patch_target(
         self, value  # type: typing.Any
     ):
         # type: (...) -> None

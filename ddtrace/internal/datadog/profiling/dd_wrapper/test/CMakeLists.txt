@@ -21,18 +21,16 @@ function(dd_wrapper_add_test name)
     target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper nlohmann_json::nlohmann_json)
     add_ddup_config(${name})
 
-    gtest_discover_tests(${name}
-        PROPERTIES
-            # We start new threads after fork(), and we want to continue
-            # running the tests after that instead of dying.
-            ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0:suppressions=${CMAKE_CURRENT_SOURCE_DIR}/TSan.supp"
-    )
+    gtest_discover_tests(
+        ${name}
+        PROPERTIES # We start new threads after fork(), and we want to continue running the tests after that instead of
+                   # dying.
+                   ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0:suppressions=${CMAKE_CURRENT_SOURCE_DIR}/TSan.supp")
 
     set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
     if(LIB_INSTALL_DIR)
-        install(TARGETS ${name}
-            RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+        install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
     endif()
 endfunction()
 
