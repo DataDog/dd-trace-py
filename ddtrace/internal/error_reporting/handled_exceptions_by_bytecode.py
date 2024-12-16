@@ -11,6 +11,9 @@ from .hook import _default_datadog_exc_callback
 
 def _inject_handled_exception_reporting(func, callback: CallbackType | None = None):
     func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
+    if not '__code__' in dir(func):
+        return
+
     original_code = func.__code__  # type: CodeType
 
     callback = callback or _default_datadog_exc_callback
