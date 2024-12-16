@@ -18,7 +18,6 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
-          ref: 'gnufede/python-standalone-sca'
           persist-credentials: false
           repository: 'DataDog/system-tests'
 
@@ -64,7 +63,6 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
-          ref: 'gnufede/python-standalone-sca'
           persist-credentials: false
           repository: 'DataDog/system-tests'
 
@@ -117,7 +115,6 @@ jobs:
       - name: Checkout system tests
         uses: actions/checkout@v4
         with:
-          ref: 'gnufede/python-standalone-sca'
           persist-credentials: false
           repository: 'DataDog/system-tests'
 
@@ -140,129 +137,129 @@ jobs:
           docker load < images_artifacts/${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
           docker load < images_artifacts/agent_${{ github.sha }}.tar.gz
 
-      - name: Run SCA_STANDALONE
+      - name: Run DEFAULT
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: ./run.sh DEFAULT
+
+      - name: Run SAMPLING
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: ./run.sh SAMPLING
+
+      - name: Run INTEGRATIONS
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: ./run.sh INTEGRATIONS
+
+      - name: Run CROSSED_TRACING_LIBRARIES
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: ./run.sh CROSSED_TRACING_LIBRARIES
+
+      - name: Run PROFILING
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: |
+          cat /proc/sys/kernel/perf_event_paranoid
+          sudo sysctl kernel.perf_event_paranoid=1
+          sudo sysctl -p
+          ./run.sh PROFILING
+
+      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
+        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
+
+      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
+        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
+
+      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
+        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
+
+      - name: Run APPSEC_MISSING_RULES
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_MISSING_RULES
+
+      - name: Run APPSEC_AUTO_EVENTS_EXTENDED
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_AUTO_EVENTS_EXTENDED
+
+      - name: Run APPSEC_CUSTOM_RULES
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_CUSTOM_RULES
+
+      - name: Run APPSEC_CORRUPTED_RULES
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_CORRUPTED_RULES
+
+      - name: Run APPSEC_RULES_MONITORING_WITH_ERRORS
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_RULES_MONITORING_WITH_ERRORS
+
+      - name: Run APPSEC_LOW_WAF_TIMEOUT
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_LOW_WAF_TIMEOUT
+
+      - name: Run APPSEC_CUSTOM_OBFUSCATION
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_CUSTOM_OBFUSCATION
+
+      - name: Run APPSEC_RATE_LIMITER
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_RATE_LIMITER
+
+      - name: Run APPSEC_STANDALONE
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh SCA_STANDALONE
+        run: ./run.sh APPSEC_STANDALONE
 
-      # - name: Run DEFAULT
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-      #   run: ./run.sh DEFAULT
+      - name: Run IAST_STANDALONE
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh IAST_STANDALONE
 
-      # - name: Run SAMPLING
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-      #   run: ./run.sh SAMPLING
+      - name: Run APPSEC_RUNTIME_ACTIVATION
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_RUNTIME_ACTIVATION
 
-      # - name: Run INTEGRATIONS
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-      #   run: ./run.sh INTEGRATIONS
+      - name: Run APPSEC_WAF_TELEMETRY
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_WAF_TELEMETRY
 
-      # - name: Run CROSSED_TRACING_LIBRARIES
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-      #   run: ./run.sh CROSSED_TRACING_LIBRARIES
+      - name: Run APPSEC_DISABLED
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_DISABLED
 
-      # - name: Run PROFILING
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-      #   run: |
-      #     cat /proc/sys/kernel/perf_event_paranoid
-      #     sudo sysctl kernel.perf_event_paranoid=1
-      #     sudo sysctl -p
-      #     ./run.sh PROFILING
+      - name: Run APPSEC_BLOCKING
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_BLOCKING
 
-      # - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
-      #   run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
+      - name: Run APPSEC_BLOCKING_FULL_DENYLIST
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
 
-      # - name: Run REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
-      #   run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
+      - name: Run APPSEC_REQUEST_BLOCKING
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_REQUEST_BLOCKING
 
-      # - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
-      #   run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
+      - name: Run APPSEC_RASP
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_RASP
 
-      # - name: Run APPSEC_MISSING_RULES
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-      #   run: ./run.sh APPSEC_MISSING_RULES
+      - name: Run DEBUGGER_PROBES_STATUS
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_PROBES_STATUS
 
-      # - name: Run APPSEC_AUTO_EVENTS_EXTENDED
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-      #   run: ./run.sh APPSEC_AUTO_EVENTS_EXTENDED
+      - name: Run DEBUGGER_PROBES_SNAPSHOT
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_PROBES_SNAPSHOT
 
-      # - name: Run APPSEC_CUSTOM_RULES
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-      #   run: ./run.sh APPSEC_CUSTOM_RULES
+      - name: Run DEBUGGER_PII_REDACTION
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_PII_REDACTION
 
-      # - name: Run APPSEC_CORRUPTED_RULES
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-      #   run: ./run.sh APPSEC_CORRUPTED_RULES
+      - name: Run DEBUGGER_EXPRESSION_LANGUAGE
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        run: ./run.sh DEBUGGER_EXPRESSION_LANGUAGE
 
-      # - name: Run APPSEC_RULES_MONITORING_WITH_ERRORS
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-      #   run: ./run.sh APPSEC_RULES_MONITORING_WITH_ERRORS
-
-      # - name: Run APPSEC_LOW_WAF_TIMEOUT
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-      #   run: ./run.sh APPSEC_LOW_WAF_TIMEOUT
-
-      # - name: Run APPSEC_CUSTOM_OBFUSCATION
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-      #   run: ./run.sh APPSEC_CUSTOM_OBFUSCATION
-
-      # - name: Run APPSEC_RATE_LIMITER
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-      #   run: ./run.sh APPSEC_RATE_LIMITER
-
-      # - name: Run APPSEC_STANDALONE
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-      #   run: ./run.sh APPSEC_STANDALONE
-
-      # - name: Run APPSEC_RUNTIME_ACTIVATION
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-      #   run: ./run.sh APPSEC_RUNTIME_ACTIVATION
-
-      # - name: Run APPSEC_WAF_TELEMETRY
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-      #   run: ./run.sh APPSEC_WAF_TELEMETRY
-
-      # - name: Run APPSEC_DISABLED
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-      #   run: ./run.sh APPSEC_DISABLED
-
-      # - name: Run APPSEC_BLOCKING
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-      #   run: ./run.sh APPSEC_BLOCKING
-
-      # - name: Run APPSEC_BLOCKING_FULL_DENYLIST
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-      #   run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
-
-      # - name: Run APPSEC_REQUEST_BLOCKING
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-      #   run: ./run.sh APPSEC_REQUEST_BLOCKING
-
-      # - name: Run APPSEC_RASP
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-      #   run: ./run.sh APPSEC_RASP
-
-      # - name: Run DEBUGGER_PROBES_STATUS
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-      #   run: ./run.sh DEBUGGER_PROBES_STATUS
-
-      # - name: Run DEBUGGER_PROBES_SNAPSHOT
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-      #   run: ./run.sh DEBUGGER_PROBES_SNAPSHOT
-
-      # - name: Run DEBUGGER_PII_REDACTION
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-      #   run: ./run.sh DEBUGGER_PII_REDACTION
-
-      # - name: Run DEBUGGER_EXPRESSION_LANGUAGE
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-      #   run: ./run.sh DEBUGGER_EXPRESSION_LANGUAGE
-
-      # - name: Run DEBUGGER_EXCEPTION_REPLAY
-      #   if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
-      #   run: ./run.sh DEBUGGER_EXCEPTION_REPLAY
+      - name: Run DEBUGGER_EXCEPTION_REPLAY
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
+        run: ./run.sh DEBUGGER_EXCEPTION_REPLAY
 
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
