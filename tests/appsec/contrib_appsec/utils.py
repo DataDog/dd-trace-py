@@ -62,9 +62,13 @@ class Contrib_TestClass_For_Threats:
     def body(self, response) -> str:
         raise NotImplementedError
 
+    def get_stack_trace(self, root_span, namespace):
+        appsec_traces = root_span().get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
+        stacks = appsec_traces.get(namespace, [])
+        return stacks
+
     def check_for_stack_trace(self, root_span):
-        appsec_traces = root_span().get_struct_tag(asm_constants.EXPLOIT_PREVENTION.STACK_TRACES) or {}
-        exploit = appsec_traces.get("exploit", [])
+        exploit = self.get_stack_trace(root_span, "exploit")
         stack_ids = sorted(set(t["id"] for t in exploit))
         triggers = get_triggers(root_span())
         stack_id_in_triggers = sorted(set(t["stack_id"] for t in (triggers or []) if "stack_id" in t))
@@ -1385,9 +1389,9 @@ class Contrib_TestClass_For_Threats:
                 # there may have been multiple evaluations of other rules too
                 assert (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)) in evals
                 if action_level == 2:
-                    assert get_tag("rasp.request.done") is None
+                    assert get_tag("rasp.request.done") is None, get_tag("rasp.request.done")
                 else:
-                    assert get_tag("rasp.request.done") == endpoint
+                    assert get_tag("rasp.request.done") == endpoint, get_tag("rasp.request.done")
                 assert get_metric(APPSEC.RASP_DURATION) is not None
                 assert get_metric(APPSEC.RASP_DURATION_EXT) is not None
                 assert get_metric(APPSEC.RASP_RULE_EVAL) is not None
@@ -1398,7 +1402,7 @@ class Contrib_TestClass_For_Threats:
                     assert "rasp" not in n
                 assert get_triggers(root_span()) is None
                 assert self.check_for_stack_trace(root_span) == []
-                assert get_tag("rasp.request.done") == endpoint
+                assert get_tag("rasp.request.done") == endpoint, get_tag("rasp.request.done")
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("auto_events_enabled", [True, False])
@@ -1505,21 +1509,22 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
 
     def test_iast(self, interface, root_span, get_tag):
-        if interface.name == "fastapi" and asm_config._iast_enabled:
-            raise pytest.xfail("fastapi does not fully support IAST for now")
-
         from ddtrace.ext import http
 
-        url = "/rasp/command_injection/?cmd=ls"
+        url = "/rasp/command_injection/?cmd=."
         self.update_tracer(interface)
         response = interface.client.get(url)
         assert self.status(response) == 200
         assert get_tag(http.STATUS_CODE) == "200"
         assert self.body(response).startswith("command_injection endpoint")
+        stack_traces = self.get_stack_trace(root_span, "vulnerability")
         if asm_config._iast_enabled:
             assert get_tag("_dd.iast.json") is not None
+            # checking for iast stack traces
+            assert stack_traces
         else:
             assert get_tag("_dd.iast.json") is None
+            assert stack_traces == []
 
 
 @contextmanager
