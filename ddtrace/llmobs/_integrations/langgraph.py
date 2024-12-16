@@ -10,6 +10,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.span import Span
 
 
@@ -33,7 +34,13 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         inputs = get_argument_value(args, kwargs, 0, "input")
         span_name = kw.get("name", span.name)
-        span_links = []
+        
+        span_links = [
+            {
+                "span_id": str(_get_llmobs_parent_id(span)) or "undefined",
+                "trace_id": "{:x}".format(span.trace_id),
+            }
+        ]
 
         if operation == "node":
             config = get_argument_value(args, kwargs, 1, "config")
@@ -47,7 +54,7 @@ class LangGraphIntegration(BaseLLMIntegration):
                 "span_id": str(span.span_id),
             }
 
-            span_links = node_invoke.get("from", [])
+            span_links = node_invoke.get("from", span_links)
 
         span._set_ctx_items(
             {
