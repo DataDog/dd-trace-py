@@ -41,14 +41,16 @@ else:
 
 
 def wait_for_es(host: str, port: int):
-    for _ in range(20):
+    # Wait for up to 160 seconds for ES to start.
+    # DEV: Elasticsearch is pretty quick, but OpenSearch can take a long time to start.
+    for _ in range(80):
         try:
             conn = HTTPConnection(f"{host}:{port}")
             conn.request("GET", "/")
             conn.getresponse()
             return
         except Exception:
-            time.sleep(1)
+            time.sleep(2)
     raise Exception(f"Could not connect to ES at {host}:{port}")
 
 
