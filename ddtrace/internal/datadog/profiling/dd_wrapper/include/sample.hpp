@@ -100,6 +100,9 @@ class Sample
     bool push_release(int64_t lock_time, int64_t count);
     bool push_alloc(int64_t size, int64_t count);
     bool push_heap(int64_t size);
+    bool push_gpu_gputime(int64_t time, int64_t count);
+    bool push_gpu_memory(int64_t size, int64_t count);
+    bool push_gpu_flops(int64_t flops, int64_t count);
 
     // Adds metadata to sample
     bool push_lock_name(std::string_view lock_name);
@@ -112,10 +115,14 @@ class Sample
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
     bool push_class_name(std::string_view class_name);
     bool push_monotonic_ns(int64_t monotonic_ns);
+    bool push_absolute_ns(int64_t timestamp_ns);
 
     // Interacts with static Sample state
     bool is_timeline_enabled() const;
     static void set_timeline(bool enabled);
+
+    // Pytorch GPU metadata
+    bool push_gpu_device_name(std::string_view device_name);
 
     // Assumes frames are pushed in leaf-order
     void push_frame(std::string_view name,     // for ddog_prof_Function

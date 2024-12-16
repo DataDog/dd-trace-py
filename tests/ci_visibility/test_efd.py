@@ -66,7 +66,7 @@ class TestCIVisibilityTestEFD:
 
         mock_session = mock.Mock()
         mock_session.efd_is_faulty_session.return_value = False
-        with mock.patch.multiple(efd_test, get_session=lambda *args: mock_session):
+        with mock.patch.object(TestVisibilityTest, "get_session", lambda *args: mock_session):
             efd_test.start()
             # Overwrite the test duration
             efd_test._span.start_ns -= efd_test_duration_s * 1e9
@@ -156,7 +156,7 @@ class TestCIVisibilityTestEFD:
         )
         mock_session = mock.Mock()
         mock_session.efd_is_faulty_session.return_value = False
-        with mock.patch.multiple(efd_test, get_session=lambda *args: mock_session):
+        with mock.patch.object(TestVisibilityTest, "get_session", lambda *args: mock_session):
             efd_test.start()
             efd_test.finish_test(test_result)
             expected_num_retry = 0
@@ -177,13 +177,19 @@ class TestCIVisibilityTestEFD:
         efd_test.finish_test(TestStatus.FAIL)
         assert efd_test.efd_should_retry() is False
 
-    @pytest.mark.parametrize("faulty_session_threshold,expected_faulty", ((None, False), (10, True), (40, False)))
-    def test_efd_session_faulty(self, faulty_session_threshold, expected_faulty):
-        """Tests that the number of new tests in a session is correctly used to determine if a session is faulty
+    @pytest.mark.parametrize(
+        "faulty_session_threshold,expected_faulty", ((None, True), (10, True), (40, True), (50, False))
+    )
+    def test_efd_session_faulty_percentage(self, faulty_session_threshold, expected_faulty):
+        """Tests that the number of new tests in a session is correctly used to determine if a session is faulty based
+        on the percentage of new tests (as opposed to the absolute number).
 
-        For the purpose of this test, the test structure is hardcoded. Whether or not tests are properly marked as new,
-        etc., should be tested elsewhere.
+        In order to test the percentages fully without hitting the absolute number of new tests threshold, we generate
+        a large number of both known and new tests.
+
+        There are a total of 100 known and 100 new tests, so 50% are new
         """
+
         if faulty_session_threshold is not None:
             efd_settings = EarlyFlakeDetectionSettings(True, faulty_session_threshold=faulty_session_threshold)
         else:
@@ -192,25 +198,28 @@ class TestCIVisibilityTestEFD:
         ssettings = self._get_session_settings(efd_settings=efd_settings)
         test_session = TestVisibilitySession(session_settings=ssettings)
 
-        # Module
+        # Modules 1 and 2 each have one suite with 30 known tests and 20 new tests.
         m1_id = TestModuleId("module_1")
         m1 = TestVisibilityModule(m1_id.name, session_settings=ssettings)
         test_session.add_child(m1_id, m1)
         m1_s1_id = TestSuiteId(m1_id, "m1_s1")
         m1_s1 = TestVisibilitySuite(m1_s1_id.name, session_settings=ssettings)
         m1.add_child(m1_s1_id, m1_s1)
-        m1_s1_t1_id = InternalTestId(m1_s1_id, name="m1_s1_t1")
-        m1_s1.add_child(m1_s1_t1_id, TestVisibilityTest(m1_s1_t1_id.name, session_settings=ssettings, is_new=True))
-        m1_s1_t2_id = InternalTestId(m1_s1_id, name="m1_s1_t2")
-        m1_s1.add_child(m1_s1_t2_id, TestVisibilityTest(m1_s1_t2_id.name, session_settings=ssettings, is_new=False))
-        m1_s1_t3_id = InternalTestId(m1_s1_id, name="m1_s1_t3")
-        m1_s1.add_child(m1_s1_t3_id, TestVisibilityTest(m1_s1_t3_id.name, session_settings=ssettings, is_new=False))
 
-        m1_s2_id = TestSuiteId(m1_id, "suite_2")
-        m1_s2 = TestVisibilitySuite(m1_s2_id.name, session_settings=ssettings)
-        m1.add_child(m1_s2_id, m1_s2)
-        m1_s2_t1_id = InternalTestId(m1_s2_id, name="m1_s2_t1")
-        m1_s2.add_child(m1_s2_t1_id, TestVisibilityTest(m1_s2_t1_id.name, session_settings=ssettings, is_new=True))
+        # Known tests:
+        for i in range(50):
+            test_name = f"m1_s1_known_t{i}"
+            m1_s1.add_child(
+                InternalTestId(m1_s1_id, name=test_name),
+                TestVisibilityTest(test_name, session_settings=ssettings, is_new=False),
+            )
+
+        for i in range(50):
+            test_name = f"m1_s1_new_t{i}"
+            m1_s1.add_child(
+                InternalTestId(m1_s1_id, name=test_name),
+                TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
+            )
 
         m2_id = TestModuleId("module_2")
         m2 = TestVisibilityModule(m2_id.name, session_settings=ssettings)
@@ -219,20 +228,87 @@ class TestCIVisibilityTestEFD:
         m2_s1 = TestVisibilitySuite(m2_s1_id.name, session_settings=ssettings)
         m2.add_child(m2_s1_id, m2_s1)
 
-        m2_s1_t1_id = InternalTestId(m2_s1_id, name="m2_s1_t1")
-        m2_s1.add_child(m2_s1_t1_id, TestVisibilityTest(m2_s1_t1_id.name, session_settings=ssettings, is_new=False))
-        m2_s1_t2_id = InternalTestId(m2_s1_id, name="m2_s1_t2")
-        m2_s1.add_child(m2_s1_t2_id, TestVisibilityTest(m2_s1_t2_id.name, session_settings=ssettings, is_new=False))
-        m2_s1_t3_id = InternalTestId(m2_s1_id, name="m2_s1_t3")
-        m2_s1.add_child(m2_s1_t3_id, TestVisibilityTest(m2_s1_t3_id.name, session_settings=ssettings, is_new=False))
+        # Known tests:
+        for i in range(50):
+            test_name = f"m2_s1_known_t{i}"
+            m2_s1.add_child(
+                InternalTestId(m1_s1_id, name=test_name),
+                TestVisibilityTest(test_name, session_settings=ssettings, is_new=False),
+            )
 
-        # A test with parameters is never considered new:
-        m2_s1_t4_id = InternalTestId(m2_s1_id, name="m2_s1_t4", parameters='{"hello": "world"}')
-        m2_s1.add_child(
-            m2_s1_t4_id,
-            TestVisibilityTest(
-                m2_s1_t4_id.name, session_settings=ssettings, is_new=True, parameters=m2_s1_t4_id.parameters
-            ),
-        )
+        for i in range(50):
+            test_name = f"m2_s1_new_t{i}"
+            m2_s1.add_child(
+                InternalTestId(m1_s1_id, name=test_name),
+                TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
+            )
+
+        assert test_session.efd_is_faulty_session() == expected_faulty
+
+    @pytest.mark.parametrize(
+        "faulty_session_threshold,expected_faulty", ((None, True), (10, True), (40, False), (50, False))
+    )
+    def test_efd_session_faulty_absolute(self, faulty_session_threshold, expected_faulty):
+        """Tests that the number of new tests in a session is correctly used to determine if a session is faulty based
+        on the absolute number of new tests.
+
+        For the purpose of this test, the test structure is hardcoded. Whether or not tests are properly marked as new,
+        etc., should be tested elsewhere.
+
+        There are a total of 10 known tests and 40 new tests, so 80% of tests are new.
+        """
+
+        if faulty_session_threshold is not None:
+            efd_settings = EarlyFlakeDetectionSettings(True, faulty_session_threshold=faulty_session_threshold)
+        else:
+            efd_settings = EarlyFlakeDetectionSettings(True)
+
+        ssettings = self._get_session_settings(efd_settings=efd_settings)
+        test_session = TestVisibilitySession(session_settings=ssettings)
+
+        # Modules 1 and 2 each have one suite with 5 known tests and 20 new tests.
+        m1_id = TestModuleId("module_1")
+        m1 = TestVisibilityModule(m1_id.name, session_settings=ssettings)
+        test_session.add_child(m1_id, m1)
+        m1_s1_id = TestSuiteId(m1_id, "m1_s1")
+        m1_s1 = TestVisibilitySuite(m1_s1_id.name, session_settings=ssettings)
+        m1.add_child(m1_s1_id, m1_s1)
+
+        # Known tests:
+        for i in range(5):
+            test_name = f"m1_s1_known_t{i}"
+            m1_s1.add_child(
+                InternalTestId(m1_s1_id, name=test_name),
+                TestVisibilityTest(test_name, session_settings=ssettings, is_new=False),
+            )
+
+        for i in range(20):
+            test_name = f"m1_s1_new_t{i}"
+            m1_s1.add_child(
+                InternalTestId(m1_s1_id, name=test_name),
+                TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
+            )
+
+        m2_id = TestModuleId("module_2")
+        m2 = TestVisibilityModule(m2_id.name, session_settings=ssettings)
+        test_session.add_child(m2_id, m2)
+        m2_s1_id = TestSuiteId(m2_id, "suite_1")
+        m2_s1 = TestVisibilitySuite(m2_s1_id.name, session_settings=ssettings)
+        m2.add_child(m2_s1_id, m2_s1)
+
+        # Known tests:
+        for i in range(5):
+            test_name = f"m2_s1_known_t{i}"
+            m2_s1.add_child(
+                InternalTestId(m1_s1_id, name=test_name),
+                TestVisibilityTest(test_name, session_settings=ssettings, is_new=False),
+            )
+
+        for i in range(20):
+            test_name = f"m2_s1_new_t{i}"
+            m2_s1.add_child(
+                InternalTestId(m1_s1_id, name=test_name),
+                TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
+            )
 
         assert test_session.efd_is_faulty_session() == expected_faulty
