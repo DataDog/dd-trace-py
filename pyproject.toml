@@ -138,7 +138,7 @@ exclude = [
 [tool.slotscheck]
 exclude-modules = '''
 (
-  ^ddtrace.(contrib|vendor)
+  ^ddtrace.(contrib|vendor).*
   | ^tests.(contrib|vendor)
   # avoid sitecustomize modules as they start services
   | ddtrace.bootstrap.sitecustomize
