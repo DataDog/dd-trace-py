@@ -1369,7 +1369,7 @@ class Contrib_TestClass_For_Threats:
             assert get_tag(http.STATUS_CODE) == str(code), (get_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
-            telemetry_calls = {(c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
+            telemetry_calls = {(c.__name__, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
             if asm_enabled and ep_enabled and action_level > 0:
                 self.check_rules_triggered([rule] * (1 if action_level == 2 else 2), root_span)
                 assert self.check_for_stack_trace(root_span)
