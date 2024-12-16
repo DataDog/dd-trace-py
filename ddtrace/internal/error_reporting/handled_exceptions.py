@@ -3,12 +3,13 @@ import types
 from types import ModuleType, CodeType
 from .hook import _default_datadog_exc_callback
 
+from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.settings.error_reporting import _er_config
 from ddtrace.internal.module import BaseModuleWatchdog
 if sys.version_info < (3, 12):
     from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
 
-INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, type)
+INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)
 
 
 def init_handled_exceptions_reporting():
@@ -36,25 +37,21 @@ def _install_sys_monitoring_reporting():
     sys.monitoring.set_events(sys.monitoring.DEBUGGER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
 
 
-class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
+class HandledExceptionReportingInjector:
     _configured_modules: list[str] = list()
     _instrumented_modules: set[str] = set()
+    _callback: CallbackType
 
-    def after_import(self, module: ModuleType):
-        if not module.__name__:
-            return
+    def __init__(self, modules: list[str], callback: CallbackType | None = None):
+        self._configured_modules = modules
+        self._callback = callback or _default_datadog_exc_callback
 
-        self._instrument_conditionally(module.__name__)
-
-    def after_install(self):
-        self._configured_modules.extend(_er_config.reported_handled_exceptions)
-        # There might be modules that are already loaded at the time of installation, so we need to instrument them
-        # if they have been configured.
+    def backfill(self):
         existing_modules = set(sys.modules.keys())
         for module_name in existing_modules:
-            self._instrument_conditionally(module_name)
+            self.instrument_module_conditionally(module_name)
 
-    def _instrument_conditionally(self, module_name: str):
+    def instrument_module_conditionally(self, module_name: str):
         for enabled_module in self._configured_modules:
             if module_name.startswith(enabled_module):
                 self._instrument_module(module_name)
@@ -74,11 +71,27 @@ class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
                 self._instrument_obj(obj)
 
     def _instrument_obj(self, obj):
-        if type(obj) in (types.FunctionType, types.MethodType):
+        if type(obj) in (types.FunctionType, types.MethodType, staticmethod) and not obj.__name__.startswith("__"):
             # functions/methods
-            _inject_handled_exception_reporting(obj)  # type: ignore
+            _inject_handled_exception_reporting(obj, callback=self._callback)  # type: ignore
         elif type(obj) is type:
             # classes
             for candidate in dir(obj):
-                if type(obj) in (types.FunctionType, types.MethodType, type):
-                    self._instrument_obj(candidate)
+                if type(obj) in INSTRUMENTABLE_TYPES and not candidate.startswith("__"):
+                    self._instrument_obj(obj.__dict__[candidate])
+
+
+class HandledExceptionReportingWatchdog(BaseModuleWatchdog):
+    _injector: HandledExceptionReportingInjector
+
+    def after_import(self, module: ModuleType):
+        self._injector.instrument_module_conditionally(module.__name__)
+
+    def after_install(self):
+        self._injector = HandledExceptionReportingInjector(_er_config.reported_handled_exceptions)
+
+        # There might be modules that are already loaded at the time of installation, so we need to instrument them
+        # if they have been configured.
+        existing_modules = set(sys.modules.keys())
+        for module_name in existing_modules:
+            self._injector.instrument_module_conditionally(module_name)
