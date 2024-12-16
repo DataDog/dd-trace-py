@@ -11,59 +11,67 @@ jobs:
     name: Setup Python 3.7
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      
       - name: Setup Python 3.7
         uses: actions/setup-python@v5
         with:
           python-version: "3.7"
-
-  setup-python-and-dependencies:
-    name: Setup other Python versions & deps
+  
+  setup-python-38:
+    name: Setup Python 3.7
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: write
-      pull-requests: write
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      
+    steps:  
       - name: Setup Python 3.8
         uses: actions/setup-python@v5
         with:
           python-version: "3.8"
+  
 
+  setup-python-39:
+    name: Setup Python 3.9
+    runs-on: ubuntu-latest
+    steps:  
       - name: Setup Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
 
-      - name: Setup Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+  setup-python-310:
+    name: Setup Python 3.10
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
 
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+  setup-python-311:
+    name: Setup Python 3.11
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
 
-      - name: Setup Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+  setup-python-312:
+    name: Setup Python 3.12
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
 
   run-generate-package-versions:
     name: Generate package versions
     runs-on: ubuntu-latest
     needs:
       - setup-python-37
-      - setup-python-and-dependencies
+      - setup-python-38
+      - setup-python-39
+      - setup-python-310
+      - setup-python-311
+      - setup-python-312
     permissions:
       actions: read
       contents: write
