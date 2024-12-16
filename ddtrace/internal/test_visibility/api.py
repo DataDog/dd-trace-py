@@ -14,6 +14,7 @@ from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import ATRSessionMixin
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
+from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDSessionMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -132,7 +133,7 @@ class InternalTestSuite(ext_api.TestSuite, InternalTestBase, ITRMixin):
     pass
 
 
-class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin):
+class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin, BenchmarkTestMixin):
     class FinishArgs(NamedTuple):
         """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
 
