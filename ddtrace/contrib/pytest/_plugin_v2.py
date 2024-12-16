@@ -13,6 +13,7 @@ from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
@@ -457,6 +458,10 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if test_outcome.status is None and call.when != "teardown":
         return
 
+    # Support for pytest-benchmark plugin
+    if item.config.pluginmanager.hasplugin("benchmark"):
+        _set_benchmark_data_from_item(item)
+
     # Record a result if we haven't already recorded it:
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
@@ -533,6 +538,13 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report flaky or failed tests"""
+    try:
+        from ddtrace.appsec._iast._pytest_plugin import print_iast_report
+
+        print_iast_report(terminalreporter)
+    except Exception:  # noqa: E722
+        log.debug("Encountered error during code security summary", exc_info=True)
+
     if not is_test_visibility_enabled():
         yield
         return

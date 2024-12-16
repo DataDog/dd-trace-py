@@ -47,7 +47,9 @@ def test_taint_object_with_no_context_should_be_noop():
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context(caplog):
     reset_context()
-    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
+    with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+        dict(_iast_debug=True)
+    ), caplog.at_level(logging.DEBUG):
         string_input = taint_pyobject(
             pyobject="abcde", source_name="abcde", source_value="abcde", source_origin=OriginType.PARAMETER
         )
