@@ -184,7 +184,9 @@ def test_debugger_function_probe_on_instance_method(stuff):
     assert return_capture["throwable"] is None
 
 
-def test_debugger_function_probe_on_function_with_exception(stuff):
+def test_debugger_function_probe_on_function_with_exception():
+    from tests.submod import stuff
+
     snapshots = simple_debugger_test(
         create_snapshot_function_probe(
             probe_id="probe-instance-method",
@@ -576,7 +578,8 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
 
     g = stuff.Stuff.instancestuff
     assert g.__code__ is code
-    assert not hasattr(g, "__dd_context_wrapped__")
+    assert not hasattr(g, "__dd_wrappers__")
+    assert not hasattr(g, "__dd_wrapped__")
     assert g is not f
 
 
