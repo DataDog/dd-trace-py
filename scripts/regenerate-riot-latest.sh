@@ -24,20 +24,7 @@ for pkg in ${pkgs[*]}; do
             echo "Removing riot lockfiles"
             rm ".riot/requirements/${h}.txt"
         done
-
-        echo "Building requirements lockfiles for riot hashes that don't have them"
-        for hash in "${RIOT_HASHES[@]}"; do
-            [[ ! -f .riot/requirements/"$hash".txt ]] && riot -P -v requirements "$hash"
-        done
-
-        echo "Removing requirements lockfiles for riot hashes that don't exist"
-        for file in .riot/requirements/*.txt; do
-            file_hash=$(basename "$file" .txt)
-            if [[ ! " ${RIOT_HASHES[*]} " =~ $file_hash ]]; then
-                rm "$file"
-            fi
-        done
-
+        scripts/compile-and-prune-test-requirements
         break
     fi
 done
