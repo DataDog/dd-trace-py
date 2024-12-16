@@ -174,17 +174,18 @@ def test_function_inject_wrap_commutativity():
         # Injection
         lo = min(linenos(stuff.modulestuff))
         function = FunctionDiscovery.from_module(stuff).at_line(lo)[0]
-        hook = mock.Mock()()
-        store.inject_hook(function, hook, lo, 42)
+        hook = mock.Mock()
+        probe = mock.Mock()
+        store.inject_hook(function, hook, lo, probe)
 
         # Wrapping
         function = FunctionDiscovery.from_module(stuff).by_name(stuff.modulestuff.__name__)
         assert function.__code__ is stuff.modulestuff.__code__
-        store.wrap(function, MockWrappingContext(function, None, 42))
+        store.wrap(function, MockWrappingContext(function, None, probe))
 
         # Ejection
         assert stuff.modulestuff.__code__ is not code
-        store.eject_hook(stuff.modulestuff, hook, lo, 42)
+        store.eject_hook(stuff.modulestuff, hook, lo, probe)
 
         # Unwrapping
         store.unwrap(stuff.modulestuff)

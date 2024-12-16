@@ -105,7 +105,7 @@ def test_debugger_line_probe_on_imported_module_function(stuff):
 
 
 @pytest.mark.parametrize(
-    "probe",
+    "probe, trigger",
     [
         (
             create_snapshot_function_probe(
@@ -113,7 +113,8 @@ def test_debugger_line_probe_on_imported_module_function(stuff):
                 module="tests.submod.stuff",
                 func_qname="Stuff.instancestuff",
                 rate=1000,
-            )
+            ),
+            lambda s: s.Stuff().instancestuff(42),
         ),
         (
             create_snapshot_line_probe(
@@ -121,11 +122,12 @@ def test_debugger_line_probe_on_imported_module_function(stuff):
                 source_file="tests/submod/stuff.py",
                 line=36,
                 rate=1000,
-            )
+            ),
+            lambda s: s.Stuff().instancestuff(42),
         ),
     ],
 )
-def test_debugger_probe_new_delete(probe, stuff):
+def test_debugger_probe_new_delete(probe, trigger, stuff):
     with debugger() as d:
         probe_id = probe.probe_id
         d.add_probes(probe)
@@ -133,7 +135,7 @@ def test_debugger_probe_new_delete(probe, stuff):
         assert probe in d._probe_registry
         assert _get_probe_location(probe) in d.__watchdog__._instance._locations
 
-        stuff.Stuff().instancestuff(42)
+        trigger(stuff)
 
         d.remove_probes(probe)
 
@@ -142,7 +144,7 @@ def test_debugger_probe_new_delete(probe, stuff):
 
         assert _get_probe_location(probe) not in d.__watchdog__._instance._locations
 
-        stuff.Stuff().instancestuff(42)
+        trigger(stuff)
 
         # Unload and reload the module to ensure that the injection hook
         # has actually been removed.
@@ -152,9 +154,8 @@ def test_debugger_probe_new_delete(probe, stuff):
 
         __import__("tests.submod.stuff")
         # Make Stuff refer to the reloaded class
-        stuff.Stuff = sys.modules["tests.submod.stuff"].Stuff
 
-        stuff.Stuff().instancestuff(42)
+        trigger(sys.modules["tests.submod.stuff"])
 
         (snapshot,) = d.uploader.wait_for_payloads()
         assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe_id
@@ -184,9 +185,7 @@ def test_debugger_function_probe_on_instance_method(stuff):
     assert return_capture["throwable"] is None
 
 
-def test_debugger_function_probe_on_function_with_exception():
-    from tests.submod import stuff
-
+def test_debugger_function_probe_on_function_with_exception(stuff):
     snapshots = simple_debugger_test(
         create_snapshot_function_probe(
             probe_id="probe-instance-method",
@@ -239,7 +238,7 @@ def test_debugger_conditional_line_probe_on_instance_method(stuff):
             line=36,
             condition=DDExpression(dsl="True", callable=dd_compile(True)),
         ),
-        lambda: stuff.Stuff().instancestuff(),
+        stuff.Stuff().instancestuff,
     )
 
     (snapshot,) = snapshots
@@ -339,7 +338,9 @@ def test_debugger_tracer_correlation(stuff):
         assert all(snapshot["dd"]["span_id"] == span_id for snapshot in snapshots)
 
 
-def test_debugger_captured_exception(stuff):
+def test_debugger_captured_exception():
+    from tests.submod import stuff
+
     snapshots = simple_debugger_test(
         create_snapshot_line_probe(
             probe_id="captured-exception-test",
@@ -504,10 +505,12 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
         }
 
         with pytest.raises(AttributeError):
-            stuff.Stuff.instancestuff.__dd_wrappers__
+            stuff.Stuff.instancestuff.__dd_context_wrapped__
 
 
 def test_debugger_multiple_function_probes_on_same_lazy_module():
+    sys.modules.pop("tests.submod.stuff", None)
+
     probes = [
         create_snapshot_function_probe(
             probe_id="probe-instance-method-%d" % i,
@@ -578,8 +581,7 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
 
     g = stuff.Stuff.instancestuff
     assert g.__code__ is code
-    assert not hasattr(g, "__dd_wrappers__")
-    assert not hasattr(g, "__dd_wrapped__")
+    assert not hasattr(g, "__dd_context_wrapped__")
     assert g is not f
 
 
