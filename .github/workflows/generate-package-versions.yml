@@ -6,82 +6,49 @@ on:
     - cron: "0 0 * * 0" # weekly on Sunday at midnight
 
 jobs:
-  setup-python-37:
-    # python 3.7 does not work on ubuntu-latest
-    name: Setup Python 3.7
+  generate-package-versions:
+    name: Generate package versions
     runs-on: ubuntu-22.04
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Setup Python 3.7
         uses: actions/setup-python@v5
         with:
           python-version: "3.7"
-  
-  setup-python-38:
-    name: Setup Python 3.7
-    runs-on: ubuntu-latest
-    steps:  
+
       - name: Setup Python 3.8
         uses: actions/setup-python@v5
         with:
           python-version: "3.8"
-  
 
-  setup-python-39:
-    name: Setup Python 3.9
-    runs-on: ubuntu-latest
-    steps:  
       - name: Setup Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
 
-  setup-python-310:
-    name: Setup Python 3.10
-    runs-on: ubuntu-latest
-    steps:
-    - name: Setup Python 3.10
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.10"
-
-  setup-python-311:
-    name: Setup Python 3.11
-    runs-on: ubuntu-latest
-    steps:
-    - name: Setup Python 3.11
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-
-  setup-python-312:
-    name: Setup Python 3.12
-    runs-on: ubuntu-latest
-    steps:
-    - name: Setup Python 3.12
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-
-  run-generate-package-versions:
-    name: Generate package versions
-    runs-on: ubuntu-latest
-    needs:
-      - setup-python-37
-      - setup-python-38
-      - setup-python-39
-      - setup-python-310
-      - setup-python-311
-      - setup-python-312
-    permissions:
-      actions: read
-      contents: write
-      pull-requests: write
-  
-    steps:
-      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
         with:
-          persist-credentials: false
-      
+          python-version: "3.10"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -112,9 +79,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install packaging
           pip install requests
-          pip install wrapt==1.16.0
           pip install riot==0.20.1
-        
+
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
 
@@ -123,11 +89,6 @@ jobs:
         run: |
           NEW_LATEST=$(python scripts/get_latest_version.py ${{ env.VENV_NAME }})
           echo "NEW_LATEST=$NEW_LATEST" >> $GITHUB_ENV
-      
-      - name: Update supported versions table
-        run: python scripts/generate_table.py
-
-      - run: git diff
 
       - name: Create Pull Request
         id: pr

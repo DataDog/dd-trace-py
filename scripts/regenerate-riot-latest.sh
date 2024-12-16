@@ -19,11 +19,25 @@ for pkg in ${pkgs[*]}; do
     if [[ ${#RIOT_HASHES[@]} -eq 0 ]]; then
         echo "No riot hashes found for pattern: $VENV_NAME"
     else
-        echo "VENV_NAME=$VENV_NAME" >> $GITHUB_ENV
-        for h in ${RIOT_HASHES[@]}; do 
+        echo "VENV_NAME=$VENV_NAME"
+        for h in ${RIOT_HASHES[@]}; do
+            echo "Removing riot lockfiles"
             rm ".riot/requirements/${h}.txt"
         done
-        scripts/compile-and-prune-test-requirements
+
+        echo "Building requirements lockfiles for riot hashes that don't have them"
+        for hash in "${RIOT_HASHES[@]}"; do
+            [[ ! -f .riot/requirements/"$hash".txt ]] && riot -P -v requirements "$hash"
+        done
+
+        echo "Removing requirements lockfiles for riot hashes that don't exist"
+        for file in .riot/requirements/*.txt; do
+            file_hash=$(basename "$file" .txt)
+            if [[ ! " ${RIOT_HASHES[*]} " =~ $file_hash ]]; then
+                rm "$file"
+            fi
+        done
+        
         break
     fi
 done
