@@ -74,6 +74,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
+from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -1181,6 +1182,15 @@ def _on_set_test_parameters(item_id: TestId, parameters: str):
     CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
 
 
+@_requires_civisibility_enabled
+def _on_set_benchmark_data(set_benchmark_data_args: BenchmarkTestMixin.SetBenchmarkDataArgs):
+    item_id = set_benchmark_data_args.test_id
+    data = set_benchmark_data_args.benchmark_data
+    is_benchmark = set_benchmark_data_args.is_benchmark
+    log.debug("Handling set benchmark data for test id %s, data %s, is_benchmark %s", item_id, data, is_benchmark)
+    CIVisibility.get_test_by_id(item_id).set_benchmark_data(data, is_benchmark)
+
+
 def _register_test_handlers():
     log.debug("Registering test handlers")
     core.on("test_visibility.test.discover", _on_discover_test)
@@ -1188,6 +1198,7 @@ def _register_test_handlers():
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
     core.on("test_visibility.test.set_parameters", _on_set_test_parameters)
+    core.on("test_visibility.test.set_benchmark_data", _on_set_benchmark_data)
 
 
 @_requires_civisibility_enabled
