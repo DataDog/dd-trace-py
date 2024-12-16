@@ -1,5 +1,7 @@
 import datetime
+from http.client import HTTPConnection
 from importlib import import_module
+import time
 
 import pytest
 
@@ -38,6 +40,18 @@ else:
     raise ImportError("could not import any of {0!r}".format(module_names))
 
 
+def wait_for_es(host: str, port: int):
+    for _ in range(20):
+        try:
+            conn = HTTPConnection(f"{host}:{port}")
+            conn.request("GET", "/")
+            conn.getresponse()
+            return
+        except Exception:
+            time.sleep(1)
+    raise Exception(f"Could not connect to ES at {host}:{port}")
+
+
 class ElasticsearchPatchTest(TracerTestCase):
     """
     Elasticsearch integration test suite.
@@ -67,6 +81,8 @@ class ElasticsearchPatchTest(TracerTestCase):
         super(ElasticsearchPatchTest, self).setUp()
 
         es = self._get_es()
+        config = self._get_es_config()
+        wait_for_es(config["host"], config["port"])
         tags = {
             # `component` is a reserved tag. Setting it via `Pin` should have no effect.
             "component": "foo",

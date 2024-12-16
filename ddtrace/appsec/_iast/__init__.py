@@ -29,10 +29,13 @@ def wrapped_function(wrapped, instance, args, kwargs):
 """  # noqa: RST201, RST213, RST210
 
 import inspect
+import os
 import sys
+import types
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.settings.asm import config as asm_config
 
 from ._overhead_control_engine import OverheadControl
 from ._utils import _is_iast_enabled
@@ -59,7 +62,7 @@ def ddtrace_iast_flask_patch():
     module_name = inspect.currentframe().f_back.f_globals["__name__"]
     module = sys.modules[module_name]
     try:
-        module_path, patched_ast = astpatch_module(module, remove_flask_run=True)
+        module_path, patched_ast = astpatch_module(module)
     except Exception:
         log.debug("Unexpected exception while AST patching", exc_info=True)
         return
@@ -69,8 +72,12 @@ def ddtrace_iast_flask_patch():
         return
 
     compiled_code = compile(patched_ast, module_path, "exec")
+    # creating a new module environment to execute the patched code from scratch
+    new_module = types.ModuleType(module_name)
+    module.__dict__.clear()
+    module.__dict__.update(new_module.__dict__)
+    # executing the compiled code in the new module environment
     exec(compiled_code, module.__dict__)  # nosec B102
-    sys.modules[module_name] = compiled_code
 
 
 _iast_propagation_enabled = False
@@ -89,6 +96,26 @@ def enable_iast_propagation():
     log.debug("IAST enabled")
     ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
     _iast_propagation_enabled = True
+
+
+def _iast_pytest_activation():
+    global _iast_propagation_enabled
+    global oce
+    if _iast_propagation_enabled:
+        return
+    os.environ["DD_IAST_ENABLED"] = os.environ.get("DD_IAST_ENABLED") or "1"
+    os.environ["_DD_IAST_USE_ROOT_SPAN"] = os.environ.get("_DD_IAST_USE_ROOT_SPAN") or "true"
+    os.environ["DD_IAST_REQUEST_SAMPLING"] = os.environ.get("DD_IAST_REQUEST_SAMPLING") or "100.0"
+    os.environ["_DD_APPSEC_DEDUPLICATION_ENABLED"] = os.environ.get("_DD_APPSEC_DEDUPLICATION_ENABLED") or "false"
+    os.environ["DD_IAST_VULNERABILITIES_PER_REQUEST"] = os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST") or "1000"
+    os.environ["DD_IAST_MAX_CONCURRENT_REQUESTS"] = os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS") or "1000"
+
+    asm_config._iast_request_sampling = 100.0
+    asm_config._deduplication_enabled = False
+    asm_config._iast_max_vulnerabilities_per_requests = 1000
+    asm_config._iast_max_concurrent_requests = 1000
+    enable_iast_propagation()
+    oce.reconfigure()
 
 
 def disable_iast_propagation():
