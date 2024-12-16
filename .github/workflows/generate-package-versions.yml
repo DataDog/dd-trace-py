@@ -82,10 +82,10 @@ jobs:
           pip install riot==0.20.1
           pip install wrapt==1.16.0
     
-      # - uses: actions/checkout@v4
-      #   with:
-      #     persist-credentials: false
-      #     path: ddtrace
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: ddtrace
     
       - name: Install ddtrace
         run: |
