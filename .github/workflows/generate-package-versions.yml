@@ -22,7 +22,7 @@ jobs:
 
   generate-package-versions:
     name: Generate package versions
-    runs-on: ${{ matrix.python-version.os }}
+    runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: write
