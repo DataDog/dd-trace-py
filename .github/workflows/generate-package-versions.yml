@@ -108,6 +108,11 @@ jobs:
         run: python scripts/generate_table.py
 
       - run: git diff
+
+      - run: |
+          git add supported_versions_output.json
+          git add supported_versions_table.csv
+          git cherry-pick --continue
     
       - name: Create Pull Request
         id: pr
