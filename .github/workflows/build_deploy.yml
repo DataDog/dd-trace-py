@@ -25,7 +25,7 @@ jobs:
   build_wheels:
     uses: ./.github/workflows/build_python_3.yml
     with:
-      cibw_build: 'cp37* cp38* cp39* cp310* cp311* cp312*'
+      cibw_build: 'cp37* cp38* cp39* cp310* cp311* cp312* cp313*'
 
   build_sdist:
     name: Build source distribution
@@ -40,7 +40,7 @@ jobs:
       - uses: actions/setup-python@v5
         name: Install Python
         with:
-          python-version: '3.7'
+          python-version: '3.12'
       - name: Build sdist
         run: |
           pip install "setuptools_scm[toml]>=4" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"

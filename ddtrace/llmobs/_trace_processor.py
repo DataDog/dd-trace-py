@@ -1,4 +1,3 @@
-import json
 from typing import Any
 from typing import Dict
 from typing import List
@@ -27,7 +26,6 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 from ddtrace.llmobs._constants import SESSION_ID
@@ -37,6 +35,7 @@ from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._utils import safe_json
 
 
 log = get_logger(__name__)
@@ -62,7 +61,7 @@ class LLMObsTraceProcessor(TraceProcessor):
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
-        is_llm_span = span.get_tag(SPAN_KIND) == "llm"
+        is_llm_span = span._get_ctx_item(SPAN_KIND) == "llm"
         is_ragas_integration_span = False
         try:
             span_event, is_ragas_integration_span = self._llmobs_span_event(span)
@@ -77,44 +76,49 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def _llmobs_span_event(self, span: Span) -> Tuple[Dict[str, Any], bool]:
         """Span event object structure."""
-        span_kind = span._meta.pop(SPAN_KIND)
+        span_kind = span._get_ctx_item(SPAN_KIND)
+        if not span_kind:
+            raise KeyError("Span kind not found in span context")
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
-        if span_kind in ("llm", "embedding") and span.get_tag(MODEL_NAME) is not None:
-            meta["model_name"] = span._meta.pop(MODEL_NAME)
-            meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom").lower()
-        if span.get_tag(METADATA) is not None:
-            meta["metadata"] = json.loads(span._meta.pop(METADATA))
-        if span.get_tag(INPUT_PARAMETERS):
-            meta["input"]["parameters"] = json.loads(span._meta.pop(INPUT_PARAMETERS))
-        if span_kind == "llm" and span.get_tag(INPUT_MESSAGES) is not None:
-            meta["input"]["messages"] = json.loads(span._meta.pop(INPUT_MESSAGES))
-        if span.get_tag(INPUT_VALUE) is not None:
-            meta["input"]["value"] = span._meta.pop(INPUT_VALUE)
-        if span_kind == "llm" and span.get_tag(OUTPUT_MESSAGES) is not None:
-            meta["output"]["messages"] = json.loads(span._meta.pop(OUTPUT_MESSAGES))
-        if span_kind == "embedding" and span.get_tag(INPUT_DOCUMENTS) is not None:
-            meta["input"]["documents"] = json.loads(span._meta.pop(INPUT_DOCUMENTS))
-        if span.get_tag(OUTPUT_VALUE) is not None:
-            meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
-        if span_kind == "retrieval" and span.get_tag(OUTPUT_DOCUMENTS) is not None:
-            meta["output"]["documents"] = json.loads(span._meta.pop(OUTPUT_DOCUMENTS))
-        if span.get_tag(INPUT_PROMPT) is not None:
-            prompt_json_str = span._meta.pop(INPUT_PROMPT)
+        if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
+            meta["model_name"] = span._get_ctx_item(MODEL_NAME)
+            meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
+        meta["metadata"] = span._get_ctx_item(METADATA) or {}
+        if span._get_ctx_item(INPUT_PARAMETERS):
+            meta["input"]["parameters"] = span._get_ctx_item(INPUT_PARAMETERS)
+        if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
+            meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
+        if span._get_ctx_item(INPUT_VALUE) is not None:
+            meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE))
+        if span_kind == "llm" and span._get_ctx_item(OUTPUT_MESSAGES) is not None:
+            meta["output"]["messages"] = span._get_ctx_item(OUTPUT_MESSAGES)
+        if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
+            meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
+        if span._get_ctx_item(OUTPUT_VALUE) is not None:
+            meta["output"]["value"] = safe_json(span._get_ctx_item(OUTPUT_VALUE))
+        if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
+            meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
+        if span._get_ctx_item(INPUT_PROMPT) is not None:
+            prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
             if span_kind != "llm":
                 log.warning(
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
                 )
             else:
-                meta["input"]["prompt"] = json.loads(prompt_json_str)
+                meta["input"]["prompt"] = prompt_json_str
         if span.error:
-            meta[ERROR_MSG] = span.get_tag(ERROR_MSG)
-            meta[ERROR_STACK] = span.get_tag(ERROR_STACK)
-            meta[ERROR_TYPE] = span.get_tag(ERROR_TYPE)
+            meta.update(
+                {
+                    ERROR_MSG: span.get_tag(ERROR_MSG),
+                    ERROR_STACK: span.get_tag(ERROR_STACK),
+                    ERROR_TYPE: span.get_tag(ERROR_TYPE),
+                }
+            )
         if not meta["input"]:
             meta.pop("input")
         if not meta["output"]:
             meta.pop("output")
-        metrics = json.loads(span._meta.pop(METRICS, "{}"))
+        metrics = span._get_ctx_item(METRICS) or {}
         ml_app = _get_ml_app(span)
 
         is_ragas_integration_span = False
@@ -122,10 +126,8 @@ class LLMObsTraceProcessor(TraceProcessor):
         if ml_app.startswith(RAGAS_ML_APP_PREFIX):
             is_ragas_integration_span = True
 
-        span.set_tag_str(ML_APP, ml_app)
-
+        span._set_ctx_item(ML_APP, ml_app)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
-        span._meta.pop(PARENT_ID_KEY, None)
 
         llmobs_span_event = {
             "trace_id": "{:x}".format(span.trace_id),
@@ -140,7 +142,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         }
         session_id = _get_session_id(span)
         if session_id is not None:
-            span.set_tag_str(SESSION_ID, session_id)
+            span._set_ctx_item(SESSION_ID, session_id)
             llmobs_span_event["session_id"] = session_id
 
         llmobs_span_event["tags"] = self._llmobs_tags(
@@ -169,7 +171,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             tags["session_id"] = session_id
         if is_ragas_integration_span:
             tags[RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
-        existing_tags = span._meta.pop(TAGS, None)
+        existing_tags = span._get_ctx_item(TAGS)
         if existing_tags is not None:
-            tags.update(json.loads(existing_tags))
+            tags.update(existing_tags)
         return ["{}:{}".format(k, v) for k, v in tags.items()]

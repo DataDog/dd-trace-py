@@ -117,6 +117,7 @@ venv = Venv(
             pys=["3"],
             pkgs={
                 "ruamel.yaml": latest,
+                "lxml": latest,
             },
         ),
         Venv(
@@ -125,6 +126,7 @@ venv = Venv(
             pys=["3"],
             pkgs={
                 "ruamel.yaml": latest,
+                "lxml": latest,
             },
         ),
         Venv(
@@ -1745,12 +1747,28 @@ venv = Venv(
                     ">=6.0,<6.1",
                 ],
             },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
-            },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "pytest-bdd": [
+                            ">=4.0,<5.0",
+                            # FIXME: add support for v6.1
+                            ">=6.0,<6.1",
+                        ]
+                    },
+                    venvs=[
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                            },
+                        ),
+                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.13"),
@@ -1760,31 +1778,49 @@ venv = Venv(
                             ">=6.0,<6.1",
                         ]
                     },
+                    venvs=[
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                            },
+                        ),
+                    ],
                 ),
             ],
         ),
         Venv(
             name="pytest-benchmark",
+            pys=select_pys(min_version="3.7", max_version="3.12"),
             command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
             },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
-            },
             venvs=[
                 Venv(
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.7", max_version="3.10"),
-                            pkgs={
-                                "pytest-benchmark": [
-                                    ">=3.1.0,<=4.0.0",
-                                ]
-                            },
-                        )
-                    ],
+                    pkgs={
+                        "pytest-benchmark": [
+                            ">=3.1.0,<=4.0.0",
+                        ]
+                    },
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "pytest-benchmark": [
+                            ">=3.1.0,<=4.0.0",
+                        ]
+                    },
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                    },
                 ),
             ],
         ),

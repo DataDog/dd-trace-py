@@ -1,9 +1,13 @@
 from io import BytesIO
 from io import StringIO
 import itertools
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
-from typing import Sequence
 from typing import Tuple
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Sequence  # noqa:F401
 
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
@@ -263,8 +267,8 @@ if _is_iast_propagation_debug_enabled():
     threading.settrace(trace_calls_and_returns)
 
 
-def copy_ranges_to_string(pyobject, ranges) -> str:
-    # type: (str, Sequence[TaintRange]) -> ...
+def copy_ranges_to_string(pyobject, ranges):
+    # type: (str, Sequence[TaintRange]) -> str
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
@@ -299,8 +303,8 @@ def copy_ranges_to_string(pyobject, ranges) -> str:
 
 # Given a list of ranges, try to match them with the iterable and return a new iterable with a new range applied that
 # matched the original one Source. If no range matches, take the Source from the first one.
-def copy_ranges_to_iterable_with_strings(iterable, ranges) -> Sequence[str]:
-    # type: (Sequence[str], Sequence[TaintRange]) -> ...
+def copy_ranges_to_iterable_with_strings(iterable, ranges):
+    # type: (Sequence[str], Sequence[TaintRange]) -> Sequence[str]
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
     iterable_type = type(iterable)
 
