@@ -85,6 +85,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._is_benchmark = False
         self._benchmark_duration_data: Optional[BenchmarkDurationData] = None
 
+        # Some parameters can be overwritten:
+        self._overwritten_suite_name: Optional[str] = None
+
     def __repr__(self) -> str:
         suite_name = self.parent.name if self.parent is not None else "none"
         module_name = self.parent.parent.name if self.parent is not None and self.parent.parent is not None else "none"
@@ -101,6 +104,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         """Overrides parent tags for cases where they need to be modified"""
         if self._is_benchmark:
             self.set_tag(test.TYPE, BENCHMARK)
+
+        if self._overwritten_suite_name is not None:
+            self.set_tag(test.SUITE, self._overwritten_suite_name)
 
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
@@ -201,6 +207,22 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish_test(TestStatus.SKIP)
+
+    def overwrite_attributes(
+        self,
+        name: Optional[str] = None,
+        suite_name: Optional[str] = None,
+        parameters: Optional[str] = None,
+        codeowners: Optional[List[str]] = None,
+    ) -> None:
+        if name is not None:
+            self.name = name
+        if suite_name is not None:
+            self._overwritten_suite_name = suite_name
+        if parameters is not None:
+            self.set_parameters(parameters)
+        if codeowners is not None:
+            self._codeowners = codeowners
 
     def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
         self._coverage_data.add_covered_files(coverage_data)
