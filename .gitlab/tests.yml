@@ -1,5 +1,7 @@
 stages:
-  - tests
+  - precheck
+  - hatch
+  - riot
 
 variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
@@ -22,7 +24,7 @@ variables:
 
 .test_base_hatch:
   extends: .testrunner
-  stage: tests
+  stage: hatch
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
   needs: []
   parallel: 4
@@ -57,7 +59,7 @@ variables:
 
 build_base_venvs:
   extends: .testrunner
-  stage: tests
+  stage: riot
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
@@ -76,9 +78,10 @@ build_base_venvs:
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
 
+# Do not define a `needs:` in order to depend on the whole `precheck` stage
 .test_base_riot:
   extends: .testrunner
-  stage: tests
+  stage: riot
   needs: [ build_base_venvs ]
   parallel: 4
   services:
