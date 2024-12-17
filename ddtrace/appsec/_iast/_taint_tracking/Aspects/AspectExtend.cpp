@@ -30,37 +30,41 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
 
-    auto ctx_map = Initializer::get_tainting_map();
-    if (not ctx_map or ctx_map->empty()) {
+    PyObject* result = nullptr;
+
+    auto do_extend = [&]() -> PyObject* {
         auto method_name = PyUnicode_FromString("extend");
         PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
         if (has_pyerr()) {
             Py_DecRef(method_name);
-            return nullptr;
-        }
-        Py_DecRef(method_name);
-    } else {
-        const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
-        auto to_result = initializer->allocate_tainted_object_copy(to_candidate);
-        const auto& to_toadd = get_tainted_object(to_add, ctx_map);
-
-        // Ensure no returns are done before this method call
-        auto method_name = PyUnicode_FromString("extend");
-        PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        if (has_pyerr()) {
-            Py_DecRef(method_name);
-            return nullptr;
-        }
-        Py_DecRef(method_name);
-
-        if (to_result == nullptr) {
-            Py_RETURN_NONE;
+            result = nullptr;
+            return result;
         }
 
-        if (to_toadd) {
-            to_result->add_ranges_shifted(to_toadd, (long)len_candidate_text);
+        result = Py_NewRef(Py_None);
+        return result;
+    };
+
+    TRY_CATCH_ASPECT("extend_aspect", return result, do_extend(), {
+        auto ctx_map = Initializer::get_tainting_map();
+        if (not ctx_map or ctx_map->empty()) {
+            do_extend();
+            return result; // Set by do_extend()
+        } else {
+            const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
+            auto to_result = initializer->allocate_tainted_object_copy(to_candidate);
+            const auto& to_toadd = get_tainted_object(to_add, ctx_map);
+
+            // Ensure no returns are done before this method call
+            if (do_extend() == nullptr or to_result == nullptr) {
+                return result;  // Set by do_extend()
+            }
+
+            if (to_toadd) {
+                to_result->add_ranges_shifted(to_toadd, (long)len_candidate_text);
+            }
+            set_tainted_object(candidate_text, to_result, ctx_map);
         }
-        set_tainted_object(candidate_text, to_result, ctx_map);
-    }
-    Py_RETURN_NONE;
+        return result;
+    });
 }
