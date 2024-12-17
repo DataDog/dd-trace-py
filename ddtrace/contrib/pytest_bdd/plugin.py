@@ -7,9 +7,9 @@ from ddtrace.vendor.debtcollector import deprecate
 def pytest_configure(config):
     if config.pluginmanager.hasplugin("pytest-bdd") and config.pluginmanager.hasplugin("ddtrace"):
         if not _USE_PLUGIN_V2:
-            from ._plugin import _PytestBddPlugin
-
             if is_ddtrace_enabled(config):
+                from ._plugin import _PytestBddPlugin
+
                 deprecate(
                     "the ddtrace.pytest_bdd plugin is deprecated",
                     message="it will be integrated with the main pytest ddtrace plugin",
