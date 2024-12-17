@@ -621,16 +621,15 @@ venv = Venv(
                         ],
                     },
                 ),
-                # TODO - update integration to support falcon 4
-                # Venv(
-                #    pys=select_pys(min_version="3.13"),
-                #    pkgs={
-                #        "falcon": [
-                #            "~=4.0",  # latest 4.x
-                #            latest,
-                #        ],
-                #    },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "falcon": [
+                            "~=4.0",  # latest 4.x
+                            latest,
+                        ],
+                    },
+                ),
             ],
         ),
         Venv(
@@ -1638,7 +1637,7 @@ venv = Venv(
         ),
         Venv(
             name="aiomysql",
-            pys=select_pys(min_version="3.7", max_version="3.12"),
+            pys=select_pys(min_version="3.7"),
             command="pytest {cmdargs} tests/contrib/aiomysql",
             pkgs={
                 "pytest-randomly": latest,
@@ -2060,7 +2059,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
                         "aiopg": ["~=1.0", "~=1.4.0"],
                     },
@@ -2218,7 +2217,7 @@ venv = Venv(
         ),
         Venv(
             name="avro",
-            pys=select_pys(min_version="3.7", max_version="3.12"),
+            pys=select_pys(min_version="3.7"),
             command="pytest {cmdargs} tests/contrib/avro",
             pkgs={
                 "avro": latest,
@@ -2228,7 +2227,7 @@ venv = Venv(
         Venv(
             name="protobuf",
             command="pytest {cmdargs} tests/contrib/protobuf",
-            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pys=select_pys(min_version="3.8"),
             pkgs={
                 "protobuf": latest,
                 "pytest-randomly": latest,
@@ -2380,7 +2379,7 @@ venv = Venv(
                     pkgs={"asyncpg": ["~=0.27", latest]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"asyncpg": [latest]},
                 ),
             ],
@@ -2411,9 +2410,9 @@ venv = Venv(
             },
             venvs=[
                 # sqlite3 is tied to the Python version and is not installable via pip
-                # To test a range of versions without updating Python, we use Linux only pysqlite3-binary package
-                # Remove pysqlite3-binary on Python 3.9+ locally on non-linux machines
-                Venv(pys=select_pys(min_version="3.9", max_version="3.12"), pkgs={"pysqlite3-binary": [latest]}),
+                # To test a range of versions without updating Python, we use Linux only pysqlite-binary package
+                # Remove pysqlite-binary on Python 3.9+ locally on non-linux machines
+                Venv(pys=select_pys(min_version="3.9"), pkgs={"pysqlite-binary": [latest]}),
                 Venv(pys=select_pys(max_version="3.8"), pkgs={"importlib-metadata": latest}),
             ],
         ),
@@ -2478,7 +2477,7 @@ venv = Venv(
         ),
         Venv(
             name="consul",
-            pys=select_pys(max_version="3.12"),
+            pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/consul",
             pkgs={
                 "python-consul": [
@@ -2615,7 +2614,7 @@ venv = Venv(
                 ),
                 Venv(
                     # pyodbc added support for Python 3.11 in 4.0.35
-                    pys=select_pys(min_version="3.11", max_version="3.12"),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={"pyodbc": [latest]},
                 ),
             ],
