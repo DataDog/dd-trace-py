@@ -12,6 +12,19 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 include(AnalysisFunc)
 
+if(DO_VALGRIND)
+    find_program(VALGRIND_EXECUTABLE NAMES valgrind PATHS /usr/bin /usr/local/bin)
+
+    if (VALGRIND_EXECUTABLE)
+        set(MEMORYCHECK_COMMAND "${VALGRIND_EXECUTABLE}")
+        set(MEMORYCHECK_COMMAND_OPTIONS "--leak-check=full --show-leak-kinds=definite --errors-for-leak-kinds=definite --trace-children=yes --error-exitcode=1 --log-fd=1")
+    else()
+        message(FATAL_ERROR "Valgrind not found")
+    endif()
+
+    include(CTest)
+endif()
+
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
     target_include_directories(${name} PRIVATE ../include)
