@@ -117,7 +117,7 @@ def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
     result = func(*args, **kwargs)
     next_tasks = getattr(instance, "tasks", {})  # they should have been updated at this point
 
-    integration.handle_pregel_loop_tick(finished_tasks, next_tasks)
+    integration.handle_pregel_loop_tick(finished_tasks, next_tasks, result)
 
     return result
 

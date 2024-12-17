@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace import tracer
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
@@ -34,42 +35,62 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         inputs = get_argument_value(args, kwargs, 0, "input")
         span_name = kw.get("name", span.name)
-        
-        span_links = [
-            {
-                "span_id": str(_get_llmobs_parent_id(span)) or "undefined",
-                "trace_id": "{:x}".format(span.trace_id),
-            }
-        ]
-
-        if operation == "node":
-            config = get_argument_value(args, kwargs, 1, "config")
-
-            metadata = config.get("metadata", {}) if isinstance(config, dict) else {}
-            node_instance_id = metadata["langgraph_checkpoint_ns"].split(":")[-1]
-
-            node_invoke = node_invokes[node_instance_id] = node_invokes.get(node_instance_id, {})
-            node_invoke["span"] = {
-                "trace_id": "{:x}".format(span.trace_id),
-                "span_id": str(span.span_id),
-            }
-
-            span_links = node_invoke.get("from", span_links)
 
         span._set_ctx_items(
             {
                 SPAN_KIND: "agent",  # should nodes be workflows? should it be dynamic to if a subgraph is included?
                 INPUT_VALUE: inputs,
                 OUTPUT_VALUE: response,
-                SPAN_LINKS: [
-                    span_link for span_link in span_links if ("trace_id" in span_link and "span_id" in span_link)
-                ],
                 NAME: span_name,
             }
         )
 
-    def handle_pregel_loop_tick(self, finished_tasks: dict, next_tasks: dict):
+        if operation != "node":
+            return # we set the graph span links in handle_pregel_loop_tick
+
+        config = get_argument_value(args, kwargs, 1, "config")
+
+        metadata = config.get("metadata", {}) if isinstance(config, dict) else {}
+        node_instance_id = metadata["langgraph_checkpoint_ns"].split(":")[-1]
+
+        node_invoke = node_invokes[node_instance_id] = node_invokes.get(node_instance_id, {})
+        node_invoke["span"] = {
+            "trace_id": "{:x}".format(span.trace_id),
+            "span_id": str(span.span_id),
+        }
+
+        node_invoke_span_links = node_invoke.get("from")
+
+        span_links = (
+            [
+                {
+                    "span_id": str(_get_llmobs_parent_id(span)) or "undefined",
+                    "trace_id": "{:x}".format(span.trace_id),
+                    # we assume no span link means it is the first node of a graph
+                    "attributes": {
+                        "from": "input",
+                        "to": "input",
+                    },
+                }
+            ]
+            if node_invoke_span_links is None
+            else node_invoke_span_links
+        )
+
+        span._set_ctx_item(SPAN_LINKS, span_links)
+
+    def handle_pregel_loop_tick(self, finished_tasks: dict, next_tasks: dict, more_tasks: bool):
         if not self.llmobs_enabled:
+            return
+
+        if not more_tasks:
+            span_links = [
+                {**node_invokes[task_id]["span"], "attributes": {"from": "output", "to": "output"}}
+                for task_id in finished_tasks.keys()
+            ]
+            graph_span = tracer.current_span()
+            if graph_span is not None:
+                graph_span._set_ctx_item(SPAN_LINKS, span_links)
             return
 
         parent_node_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
@@ -90,9 +111,16 @@ class LangGraphIntegration(BaseLLMIntegration):
             ]
 
             for parent_id in parent_ids:
-                parent_span_link = node_invokes.get(parent_id, {}).get("span", {})
-                if not parent_span_link:
+                parent_span = node_invokes.get(parent_id, {}).get("span")
+                if not parent_span:
                     continue
+                parent_span_link = {
+                    **node_invokes.get(parent_id, {}).get("span", {}),
+                    "attributes": {
+                        "from": "output",
+                        "to": "input",
+                    },
+                }
                 node_invoke = node_invokes[task_id] = node_invokes.get(task_id, {})
                 from_nodes = node_invoke["from"] = node_invoke.get("from", [])
 

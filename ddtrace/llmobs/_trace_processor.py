@@ -151,7 +151,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         )
 
         span_links = span._get_ctx_item(SPAN_LINKS)
-        if span_links:
+        if isinstance(span_links, list) and span_links is not None:
             llmobs_span_event["span_links"] = span_links
 
         return llmobs_span_event, is_ragas_integration_span
