@@ -77,7 +77,6 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def _llmobs_span_event(self, span: Span) -> Tuple[Dict[str, Any], bool]:
         """Span event object structure."""
-
         span_kind = span._meta.pop(SPAN_KIND)
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span.get_tag(MODEL_NAME) is not None:
@@ -124,6 +123,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             is_ragas_integration_span = True
 
         span.set_tag_str(ML_APP, ml_app)
+
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
         span._meta.pop(PARENT_ID_KEY, None)
 
@@ -152,6 +152,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         if session_id is not None:
             span.set_tag_str(SESSION_ID, session_id)
             llmobs_span_event["session_id"] = session_id
+
         llmobs_span_event["tags"] = self._llmobs_tags(
             span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
         )
