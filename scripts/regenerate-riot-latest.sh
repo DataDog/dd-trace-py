@@ -3,7 +3,7 @@ set -e
 
 DDTEST_CMD=scripts/ddtest
 
-pkgs=$(python scripts/freshvenvs.py | cut -d':' -f1)
+pkgs=$(python scripts/freshvenvs.py output)
 echo $pkgs
 
 if ! $DDTEST_CMD; then

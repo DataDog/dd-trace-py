@@ -235,7 +235,7 @@ def _get_version_bounds(packages) -> dict:
         bounds[package] = (earliest, latest)
     return bounds
 
-def output_package_versions(all_required_packages, envs, bounds):
+def output_outdated_packages(all_required_packages, envs, bounds):
     for package in all_required_packages:
         earliest, latest = _get_version_extremes(package)
         bounds[package] = (earliest, latest)
@@ -251,10 +251,7 @@ def output_package_versions(all_required_packages, envs, bounds):
         if not ordered:
             continue
         if not _versions_fully_cover_bounds(bounds[package], ordered):
-            print(
-                f"{package}: policy supports version {bounds[package][0]} through {bounds[package][1]} "
-                f"but only these versions are used: {[str(v) for v in ordered]}"
-            )
+            print(f"{package}")
 
 def generate_supported_versions(contrib_packages, all_used_versions, patched):
     for mod in mapping_module_to_package:
@@ -297,8 +294,13 @@ def main():
     all_used_versions = _get_all_used_versions(envs, contrib_packages)
     bounds = _get_version_bounds(contrib_packages)
 
-    output_package_versions(all_required_packages, envs, bounds)
-    generate_supported_versions(contrib_packages, all_used_versions, patched)
+    if len(sys.argv) != 2:
+        print("usage: python scripts/freshvenvs.py <output> or <generate>")
+        return
+    if sys.argv[1] == "output":
+        output_outdated_packages(all_required_packages, envs, bounds)
+    if sys.argv[1] == "generate":
+        generate_supported_versions(contrib_packages, all_used_versions, patched)
 
 
 if __name__ == "__main__":
