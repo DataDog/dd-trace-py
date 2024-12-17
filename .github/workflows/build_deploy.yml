@@ -40,7 +40,7 @@ jobs:
       - uses: actions/setup-python@v5
         name: Install Python
         with:
-          python-version: '3.7'
+          python-version: '3.12'
       - name: Build sdist
         run: |
           pip install "setuptools_scm[toml]>=4" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"

@@ -328,7 +328,6 @@ class DEFAULT(metaclass=Constant_Class):
 
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
-    STACK_TRACES: Literal["_dd.stack"] = "_dd.stack"
     STACK_TRACE_ID: Literal["stack_id"] = "stack_id"
     EP_ENABLED: Literal["DD_APPSEC_RASP_ENABLED"] = "DD_APPSEC_RASP_ENABLED"
     STACK_TRACE_ENABLED: Literal["DD_APPSEC_STACK_TRACE_ENABLED"] = "DD_APPSEC_STACK_TRACE_ENABLED"
@@ -358,3 +357,9 @@ class FINGERPRINTING(metaclass=Constant_Class):
     HEADER = PREFIX + "http.header"
     NETWORK = PREFIX + "http.network"
     SESSION = PREFIX + "session"
+
+
+class STACK_TRACE(metaclass=Constant_Class):
+    RASP = "exploit"
+    IAST = "vulnerability"
+    TAG: Literal["_dd.stack"] = "_dd.stack"
