@@ -4,14 +4,11 @@ on:
   workflow_dispatch: # can be triggered manually
   schedule:
     - cron: "0 0 * * 0" # weekly on Sunday at midnight
-  push:
-    branches:
-      - quinna.halim/add-supported-versions-json # TODO: remove, for testing
 
 jobs:
   generate-package-versions:
     name: Generate package versions
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: write
@@ -83,21 +80,7 @@ jobs:
           pip install packaging
           pip install requests
           pip install riot==0.20.1
-          pip install wrapt==1.16.0
-    
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          path: ddtrace
-    
-      - name: Install ddtrace
-        run: |
-          pip install ./ddtrace
 
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
 
@@ -106,42 +89,7 @@ jobs:
         run: |
           NEW_LATEST=$(python scripts/get_latest_version.py ${{ env.VENV_NAME }})
           echo "NEW_LATEST=$NEW_LATEST" >> $GITHUB_ENV
-      
-      - name: Generate table
-        run: python scripts/generate_table.py
 
-      - run: git diff
-  
-      # Generate the commit with potential conflicts
-      - name: Generate Commit
-        run: |
-          # Checkout a new branch
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-          git checkout -b "upgrade-latest-${{ env.VENV_NAME }}-version"
-
-          # Stage and commit the changes
-          git add supported_versions_output.json supported_versions_table.csv
-          git commit -m "Test Package Versions update"
-    
-      # Resolve conflicts if any during the rebase or cherry-pick
-      - name: Resolve Conflicts
-        run: |
-          # Attempt to cherry-pick or rebase changes onto the base branch
-          git fetch origin main
-          git rebase origin/main || true
-
-          # Resolve conflicts by keeping changes
-          git checkout --theirs supported_versions_output.json || true
-          git checkout --theirs supported_versions_table.csv || true
-
-          # Stage resolved changes
-          git add supported_versions_output.json supported_versions_table.csv || true
-
-          # Continue rebase
-          git rebase --continue || true
-    
-    
       - name: Create Pull Request
         id: pr
         uses: peter-evans/create-pull-request@v6
@@ -151,10 +99,6 @@ jobs:
           commit-message: "Update package version"
           delete-branch: true
           base: main
-          add-paths: |
-            supported_versions_table.csv
-            supported_versions_output.json
-            .riot/requirements/*
           title: "chore: update ${{ env.VENV_NAME }} latest version to ${{ env.NEW_LATEST }}"
           labels: changelog/no-changelog
           body: |
