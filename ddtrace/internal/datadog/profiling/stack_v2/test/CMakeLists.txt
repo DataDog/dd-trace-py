@@ -17,7 +17,7 @@ if(DO_VALGRIND)
 
     if (VALGRIND_EXECUTABLE)
         set(MEMORYCHECK_COMMAND "${VALGRIND_EXECUTABLE}")
-        set(MEMORYCHECK_COMMAND_OPTIONS "--leak-check=full --show-leak-kinds=definite --errors-for-leak-kinds=definite --trace-children=yes --error-exitcode=1 --log-fd=1")
+        set(MEMORYCHECK_COMMAND_OPTIONS "--leak-check=full --show-leak-kinds=definite --errors-for-leak-kinds=definite --trace-children=yes --error-exitcode=1 --log-fd=1 --suppressions=${CMAKE_CURRENT_SOURCE_DIR}/valgrind.supp")
     else()
         message(FATAL_ERROR "Valgrind not found")
     endif()
