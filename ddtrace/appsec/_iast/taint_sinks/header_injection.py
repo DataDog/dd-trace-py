@@ -18,7 +18,6 @@ from ..constants import HEADER_NAME_VALUE_SEPARATOR
 from ..constants import VULN_HEADER_INJECTION
 from ._base import VulnerabilityBase
 
-
 log = get_logger(__name__)
 
 HEADER_INJECTION_EXCLUSIONS = {
@@ -66,6 +65,10 @@ def patch():
         try_wrap_function_wrapper(m, "HttpResponseBase.__setitem__", _iast_h)
         try_wrap_function_wrapper(m, "ResponseHeaders.__setitem__", _iast_h)
 
+    @when_imported("fastapi.responses")
+    def _(m):
+        try_wrap_function_wrapper(m, "Response.headers.__setitem__", _iast_h)
+
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 
 
@@ -76,11 +79,11 @@ def unpatch():
     try_unwrap("werkzeug.datastructures", "Headers.add")
     try_unwrap("django.http.response", "HttpResponseBase.__setitem__")
     try_unwrap("django.http.response", "ResponseHeaders.__setitem__")
+    try_unwrap("fastapi.responses", "Response.headers.__setitem__")
 
     set_module_unpatched("flask", default_attr="_datadog_header_injection_patch")
     set_module_unpatched("django", default_attr="_datadog_header_injection_patch")
-
-    pass
+    set_module_unpatched("fastapi", default_attr="_datadog_header_injection_patch")
 
 
 def _iast_h(wrapped, instance, args, kwargs):
