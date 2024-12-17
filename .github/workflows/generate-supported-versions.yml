@@ -1,4 +1,4 @@
-name: Generate Package Versions
+name: Generate Supported Integration Versions
 
 on:
   workflow_dispatch: # can be triggered manually
@@ -8,7 +8,7 @@ on:
 
 jobs:
   generate-supported-versions:
-    name: Generate supported versions table
+    name: Generate supported integration versions
     runs-on: ubuntu-22.04
     permissions:
       actions: read
@@ -74,7 +74,7 @@ jobs:
           persist-credentials: false
           path: ddtrace
     
-      - name: Install ddtrace
+      - name: Install ddtrace # TODO: change this to use a wheel or .tar.gz
         run: |
           pip install ./ddtrace
 
@@ -88,6 +88,8 @@ jobs:
         run: python scripts/generate_table.py
 
       - run: git diff
+  
+      - run: git add supported_versions_output.json supported_versions_table.csv
     
       - name: Create Pull Request
         id: pr
