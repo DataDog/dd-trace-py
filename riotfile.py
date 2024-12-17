@@ -2681,7 +2681,7 @@ venv = Venv(
                 ),
                 Venv(
                     # tornado added support for Python 3.10 in 6.2
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={"tornado": ["==6.2", "==6.3.1"]},
                 ),
             ],
@@ -2699,6 +2699,10 @@ venv = Venv(
                     # mysqlclient added support for Python 3.9/3.10 in 2.1
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                     pkgs={"mysqlclient": ["~=2.1", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={"mysqlclient": "==2.2.6"},
                 ),
             ],
         ),
@@ -2877,7 +2881,7 @@ venv = Venv(
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(pys=select_pys(min_version="3.11", max_version="3.12"), pkgs={"confluent-kafka": latest}),
+                        Venv(pys=select_pys(min_version="3.11"), pkgs={"confluent-kafka": latest}),
                     ],
                 ),
             ],
