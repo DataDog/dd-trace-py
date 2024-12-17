@@ -12,6 +12,19 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 include(AnalysisFunc)
 
+if(DO_VALGRIND)
+    find_program(VALGRIND_EXECUTABLE NAMES valgrind PATHS /usr/bin /usr/local/bin)
+
+    if (VALGRIND_EXECUTABLE)
+        set(MEMORYCHECK_COMMAND "${VALGRIND_EXECUTABLE}")
+        set(MEMORYCHECK_COMMAND_OPTIONS "--leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --trace-children=yes --error-exitcode=1 --track-origins=yes --log-fd=1")
+    else()
+        message(FATAL_ERROR "Valgrind not found")
+    endif()
+
+    include(CTest)
+endif()
+
 FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
 FetchContent_MakeAvailable(json)
 
