@@ -411,7 +411,7 @@ class LLMObs(Service):
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span._set_ctx_item(ML_APP, ml_app)
-        if span._get_ctx_item(PROPAGATED_PARENT_ID_KEY) is None:
+        if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
             # For non-distributed traces or spans in the first service of a distributed trace,
             # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
             # in these cases to avoid conflicting with the later propagated tags.

@@ -92,7 +92,13 @@ def _is_libdd_required(config):
     # libdd... requires libdd
     # injected environments _cannot_ deploy protobuf, so they must use libdd
     # timeline requires libdd
-    return config.stack.v2_enabled or config.export._libdd_enabled or config._injected or config.timeline_enabled
+    return (
+        config.stack.v2_enabled
+        or config.export._libdd_enabled
+        or config._injected
+        or config.timeline_enabled
+        or config.pytorch.enabled
+    )
 
 
 # This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
@@ -399,6 +405,26 @@ class ProfilingConfigHeap(En):
     sample_size = En.d(int, _derive_default_heap_sample_size)
 
 
+class ProfilingConfigPytorch(En):
+    __item__ = __prefix__ = "pytorch"
+
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable the PyTorch profiler",
+    )
+
+    events_limit = En.v(
+        int,
+        "events_limit",
+        default=1_000_000,
+        help_type="Integer",
+        help="How many events the PyTorch profiler records each collection",
+    )
+
+
 class ProfilingConfigExport(En):
     __item__ = __prefix__ = "export"
 
@@ -416,6 +442,7 @@ ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
+ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
@@ -466,6 +493,8 @@ def config_str(config):
         configured_features.append("mem")
     if config.heap.sample_size > 0:
         configured_features.append("heap")
+    if config.pytorch.enabled:
+        configured_features.append("pytorch")
     if config.export.libdd_enabled:
         configured_features.append("exp_dd")
     else:

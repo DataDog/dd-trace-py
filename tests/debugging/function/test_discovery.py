@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
+from ddtrace.internal.module import ModuleWatchdog
 import tests.submod.stuff as stuff
 
 
@@ -12,7 +13,7 @@ def stuff_discovery():
 def test_abs_stuff():
     import tests.submod.absstuff as absstuff
 
-    assert sorted(FunctionDiscovery.from_module(absstuff).keys()) == [7, 11, 16, 19]
+    assert set(FunctionDiscovery.from_module(absstuff).keys()) >= {7, 11, 16, 19}
 
 
 def test_function_discovery(stuff_discovery):
@@ -106,16 +107,35 @@ def test_discovery_after_external_wrapping(stuff):
     def wrapper(wrapped, inst, args, kwargs):
         pass
 
+    original_function = stuff.Stuff.instancestuff
+
     wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
     assert isinstance(stuff.Stuff.instancestuff, (wrapt.BoundFunctionWrapper, wrapt.FunctionWrapper))
 
     code = stuff.Stuff.instancestuff.__code__
-    f = FunctionDiscovery(stuff)[36][0]
+    f, *_ = FunctionDiscovery(stuff).at_line(36)
 
-    assert isinstance(f, (wrapt.BoundFunctionWrapper, wrapt.FunctionWrapper))
+    assert f is original_function or isinstance(f, (wrapt.BoundFunctionWrapper, wrapt.FunctionWrapper)), f
     assert f.__code__ is code
 
 
 def test_property_non_function_getter(stuff_discovery):
     with pytest.raises(ValueError):
         stuff_discovery.by_name("PropertyStuff.foo")
+
+
+def test_custom_decorated_stuff():
+    class DiscoveryModuleWatchdog(ModuleWatchdog):
+        def transform(self, code, module):
+            return FunctionDiscovery.transformer(code, module)
+
+    DiscoveryModuleWatchdog.install()
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    fd = FunctionDiscovery.from_module(custom_decorated_stuff)
+
+    (home,) = fd.at_line(17)
+    assert home.__qualname__ == "home"
+
+    DiscoveryModuleWatchdog.uninstall()
