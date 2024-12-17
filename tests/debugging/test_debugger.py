@@ -104,7 +104,6 @@ def test_debugger_line_probe_on_imported_module_function(stuff):
     assert captures["locals"] == {}
 
 
-@pytest.mark.skipif(sys.version_info > (3, 12), reason="fails on 3.13")
 @pytest.mark.parametrize(
     "probe",
     [
@@ -452,7 +451,6 @@ def test_debugger_metric_probe_distribution_value(mock_metrics, stuff):
         )
 
 
-@pytest.mark.skipif(sys.version_info > (3, 12), reason="fails on 3.13")
 def test_debugger_multiple_function_probes_on_same_function(stuff):
     probes = [
         create_snapshot_function_probe(
@@ -509,7 +507,6 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
             stuff.Stuff.instancestuff.__dd_wrappers__
 
 
-@pytest.mark.skipif(sys.version_info > (3, 12), reason="fails on 3.13")
 def test_debugger_multiple_function_probes_on_same_lazy_module():
     probes = [
         create_snapshot_function_probe(
@@ -1005,7 +1002,6 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.parent_id is root.span_id
 
-    @pytest.mark.skipif(sys.version_info > (3, 12), reason="fails on 3.13")
     def test_debugger_function_probe_ordering(self):
         from tests.submod.stuff import mutator
 
@@ -1108,7 +1104,6 @@ def test_debugger_continue_wrapping_after_first_failure():
         assert d._probe_registry[probe_ok.probe_id].installed
 
 
-@pytest.mark.skipif(sys.version_info > (3, 12), reason="fails on 3.13")
 def test_debugger_redacted_identifiers():
     import tests.submod.stuff as stuff
 
