@@ -11,6 +11,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.span import Span
@@ -29,19 +30,18 @@ class LangGraphIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # oneof graph, node
-        **kw: Dict[str, Any],
     ):
         if not self.llmobs_enabled:
             return
 
         inputs = get_argument_value(args, kwargs, 0, "input")
-        span_name = kw.get("name", span.name)
+        span_name = kwargs.get("name", span.name)
 
         span._set_ctx_items(
             {
                 SPAN_KIND: "agent",  # should nodes be workflows? should it be dynamic to if a subgraph is included?
-                INPUT_VALUE: inputs,
-                OUTPUT_VALUE: response,
+                INPUT_VALUE: format_langchain_io(inputs),
+                OUTPUT_VALUE: format_langchain_io(response),
                 NAME: span_name,
             }
         )
@@ -82,6 +82,14 @@ class LangGraphIntegration(BaseLLMIntegration):
         span._set_ctx_item(SPAN_LINKS, current_span_links + span_links)
 
     def handle_pregel_loop_tick(self, finished_tasks: dict, next_tasks: dict, more_tasks: bool):
+        """
+        Handle a specific tick of the pregel loop.
+        Specifically, this function computes incoming and outgoing span links between finished tasks
+        and queued tasks in the graph.
+
+        Additionally, it sets the span links at the outer ends of the graph, between the span that invokes
+        the graph and the last set of nodes before the graph ends.
+        """
         if not self.llmobs_enabled:
             return
 
@@ -140,12 +148,6 @@ class LangGraphIntegration(BaseLLMIntegration):
             task_config = getattr(task, "config", {})
             task_triggers = task_config.get("metadata", {}).get("langgraph_triggers", [])
 
-            def extract_parent(trigger):
-                split = trigger.split(":")
-                if len(split) < 3:
-                    return split[0]
-                return split[1]
-
             parent_node_names = [extract_parent(trigger) for trigger in task_triggers]
             parent_ids: List[str] = [
                 parent_node_names_to_ids.get(parent_node_name, "") for parent_node_name in parent_node_names
@@ -166,3 +168,18 @@ class LangGraphIntegration(BaseLLMIntegration):
                 from_nodes = node_invoke["from"] = node_invoke.get("from", [])
 
                 from_nodes.append(parent_span_link)
+
+
+def extract_parent(trigger: str) -> str:
+    """
+    Extract the parent node name from a trigger string.
+
+    The string could have the format:
+    - `parent:child`
+    - `parent:routing_logic:child`
+    - `branch:parent:routing_logic:child`
+    """
+    split = trigger.split(":")
+    if len(split) < 3:
+        return split[0]
+    return split[1]

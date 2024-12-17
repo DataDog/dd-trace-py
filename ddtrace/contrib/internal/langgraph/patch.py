@@ -19,33 +19,23 @@ def get_version():
 config._add(
     "langgraph",
     {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_VERTEXAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_VERTEXAI_SPAN_CHAR_LIMIT", 128)),
+        "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGGRAPH_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        "span_char_limit": int(os.getenv("DD_LANGGRAPH_SPAN_CHAR_LIMIT", 128)),
     },
 )
-
-# @with_traced_module
-# def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
-#     # might not be needed...
-#     # print("---traced_runnable_seq_invoke start---")
-#     steps = instance.steps
-#     traced = steps[0].name not in ("_write", "_route")
-#     if not traced:
-#         return func(*args, **kwargs)
-
-#     # node = steps[0]
-#     # write = steps[1]
-#     # setattr(node, "_dd_set_span_for_route", )
-#     print("running node", steps[0].name, steps[-1].name)
-
-#     result = func(*args, **kwargs)
-#     # print("---traced_runnable_seq_invoke end---")
-#     return result
 
 
 @with_traced_module
 def traced_runnable_callable_invoke(langgraph, pin, func, instance, args, kwargs):
-    # used for tracing function executions
+    """
+    This function traces specific invocations of a RunnableCallable.
+    Importantly, RunnableCallables can be any sort of operation.
+    This includes nodes, routing functions, branching operations, and channel writes.
+    We are only interested in tracing the initial user-defined node.
+
+    To accomplish this, we mark the config associated with the sequence of nodes as "visited"
+    once we trace a non-routing or writing function the first time.
+    """
     node_name = instance.name
     integration: LangGraphIntegration = langgraph._datadog_integration
 
@@ -75,7 +65,9 @@ def traced_runnable_callable_invoke(langgraph, pin, func, instance, args, kwargs
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="node", name=node_name)
+        integration.llmobs_set_tags(
+            span, args=args, kwargs={**kwargs, "name": node_name}, response=result, operation="node"
+        )
         span.finish()
 
     return result
@@ -83,8 +75,13 @@ def traced_runnable_callable_invoke(langgraph, pin, func, instance, args, kwargs
 
 @with_traced_module
 def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
+    """
+    Trace the invocation of a Pregel (CompiledGraph) instance.
+    This operation represents the parent execution of an individual graph.
+    This graph could be standalone, or embedded as a subgraph in a node of a larger graph.
+    Under the hood, this graph will `tick` through until all computed tasks are completed.
+    """
     integration: LangGraphIntegration = langgraph._datadog_integration
-    # inputs = get_argument_value(args, kwargs, 0, "input")
     span = integration.trace(
         pin,
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name),
@@ -102,7 +99,7 @@ def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
         raise
     finally:
         integration.llmobs_set_tags(
-            span, args=args, kwargs=kwargs, response=result, operation="graph", name=instance.name
+            span, args=args, kwargs={**kwargs, "name": instance.name}, response=result, operation="graph"
         )
         span.finish()
 
@@ -111,6 +108,10 @@ def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
+    """
+    Patch the pregel loop tick. No tracing is done, and processing only happens if LLM Observability is enabled.
+    The underlying `handle_pregel_loop_tick` function adds span links between specific node invocations in the graph.
+    """
     integration: LangGraphIntegration = langgraph._datadog_integration
 
     finished_tasks = getattr(instance, "tasks", {})
