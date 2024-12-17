@@ -14,6 +14,7 @@ from typing import Optional
 from packaging.version import Version
 from pip import _internal
 
+
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 import riotfile  # noqa: E402
 
@@ -182,10 +183,12 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
 
 
 def _is_module_autoinstrumented(module: str) -> bool:
-    from ddtrace._monkey import PATCH_MODULES
+    import importlib
+
+    _monkey = importlib.import_module("ddtrace._monkey")
+    PATCH_MODULES = getattr(_monkey, "PATCH_MODULES")
 
     return module in PATCH_MODULES and PATCH_MODULES[module]
-
 
 def _versions_fully_cover_bounds(bounds: typing.Tuple[str, str], versions: typing.List[str]) -> bool:
     """Return whether the tested versions cover the full range of supported versions"""
@@ -228,7 +231,6 @@ def _get_all_used_versions(envs, packages) -> dict:
 
 def _get_version_bounds(packages) -> dict:
     # Return dict(module: (earliest, latest)) of the module on PyPI
-    # TODO: check the remapping from the package name -> name on PyPI
     bounds = dict()
     for package in packages:
         earliest, latest = _get_version_extremes(package)
@@ -261,7 +263,7 @@ def generate_supported_versions(contrib_packages, all_used_versions, patched):
 
     # Generate supported versions
     for package in contrib_packages:
-        ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)  # TODO: modify this
+        ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
         if not ordered:
             continue
         json_format = {
@@ -279,7 +281,6 @@ def generate_supported_versions(contrib_packages, all_used_versions, patched):
         supported_versions.append(json_format)
 
     supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
-    print("Writing to supported_versions_output.json") # TODO: remove, for logging output in CI
     with open("supported_versions_output.json", "w") as file:
         json.dump(supported_versions_output, file, indent=4)
 

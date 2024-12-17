@@ -68,19 +68,10 @@ jobs:
           pip install requests
           pip install riot==0.20.1
           pip install wrapt==1.16.0
-    
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          path: ddtrace
-    
-      - name: Install ddtrace # TODO: change this to use a wheel or .tar.gz
+      
+      - name: Install ddtrace
         run: |
-          pip install ./ddtrace
-
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+          pip install -e .
 
       - run: python scripts/freshvenvs.py generate
       
@@ -88,9 +79,7 @@ jobs:
         run: python scripts/generate_table.py
 
       - run: git diff
-  
-      - run: git add supported_versions_output.json supported_versions_table.csv
-    
+      
       - name: Create Pull Request
         id: pr
         uses: peter-evans/create-pull-request@v6
