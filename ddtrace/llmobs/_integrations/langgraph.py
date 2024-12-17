@@ -12,6 +12,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.span import Span
 
 
@@ -46,7 +47,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         )
 
         if operation != "node":
-            return # we set the graph span links in handle_pregel_loop_tick
+            return  # we set the graph span links in handle_pregel_loop_tick
 
         config = get_argument_value(args, kwargs, 1, "config")
 
@@ -77,21 +78,61 @@ class LangGraphIntegration(BaseLLMIntegration):
             else node_invoke_span_links
         )
 
-        span._set_ctx_item(SPAN_LINKS, span_links)
+        current_span_links = span._get_ctx_item(SPAN_LINKS) or []
+        span._set_ctx_item(SPAN_LINKS, current_span_links + span_links)
 
     def handle_pregel_loop_tick(self, finished_tasks: dict, next_tasks: dict, more_tasks: bool):
         if not self.llmobs_enabled:
             return
 
-        if not more_tasks:
+        graph_span = (
+            tracer.current_span()
+        )  # since we're running the the pregel loop, and not in a node, the graph span should be the current span
+        graph_caller = _get_nearest_llmobs_ancestor(graph_span) if graph_span else None
+
+        if not more_tasks and graph_span is not None:
             span_links = [
                 {**node_invokes[task_id]["span"], "attributes": {"from": "output", "to": "output"}}
                 for task_id in finished_tasks.keys()
             ]
-            graph_span = tracer.current_span()
-            if graph_span is not None:
-                graph_span._set_ctx_item(SPAN_LINKS, span_links)
+
+            current_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
+            graph_span._set_ctx_item(SPAN_LINKS, current_span_links + span_links)
+
+            if graph_caller is not None:
+                current_graph_caller_span_links = graph_caller._get_ctx_item(SPAN_LINKS) or []
+                graph_caller_span_links = [
+                    {
+                        "span_id": str(graph_span.span_id) or "undefined",
+                        "trace_id": "{:x}".format(graph_caller.trace_id),
+                        "attributes": {
+                            "from": "output",
+                            "to": "output",
+                        },
+                    }
+                ]
+                graph_caller._set_ctx_item(SPAN_LINKS, current_graph_caller_span_links + graph_caller_span_links)
+
             return
+
+        if not finished_tasks and graph_caller is not None:  # first tick of a graph, possibly very brittle logic
+            # this is for subgraph logic
+            if graph_span is not None:
+                current_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
+                graph_span._set_ctx_item(
+                    SPAN_LINKS,
+                    current_span_links
+                    + [
+                        {
+                            "span_id": str(_get_llmobs_parent_id(graph_span)) or "undefined",
+                            "trace_id": "{:x}".format(graph_caller.trace_id),
+                            "attributes": {
+                                "from": "input",
+                                "to": "input",
+                            },
+                        }
+                    ],
+                )
 
         parent_node_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
 
