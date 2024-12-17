@@ -1,5 +1,7 @@
+import inspect
 import json
 import os
+import sys
 import time
 from typing import Any
 from typing import Dict
@@ -71,18 +73,6 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "google_generativeai": "google_generativeai",
 }
 
-import wrapt
-
-
-class CustomProxy(wrapt.ObjectProxy):
-    def add_span_links(self, span_links):
-        if not hasattr(self, "span_links"):
-            setattr(self, span_links, [])
-        self.span_links += span_links
-
-    def get_span_links(self):
-        return getattr(self, "span_links", [])
-
 
 class LLMObs(Service):
     _instance = None  # type: LLMObs
@@ -117,6 +107,9 @@ class LLMObs(Service):
         self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
         self.tracer.on_start_span(self._do_annotations)
+
+        self._object_span_links = {}
+        sys.settrace(self.trace_call)
 
     def _do_annotations(self, span):
         # get the current span context
@@ -270,15 +263,93 @@ class LLMObs(Service):
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
             return
+        sys.settrace(None)
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
-
         cls._instance.stop()
         cls.enabled = False
         cls._instance.tracer.deregister_on_start_span(cls._instance._do_annotations)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    def _record_relationship(self, source_obj, incoming_obj, operation):
+        """Record a relationship between objects."""
+        if source_obj is None or incoming_obj is None:
+            return
+        # print(f"Recording relationship between {source_obj} and {incoming_obj} with operation {operation}")
+        span_links = self.get_span_links(incoming_obj)
+        self.add_span_links(source_obj, span_links)
+
+    def trace_call(self, frame, event, arg):
+        """Track method calls and object interactions."""
+        if event != "call":
+            return self.trace_call
+
+        # Get function details
+        source_obj = frame.f_locals.get("self")
+        method_name = frame.f_code.co_name
+
+        # Track object creation or modification
+        try:
+            # Capture arguments that might involve object relationships
+            args = inspect.getargvalues(frame)
+
+            # Look for potential object interactions
+            for arg_name in args.args:
+                if arg_name == "self":
+                    continue
+                incoming_obj = frame.f_locals.get(arg_name)
+
+                # Check for object creation or modification
+                if method_name in ["__init__", "__new__", "__add__", "append", "extend", "update"]:
+                    self._record_relationship(source_obj, incoming_obj, f"{method_name} operation")
+        except Exception as e:
+            print("Error capturing object interactions ", e)
+
+        return self.trace_call
+
+    def record_object(self, span, obj, to):
+        carried_span_links = self.get_span_links(obj)
+        current_span_links = []
+        for span_link in carried_span_links:
+            if span_link["attributes"]["from"] == "input" and to == "output":
+                continue
+            span_link["attributes"]["to"] = to
+            current_span_links.append(span_link)
+
+        self._tag_span_links(span, current_span_links)
+        self.add_span_links(
+            obj,
+            [
+                {
+                    "trace_id": self.export_span(span)["trace_id"],
+                    "span_id": self.export_span(span)["span_id"],
+                    "attributes": {
+                        "from": to,
+                    },
+                }
+            ],
+        )
+
+    def _tag_span_links(self, span, span_links):
+        current_span_links = span.get_tag("_ml_obs.span_links")
+        if current_span_links:
+            current_span_links = json.loads(current_span_links)
+            span_links = current_span_links + span_links
+        span.set_tag_str("_ml_obs.span_links", safe_json(span_links))
+
+    def get_obj_id(self, obj):
+        return f"{type(obj).__name__}_{id(obj)}"
+
+    def add_span_links(self, obj, span_links):
+        obj_id = self.get_obj_id(obj)
+        if obj_id not in self._object_span_links:
+            self._object_span_links[obj_id] = []
+        self._object_span_links[obj_id] += span_links
+
+    def get_span_links(self, obj):
+        return self._object_span_links.get(self.get_obj_id(obj), [])
 
     @classmethod
     def annotation_context(

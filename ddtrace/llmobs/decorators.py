@@ -125,14 +125,12 @@ def _llmobs_decorator(operation_kind):
                         span_name = func.__name__
                     traced_operation = getattr(LLMObs, operation_kind, "workflow")
                     with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
-                        span_links = []
                         for arg in args:
-                            if hasattr(arg, "span_links"):
-                                span_links += arg.span_links
+                            LLMObs._instance.record_object(span, arg, "input")
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=bound_args.arguments, span_links=span_links)
+                            LLMObs.annotate(span=span, input_data=bound_args.arguments)
                         resp = func(*args, **kwargs)
                         if (
                             _automatic_io_annotation
@@ -141,14 +139,7 @@ def _llmobs_decorator(operation_kind):
                             and span.get_tag(OUTPUT_VALUE) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
-                        span_link = LLMObs.export_span()
-                        # if not hasattr(resp, "__dict___"):
-
-                        #     class StringWithAttributes(type(resp)):
-                        #         pass
-
-                        #     resp = StringWithAttributes(resp)
-                        setattr(resp, "span_links", [span_link])
+                        LLMObs._instance.record_object(span, resp, "output")
                         return resp
 
             return wrapper
