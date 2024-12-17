@@ -107,7 +107,7 @@ jobs:
             rm -rf ./tempwheelhouse
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
             zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
-            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+            MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
             choco install -y 7zip &&
             7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
@@ -143,7 +143,7 @@ jobs:
             rm -rf ./tempwheelhouse
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
             zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
-            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+            MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
             choco install -y 7zip &&
             7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
