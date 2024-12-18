@@ -172,7 +172,7 @@ extra-dependencies = [
 ]
 
 [[envs.integration_test.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 [envs.integration_test.env-vars]
 _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER = "1"
@@ -294,7 +294,7 @@ test = [
 ]
 
 [[envs.appsec_iast_native.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 ## ASM FastAPI
 
@@ -364,7 +364,7 @@ test = [
 ]
 
 [[envs.appsec_aggregated_leak_testing.matrix]]
-python = ["3.10", "3.11", "3.12"]
+python = ["3.10", "3.11", "3.12", "3.13"]
 
 
 
@@ -468,7 +468,7 @@ pytest = ["~=6.0", "~=7.0"]
 
 
 [[envs.pytest_plugin_v2.matrix]]
-python = ["3.9", "3.10", "3.12"]
+python = ["3.9", "3.10", "3.12", "3.13"]
 pytest = ["~=6.0", "~=7.0", "~=8.0"]
 
 [envs.snapshot_viewer]
