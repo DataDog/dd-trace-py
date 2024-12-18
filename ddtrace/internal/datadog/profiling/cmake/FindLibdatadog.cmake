@@ -1,15 +1,18 @@
-# Only add this project if Datadog::Profiling is not already defined
+# Only proceed if Datadog::Profiling (provided by libdatadog) isn't already defined
 if(TARGET Datadog::Profiling)
     return()
 endif()
+
+# Set the FetchContent paths early
+set(FETCHCONTENT_BASE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/_deps"
+    CACHE PATH "FetchContent base directory")
+set(FETCHCONTENT_DOWNLOADS_DIR
+    "${FETCHCONTENT_BASE_DIR}/downloads"
+    CACHE PATH "FetchContent downloads directory")
 
 include_guard(GLOBAL)
 include(FetchContent)
-
-# Only proceed if Datadog::Profiling isn't already defined
-if(TARGET Datadog::Profiling)
-    return()
-endif()
 
 # Set version if not already set
 if(NOT DEFINED TAG_LIBDATADOG)
@@ -27,7 +30,7 @@ if(NOT DEFINED DD_CHECKSUMS)
         "f01f05600591063eba4faf388f54c155ab4e6302e5776c7855e3734955f7daf7 libdatadog-x86_64-unknown-linux-gnu.tar.gz")
 endif()
 
-# Determine platform-specific tarball name
+# Determine platform-specific tarball name in a way that conforms to the libdatadog naming scheme in Github releases
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
     set(DD_ARCH "aarch64")
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64")
@@ -53,10 +56,9 @@ else()
     message(FATAL_ERROR "Unsupported operating system")
 endif()
 
-# Define the tarball name
 set(DD_TARBALL "libdatadog-${DD_ARCH}-${DD_PLATFORM}.tar.gz")
 
-# Find the checksum for our platform
+# Make sure we can get the checksum for the tarball
 foreach(ENTRY IN LISTS DD_CHECKSUMS)
     if(ENTRY MATCHES "^([a-fA-F0-9]+) ${DD_TARBALL}$")
         set(DD_HASH "${CMAKE_MATCH_1}")
@@ -67,14 +69,6 @@ endforeach()
 if(NOT DEFINED DD_HASH)
     message(FATAL_ERROR "Could not find checksum for ${DD_TARBALL}")
 endif()
-
-# Set the FetchContent paths
-set(FETCHCONTENT_BASE_DIR
-    "${CMAKE_CURRENT_BINARY_DIR}/_deps"
-    CACHE PATH "FetchContent base directory")
-set(FETCHCONTENT_DOWNLOADS_DIR
-    "${FETCHCONTENT_BASE_DIR}/downloads"
-    CACHE PATH "FetchContent downloads directory")
 
 # Clean up any existing downloads if they exist
 set(TARBALL_PATH "${FETCHCONTENT_DOWNLOADS_DIR}/${DD_TARBALL}")
@@ -92,7 +86,7 @@ FetchContent_Declare(
     libdatadog
     URL "https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${DD_TARBALL}"
     URL_HASH SHA256=${DD_HASH}
-    DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}")
+    DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}" SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src")
 
 # Make the content available
 FetchContent_MakeAvailable(libdatadog)

@@ -103,8 +103,8 @@ cmake_args=(
   -DPython3_ROOT_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
 )
 
-# Initial build targets; no matter what, dd_wrapper is the base dependency, so it's always built
-targets=("dd_wrapper")
+# Initial build targets; start out empty
+targets=()
 
 set_cc() {
   if [ -z "${CC:-}" ]; then
@@ -333,7 +333,9 @@ add_target() {
       targets+=("crashtracker")
       ;;
     dd_wrapper)
-      # We always build dd_wrapper, so no need to add it to the list
+      # `dd_wrapper` is a depencency of other targets, but the overall structure is weird when it's given explicitly
+      # so we only include it when it's called explicitly
+      targets+=("dd_wrapper")
       ;;
     stack_v2)
       targets+=("stack_v2")
