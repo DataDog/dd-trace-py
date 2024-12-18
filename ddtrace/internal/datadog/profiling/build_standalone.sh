@@ -333,7 +333,7 @@ add_target() {
       targets+=("crashtracker")
       ;;
     dd_wrapper)
-      # `dd_wrapper` is a depencency of other targets, but the overall structure is weird when it's given explicitly
+      # `dd_wrapper` is a dependency of other targets, but the overall structure is weird when it's given explicitly
       # so we only include it when it's called explicitly
       targets+=("dd_wrapper")
       ;;
