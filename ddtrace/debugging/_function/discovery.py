@@ -159,7 +159,8 @@ class _FunctionCodePair:
             msg = f"Multiple functions found for code object {code}"
             raise ValueError(msg)
 
-        f = cast(FullyNamedFunction, functions[0])
+        self.function = _f = functions[0]
+        f = cast(FullyNamedFunction, _f)
         f.__fullname__ = f"{f.__module__}.{f.__qualname__}"
 
         return f
@@ -254,6 +255,7 @@ class FunctionDiscovery(defaultdict):
         if hasattr(module, "__dd_code__"):
             for code in module.__dd_code__:
                 fcp = _FunctionCodePair(code=code)
+
                 if PYTHON_VERSION_INFO >= (3, 11):
                     # From this version of Python we can derive the qualified
                     # name of the function directly from the code object.
@@ -261,8 +263,9 @@ class FunctionDiscovery(defaultdict):
                     self._fullname_index[fullname] = fcp
                 else:
                     self._name_index[code.co_name].append(fcp)
+
                 for lineno in linenos(code):
-                    self[lineno].append(_FunctionCodePair(code=code))
+                    self[lineno].append(fcp)
         else:
             # If the module was already loaded we don't have its code object
             seen_functions = set()
