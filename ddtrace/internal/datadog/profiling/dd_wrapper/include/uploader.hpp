@@ -29,7 +29,7 @@ class Uploader
     std::string output_filename;
     std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
 
-    bool export_to_file(ddog_prof_EncodedProfile* encoded);
+    bool export_to_file(const ddog_prof_EncodedProfile* encoded);
 
   public:
     bool upload(ddog_prof_Profile& profile);

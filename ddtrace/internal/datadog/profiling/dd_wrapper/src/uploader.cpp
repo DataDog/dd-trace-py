@@ -32,7 +32,7 @@ Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_Exporte
 }
 
 bool
-Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
+Datadog::Uploader::export_to_file(const ddog_prof_EncodedProfile* encoded)
 {
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
