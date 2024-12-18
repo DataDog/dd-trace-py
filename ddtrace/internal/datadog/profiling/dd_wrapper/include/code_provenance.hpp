@@ -40,7 +40,7 @@ class CodeProvenance
     bool is_enabled();
     void set_runtime_version(std::string_view runtime_version);
     void set_stdlib_path(std::string_view stdlib_path);
-    void add_packages(const std::unordered_map<std::string_view, std::string_view> &packages);
+    void add_packages(const std::unordered_map<std::string_view, std::string_view>& packages);
     void add_filename(std::string_view filename);
     std::optional<std::string> try_serialize_to_json_str();
 
