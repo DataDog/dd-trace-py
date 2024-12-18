@@ -30,6 +30,7 @@ from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._constants import RUNNER_IS_INTEGRATION_SPAN_TAG
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
@@ -148,6 +149,11 @@ class LLMObsTraceProcessor(TraceProcessor):
         llmobs_span_event["tags"] = self._llmobs_tags(
             span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
         )
+
+        span_links = span._get_ctx_item(SPAN_LINKS)
+        if isinstance(span_links, list):
+            llmobs_span_event["span_links"] = span_links
+
         return llmobs_span_event, is_ragas_integration_span
 
     @staticmethod
