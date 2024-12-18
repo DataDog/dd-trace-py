@@ -46,7 +46,7 @@ Datadog::CodeProvenance::set_stdlib_path(std::string_view _stdlib_path)
 }
 
 void
-CodeProvenance::add_packages(std::unordered_map<std::string_view, std::string_view> distributions)
+CodeProvenance::add_packages(const std::unordered_map<std::string_view, std::string_view> &distributions)
 {
 
     if (!is_enabled()) {
@@ -165,7 +165,7 @@ const Package*
 CodeProvenance::add_new_package(std::string_view package_name, std::string_view version)
 {
     auto [iter, inserted] = packages.try_emplace(
-        std::string(package_name),  // Create string key from string_view
+        std::string(package_name),
         std::make_unique<Package>(Package{
             .name = std::string(package_name),
             .version = std::string(version)
