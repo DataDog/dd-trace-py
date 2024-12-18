@@ -140,6 +140,22 @@ class LLMObsTraceProcessor(TraceProcessor):
             "meta": meta,
             "metrics": metrics,
         }
+
+        links = [
+            # {
+            #     "trace_id": "{:x}".format(span.trace_id),
+            #     "span_id": parent_id,
+            #     "attributes": {"from": "input", "to": "input"},
+            # }
+        ]
+
+        if span.get_tag("_ml_obs.span_links") is not None:
+            links += json.loads(span._meta.pop("_ml_obs.span_links"))
+
+        llmobs_span_event["span_links"] = links
+        print("links for span: {}".format(_get_span_name(span)))
+        print(llmobs_span_event["span_links"])
+
         session_id = _get_session_id(span)
         if session_id is not None:
             span._set_ctx_item(SESSION_ID, session_id)
