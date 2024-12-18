@@ -1695,9 +1695,6 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
             },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
-            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1708,6 +1705,18 @@ venv = Venv(
                             ">=6.0,<6.1",
                         ]
                     },
+                    venvs=[
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                            },
+                        ),
+                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
@@ -1718,6 +1727,18 @@ venv = Venv(
                             ">=6.0,<6.1",
                         ]
                     },
+                    venvs=[
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                            },
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -2814,6 +2835,15 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "envier": "==0.5.2",
+            },
+        ),
+        Venv(
+            name="azure_functions",
+            command="pytest {cmdargs} tests/contrib/azure_functions",
+            pys=select_pys(min_version="3.7", max_version="3.11"),
+            pkgs={
+                "azure.functions": latest,
+                "requests": latest,
             },
         ),
         Venv(
