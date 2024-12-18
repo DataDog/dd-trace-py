@@ -232,8 +232,9 @@ class TelemetryWriter(PeriodicService):
             self.start()
             return True
 
-        # currently self._is_periodic is always true
         self.status = ServiceStatus.RUNNING
+        if _TelemetryConfig.DEPENDENCY_COLLECTION:
+            modules.install_import_hook()
         return True
 
     def disable(self):
@@ -243,6 +244,7 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
+        modules.uninstall_import_hook()
         self.reset_queues()
 
     def enable_agentless_client(self, enabled=True):
