@@ -77,20 +77,26 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
 class TrackedStr(str):
     def __add__(self, other):
         result = super().__add__(other)
-        LLMObs._instance._record_relationship(self, other, "__add__")
+        result = TrackedStr(result)
+        LLMObs._instance._record_relationship(result, other, "__add__")
+        LLMObs._instance._record_relationship(result, self, "__add__")
         return result
 
     def __radd__(self, other):
         result = super().__radd__(other)
-        LLMObs._instance._record_relationship(self, other, "__radd__")
+        result = TrackedStr(result)
+        LLMObs._instance._record_relationship(result, other, "__radd__")
+        LLMObs._instance._record_relationship(result, self, "__radd__")
         return result
 
     def format(self, *args, **kwargs):
         result = super().format(*args, **kwargs)
+        result = TrackedStr(result)
         for arg in args:
-            LLMObs._instance._record_relationship(self, arg, "format")
+            LLMObs._instance._record_relationship(result, arg, "format")
         for key, value in kwargs.items():
-            LLMObs._instance._record_relationship(self, value, "format")
+            LLMObs._instance._record_relationship(result, value, "format")
+        LLMObs._instance._record_relationship(result, self, "format")
         return result
 
     def split(self, *args, **kwargs):
@@ -387,13 +393,19 @@ class LLMObs(Service):
     def record_object(self, span, obj, to):
         carried_span_links = []
         if isinstance(obj, dict):
-            obj = TrackedDict(obj)
+            old_obj = obj
+            obj = TrackedDict(old_obj)
+            self._record_relationship(obj, old_obj, "inherit")
             carried_span_links += self.search_for_links(obj)
         elif isinstance(obj, list):
-            obj = TrackedList(obj)
+            old_obj = obj
+            obj = TrackedList(old_obj)
+            self._record_relationship(obj, old_obj, "inherit")
             carried_span_links += self.search_for_links(obj)
         elif isinstance(obj, str):
-            obj = TrackedStr(obj)
+            old_obj = obj
+            obj = TrackedStr(old_obj)
+            self._record_relationship(obj, old_obj, "inherit")
 
         carried_span_links += self.get_span_links(obj)
         current_span_links = []
@@ -419,6 +431,7 @@ class LLMObs(Service):
         return obj
 
     def _tag_span_links(self, span, span_links):
+        span_links = [span_link for span_link in span_links if span_link["span_id"] != LLMObs.export_span(span)["span_id"]]
         current_span_links = span.get_tag("_ml_obs.span_links")
         if current_span_links:
             current_span_links = json.loads(current_span_links)
@@ -787,16 +800,16 @@ class LLMObs(Service):
         if span.finished:
             log.warning("Cannot annotate a finished span.")
             return
+        if input_data is not None:
+            cls._instance.record_object(span, input_data, "input")
+        if output_data is not None:
+            cls._instance.record_object(span, output_data, "output")
         if metadata is not None:
             cls._tag_metadata(span, metadata)
         if metrics is not None:
             cls._tag_metrics(span, metrics)
         if tags is not None:
             cls._tag_span_tags(span, tags)
-        if input_data:
-            LLMObs._instance.record_object(span, input_data, "input")
-        elif output_data:
-            LLMObs._instance.record_object(span, output_data, "output")
         span_kind = span.get_tag(SPAN_KIND)
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
