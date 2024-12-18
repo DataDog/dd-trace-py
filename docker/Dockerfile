@@ -56,8 +56,10 @@ RUN apt-get update \
       awscli
 
 # Allow running datadog-ci in CI with npx
-RUN apt-get install -y --no-install-recommends nodejs npm \
-  && npm install -g @datadog/datadog-ci
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm \
+    && npm install -g @datadog/datadog-ci
 
 # MariaDB is a dependency for tests
 RUN curl https://mariadb.org/mariadb_release_signing_key.pgp | gpg --dearmor > /etc/apt/trusted.gpg.d/mariadb.gpg \
