@@ -2,7 +2,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 
-deprecate(
+deprecate( # CLEAN UP
     "The aioredis integration is deprecated.",
     message="Please use the redis integration with redis>=4.2.0 instead.",
     category=DDTraceDeprecationWarning,

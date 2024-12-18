@@ -34,7 +34,7 @@ def get_version():
 
 def patch():
     """Patch the instrumented methods"""
-    deprecate(
+    deprecate( # CLEAN UP
         prefix="The yaaredis module is deprecated.",
         message="The yaaredis module is deprecated and will be deleted.",
         category=DDTraceDeprecationWarning,

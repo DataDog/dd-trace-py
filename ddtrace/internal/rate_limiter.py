@@ -69,7 +69,7 @@ class RateLimiter(object):
         :rtype: :obj:`bool`
         """
         if timestamp_ns is not None:
-            deprecate(
+            deprecate( # CLEAN UP
                 "The `timestamp_ns` parameter is deprecated and will be removed in a future version."
                 "Ratelimiter will use the current time.",
                 category=DDTraceDeprecationWarning,
