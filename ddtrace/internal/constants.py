@@ -57,8 +57,12 @@ HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 
-ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
 CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
+
+ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
+
+EXTERNAL_ENV_HEADER_NAME = "Datadog-External-Env"
+EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"
 
 MESSAGING_SYSTEM = "messaging.system"
 

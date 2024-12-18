@@ -26,6 +26,7 @@ TESTAGENT_TOKEN_PARAM = "?test_session_token=" + TESTAGENT_TOKEN
 def client():
     agent_client = requests.session()
     reply = agent_client.get(TESTAGENT_URL + "/start" + TESTAGENT_TOKEN_PARAM, headers=TESTAGENT_HEADERS)
+
     assert reply.status_code == 200
     pygoat_client, token = login_to_pygoat()
 
@@ -65,7 +66,7 @@ def get_traces(agent_client: requests.Session) -> requests.Response:
 def vulnerability_in_traces(vuln_type: str, agent_client: requests.Session) -> bool:
     time.sleep(5)
     traces = get_traces(agent_client)
-    assert traces.status_code == 200
+    assert traces.status_code == 200, traces.text
     traces_list = json.loads(traces.text)
 
     class InnerBreakException(Exception):

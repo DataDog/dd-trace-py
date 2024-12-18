@@ -12,7 +12,6 @@ from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
-from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
@@ -54,8 +53,6 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
         }
-
-        container.update_headers_with_container_info(self._headers, container.get_container_info())
 
         if di_config._tags_in_qs and di_config.tags:
             self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
