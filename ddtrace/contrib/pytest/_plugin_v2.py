@@ -196,6 +196,12 @@ def pytest_configure(config: pytest_Config) -> None:
             enable_test_visibility(config=dd_config.pytest)
             if _is_pytest_cov_enabled(config):
                 patch_coverage()
+
+            # pytest-bdd plugin support
+            if config.pluginmanager.hasplugin("pytest-bdd"):
+                from ddtrace.contrib.pytest._pytest_bdd_subplugin import _PytestBddSubPlugin
+
+                config.pluginmanager.register(_PytestBddSubPlugin(), "_datadog-pytest-bdd")
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
