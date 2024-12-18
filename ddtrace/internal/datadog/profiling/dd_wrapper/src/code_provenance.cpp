@@ -84,10 +84,8 @@ CodeProvenance::add_filename(std::string_view filename)
 
     const Package* package = it->second.get();
     if (package) {
-        if (packages_to_files.find(package) == packages_to_files.end()) {
-            packages_to_files[package] = std::set<std::string>();
-        }
-        packages_to_files[package].insert(std::string(filename));
+        auto [iter, inserted] = packages_to_files.try_emplace(package, std::set<std::string>());
+        iter->second.insert(std::string(filename));
     }
 }
 
