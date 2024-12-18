@@ -26,23 +26,29 @@ config._add(
 
 
 @with_traced_module
-def traced_runnable_callable_invoke(langgraph, pin, func, instance, args, kwargs):
+def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     """
-    This function traces specific invocations of a RunnableCallable.
-    Importantly, RunnableCallables can be any sort of operation.
-    This includes nodes, routing functions, branching operations, and channel writes.
-    We are only interested in tracing the initial user-defined node.
+    Traces a specific invocation of a RunnableSeq, which represents a node in a graph.
+    Although this API is usable elsewhere, internal to LangGraph it is used to represent the
+    main node invocation (function, graph, callable), the channel write, and then any routing logic.
 
-    To accomplish this, we mark the config associated with the sequence of nodes as "visited"
-    once we trace a non-routing or writing function the first time.
+    We should be able to utilize the `instance.steps` to grab the first step as the node, and any `_route`
+    steps as routing logic.
+
+    One caveat is that if the first task is a graph (LangGraph), we should skip tracing at this step, as
+    we will trace the graph invocation separately with `traced_pregel_invoke`. For proper span linking logic,
+    we will mark the config for that graph as a subgraph invoke.
     """
-    node_name = instance.name
     integration: LangGraphIntegration = langgraph._datadog_integration
 
-    # inputs = get_argument_value(args, kwargs, 0, "input")
-    config = get_argument_value(args, kwargs, 1, "config")
-    metadata = config.get("metadata", {}) if isinstance(config, dict) else {}
-    if node_name in ("_write", "_route", "_control_branch") or metadata.get("visited", False):
+    node_name = instance.steps[0].name
+
+    if node_name in ("_write", "_route"):
+        return func(*args, **kwargs)
+
+    if node_name == "LangGraph":
+        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
+        config.get("metadata", {})["subgraph"] = True
         return func(*args, **kwargs)
 
     span = integration.trace(
@@ -56,18 +62,12 @@ def traced_runnable_callable_invoke(langgraph, pin, func, instance, args, kwargs
 
     try:
         result = func(*args, **kwargs)
-        if isinstance(
-            config, dict
-        ):  # this needs to be better - we need another way to see if a runnablecallable is a node vs routing function
-            config["metadata"]["visited"] = True
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
-        integration.llmobs_set_tags(
-            span, args=args, kwargs={**kwargs, "name": node_name}, response=result, operation="node"
-        )
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="node")
         span.finish()
 
     return result
@@ -118,7 +118,9 @@ def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
     result = func(*args, **kwargs)
     next_tasks = getattr(instance, "tasks", {})  # they should have been updated at this point
 
-    integration.handle_pregel_loop_tick(finished_tasks, next_tasks, result)
+    is_subgraph = instance.config.get("metadata", {}).get("subgraph", False)
+
+    integration.handle_pregel_loop_tick(finished_tasks, next_tasks, result, is_subgraph)
 
     return result
 
@@ -133,8 +135,7 @@ def patch():
     integration = LangGraphIntegration(integration_config=config.langgraph)
     langgraph._datadog_integration = integration
 
-    # wrap("langgraph", "utils.runnable.RunnableSeq.invoke", traced_runnable_seq_invoke(langgraph))
-    wrap("langgraph", "utils.runnable.RunnableCallable.invoke", traced_runnable_callable_invoke(langgraph))
+    wrap("langgraph", "utils.runnable.RunnableSeq.invoke", traced_runnable_seq_invoke(langgraph))
     wrap("langgraph", "pregel.Pregel.invoke", traced_pregel_invoke(langgraph))
     wrap("langgraph", "pregel.loop.PregelLoop.tick", patched_pregel_loop_tick(langgraph))
 
@@ -145,8 +146,7 @@ def unpatch():
 
     langgraph._datadog_patch = False
 
-    # unwrap(langgraph.utils.runnable.RunnableSeq, "invoke")
-    unwrap(langgraph.utils.runnable.RunnableCallable, "invoke")
+    unwrap(langgraph.utils.runnable.RunnableSeq, "invoke")
     unwrap(langgraph.pregel.Pregel, "invoke")
     unwrap(langgraph.pregel.loop.PregelLoop, "tick")
 
