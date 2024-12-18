@@ -15,16 +15,10 @@ Configuration
 ~~~~~~~~~~~~~
 
 """
-from ...internal.utils.importlib import require_modules
+# Expose public methods
+from ..internal.protobuf.patch import get_version
+from ..internal.protobuf.patch import patch
+from ..internal.protobuf.patch import unpatch
 
 
-required_modules = ["protobuf"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Expose public methods
-        from ..internal.protobuf.patch import get_version
-        from ..internal.protobuf.patch import patch
-        from ..internal.protobuf.patch import unpatch
-
-        __all__ = ["patch", "unpatch", "get_version"]
+__all__ = ["patch", "unpatch", "get_version"]
