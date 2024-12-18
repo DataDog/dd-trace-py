@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    Fixes a bug where profiling mutexes were not cleared on fork in the child process.  This could
+    profiling: Fixes a bug where profiling mutexes were not cleared on fork in the child process.  This could
     cause deadlocks in certain configurations.
