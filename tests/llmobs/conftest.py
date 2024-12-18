@@ -139,6 +139,32 @@ def default_global_config():
 
 
 @pytest.fixture
+def llmobs_test_span_writer():
+    from ddtrace.llmobs._writer import LLMObsSpanWriter
+
+    class TestLLMObsSpanWriter(LLMObsSpanWriter):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.events = []
+
+        def enqueue(self, event):
+            self.events.append(event)
+
+    yield TestLLMObsSpanWriter(interval=1.0, timeout=1.0)
+
+
+@pytest.fixture
+def TestLLMObs(llmobs_test_span_writer):
+    dummy_tracer = DummyTracer()
+    llmobs_service.enable(_tracer=dummy_tracer)
+    llmobs_service._llmobs_span_writer = llmobs_test_span_writer
+    yield llmobs_service
+    llmobs_service.disable()
+
+def llmobs_events(llmobs_test_span_writer):
+    return llmobs_test_span_writer.events
+
+@pytest.fixture
 def LLMObs(
     mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner, ddtrace_global_config
 ):
