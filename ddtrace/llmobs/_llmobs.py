@@ -23,6 +23,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -332,8 +333,20 @@ class LLMObs(Service):
 
     @staticmethod
     def _patch_integrations() -> None:
-        """Patch LLM integrations."""
-        patch(**{integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()})  # type: ignore[arg-type]
+        """
+        Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
+        """
+        integrations_to_patch = {integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+        for module, _ in integrations_to_patch.items():
+            env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+            if env_var in os.environ:
+                integrations_to_patch[module] = asbool(os.environ[env_var])
+        dd_patch_modules = os.getenv("DD_PATCH_MODULES")
+        dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
+        integrations_to_patch.update(
+            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+        )
+        patch(**integrations_to_patch)  # type: ignore[arg-type]
         log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
