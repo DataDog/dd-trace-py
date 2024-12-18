@@ -115,6 +115,7 @@ venv = Venv(
             pys=["3"],
             pkgs={
                 "ruamel.yaml": latest,
+                "lxml": latest,
             },
         ),
         Venv(
@@ -123,6 +124,7 @@ venv = Venv(
             pys=["3"],
             pkgs={
                 "ruamel.yaml": latest,
+                "lxml": latest,
             },
         ),
         Venv(
