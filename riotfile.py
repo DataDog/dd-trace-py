@@ -808,11 +808,14 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/django",
             pkgs={
                 "django-redis": ">=4.5,<4.6",
+                "django-pylibmc": ">=0.6,<0.7",
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django[testing]": "==3.10.0",
+                "pylibmc": latest,
+                "python-memcached": latest,
                 "pytest-randomly": latest,
                 "django-q": latest,
                 "spyne": latest,
@@ -843,55 +846,11 @@ venv = Venv(
                     # django started supporting psycopg3 in 4.2 for versions >3.1.8
                     pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
+                        "django": ["~=4.2"],
+                        "psycopg": latest,
                         "channels": latest,
-                        "pylibmc": latest,
-                        "python-memcached": latest,
-                        "django-pylibmc": ">=0.6,<0.7",
                     },
-                    venvs=[
-                        Venv(
-                            # django dropped support for Python 3.6/3.7 in 4.0
-                            pys=select_pys(max_version="3.7"),
-                            pkgs={
-                                "django": "~=3.2",
-                                "channels": ["~=3.0", latest],
-                                "pylibmc": latest,
-                                "python-memcached": latest,
-                                "django-pylibmc": ">=0.6,<0.7",
-                            },
-                        ),
-                        Venv(
-                            # django dropped support for Python 3.8/3.9 in 5.0
-                            pys=select_pys(min_version="3.8", max_version="3.9"),
-                            pkgs={
-                                "django": ["~=4.0"],
-                                "channels": latest,
-                                "pylibmc": latest,
-                                "python-memcached": latest,
-                                "django-pylibmc": ">=0.6,<0.7",
-                            },
-                        ),
-                        Venv(
-                            # django started supporting psycopg3 in 4.2 for versions >3.1.8
-                            pys=select_pys(min_version="3.8", max_version="3.12"),
-                            pkgs={
-                                "django": ["~=4.2"],
-                                "psycopg": latest,
-                                "channels": latest,
-                                "pylibmc": latest,
-                                "python-memcached": latest,
-                                "django-pylibmc": ">=0.6,<0.7",
-                            },
-                        ),
-                    ],
                 ),
-                # TODO - udpate django integration to support 5.x
-                # Venv(
-                #    pys=select_pys(min_version="3.12"),
-                #    pkgs={
-                #        "django": [">=5.1.3"],
-                #    },
-                # ),
             ],
         ),
         Venv(
