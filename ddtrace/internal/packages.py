@@ -3,6 +3,7 @@ from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
 import logging
+from os import environ
 from os import fspath  # noqa:F401
 import sys
 import sysconfig
@@ -270,6 +271,14 @@ def _(path: Path) -> bool:
 def _(path: str) -> bool:
     _path = Path(path)
     return not (is_stdlib(_path) or is_third_party(_path))
+
+
+def is_ddtrace_pytest_test(path: Path) -> bool:
+    """Return an relatively confident guess about whether the file relates to a pytest test run"""
+    package = filename_to_package(str(path))
+    if package is None:
+        return False
+    return package.name == "ddtrace" and "PYTEST_CURRENT_TEST" in environ and "/dd-trace-py/tests/" in str(path)
 
 
 @cached(maxsize=256)
