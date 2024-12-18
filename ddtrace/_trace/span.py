@@ -19,6 +19,8 @@ from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
+from ddtrace._trace.types import _ImmutableDict
+from ddtrace._trace.types import _ImmutableList
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
@@ -108,6 +110,7 @@ class Span(object):
         "error",
         "_metrics",
         "_store",
+        "_mutable",
         "span_type",
         "start_ns",
         "duration_ns",
@@ -176,6 +179,7 @@ class Span(object):
         self._resource = [resource or name]
         self.span_type = span_type
         self._span_api = span_api
+        self._mutable = True
 
         self._meta: _MetaDictType = {}
         self.error = 0
@@ -278,6 +282,27 @@ class Span(object):
     @duration.setter
     def duration(self, value: float) -> None:
         self.duration_ns = int(value * 1e9)
+
+    def _make_immutable(self) -> None:
+        self._meta = _ImmutableDict(self._meta)
+        self._metrics = _ImmutableDict(self._metrics)
+        self._store = _ImmutableDict(self._store or {})
+        self._meta_struct = _ImmutableDict(self._meta_struct)
+        self._events = _ImmutableList(self._events)
+        self._links = _ImmutableList(self._links)
+        self._mutable = False
+
+    def __setattr__(self, key, value):
+        if hasattr(self, "_mutable") and not self._mutable:
+            log.warning(
+                "Span with the name %s has been serialized and is now immutable, "
+                "ignoring set attribute %s and value %r",
+                self.name,
+                key,
+                value,
+            )
+        else:
+            super(Span, self).__setattr__(key, value)
 
     @property
     def sampled(self) -> Optional[bool]:
