@@ -478,6 +478,13 @@ urllib3
 .. automodule:: ddtrace.contrib.urllib3
 
 
+.. _vertexai:
+
+vertexai
+^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.vertexai
+
+
 .. _vertica:
 
 Vertica
