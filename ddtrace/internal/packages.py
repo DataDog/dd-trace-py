@@ -59,38 +59,26 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     return _packages_distributions()
 
 
-@cached(maxsize=1024)
-def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
-    if not module_name:
-        return None
+@cached(maxsize=256)
+def get_module_distribution_versions(module_name: str) -> t.Dict[str, str]:
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    names: t.List[str] = []
+    try:
+        return {
+            module_name: importlib_metadata.distribution(module_name).version,
+        }
+    except importlib_metadata.PackageNotFoundError:
+        pass
+
     pkgs = get_package_distributions()
-    while names == []:
-        try:
-            return (
-                module_name,
-                importlib_metadata.distribution(module_name).version,
-            )
-        except Exception:  # nosec
-            pass
-        names = pkgs.get(module_name, [])
-        if not names:
-            # try to resolve the parent package
-            p = module_name.rfind(".")
-            if p > 0:
-                module_name = module_name[:p]
-            else:
-                break
-    if len(names) != 1:
-        # either it was not resolved due to multiple packages with the same name
-        # or it's a multipurpose package (like '__pycache__')
-        return None
-    return (names[0], get_version_for_package(names[0]))
+    names = pkgs.get(module_name)
+    if not names:
+        return {}
+
+    return {name: get_version_for_package(name) for name in names}
 
 
 @cached(maxsize=256)
