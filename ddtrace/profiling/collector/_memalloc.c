@@ -42,11 +42,16 @@ static PyObject* object_string = NULL;
 
 #define ALLOC_TRACKER_MAX_COUNT UINT64_MAX
 
-const int g_memalloc_lock_timeout = 32; // 32 ms is about 8 scheduler slices--arbitrary, but whatever
+// The data coordination primitives in this and related files are related to a crash we started seeing.
+// We don't have a precise understanding of the causal factors within the runtime that lead to this condition,
+// since the GIL alone was sufficient in the past for preventing this issue.
+// We add an option here to _add_ a crash, in order to observe this condition in a future diagnostic iteration.
+// **This option is _intended_ to crash the Python process** do not use without a good reason!
+static char g_crash_on_mutex_pass_str[] = "_DD_PROFILING_MEMALLOC_CRASH_ON_MUTEX_PASS";
+static const char* g_truthy_values[] = { "1", "true", "yes", "on", "enable", "enabled", NULL }; // NB the sentinel NULL
+static memlock_t g_memalloc_lock;
 
 static alloc_tracker_t* global_alloc_tracker;
-
-static memlock_t g_memalloc_lock;
 
 // This is a multiplatform way to define an operation to happen at static initialization time
 static void
@@ -64,13 +69,24 @@ __attribute__((constructor))
 static void
 memalloc_init()
 {
-    memlock_init(&g_memalloc_lock);
+    // Check if we should crash the process on mutex pass
+    char* crash_on_mutex_pass_str = getenv(g_crash_on_mutex_pass_str);
+    bool crash_on_mutex_pass = false;
+    if (crash_on_mutex_pass_str) {
+        for (int i = 0; g_truthy_values[i]; i++) {
+            if (strcmp(crash_on_mutex_pass_str, g_truthy_values[i]) == 0) {
+                crash_on_mutex_pass = true;
+                break;
+            }
+        }
+    }
+    memlock_init(&g_memalloc_lock, crash_on_mutex_pass);
 }
 
 static void
 memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
-    uint64_t alloc_count = atomic_inc_clamped(&global_alloc_tracker->alloc_count, ALLOC_TRACKER_MAX_COUNT);
+    uint64_t alloc_count = atomic_add_clamped(&global_alloc_tracker->alloc_count, 1, ALLOC_TRACKER_MAX_COUNT);
 
     /* Return if we've reached the maximum number of allocations */
     if (alloc_count == 0)
@@ -84,7 +100,7 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
     // In this implementation, the `global_alloc_tracker` isn't intrinsically protected.  Before we read or modify,
     // take the lock.  The count of allocations is already forward-attributed elsewhere, so if we can't take the lock
     // there's nothing to do.
-    if (!memlock_lock_timed(&g_memalloc_lock, g_memalloc_lock_timeout)) {
+    if (!memlock_trylock(&g_memalloc_lock)) {
         return;
     }
 
@@ -259,7 +275,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
 
-    if (memlock_lock_timed(&g_memalloc_lock, -1)) {
+    if (memlock_trylock(&g_memalloc_lock)) {
         global_alloc_tracker = alloc_tracker_new();
         memlock_unlock(&g_memalloc_lock);
     }
@@ -287,7 +303,7 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     memalloc_tb_deinit();
-    if (memlock_lock_timed(&g_memalloc_lock, -1)) {
+    if (memlock_trylock(&g_memalloc_lock)) {
         alloc_tracker_free(global_alloc_tracker);
         global_alloc_tracker = NULL;
         memlock_unlock(&g_memalloc_lock);
@@ -343,7 +359,7 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
         return NULL;
 
     /* reset the current traceback list */
-    if (memlock_lock_timed(&g_memalloc_lock, -1)) {
+    if (memlock_trylock(&g_memalloc_lock)) {
         iestate->alloc_tracker = global_alloc_tracker;
         global_alloc_tracker = alloc_tracker_new();
         memlock_unlock(&g_memalloc_lock);
@@ -364,7 +380,7 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
 static void
 iterevents_dealloc(IterEventsState* iestate)
 {
-    if (memlock_lock_timed(&g_memalloc_lock, -1)) {
+    if (memlock_trylock(&g_memalloc_lock)) {
         alloc_tracker_free(iestate->alloc_tracker);
         Py_TYPE(iestate)->tp_free(iestate);
         memlock_unlock(&g_memalloc_lock);
