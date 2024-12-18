@@ -1,0 +1,27 @@
+llmobs:
+  runner: riot
+  env:
+    SUITE_NAME: llmobs
+openai:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: openai
+  parallelism: 10
+langchain:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: langchain
+  parallelism: 6
+anthropic:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: anthropic
+  parallelism: 3
+google_generativeai:
+  runner: riot
+  is_snapshot: true
+  env:
+    SUITE_NAME: google_generativeai

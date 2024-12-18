@@ -27,8 +27,13 @@ from ddtrace.settings.asm import config as asm_config
 log = get_logger(__name__)
 _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
+_is_patched = False
+
 
 def patch_common_modules():
+    global _is_patched
+    if _is_patched:
+        return
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
@@ -37,21 +42,28 @@ def patch_common_modules():
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
+    _is_patched = True
 
 
 def unpatch_common_modules():
+    global _is_patched
+    if not _is_patched:
+        return
     try_unwrap("builtins", "open")
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("_io", "BytesIO.read")
     try_unwrap("_io", "StringIO.read")
+    _is_patched = False
 
 
 def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs):
     """
     wrapper for _io.BytesIO and _io.StringIO read function
     """
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+
     result = original_read_callable(*args, **kwargs)
-    if asm_config._iast_enabled:
+    if asm_config._iast_enabled and is_iast_request_enabled():
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking import Source
         from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
@@ -77,11 +89,17 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     """
     wrapper for open file function
     """
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 
-        check_and_report_path_traversal(*args, **kwargs)
+    if asm_config._iast_enabled and is_iast_request_enabled():
+        try:
+            from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
 
+            check_and_report_path_traversal(*args, **kwargs)
+        except ImportError:
+            # open is used during module initialization
+            # and shouldn't be changed at that time
+            return original_open_callable(*args, **kwargs)
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
@@ -162,7 +180,9 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    if asm_config._iast_enabled:
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+
+    if asm_config._iast_enabled and is_iast_request_enabled():
         from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 
         _iast_report_ssrf(original_request_callable, *args, **kwargs)
@@ -202,7 +222,9 @@ def wrapped_system_5542593D237084A7(original_command_callable, instance, args, k
     """
     command = args[0] if args else kwargs.get("command", None)
     if command is not None:
-        if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+
+        if asm_config._iast_enabled and is_iast_request_enabled():
             from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
 
             _iast_report_cmdi(command)
