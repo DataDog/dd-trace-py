@@ -139,7 +139,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "metrics": metrics,
         }
 
-        links = []
+        links = [{"trace_id": "{:x}".format(span.trace_id), "span_id": parent_id, "attributes": {"from": "input", "to": "input"}}]
 
         if span.get_tag("_ml_obs.span_links") is not None:
             links += json.loads(span._meta.pop("_ml_obs.span_links"))

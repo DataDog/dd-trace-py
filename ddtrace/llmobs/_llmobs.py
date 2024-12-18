@@ -374,8 +374,6 @@ class LLMObs(Service):
         return self.trace_call
 
     def search_for_links(self, obj):
-        print("searching for links on")
-        print(obj)
         links = []
         if isinstance(obj, dict):
             for _, value in obj.items():
@@ -795,6 +793,10 @@ class LLMObs(Service):
             cls._tag_metrics(span, metrics)
         if tags is not None:
             cls._tag_span_tags(span, tags)
+        if input_data:
+            LLMObs._instance.record_object(span, input_data, "input")
+        elif output_data:
+            LLMObs._instance.record_object(span, output_data, "output")
         span_kind = span.get_tag(SPAN_KIND)
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
