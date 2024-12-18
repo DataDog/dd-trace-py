@@ -335,16 +335,21 @@ class SpanAggregator(SpanProcessor):
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 spans: Optional[List[Span]] = finished
+                if not spans:
+                    return
                 for tp in self._trace_processors:
                     try:
-                        if spans is None:
-                            return
                         spans = tp.process_trace(spans)
                     except Exception:
                         log.error("error applying processor %r", tp, exc_info=True)
 
                 self._queue_span_count_metrics("spans_finished", "integration_name")
                 self._writer.write(spans)
+                # At this point the span object has been sent to the writer for encoding
+                # and should be considered immutable. Updating the span after this point
+                # will may not be reflected in the encoded span.
+                for span in spans:
+                    span._make_immutable()
                 return
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)

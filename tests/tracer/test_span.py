@@ -874,3 +874,60 @@ def test_span_exception_core_event():
         raise AssertionError("should have raised")
     finally:
         core.reset_listeners("span.exception")
+
+
+def test_span_make_immutable():
+    """
+    Ensure that a span can be made immutable
+    """
+    s = Span(
+        "test.span", service="s", resource="r", span_type=SpanTypes.WEB, trace_id=1, span_id=2, parent_id=3, start=123
+    )
+    s.set_tag("a", "a")
+    s.set_metric("b", 1)
+    s._add_event("message")
+    s.set_link(trace_id=11, span_id=12)
+    s._set_ctx_item("ctx1", "val1")
+    s._make_immutable()
+
+    s.service = "new-service"
+    s.resource = "new-resource"
+    s.span_type = "new-type"
+    s.trace_id = 10000000
+    s.span_id = 20000000
+    s.parent_id = 30000000
+    s.start = 45600000
+    s.set_tag("a", "banana")
+    s.set_metric("b", 10000000)
+    s._add_event("message2")
+    s.set_link(trace_id=1100000, span_id=12000)
+    s._set_ctx_item("ctx2", "val2")
+
+    assert s.service == "s"
+    assert s.resource == "r"
+    assert s.span_type == "web"
+    assert s.trace_id == 1
+    assert s.span_id == 2
+    assert s.parent_id == 3
+    assert s.start == 123
+    assert s.get_tag("a") == "a"
+    assert s.get_metric("b") == 1
+    assert len(s._events) == 1
+    assert len(s._links) == 1
+    assert len(s._store) == 1
+
+
+def test_span_make_immutable_warning():
+    """
+    Ensure that an immutable span logs a warning when trying to set an attribute
+    """
+    with mock.patch("ddtrace._trace.span.log") as log:
+        s = Span("test.span")
+        s._make_immutable()
+        s.name = "new-name"
+        log.warning.assert_called_once_with(
+            "Span with the name %s has been serialized and is now immutable, ignoring set attribute %s and value %r",
+            "test.span",
+            "name",
+            "new-name",
+        )
