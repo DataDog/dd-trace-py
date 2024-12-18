@@ -14,6 +14,7 @@ from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
+from ddtrace.internal.ci_visibility.constants import DETAILED_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
@@ -367,9 +368,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skipping_enabled = attributes["tests_skipping"]
             require_git = attributes["require_git"]
             itr_enabled = attributes["itr_enabled"]
-            flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] or asbool(
-                os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
-            )
+            flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"]
 
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(
@@ -542,6 +541,77 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         record_early_flake_detection_tests_count(len(unique_test_ids))
 
         return unique_test_ids
+
+    def fetch_test_details(self):
+        metric_names = APIRequestMetricNames(
+            count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST,
+            duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS,
+            response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES,
+            error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS,
+        )  # ꙮ
+
+        payload = {
+            "data": {
+                "id": str(uuid4()),
+                "type": "ci_app_libraries_tests_detailed",
+                "attributes": {
+                    "service": self._service,
+                    "env": self._dd_env,
+                    "repository_url": self._git_data.repository_url,
+                    "configurations": self._configurations,
+                },
+            }
+        }
+
+        test_details = TestDetails()
+
+        try:
+            parsed_response = self._do_request_with_telemetry(
+                "POST", DETAILED_TESTS_ENDPOINT, json.dumps(payload), metric_names
+            )
+        except Exception:  # noqa: E722
+            return None
+
+        if "errors" in parsed_response:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            log.debug("Detailed tests response contained an error")
+            return None
+
+        try:
+            modules_data = parsed_response["data"]["attributes"]["modules"]
+        except KeyError:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        try:
+            for module in modules_data:
+                module_id = TestModuleId(module["id"])
+                for suite in module["suites"]:
+                    suite_id = TestSuiteId(module_id, suite["id"])
+                    for test in suite["tests"]:
+                        test_id = InternalTestId(suite_id, test["id"])
+                        test_properties = test.get("properties", {})
+                        test_details.test_properties[test_id] = test_properties
+
+        except Exception:  # noqa: E722
+            log.debug("Failed to parse detailed tests data", exc_info=True)
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        record_early_flake_detection_tests_count(len(test_details.unique_test_ids()))
+
+        return test_details
+
+
+class TestDetails:
+    def __init__(self):
+        self.test_properties: t.Dict[InternalTestId, t.Dict[str, t.Any]] = {}
+
+    def unique_test_ids(self):
+        return set(self.test_properties.keys())
+
+    def is_quarantined_test(self, test_id: InternalTestId) -> bool:
+        return self.test_properties.get(test_id, {}).get("quarantined", False)
 
 
 class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
