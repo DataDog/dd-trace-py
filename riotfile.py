@@ -397,7 +397,7 @@ venv = Venv(
                 "msgpack": [latest],
                 "pytest-randomly": latest,
             },
-            pys=select_pys(),
+            pys=select_pys(max_version="3.12"),
             venvs=[
                 Venv(
                     name="datastreams-latest",
@@ -824,6 +824,24 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    # django dropped support for Python 3.6/3.7 in 4.0
+                    pys=select_pys(max_version="3.7"),
+                    pkgs={
+                        "django": "~=3.2",
+                        "channels": ["~=3.0", latest],
+                    },
+                ),
+                Venv(
+                    # django dropped support for Python 3.8/3.9 in 5.0
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "django": ["~=4.0"],
+                        "channels": latest,
+                    },
+                ),
+                Venv(
+                    # django started supporting psycopg3 in 4.2 for versions >3.1.8
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
                     pkgs={
                         "channels": latest,
                         "pylibmc": latest,
@@ -1247,7 +1265,7 @@ venv = Venv(
                     pkgs={"psycopg2-binary": "~=2.8.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     # psycopg2-binary added support for Python 3.9/3.10 in 2.9.1
                     # psycopg2-binary added support for Python 3.11 in 2.9.2
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
@@ -1271,7 +1289,7 @@ venv = Venv(
                             },
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12"),
+                            pys=select_pys(min_version="3.12", max_version="3.12"),
                             pkgs={
                                 "pytest-asyncio": "==0.23.7",
                             },
@@ -1551,7 +1569,7 @@ venv = Venv(
                     pkgs={"pymysql": "~=0.10"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "pymysql": [
                             "~=1.0",
@@ -1630,14 +1648,14 @@ venv = Venv(
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
-                    pys=select_pys(min_version="3.11"),
+                    pys=select_pys(min_version="3.11", max_version="3.12"),
                     pkgs={"fastapi": ["~=0.86.0", latest], "anyio": ">=3.4.0,<4.0"},
                 ),
             ],
         ),
         Venv(
             name="aiomysql",
-            pys=select_pys(min_version="3.7"),
+            pys=select_pys(min_version="3.7", max_version="3.12"),
             command="pytest {cmdargs} tests/contrib/aiomysql",
             pkgs={
                 "pytest-randomly": latest,
@@ -1684,7 +1702,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
                         "pytest": [
                             "~=6.0",
@@ -1770,7 +1788,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.13"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
                         "pytest-bdd": [
                             # FIXME: add support for v6.1
@@ -2059,7 +2077,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
                         "aiopg": ["~=1.0", "~=1.4.0"],
                     },
@@ -2379,7 +2397,7 @@ venv = Venv(
                     pkgs={"asyncpg": ["~=0.27", latest]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys=select_pys(min_version="3.12", max_version="3.12"),
                     pkgs={"asyncpg": [latest]},
                 ),
             ],
@@ -2477,7 +2495,7 @@ venv = Venv(
         ),
         Venv(
             name="consul",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.12"),
             command="pytest {cmdargs} tests/contrib/consul",
             pkgs={
                 "python-consul": [
@@ -2614,7 +2632,7 @@ venv = Venv(
                 ),
                 Venv(
                     # pyodbc added support for Python 3.11 in 4.0.35
-                    pys=select_pys(min_version="3.11"),
+                    pys=select_pys(min_version="3.11", max_version="3.12"),
                     pkgs={"pyodbc": [latest]},
                 ),
             ],
@@ -2681,7 +2699,7 @@ venv = Venv(
                 ),
                 Venv(
                     # tornado added support for Python 3.10 in 6.2
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={"tornado": ["==6.2", "==6.3.1"]},
                 ),
             ],
@@ -2881,7 +2899,7 @@ venv = Venv(
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(pys=select_pys(min_version="3.11"), pkgs={"confluent-kafka": latest}),
+                        Venv(pys=select_pys(min_version="3.11", max_version="3.12"), pkgs={"confluent-kafka": latest}),
                     ],
                 ),
             ],
@@ -2896,6 +2914,15 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "envier": "==0.5.2",
+            },
+        ),
+        Venv(
+            name="azure_functions",
+            command="pytest {cmdargs} tests/contrib/azure_functions",
+            pys=select_pys(min_version="3.7", max_version="3.11"),
+            pkgs={
+                "azure.functions": latest,
+                "requests": latest,
             },
         ),
         Venv(

@@ -112,7 +112,7 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
         code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
 
-_INJECT_HOOK_OPCODE_POS = 0 if PY < (3, 11) or PY >= (3, 13) else 1
+_INJECT_HOOK_OPCODE_POS = 1 if (3, 11) <= PY < (3, 13) else 0
 _INJECT_ARG_OPCODE_POS = 1 if PY < (3, 11) else 2
 
 

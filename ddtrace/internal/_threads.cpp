@@ -20,7 +20,7 @@ class GILGuard
   public:
     inline GILGuard()
     {
-#if PY_VERSION_HEX >= 0x30d0000
+#if PY_VERSION_HEX >= 0x030d0000
         if (!Py_IsFinalizing()) {
 #else
         if (!_Py_IsFinalizing()) {
