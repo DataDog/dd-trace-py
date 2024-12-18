@@ -40,6 +40,7 @@ from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettin
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
+from ddtrace.internal.ci_visibility._api_client import TestDetails
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
@@ -202,6 +203,7 @@ class CIVisibility(Service):
         self._itr_meta = {}  # type: Dict[str, Any]
         self._itr_data: Optional[ITRData] = None
         self._unique_test_ids: Set[InternalTestId] = set()
+        self._test_details = TestDetails()
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -904,8 +906,7 @@ class CIVisibility(Service):
         if instance is None:
             return False
 
-        # TODO: retrieve this information from the API, once it is available in the backend.
-        return False
+        return instance._test_details.is_quarantined_test(test_id)
 
 
 def _requires_civisibility_enabled(func):

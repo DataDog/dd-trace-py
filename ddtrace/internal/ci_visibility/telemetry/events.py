@@ -115,7 +115,7 @@ def record_event_finished(
     is_benchmark: bool = False,
     is_new: bool = False,
     is_retry: bool = False,
-    is_quarantined: bool = False,
+    is_quarantined: bool = None,
     early_flake_detection_abort_reason: Optional[str] = None,
 ):
     _record_event(
