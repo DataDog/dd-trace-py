@@ -59,7 +59,6 @@ onboarding_tests_installer:
     matrix:
       - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine]
 
-
 onboarding_tests_k8s_injection:
   parallel:
     matrix:
