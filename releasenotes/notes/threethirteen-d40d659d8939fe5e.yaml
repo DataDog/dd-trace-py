@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Makes the library compatible with Python 3.13
