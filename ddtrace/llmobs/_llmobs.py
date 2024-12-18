@@ -74,6 +74,62 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
 }
 
 
+class TrackedStr(str):
+    def __add__(self, other):
+        result = super().__add__(other)
+        LLMObs._instance._record_relationship(self, other, "__add__")
+        return result
+
+    def __radd__(self, other):
+        result = super().__radd__(other)
+        LLMObs._instance._record_relationship(self, other, "__radd__")
+        return result
+
+    def format(self, *args, **kwargs):
+        result = super().format(*args, **kwargs)
+        for arg in args:
+            LLMObs._instance._record_relationship(self, arg, "format")
+        for key, value in kwargs.items():
+            LLMObs._instance._record_relationship(self, value, "format")
+        return result
+
+    def split(self, *args, **kwargs):
+        return super().split(*args, **kwargs)
+
+    def join(self, *args, **kwargs):
+        return super().join(*args, **kwargs)
+
+
+class TrackedList(list):
+    def append(self, item):
+        result = super().append(item)
+        LLMObs._instance._record_relationship(self, item, "append")
+        return result
+
+    def extend(self, iterable):
+        result = super().extend(iterable)
+        LLMObs._instance._record_relationship(self, iterable, "extend")
+        return result
+
+    def __add__(self, other):
+        result = super().__add__(other)
+        LLMObs._instance._record_relationship(self, other, "__add__")
+        return result
+
+
+class TrackedDict(dict):
+    def update(self, *args, **kwargs):
+        result = super().update(*args, **kwargs)
+        for arg in args:
+            LLMObs._instance._record_relationship(self, arg, "update")
+        return result
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        LLMObs._instance._record_relationship(self, value, "__setitem__")
+        LLMObs._instance._record_relationship(self, key, "__setitem__")
+
+
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
@@ -303,15 +359,45 @@ class LLMObs(Service):
                 incoming_obj = frame.f_locals.get(arg_name)
 
                 # Check for object creation or modification
-                if method_name in ["__init__", "__new__", "__add__", "append", "extend", "update"]:
+                if method_name in [
+                    "__init__",
+                    "__new__",
+                    "__add__",
+                    "append",
+                    "extend",
+                    "update",
+                ]:
                     self._record_relationship(source_obj, incoming_obj, f"{method_name} operation")
         except Exception as e:
             print("Error capturing object interactions ", e)
 
         return self.trace_call
 
+    def search_for_links(self, obj):
+        print("searching for links on")
+        print(obj)
+        links = []
+        if isinstance(obj, dict):
+            for _, value in obj.items():
+                links += self.search_for_links(value)
+        elif isinstance(obj, list):
+            for value in obj:
+                links += self.search_for_links(value)
+        links += self.get_span_links(obj)
+        return links
+
     def record_object(self, span, obj, to):
-        carried_span_links = self.get_span_links(obj)
+        carried_span_links = []
+        if isinstance(obj, dict):
+            obj = TrackedDict(obj)
+            carried_span_links += self.search_for_links(obj)
+        elif isinstance(obj, list):
+            obj = TrackedList(obj)
+            carried_span_links += self.search_for_links(obj)
+        elif isinstance(obj, str):
+            obj = TrackedStr(obj)
+
+        carried_span_links += self.get_span_links(obj)
         current_span_links = []
         for span_link in carried_span_links:
             if span_link["attributes"]["from"] == "input" and to == "output":
@@ -332,6 +418,7 @@ class LLMObs(Service):
                 }
             ],
         )
+        return obj
 
     def _tag_span_links(self, span, span_links):
         current_span_links = span.get_tag("_ml_obs.span_links")
