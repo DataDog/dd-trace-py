@@ -18,6 +18,7 @@ from ..constants import HEADER_NAME_VALUE_SEPARATOR
 from ..constants import VULN_HEADER_INJECTION
 from ._base import VulnerabilityBase
 
+
 log = get_logger(__name__)
 
 HEADER_INJECTION_EXCLUSIONS = {
