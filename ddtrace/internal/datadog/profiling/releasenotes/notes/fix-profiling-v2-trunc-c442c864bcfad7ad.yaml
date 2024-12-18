@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    Fixes an issue where Profiling stack v2 would erroneously emplace informational pseudo-frames
+    profiling: Fixes an issue where stack v2 would erroneously emplace informational pseudo-frames
     on the leaf instead of the root of the callstack.
