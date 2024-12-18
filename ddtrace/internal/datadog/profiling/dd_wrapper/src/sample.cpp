@@ -146,14 +146,14 @@ Datadog::Sample::clear_buffers()
 bool
 Datadog::Sample::flush_sample(bool reverse_locations)
 {
+    if (reverse_locations) {
+        std::reverse(locations.begin(), locations.end());
+    }
+
     if (dropped_frames > 0) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);
-    }
-
-    if (reverse_locations) {
-        std::reverse(locations.begin(), locations.end());
     }
 
     const ddog_prof_Sample sample = {
@@ -407,7 +407,6 @@ Datadog::Sample::push_absolute_ns(int64_t _timestamp_ns)
 
     return true;
 }
-
 
 bool
 Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
