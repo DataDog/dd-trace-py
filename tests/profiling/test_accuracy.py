@@ -102,5 +102,5 @@ def test_accuracy():
     else:
         assert almost_equal(total_time(time_spent_ns, "spend_cpu_2"), 2e9)
         assert almost_equal(total_time(time_spent_ns, "spend_cpu_3"), 3e9)
-        assert almost_equal(total_time(time_spent_ns, "spend_cpu_2"), 2e9, CPU_TOLERANCE)
-        assert almost_equal(total_time(time_spent_ns, "spend_cpu_3"), 3e9, CPU_TOLERANCE)
+        assert almost_equal(total_time(cpu_spent_ns, "spend_cpu_2"), 2e9, CPU_TOLERANCE)
+        assert almost_equal(total_time(cpu_spent_ns, "spend_cpu_3"), 3e9, CPU_TOLERANCE)
