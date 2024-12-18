@@ -67,7 +67,11 @@ _stack_v2_atfork_child()
     // so we don't even reveal this function to the user
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
-    thread_info_map_lock.unlock();
+
+    // `thread_info_map_lock` is a global lock held in echion; it needs to be destroyed and re-initialized to ensure
+    // it has a consistent state
+    thread_info_map_lock.~mutex();
+    new (&thread_info_map_lock) std::mutex;
 }
 
 __attribute__((constructor)) void

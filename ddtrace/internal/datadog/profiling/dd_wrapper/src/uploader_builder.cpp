@@ -190,5 +190,6 @@ Datadog::UploaderBuilder::build()
 void
 Datadog::UploaderBuilder::postfork_child()
 {
-    tag_mutex.unlock();
+    tag_mutex.~mutex();
+    new (&tag_mutex) std::mutex();
 }
