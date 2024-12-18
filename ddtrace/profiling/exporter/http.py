@@ -15,7 +15,6 @@ import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
-from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder  # noqa:F401
@@ -67,7 +66,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
         self.version: typing.Optional[str] = version
         self.tags: typing.Dict[str, str] = tags if tags is not None else {}
         self.max_retry_delay: typing.Optional[float] = max_retry_delay
-        self._container_info: typing.Optional[container.CGroupInfo] = container.get_container_info()
         self.endpoint_call_counter_span_processor: typing.Optional[
             EndpointCallCounterProcessor
         ] = endpoint_call_counter_span_processor
@@ -182,8 +180,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
             }
         else:
             headers = {}
-
-        container.update_headers_with_container_info(headers, self._container_info)
 
         profile, libs = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         pprof = io.BytesIO()

@@ -1,5 +1,3 @@
-import json
-
 import mock
 import pytest
 
@@ -37,7 +35,7 @@ def test_processor_returns_all_traces_by_default():
     """Test that the LLMObsTraceProcessor returns all traces by default."""
     trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
     root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
-    root_llm_span.set_tag_str(SPAN_KIND, "llm")
+    root_llm_span._set_ctx_item(SPAN_KIND, "llm")
     trace1 = [root_llm_span]
     assert trace_filter.process_trace(trace1) == trace1
 
@@ -47,7 +45,7 @@ def test_processor_returns_all_traces_if_not_agentless():
     with override_global_config(dict(_llmobs_agentless_enabled=False)):
         trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
         root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
-        root_llm_span.set_tag_str(SPAN_KIND, "llm")
+        root_llm_span._set_ctx_item(SPAN_KIND, "llm")
         trace1 = [root_llm_span]
         assert trace_filter.process_trace(trace1) == trace1
 
@@ -57,7 +55,7 @@ def test_processor_returns_none_in_agentless_mode():
     with override_global_config(dict(_llmobs_agentless_enabled=True)):
         trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
         root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
-        root_llm_span.set_tag_str(SPAN_KIND, "llm")
+        root_llm_span._set_ctx_item(SPAN_KIND, "llm")
         trace1 = [root_llm_span]
         assert trace_filter.process_trace(trace1) is None
 
@@ -67,7 +65,7 @@ def test_processor_creates_llmobs_span_event():
         mock_llmobs_span_writer = mock.MagicMock()
         trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         root_llm_span = Span(name="root", span_type=SpanTypes.LLM)
-        root_llm_span.set_tag_str(SPAN_KIND, "llm")
+        root_llm_span._set_ctx_item(SPAN_KIND, "llm")
         trace = [root_llm_span]
         trace_filter.process_trace(trace)
     assert mock_llmobs_span_writer.enqueue.call_count == 1
@@ -83,10 +81,10 @@ def test_processor_only_creates_llmobs_span_event():
     trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
-            root_span.set_tag_str(SPAN_KIND, "llm")
+            root_span._set_ctx_item(SPAN_KIND, "llm")
             with dummy_tracer.trace("child_span") as child_span:
                 with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
-                    grandchild_span.set_tag_str(SPAN_KIND, "llm")
+                    grandchild_span._set_ctx_item(SPAN_KIND, "llm")
         trace = [root_span, child_span, grandchild_span]
         expected_grandchild_llmobs_span = _expected_llmobs_llm_span_event(grandchild_span, "llm")
         expected_grandchild_llmobs_span["parent_id"] = str(root_span.span_id)
@@ -123,7 +121,7 @@ def test_propagate_session_id_from_ancestors():
     """
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
-        root_span.set_tag_str(SESSION_ID, "test_session_id")
+        root_span._set_ctx_item(SESSION_ID, "test_session_id")
         with dummy_tracer.trace("child_span"):
             with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
                 pass
@@ -134,10 +132,10 @@ def test_session_id_if_set_manually():
     """Test that session_id is extracted from the span if it is already set manually."""
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
-        root_span.set_tag_str(SESSION_ID, "test_session_id")
+        root_span._set_ctx_item(SESSION_ID, "test_session_id")
         with dummy_tracer.trace("child_span"):
             with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
-                llm_span.set_tag_str(SESSION_ID, "test_different_session_id")
+                llm_span._set_ctx_item(SESSION_ID, "test_different_session_id")
     assert _get_session_id(llm_span) == "test_different_session_id"
 
 
@@ -149,13 +147,13 @@ def test_session_id_propagates_ignore_non_llmobs_spans():
     dummy_tracer = DummyTracer()
     with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag_str(SPAN_KIND, "llm")
-            llm_span.set_tag_str(SESSION_ID, "session-123")
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(SESSION_ID, "session-123")
             with dummy_tracer.trace("child_span"):
                 with dummy_tracer.trace("llm_grandchild_span", span_type=SpanTypes.LLM) as grandchild_span:
-                    grandchild_span.set_tag_str(SPAN_KIND, "llm")
+                    grandchild_span._set_ctx_item(SPAN_KIND, "llm")
                     with dummy_tracer.trace("great_grandchild_span", span_type=SpanTypes.LLM) as great_grandchild_span:
-                        great_grandchild_span.set_tag_str(SPAN_KIND, "llm")
+                        great_grandchild_span._set_ctx_item(SPAN_KIND, "llm")
         tp = LLMObsTraceProcessor(dummy_tracer._writer)
         llm_span_event, _ = tp._llmobs_span_event(llm_span)
         grandchild_span_event, _ = tp._llmobs_span_event(grandchild_span)
@@ -170,7 +168,7 @@ def test_ml_app_tag_defaults_to_env_var():
     dummy_tracer = DummyTracer()
     with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag_str(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
             pass
         tp = LLMObsTraceProcessor(dummy_tracer._writer)
         span_event, _ = tp._llmobs_span_event(llm_span)
@@ -182,8 +180,8 @@ def test_ml_app_tag_overrides_env_var():
     dummy_tracer = DummyTracer()
     with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag_str(SPAN_KIND, "llm")
-            llm_span.set_tag(ML_APP, "test-ml-app")
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(ML_APP, "test-ml-app")
         tp = LLMObsTraceProcessor(dummy_tracer._writer)
         span_event, _ = tp._llmobs_span_event(llm_span)
         assert "ml_app:test-ml-app" in span_event["tags"]
@@ -197,13 +195,13 @@ def test_ml_app_propagates_ignore_non_llmobs_spans():
     dummy_tracer = DummyTracer()
     with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag_str(SPAN_KIND, "llm")
-            llm_span.set_tag(ML_APP, "test-ml-app")
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(ML_APP, "test-ml-app")
             with dummy_tracer.trace("child_span"):
                 with dummy_tracer.trace("llm_grandchild_span", span_type=SpanTypes.LLM) as grandchild_span:
-                    grandchild_span.set_tag_str(SPAN_KIND, "llm")
+                    grandchild_span._set_ctx_item(SPAN_KIND, "llm")
                     with dummy_tracer.trace("great_grandchild_span", span_type=SpanTypes.LLM) as great_grandchild_span:
-                        great_grandchild_span.set_tag_str(SPAN_KIND, "llm")
+                        great_grandchild_span._set_ctx_item(SPAN_KIND, "llm")
         tp = LLMObsTraceProcessor(dummy_tracer._writer)
         llm_span_event, _ = tp._llmobs_span_event(llm_span)
         grandchild_span_event, _ = tp._llmobs_span_event(grandchild_span)
@@ -234,9 +232,9 @@ def test_model_and_provider_are_set():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(MODEL_NAME, "model_name")
-            llm_span.set_tag(MODEL_PROVIDER, "model_provider")
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(MODEL_NAME, "model_name")
+            llm_span._set_ctx_item(MODEL_PROVIDER, "model_provider")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         span_event, _ = tp._llmobs_span_event(llm_span)
     assert span_event["meta"]["model_name"] == "model_name"
@@ -249,8 +247,8 @@ def test_model_provider_defaults_to_custom():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(MODEL_NAME, "model_name")
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(MODEL_NAME, "model_name")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         span_event, _ = tp._llmobs_span_event(llm_span)
     assert span_event["meta"]["model_name"] == "model_name"
@@ -263,8 +261,8 @@ def test_model_not_set_if_not_llm_kind_span():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_workflow_span", span_type=SpanTypes.LLM) as span:
-            span.set_tag(SPAN_KIND, "workflow")
-            span.set_tag(MODEL_NAME, "model_name")
+            span._set_ctx_item(SPAN_KIND, "workflow")
+            span._set_ctx_item(MODEL_NAME, "model_name")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         span_event, _ = tp._llmobs_span_event(span)
     assert "model_name" not in span_event["meta"]
@@ -277,8 +275,8 @@ def test_input_messages_are_set():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(INPUT_MESSAGES, '[{"content": "message", "role": "user"}]')
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(INPUT_MESSAGES, [{"content": "message", "role": "user"}])
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)[0]["meta"]["input"]["messages"] == [
             {"content": "message", "role": "user"}
@@ -291,8 +289,8 @@ def test_input_value_is_set():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(INPUT_VALUE, "value")
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(INPUT_VALUE, "value")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)[0]["meta"]["input"]["value"] == "value"
 
@@ -303,8 +301,8 @@ def test_input_parameters_are_set():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(INPUT_PARAMETERS, '{"key": "value"}')
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(INPUT_PARAMETERS, {"key": "value"})
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)[0]["meta"]["input"]["parameters"] == {"key": "value"}
 
@@ -315,8 +313,8 @@ def test_output_messages_are_set():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(OUTPUT_MESSAGES, '[{"content": "message", "role": "user"}]')
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(OUTPUT_MESSAGES, [{"content": "message", "role": "user"}])
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)[0]["meta"]["output"]["messages"] == [
             {"content": "message", "role": "user"}
@@ -329,8 +327,8 @@ def test_output_value_is_set():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(OUTPUT_VALUE, "value")
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(OUTPUT_VALUE, "value")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)[0]["meta"]["output"]["value"] == "value"
 
@@ -341,8 +339,8 @@ def test_prompt_is_set():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(INPUT_PROMPT, json.dumps({"variables": {"var1": "var2"}}))
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(INPUT_PROMPT, {"variables": {"var1": "var2"}})
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)[0]["meta"]["input"]["prompt"] == {"variables": {"var1": "var2"}}
 
@@ -353,9 +351,9 @@ def test_prompt_is_not_set_for_non_llm_spans():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("task_span", span_type=SpanTypes.LLM) as task_span:
-            task_span.set_tag(SPAN_KIND, "task")
-            task_span.set_tag(INPUT_VALUE, "ival")
-            task_span.set_tag(INPUT_PROMPT, json.dumps({"variables": {"var1": "var2"}}))
+            task_span._set_ctx_item(SPAN_KIND, "task")
+            task_span._set_ctx_item(INPUT_VALUE, "ival")
+            task_span._set_ctx_item(INPUT_PROMPT, {"variables": {"var1": "var2"}})
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(task_span)[0]["meta"]["input"].get("prompt") is None
 
@@ -366,8 +364,8 @@ def test_metadata_is_set():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(METADATA, '{"key": "value"}')
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(METADATA, {"key": "value"})
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)[0]["meta"]["metadata"] == {"key": "value"}
 
@@ -378,8 +376,8 @@ def test_metrics_are_set():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            llm_span.set_tag(METRICS, '{"tokens": 100}')
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(METRICS, {"tokens": 100})
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)[0]["metrics"] == {"tokens": 100}
 
@@ -390,7 +388,7 @@ def test_langchain_span_name_is_set_to_class_name():
     mock_llmobs_span_writer = mock.MagicMock()
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with dummy_tracer.trace(LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span._set_ctx_item(SPAN_KIND, "llm")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)[0]["name"] == "expected_name"
 
@@ -402,7 +400,7 @@ def test_error_is_set():
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         with pytest.raises(ValueError):
             with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-                llm_span.set_tag(SPAN_KIND, "llm")
+                llm_span._set_ctx_item(SPAN_KIND, "llm")
                 raise ValueError("error")
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         span_event, _ = tp._llmobs_span_event(llm_span)

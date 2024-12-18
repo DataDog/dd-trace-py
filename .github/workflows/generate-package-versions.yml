@@ -8,7 +8,7 @@ on:
 jobs:
   generate-package-versions:
     name: Generate package versions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       actions: read
       contents: write
@@ -16,6 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Python 3.7
         uses: actions/setup-python@v5
