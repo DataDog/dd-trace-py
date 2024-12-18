@@ -768,6 +768,7 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
         assert vulnerability["location"]["spanId"]
         assert vulnerability["hash"]
 
+
 def test_fastapi_header_injection(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/header_injection/")
     async def header_injection(request: Request):
