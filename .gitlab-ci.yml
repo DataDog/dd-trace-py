@@ -2,6 +2,7 @@ stages:
   - package
   - tests-gen
   - tests-trigger
+  - quality-gate
   - shared-pipeline
   - benchmarks
   - macrobenchmarks
@@ -27,7 +28,7 @@ tests-gen:
   stage: tests-gen
   extends: .testrunner
   script:
-    - pip install riot==0.20.0
+    - pip install riot==0.20.1
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
   artifacts:
@@ -87,3 +88,17 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
+
+check_new_flaky_tests:
+  stage: quality-gate
+  extends: .testrunner
+  script:
+    - curl -L --fail "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64" --output "/usr/local/bin/datadog-ci" && chmod +x /usr/local/bin/datadog-ci
+    - export DD_SITE=datadoghq.com
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
+    - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
+    - datadog-ci gate evaluate
+  except:
+    - main
+    - '[0-9].[0-9]*'
+    - 'mq-working-branch**'
