@@ -109,7 +109,7 @@ class _DDWSGIMiddlewareBase(object):
             environ=environ,
             middleware=self,
             span_key="req_span",
-        ) as ctx:
+        ) as ctx, ctx.span:
             ctx.set_item("wsgi.construct_url", construct_url)
 
             def blocked_view():

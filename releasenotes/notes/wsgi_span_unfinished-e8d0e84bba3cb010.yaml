@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Tracer: This fix resolves a rare issue where the flask.request span was not properly finished.
