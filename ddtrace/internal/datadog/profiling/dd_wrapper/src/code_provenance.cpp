@@ -164,14 +164,15 @@ CodeProvenance::get_package_name(std::string_view filename)
 const Package*
 CodeProvenance::add_new_package(std::string_view package_name, std::string_view version)
 {
-    std::unique_ptr<Package> package = std::make_unique<Package>();
-    package->name = package_name;
-    package->version = version;
+    auto [iter, inserted] = packages.try_emplace(
+        std::string(package_name),  // Create string key from string_view
+        std::make_unique<Package>(Package{
+            .name = std::string(package_name),
+            .version = std::string(version)
+        })
+    );
 
-    const Package* ret_val = package.get();
-    packages[std::string_view(package->name)] = std::move(package);
-
-    return ret_val;
+    return iter->second.get();
 }
 
 }
