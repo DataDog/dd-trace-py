@@ -79,6 +79,8 @@ log = get_logger(__name__)
 
 
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
+USER_PROPERTY_QUARANTINED = "dd_quarantined"
+OUTCOME_QUARANTINED = "quarantined"
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -303,7 +305,7 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     is_quarantined = InternalTest.is_quarantined_test(test_id)
     if is_quarantined:
         # We add this information to user_properties to have it available in pytest_runtest_makereport().
-        item.user_properties += [("dd_quarantined", True)]
+        item.user_properties += [(USER_PROPERTY_QUARANTINED, True)]
 
     if collect_test_coverage:
         return _start_collecting_coverage()
@@ -451,7 +453,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if original_result.failed and is_quarantined:
         # Ensure test doesn't count as failed for pytest's exit status logic
         # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
-        original_result.outcome = "quarantined"
+        original_result.outcome = OUTCOME_QUARANTINED
 
     # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
     # NOTE: this mutates the original result's outcome
@@ -602,10 +604,10 @@ def pytest_report_teststatus(
             return test_status
 
     user_properties = getattr(report, "user_properties", [])
-    is_quarantined = ("dd_quarantined", True) in user_properties
+    is_quarantined = (USER_PROPERTY_QUARANTINED, True) in user_properties
     if is_quarantined:
         if report.when == "teardown":
-            return ("quarantined", "q", ("QUARANTINED", {"blue": True}))
+            return (OUTCOME_QUARANTINED, "q", ("QUARANTINED", {"blue": True}))
         else:
             # Don't show anything for setup and call of quarantined tests, regardless of
             # whether there were errors or not.

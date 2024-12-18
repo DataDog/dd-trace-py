@@ -384,7 +384,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
             quarantine = QuarantineSettings(
                 enabled=attributes.get("quarantine", {}).get("enabled", False)
-                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE"))  # ꙮ
+                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE"))
             )
 
         except KeyError:
@@ -396,8 +396,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skipping_enabled=skipping_enabled,
             require_git=require_git,
             itr_enabled=itr_enabled,
-            flaky_test_retries_enabled=flaky_test_retries_enabled
-            or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_ATR")),  # ꙮ
+            flaky_test_retries_enabled=flaky_test_retries_enabled,
             early_flake_detection=early_flake_detection,
             quarantine=quarantine,
         )
@@ -510,7 +509,6 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         }
 
         try:
-            # ꙮ Change to the new tests/detailed endpoint.
             parsed_response = self._do_request_with_telemetry(
                 "POST", UNIQUE_TESTS_ENDPOINT, json.dumps(payload), metric_names
             )
