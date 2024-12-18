@@ -1,15 +1,17 @@
 stages:
-  - tests
+  - precheck
+  - hatch
+  - riot
 
 variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  _DD_CIVISIBILITY_USE_PYTEST_V2: "true"
+  DD_PYTEST_USE_NEW_PLUGIN_BETA: "true"
   PYTEST_ADDOPTS: "-s"
   # CI_DEBUG_SERVICES: "true"
 
 .testrunner:
-  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:7a2e802af76051f82d698919d2837eff18dbb48e
+  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
   timeout: 20m
@@ -22,7 +24,7 @@ variables:
 
 .test_base_hatch:
   extends: .testrunner
-  stage: tests
+  stage: hatch
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
   needs: []
   parallel: 4
@@ -57,7 +59,7 @@ variables:
 
 build_base_venvs:
   extends: .testrunner
-  stage: tests
+  stage: riot
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
@@ -66,7 +68,7 @@ build_base_venvs:
     PIP_VERBOSE: 1
     DD_PROFILING_NATIVE_TESTS: 1
   script:
-    - pip install riot==0.20.0
+    - pip install riot==0.20.1
     - riot -P -v generate --python=$PYTHON_VERSION
   artifacts:
     name: venv_$PYTHON_VERSION
@@ -76,9 +78,10 @@ build_base_venvs:
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
 
+# Do not define a `needs:` in order to depend on the whole `precheck` stage
 .test_base_riot:
   extends: .testrunner
-  stage: tests
+  stage: riot
   needs: [ build_base_venvs ]
   parallel: 4
   services:
@@ -86,7 +89,7 @@ build_base_venvs:
   # DEV: This is the max retries that GitLab currently allows for
   retry: 2
   script:
-    - pip install riot==0.20.0
+    - pip install riot==0.20.1
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
@@ -119,18 +122,5 @@ build_base_venvs:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/root/project"
 
-slotscheck:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  script:
-    - hatch run slotscheck:_
-
-conftests:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  script:
-    - hatch run meta-testing:meta-testing
 
 # Required jobs will appear here

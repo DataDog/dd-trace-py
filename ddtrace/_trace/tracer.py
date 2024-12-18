@@ -233,9 +233,12 @@ class Tracer(object):
         # _user_sampler is the backup in case we need to revert from remote config to local
         self._user_sampler: Optional[BaseSampler] = DatadogSampler()
         self._asm_enabled = asm_config._asm_enabled
+        self._iast_enabled = asm_config._iast_enabled
         self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        self._apm_opt_out = self._asm_enabled and self._appsec_standalone_enabled
+        self._apm_opt_out = self._appsec_standalone_enabled and (
+            self._asm_enabled or self._iast_enabled or config._sca_enabled
+        )
         if self._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
@@ -267,7 +270,6 @@ class Tracer(object):
         self._partial_flush_min_spans = config._partial_flush_min_spans
         # Direct link to the appsec processor
         self._appsec_processor = None
-        self._iast_enabled = asm_config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
@@ -498,7 +500,7 @@ class Tracer(object):
         if appsec_standalone_enabled is not None:
             self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled = appsec_standalone_enabled
 
-        if self._appsec_standalone_enabled and self._asm_enabled:
+        if self._appsec_standalone_enabled and (self._asm_enabled or self._iast_enabled or config._sca_enabled):
             self._apm_opt_out = True
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)

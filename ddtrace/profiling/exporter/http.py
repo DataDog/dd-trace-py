@@ -15,11 +15,12 @@ import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
-from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder  # noqa:F401
 from ddtrace.profiling.exporter import pprof
+from ddtrace.profiling.utils import _get_endpoint
+from ddtrace.profiling.utils import _get_endpoint_path
 from ddtrace.settings.profiling import config
 
 
@@ -39,8 +40,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     def __init__(
         self,
+        tracer: ddtrace.Tracer = ddtrace.tracer,
         enable_code_provenance: bool = True,
-        endpoint: typing.Optional[str] = None,
         api_key: typing.Optional[str] = None,
         timeout: float = config.api_timeout,
         service: typing.Optional[str] = None,
@@ -48,15 +49,14 @@ class PprofHTTPExporter(pprof.PprofExporter):
         version: typing.Optional[str] = None,
         tags: typing.Optional[typing.Dict[str, str]] = None,
         max_retry_delay: typing.Optional[float] = None,
-        endpoint_path: str = "/profiling/v1/input",
         endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = None,
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         # repeat this to please mypy
+        self.tracer = tracer
         self.enable_code_provenance: bool = enable_code_provenance
-        self.endpoint: str = endpoint if endpoint is not None else agent.get_trace_url()
         self.api_key: typing.Optional[str] = api_key
         # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
         # backend is not as fast as the tracer one.
@@ -66,13 +66,19 @@ class PprofHTTPExporter(pprof.PprofExporter):
         self.version: typing.Optional[str] = version
         self.tags: typing.Dict[str, str] = tags if tags is not None else {}
         self.max_retry_delay: typing.Optional[float] = max_retry_delay
-        self._container_info: typing.Optional[container.CGroupInfo] = container.get_container_info()
-        self.endpoint_path: str = endpoint_path
         self.endpoint_call_counter_span_processor: typing.Optional[
             EndpointCallCounterProcessor
         ] = endpoint_call_counter_span_processor
 
         self.__post_init__()
+
+    @property
+    def endpoint(self):
+        return _get_endpoint(self.tracer, agentless=config.agentless)
+
+    @property
+    def endpoint_path(self):
+        return _get_endpoint_path(agentless=config.agentless)
 
     def __eq__(self, other):
         # Exporter class used to be decorated with @attr.s which implements __eq__, using only the attributes defined
@@ -174,8 +180,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
             }
         else:
             headers = {}
-
-        container.update_headers_with_container_info(headers, self._container_info)
 
         profile, libs = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         pprof = io.BytesIO()

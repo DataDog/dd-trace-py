@@ -7,9 +7,6 @@ from ddtrace.internal.telemetry import telemetry_writer
 
 log = get_logger(__name__)
 
-EARLY_FLAKE_DETECTION_TELEMETRY_PREFIX = "early_flake_detection."
-RESPONSE_TESTS = f"{EARLY_FLAKE_DETECTION_TELEMETRY_PREFIX}response_tests"
-
 
 class EARLY_FLAKE_DETECTION_TELEMETRY(str, Enum):
     REQUEST = "early_flake_detection.request"
@@ -21,4 +18,6 @@ class EARLY_FLAKE_DETECTION_TELEMETRY(str, Enum):
 
 def record_early_flake_detection_tests_count(early_flake_detection_count: int):
     log.debug("Recording early flake detection tests count telemetry: %s", early_flake_detection_count)
-    telemetry_writer.add_count_metric(_NAMESPACE, RESPONSE_TESTS, early_flake_detection_count)
+    telemetry_writer.add_distribution_metric(
+        _NAMESPACE, EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_TESTS.value, early_flake_detection_count
+    )

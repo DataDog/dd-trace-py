@@ -13,17 +13,20 @@ import typing as t
 class JobSpec:
     name: str
     runner: str
-    is_snapshot: bool = False
+    pattern: t.Optional[str] = None
+    snapshot: bool = False
     services: t.Optional[t.Set[str]] = None
     env: t.Optional[t.Dict[str, str]] = None
     parallelism: t.Optional[int] = None
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
+    skip: bool = False
+    paths: t.Optional[t.Set[str]] = None  # ignored
 
     def __str__(self) -> str:
         lines = []
         base = f".test_base_{self.runner}"
-        if self.is_snapshot:
+        if self.snapshot:
             base += "_snapshot"
 
         lines.append(f"{self.name}:")
@@ -33,16 +36,20 @@ class JobSpec:
             lines.append("  services:")
 
             _services = [f"!reference [.services, {_}]" for _ in self.services]
-            if self.is_snapshot:
+            if self.snapshot:
                 _services.insert(0, f"!reference [{base}, services]")
 
             for service in _services:
                 lines.append(f"    - {service}")
 
-        if self.env:
-            lines.append("  variables:")
-            for key, value in self.env.items():
-                lines.append(f"    {key}: {value}")
+        env = self.env
+        if not env or "SUITE_NAME" not in env:
+            env = env or {}
+            env["SUITE_NAME"] = self.pattern or self.name
+
+        lines.append("  variables:")
+        for key, value in env.items():
+            lines.append(f"    {key}: {value}")
 
         if self.parallelism is not None:
             lines.append(f"  parallel: {self.parallelism}")
@@ -56,57 +63,107 @@ class JobSpec:
         return "\n".join(lines)
 
 
-def collect_jobspecs() -> dict:
-    # Recursively search for jobspec.yml in TESTS
-    jobspecs = {}
-    for js in TESTS.rglob("jobspec.yml"):
-        with YAML() as yaml:
-            LOGGER.info("Loading jobspecs from %s", js)
-            jobspecs.update(yaml.load(js))
-
-    return jobspecs
-
-
 def gen_required_suites() -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
-    from needs_testrun import for_each_testrun_needed as fetn
-    from suitespec import get_suites
+    from needs_testrun import for_each_testrun_needed
+    import suitespec
 
-    jobspecs = collect_jobspecs()
+    suites = suitespec.get_suites()
 
-    suites = get_suites()
-    required_suites = []
+    required_suites: t.List[str] = []
 
-    for suite in suites:
-        if suite not in jobspecs:
-            print(f"WARNING: Suite {suite} has no jobspec", file=sys.stderr)
-            continue
-
-    for job in jobspecs:
-        if job not in suites:
-            print(f"WARNING: Job {job} has no suitespec", file=sys.stderr)
-            continue
-
-    fetn(
-        suites=sorted(suites),
+    for_each_testrun_needed(
+        suites=sorted(suites.keys()),
         action=lambda suite: required_suites.append(suite),
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
 
+    # Exclude the suites that are run in CircleCI. These likely don't run in
+    # GitLab yet.
+    with YAML() as yaml:
+        circleci_config = yaml.load(ROOT / ".circleci" / "config.templ.yml")
+        circleci_jobs = set(circleci_config["jobs"].keys())
+
     # Copy the template file
-    (GITLAB / "tests-gen.yml").write_text(
+    TESTS_GEN.write_text(
         (GITLAB / "tests.yml").read_text().replace(r"{{services.yml}}", (GITLAB / "services.yml").read_text())
     )
 
     # Generate the list of suites to run
-    with (GITLAB / "tests-gen.yml").open("a") as f:
+    with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            if suite not in jobspecs:
-                print(f"Suite {suite} not found in jobspec", file=sys.stderr)
+            if suite.rsplit("::", maxsplit=1)[-1] in circleci_jobs:
+                LOGGER.debug("Skipping CircleCI suite %s", suite)
                 continue
 
-            print(str(JobSpec(suite, **jobspecs[suite])), file=f)
+            jobspec = JobSpec(suite, **suites[suite])
+            if jobspec.skip:
+                LOGGER.debug("Skipping suite %s", suite)
+                continue
+
+            print(str(jobspec), file=f)
+
+
+def gen_pre_checks() -> None:
+    """Generate the list of pre-checks that need to be run."""
+    from needs_testrun import pr_matches_patterns
+
+    def check(name: str, command: str, paths: t.Set[str]) -> None:
+        if pr_matches_patterns(paths):
+            with TESTS_GEN.open("a") as f:
+                print(f'"{name}":', file=f)
+                print("  extends: .testrunner", file=f)
+                print("  stage: precheck", file=f)
+                print("  needs: []", file=f)
+                print("  script:", file=f)
+                print(f"    - {command}", file=f)
+
+    check(
+        name="Style",
+        command="hatch run lint:style",
+        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+    )
+    check(
+        name="Typing",
+        command="hatch run lint:typing",
+        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+    )
+    check(
+        name="Security",
+        command="hatch run lint:security",
+        paths={"docker*", "ddtrace/*", "hatch.toml"},
+    )
+    check(
+        name="Run riotfile.py tests",
+        command="hatch run lint:riot",
+        paths={"docker*", "riotfile.py", "hatch.toml"},
+    )
+    check(
+        name="Style: Test snapshots",
+        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
+        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
+    )
+    check(
+        name="Run scripts/*.py tests",
+        command="hatch run scripts:test",
+        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
+    )
+    check(
+        name="Check suitespec coverage",
+        command="hatch run lint:suitespec-check",
+        paths={"*"},
+    )
+    check(
+        name="conftest",
+        command="hatch run meta-testing:meta-testing",
+        paths={"**conftest.py"},
+    )
+    check(
+        name="slotscheck",
+        command="hatch run slotscheck:_",
+        paths={"**.py"},
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -128,16 +185,22 @@ LOGGER = logging.getLogger(__name__)
 
 argp = ArgumentParser()
 argp.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+argp.add_argument("--debug", "-d", action="store_true", help="Debug output")
 args = argp.parse_args()
-if args.verbose:
+if args.debug:
+    LOGGER.setLevel(logging.DEBUG)
+elif args.verbose:
     LOGGER.setLevel(logging.INFO)
 
 ROOT = Path(__file__).parents[1]
 GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
+TESTS_GEN = GITLAB / "tests-gen.yml"
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
+
+has_error = False
 
 LOGGER.info("Configuration generation steps:")
 for name, func in dict(globals()).items():
@@ -146,8 +209,9 @@ for name, func in dict(globals()).items():
         try:
             start = time()
             func()
-            end = time()
-            LOGGER.info("- %s: %s [took %dms]", name, desc, int((end - start) / 1e6))
+            LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
         except Exception as e:
             LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
             has_error = True
+
+sys.exit(has_error)

@@ -57,9 +57,11 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.21.0"
+LIBDDWAF_VERSION = "1.22.0"
 
-RUST_MINIMUM_VERSION = "1.71"  # Safe guess:  1.71 is about a year old as of 2024-07-03
+# DEV: update this accordingly when src/core upgrades libdatadog dependency.
+# libdatadog v14.1.0 requires rust 1.76.
+RUST_MINIMUM_VERSION = "1.76"
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
@@ -610,7 +612,11 @@ setup(
                 "ddtrace.profiling.collector.stack",
                 sources=["ddtrace/profiling/collector/stack.pyx"],
                 language="c",
-                extra_compile_args=extra_compile_args,
+                # cython generated code errors on build in toolchains that are strict about int->ptr conversion
+                # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying toolchain and
+                # emit the right flags, but as a compromise we assume Windows implies MSVC and everything else is on a
+                # GNU-like toolchain
+                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",

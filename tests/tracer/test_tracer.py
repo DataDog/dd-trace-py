@@ -2043,21 +2043,38 @@ def test_import_ddtrace_tracer_not_module():
     assert isinstance(tracer, Tracer)
 
 
-def test_asm_standalone_configuration():
-    tracer = ddtrace.Tracer()
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
-    assert tracer._asm_enabled is True
-    assert tracer._appsec_standalone_enabled is True
-    assert tracer._apm_opt_out is True
-    assert tracer.enabled is False
+@pytest.mark.parametrize("sca_enabled", ["true", "false"])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
+def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled):
+    if not appsec_enabled and not iast_enabled and sca_enabled == "false":
+        pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    assert isinstance(tracer._sampler.limiter, RateLimiter)
-    assert tracer._sampler.limiter.rate_limit == 1
-    assert tracer._sampler.limiter.time_window == 60e9
+    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
+        ddtrace.config._reset()
+        tracer = ddtrace.Tracer()
+        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, appsec_standalone_enabled=True)
+        if appsec_enabled:
+            assert tracer._asm_enabled is True
+        if iast_enabled:
+            assert tracer._iast_enabled is True
+        if sca_enabled == "true":
+            assert bool(ddtrace.config._sca_enabled) is True
 
-    assert tracer._compute_stats is False
+        assert tracer._appsec_standalone_enabled is True
+        assert tracer._apm_opt_out is True
+        assert tracer.enabled is False
+
+        assert isinstance(tracer._sampler.limiter, RateLimiter)
+        assert tracer._sampler.limiter.rate_limit == 1
+        assert tracer._sampler.limiter.time_window == 60e9
+
+        assert tracer._compute_stats is False
+
     # reset tracer values
-    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+    with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
+        ddtrace.config._reset()
+        tracer.configure(appsec_enabled=False, iast_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_gc_not_used_on_root_spans():

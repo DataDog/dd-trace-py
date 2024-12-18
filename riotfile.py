@@ -102,7 +102,7 @@ venv = Venv(
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
-        "_DD_CIVISIBILITY_USE_PYTEST_V2": "true",
+        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "true",
     },
     venvs=[
         Venv(
@@ -116,6 +116,7 @@ venv = Venv(
             pys=["3"],
             pkgs={
                 "ruamel.yaml": latest,
+                "lxml": latest,
             },
         ),
         Venv(
@@ -124,6 +125,7 @@ venv = Venv(
             pys=["3"],
             pkgs={
                 "ruamel.yaml": latest,
+                "lxml": latest,
             },
         ),
         Venv(
@@ -720,10 +722,9 @@ venv = Venv(
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
                     },
                     pkgs={
-                        "celery": [
+                        "celery[redis]": [
                             latest,
                         ],
-                        "redis": "~=3.5",
                     },
                 ),
             ],
@@ -1606,7 +1607,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
             },
             venvs=[
                 Venv(
@@ -1694,9 +1695,6 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
             },
-            env={
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
-            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1707,6 +1705,18 @@ venv = Venv(
                             ">=6.0,<6.1",
                         ]
                     },
+                    venvs=[
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                            },
+                        ),
+                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
@@ -1717,31 +1727,49 @@ venv = Venv(
                             ">=6.0,<6.1",
                         ]
                     },
+                    venvs=[
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                            },
+                        ),
+                    ],
                 ),
             ],
         ),
         Venv(
             name="pytest-benchmark",
+            pys=select_pys(min_version="3.7", max_version="3.12"),
             command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
             },
-            env={
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "0",
-            },
             venvs=[
                 Venv(
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.7", max_version="3.10"),
-                            pkgs={
-                                "pytest-benchmark": [
-                                    ">=3.1.0,<=4.0.0",
-                                ]
-                            },
-                        )
-                    ],
+                    pkgs={
+                        "pytest-benchmark": [
+                            ">=3.1.0,<=4.0.0",
+                        ]
+                    },
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "pytest-benchmark": [
+                            ">=3.1.0,<=4.0.0",
+                        ]
+                    },
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                    },
                 ),
             ],
         ),
@@ -2721,6 +2749,8 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "google-generativeai": [latest],
                 "pillow": latest,
+                "google-ai-generativelanguage": [latest],
+                "vertexai": [latest],
             },
         ),
         Venv(
@@ -2730,6 +2760,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
+                "google-ai-generativelanguage": [latest],
             },
         ),
         Venv(
@@ -2804,6 +2835,15 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "envier": "==0.5.2",
+            },
+        ),
+        Venv(
+            name="azure_functions",
+            command="pytest {cmdargs} tests/contrib/azure_functions",
+            pys=select_pys(min_version="3.7", max_version="3.11"),
+            pkgs={
+                "azure.functions": latest,
+                "requests": latest,
             },
         ),
         Venv(
@@ -2990,7 +3030,7 @@ venv = Venv(
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
                 # Enable pytest v2 plugin to handle pytest-cpp items in the test suite
-                "_DD_CIVISIBILITY_USE_PYTEST_V2": "1",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
                 "CPUCOUNT": "12",
             },
             pkgs={

@@ -10,13 +10,10 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
-from ddtrace.internal import writer
-from ddtrace.internal.core import crashtracking
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
@@ -27,10 +24,12 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
+from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config as profiling_config
+from ddtrace.settings.profiling import config_str
 
 
 LOG = logging.getLogger(__name__)
@@ -110,39 +109,35 @@ class _ProfilerInstance(service.Service):
 
     """
 
-    ENDPOINT_TEMPLATE = "https://intake.profile.{}"
-
     def __init__(
         self,
-        url: Optional[str] = None,
         service: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         env: Optional[str] = None,
         version: Optional[str] = None,
         tracer: Any = ddtrace.tracer,
         api_key: Optional[str] = None,
-        agentless: bool = profiling_config.agentless,
         _memory_collector_enabled: bool = profiling_config.memory.enabled,
         _stack_collector_enabled: bool = profiling_config.stack.enabled,
         _stack_v2_enabled: bool = profiling_config.stack.v2_enabled,
         _lock_collector_enabled: bool = profiling_config.lock.enabled,
+        _pytorch_collector_enabled: bool = profiling_config.pytorch.enabled,
         enable_code_provenance: bool = profiling_config.code_provenance,
         endpoint_collection_enabled: bool = profiling_config.endpoint_collection,
     ):
         super().__init__()
         # User-supplied values
-        self.url: Optional[str] = url
         self.service: Optional[str] = service if service is not None else config.service
         self.tags: Dict[str, str] = tags if tags is not None else profiling_config.tags
         self.env: Optional[str] = env if env is not None else config.env
         self.version: Optional[str] = version if version is not None else config.version
         self.tracer: Any = tracer
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key
-        self.agentless: bool = agentless
         self._memory_collector_enabled: bool = _memory_collector_enabled
         self._stack_collector_enabled: bool = _stack_collector_enabled
         self._stack_v2_enabled: bool = _stack_v2_enabled
         self._lock_collector_enabled: bool = _lock_collector_enabled
+        self._pytorch_collector_enabled: bool = _pytorch_collector_enabled
         self.enable_code_provenance: bool = enable_code_provenance
         self.endpoint_collection_enabled: bool = endpoint_collection_enabled
 
@@ -178,53 +173,12 @@ class _ProfilerInstance(service.Service):
                     file.PprofFileExporter(prefix=_OUTPUT_PPROF),
                 ]
 
-        if self.url is not None:
-            endpoint = self.url
-        elif self.agentless:
-            LOG.warning(
-                "Agentless uploading is currently for internal usage only and not officially supported. "
-                "You should not enable it unless somebody at Datadog instructed you to do so."
-            )
-            endpoint = self.ENDPOINT_TEMPLATE.format(os.environ.get("DD_SITE", "datadoghq.com"))
-        else:
-            if isinstance(self.tracer._writer, writer.AgentWriter):
-                endpoint = self.tracer._writer.agent_url
-            else:
-                endpoint = agent.get_trace_url()
-
-        if self.agentless:
-            endpoint_path = "/api/v2/profile"
-        else:
-            # Agent mode
-            # path is relative because it is appended
-            # to the agent base path.
-            endpoint_path = "profiling/v1/input"
-
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
         # Build the list of enabled Profiling features and send along as a tag
-        configured_features = []
-        if self._stack_collector_enabled:
-            if self._stack_v2_enabled:
-                configured_features.append("stack_v2")
-            else:
-                configured_features.append("stack")
-        if self._lock_collector_enabled:
-            configured_features.append("lock")
-        if self._memory_collector_enabled:
-            configured_features.append("mem")
-        if profiling_config.heap.sample_size > 0:
-            configured_features.append("heap")
-
-        if self._export_libdd_enabled:
-            configured_features.append("exp_dd")
-        else:
-            configured_features.append("exp_py")
-        configured_features.append("CAP" + str(profiling_config.capture_pct))
-        configured_features.append("MAXF" + str(profiling_config.max_frames))
-        self.tags.update({"profiler_config": "_".join(configured_features)})
-        crashtracking.add_tag("profiler_config", self.tags["profiler_config"])
+        profiler_config = config_str(profiling_config)
+        self.tags.update({"profiler_config": profiler_config})
 
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
@@ -240,7 +194,6 @@ class _ProfilerInstance(service.Service):
                     version=self.version,
                     tags=self.tags,  # type: ignore
                     max_nframes=profiling_config.max_frames,
-                    url=endpoint,
                     timeline_enabled=profiling_config.timeline_enabled,
                     output_filename=profiling_config.output_pprof,
                     sample_pool_capacity=profiling_config.sample_pool_capacity,
@@ -269,19 +222,24 @@ class _ProfilerInstance(service.Service):
                     LOG.error("Profiling failures occurred in an injected instance of ddtrace, disabling profiling")
                     return []
 
+                # pytorch collector relies on libdd exporter
+                if self._pytorch_collector_enabled:
+                    LOG.error("Disabling pytorch profiler as libdd collector failed to initialize")
+                    config.pytorch.enabled = False
+                    self._pytorch_collector_enabled = False
+
         # DEV: Import this only if needed to avoid importing protobuf
         # unnecessarily
         from ddtrace.profiling.exporter import http
 
         return [
             http.PprofHTTPExporter(
+                tracer=self.tracer,
                 service=self.service,
                 env=self.env,
                 tags=self.tags,
                 version=self.version,
                 api_key=self.api_key,
-                endpoint=endpoint,
-                endpoint_path=endpoint_path,
                 enable_code_provenance=self.enable_code_provenance,
                 endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
             )
@@ -348,6 +306,33 @@ class _ProfilerInstance(service.Service):
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
 
+        if self._pytorch_collector_enabled:
+
+            def start_collector(collector_class: Type) -> None:
+                with self._service_lock:
+                    col = collector_class(r)
+
+                    if self.status == service.ServiceStatus.RUNNING:
+                        # The profiler is already running so we need to start the collector
+                        try:
+                            col.start()
+                            LOG.debug("Started pytorch collector %r", col)
+                        except collector.CollectorUnavailable:
+                            LOG.debug("Collector %r pytorch is unavailable, disabling", col)
+                            return
+                        except Exception:
+                            LOG.error("Failed to start collector %r pytorch, disabling.", col, exc_info=True)
+                            return
+
+                    self._collectors.append(col)
+
+            self._collectors_on_import = [
+                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
+            ]
+
+            for module, hook in self._collectors_on_import:
+                ModuleWatchdog.register_module_hook(module, hook)
+
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
 
@@ -362,6 +347,7 @@ class _ProfilerInstance(service.Service):
                 recorder=r,
                 exporters=exporters,
                 before_flush=self._collectors_snapshot,
+                tracer=self.tracer,
             )
 
     def _collectors_snapshot(self):

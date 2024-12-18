@@ -1,5 +1,6 @@
 import collections
 from functools import lru_cache as cached
+from functools import singledispatch
 import inspect
 import logging
 from os import fspath  # noqa:F401
@@ -58,26 +59,38 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     return _packages_distributions()
 
 
-@cached(maxsize=256)
-def get_module_distribution_versions(module_name: str) -> t.Dict[str, str]:
+@cached(maxsize=1024)
+def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
+    if not module_name:
+        return None
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    try:
-        return {
-            module_name: importlib_metadata.distribution(module_name).version,
-        }
-    except importlib_metadata.PackageNotFoundError:
-        pass
-
+    names: t.List[str] = []
     pkgs = get_package_distributions()
-    names = pkgs.get(module_name)
-    if not names:
-        return {}
-
-    return {name: get_version_for_package(name) for name in names}
+    while names == []:
+        try:
+            return (
+                module_name,
+                importlib_metadata.distribution(module_name).version,
+            )
+        except Exception:  # nosec
+            pass
+        names = pkgs.get(module_name, [])
+        if not names:
+            # try to resolve the parent package
+            p = module_name.rfind(".")
+            if p > 0:
+                module_name = module_name[:p]
+            else:
+                break
+    if len(names) != 1:
+        # either it was not resolved due to multiple packages with the same name
+        # or it's a multipurpose package (like '__pycache__')
+        return None
+    return (names[0], get_version_for_package(names[0]))
 
 
 @cached(maxsize=256)
@@ -241,8 +254,22 @@ def is_third_party(path: Path) -> bool:
     return package.name in _third_party_packages()
 
 
-def is_user_code(path: Path) -> bool:
+@singledispatch
+def is_user_code(path) -> bool:
+    raise NotImplementedError(f"Unsupported type {type(path)}")
+
+
+@is_user_code.register
+def _(path: Path) -> bool:
     return not (is_stdlib(path) or is_third_party(path))
+
+
+# DEV: Creating Path objects on Python < 3.11 is expensive
+@is_user_code.register(str)
+@cached(maxsize=1024)
+def _(path: str) -> bool:
+    _path = Path(path)
+    return not (is_stdlib(_path) or is_third_party(_path))
 
 
 @cached(maxsize=256)

@@ -3,8 +3,9 @@
 import ast
 import codecs
 import os
-import re
 from sys import builtin_module_names
+from sys import version_info
+import textwrap
 from types import ModuleType
 from typing import Optional
 from typing import Text
@@ -14,12 +15,14 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.utils.formats import asbool
 
 from .visitor import AstVisitor
 
 
 _VISITOR = AstVisitor()
 
+_PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast.",)
@@ -276,8 +279,12 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pkg_resources.",
     "pluggy.",
     "protobuf.",
+    "psycopg.",  # PostgreSQL adapter for Python (v3)
+    "_psycopg.",  # PostgreSQL adapter for Python (v3)
+    "psycopg2.",  # PostgreSQL adapter for Python (v2)
     "pycparser.",  # this package is called when a module is imported, propagation is not needed
     "pytest.",  # Testing framework
+    "_pytest.",
     "setuptools.",
     "sklearn.",  # Machine learning library
     "sqlalchemy.orm.interfaces.",  # Performance optimization
@@ -368,7 +375,7 @@ def visit_ast(
     source_text: Text,
     module_path: Text,
     module_name: Text = "",
-) -> Optional[str]:
+) -> Optional[ast.Module]:
     parsed_ast = ast.parse(source_text, module_path)
     _VISITOR.update_location(filename=module_path, module_name=module_name)
     modified_ast = _VISITOR.visit(parsed_ast)
@@ -380,44 +387,56 @@ def visit_ast(
     return modified_ast
 
 
-_FLASK_INSTANCE_REGEXP = re.compile(r"(\S*)\s*=.*Flask\(.*")
+_DIR_WRAPPER = textwrap.dedent(
+    f"""
 
 
-def _remove_flask_run(text: Text) -> Text:
+def {_PREFIX}dir():
+    orig_dir = globals().get("{_PREFIX}orig_dir__")
+
+    if orig_dir:
+        # Use the original __dir__ method and filter the results
+        results = [name for name in orig_dir() if not name.startswith("{_PREFIX}")]
+    else:
+        # List names from the module's __dict__ and filter out the unwanted names
+        results = [
+            name for name in globals()
+            if not (name.startswith("{_PREFIX}") or name == "__dir__")
+        ]
+
+    return results
+
+def {_PREFIX}set_dir_filter():
+    if "__dir__" in globals():
+        # Store the original __dir__ method
+        globals()["{_PREFIX}orig_dir__"] = __dir__
+
+    # Replace the module's __dir__ with the custom one
+    globals()["__dir__"] = {_PREFIX}dir
+
+{_PREFIX}set_dir_filter()
+
     """
-    Find and remove flask app.run() call. This is used for patching
-    the app.py file and exec'ing to replace the module without creating
-    a new instance.
-    """
-    flask_instance_name = re.search(_FLASK_INSTANCE_REGEXP, text)
-    if not flask_instance_name:
-        return text
-    groups = flask_instance_name.groups()
-    if not groups:
-        return text
-
-    instance_name = groups[-1]
-    new_text = re.sub(instance_name + r"\.run\(.*\)", "pass", text)
-    return new_text
+)
 
 
-def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, str]:
+def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
     module_name = module.__name__
 
     module_origin = origin(module)
     if module_origin is None:
         log.debug("astpatch_source couldn't find the module: %s", module_name)
-        return "", ""
+        return "", None
 
     module_path = str(module_origin)
     try:
         if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
             log.debug("empty file: %s", module_path)
-            return "", ""
+            return "", None
     except OSError:
         log.debug("astpatch_source couldn't find the file: %s", module_path, exc_info=True)
-        return "", ""
+        return "", None
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
     # If its pyc or pyo, change to .py and check that the file exists. If not,
@@ -427,30 +446,32 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     if module_ext.lower() not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
         log.debug("extension not supported: %s for: %s", module_ext, module_path)
-        return "", ""
+        return "", None
 
     with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
             log.debug("unicode decode error for file: %s", module_path, exc_info=True)
-            return "", ""
+            return "", None
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
         log.debug("empty file: %s", module_path)
-        return "", ""
+        return "", None
 
-    if remove_flask_run:
-        source_text = _remove_flask_run(source_text)
+    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):
+        # Add the dir filter so __ddtrace stuff is not returned by dir(module)
+        # does not work in 3.7 because it enters into infinite recursion
+        source_text += _DIR_WRAPPER
 
-    new_source = visit_ast(
+    new_ast = visit_ast(
         source_text,
         module_path,
         module_name=module_name,
     )
-    if new_source is None:
+    if new_ast is None:
         log.debug("file not ast patched: %s", module_path)
-        return "", ""
+        return "", None
 
-    return module_path, new_source
+    return module_path, new_ast

@@ -1,0 +1,100 @@
+---
+components:
+  ci_visibility:
+    - ddtrace/internal/ci_visibility/*
+    - ddtrace/ext/test_visibility/*
+    - ddtrace/ext/test.py
+  dd_coverage:
+    - ddtrace/internal/coverage/*
+  pytest:
+    - ddtrace/contrib/pytest/*
+    - ddtrace/contrib/pytest_bdd/*
+    - ddtrace/contrib/pytest_benchmark/*
+  selenium:
+    - ddtrace/contrib/selenium/*
+    - ddtrace/contrib/internal/selenium/*
+  unittest:
+    - ddtrace/contrib/unittest/*
+suites:
+  ci_visibility:
+    parallelism: 4
+    paths:
+      - '@ci_visibility'
+      - '@ci'
+      - '@coverage'
+      - '@git'
+      - '@pytest'
+      - '@codeowners'
+      - tests/ci_visibility/*
+    runner: riot
+    snapshot: true
+  dd_coverage:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@dd_coverage'
+      - tests/coverage/*
+    runner: hatch
+    snapshot: true
+  pytest:
+    parallelism: 12
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - tests/contrib/pytest/*
+      - tests/contrib/pytest_benchmark/*
+      - tests/contrib/pytest_bdd/*
+      - tests/snapshots/tests.contrib.pytest.*
+    runner: riot
+    snapshot: true
+  pytest_v2:
+    parallelism: 10
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - tests/contrib/pytest/*
+      - tests/contrib/pytest_benchmark/*
+      - tests/contrib/pytest_bdd/*
+      - tests/snapshots/tests.contrib.pytest.*
+    pattern: pytest_plugin_v2
+    runner: hatch
+    snapshot: true
+  selenium:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ci_visibility'
+      - '@pytest'
+      - '@unittest'
+      - '@selenium'
+      - tests/contrib/selenium/*
+      - tests/snapshots/test_selenium*
+    runner: hatch
+    snapshot: true
+  unittest:
+    paths:
+      - '@contrib'
+      - '@unittest'
+      - '@ci_visibility'
+      - '@coverage'
+      - tests/contrib/unittest/*
+      - tests/snapshots/tests.contrib.unittest.*
+    runner: riot
+    snapshot: true

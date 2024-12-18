@@ -31,6 +31,7 @@ def parse_version(version):
         return Version((0, 0), "")
 
 
+TELEMETRY_DATA = []
 SCRIPT_DIR = os.path.dirname(__file__)
 RUNTIMES_ALLOW_LIST = {
     "cpython": {
@@ -68,49 +69,58 @@ def get_oci_ddtrace_version():
 def build_installed_pkgs():
     installed_packages = {}
     if sys.version_info >= (3, 8):
-        from importlib import metadata as importlib_metadata
+        try:
+            from importlib import metadata as importlib_metadata
 
-        installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+            installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+        except Exception as e:
+            _log("Failed to build installed packages list: %s" % e, level="debug")
     else:
         try:
             import pkg_resources
 
             installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
-        except ImportError:
+        except Exception:
             try:
                 import importlib_metadata
 
                 installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
-            except ImportError:
-                pass
+            except Exception as e:
+                _log("Failed to build installed packages list: %s" % e, level="debug")
     return {key.lower(): value for key, value in installed_packages.items()}
 
 
 def build_min_pkgs():
     min_pkgs = dict()
-    for location in VERSION_COMPAT_FILE_LOCATIONS:
-        if os.path.exists(location):
-            with open(location, "r") as csvfile:
-                csv_reader = csv.reader(csvfile, delimiter=",")
-                for idx, row in enumerate(csv_reader):
-                    if idx < 2:
-                        continue
-                    min_pkgs[row[0].lower()] = parse_version(row[1])
-            break
+    try:
+        for location in VERSION_COMPAT_FILE_LOCATIONS:
+            if os.path.exists(location):
+                with open(location, "r") as csvfile:
+                    csv_reader = csv.reader(csvfile, delimiter=",")
+                    for idx, row in enumerate(csv_reader):
+                        if idx < 2:
+                            continue
+                        min_pkgs[row[0].lower()] = parse_version(row[1])
+                break
+    except Exception as e:
+        _log("Failed to build min-pkgs list: %s" % e, level="debug")
     return min_pkgs
 
 
 def build_denied_executables():
     denied_executables = set()
     _log("Checking denied-executables list", level="debug")
-    if os.path.exists(EXECUTABLE_DENY_LOCATION):
-        with open(EXECUTABLE_DENY_LOCATION, "r") as denyfile:
-            _log("Found deny-list file", level="debug")
-            for line in denyfile.readlines():
-                cleaned = line.strip("\n")
-                denied_executables.add(cleaned)
-                denied_executables.add(os.path.basename(cleaned))
-    _log("Built denied-executables list of %s entries" % (len(denied_executables),), level="debug")
+    try:
+        if os.path.exists(EXECUTABLE_DENY_LOCATION):
+            with open(EXECUTABLE_DENY_LOCATION, "r") as denyfile:
+                _log("Found deny-list file", level="debug")
+                for line in denyfile.readlines():
+                    cleaned = line.strip("\n")
+                    denied_executables.add(cleaned)
+                    denied_executables.add(os.path.basename(cleaned))
+        _log("Built denied-executables list of %s entries" % (len(denied_executables),), level="debug")
+    except Exception as e:
+        _log("Failed to build denied-executables list: %s" % e, level="debug")
     return denied_executables
 
 
@@ -228,13 +238,14 @@ def _inject():
     global PYTHON_RUNTIME
     global PKGS_ALLOW_LIST
     global EXECUTABLES_DENY_LIST
+    global TELEMETRY_DATA
+    # Try to get the version of the Python runtime first so we have it for telemetry
+    PYTHON_VERSION = platform.python_version()
+    PYTHON_RUNTIME = platform.python_implementation().lower()
     DDTRACE_VERSION = get_oci_ddtrace_version()
     INSTALLED_PACKAGES = build_installed_pkgs()
-    PYTHON_RUNTIME = platform.python_implementation().lower()
-    PYTHON_VERSION = platform.python_version()
     PKGS_ALLOW_LIST = build_min_pkgs()
     EXECUTABLES_DENY_LIST = build_denied_executables()
-    telemetry_data = []
     integration_incomp = False
     runtime_incomp = False
     os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
@@ -260,12 +271,14 @@ def _inject():
         _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
         _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
 
+        abort = False
         incompatible_sysarg = get_first_incompatible_sysarg()
         if incompatible_sysarg is not None:
             _log("Found incompatible executable: %s." % incompatible_sysarg, level="debug")
             if not FORCE_INJECT:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
-                telemetry_data.append(
+                abort = True
+                TELEMETRY_DATA.append(
                     create_count_metric(
                         "library_entrypoint.abort.integration",
                     )
@@ -287,9 +300,10 @@ def _inject():
             integration_incomp = True
             if not FORCE_INJECT:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
+                abort = True
 
                 for key, value in incompatible_packages.items():
-                    telemetry_data.append(
+                    TELEMETRY_DATA.append(
                         create_count_metric(
                             "library_entrypoint.abort.integration",
                             [
@@ -313,15 +327,16 @@ def _inject():
             runtime_incomp = True
             if not FORCE_INJECT:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
+                abort = True
 
-                telemetry_data.append(create_count_metric("library_entrypoint.abort.runtime"))
+                TELEMETRY_DATA.append(create_count_metric("library_entrypoint.abort.runtime"))
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported runtimes and continuing.",
                     level="debug",
                 )
-        if telemetry_data:
-            telemetry_data.append(
+        if abort:
+            TELEMETRY_DATA.append(
                 create_count_metric(
                     "library_entrypoint.abort",
                     [
@@ -329,8 +344,6 @@ def _inject():
                     ],
                 )
             )
-            telemetry_event = gen_telemetry_payload(telemetry_data, DDTRACE_VERSION)
-            send_telemetry(telemetry_event)
             return
 
         site_pkgs_path = os.path.join(
@@ -339,6 +352,12 @@ def _inject():
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
+            TELEMETRY_DATA.append(
+                gen_telemetry_payload(
+                    [create_count_metric("library_entrypoint.abort", ["reason:missing_" + site_pkgs_path])],
+                    DDTRACE_VERSION,
+                )
+            )
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
@@ -349,9 +368,29 @@ def _inject():
 
         except BaseException as e:
             _log("failed to load ddtrace module: %s" % e, level="error")
+            TELEMETRY_DATA.append(
+                gen_telemetry_payload(
+                    [
+                        create_count_metric(
+                            "library_entrypoint.error", ["error_type:import_ddtrace_" + type(e).__name__.lower()]
+                        )
+                    ],
+                    DDTRACE_VERSION,
+                )
+            )
+
             return
         else:
             try:
+                # Make sure to remove this script's directory, and to add the ddtrace bootstrap directory to the path
+                # DEV: We need to add the bootstrap directory to the path to ensure the logic to load any user custom
+                # sitecustomize is preserved.
+                if SCRIPT_DIR in sys.path:
+                    sys.path.remove(SCRIPT_DIR)
+                bootstrap_dir = os.path.join(os.path.abspath(os.path.dirname(ddtrace.__file__)), "bootstrap")
+                if bootstrap_dir not in sys.path:
+                    sys.path.insert(0, bootstrap_dir)
+
                 import ddtrace.bootstrap.sitecustomize
 
                 # Modify the PYTHONPATH for any subprocesses that might be spawned:
@@ -363,46 +402,61 @@ def _inject():
                 if SCRIPT_DIR in python_path:
                     python_path.remove(SCRIPT_DIR)
                 python_path.insert(-1, site_pkgs_path)
-                bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
                 python_path.insert(0, bootstrap_dir)
                 python_path = os.pathsep.join(python_path)
                 os.environ["PYTHONPATH"] = python_path
 
-                # Also insert the bootstrap dir in the path of the current python process.
-                sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
-                event = gen_telemetry_payload(
-                    [
-                        create_count_metric(
-                            "library_entrypoint.complete",
-                            [
-                                "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
-                            ],
-                        )
-                    ],
-                    DDTRACE_VERSION,
+                TELEMETRY_DATA.append(
+                    gen_telemetry_payload(
+                        [
+                            create_count_metric(
+                                "library_entrypoint.complete",
+                                [
+                                    "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
+                                ],
+                            )
+                        ],
+                        DDTRACE_VERSION,
+                    )
                 )
-                send_telemetry(event)
             except Exception as e:
-                event = gen_telemetry_payload(
-                    [create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])],
-                    DDTRACE_VERSION,
+                TELEMETRY_DATA.append(
+                    gen_telemetry_payload(
+                        [
+                            create_count_metric(
+                                "library_entrypoint.error", ["error_type:init_ddtrace_" + type(e).__name__.lower()]
+                            )
+                        ],
+                        DDTRACE_VERSION,
+                    )
                 )
-                send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
     else:
         module_origin = spec.origin if spec else None
         _log("user-installed ddtrace found: %s, aborting site-packages injection" % module_origin, level="warning")
+        TELEMETRY_DATA.append(
+            create_count_metric(
+                "library_entrypoint.abort",
+                [
+                    "reason:ddtrace_already_present",
+                ],
+            )
+        )
 
 
 try:
-    _inject()
-except Exception as e:
     try:
-        event = gen_telemetry_payload(
-            [create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])]
+        _inject()
+    except Exception as e:
+        TELEMETRY_DATA.append(
+            gen_telemetry_payload(
+                [create_count_metric("library_entrypoint.error", ["error_type:main_" + type(e).__name__.lower()])]
+            )
         )
-        send_telemetry(event)
-    except Exception:
-        pass  # absolutely never allow exceptions to propagate to the app
+    finally:
+        if TELEMETRY_DATA:
+            send_telemetry(TELEMETRY_DATA)
+except Exception:
+    pass  # absolutely never allow exceptions to propagate to the app
