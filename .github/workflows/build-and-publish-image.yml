@@ -1,6 +1,7 @@
 name: Build and publish image
 
 on:
+  workflow_dispatch: {}
   workflow_call:
     inputs:
       tags:
