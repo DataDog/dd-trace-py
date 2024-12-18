@@ -424,7 +424,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         retry_test = self._atr_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.atr_settings.max_retries:
-            if self.atr_get_final_status() == TestStatus.FAIL:
+            if self.atr_get_final_status() == TestStatus.FAIL and self.is_quarantined():
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.finish_test(status, exc_info=exc_info)
