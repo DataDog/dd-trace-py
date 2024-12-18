@@ -980,7 +980,7 @@ class HTTPPropagator(object):
         styles_w_ctx = []
         for prop_style in config._propagation_style_extract:
             propagator = _PROP_STYLES[prop_style]
-            context = propagator._extract(normalized_headers)
+            context = propagator._extract(normalized_headers)  # type: ignore
             # baggage is handled separately
             if prop_style == _PROPAGATION_STYLE_BAGGAGE:
                 continue
@@ -990,7 +990,7 @@ class HTTPPropagator(object):
         return contexts, styles_w_ctx
 
     @staticmethod
-    def _context_to_span_link(context: Context, style: str) -> Optional[SpanLink]:
+    def _context_to_span_link(context: Context, style: str, reason: str) -> Optional[SpanLink]:
         # encoding expects at least trace_id and span_id
         if context.span_id and context.trace_id:
             return SpanLink(
@@ -1001,10 +1001,12 @@ class HTTPPropagator(object):
                     context._meta.get(W3C_TRACESTATE_KEY, "") if style == _PROPAGATION_STYLE_W3C_TRACECONTEXT else None
                 ),
                 attributes={
-                    "reason": "terminated_context",
+                    "reason": reason,
                     "context_headers": style,
                 },
             )
+        else:
+            return None
 
     @staticmethod
     def _resolve_contexts(contexts, styles_w_ctx, normalized_headers):
@@ -1016,7 +1018,13 @@ class HTTPPropagator(object):
             # encoding expects at least trace_id and span_id
             # make this a method
             if context.trace_id and context.trace_id != primary_context.trace_id:
-                links.append(HTTPPropagator._context_to_span_link(context, style_w_ctx))
+                links.append(
+                    HTTPPropagator._context_to_span_link(
+                        context,
+                        style_w_ctx,
+                        "terminated_context",
+                    )
+                )
             # if trace_id matches and the propagation style is tracecontext
             # add the tracestate to the primary context
             elif style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
@@ -1134,45 +1142,30 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.
         """
+        context = Context()
         if not headers or config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_IGNORE:
-            return Context()
+            return context
         try:
-            normalized_headers: Dict = {name.lower(): v for name, v in headers.items()}
-            context = Context()
+            style = "unknown"
+            normalized_headers = {name.lower(): v for name, v in headers.items()}
+            # tracer configured to extract first only
             if config._propagation_extract_first:
-                # use only first propagation style specified, even if it doesn't find a context
-                # we don't try the other styles
+                # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
-                    rec_context = propagator._extract(normalized_headers)
-                    # if configured to restart, append our first context to the current context as a span link
-                    if rec_context:
-                        if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
-                            link = HTTPPropagator._context_to_span_link(rec_context, prop_style)
-                            if link:
-                                context._span_links.append(link)
-                        else:
-                            context = rec_context
+                    context = propagator._extract(normalized_headers)
+                    style = prop_style
                     if config.propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     break
 
-                # loop through all extract propagation styles
+            # loop through all extract propagation styles
             else:
                 contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
+                style = styles_w_ctx[0] if styles_w_ctx[0] else "unknown"
 
                 if contexts:
-                    # if we're configured to restart, we're going to extract all the received
-                    # contexts and append them on to a new context as span links
-                    if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
-                        for rec_context in contexts:
-                            style_w_ctx = styles_w_ctx[contexts.index(rec_context)]
-                            link = HTTPPropagator._context_to_span_link(rec_context, style_w_ctx)
-                            if link:
-                                context._span_links.append(link)
-                    else:
-                        context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
-
+                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
 
@@ -1184,6 +1177,10 @@ class HTTPPropagator(object):
                         context._baggage = baggage_context._baggage
                     else:
                         context = baggage_context
+            if _PROPAGATION_BEHAVIOR_RESTART:
+                if context:
+                    link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
+                    context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])
 
             return context
 
