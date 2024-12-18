@@ -844,7 +844,7 @@ venv = Venv(
                 ),
                 Venv(
                     # django started supporting psycopg3 in 4.2 for versions >3.1.8
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
                         "django": ["~=4.2"],
                         "psycopg": latest,
