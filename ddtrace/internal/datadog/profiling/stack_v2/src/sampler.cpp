@@ -67,6 +67,7 @@ _stack_v2_atfork_child()
     // so we don't even reveal this function to the user
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
+    thread_info_map_lock.unlock();
 }
 
 __attribute__((constructor)) void
