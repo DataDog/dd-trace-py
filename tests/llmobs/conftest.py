@@ -3,12 +3,10 @@ import os
 import mock
 import pytest
 
-import ddtrace
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.settings import Config
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -249,16 +247,12 @@ def llmobs(monkeypatch, tracer, llmobs_env, llmobs_span_writer):
     for env, val in llmobs_env.items():
         monkeypatch.setenv(env, val)
 
-    # Hack to reset the global config
-    ddtrace.llmobs._llmobs.config = Config()
-    ddtrace.llmobs._utils.config = Config()
-
-    llmobs_service.enable(
-        _tracer=tracer,
-    )
-    llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-    llmobs_service._instance._trace_processor._span_writer = llmobs_span_writer
-    yield llmobs
+    # TODO: remove once rest of tests are moved off of global config tampering
+    with override_global_config(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP"))):
+        llmobs_service.enable(_tracer=tracer)
+        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        llmobs_service._instance._trace_processor._span_writer = llmobs_span_writer
+        yield llmobs
     llmobs_service.disable()
 
 
