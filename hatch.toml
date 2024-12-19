@@ -159,7 +159,7 @@ DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
 
 [envs.meta-testing.scripts]
 test = [
-  "pytest {args} tests/meta"
+  "pytest {args} --no-ddtrace tests/meta"
 ]
 
 [envs.integration_test]
