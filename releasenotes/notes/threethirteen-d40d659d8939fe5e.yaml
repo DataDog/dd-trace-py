@@ -14,35 +14,37 @@ upgrade:
         - CI Visibility
         - Continuous Profiling
       - The following integrations are not tested with 3.13:
-        - freezegun
-        - selenium
-        - falcon
-        - django
-        - psycopg2
-        - psycopg
-        - starlette
-        - sqlalchemy
-        - botocore
         - aiobotocore
-        - pymysql
-        - fastapi
         - aiomysql
+        - aiopg
+        - anthropic
+        - asyncpg
+        - avro
+        - botocore
+        - confluent-kafka
+        - consul
+        - django
+        - falcon
+        - fastapi
+        - freezegun
+        - gevent
+        - google_generativeai
+        - grpcio
+        - gunicorn
+        - langchain
+        - mysqlclient
+        - opentracing
+        - protobuf
+        - psycopg
+        - psycopg2
+        - pymysql
+        - pyodbc
         - pytest
         - pytest-bdd
-        - grpcio
-        - aiopg
         - sanic
-        - asyncpg
+        - selenium
+        - sqlalchemy
         - sqlite3
-        - consul
-        - opentracing
-        - pyodbc
+        - starlette
         - tornado
-        - mysqlclient
-        - langchain
-        - anthropic
-        - google_generativeai
         - vertexai
-        - confluent-kafka
-        - gunicorn
-        - gevent
