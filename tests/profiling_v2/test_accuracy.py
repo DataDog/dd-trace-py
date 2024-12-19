@@ -14,7 +14,7 @@ def test_accuracy_libdd():
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.test_accuracy import CPU_TOLERANCE
-    from tests.profiling.test_accuracy import almost_equal
+    from tests.profiling.test_accuracy import assert_almost_equal
     from tests.profiling.test_accuracy import spend_16
 
     # Set this to 100 so we don't sleep too often and mess with the precision.
@@ -41,16 +41,16 @@ def test_accuracy_libdd():
             wall_times[function_name] += wall_time_spent_ns
             cpu_times[function_name] += cpu_time_spent_ns
 
-    assert almost_equal(wall_times["spend_3"], 9e9)
-    assert almost_equal(wall_times["spend_1"], 2e9)
-    assert almost_equal(wall_times["spend_4"], 4e9)
-    assert almost_equal(wall_times["spend_16"], 16e9)
-    assert almost_equal(wall_times["spend_7"], 7e9)
+    assert_almost_equal(wall_times["spend_3"], 9e9)
+    assert_almost_equal(wall_times["spend_1"], 2e9)
+    assert_almost_equal(wall_times["spend_4"], 4e9)
+    assert_almost_equal(wall_times["spend_16"], 16e9)
+    assert_almost_equal(wall_times["spend_7"], 7e9)
 
-    assert almost_equal(wall_times["spend_cpu_2"], 2e9)
-    assert almost_equal(wall_times["spend_cpu_3"], 3e9)
-    assert almost_equal(cpu_times["spend_cpu_2"], 2e9, CPU_TOLERANCE)
-    assert almost_equal(cpu_times["spend_cpu_3"], 3e9, CPU_TOLERANCE)
+    assert_almost_equal(wall_times["spend_cpu_2"], 2e9)
+    assert_almost_equal(wall_times["spend_cpu_3"], 3e9)
+    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9, CPU_TOLERANCE)
+    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9, CPU_TOLERANCE)
 
 
 @pytest.mark.subprocess(
@@ -63,7 +63,7 @@ def test_accuracy_stack_v2():
 
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.test_accuracy import almost_equal
+    from tests.profiling.test_accuracy import assert_almost_equal
     from tests.profiling.test_accuracy import spend_16
 
     # Set this to 100 so we don't sleep too often and mess with the precision.
@@ -90,13 +90,13 @@ def test_accuracy_stack_v2():
             wall_times[function_name] += wall_time_spent_ns
             cpu_times[function_name] += cpu_time_spent_ns
 
-    assert almost_equal(wall_times["spend_3"], 9e9)
-    assert almost_equal(wall_times["spend_1"], 2e9)
-    assert almost_equal(wall_times["spend_4"], 4e9)
-    assert almost_equal(wall_times["spend_16"], 16e9)
-    assert almost_equal(wall_times["spend_7"], 7e9)
+    assert_almost_equal(wall_times["spend_3"], 9e9)
+    assert_almost_equal(wall_times["spend_1"], 2e9)
+    assert_almost_equal(wall_times["spend_4"], 4e9)
+    assert_almost_equal(wall_times["spend_16"], 16e9)
+    assert_almost_equal(wall_times["spend_7"], 7e9)
 
-    assert almost_equal(wall_times["spend_cpu_2"], 2e9)
-    assert almost_equal(wall_times["spend_cpu_3"], 3e9)
-    assert almost_equal(cpu_times["spend_cpu_2"], 2e9)
-    assert almost_equal(cpu_times["spend_cpu_3"], 3e9)
+    assert_almost_equal(wall_times["spend_cpu_2"], 2e9)
+    assert_almost_equal(wall_times["spend_cpu_3"], 3e9)
+    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9)
+    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9)
