@@ -1,0 +1,7 @@
+{
+    ddcommon_uninitialized_value
+    Memcheck:Cond
+    fun:eq<u32>
+    ...
+    fun:*ddcommon*entity_id*unix*container_id*
+}
