@@ -1,5 +1,7 @@
+import inspect
 import json
 import os
+import sys
 import time
 from typing import Any
 from typing import Dict
@@ -74,6 +76,68 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
 }
 
 
+class TrackedStr(str):
+    def __add__(self, other):
+        result = super().__add__(other)
+        result = TrackedStr(result)
+        LLMObs._instance._record_relationship(result, other, "__add__")
+        LLMObs._instance._record_relationship(result, self, "__add__")
+        return result
+
+    def __radd__(self, other):
+        result = super().__radd__(other)
+        result = TrackedStr(result)
+        LLMObs._instance._record_relationship(result, other, "__radd__")
+        LLMObs._instance._record_relationship(result, self, "__radd__")
+        return result
+
+    def format(self, *args, **kwargs):
+        result = super().format(*args, **kwargs)
+        result = TrackedStr(result)
+        for arg in args:
+            LLMObs._instance._record_relationship(result, arg, "format")
+        for key, value in kwargs.items():
+            LLMObs._instance._record_relationship(result, value, "format")
+        LLMObs._instance._record_relationship(result, self, "format")
+        return result
+
+    def split(self, *args, **kwargs):
+        return super().split(*args, **kwargs)
+
+    def join(self, *args, **kwargs):
+        return super().join(*args, **kwargs)
+
+
+class TrackedList(list):
+    def append(self, item):
+        result = super().append(item)
+        LLMObs._instance._record_relationship(self, item, "append")
+        return result
+
+    def extend(self, iterable):
+        result = super().extend(iterable)
+        LLMObs._instance._record_relationship(self, iterable, "extend")
+        return result
+
+    def __add__(self, other):
+        result = super().__add__(other)
+        LLMObs._instance._record_relationship(self, other, "__add__")
+        return result
+
+
+class TrackedDict(dict):
+    def update(self, *args, **kwargs):
+        result = super().update(*args, **kwargs)
+        for arg in args:
+            LLMObs._instance._record_relationship(self, arg, "update")
+        return result
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        LLMObs._instance._record_relationship(self, value, "__setitem__")
+        LLMObs._instance._record_relationship(self, key, "__setitem__")
+
+
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
@@ -107,6 +171,9 @@ class LLMObs(Service):
         self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
         self.tracer.on_start_span(self._do_annotations)
+
+        self._object_span_links = {}
+        sys.settrace(self.trace_call)
 
     def _do_annotations(self, span):
         # get the current span context
@@ -260,6 +327,7 @@ class LLMObs(Service):
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
             return
+        sys.settrace(None)
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
 
@@ -269,6 +337,120 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    def _record_relationship(self, source_obj, incoming_obj, operation):
+        """Record a relationship between objects."""
+        if source_obj is None or incoming_obj is None:
+            return
+        # print(f"Recording relationship between {source_obj} and {incoming_obj} with operation {operation}")
+        span_links = self.get_span_links(incoming_obj)
+        self.add_span_links(source_obj, span_links)
+
+    def trace_call(self, frame, event, arg):
+        """Track method calls and object interactions."""
+        if event != "call":
+            return self.trace_call
+
+        # Get function details
+        source_obj = frame.f_locals.get("self")
+        method_name = frame.f_code.co_name
+
+        # Track object creation or modification
+        try:
+            # Capture arguments that might involve object relationships
+            args = inspect.getargvalues(frame)
+
+            # Look for potential object interactions
+            for arg_name in args.args:
+                if arg_name == "self":
+                    continue
+                incoming_obj = frame.f_locals.get(arg_name)
+
+                # Check for object creation or modification
+                if method_name in [
+                    "__init__",
+                    "__new__",
+                    "__add__",
+                    "append",
+                    "extend",
+                    "update",
+                ]:
+                    self._record_relationship(source_obj, incoming_obj, f"{method_name} operation")
+        except Exception as e:
+            print("Error capturing object interactions ", e)
+
+        return self.trace_call
+
+    def search_for_links(self, obj):
+        links = []
+        if isinstance(obj, dict):
+            for _, value in obj.items():
+                links += self.search_for_links(value)
+        elif isinstance(obj, list):
+            for value in obj:
+                links += self.search_for_links(value)
+        links += self.get_span_links(obj)
+        return links
+
+    def record_object(self, span, obj, to):
+        carried_span_links = []
+        if isinstance(obj, dict):
+            old_obj = obj
+            obj = TrackedDict(old_obj)
+            self._record_relationship(obj, old_obj, "inherit")
+            carried_span_links += self.search_for_links(obj)
+        elif isinstance(obj, list):
+            old_obj = obj
+            obj = TrackedList(old_obj)
+            self._record_relationship(obj, old_obj, "inherit")
+            carried_span_links += self.search_for_links(obj)
+        elif isinstance(obj, str):
+            old_obj = obj
+            obj = TrackedStr(old_obj)
+            self._record_relationship(obj, old_obj, "inherit")
+
+        carried_span_links += self.get_span_links(obj)
+        current_span_links = []
+        for span_link in carried_span_links:
+            if span_link["attributes"]["from"] == "input" and to == "output":
+                continue
+            span_link["attributes"]["to"] = to
+            current_span_links.append(span_link)
+
+        self._tag_span_links(span, current_span_links)
+        self.add_span_links(
+            obj,
+            [
+                {
+                    "trace_id": self.export_span(span)["trace_id"],
+                    "span_id": self.export_span(span)["span_id"],
+                    "attributes": {
+                        "from": to,
+                    },
+                }
+            ],
+        )
+        return obj
+
+    def _tag_span_links(self, span, span_links):
+        span_links = [span_link for span_link in span_links if span_link["span_id"] != LLMObs.export_span(span)["span_id"]]
+        current_span_links = span.get_tag("_ml_obs.span_links")
+        if current_span_links:
+            current_span_links = json.loads(current_span_links)
+            span_links = current_span_links + span_links
+        span.set_tag_str("_ml_obs.span_links", safe_json(span_links))
+
+    def get_obj_id(self, obj):
+        return f"{type(obj).__name__}_{id(obj)}"
+
+    def add_span_links(self, obj, span_links):
+        obj_id = self.get_obj_id(obj)
+        if obj_id not in self._object_span_links:
+            self._object_span_links[obj_id] = []
+        self._object_span_links[obj_id] += span_links
+
+    def get_span_links(self, obj):
+        return self._object_span_links.get(self.get_obj_id(obj), [])
 
     @classmethod
     def annotation_context(
@@ -632,6 +814,10 @@ class LLMObs(Service):
         if span.finished:
             log.warning("Cannot annotate a finished span.")
             return
+        if input_data is not None:
+            cls._instance.record_object(span, input_data, "input")
+        if output_data is not None:
+            cls._instance.record_object(span, output_data, "output")
         if metadata is not None:
             cls._tag_metadata(span, metadata)
         if metrics is not None:
