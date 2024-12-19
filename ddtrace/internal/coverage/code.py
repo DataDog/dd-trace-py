@@ -1,4 +1,5 @@
 from collections import defaultdict
+from contextvars import ContextVar
 from copy import deepcopy
 from inspect import getmodule
 import os
@@ -19,7 +20,6 @@ from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
-from ddtrace.vendor.contextvars import ContextVar
 
 
 log = get_logger(__name__)
