@@ -27,6 +27,7 @@ SNAPSHOT_IGNORES = [
     "meta.test_module_id",
     "meta.test_session_id",
     "meta.test_suite_id",
+    "meta._dd.base_service",
     "metrics._dd.top_level",
     "metrics._dd.tracer_kr",
     "metrics._sampling_priority_v1",

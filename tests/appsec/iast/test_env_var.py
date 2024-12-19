@@ -56,9 +56,25 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     "env_vars",
     [
         {"DD_IAST_ENABLED": "true"},
-        {"DD_IAST_ENABLED": "true", "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/"},
-        {"DD_IAST_ENABLED": "false", "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED"},
-        {"_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED"},
+        {
+            "DD_IAST_ENABLED": "true",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "DD_IAST_ENABLED": "false",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "DD_IAST_ENABLED": "false",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED_TIMEOUT",
+            "_DD_CONFIG_ENDPOINT_TIMEOUT": "5",
+        },
+        {
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
     ],
 )
 def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_vars):
@@ -76,10 +92,29 @@ def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_va
     [
         {},
         {"DD_IAST_ENABLED": "false"},
-        {"DD_IAST_ENABLED": "true", "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED"},
-        {"DD_IAST_ENABLED": "false", "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/"},
-        {"_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED"},
-        {"_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/"},
+        {
+            "DD_IAST_ENABLED": "true",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "DD_IAST_ENABLED": "false",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "DD_IAST_ENABLED": "false",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED_TIMEOUT",
+            "_DD_CONFIG_ENDPOINT_TIMEOUT": "2",
+        },
+        {
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
     ],
 )
 def test_env_var_iast_disabled_parametrized(capfd, configuration_endpoint, env_vars):

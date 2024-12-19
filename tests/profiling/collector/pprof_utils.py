@@ -192,7 +192,7 @@ def assert_lock_events(
         assert_lock_events_of_type(profile, expected_release_events, LockEventType.RELEASE)
 
 
-def assert_str_label(string_table, sample, key: str, expected_value: Optional[str]):
+def assert_str_label(string_table: Dict[int, str], sample, key: str, expected_value: Optional[str]):
     if expected_value:
         label = get_label_with_key(string_table, sample, key)
         # We use fullmatch to ensure that the whole string matches the expected value
@@ -203,25 +203,25 @@ def assert_str_label(string_table, sample, key: str, expected_value: Optional[st
         )
 
 
-def assert_num_label(string_table, sample, key: str, expected_value: Optional[int]):
+def assert_num_label(string_table: Dict[int, str], sample, key: str, expected_value: Optional[int]):
     if expected_value:
         label = get_label_with_key(string_table, sample, key)
         assert label.num == expected_value, "Expected {} got {} for label {}".format(expected_value, label.num, key)
 
 
-def assert_base_event(profile, sample: pprof_pb2.Sample, expected_event: EventBaseClass):
-    assert_num_label(profile.string_table, sample, "span id", expected_event.span_id)
-    assert_num_label(profile.string_table, sample, "local root span id", expected_event.local_root_span_id)
-    assert_str_label(profile.string_table, sample, "trace type", expected_event.trace_type)
-    assert_str_label(profile.string_table, sample, "trace endpoint", expected_event.trace_endpoint)
-    assert_num_label(profile.string_table, sample, "thread id", expected_event.thread_id)
-    assert_str_label(profile.string_table, sample, "thread name", expected_event.thread_name)
-    assert_str_label(profile.string_table, sample, "class name", expected_event.class_name)
-    assert_num_label(profile.string_table, sample, "task id", expected_event.task_id)
-    assert_str_label(profile.string_table, sample, "task name", expected_event.task_name)
+def assert_base_event(string_table: Dict[int, str], sample: pprof_pb2.Sample, expected_event: EventBaseClass):
+    assert_num_label(string_table, sample, "span id", expected_event.span_id)
+    assert_num_label(string_table, sample, "local root span id", expected_event.local_root_span_id)
+    assert_str_label(string_table, sample, "trace type", expected_event.trace_type)
+    assert_str_label(string_table, sample, "trace endpoint", expected_event.trace_endpoint)
+    assert_num_label(string_table, sample, "thread id", expected_event.thread_id)
+    assert_str_label(string_table, sample, "thread name", expected_event.thread_name)
+    assert_str_label(string_table, sample, "class name", expected_event.class_name)
+    assert_num_label(string_table, sample, "task id", expected_event.task_id)
+    assert_str_label(string_table, sample, "task name", expected_event.task_name)
 
 
-def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEvent):
+def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: LockEvent):
     # Check that the sample has label "lock name" with value
     # filename:self.lock_linenos.create:lock_name
     lock_name_label = get_label_with_key(profile.string_table, sample, "lock name")
@@ -254,7 +254,7 @@ def assert_lock_event(profile, sample: pprof_pb2.Sample, expected_event: LockEve
             expected_event.linenos.release, line.line
         )
 
-    assert_base_event(profile, sample, expected_event)
+    assert_base_event(profile.string_table, sample, expected_event)
 
 
 def assert_sample_has_locations(profile, sample, expected_locations: Optional[List[StackLocation]]):
@@ -277,34 +277,42 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
         filename = os.path.basename(profile.string_table[function.filename])
         line_no = line.line
         sample_loc_strs.append(f"{filename}:{function_name}:{line_no}")
-        if (
-            function_name.endswith(expected_locations[expected_locations_idx].function_name)
-            and filename == expected_locations[expected_locations_idx].filename
-            and line_no == expected_locations[expected_locations_idx].line_no
-        ):
-            expected_locations_idx += 1
-            if expected_locations_idx == len(expected_locations):
-                checked = True
-                break
+
+        if expected_locations_idx < len(expected_locations):
+            if (
+                function_name.endswith(expected_locations[expected_locations_idx].function_name)
+                and re.fullmatch(expected_locations[expected_locations_idx].filename, filename)
+                and line_no == expected_locations[expected_locations_idx].line_no
+            ):
+                expected_locations_idx += 1
+                if expected_locations_idx == len(expected_locations):
+                    checked = True
+
+    for loc in sample_loc_strs:
+        if DEBUG_TEST:
+            print(loc)
 
     assert checked, "Expected locations {} not found in sample locations: {}".format(
         expected_locations, sample_loc_strs
     )
 
 
-def assert_stack_event(profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
+def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
     # Check that the sample has label "exception type" with value
-
     assert_str_label(profile.string_table, sample, "exception type", expected_event.exception_type)
     assert_sample_has_locations(profile, sample, expected_event.locations)
-    assert_base_event(profile, sample, expected_event)
+    assert_base_event(profile.string_table, sample, expected_event)
 
 
-def assert_has_samples(profile, expected_samples):
+def assert_profile_has_sample(
+    profile: pprof_pb2.Profile,
+    samples: List[pprof_pb2.Sample],
+    expected_sample: StackEvent,
+):
     found = False
-    for sample in profile.sample:
+    for sample in samples:
         try:
-            assert_stack_event(profile, sample, expected_samples)
+            assert_stack_event(profile, sample, expected_sample)
             found = True
             break
         except AssertionError as e:

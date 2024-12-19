@@ -8,6 +8,7 @@ from typing import Union
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.sampling_rule import SamplingRule
 
@@ -66,7 +67,7 @@ class EvaluatorRunnerSampler:
                 TELEMETRY_LOG_LEVEL.ERROR, message="Evaluator sampling parsing failure because: {}".format(msg)
             )
             telemetry_writer.add_count_metric(
-                namespace="llmobs",
+                namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
                 name="evaluators.error",
                 value=1,
                 tags=(("reason", "sampling_rule_parsing_failure"),),
@@ -103,7 +104,7 @@ class EvaluatorRunnerSampler:
             span_name = rule.get(EvaluatorRunnerSamplingRule.SPAN_NAME_KEY, SamplingRule.NO_RULE)
             evaluator_label = rule.get(EvaluatorRunnerSamplingRule.EVALUATOR_LABEL_KEY, SamplingRule.NO_RULE)
             telemetry_writer.add_distribution_metric(
-                "llmobs",
+                TELEMETRY_APM_PRODUCT.LLMOBS,
                 "evaluators.rule_sample_rate",
                 sample_rate,
                 tags=(("evaluator_label", evaluator_label), ("span_name", span_name)),

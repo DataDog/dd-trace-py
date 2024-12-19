@@ -1,7 +1,7 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": "tests.contrib.langchain",
     "resource": "langchain.chains.sequential.SequentialChain",
     "trace_id": 0,
     "span_id": 1,
@@ -34,7 +34,7 @@
   },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": "tests.contrib.langchain",
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 2,
@@ -59,7 +59,7 @@
      },
         {
           "name": "langchain.request",
-          "service": "",
+          "service": "tests.contrib.langchain",
           "resource": "langchain_openai.llms.base.OpenAI",
           "trace_id": 0,
           "span_id": 4,
@@ -95,7 +95,7 @@
         },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": "tests.contrib.langchain",
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 3,
@@ -121,7 +121,7 @@
      },
         {
           "name": "langchain.request",
-          "service": "",
+          "service": "tests.contrib.langchain",
           "resource": "langchain_openai.llms.base.OpenAI",
           "trace_id": 0,
           "span_id": 5,

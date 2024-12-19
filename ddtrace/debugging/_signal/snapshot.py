@@ -17,6 +17,8 @@ from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
+from ddtrace.debugging._probe.model import LogFunctionProbe
+from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
@@ -25,8 +27,9 @@ from ddtrace.debugging._safety import get_args
 from ddtrace.debugging._safety import get_globals
 from ddtrace.debugging._safety import get_locals
 from ddtrace.debugging._signal import utils
+from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import EvaluationError
-from ddtrace.debugging._signal.model import LogSignal
+from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.utils.time import HourGlass
@@ -137,6 +140,17 @@ class Snapshot(LogSignal):
         self.duration = duration
         self.return_capture = self._do(retval, exc_info, scope)
 
+        # Fix the line number of the top frame. This might have been mangled by
+        # the instrumented exception handling of function probes.
+        assert self._stack is not None  # nosec B101
+        tb = exc_info[2]
+        while tb is not None:
+            frame = tb.tb_frame
+            if frame == self.frame:
+                self._stack[0]["lineNumber"] = tb.tb_lineno
+                break
+            tb = tb.tb_next
+
     def line(self, scope) -> None:
         self.line_capture = self._do(_NOTSET, sys.exc_info(), scope)
 
@@ -166,3 +180,13 @@ class Snapshot(LogSignal):
             "captures": captures,
             "duration": self.duration,
         }
+
+
+@probe_to_signal.register
+def _(probe: LogFunctionProbe, frame, thread, trace_context, meter):
+    return Snapshot(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
+
+
+@probe_to_signal.register
+def _(probe: LogLineProbe, frame, thread, trace_context, meter):
+    return Snapshot(probe=probe, frame=frame, thread=thread, trace_context=trace_context)

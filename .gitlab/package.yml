@@ -3,7 +3,7 @@ build_base_venvs:
   stage: package
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+      - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     PIP_VERBOSE: 1
@@ -50,6 +50,8 @@ download_dependency_wheels:
         PYTHON_VERSION: "3.11"
       - PYTHON_IMAGE_TAG: "3.12.0"
         PYTHON_VERSION: "3.12"
+      - PYTHON_IMAGE_TAG: "3.13.0"
+        PYTHON_VERSION: "3.13"
   script:
     - .gitlab/download-dependency-wheels.sh
   artifacts:

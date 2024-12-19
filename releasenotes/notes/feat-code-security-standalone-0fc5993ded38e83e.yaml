@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Code Security: This introduces "Standalone Code Security", a feature that disables APM in the tracer but keeps Code Security (IAST) enabled. In order to enable it, set the environment variables ``DD_IAST_ENABLED=1`` and ``DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED=1``.

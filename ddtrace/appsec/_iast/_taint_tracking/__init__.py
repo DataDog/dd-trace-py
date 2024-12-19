@@ -1,17 +1,23 @@
 from io import BytesIO
 from io import StringIO
 import itertools
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
-from typing import Sequence
 from typing import Tuple
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Sequence  # noqa:F401
 
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 
 from ..._constants import IAST
+from ..._constants import IAST_SPAN_TAGS
 from .._iast_request_context import is_iast_request_enabled
 from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
+from .._metrics import increment_iast_span_metric
 from .._utils import _is_iast_debug_enabled
 from .._utils import _is_iast_propagation_debug_enabled
 from .._utils import _is_python_version_supported
@@ -148,7 +154,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
 
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
-    # We need this validation in different contition if pyobject is not a text type and creates a side-effect such as
+    # We need this validation in different condition if pyobject is not a text type and creates a side-effect such as
     # __len__ magic method call.
     pyobject_len = 0
     if isinstance(pyobject, IAST.TEXT_TYPES):
@@ -181,6 +187,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
         res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin)
         _set_metric_iast_executed_source(source_origin)
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
         return res
     except ValueError as e:
         log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e)
@@ -260,7 +267,9 @@ if _is_iast_propagation_debug_enabled():
     threading.settrace(trace_calls_and_returns)
 
 
-def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
+def copy_ranges_to_string(pyobject, ranges):
+    # type: (str, Sequence[TaintRange]) -> str
+    # NB this function uses comment-based type annotation because TaintRange is conditionally imported
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
 
@@ -294,7 +303,9 @@ def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
 
 # Given a list of ranges, try to match them with the iterable and return a new iterable with a new range applied that
 # matched the original one Source. If no range matches, take the Source from the first one.
-def copy_ranges_to_iterable_with_strings(iterable: Sequence[str], ranges: Sequence[TaintRange]) -> Sequence[str]:
+def copy_ranges_to_iterable_with_strings(iterable, ranges):
+    # type: (Sequence[str], Sequence[TaintRange]) -> Sequence[str]
+    # NB this function uses comment-based type annotation because TaintRange is conditionally imported
     iterable_type = type(iterable)
 
     new_result = []

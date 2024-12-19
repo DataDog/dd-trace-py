@@ -9,7 +9,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -35,7 +35,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -61,7 +61,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -87,7 +87,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -113,7 +113,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -139,7 +139,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -165,7 +165,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -191,7 +191,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -217,7 +217,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -243,7 +243,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -269,7 +269,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -295,7 +295,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -321,7 +321,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -347,7 +347,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -373,7 +373,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -399,7 +399,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -425,7 +425,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -451,7 +451,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -477,7 +477,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -503,7 +503,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -529,7 +529,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -555,7 +555,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -581,7 +581,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -607,7 +607,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -633,7 +633,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -659,7 +659,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -685,7 +685,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -711,7 +711,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -737,7 +737,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",
@@ -763,7 +763,7 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670647500000000",
       "language": "python",

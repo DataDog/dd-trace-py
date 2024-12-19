@@ -1,7 +1,7 @@
 [[
   {
     "name": "parent",
-    "service": "",
+    "service": "tests.integration",
     "resource": "parent",
     "trace_id": 0,
     "span_id": 1,

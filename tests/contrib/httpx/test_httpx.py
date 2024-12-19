@@ -136,7 +136,7 @@ async def test_configure_service_name_pin(tracer, test_spans):
 
     resp = httpx.get(url, headers=DEFAULT_HEADERS)
     assert resp.status_code == 200
-    assert_spans(test_spans, service=None)
+    assert_spans(test_spans, service="tests.contrib.httpx")
 
     resp = client.get(url, headers=DEFAULT_HEADERS)
     assert resp.status_code == 200

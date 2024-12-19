@@ -1,9 +1,11 @@
 import sys
 import warnings
 
+
 LOADED_MODULES = frozenset(sys.modules.keys())
 
 from ddtrace.internal.module import ModuleWatchdog
+
 
 ModuleWatchdog.install()
 
@@ -16,17 +18,20 @@ configure_ddtrace_logger()  # noqa: E402
 
 from .settings import _config as config
 
+
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
 import ddtrace.internal.telemetry  # noqa: E402
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
+from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .pin import Pin  # noqa: E402
 from ddtrace._trace.span import Span  # noqa: E402
 from ddtrace._trace.tracer import Tracer  # noqa: E402
 from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
+
 
 # DEV: Import deprecated tracer module in order to retain side-effect of package
 # initialization, which added this module to sys.modules. We catch deprecation
@@ -71,3 +76,19 @@ def __getattr__(name):
         return globals()[name]
 
     raise AttributeError("%s has no attribute %s", __name__, name)
+
+
+def check_supported_python_version():
+    if PYTHON_VERSION_INFO < (3, 8):
+        deprecation_message = (
+            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 3.0.0."
+        )
+        if PYTHON_VERSION_INFO < (3, 7):
+            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 2.0.0."
+        debtcollector.deprecate(
+            (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
+            category=DDTraceDeprecationWarning,
+        )
+
+
+check_supported_python_version()
