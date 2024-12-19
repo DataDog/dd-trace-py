@@ -106,10 +106,6 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
             ),
         ):
             yield
-            from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-            if CIVisibility.enabled:
-                CIVisibility.disable()
 
     def test_fail_quarantined_no_ddtrace_does_not_quarantine(self):
         self.testdir.makepyfile(test_pass_quarantined=_TEST_PASS_QUARANTINED)
