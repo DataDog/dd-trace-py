@@ -10,6 +10,12 @@ see specific integration documentation for more details.
 
 The following environment variables for the tracer are supported:
 
+Common Configurations
+---------------------
+
+For common configuration variables (not language specific), see `Configure the Datadog Tracing Library`_.
+
+
 Unified Service Tagging
 -----------------------
 
@@ -176,18 +182,6 @@ Traces
          Enables AWS response payload tagging when set to ``"all"`` or a valid comma-separated list of ``JSONPath``\s.
       version_added:
          v2.17.0:
-
-   DD_TRACE_ENABLED:
-     type: Boolean
-     default: True
-     
-     description: |
-         Enable sending of spans to the Agent. Note that instrumentation will still be installed and spans will be
-         generated.
-     
-     version_added:
-       v0.41.0: |
-           Formerly named ``DATADOG_TRACE_ENABLED``
 
    DD_TRACE_HEADER_TAGS:
      description: |
@@ -881,6 +875,8 @@ Other
 
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+
+.. _Configure the Datadog Tracing Library: https://docs.datadoghq.com/tracing/trace_collection/library_config/
 
 
 Profiling
