@@ -272,7 +272,7 @@ class ASMConfig(Env):
     @property
     def _apm_opt_out(self) -> bool:
         return (
-            self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled
+            self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
         ) and self._appsec_standalone_enabled
 
     @property
