@@ -270,6 +270,10 @@ class ASMConfig(Env):
         return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
 
     @property
+    def _apm_opt_out(self) -> bool:
+        return (self._asm_enabled or self._iast_enabled) and self._appsec_standalone_enabled
+
+    @property
     def _user_event_mode(self) -> str:
         if self._asm_enabled and self._auto_user_instrumentation_enabled:
             if self._auto_user_instrumentation_rc_mode is not None:

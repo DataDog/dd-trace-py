@@ -2051,13 +2051,7 @@ def test_asm_standalone_configuration(appsec_enabled, iast_enabled):
 
     tracer = ddtrace.Tracer()
     tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, appsec_standalone_enabled=True)
-    if appsec_enabled:
-        assert tracer._asm_enabled is True
-    if iast_enabled:
-        assert tracer._iast_enabled is True
 
-    assert tracer._appsec_standalone_enabled is True
-    assert tracer._apm_opt_out is True
     assert tracer.enabled is False
 
     assert isinstance(tracer._sampler.limiter, RateLimiter)

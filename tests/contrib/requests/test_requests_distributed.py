@@ -117,7 +117,6 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
 
     def test_propagation_apm_opt_out_true(self):
         # ensure distributed tracing works when APM is opted out
-        self.tracer._apm_opt_out = True
         self.tracer.enabled = False
 
         cfg = config.get_from(self.session)
@@ -144,7 +143,6 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
 
     def test_propagation_apm_opt_out_false(self):
         # ensure distributed tracing doesn't works when APM is disabled but not opted out
-        self.tracer._apm_opt_out = False
         self.tracer.enabled = False
 
         cfg = config.get_from(self.session)

@@ -59,7 +59,7 @@ def _wrap_send(func, instance, args, kwargs):
     tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
 
     # skip if tracing is not enabled
-    if not tracer.enabled and not tracer._apm_opt_out:
+    if not tracer.enabled:
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")
