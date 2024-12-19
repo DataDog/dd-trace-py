@@ -1146,7 +1146,7 @@ class HTTPPropagator(object):
         if not headers or config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_IGNORE:
             return context
         try:
-            style = "unknown"
+            style = ""
             normalized_headers = {name.lower(): v for name, v in headers.items()}
             # tracer configured to extract first only
             if config._propagation_extract_first:
@@ -1162,7 +1162,8 @@ class HTTPPropagator(object):
             # loop through all extract propagation styles
             else:
                 contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
-                style = styles_w_ctx[0] if styles_w_ctx[0] else "unknown"
+                if styles_w_ctx[0]:
+                    style = styles_w_ctx[0]
 
                 if contexts:
                     context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
@@ -1177,10 +1178,9 @@ class HTTPPropagator(object):
                         context._baggage = baggage_context._baggage
                     else:
                         context = baggage_context
-            if _PROPAGATION_BEHAVIOR_RESTART:
-                if context:
-                    link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
-                    context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])
+            if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
+                link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
+                context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])
 
             return context
 

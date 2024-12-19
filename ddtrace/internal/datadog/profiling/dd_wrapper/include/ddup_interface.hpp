@@ -44,6 +44,9 @@ extern "C"
     void ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count);
     void ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count);
     void ddup_push_heap(Datadog::Sample* sample, int64_t size);
+    void ddup_push_gpu_gputime(Datadog::Sample* sample, int64_t time, int64_t count);
+    void ddup_push_gpu_memory(Datadog::Sample* sample, int64_t mem, int64_t count);
+    void ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count);
     void ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name);
     void ddup_push_threadinfo(Datadog::Sample* sample,
                               int64_t thread_id,
@@ -56,11 +59,13 @@ extern "C"
     void ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type);
     void ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count);
     void ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name);
+    void ddup_push_gpu_device_name(Datadog::Sample*, std::string_view device_name);
     void ddup_push_frame(Datadog::Sample* sample,
                          std::string_view _name,
                          std::string_view _filename,
                          uint64_t address,
                          int64_t line);
+    void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
     // Stack v2 specific flush, which reverses the locations

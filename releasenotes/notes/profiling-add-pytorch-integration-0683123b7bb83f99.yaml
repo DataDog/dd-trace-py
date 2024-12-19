@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    profiling: Adds an experimental integration with the PyTorch profiler which can be enabled
+    by setting ``DD_PROFILING_PYTORCH_ENABLED=true``. This feature instruments the PyTorch 
+    profiler API (https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html)
+    so that GPU profiling data can be sent to Datadog for visualization.
+    This feature supports torch version >= 1.8.1.

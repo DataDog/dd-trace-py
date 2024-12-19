@@ -31,7 +31,6 @@ from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
-from ..runtime import container
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
@@ -493,8 +492,6 @@ class AgentWriter(HTTPWriter):
         }
         if headers:
             _headers.update(headers)
-        self._container_info = container.get_container_info()
-        container.update_headers_with_container_info(_headers, self._container_info)
 
         _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")

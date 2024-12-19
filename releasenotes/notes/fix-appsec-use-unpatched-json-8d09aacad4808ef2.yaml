@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where AppSec was using a patched JSON loads, creating telemetry errors.

@@ -19,7 +19,6 @@ from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
-from ..runtime import container
 from ..writer import _human_size
 
 
@@ -108,7 +107,6 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
-        container.update_headers_with_container_info(self._headers, container.get_container_info())
         self._hostname = ""
         if config._report_hostname:
             self._hostname = get_hostname()

@@ -28,6 +28,7 @@ from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
+from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
@@ -675,6 +676,40 @@ def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescri
     )
 
 
+def _set_azure_function_tags(span, azure_functions_config, function_name, trigger):
+    span.set_tag_str(COMPONENT, azure_functions_config.integration_name)
+    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+    span.set_tag_str("aas.function.name", function_name)  # codespell:ignore
+    span.set_tag_str("aas.function.trigger", trigger)  # codespell:ignore
+
+
+def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
+    span = ctx.get_item("req_span")
+    parsed_url = parse.urlparse(req.url)
+    path = parsed_url.path
+    span.resource = f"{req.method} {path}"
+    trace_utils.set_http_meta(
+        span,
+        azure_functions_config,
+        method=req.method,
+        url=req.url,
+        request_headers=req.headers,
+        request_body=req.get_body(),
+        route=path,
+    )
+
+
+def _on_azure_functions_start_response(ctx, azure_functions_config, res, function_name, trigger):
+    span = ctx.get_item("req_span")
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger)
+    trace_utils.set_http_meta(
+        span,
+        azure_functions_config,
+        status_code=res.status_code if res else None,
+        response_headers=res.headers if res else None,
+    )
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -723,6 +758,8 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
+    core.on("azure.functions.start_response", _on_azure_functions_start_response)
 
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
@@ -754,6 +791,7 @@ def listen():
         "rq.worker.perform_job",
         "rq.job.perform",
         "rq.job.fetch_many",
+        "azure.functions.patched_route_request",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

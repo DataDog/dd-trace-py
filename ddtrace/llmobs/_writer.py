@@ -1,5 +1,4 @@
 import atexit
-import json
 from typing import Any
 from typing import Dict
 from typing import List
@@ -32,6 +31,7 @@ from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
+from ddtrace.llmobs._utils import safe_json
 
 
 logger = get_logger(__name__)
@@ -108,11 +108,7 @@ class BaseLLMObsWriter(PeriodicService):
             self._buffer = []
 
         data = self._data(events)
-        try:
-            enc_llm_events = json.dumps(data)
-        except TypeError:
-            logger.error("failed to encode %d LLMObs %s events", len(events), self._event_type, exc_info=True)
-            return
+        enc_llm_events = safe_json(data)
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, enc_llm_events, self._headers)
@@ -197,7 +193,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 )
                 return
             self._buffer.extend(events)
-            self.buffer_size += len(json.dumps(events))
+            self.buffer_size += len(safe_json(events))
 
     def encode(self):
         with self._lock:
@@ -207,7 +203,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
             self._init_buffer()
         data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
         try:
-            enc_llm_events = json.dumps(data)
+            enc_llm_events = safe_json(data)
             logger.debug("encode %d LLMObs span events to be sent", len(events))
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
@@ -277,7 +273,7 @@ class LLMObsSpanWriter(HTTPWriter):
             super(LLMObsSpanWriter, self).stop(timeout=timeout)
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
-        event_size = len(json.dumps(event))
+        event_size = len(safe_json(event))
 
         if event_size >= EVP_EVENT_SIZE_LIMIT:
             logger.warning(

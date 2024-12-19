@@ -7,6 +7,8 @@ from typing import List
 from typing import Optional
 from typing import Sequence  # noqa F401
 
+import ddtrace
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
@@ -30,6 +32,7 @@ class Scheduler(periodic.PeriodicService):
         recorder: Optional[Recorder] = None,
         exporters: Optional[List[Exporter]] = None,
         before_flush: Optional[Callable] = None,
+        tracer: Optional[Tracer] = ddtrace.tracer,
         interval: float = config.upload_interval,
     ):
         super(Scheduler, self).__init__(interval=interval)
@@ -38,6 +41,7 @@ class Scheduler(periodic.PeriodicService):
         self.before_flush: Optional[Callable] = before_flush
         self._configured_interval: float = self.interval
         self._last_export: int = 0  # Overridden in _start_service
+        self._tracer = tracer
         self._export_libdd_enabled: bool = config.export.libdd_enabled
 
     def _start_service(self):
@@ -59,7 +63,7 @@ class Scheduler(periodic.PeriodicService):
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
         if self._export_libdd_enabled:
-            ddup.upload()
+            ddup.upload(self._tracer)
 
             # These are only used by the Python uploader, but set them here to keep logs/etc
             # consistent for now

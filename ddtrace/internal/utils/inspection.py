@@ -5,6 +5,7 @@ from functools import singledispatch
 from pathlib import Path
 from types import CodeType
 from types import FunctionType
+from typing import Iterator
 from typing import Set
 from typing import cast
 
@@ -112,3 +113,12 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
             pass
 
     return f
+
+
+def collect_code_objects(code: CodeType) -> Iterator[CodeType]:
+    q = deque([code])
+    while q:
+        c = q.popleft()
+        for new_code in (_ for _ in c.co_consts if isinstance(_, CodeType)):
+            yield new_code
+            q.append(new_code)

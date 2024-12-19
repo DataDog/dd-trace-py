@@ -1,0 +1,48 @@
+name: Profiling Native Tests with Sanitizers
+
+on:
+  push:
+    branches:
+      - main
+      - "mq-working-branch**"
+  pull_request:
+    paths:
+    - ddtrace/internal/datadog/profiling/**
+    - ddtrace/profiling/**
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        sanitizer: ["safety", "thread"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install llvm 19
+        run: |
+          # Ubuntu-24.04 GH actions image has llvm-18, but we use 19 as it's
+          # the latest one available.
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+
+      - name: Run tests with sanitizers
+        run: |
+          # DEV: We currently have tests in dd_wrapper and stack_v2, setting
+          # stack_v2 here will also run tests in dd_wrapper. Revisit this when
+          # that changes.
+          ./ddtrace/internal/datadog/profiling/build_standalone.sh --${{matrix.sanitizer}} RelWithDebInfo stack_v2_test

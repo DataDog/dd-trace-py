@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import dis
 from enum import Enum
+import gzip
 from http.client import HTTPResponse
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
@@ -484,12 +485,17 @@ class ScopeContext:
                 ),
                 FormData(
                     name="file",
-                    filename="symdb_export.json",
-                    data=json.dumps(self.to_json()),
-                    content_type="json",
+                    filename=f"symbols_{os.getpid()}.json.gz",
+                    data="[symbols_placeholder]",
+                    content_type="gzip",
                 ),
             ]
         )
+
+        # DEV: The as_bytes method ends up writing the data line by line, which
+        # breaks the final payload. We add a placeholder instead and manually
+        # replace it with the compressed JSON.
+        body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(self.to_json()).encode("utf-8")))
 
         with connector(get_trace_url(), timeout=5.0)() as conn:
             log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
@@ -527,7 +533,7 @@ def is_module_included(module: ModuleType) -> bool:
 
 
 class SymbolDatabaseUploader(BaseModuleWatchdog):
-    __scope_limit__ = 100
+    __scope_limit__ = 400
 
     def __init__(self) -> None:
         super().__init__()

@@ -133,7 +133,7 @@ class BaseLLMIntegration:
                 # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
                 # in these cases to avoid conflicting with the later propagated tags.
                 parent_id = _get_llmobs_parent_id(span) or "undefined"
-                span.set_tag_str(PARENT_ID_KEY, str(parent_id))
+                span._set_ctx_item(PARENT_ID_KEY, str(parent_id))
         return span
 
     @classmethod

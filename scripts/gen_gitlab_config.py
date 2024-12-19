@@ -114,7 +114,7 @@ def gen_pre_checks() -> None:
             with TESTS_GEN.open("a") as f:
                 print(f'"{name}":', file=f)
                 print("  extends: .testrunner", file=f)
-                print("  stage: tests", file=f)
+                print("  stage: precheck", file=f)
                 print("  needs: []", file=f)
                 print("  script:", file=f)
                 print(f"    - {command}", file=f)

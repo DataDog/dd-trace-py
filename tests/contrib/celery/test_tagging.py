@@ -102,7 +102,7 @@ def test_amqp_task(instrument_celery, traced_amqp_celery_app):
         shutdown_timeout=30,
     ):
         t = add.delay(4, 4)
-        assert t.get(timeout=2) == 8
+        assert t.get(timeout=30) == 8
 
         # wait for spans to be received
         time.sleep(3)

@@ -41,6 +41,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
+    "freezegun": True,
     "google_generativeai": True,
     "gevent": True,
     "graphql": True,
@@ -93,6 +94,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_functions": True,
     "tornado": False,
     "openai": True,
     "langchain": True,
@@ -100,6 +102,7 @@ PATCH_MODULES = {
     "subprocess": True,
     "unittest": True,
     "coverage": False,
+    "selenium": True,
 }
 
 
@@ -141,6 +144,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_functions": ("azure.functions",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),

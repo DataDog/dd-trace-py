@@ -4,6 +4,7 @@ import re
 
 SUITE = "suite"
 TEST = "test"
+BENCHMARK = "benchmark"
 
 EVENT_TYPE = "type"
 

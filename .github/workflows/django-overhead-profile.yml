@@ -33,6 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           path: ddtrace
 
       - uses: actions/setup-python@v5
@@ -51,4 +52,3 @@ jobs:
         with:
           name: django-overhead-profile${{ matrix.suffix }}
           path: ${{ github.workspace }}/prefix/artifacts
-

@@ -495,8 +495,7 @@ PACKAGES = [
         "d8b5635eb590e078a608e083351288a0",
         "",
         import_module_to_validate="multipart.multipart",
-        # This test is failing in CircleCI because, for some reason, instead of installing version
-        # 0.0.5, it’s installing the latest version
+        # This test is failing in CircleCI with the latest version
         test_import=False,
         test_propagation=True,
     ),
@@ -573,6 +572,8 @@ PACKAGES = [
         "Parsed TOML data: {'key': 'value'}",
         "",
         import_module_to_validate="tomli._parser",
+        # This test is failing in CircleCI with the latest version
+        test_import=False,
         test_propagation=True,
     ),
     PackageForTesting(

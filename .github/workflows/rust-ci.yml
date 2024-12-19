@@ -14,6 +14,8 @@ jobs:
         extension: ["src/core"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install latest stable toolchain and rustfmt
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
       - name: Run cargo build

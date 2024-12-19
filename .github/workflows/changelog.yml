@@ -15,6 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         # Include all history and tags
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       # Ensure a new reno release note was added in this PR.

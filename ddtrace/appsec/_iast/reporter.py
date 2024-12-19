@@ -11,6 +11,8 @@ from typing import Set
 from typing import Tuple
 import zlib
 
+from ddtrace.appsec._constants import STACK_TRACE
+from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
@@ -75,9 +77,19 @@ class Vulnerability(NotNoneDictable):
     evidence: Evidence
     location: Location
     hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
+    stackId: Optional[str] = dataclasses.field(init=False, compare=False)
 
     def __post_init__(self):
+        # avoid circular import
+        from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_id
+
         self.hash = zlib.crc32(repr(self).encode())
+        stacktrace_id = get_iast_stacktrace_id()
+        self.stackId = None
+        if stacktrace_id:
+            str_id = str(stacktrace_id)
+            if report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
+                self.stackId = str_id
 
     def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"
@@ -120,6 +132,74 @@ class IastSpanReporter(NotNoneDictable):
         - int: Hash value.
         """
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
+
+    def _merge(self, other: "IastSpanReporter") -> None:
+        """
+        Merges the current IAST span reporter with another IAST span reporter.
+
+        Args:
+        - other (IastSpanReporter): IAST span reporter to merge.
+        """
+        len_previous_sources = len(self.sources)
+        self.sources = self.sources + other.sources
+        self._update_vulnerabilities(other, len_previous_sources)
+
+    def _update_vulnerabilities(self, other: "IastSpanReporter", offset: int):
+        for vuln in other.vulnerabilities:
+            if (
+                hasattr(vuln, "evidence")
+                and hasattr(vuln.evidence, "valueParts")
+                and vuln.evidence.valueParts is not None
+            ):
+                for part in vuln.evidence.valueParts:
+                    if "source" in part:
+                        part["source"] = part["source"] + offset
+            self.vulnerabilities.add(vuln)
+
+    def _from_json(self, json_str: str):
+        """
+        Initializes the IAST span reporter from a JSON string.
+
+        Args:
+        - json_str (str): JSON string.
+        """
+        from ._taint_tracking import str_to_origin
+
+        data = json.loads(json_str)
+        self.sources = []
+        for i in data["sources"]:
+            source = Source(
+                origin=str_to_origin(i["origin"]),
+                name=i["name"],
+            )
+            if "value" in i:
+                source.value = i["value"]
+            if "redacted" in i:
+                source.redacted = i["redacted"]
+            if "pattern" in i:
+                source.pattern = i["pattern"]
+            self.sources.append(source)
+
+        self.vulnerabilities = set()
+        for i in data["vulnerabilities"]:
+            evidence = Evidence()
+            if "ranges" in i["evidence"]:
+                evidence._ranges = i["evidence"]["ranges"]
+            if "value" in i["evidence"]:
+                evidence.value = i["evidence"]["value"]
+            if "valueParts" in i["evidence"]:
+                evidence.valueParts = i["evidence"]["valueParts"]
+            if "dialect" in i["evidence"]:
+                evidence.dialect = i["evidence"]["dialect"]
+            self.vulnerabilities.add(
+                Vulnerability(
+                    type=i["type"],
+                    evidence=evidence,
+                    location=Location(
+                        spanId=i["location"]["spanId"], path=i["location"]["path"], line=i["location"]["line"]
+                    ),
+                )
+            )
 
     def _to_dict(self):
         return {

@@ -737,3 +737,85 @@ To avoid such duplicate log entries from ``ddtrace``, you can remove the automat
     ddtrace_logger = logging.getLogger("ddtrace")
     for handler in ddtrace_logger.handlers:
         ddtrace_logger.removeHandler(handler)
+
+PyTorch Profiling
+-----------------
+
+The PyTorch profiler can be used to trace CPU and GPU events that occur when running inference or training on a PyTorch model.
+The PyTorch profiler as it's `typically used <https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html>`__, will output a trace json file to
+local disk that can be loaded in a visualization tool like TensorBoard or Perfetto. With the dd-trace-py PyTorch profiler integration, we instrument the `profiler API <https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>`__
+to automatically export this data to Datadog for visualization without having to manually copy files between servers.
+
+The requirements for using this feature are:
+
+- must be using the `torch.profiler` module which was introduced in PyTorch version `1.8.1`.
+- must set the environment variable `DD_PROFILING_PYTORCH_ENABLED=true`.
+
+It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and CPU overhead. This 
+is an experimental feature which should be run with caution as it can add significant overhead. Additionally, please note that running this feature in certain 
+configurations can conflict with other features. For instance, running the NSight Systems or NSight Compute profiler alongside the PyTorch profiler on the same machine at the same time will likely lead to
+errors as CUPTI generally does not support multiple concurrent readers.
+
+
+Below is an example program using the well known `CIFAR-10 <https://www.cs.toronto.edu/~kriz/cifar.html>`__ dataset for image classification.
+This can be run through the command line (assuming that a Datadog agent is running in the same environment) with:
+
+.. code-block:: bash
+
+    DD_SERVICE=test-pytorch-service DD_PROFILING_PYTORCH_ENABLED=true DD_PROFILING_ENABLED=true ddtrace-run python cifar10.py
+
+.. code-block:: python
+    
+    import torch
+    import torch.nn
+    import torch.optim
+    import torch.utils.data
+    import torchvision.datasets
+    import torchvision.models
+    import torchvision.transforms as T
+    from torchvision.models import resnet18, ResNet18_Weights
+
+    from torch.profiler import ProfilerActivity
+
+
+    def cifar():
+        transform = T.Compose(
+            [T.Resize(224), T.ToTensor(), T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        )
+        train_set = torchvision.datasets.CIFAR10(
+            root="./data", train=True, download=True, transform=transform
+        )
+        train_loader = torch.utils.data.DataLoader(train_set, batch_size=32, shuffle=True)
+        device = torch.device("cuda")
+        model = resnet18(weights=ResNet18_Weights.DEFAULT).cuda()
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+        model.train()
+
+        def train(data):
+            inputs, labels = data[0].to(device=device), data[1].to(device=device)
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        with torch.profiler.profile(
+            activities=[ProfilerActivity.CUDA],
+        ):
+            for step, batch_data in enumerate(train_loader):
+                print("step #%d" % step)
+                if step >= (1 + 1 + 3) * 2:
+                    break
+                train(batch_data)
+
+
+    if __name__ == "__main__":
+        cifar()
+
+The profiling data is then visible under the Timeseries tab in the profiling page. For instance, the GPU Time by Kernel Name metric is shown below
+for an application serving inference with an LLM through PyTorch:
+
+.. image:: pytorch_metric.png
+  :width: 600
+  :alt: Alternative text

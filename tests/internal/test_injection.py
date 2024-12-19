@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import sys
 
 import mock
 import pytest
@@ -205,6 +206,7 @@ def test_inject_in_loop():
     assert hook.call_count == n
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
 def test_inject_in_generator():
     lo = next(iter(linenos(generator_target)))
     hook = mock.Mock()

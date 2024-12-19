@@ -24,6 +24,7 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -57,7 +58,9 @@ def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_
         yield
     else:
         caplog.set_level(logging.DEBUG)
-        with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
+        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+            dict(_iast_debug=True)
+        ), caplog.at_level(logging.DEBUG):
             yield
 
         log_messages = [record.msg for record in caplog.get_records("call")]

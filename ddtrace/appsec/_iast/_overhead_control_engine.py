@@ -3,7 +3,6 @@ The Overhead control engine (OCE) is an element that by design ensures that the 
 limit. It will measure operations being executed in a request and it will deactivate detection
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
-import os
 from typing import Set
 from typing import Text
 from typing import Tuple
@@ -25,22 +24,18 @@ def get_request_sampling_value() -> float:
     return float(asm_config._iast_request_sampling)
 
 
-MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
-MAX_VULNERABILITIES_PER_REQUEST = int(os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST", 2))
-
-
 class Operation(object):
     """Common operation related to Overhead Control Engine (OCE). Every vulnerabilities/taint_sinks should inherit
     from this class. OCE instance calls these methods to control the overhead produced in each request.
     """
 
     _lock = threading.Lock()
-    _vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
+    _vulnerability_quota = asm_config._iast_max_vulnerabilities_per_requests
     _reported_vulnerabilities: Set[Tuple[str, int]] = set()
 
     @classmethod
     def reset(cls):
-        cls._vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
+        cls._vulnerability_quota = asm_config._iast_max_vulnerabilities_per_requests
         cls._reported_vulnerabilities = set()
 
     @classmethod
@@ -57,7 +52,7 @@ class Operation(object):
     def increment_quota(cls) -> bool:
         cls._lock.acquire()
         result = False
-        if cls._vulnerability_quota < MAX_VULNERABILITIES_PER_REQUEST:
+        if cls._vulnerability_quota < asm_config._iast_max_vulnerabilities_per_requests:
             cls._vulnerability_quota += 1
             result = True
         cls._lock.release()
@@ -86,12 +81,13 @@ class OverheadControl(object):
     """
 
     _lock = threading.Lock()
-    _request_quota = MAX_REQUESTS
+    _request_quota = asm_config._iast_max_concurrent_requests
     _vulnerabilities: Set[Type[Operation]] = set()
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def reconfigure(self):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
+        self._request_quota = asm_config._iast_max_concurrent_requests
 
     def acquire_request(self, span: Span) -> bool:
         """Decide whether if IAST analysis will be done for this request.

@@ -74,10 +74,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
+from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
+from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
@@ -1008,6 +1010,12 @@ def _on_session_get_codeowners() -> Optional[Codeowners]:
 
 
 @_requires_civisibility_enabled
+def _on_session_get_tracer() -> Optional[Tracer]:
+    log.debug("Getting tracer")
+    return CIVisibility.get_tracer()
+
+
+@_requires_civisibility_enabled
 def _on_session_is_atr_enabled() -> bool:
     log.debug("Getting Auto Test Retries enabled")
     return CIVisibility.is_atr_enabled()
@@ -1031,7 +1039,7 @@ def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
     codeowners = CIVisibility.get_codeowners()
     if codeowners is None:
         return None
-    return codeowners.of(str(path.absolute()))
+    return codeowners.of(str(path))
 
 
 def _register_session_handlers():
@@ -1040,6 +1048,7 @@ def _register_session_handlers():
     core.on("test_visibility.session.start", _on_start_session)
     core.on("test_visibility.session.finish", _on_finish_session)
     core.on("test_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
+    core.on("test_visibility.session.get_tracer", _on_session_get_tracer, "tracer")
     core.on("test_visibility.session.get_path_codeowners", _on_session_get_path_codeowners, "path_codeowners")
     core.on("test_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
     core.on("test_visibility.session.is_atr_enabled", _on_session_is_atr_enabled, "is_atr_enabled")
@@ -1181,6 +1190,27 @@ def _on_set_test_parameters(item_id: TestId, parameters: str):
     CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
 
 
+@_requires_civisibility_enabled
+def _on_set_benchmark_data(set_benchmark_data_args: BenchmarkTestMixin.SetBenchmarkDataArgs):
+    item_id = set_benchmark_data_args.test_id
+    data = set_benchmark_data_args.benchmark_data
+    is_benchmark = set_benchmark_data_args.is_benchmark
+    log.debug("Handling set benchmark data for test id %s, data %s, is_benchmark %s", item_id, data, is_benchmark)
+    CIVisibility.get_test_by_id(item_id).set_benchmark_data(data, is_benchmark)
+
+
+@_requires_civisibility_enabled
+def _on_test_overwrite_attributes(overwrite_attribute_args: InternalTest.OverwriteAttributesArgs):
+    item_id = overwrite_attribute_args.test_id
+    name = overwrite_attribute_args.name
+    suite_name = overwrite_attribute_args.suite_name
+    parameters = overwrite_attribute_args.parameters
+    codeowners = overwrite_attribute_args.codeowners
+
+    log.debug("Handling overwrite attributes: %s", overwrite_attribute_args)
+    CIVisibility.get_test_by_id(item_id).overwrite_attributes(name, suite_name, parameters, codeowners)
+
+
 def _register_test_handlers():
     log.debug("Registering test handlers")
     core.on("test_visibility.test.discover", _on_discover_test)
@@ -1188,6 +1218,8 @@ def _register_test_handlers():
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
     core.on("test_visibility.test.set_parameters", _on_set_test_parameters)
+    core.on("test_visibility.test.set_benchmark_data", _on_set_benchmark_data)
+    core.on("test_visibility.test.overwrite_attributes", _on_test_overwrite_attributes)
 
 
 @_requires_civisibility_enabled

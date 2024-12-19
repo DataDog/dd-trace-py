@@ -56,3 +56,24 @@ PLUGIN_METRICS = {
     STATISTICS_STDDEV_OUTLIERS: PLUGIN_STDDEV_OUTLIERS,
     STATISTICS_TOTAL: PLUGIN_TOTAL,
 }
+
+PLUGIN_METRICS_V2 = {
+    "duration_mean": PLUGIN_MEAN,
+    "duration_runs": PLUGIN_ROUNDS,
+    "statistics_hd15iqr": PLUGIN_HD15IQR,
+    "statistics_iqr": PLUGIN_IQR,
+    "statistics_iqr_outliers": PLUGIN_IQR_OUTLIERS,
+    "statistics_ld15iqr": PLUGIN_LD15IQR,
+    "statistics_max": PLUGIN_MAX,
+    "statistics_mean": PLUGIN_MEAN,
+    "statistics_median": PLUGIN_MEDIAN,
+    "statistics_min": PLUGIN_MIN,
+    "statistics_n": PLUGIN_ROUNDS,
+    "statistics_ops": PLUGIN_OPS,
+    "statistics_outliers": PLUGIN_OUTLIERS,
+    "statistics_q1": PLUGIN_Q1,
+    "statistics_q3": PLUGIN_Q3,
+    "statistics_std_dev": PLUGIN_STDDEV,
+    "statistics_std_dev_outliers": PLUGIN_STDDEV_OUTLIERS,
+    "statistics_total": PLUGIN_TOTAL,
+}

@@ -4,12 +4,10 @@
 #include "types.hpp"
 
 #include <atomic>
-#include <deque>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
-#include <unordered_set>
 #include <vector>
 
 extern "C"
@@ -18,10 +16,6 @@ extern "C"
 }
 
 namespace Datadog {
-
-// Unordered containers don't get heterogeneous lookup until gcc-10, so for now use this
-// strategy to dedup + store strings.
-using StringTable = std::unordered_set<std::string_view>;
 
 // Serves to collect individual samples, as well as lengthen the scope of string data
 class Profile
@@ -32,11 +26,6 @@ class Profile
     // - ddog_profile
     std::atomic<bool> first_time{ true };
     std::mutex profile_mtx{};
-
-    // Storage for strings
-    std::deque<std::string> string_storage{};
-    StringTable strings{};
-    std::mutex string_table_mtx{};
 
     // Configuration
     SampleType type_mask{ 0 };
@@ -68,9 +57,6 @@ class Profile
     size_t get_sample_type_length();
     ddog_prof_Profile& profile_borrow();
     void profile_release();
-
-    // String table manipulation
-    std::string_view insert_or_get(std::string_view str);
 
     // constref getters
     const ValueIndex& val();
