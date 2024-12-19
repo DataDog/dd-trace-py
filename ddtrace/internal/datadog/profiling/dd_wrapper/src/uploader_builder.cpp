@@ -190,6 +190,6 @@ Datadog::UploaderBuilder::build()
 void
 Datadog::UploaderBuilder::postfork_child()
 {
-    tag_mutex.~mutex();
+    // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&tag_mutex) std::mutex();
 }

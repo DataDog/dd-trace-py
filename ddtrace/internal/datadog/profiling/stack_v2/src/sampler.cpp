@@ -68,11 +68,9 @@ _stack_v2_atfork_child()
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
 
-    // `thread_info_map_lock` and `task_link_map_lock` are global locks held in echion; they need to be destroyed and re-initialized to ensure
-    // they have a consistent state
-    thread_info_map_lock.~mutex();
+    // `thread_info_map_lock` and `task_link_map_lock` are global locks held in echion
+    // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&thread_info_map_lock) std::mutex;
-    task_link_map_lock.~mutex();
     new (&task_link_map_lock) std::mutex;
 }
 
