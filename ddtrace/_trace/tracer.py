@@ -227,12 +227,13 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = config._tracing_enabled and not asm_config._apm_opt_out
+        self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         # _user_sampler is the backup in case we need to revert from remote config to local
         self._user_sampler: Optional[BaseSampler] = DatadogSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        if not self.enabled and asm_config._asm_enabled:
+        if asm_config._apm_opt_out:
+            self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             # If ASM is enabled but tracing is disabled,
@@ -490,7 +491,7 @@ class Tracer(object):
         if appsec_standalone_enabled is not None:
             asm_config._appsec_standalone_enabled = appsec_standalone_enabled
 
-        if asm_config._appsec_standalone_enabled and (asm_config._asm_enabled or asm_config._iast_enabled):
+        if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
