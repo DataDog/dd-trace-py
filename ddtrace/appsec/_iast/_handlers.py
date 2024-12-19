@@ -336,64 +336,61 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
 
 def _on_iast_fastapi_patch():
-    from ddtrace.appsec._iast._utils import _is_iast_enabled
+    from ddtrace.appsec._iast._taint_tracking import OriginType
 
-    if _is_iast_enabled():
-        from ddtrace.appsec._iast._taint_tracking import OriginType
+    # Cookies sources
+    try_wrap_function_wrapper(
+        "starlette.requests",
+        "cookie_parser",
+        functools.partial(_patched_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
+    )
+    _set_metric_iast_instrumented_source(OriginType.COOKIE)
+    _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
 
-        # Cookies sources
-        try_wrap_function_wrapper(
-            "starlette.requests",
-            "cookie_parser",
-            functools.partial(_patched_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
-        )
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+    # Parameter sources
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "QueryParams.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+    )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "QueryParams.get",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+    )
+    _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
-        # Parameter sources
-        try_wrap_function_wrapper(
-            "starlette.datastructures",
-            "QueryParams.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-        )
-        try_wrap_function_wrapper(
-            "starlette.datastructures",
-            "QueryParams.get",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-        )
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+    # Header sources
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "Headers.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+    )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "Headers.get",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+    )
+    _set_metric_iast_instrumented_source(OriginType.HEADER)
 
-        # Header sources
-        try_wrap_function_wrapper(
-            "starlette.datastructures",
-            "Headers.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-        )
-        try_wrap_function_wrapper(
-            "starlette.datastructures",
-            "Headers.get",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-        )
-        _set_metric_iast_instrumented_source(OriginType.HEADER)
+    # Path source
+    try_wrap_function_wrapper("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
+    _set_metric_iast_instrumented_source(OriginType.PATH)
 
-        # Path source
-        try_wrap_function_wrapper("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
-        _set_metric_iast_instrumented_source(OriginType.PATH)
+    # Body source
+    try_wrap_function_wrapper("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
+    try_wrap_function_wrapper("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "FormData.__getitem__",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+    )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "FormData.get",
+        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+    )
+    _set_metric_iast_instrumented_source(OriginType.BODY)
 
-        # Body source
-        try_wrap_function_wrapper("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
-        try_wrap_function_wrapper("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
-        try_wrap_function_wrapper(
-            "starlette.datastructures",
-            "FormData.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
-        )
-        try_wrap_function_wrapper(
-            "starlette.datastructures",
-            "FormData.get",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
-        )
-        _set_metric_iast_instrumented_source(OriginType.BODY)
-
-        # Instrumented on _iast_starlette_scope_taint
-        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+    # Instrumented on _iast_starlette_scope_taint
+    _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
