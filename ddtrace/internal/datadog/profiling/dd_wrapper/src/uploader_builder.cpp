@@ -186,3 +186,10 @@ Datadog::UploaderBuilder::build()
 
     return Datadog::Uploader{ output_filename, ddog_exporter };
 }
+
+void
+Datadog::UploaderBuilder::postfork_child()
+{
+    // NB placement-new to re-init and leak the mutex because doing anything else is UB
+    new (&tag_mutex) std::mutex();
+}
