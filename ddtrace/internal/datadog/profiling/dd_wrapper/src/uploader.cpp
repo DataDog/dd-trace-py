@@ -176,5 +176,6 @@ Datadog::Uploader::postfork_parent()
 void
 Datadog::Uploader::postfork_child()
 {
-    unlock();
+    // NB placement-new to re-init and leak the mutex because doing anything else is UB
+    new (&upload_lock) std::mutex();
 }
