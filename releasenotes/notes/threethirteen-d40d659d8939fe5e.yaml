@@ -42,6 +42,8 @@ upgrade:
         - pyodbc
         - pytest
         - pytest-bdd
+        - pytest-benchmark
+
         - sanic
         - selenium
         - sqlalchemy
