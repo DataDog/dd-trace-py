@@ -411,6 +411,6 @@ class TestGeventTracer(TracerTestCase):
 
         p.wait()
         stdout, stderr = p.stdout.read(), p.stderr.read()
-        assert p.returncode == 0, stderr.decode()
+        assert p.returncode == 0, f"stdout: {stdout.decode()}\n\nstderr: {stderr.decode()}"
         assert b"Test success" in stdout, stdout.decode()
         assert b"RecursionError" not in stderr, stderr.decode()
