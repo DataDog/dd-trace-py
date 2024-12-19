@@ -19,8 +19,6 @@ from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
-from ddtrace._trace.types import _ImmutableDict
-from ddtrace._trace.types import _ImmutableList
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
@@ -95,26 +93,38 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     return "{:032x}".format(large_int)[:16]
 
 
+def _is_serialized(func):
+    def wrapper(self, *args, **kwargs):
+        if self._serialized:
+            func(self, *args, **kwargs)
+        else:
+            log.warning(
+                "Span with the name %s has been serialized and is now immutable, ignoring call to Span.%s",
+                self.name,
+                func.__name__,
+            )
+
+    return wrapper
+
+
 class Span(object):
     __slots__ = [
-        # Public span attributes
-        "service",
-        "name",
+        "_service",
+        "_name",
         "_resource",
         "_span_api",
-        "span_id",
-        "trace_id",
-        "parent_id",
+        "_span_id",
+        "_trace_id",
+        "_parent_id",
         "_meta",
         "_meta_struct",
-        "error",
+        "_error",
         "_metrics",
         "_store",
-        "_mutable",
-        "span_type",
-        "start_ns",
-        "duration_ns",
-        # Internal attributes
+        "_serialized",
+        "_span_type",
+        "_start_ns",
+        "_duration_ns",
         "_context",
         "_local_root_value",
         "_parent",
@@ -174,30 +184,30 @@ class Span(object):
                 raise TypeError("parent_id must be an integer")
             return
 
-        self.name = name
-        self.service = service
+        self._name = name
+        self._service = service
         self._resource = [resource or name]
-        self.span_type = span_type
+        self._span_type = span_type
         self._span_api = span_api
-        self._mutable = True
+        self._serialized = True
 
         self._meta: _MetaDictType = {}
-        self.error = 0
+        self._error = 0
         self._metrics: _MetricDictType = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        self.start_ns: int = time_ns() if start is None else int(start * 1e9)
-        self.duration_ns: Optional[int] = None
+        self._start_ns: int = time_ns() if start is None else int(start * 1e9)
+        self._duration_ns: Optional[int] = None
 
         if trace_id is not None:
-            self.trace_id: int = trace_id
+            self._trace_id: int = trace_id
         elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = _rand128bits()  # type: ignore[no-redef]
+            self._trace_id: int = _rand128bits()  # type: ignore[no-redef]
         else:
-            self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
-        self.span_id: int = span_id or _rand64bits()
-        self.parent_id: Optional[int] = parent_id
+            self._trace_id: int = _rand64bits()  # type: ignore[no-redef]
+        self._span_id: int = span_id or _rand64bits()
+        self._parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._context: Optional[Context] = context._with_span(self) if context else None
@@ -219,11 +229,13 @@ class Span(object):
         else:
             self._ignored_exceptions.append(exc)
 
+    @_is_serialized
     def _set_ctx_item(self, key: str, val: Any) -> None:
         if not self._store:
             self._store = {}
         self._store[key] = val
 
+    @_is_serialized
     def _set_ctx_items(self, items: Dict[str, Any]) -> None:
         if not self._store:
             self._store = {}
@@ -239,6 +251,87 @@ class Span(object):
         return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     @property
+    def trace_id(self) -> int:
+        return self._trace_id
+
+    @trace_id.setter
+    @_is_serialized
+    def trace_id(self, value: int) -> None:
+        self._traceid = value
+
+    @property
+    def span_id(self) -> int:
+        return self._span_id
+
+    @span_id.setter
+    @_is_serialized
+    def span_id(self, value: int) -> None:
+        self._span_id = value
+
+    @property
+    def parent_id(self) -> Optional[int]:
+        return self._parent_id
+
+    @parent_id.setter
+    @_is_serialized
+    def parent_id(self, value: Optional[int]) -> None:
+        self._parent_id = value
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @name.setter
+    @_is_serialized
+    def name(self, value: str) -> None:
+        self._name = value
+
+    @property
+    def service(self) -> str:
+        return self._service
+
+    @service.setter
+    @_is_serialized
+    def service(self, value: str) -> None:
+        self._service = value
+
+    @property
+    def span_type(self) -> Optional[str]:
+        return self._span_type
+
+    @span_type.setter
+    @_is_serialized
+    def span_type(self, value: Optional[str]) -> None:
+        self._span_type = value
+
+    @property
+    def start_ns(self) -> float:
+        return self._start_ns
+
+    @start_ns.setter
+    @_is_serialized
+    def start_ns(self, value: float) -> None:
+        self._start_ns = value
+
+    @property
+    def duration_ns(self) -> Optional[float]:
+        return self._duration_ns
+
+    @duration_ns.setter
+    @_is_serialized
+    def duration_ns(self, value: Optional[float]) -> None:
+        self._duration_ns = value
+
+    @property
+    def error(self) -> int:
+        return self._error
+
+    @error.setter
+    @_is_serialized
+    def error(self, value: int) -> None:
+        self._error = value
+
+    @property
     def start(self) -> float:
         """The start timestamp in Unix epoch seconds."""
         return self.start_ns / 1e9
@@ -252,6 +345,7 @@ class Span(object):
         return self._resource[0]
 
     @resource.setter
+    @_is_serialized
     def resource(self, value: str) -> None:
         self._resource[0] = value
 
@@ -260,6 +354,7 @@ class Span(object):
         return self.duration_ns is not None
 
     @finished.setter
+    @_is_serialized
     def finished(self, value: bool) -> None:
         """Finishes the span if set to a truthy value.
 
@@ -280,29 +375,9 @@ class Span(object):
         return None
 
     @duration.setter
+    @_is_serialized
     def duration(self, value: float) -> None:
         self.duration_ns = int(value * 1e9)
-
-    def _make_immutable(self) -> None:
-        self._meta = _ImmutableDict(self._meta)
-        self._metrics = _ImmutableDict(self._metrics)
-        self._store = _ImmutableDict(self._store or {})
-        self._meta_struct = _ImmutableDict(self._meta_struct)
-        self._events = _ImmutableList(self._events)
-        self._links = _ImmutableList(self._links)
-        self._mutable = False
-
-    def __setattr__(self, key, value):
-        if hasattr(self, "_mutable") and not self._mutable:
-            log.warning(
-                "Span with the name %s has been serialized and is now immutable, "
-                "ignoring set attribute %s and value %r",
-                self.name,
-                key,
-                value,
-            )
-        else:
-            super(Span, self).__setattr__(key, value)
 
     @property
     def sampled(self) -> Optional[bool]:
@@ -319,6 +394,7 @@ class Span(object):
         return self.context.sampling_priority > 0
 
     @sampled.setter
+    @_is_serialized
     def sampled(self, value: bool) -> None:
         deprecate(
             "span.sampled is deprecated and will be removed in a future version of the tracer.",
@@ -356,6 +432,7 @@ class Span(object):
                 if key in self._local_root._metrics:
                     del self._local_root._metrics[key]
 
+    @_is_serialized
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
@@ -421,7 +498,7 @@ class Span(object):
             self._override_sampling_decision(USER_REJECT)
             return
         elif key == SERVICE_KEY:
-            self.service = value
+            self._service = value
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
@@ -441,6 +518,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
+    @_is_serialized
     def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct
@@ -452,6 +530,7 @@ class Span(object):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
+    @_is_serialized
     def set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
@@ -472,6 +551,7 @@ class Span(object):
         """Return all tags."""
         return self._meta.copy()
 
+    @_is_serialized
     def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
@@ -480,6 +560,7 @@ class Span(object):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
+    @_is_serialized
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
@@ -510,6 +591,7 @@ class Span(object):
             del self._meta[key]
         self._metrics[key] = value
 
+    @_is_serialized
     def set_metrics(self, metrics: _MetricDictType) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
         must be strings (or stringable). Values must be numeric.
@@ -522,6 +604,7 @@ class Span(object):
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
+    @_is_serialized
     def _add_event(
         self, name: str, attributes: Optional[Dict[str, str]] = None, timestamp: Optional[int] = None
     ) -> None:
@@ -532,6 +615,7 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
+    @_is_serialized
     def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, tag it with the current python stack.
@@ -547,6 +631,7 @@ class Span(object):
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
             self._meta[ERROR_STACK] = tb
 
+    @_is_serialized
     def set_exc_info(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
     ) -> None:
@@ -561,7 +646,7 @@ class Span(object):
         if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):
             return
 
-        self.error = 1
+        self._error = 1
 
         # get the traceback
         buff = StringIO()
@@ -616,6 +701,7 @@ class Span(object):
         return self._local_root_value
 
     @_local_root.setter
+    @_is_serialized
     def _local_root(self, value: "Span") -> None:
         if value is not self:
             self._local_root_value = value
@@ -623,6 +709,7 @@ class Span(object):
             self._local_root_value = None
 
     @_local_root.deleter
+    @_is_serialized
     def _local_root(self) -> None:
         del self._local_root_value
 
@@ -644,6 +731,7 @@ class Span(object):
                 attributes=attributes,
             )
 
+    @_is_serialized
     def set_link(
         self,
         trace_id: int,

@@ -888,7 +888,7 @@ def test_span_make_immutable():
     s._add_event("message")
     s.set_link(trace_id=11, span_id=12)
     s._set_ctx_item("ctx1", "val1")
-    s._make_immutable()
+    s._serialized = False
 
     s.service = "new-service"
     s.resource = "new-resource"
@@ -923,11 +923,10 @@ def test_span_make_immutable_warning():
     """
     with mock.patch("ddtrace._trace.span.log") as log:
         s = Span("test.span")
-        s._make_immutable()
+        s._serialized = False
         s.name = "new-name"
         log.warning.assert_called_once_with(
-            "Span with the name %s has been serialized and is now immutable, ignoring set attribute %s and value %r",
+            "Span with the name %s has been serialized and is now immutable, " "ignoring call to Span.%s",
             "test.span",
             "name",
-            "new-name",
         )

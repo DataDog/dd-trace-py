@@ -349,7 +349,7 @@ class SpanAggregator(SpanProcessor):
                 # and should be considered immutable. Updating the span after this point
                 # will may not be reflected in the encoded span.
                 for span in spans:
-                    span._make_immutable()
+                    span._serialized = False
                 return
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
