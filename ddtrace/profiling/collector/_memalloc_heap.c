@@ -202,15 +202,13 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
     if (global_heap_tracker.sample_size == 0)
         return false;
 
-    // Take the lock
-    if (!memlock_trylock(&g_memheap_lock)) {
-        return false;
-    }
-
     /* Check for overflow */
     uint64_t res = atomic_add_clamped(&global_heap_tracker.allocated_memory, size, MAX_HEAP_SAMPLE_SIZE);
-    if (0 == res) {
-        memlock_unlock(&g_memheap_lock);
+    if (0 == res)
+        return false;
+
+    // Take the lock
+    if (!memlock_trylock(&g_memheap_lock)) {
         return false;
     }
 
