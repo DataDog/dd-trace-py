@@ -2,6 +2,7 @@
 upgrade:
   - |
     Makes the library compatible with Python 3.13.
+
     The following limitations currently apply to support for Python 3.13:
       - Windows wheels for 3.13 are not built
       - Appsec Threat Detection is not tested against Django, Flask, or FastAPI with 3.13
