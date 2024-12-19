@@ -11,6 +11,8 @@ from typing import Set
 from typing import Tuple
 import zlib
 
+from ddtrace.appsec._constants import STACK_TRACE
+from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
@@ -75,9 +77,19 @@ class Vulnerability(NotNoneDictable):
     evidence: Evidence
     location: Location
     hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
+    stackId: Optional[str] = dataclasses.field(init=False, compare=False)
 
     def __post_init__(self):
+        # avoid circular import
+        from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_id
+
         self.hash = zlib.crc32(repr(self).encode())
+        stacktrace_id = get_iast_stacktrace_id()
+        self.stackId = None
+        if stacktrace_id:
+            str_id = str(stacktrace_id)
+            if report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
+                self.stackId = str_id
 
     def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"

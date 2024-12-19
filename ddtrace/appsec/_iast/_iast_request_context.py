@@ -50,6 +50,7 @@ class IASTEnvironment:
         self.request_enabled: bool = False
         self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: Dict[str, int] = {}
+        self.iast_stack_trace_id: int = 0
 
 
 def _get_iast_context() -> Optional[IASTEnvironment]:
@@ -94,6 +95,14 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
     if env:
         return env.iast_reporter
     return None
+
+
+def get_iast_stacktrace_id() -> int:
+    env = _get_iast_context()
+    if env:
+        env.iast_stack_trace_id += 1
+        return env.iast_stack_trace_id
+    return 0
 
 
 def set_iast_request_enabled(request_enabled) -> None:

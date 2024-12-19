@@ -157,7 +157,11 @@ from cpython.ref cimport Py_DECREF
 cdef extern from "<pystate.h>":
     PyObject* _PyThread_CurrentFrames()
 
-IF PY_VERSION_HEX >= 0x030b0000:
+IF PY_VERSION_HEX >= 0x30d0000:
+    cdef extern from "<internal/pycore_pystate.h>":
+        PyObject* _PyThread_CurrentExceptions()
+
+ELIF PY_VERSION_HEX >= 0x030b0000:
     cdef extern from "<pystate.h>":
         PyObject* _PyThread_CurrentExceptions()
 
