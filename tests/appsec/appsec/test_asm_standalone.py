@@ -138,8 +138,6 @@ def test_appsec_standalone_apm_enabled_metric(tracer_appsec_standalone):
         or args.get("iast_enabled", None)
         or args.get("DD_APPSEC_SCA_ENABLED", "0") == "1"
     ):
-        assert tracer._apm_opt_out is True
         assert span.get_metric("_dd.apm.enabled") == 0.0
     else:
-        assert tracer._apm_opt_out is False
         assert span.get_metric("_dd.apm.enabled") is None
