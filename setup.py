@@ -57,7 +57,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.21.0"
+LIBDDWAF_VERSION = "1.22.0"
 
 # DEV: update this accordingly when src/core upgrades libdatadog dependency.
 # libdatadog v14.1.0 requires rust 1.76.
@@ -527,7 +527,7 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
-                extra_compile_args=debug_compile_args,
+                extra_compile_args=extra_compile_args + debug_compile_args,
             )
         )
 
@@ -553,7 +553,7 @@ if not IS_PYSTON:
         )
 
         # Echion doesn't build on 3.7, so just skip it outright for now
-        if sys.version_info >= (3, 8):
+        if sys.version_info >= (3, 8) and sys.version_info < (3, 13):
             ext_modules.append(
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",

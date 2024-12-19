@@ -9,7 +9,6 @@ import uuid
 import pytest
 
 from ddtrace import ext
-from ddtrace import tracer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
 from ddtrace.settings.profiling import config
@@ -82,7 +81,7 @@ def test_stack_locations(stack_v2_enabled, tmp_path):
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_push_span(stack_v2_enabled, tmp_path):
+def test_push_span(stack_v2_enabled, tmp_path, tracer):
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
@@ -111,7 +110,7 @@ def test_push_span(stack_v2_enabled, tmp_path):
             local_root_span_id = span._local_root.span_id
             for _ in range(10):
                 time.sleep(0.1)
-    ddup.upload()
+    ddup.upload(tracer=tracer)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
@@ -129,7 +128,7 @@ def test_push_span(stack_v2_enabled, tmp_path):
         )
 
 
-def test_push_span_unregister_thread(tmp_path, monkeypatch):
+def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
     if sys.version_info[:2] == (3, 7):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
@@ -166,7 +165,7 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch):
                 t.start()
                 t.join()
                 thread_id = t.ident
-        ddup.upload()
+        ddup.upload(tracer=tracer)
 
         profile = pprof_utils.parse_profile(output_filename)
         samples = pprof_utils.get_samples_with_label_key(profile, "span id")
@@ -187,7 +186,7 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_push_non_web_span(stack_v2_enabled, tmp_path):
+def test_push_non_web_span(stack_v2_enabled, tmp_path, tracer):
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
@@ -216,7 +215,7 @@ def test_push_non_web_span(stack_v2_enabled, tmp_path):
             local_root_span_id = span._local_root.span_id
             for _ in range(10):
                 time.sleep(0.1)
-    ddup.upload()
+    ddup.upload(tracer=tracer)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
@@ -235,7 +234,7 @@ def test_push_non_web_span(stack_v2_enabled, tmp_path):
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_push_span_none_span_type(stack_v2_enabled, tmp_path):
+def test_push_span_none_span_type(stack_v2_enabled, tmp_path, tracer):
     # Test for https://github.com/DataDog/dd-trace-py/issues/11141
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
         pytest.skip("stack_v2 is not supported on Python 3.7")
@@ -266,7 +265,7 @@ def test_push_span_none_span_type(stack_v2_enabled, tmp_path):
             local_root_span_id = span._local_root.span_id
             for _ in range(10):
                 time.sleep(0.1)
-    ddup.upload()
+    ddup.upload(tracer=tracer)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
@@ -398,7 +397,7 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_exception_collection_trace(stack_v2_enabled, tmp_path):
+def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
@@ -419,7 +418,7 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path):
             except Exception:
                 time.sleep(1)
 
-    ddup.upload()
+    ddup.upload(tracer=tracer)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "exception type")

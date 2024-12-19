@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -17,6 +18,7 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
+from ddtrace.internal.ci_visibility.constants import BENCHMARK
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
@@ -25,6 +27,8 @@ from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished_test
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
+from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
@@ -78,8 +82,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._atr_is_retry = is_atr_retry
         self._atr_retries: List[TestVisibilityTest] = []
 
-        # Currently unsupported
-        self._is_benchmark = None
+        self._is_benchmark = False
+        self._benchmark_duration_data: Optional[BenchmarkDurationData] = None
+
+        # Some parameters can be overwritten:
+        self._overwritten_suite_name: Optional[str] = None
 
     def __repr__(self) -> str:
         suite_name = self.parent.name if self.parent is not None else "none"
@@ -93,6 +100,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             test.NAME: self.name,
         }
 
+    def _set_item_tags(self) -> None:
+        """Overrides parent tags for cases where they need to be modified"""
+        if self._is_benchmark:
+            self.set_tag(test.TYPE, BENCHMARK)
+
+        if self._overwritten_suite_name is not None:
+            self.set_tag(test.SUITE, self._overwritten_suite_name)
+
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
             self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
@@ -101,8 +116,10 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
 
         # NOTE: The is_new tag is currently only being set in the context of EFD (since that is the only context in
-        # which unique tests are fetched).
-        if self.is_new():
+        # which unique tests are fetched). Additionally, if a session is considered faulty, we do not want to tag the
+        # test as new.
+        session = self.get_session()
+        if self.is_new() and session is not None and not session.efd_is_faulty_session():
             self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_atr_tags(self) -> None:
@@ -190,6 +207,22 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish_test(TestStatus.SKIP)
+
+    def overwrite_attributes(
+        self,
+        name: Optional[str] = None,
+        suite_name: Optional[str] = None,
+        parameters: Optional[str] = None,
+        codeowners: Optional[List[str]] = None,
+    ) -> None:
+        if name is not None:
+            self.name = name
+        if suite_name is not None:
+            self._overwritten_suite_name = suite_name
+        if parameters is not None:
+            self.set_parameters(parameters)
+        if codeowners is not None:
+            self._codeowners = codeowners
 
     def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
         self._coverage_data.add_covered_files(coverage_data)
@@ -396,3 +429,18 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._span is None:
             return None
         return self._span.get_tag("test.browser.driver")
+
+    #
+    # Benchmark test functionality
+    #
+    def set_benchmark_data(self, duration_data: Optional[BenchmarkDurationData], is_benchmark: bool = True):
+        self._benchmark_duration_data = duration_data
+        self._is_benchmark = is_benchmark
+
+        if self._benchmark_duration_data is not None:
+            self.set_tag(BENCHMARK_INFO, "Time")
+
+            for tag, attr in BENCHMARK_TAG_MAP.items():
+                value = getattr(self._benchmark_duration_data, tag)
+                if value is not None:
+                    self.set_tag(attr, value)
