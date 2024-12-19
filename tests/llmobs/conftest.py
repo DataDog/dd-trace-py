@@ -207,6 +207,15 @@ def reset_ragas_faithfulness_llm():
 
 
 @pytest.fixture
+def reset_ragas_context_precision_llm():
+    import ragas
+
+    previous_llm = ragas.metrics.context_precision.llm
+    yield
+    ragas.metrics.context_precision.llm = previous_llm
+
+
+@pytest.fixture
 def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
     patcher = mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate")
     LLMObsMockRagas = patcher.start()
