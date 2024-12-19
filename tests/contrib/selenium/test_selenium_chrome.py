@@ -225,3 +225,6 @@ def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_serv
             )
         ),
     )
+
+def test_always_pass():
+    assert True

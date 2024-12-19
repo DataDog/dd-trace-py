@@ -127,3 +127,6 @@ def test_fn_retry_exception(stub_broker, stub_worker):
     assert len(successes) == 1
     assert len(failures) == 1
     unpatch()
+
+def test_always_fail():
+    assert 0 == 1
