@@ -155,7 +155,7 @@ extra-dependencies = [
     "hypothesis<6.45.1"
 ]
 [envs.meta-testing.env-vars]
-DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = 0
+DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
 
 [envs.meta-testing.scripts]
 test = [
