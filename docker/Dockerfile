@@ -52,10 +52,8 @@ RUN apt-get update \
       zlib1g-dev \
       awscli
 
-# Allow running datadog-ci in CI with npx
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends nodejs \
+# Allow running datadog-ci in CI
+RUN apt-get install -y --no-install-recommends nodejs \
     && npm install -g @datadog/datadog-ci
 
 # MariaDB is a dependency for tests
