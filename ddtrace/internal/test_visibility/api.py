@@ -3,6 +3,7 @@ import typing as t
 from typing import NamedTuple
 
 from ddtrace import Span
+from ddtrace import Tracer
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
@@ -14,6 +15,7 @@ from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import ATRSessionMixin
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
+from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDSessionMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -72,7 +74,15 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_workspace_path() -> Path:
+    def get_tracer() -> t.Optional[Tracer]:
+        log.debug("Getting test session tracer")
+        tracer: t.Optional[Tracer] = core.dispatch_with_results("test_visibility.session.get_tracer").tracer.value
+        log.debug("Got test session tracer: %s", tracer)
+        return tracer
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_workspace_path() -> t.Optional[Path]:
         log.debug("Getting session workspace path")
 
         workspace_path: Path = core.dispatch_with_results(
@@ -132,7 +142,7 @@ class InternalTestSuite(ext_api.TestSuite, InternalTestBase, ITRMixin):
     pass
 
 
-class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin):
+class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin, BenchmarkTestMixin):
     class FinishArgs(NamedTuple):
         """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
 
@@ -164,3 +174,32 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTe
         is_new = bool(core.dispatch_with_results("test_visibility.test.is_new", (item_id,)).is_new.value)
         log.debug("Test %s is new: %s", item_id, is_new)
         return is_new
+
+    class OverwriteAttributesArgs(NamedTuple):
+        test_id: InternalTestId
+        name: t.Optional[str] = None
+        suite_name: t.Optional[str] = None
+        parameters: t.Optional[str] = None
+        codeowners: t.Optional[t.List[str]] = None
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def overwrite_attributes(
+        item_id: InternalTestId,
+        name: t.Optional[str] = None,
+        suite_name: t.Optional[str] = None,
+        parameters: t.Optional[str] = None,
+        codeowners: t.Optional[t.List[str]] = None,
+    ):
+        log.debug(
+            "Overwriting attributes for test %s: name=%s" ", suite_name=%s" ", parameters=%s" ", codeowners=%s",
+            item_id,
+            name,
+            suite_name,
+            parameters,
+            codeowners,
+        )
+        core.dispatch(
+            "test_visibility.test.overwrite_attributes",
+            (InternalTest.OverwriteAttributesArgs(item_id, name, suite_name, parameters, codeowners),),
+        )

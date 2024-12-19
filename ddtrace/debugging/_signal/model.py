@@ -3,6 +3,8 @@ from collections import ChainMap
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
+from functools import singledispatch
+import threading
 from threading import Thread
 import time
 from types import FrameType
@@ -19,8 +21,6 @@ from uuid import uuid4
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
-from ddtrace.debugging._probe.model import FunctionLocationMixin
-from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
@@ -28,6 +28,8 @@ from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._safety import get_args
 from ddtrace.internal.compat import ExcInfoType
+from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
@@ -183,11 +185,15 @@ class Signal(abc.ABC):
 
         self.state = SignalState.DONE
 
-    def do_line(self) -> None:
+    def do_line(self, global_limiter: Optional[RateLimiter] = None) -> None:
         frame = self.frame
         scope = ChainMap(frame.f_locals, frame.f_globals)
 
         if not self._eval_condition(scope):
+            return
+
+        if global_limiter is not None and global_limiter.limit() is RateLimitExceeded:
+            self.state = SignalState.SKIP_RATE
             return
 
         if self._rate_limit_exceeded():
@@ -197,62 +203,19 @@ class Signal(abc.ABC):
 
         self.state = SignalState.DONE
 
+    @staticmethod
+    def from_probe(
+        probe: Probe, frame: FrameType, thread: Thread, trace_context: Optional[Any], meter: Metrics.Meter
+    ) -> "Signal":
+        return probe_to_signal(probe, frame, thread, trace_context, meter)
 
-@dataclass
-class LogSignal(Signal):
-    """A signal that also emits a log message.
 
-    Some signals might require sending a log message along with the base signal
-    data. For example, all the collected errors from expression evaluations
-    (e.g. conditions) might need to be reported.
-    """
-
-    @property
-    @abc.abstractmethod
-    def message(self) -> Optional[str]:
-        """The log message to emit."""
-        pass
-
-    @abc.abstractmethod
-    def has_message(self) -> bool:
-        """Whether the signal has a log message to emit."""
-        pass
-
-    @property
-    def data(self) -> Dict[str, Any]:
-        """Extra data to include in the snapshot portion of the log message."""
-        return {}
-
-    def _probe_details(self) -> Dict[str, Any]:
-        probe = self.probe
-        if isinstance(probe, LineLocationMixin):
-            location = {
-                "file": str(probe.resolved_source_file),
-                "lines": [str(probe.line)],
-            }
-        elif isinstance(probe, FunctionLocationMixin):
-            location = {
-                "type": probe.module,
-                "method": probe.func_qname,
-            }
-        else:
-            return {}
-
-        return {
-            "id": probe.probe_id,
-            "version": probe.version,
-            "location": location,
-        }
-
-    @property
-    def snapshot(self) -> Dict[str, Any]:
-        full_data = {
-            "id": self.uuid,
-            "timestamp": int(self.timestamp * 1e3),  # milliseconds
-            "evaluationErrors": [{"expr": e.expr, "message": e.message} for e in self.errors],
-            "probe": self._probe_details(),
-            "language": "python",
-        }
-        full_data.update(self.data)
-
-        return full_data
+@singledispatch
+def probe_to_signal(
+    probe: Probe,
+    frame: FrameType,
+    thread: threading.Thread,
+    trace_context: Optional[Any],
+    meter: Metrics.Meter,
+) -> Signal:
+    raise TypeError(f"Unsupported probe type: {type(probe)}")

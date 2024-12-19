@@ -17,10 +17,9 @@ def gen_required_suites(template: dict) -> None:
     required_suites = template["requires_tests"]["requires"] = []
     for_each_testrun_needed(
         suites=sorted(
-            set(n.rpartition("::")[-1] for n, s in get_suites().items() if not s.get("skip", False))
-            & set(template["jobs"].keys())
+            set(n for n, s in get_suites().items() if not s.get("skip", False)) & set(template["jobs"].keys())
         ),
-        action=lambda suite: required_suites.append(suite),
+        action=lambda suite: required_suites.append(suite.rpartition("::")[-1]),
         git_selections=extract_git_commit_selections(os.getenv("GIT_COMMIT_DESC", "")),
     )
 
@@ -52,7 +51,7 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Style",
         command="hatch run lint:style",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h", "CMakeLists.txt"},
     )
     check(
         name="Typing",

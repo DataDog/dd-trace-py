@@ -6,6 +6,7 @@ import pytest
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -212,3 +213,49 @@ def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
     LLMObsMockRagas.return_value = 1.0
     yield RagasFaithfulnessEvaluator
     patcher.stop()
+
+
+@pytest.fixture
+def tracer():
+    return DummyTracer()
+
+
+@pytest.fixture
+def llmobs_env():
+    return {
+        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+    }
+
+
+class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.events = []
+
+    def enqueue(self, event):
+        self.events.append(event)
+
+
+@pytest.fixture
+def llmobs_span_writer():
+    yield TestLLMObsSpanWriter(interval=1.0, timeout=1.0)
+
+
+@pytest.fixture
+def llmobs(monkeypatch, tracer, llmobs_env, llmobs_span_writer):
+    for env, val in llmobs_env.items():
+        monkeypatch.setenv(env, val)
+
+    # TODO: remove once rest of tests are moved off of global config tampering
+    with override_global_config(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP"))):
+        llmobs_service.enable(_tracer=tracer)
+        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        llmobs_service._instance._trace_processor._span_writer = llmobs_span_writer
+        yield llmobs
+    llmobs_service.disable()
+
+
+@pytest.fixture
+def llmobs_events(llmobs, llmobs_span_writer):
+    return llmobs_span_writer.events
