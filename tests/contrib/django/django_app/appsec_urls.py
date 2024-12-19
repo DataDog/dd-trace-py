@@ -9,18 +9,12 @@ from django.http import JsonResponse
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from ddtrace.appsec._iast._taint_tracking.aspects import decode_aspect
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from tests.utils import override_env
 
-
-try:
-    with override_env({"DD_IAST_ENABLED": "True"}):
-        from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-        from ddtrace.appsec._iast._taint_tracking.aspects import decode_aspect
-except ImportError:
-    # Python 2 compatibility
-    from operator import add as add_aspect
 
 # django.conf.urls.url was deprecated in django 3 and removed in django 4
 if django.VERSION < (4, 0, 0):
@@ -123,7 +117,7 @@ def taint_checking_enabled_view(request):
     if python_supported_by_iast():
         with override_env({"DD_IAST_ENABLED": "True"}):
             from ddtrace.appsec._iast._taint_tracking import OriginType
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast.reporter import IastSpanReporter
 
         def assert_origin_path(path):  # type: (Any) -> None
@@ -155,7 +149,7 @@ def taint_checking_enabled_view(request):
 def taint_checking_disabled_view(request):
     if python_supported_by_iast():
         with override_env({"DD_IAST_ENABLED": "True"}):
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
     else:
 
         def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
