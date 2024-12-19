@@ -6,7 +6,6 @@ from typing import Optional  # noqa:F401
 import wrapt
 
 import ddtrace
-from ddtrace.settings.asm import config as asm_config
 
 from .internal.logger import get_logger
 
@@ -145,6 +144,9 @@ class Pin(object):
     def enabled(self):
         # type: () -> bool
         """Return true if this pin's tracer is enabled."""
+        # inline to avoid circular imports
+        from ddtrace.settings.asm import config as asm_config
+
         return bool(self.tracer) and (self.tracer.enabled or asm_config._apm_opt_out)
 
     def onto(self, obj, send=True):
