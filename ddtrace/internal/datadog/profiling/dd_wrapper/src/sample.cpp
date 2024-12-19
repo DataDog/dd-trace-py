@@ -352,27 +352,6 @@ Datadog::Sample::push_class_name(std::string_view class_name)
 }
 
 bool
-Datadog::Sample::push_gpu_device_name(std::string_view device_name)
-{
-    if (!push_label(ExportLabelKey::gpu_device_name, device_name)) {
-        std::cout << "bad push" << std::endl;
-        return false;
-    }
-    return true;
-}
-
-bool
-Datadog::Sample::push_absolute_ns(int64_t _timestamp_ns)
-{
-    // If timeline is not enabled, then this is a no-op
-    if (is_timeline_enabled()) {
-        endtime_ns = _timestamp_ns;
-    }
-
-    return true;
-}
-
-bool
 Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 {
     // Monotonic times have their epoch at the system start, so they need an
