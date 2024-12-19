@@ -44,21 +44,18 @@ Example::
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
-from ddtrace.internal.utils.importlib import require_modules
 
 
-required_modules = ["falcon"]
+# Required to allow users to import from  `ddtrace.contrib.falcon.patch` directly
+import warnings as _w
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.falcon.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
-        from ddtrace.contrib.internal.falcon.middleware import TraceMiddleware
-        from ddtrace.contrib.internal.falcon.patch import get_version
-        from ddtrace.contrib.internal.falcon.patch import patch
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
+from ddtrace.contrib.internal.falcon.middleware import TraceMiddleware
+from ddtrace.contrib.internal.falcon.patch import get_version
+from ddtrace.contrib.internal.falcon.patch import patch
 
-        __all__ = ["TraceMiddleware", "patch", "get_version"]
+
+__all__ = ["TraceMiddleware", "patch", "get_version"]
