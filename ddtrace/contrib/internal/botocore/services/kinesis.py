@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+from time import time_ns
 from typing import Any
 from typing import Dict
 from typing import List
@@ -12,7 +13,6 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name

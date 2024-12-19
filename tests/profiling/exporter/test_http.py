@@ -201,14 +201,15 @@ def test_wrong_api_key(endpoint_test_server):
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL=_ENDPOINT))
 def test_export(endpoint_test_server):
-    from ddtrace.internal import compat
+    import time
+
     from ddtrace.profiling.exporter import http
     from tests.profiling.exporter import test_pprof
     from tests.profiling.exporter.test_http import _API_KEY
     from tests.profiling.exporter.test_http import _get_span_processor
 
     exp = http.PprofHTTPExporter(api_key=_API_KEY, endpoint_call_counter_span_processor=_get_span_processor())
-    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
+    exp.export(test_pprof.TEST_EVENTS, 0, time.time_ns())
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL="http://localhost:2"))
