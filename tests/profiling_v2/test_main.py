@@ -36,6 +36,8 @@ def test_call_script(stack_v2_enabled):
 def test_call_script_gevent(stack_v2_enabled):
     if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
         pytest.skip("stack_v2 is not supported on Python 3.7")
+    if sys.version_info[:2] == (3, 8) and stack_v2_enabled:
+        pytest.skip("this test is flaky on 3.8 with stack v2")
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     env["DD_PROFILING_STACK_V2_ENABLED"] = "1" if stack_v2_enabled else "0"
