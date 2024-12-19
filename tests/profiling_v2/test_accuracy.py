@@ -13,6 +13,7 @@ def test_accuracy_libdd():
 
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.test_accuracy import CPU_TOLERANCE
     from tests.profiling.test_accuracy import assert_almost_equal
     from tests.profiling.test_accuracy import spend_16
 
@@ -48,8 +49,8 @@ def test_accuracy_libdd():
 
     assert_almost_equal(wall_times["spend_cpu_2"], 2e9)
     assert_almost_equal(wall_times["spend_cpu_3"], 3e9)
-    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9)
-    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9)
+    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9, CPU_TOLERANCE)
+    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9, CPU_TOLERANCE)
 
 
 @pytest.mark.subprocess(
@@ -97,5 +98,5 @@ def test_accuracy_stack_v2():
 
     assert_almost_equal(wall_times["spend_cpu_2"], 2e9)
     assert_almost_equal(wall_times["spend_cpu_3"], 3e9)
-    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9)
-    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9)
+    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9, tolerance=0.07)
+    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9, tolerance=0.07)

@@ -44,9 +44,11 @@ def spend_cpu_3():
         pass
 
 
-# We allow 5% error:
+# We allow 4% error:
 # The profiler might not be precise, but time.sleep is not either.
-TOLERANCE = 0.05
+TOLERANCE = 0.04
+# Use 5% accuracy for CPU usage, it's way less precise
+CPU_TOLERANCE = 0.05
 
 
 def assert_almost_equal(value, target, tolerance=TOLERANCE):
@@ -67,6 +69,7 @@ def test_accuracy():
 
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import stack_event
+    from tests.profiling.test_accuracy import CPU_TOLERANCE
     from tests.profiling.test_accuracy import assert_almost_equal
     from tests.profiling.test_accuracy import spend_16
     from tests.profiling.test_accuracy import total_time
@@ -94,5 +97,5 @@ def test_accuracy():
 
     assert_almost_equal(total_time(time_spent_ns, "spend_cpu_2"), 2e9)
     assert_almost_equal(total_time(time_spent_ns, "spend_cpu_3"), 3e9)
-    assert_almost_equal(total_time(cpu_spent_ns, "spend_cpu_2"), 2e9)
-    assert_almost_equal(total_time(cpu_spent_ns, "spend_cpu_3"), 3e9)
+    assert_almost_equal(total_time(cpu_spent_ns, "spend_cpu_2"), 2e9, CPU_TOLERANCE)
+    assert_almost_equal(total_time(cpu_spent_ns, "spend_cpu_3"), 3e9, CPU_TOLERANCE)
