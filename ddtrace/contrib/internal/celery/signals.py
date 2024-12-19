@@ -54,9 +54,6 @@ def trace_prerun(*args, **kwargs):
     service = config.celery["worker_service_name"]
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
 
-    # Store an item called "prerun span" in case task_postrun doesn't get called
-    core.set_item("prerun_span", span)
-
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 

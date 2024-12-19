@@ -94,6 +94,9 @@ compiler_args["cppcheck"]="-DDO_CPPCHECK=ON"
 compiler_args["infer"]="-DDO_INFER=ON"
 compiler_args["clangtidy"]="-DDO_CLANGTIDY=ON"
 compiler_args["clangtidy_cmd"]="-DCLANGTIDY_CMD=${CLANGTIDY_CMD}"
+compiler_args["valgrind"]="-DDO_VALGRIND=ON"
+
+ctest_args=()
 
 # Initial cmake args
 cmake_args=(
@@ -169,7 +172,7 @@ run_cmake() {
   fi
   if [[ " ${cmake_args[*]} " =~ " -DBUILD_TESTING=ON " ]]; then
     echo "--------------------------------------------------------------------- Running Tests"
-    ctest --output-on-failure || { echo "tests failed!"; exit 1; }
+    ctest ${ctest_args[*]} --output-on-failure || { echo "tests failed!"; exit 1; }
   fi
 
   # OK, the build or whatever went fine I guess.
@@ -223,6 +226,10 @@ print_cmake_args() {
   echo "Targets: ${targets[*]}"
 }
 
+print_ctest_args() {
+  echo "CTest Args: ${ctest_args[*]}"
+}
+
 ### Check input
 # Check the first slot, options
 add_compiler_args() {
@@ -261,6 +268,11 @@ add_compiler_args() {
       ;;
     -m|--memory)
       cmake_args+=(${compiler_args["memory"]})
+      set_clang
+      ;;
+    --valgrind)
+      cmake_args+=(${compiler_args["valgrind"]})
+      ctest_args+="-T memcheck"
       set_clang
       ;;
     -C|--cppcheck)
@@ -368,6 +380,8 @@ add_target "$3"
 
 # Print cmake args
 print_cmake_args
+
+print_ctest_args
 
 # Run cmake
 for target in "${targets[@]}"; do
