@@ -17,7 +17,7 @@ class GeventContextProvider(BaseContextProvider, DatadogContextMixin):
     _CONTEXT_ATTR = "__datadog_context"
 
     def __init__(self) -> None:
-        deprecate("GeventContextProvider is deprecated and will be removed in a future version.", "3.0.0")
+        deprecate( # CLEAN UP"GeventContextProvider is deprecated and will be removed in a future version.", "3.0.0")
         super().__init__()
 
     def _get_current_context(self):

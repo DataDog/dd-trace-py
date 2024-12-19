@@ -281,7 +281,7 @@ class Span(object):
 
     @property
     def sampled(self) -> Optional[bool]:
-        deprecate(
+        deprecate( # CLEAN UP
             "span.sampled is deprecated and will be removed in a future version of the tracer.",
             message="""span.sampled references the state of span.context.sampling_priority.
             Please use span.context.sampling_priority instead to check if a span is sampled.""",
@@ -295,7 +295,7 @@ class Span(object):
 
     @sampled.setter
     def sampled(self, value: bool) -> None:
-        deprecate(
+        deprecate( # CLEAN UP
             "span.sampled is deprecated and will be removed in a future version of the tracer.",
             message="""span.sampled has a no-op setter.
             Please use span.set_tag('manual.keep'/'manual.drop') to keep or drop spans.""",

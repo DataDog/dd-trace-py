@@ -6,7 +6,7 @@ from ddtrace.vendor.debtcollector import deprecate
 if hasattr(asyncio, "current_task"):
 
     def asyncio_current_task():
-        deprecate(
+        deprecate( # CLEAN UP
             "ddtrace.contrib.internal.asyncio.create_task(..) is deprecated. "
             "The ddtrace library fully supports propagating "
             "trace contextes to async tasks. No additional configurations are required.",
@@ -20,7 +20,7 @@ if hasattr(asyncio, "current_task"):
 else:
 
     def asyncio_current_task():
-        deprecate(
+        deprecate( # CLEAN UP
             "ddtrace.contrib.internal.asyncio.create_task(..) is deprecated. "
             "The ddtrace library fully supports propagating "
             "trace contextes to async tasks. No additional configurations are required.",
