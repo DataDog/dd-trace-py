@@ -2674,6 +2674,11 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={"tornado": ["==6.2", "==6.3.1"]},
                 ),
+                Venv(
+                    # tornado fixed a bug affecting 3.13 in 6.4.1
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={"tornado": "==6.4.1"},
+                ),
             ],
         ),
         Venv(
