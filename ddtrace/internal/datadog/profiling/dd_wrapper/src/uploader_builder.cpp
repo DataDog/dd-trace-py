@@ -186,3 +186,10 @@ Datadog::UploaderBuilder::build()
 
     return Datadog::Uploader{ output_filename, ddog_exporter };
 }
+
+void
+Datadog::UploaderBuilder::postfork_child()
+{
+    tag_mutex.~mutex();
+    new (&tag_mutex) std::mutex();
+}
