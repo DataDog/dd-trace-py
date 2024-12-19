@@ -50,7 +50,6 @@ def _record_event(
         log.debug("has_codeowners tag can only be set for sessions, but event type is %s", event_type)
     if is_unsupported_ci and event_type != EVENT_TYPES.SESSION:
         log.debug("unsupported_ci tag can only be set for sessions, but event type is %s", event_type)
-
     if early_flake_detection_abort_reason and (
         event_type not in [EVENT_TYPES.SESSION] or event != EVENTS_TELEMETRY.FINISHED
     ):
@@ -151,6 +150,7 @@ def record_event_finished_test(
     is_rum: bool = False,
     browser_driver: Optional[str] = None,
     is_benchmark: bool = False,
+    is_quarantined: bool = False,
 ):
     log.debug(
         "Recording test event finished: test_framework=%s"
@@ -159,7 +159,8 @@ def record_event_finished_test(
         ", early_flake_detection_abort_reason=%s"
         ", is_rum=%s"
         ", browser_driver=%s"
-        ", is_benchmark=%s",
+        ", is_benchmark=%s"
+        ", is_quarantined=%s",
         test_framework,
         is_new,
         is_retry,
@@ -167,6 +168,7 @@ def record_event_finished_test(
         is_rum,
         browser_driver,
         is_benchmark,
+        is_quarantined,
     )
 
     tags: List[Tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
@@ -185,5 +187,7 @@ def record_event_finished_test(
         tags.append(("browser_driver", browser_driver))
     if early_flake_detection_abort_reason is not None:
         tags.append(("early_flake_detection_abort_reason", early_flake_detection_abort_reason))
+    if is_quarantined:
+        tags.append(("is_quarantined", "true"))
 
     telemetry_writer.add_count_metric(_NAMESPACE, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))

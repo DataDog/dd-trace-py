@@ -48,6 +48,7 @@ GIT_API_BASE_PATH = "/api/v2/git"
 SETTING_ENDPOINT = "/api/v2/libraries/tests/services/setting"
 SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
 UNIQUE_TESTS_ENDPOINT = "/api/v2/ci/libraries/tests"
+DETAILED_TESTS_ENDPOINT = "/api/v2/ci/libraries/tests/detailed"
 
 # Intelligent Test Runner constants
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
@@ -82,5 +83,9 @@ CIVISIBILITY_SPAN_TYPE = "ci_visibility"
 # EFD and auto retries
 TEST_IS_NEW = "test.is_new"
 TEST_IS_RETRY = "test.is_retry"
+TEST_IS_QUARANTINED = "test.quarantine.is_quarantined"
 TEST_EFD_ABORT_REASON = "test.early_flake.abort_reason"
 TEST_EFD_ENABLED = "test.early_flake.enabled"
+TEST_HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
+
+TEST_SESSION_QUARANTINE_ENABLED = "test_session.quarantine.enabled"

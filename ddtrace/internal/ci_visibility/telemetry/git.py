@@ -52,6 +52,7 @@ def record_settings_response(
     itr_enabled: Optional[bool] = False,
     flaky_test_retries_enabled: Optional[bool] = False,
     early_flake_detection_enabled: Optional[bool] = False,
+    quarantine_enabled: Optional[bool] = False,
 ) -> None:
     log.debug(
         "Recording settings telemetry:"
@@ -82,6 +83,8 @@ def record_settings_response(
         response_tags.append(("flaky_test_retries_enabled", "true"))
     if early_flake_detection_enabled:
         response_tags.append(("early_flake_detection_enabled", "true"))
+    if quarantine_enabled:
+        response_tags.append(("quarantine_enabled", "true"))
 
     if response_tags:
         telemetry_writer.add_count_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_RESPONSE, 1, tuple(response_tags))
