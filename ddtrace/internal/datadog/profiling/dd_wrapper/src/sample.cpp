@@ -408,7 +408,6 @@ Datadog::Sample::push_absolute_ns(int64_t _timestamp_ns)
     return true;
 }
 
-
 bool
 Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 {
