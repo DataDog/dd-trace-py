@@ -2,7 +2,6 @@ name: Generate Supported Integration Versions
 
 on:
   workflow_dispatch: # can be triggered manually
-  push:
 
 jobs:
   generate-supported-versions:
@@ -80,6 +79,8 @@ jobs:
       
       - name: Generate table
         run: python scripts/generate_table.py
+
+      - run: git diff
       
       - name: Create Pull Request
         id: pr
