@@ -493,7 +493,7 @@ def _on_wrapped_view(kwargs):
     if _is_iast_enabled() and kwargs:
         from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
         from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
         if not is_iast_request_enabled():
             return return_value

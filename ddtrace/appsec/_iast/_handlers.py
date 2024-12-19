@@ -13,13 +13,13 @@ from ddtrace.appsec._iast._patch import _iast_instrument_starlette_url
 from ddtrace.appsec._iast._patch import _patched_dictionary
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.internal.logger import get_logger
 
 from ._iast_request_context import is_iast_request_enabled
+from ._taint_tracking._taint_objects import taint_pyobject
 
 
 MessageMapContainer = None

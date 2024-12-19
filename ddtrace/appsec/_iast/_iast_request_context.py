@@ -11,6 +11,8 @@ from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
+from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.internal import core
@@ -56,15 +58,11 @@ def in_iast_context() -> bool:
 
 def start_iast_context():
     if _is_iast_enabled():
-        from ._taint_tracking import create_context as create_propagation_context
-
         create_propagation_context()
         core.set_item(_IAST_CONTEXT, IASTEnvironment())
 
 
 def end_iast_context(span: Optional[Span] = None):
-    from ._taint_tracking import reset_context as reset_propagation_context
-
     env = _get_iast_context()
     if env is not None and env.span is span:
         finalize_iast_env(env)
