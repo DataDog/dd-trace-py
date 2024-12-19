@@ -136,12 +136,13 @@ def test_output_messages_are_set(tracer, llmobs_events):
         llm_span._set_ctx_item(const.OUTPUT_MESSAGES, [{"content": "message", "role": "user"}])
     assert llmobs_events[0]["meta"]["output"]["messages"] == [{"content": "message", "role": "user"}]
 
-    def test_output_value_is_set(self, tracer, llmobs_events):
-        """Test that output value is set on the span event if they are present on the span."""
-        with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-            llm_span._set_ctx_item(const.OUTPUT_VALUE, "value")
-        assert llmobs_events[0]["meta"]["output"]["value"] == "value"
+
+def test_output_value_is_set(tracer, llmobs_events):
+    """Test that output value is set on the span event if they are present on the span."""
+    with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
+        llm_span._set_ctx_item(const.OUTPUT_VALUE, "value")
+    assert llmobs_events[0]["meta"]["output"]["value"] == "value"
 
 
 def test_prompt_is_set(tracer, llmobs_events):
