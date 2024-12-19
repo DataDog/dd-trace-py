@@ -11,9 +11,7 @@ see specific integration documentation for more details.
 The following environment variables for the tracer are supported:
 
 Common Configurations
------------------------------
-
-.. ddtrace-configuration-options::
+---------------------
 
 For common configuration variables (not language specific), see `Configure the Datadog Tracing Library`_.
 
