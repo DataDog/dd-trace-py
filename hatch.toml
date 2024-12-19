@@ -124,7 +124,7 @@ extra-dependencies = [
 ]
 
 [envs.slotscheck.scripts]
-_ = [
+test = [
     "python -m slotscheck -v ddtrace/",
 ]
 
