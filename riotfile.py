@@ -586,6 +586,7 @@ venv = Venv(
                 "vertica-python": ">=0.6.0,<0.7.0",
                 "kombu": ">=4.2.0,<4.3.0",
                 "pytest-randomly": latest,
+                "requests": latest,
             },
         ),
         Venv(

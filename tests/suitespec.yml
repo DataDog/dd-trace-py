@@ -195,6 +195,12 @@ suites:
       - tests/cache/*
     runner: riot
     snapshot: true
+  slotscheck:
+    parallelism: 1
+    paths:
+      - 'ddtrace/**/*.py'
+    runner: hatch
+    snapshot: false
   profile:
     env:
       DD_TRACE_AGENT_URL: ''
