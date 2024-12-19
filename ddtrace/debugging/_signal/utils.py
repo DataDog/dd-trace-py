@@ -304,6 +304,15 @@ def capture_value(
         }
 
     fields = get_fields(value)
+
+    # Capture exception chain for exceptions
+    if _isinstance(value, BaseException):
+        for attr in ("args", "__cause__", "__context__", "__suppress_context__"):
+            try:
+                fields[attr] = object.__getattribute__(value, attr)
+            except AttributeError:
+                pass
+
     captured_fields = {
         n: (
             capture_value(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields, stopping_cond=cond)
