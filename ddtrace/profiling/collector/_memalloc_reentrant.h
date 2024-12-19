@@ -50,7 +50,7 @@ atomic_add_clamped(uint64_t* target, uint64_t amount, uint64_t max)
         }
 #if defined(_MSC_VER)
         uint64_t prev_val =
-          (uint64_t)InterlockedCompareExchange64((volatile LONG*)target, (LONG)new_val, (LONG)old_val);
+          (uint64_t)InterlockedCompareExchange64((volatile LONG64*)target, (LONG64)new_val, (LONG64)old_val);
         if (prev_val == old_val) {
             return new_val;
         }
@@ -139,7 +139,7 @@ memlock_trylock(memlock_t* lock)
 #endif
 
 #ifdef _WIN32
-    bool result = WAIT_FOR_OBJECT_0 == WaitForSingleObject(lock->mutex, 0); // 0ms timeout -> no wait
+    bool result = WAIT_OBJECT_0 == WaitForSingleObject(lock->mutex, 0); // 0ms timeout -> no wait
 #else
     bool result = 0 == pthread_mutex_trylock(&lock->mutex);
 #endif
