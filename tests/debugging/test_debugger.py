@@ -210,7 +210,25 @@ def test_debugger_function_probe_on_function_with_exception():
 
     return_capture = snapshot_data["captures"]["return"]
     assert return_capture["arguments"] == {}
-    assert return_capture["locals"] == {"@exception": {"fields": {}, "type": "Exception"}}
+    assert return_capture["locals"] == {
+        "@exception": {
+            "type": "Exception",
+            "fields": {
+                "args": {
+                    "type": "tuple",
+                    "elements": [
+                        {"type": "str", "value": "'Hello'"},
+                        {"type": "str", "value": "'world!'"},
+                        {"type": "int", "value": "42"},
+                    ],
+                    "size": 3,
+                },
+                "__cause__": {"type": "NoneType", "isNull": True},
+                "__context__": {"type": "NoneType", "isNull": True},
+                "__suppress_context__": {"type": "bool", "value": "False"},
+            },
+        }
+    }
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
 
