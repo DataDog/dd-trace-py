@@ -9,12 +9,12 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-Tracing:
-- Celery: Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
-
 Profiling:
 - Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
 - Fixes a bug where profiling mutexes were not cleared on fork in the child process. This could cause deadlocks in certain configurations.
+
+Tracing:
+- celery: Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
 
 
 ---
