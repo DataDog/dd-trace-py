@@ -3,8 +3,6 @@ name: Generate Supported Integration Versions
 on:
   workflow_dispatch: # can be triggered manually
   push:
-    branches:
-      - quinna.halim/add-supported-versions-json # TODO: remove, for testing
 
 jobs:
   generate-supported-versions:
@@ -82,22 +80,22 @@ jobs:
       
       - name: Generate table
         run: python scripts/generate_table.py
-
-      - run: git diff
       
       - name: Create Pull Request
         id: pr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          branch: "upgrade-supported-versions"
+          branch: "update-supported-versions"
           commit-message: "Update supported versions table"
           delete-branch: true
           base: main
           title: "chore: update supported versions"
           labels: changelog/no-changelog
           body: |
-            Update the supported versions table.
+            Generates / updates the supported versions table for integrations.
+            This should be tied to releases, or triggered manually.
+            Workflow runs: [Generate Supported Integration Versions](https://github.com/DataDog/dd-trace-py/actions/workflows/generate-supported-versions.yml)  
 
             ## Checklist
             - [x] PR author has checked that all the criteria below are met
