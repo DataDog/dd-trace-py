@@ -8,6 +8,12 @@ from ddtrace.llmobs._utils import _get_session_id
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
+@pytest.fixture
+def mock_logs():
+    with mock.patch("ddtrace.llmobs._trace_processor.log") as mock_logs:
+        yield mock_logs
+
+
 class TestMLApp:
     @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
     def test_tag_defaults_to_env_var(self, tracer, llmobs_env, llmobs_events):
@@ -219,12 +225,6 @@ def test_model_and_provider_are_set(tracer, llmobs_events):
     span_event = llmobs_events[0]
     assert span_event["meta"]["model_name"] == "model_name"
     assert span_event["meta"]["model_provider"] == "model_provider"
-
-
-@pytest.fixture
-def mock_logs():
-    with mock.patch("ddtrace.llmobs._trace_processor.log") as mock_logs:
-        yield mock_logs
 
 
 def test_malformed_span_logs_error_instead_of_raising(mock_logs, tracer, llmobs_events):
