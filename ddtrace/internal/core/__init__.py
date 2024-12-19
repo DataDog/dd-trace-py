@@ -110,7 +110,6 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
 
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -276,7 +275,10 @@ class ExecutionContext(AbstractContextManager):
     @property
     def span(self) -> "Span":
         if self._inner_span is None:
-            raise ValueError("No span set on ExecutionContext")
+            # failsafe
+            from ddtrace import tracer
+
+            self._inner_span = tracer.current_span() or tracer.trace("default")
         return self._inner_span
 
     @span.setter
