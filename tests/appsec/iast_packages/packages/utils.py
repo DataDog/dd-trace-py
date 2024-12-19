@@ -2,7 +2,7 @@ from tests.utils import override_env
 
 
 with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
 
 class ResultResponse:
