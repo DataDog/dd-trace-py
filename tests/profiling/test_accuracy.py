@@ -31,16 +31,16 @@ def spend_16():
 
 
 def spend_cpu_2():
-    now = time.process_time_ns()
+    now = time.monotonic_ns()
     # Active wait for 2 seconds
-    while time.process_time_ns() - now < 2e9:
+    while time.monotonic_ns() - now < 2e9:
         pass
 
 
 def spend_cpu_3():
     # Active wait for 3 seconds
-    now = time.process_time_ns()
-    while time.process_time_ns() - now < 3e9:
+    now = time.monotonic_ns()
+    while time.monotonic_ns() - now < 3e9:
         pass
 
 
