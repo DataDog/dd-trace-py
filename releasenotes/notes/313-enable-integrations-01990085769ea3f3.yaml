@@ -1,0 +1,17 @@
+---
+upgrade:
+  - |
+    Enables tests with Python 3.13 for the following integrations:
+      - falcon
+      - django
+      - sqlalchemy
+      - fastapi
+      - aiomysql
+      - grpcio
+      - aiopg
+      - avro
+      - protobuf
+      - asyncpg
+      - pyodbc
+      - mysqldb
+      - confluent-kafka
