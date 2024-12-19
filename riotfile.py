@@ -1460,7 +1460,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
                 ),
             ],
@@ -1585,7 +1585,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"aiobotocore": latest},
                 ),
             ],
@@ -2673,6 +2673,11 @@ venv = Venv(
                     # tornado added support for Python 3.10 in 6.2
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={"tornado": ["==6.2", "==6.3.1"]},
+                ),
+                Venv(
+                    # tornado fixed a bug affecting 3.13 in 6.4.1
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={"tornado": "==6.4.1"},
                 ),
             ],
         ),
