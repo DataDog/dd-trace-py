@@ -67,7 +67,6 @@ def test_accuracy():
 
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import stack_event
-    from tests.profiling.test_accuracy import TOLERANCE
     from tests.profiling.test_accuracy import assert_almost_equal
     from tests.profiling.test_accuracy import spend_16
     from tests.profiling.test_accuracy import total_time
