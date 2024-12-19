@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: fix two small memory leaks in modulo operator.
