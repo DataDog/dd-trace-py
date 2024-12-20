@@ -435,11 +435,12 @@ class DebugMetadata:
         build_percent = (build_total_ns / total_ns) * 100.0
 
         with open(cls.metadata_file, "w") as f:
+            f.write(f"Total time: {total_s:0.2f}s\n")
             f.write("Environment:\n")
+            f.write(f"\tCARGO_BUILD_JOBS: {os.getenv('CARGO_BUILD_JOBS', 'unset')}\n")
+            f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
             f.write(f"\tDD_COMPILE_DEBUG: {DEBUG_COMPILE}\n")
             f.write(f"\tDD_USE_SCCACHE: {SCCACHE_COMPILE}\n")
-            f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
-            f.write(f"Total time: {total_s:0.2f}s\n")
             f.write("Extension build times:\n")
             f.write(f"\tTotal: {build_total_s:0.2f}s ({build_percent:0.2f}%)\n")
             for ext, elapsed_ns in sorted(cls.build_times.items(), key=lambda x: x[1], reverse=True):
