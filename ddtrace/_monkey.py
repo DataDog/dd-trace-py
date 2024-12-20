@@ -95,6 +95,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_functions": True,
     "tornado": False,
     "openai": True,
     "langchain": True,
@@ -144,6 +145,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_functions": ("azure.functions",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
@@ -172,12 +174,18 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
+            imported_module.patch()
+            if hasattr(imported_module, "patch_submodules"):
+                imported_module.patch_submodules(patch_indicator)
         except Exception as e:
             if raise_errors:
                 raise
-            error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
-            log.error(error_msg, exc_info=True)
-            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
+            log.error(
+                "failed to enable ddtrace support for %s: %s",
+                module,
+                str(e),
+            )
+            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.TRACERS,
                 "integration_errors",
@@ -185,7 +193,6 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                 (("integration_name", module), ("error_type", type(e).__name__)),
             )
         else:
-            imported_module.patch()
             if hasattr(imported_module, "get_versions"):
                 versions = imported_module.get_versions()
                 for name, v in versions.items():
@@ -197,9 +204,6 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                 telemetry.telemetry_writer.add_integration(
                     module, True, PATCH_MODULES.get(module) is True, "", version=version
                 )
-
-            if hasattr(imported_module, "patch_submodules"):
-                imported_module.patch_submodules(patch_indicator)
 
     return on_import
 

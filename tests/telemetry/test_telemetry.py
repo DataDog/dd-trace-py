@@ -243,14 +243,12 @@ patch(raise_errors=False, sqlite3=True)
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
-    expected_stderr = b"failed to import"
-    assert expected_stderr in stderr
+    assert b"failed to enable ddtrace support for sqlite3" in stderr
 
     integrations_events = test_agent_session.get_events("app-integrations-change", subprocess=True)
     assert len(integrations_events) == 1
     assert (
-        integrations_events[0]["payload"]["integrations"][0]["error"]
-        == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
+        integrations_events[0]["payload"]["integrations"][0]["error"] == "module 'sqlite3' has no attribute 'connect'"
     )
 
     # Get metric containing the integration error
