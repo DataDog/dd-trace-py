@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "GET /api/httpgetok",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6750ad7d00000000",
+      "aas.function.name": "http_get_ok",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "GET",
+      "http.route": "/api/httpgetok",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/httpgetok?key=val",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "2dd77b70098048f5a6b7d3a7d53d1082",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96455
+    },
+    "duration": 1160792,
+    "start": 1733340541444015424
+  }]]
