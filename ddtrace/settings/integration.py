@@ -75,7 +75,7 @@ class IntegrationConfig(AttrDict):
         analytics_enabled = asbool(os.getenv(env, os.getenv(legacy_env, default=None)))
 
         if analytics_enabled:
-            deprecate(
+            deprecate( # CLEAN UP
                 "Datadog App Analytics is deprecated. "
                 f"App Analytics can be enabled via {env} and {legacy_env} "
                 f"environment variables and the ddtrace.config.{self.integration_name}.analytics_enabled configuration."

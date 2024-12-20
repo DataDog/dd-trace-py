@@ -67,7 +67,7 @@ _DEPRECATED_MODULE_ATTRIBUTES = [
 
 def __getattr__(name):
     if name in _DEPRECATED_MODULE_ATTRIBUTES:
-        debtcollector.deprecate(
+        debtcollector.deprecate( # CLEAN UP
             ("%s.%s is deprecated" % (__name__, name)),
             category=DDTraceDeprecationWarning,
         )
@@ -85,7 +85,7 @@ def check_supported_python_version():
         )
         if PYTHON_VERSION_INFO < (3, 7):
             deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 2.0.0."
-        debtcollector.deprecate(
+        debtcollector.deprecate( # CLEAN UP
             (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
             category=DDTraceDeprecationWarning,
         )

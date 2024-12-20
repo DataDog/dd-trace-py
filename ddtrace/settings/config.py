@@ -140,7 +140,7 @@ def _parse_propagation_styles(styles_str):
     for style in styles_str.split(","):
         style = style.strip().lower()
         if style == "b3 single header":
-            deprecate(
+            deprecate( # CLEAN UP
                 'Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated',
                 message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3\"' instead",
                 removal_version="3.0.0",
@@ -392,7 +392,7 @@ class Config(object):
 
         sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
         if sample_rate is not None:
-            deprecate(
+            deprecate( # CLEAN UP
                 "DD_TRACE_SAMPLE_RATE is deprecated",
                 message="Please use DD_TRACE_SAMPLING_RULES instead.",
                 removal_version="3.0.0",
@@ -426,7 +426,7 @@ class Config(object):
         )
         self._trace_api = _get_config("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
-            deprecate(
+            deprecate( # CLEAN UP
                 "DD_TRACE_API_VERSION=v0.3 is deprecated",
                 message="Traces will be submitted to the v0.4/traces agent endpoint instead.",
                 removal_version="3.0.0",
@@ -461,7 +461,7 @@ class Config(object):
         # legacy environment variable. It should be removed in the future
         self._analytics_enabled = _get_config(["DD_TRACE_ANALYTICS_ENABLED", "DD_ANALYTICS_ENABLED"], False, asbool)
         if self._analytics_enabled:
-            deprecate(
+            deprecate( # CLEAN UP
                 "Datadog App Analytics is deprecated and will be removed in a future version. "
                 "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
                 "environment variables and ddtrace.config.analytics_enabled configuration. "
@@ -516,7 +516,7 @@ class Config(object):
 
         self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
         if self._128_bit_trace_id_logging_enabled:
-            deprecate(
+            deprecate( # CLEAN UP
                 "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
                 message="Log injection format is now configured automatically.",
                 removal_version="3.0.0",
@@ -567,7 +567,7 @@ class Config(object):
         if legacy_client_tag_enabled is None:
             self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
         else:
-            deprecate(
+            deprecate( # CLEAN UP
                 "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
                 message="Please use DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING instead.",
                 removal_version="3.0.0",
@@ -605,7 +605,7 @@ class Config(object):
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = _get_config("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True, asbool)
         if self._span_aggregator_rlock is False:
-            deprecate(
+            deprecate( # CLEAN UP
                 "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
                 message="Soon the ddtrace library will only support using threading.Rlock to "
                 "aggregate and encode span data. If you need to disable the re-entrant lock and "
@@ -634,7 +634,7 @@ class Config(object):
     def __getattr__(self, name) -> Any:
         if name in self._DEPRECATED_ATTRS:
             new_name, env_var = self._DEPRECATED_ATTRS[name]
-            deprecate(
+            deprecate( # CLEAN UP
                 f"ddtrace.config.{name} is deprecated",
                 message=f"Use the environment variable {env_var} instead. "
                 "This variable must be set before importing ddtrace.",
@@ -789,7 +789,7 @@ class Config(object):
             if key in self._DEPRECATED_ATTRS:
                 # replace deprecated attribute name with the new name
                 new_key, env_var = self._DEPRECATED_ATTRS[key]
-                deprecate(
+                deprecate( # CLEAN UP
                     f"ddtrace.config.{key} is deprecated",
                     message=f"Use the environment variable {env_var} instead. "
                     "This variable must be set before importing ddtrace.",
