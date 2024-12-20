@@ -28,48 +28,39 @@ config._add(
 @with_traced_module
 def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     """
-    Traces a specific invocation of a RunnableSeq, which represents a node in a graph.
+    Traces an invocation of a RunnableSeq, which represents a node in a graph.
     Although this API is usable elsewhere, internal to LangGraph it is used to represent the
-    main node invocation (function, graph, callable), the channel write, and then any routing logic.
+    sequence containing node invocation (function, graph, callable), the channel write, and then any routing logic.
 
-    We should be able to utilize the `instance.steps` to grab the first step as the node, and any `_route`
-    steps as routing logic.
+    We utilize `instance.steps` to grab the first step as the node.
 
-    One caveat is that if the first task is a graph (LangGraph), we should skip tracing at this step, as
+    One caveat is that if the node represents a subgraph (LangGraph), we should skip tracing at this step, as
     we will trace the graph invocation separately with `traced_pregel_invoke`. For proper span linking logic,
-    we will mark the config for that graph as a subgraph invoke.
+    we will mark the config for that graph as a subgraph.
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
-
     node_name = instance.steps[0].name
-
     if node_name in ("_write", "_route"):
         return func(*args, **kwargs)
 
     if node_name == "LangGraph":
         config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
-        config.get("metadata", {})["subgraph"] = True
+        config.get("metadata", {})["_dd.subgraph"] = True
         return func(*args, **kwargs)
 
     span = integration.trace(
-        pin,
-        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name),
-        submit_to_llmobs=True,
-        interface_type="agent",
+        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name), submit_to_llmobs=True,
     )
 
     result = None
-
     try:
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="node")
         span.finish()
-
     return result
 
 
@@ -83,10 +74,7 @@ def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
     span = integration.trace(
-        pin,
-        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name),
-        submit_to_llmobs=True,
-        interface_type="agent",
+        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name), submit_to_llmobs=True,
     )
 
     result = None
@@ -95,7 +83,6 @@ def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(
@@ -108,20 +95,16 @@ def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
-    """
-    Patch the pregel loop tick. No tracing is done, and processing only happens if LLM Observability is enabled.
-    The underlying `handle_pregel_loop_tick` function adds span links between specific node invocations in the graph.
-    """
+    """No tracing is done, and processing only happens if LLM Observability is enabled."""
     integration: LangGraphIntegration = langgraph._datadog_integration
+    if not integration.llmobs_enabled:
+        return func(*args, **kwargs)
 
     finished_tasks = getattr(instance, "tasks", {})
     result = func(*args, **kwargs)
-    next_tasks = getattr(instance, "tasks", {})  # they should have been updated at this point
-
-    is_subgraph = instance.config.get("metadata", {}).get("subgraph", False)
-
-    integration.handle_pregel_loop_tick(finished_tasks, next_tasks, result, is_subgraph)
-
+    next_tasks = getattr(instance, "tasks", {})  # instance.tasks gets updated by loop.tick()
+    is_subgraph = instance.config.get("metadata", {}).get("_dd.subgraph", False)
+    integration.llmobs_handle_pregel_loop_tick(finished_tasks, next_tasks, result, is_subgraph)
     return result
 
 

@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace import tracer
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
@@ -12,16 +13,15 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.span import Span
 
 
-node_invokes: Dict[str, Any] = {}
-
-
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
+    _graph_nodes_by_task_id: Dict[str, Any] = {}  # maps task_id to dictionary of name, span, and span_links
 
     def _llmobs_set_tags(
         self,
@@ -35,121 +35,102 @@ class LangGraphIntegration(BaseLLMIntegration):
             return
 
         inputs = get_argument_value(args, kwargs, 0, "input")
-        config = get_argument_value(
-            args, kwargs, 1, "config", optional=True
-        )  # config might not be present for the root graph node (root node of the trace)
-
-        metadata = config.get("metadata", {}) if isinstance(config, dict) else {}
+        config = get_argument_value(args, kwargs, 1, "config", optional=True)
+        metadata = _get_attr(config, "metadata", {})
         instance_id = metadata.get("langgraph_checkpoint_ns", "").split(":")[-1]
+        invoked_node = self._graph_nodes_by_task_id.setdefault(instance_id, {})
+        invoked_node["span"] = {"trace_id": "{:x}".format(span.trace_id), "span_id": str(span.span_id)}
 
-        node_invoke = node_invokes[instance_id] = node_invokes.get(instance_id, {})
-        span_name = node_invokes.get(instance_id, {}).get("name") or kwargs.get("name", span.name)
+        span_links = [_default_span_link(span)]
+        invoked_node_span_links = invoked_node.get("span_links")
+        if invoked_node_span_links is not None and operation == "node":
+            span_links = invoked_node_span_links
+        current_span_links = span._get_ctx_item(SPAN_LINKS) or []
 
         span._set_ctx_items(
             {
-                SPAN_KIND: "agent",  # should nodes be workflows? should it be dynamic to if a subgraph is included?
+                SPAN_KIND: "agent" if operation == "graph" else "task",
                 INPUT_VALUE: format_langchain_io(inputs),
                 OUTPUT_VALUE: format_langchain_io(response),
-                NAME: span_name,
+                NAME: self._graph_nodes_by_task_id.get(instance_id, {}).get("name") or kwargs.get("name", span.name),
+                SPAN_LINKS: current_span_links + span_links,
             }
         )
 
-        node_invoke["span"] = {
-            "trace_id": "{:x}".format(span.trace_id),
-            "span_id": str(span.span_id),
-        }
-
-        span_links = [default_span_link(span)]
-        node_invoke_span_links = node_invoke.get("from")
-        if node_invoke_span_links is not None and operation == "node":
-            span_links = node_invoke_span_links
-
-        if span_links is not None:
-            current_span_links = span._get_ctx_item(SPAN_LINKS) or []
-            span._set_ctx_item(SPAN_LINKS, current_span_links + span_links)
-
-    def handle_pregel_loop_tick(
+    def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph: bool = False
     ):
-        """
-        Handle a specific tick of the pregel loop.
-        Specifically, this function computes incoming and outgoing span links between finished tasks
-        and queued tasks in the graph.
-
-        Additionally, it sets the span links at the outer ends of the graph, between the span that invokes
-        the graph and the last set of nodes before the graph ends. However, this only happens if the graph
-        is not a subgraph, as in those cases the output to output link should happen between tasks, and not
-        between the task (subgraph node) and the graph that invoked it.
-
-        We also extract the task name and set it as a possible span name for the node span that is set above
-        in the `llmobs_set_tags` method.
-        """
+        """Compute incoming and outgoing span links between finished tasks and queued tasks in the graph."""
         if not self.llmobs_enabled:
             return
-
-        graph_span = (
-            tracer.current_span()
-        )  # since we're running the the pregel loop, and not in a node, the graph span should be the current span
-        graph_caller = _get_nearest_llmobs_ancestor(graph_span) if graph_span else None
-
-        if not more_tasks and graph_span is not None:
-            span_links = [
-                {**node_invokes[task_id]["span"], "attributes": {"from": "output", "to": "output"}}
-                for task_id in finished_tasks.keys()
-            ]
-
-            current_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
-            graph_span._set_ctx_item(SPAN_LINKS, current_span_links + span_links)
-
-            if graph_caller is not None and not is_subgraph:
-                current_graph_caller_span_links = graph_caller._get_ctx_item(SPAN_LINKS) or []
-                graph_caller_span_links = [
-                    {
-                        "span_id": str(graph_span.span_id) or "undefined",
-                        "trace_id": "{:x}".format(graph_caller.trace_id),
-                        "attributes": {
-                            "from": "output",
-                            "to": "output",
-                        },
-                    }
-                ]
-                graph_caller._set_ctx_item(SPAN_LINKS, current_graph_caller_span_links + graph_caller_span_links)
-
+        graph_span = tracer.current_span() # we're running between nodes, so the current span should be the pregel graph
+        if graph_span is None or graph_span.span_type != SpanTypes.LLM:
             return
 
-        parent_node_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
-
+        if not more_tasks:
+            self._handle_finished_graph(graph_span, finished_tasks, is_subgraph)
+            return
+        finished_task_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
         for task_id, task in next_tasks.items():
-            task_config = getattr(task, "config", {})
-            task_triggers = task_config.get("metadata", {}).get("langgraph_triggers", [])
+            self._link_task_to_parent(task_id, task, finished_task_names_to_ids)
 
-            parent_node_names = [extract_parent(trigger) for trigger in task_triggers]
-            parent_ids: List[str] = [
-                parent_node_names_to_ids.get(parent_node_name, "") for parent_node_name in parent_node_names
-            ]
 
-            for parent_id in parent_ids:
-                parent_span = node_invokes.get(parent_id, {}).get("span")
-
-                node_invoke = node_invokes[task_id] = node_invokes.get(task_id, {})
-                node_invoke["name"] = task.name
-
-                if not parent_span:
-                    continue
-
-                parent_span_link = {
-                    **node_invokes.get(parent_id, {}).get("span", {}),
-                    "attributes": {
-                        "from": "output",
-                        "to": "input",
-                    },
+    def _handle_finished_graph(self, graph_span, finished_tasks, is_subgraph):
+        """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
+        Generate the output-to-output span links for the last nodes in a pregel graph.
+        If the graph isn't a subgraph, add a span link from the graph span to the LLMObs parent span which called the graph.
+        """
+        graph_caller_span = _get_nearest_llmobs_ancestor(graph_span) if graph_span else None
+        output_span_links = [
+            {**self._graph_nodes_by_task_id[task_id]["span"], "attributes": {"from": "output", "to": "output"}}
+            for task_id in finished_tasks.keys()
+        ]
+        graph_span_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
+        graph_span._set_ctx_item(SPAN_LINKS, graph_span_span_links + output_span_links)
+        if graph_caller_span is not None and not is_subgraph:
+            graph_caller_span_links = graph_caller_span._get_ctx_item(SPAN_LINKS) or []
+            span_links = [
+                {
+                    "span_id": str(graph_span.span_id) or "undefined",
+                    "trace_id": "{:x}".format(graph_caller_span.trace_id),
+                    "attributes": {"from": "output", "to": "output"},
                 }
-                from_nodes = node_invoke["from"] = node_invoke.get("from", [])
+            ]
+            graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
+        if not is_subgraph:
+            self._graph_nodes_by_task_id.clear()
+        return
 
-                from_nodes.append(parent_span_link)
+
+    def _link_task_to_parent(self, task_id, task, finished_task_names_to_ids):
+        """Create the span links for a queued task from its triggering parent tasks."""
+        task_config = getattr(task, "config", {})
+        task_triggers = task_config.get("metadata", {}).get("langgraph_triggers", [])
+
+        trigger_node_names = [_extract_parent(trigger) for trigger in task_triggers]
+        trigger_node_ids: List[str] = [
+            finished_task_names_to_ids.get(trigger_node_name, "") for trigger_node_name in trigger_node_names
+        ]
+
+        for node_id in trigger_node_ids:
+            queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
+            queued_node["name"] = getattr(task, "name", "")
+
+            trigger_node_span = self._graph_nodes_by_task_id.get(node_id, {}).get("span")
+            if not trigger_node_span:
+                # Subgraphs that are called at the start of the graph need to be named, but don't need any span links
+                continue
+
+            span_link = {
+                "span_id": trigger_node_span.get("span_id", ""),
+                "trace_id": trigger_node_span.get("trace_id", ""),
+                "attributes": {"from": "output", "to": "input"},
+            }
+            span_links = queued_node.setdefault("span_links", [])
+            span_links.append(span_link)
 
 
-def extract_parent(trigger: str) -> str:
+def _extract_parent(trigger: str) -> str:
     """
     Extract the parent node name from a trigger string.
 
@@ -164,7 +145,7 @@ def extract_parent(trigger: str) -> str:
     return split[1]
 
 
-def default_span_link(span: Span):
+def _default_span_link(span: Span):
     """
     Create a default input-to-input span link for a given span, if there are no
     referenced spans that represent the causal link. In this case, we assume
@@ -173,8 +154,5 @@ def default_span_link(span: Span):
     return {
         "span_id": str(_get_llmobs_parent_id(span)) or "undefined",
         "trace_id": "{:x}".format(span.trace_id),
-        "attributes": {
-            "from": "input",
-            "to": "input",
-        },
+        "attributes": {"from": "input", "to": "input"},
     }
