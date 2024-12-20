@@ -3,8 +3,6 @@ import time
 
 import pytest
 
-from ddtrace.internal import compat
-
 
 def spend_1():
     time.sleep(1)
@@ -33,16 +31,16 @@ def spend_16():
 
 
 def spend_cpu_2():
-    now = compat.monotonic_ns()
+    now = time.monotonic_ns()
     # Active wait for 2 seconds
-    while compat.monotonic_ns() - now < 2e9:
+    while time.monotonic_ns() - now < 2e9:
         pass
 
 
 def spend_cpu_3():
     # Active wait for 3 seconds
-    now = compat.monotonic_ns()
-    while compat.monotonic_ns() - now < 3e9:
+    now = time.monotonic_ns()
+    while time.monotonic_ns() - now < 3e9:
         pass
 
 

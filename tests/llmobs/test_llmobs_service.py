@@ -1,4 +1,3 @@
-import json
 import os
 import threading
 import time
@@ -31,6 +30,7 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
 from ddtrace.llmobs.utils import Prompt
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
@@ -144,6 +144,65 @@ def test_service_enable_already_enabled(mock_logs):
         mock_logs.debug.assert_has_calls([mock.call("%s already enabled", "LLMObs")])
 
 
+@mock.patch("ddtrace.llmobs._llmobs.patch")
+def test_service_enable_patches_llmobs_integrations(mock_tracer_patch):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        llmobs_service.enable()
+        mock_tracer_patch.assert_called_once()
+        kwargs = mock_tracer_patch.call_args[1]
+        for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
+            assert kwargs[module] is True
+        llmobs_service.disable()
+
+
+@mock.patch("ddtrace.llmobs._llmobs.patch")
+def test_service_enable_does_not_override_global_patch_modules(mock_tracer_patch, monkeypatch):
+    monkeypatch.setenv("DD_PATCH_MODULES", "openai:false")
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        llmobs_service.enable()
+        mock_tracer_patch.assert_called_once()
+        kwargs = mock_tracer_patch.call_args[1]
+        for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
+            if module == "openai":
+                assert kwargs[module] is False
+                continue
+            assert kwargs[module] is True
+        llmobs_service.disable()
+
+
+@mock.patch("ddtrace.llmobs._llmobs.patch")
+def test_service_enable_does_not_override_integration_enabled_env_vars(mock_tracer_patch, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_OPENAI_ENABLED", "false")
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        llmobs_service.enable()
+        mock_tracer_patch.assert_called_once()
+        kwargs = mock_tracer_patch.call_args[1]
+        for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
+            if module == "openai":
+                assert kwargs[module] is False
+                continue
+            assert kwargs[module] is True
+        llmobs_service.disable()
+
+
+@mock.patch("ddtrace.llmobs._llmobs.patch")
+def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch, monkeypatch):
+    """Test that _patch_integrations() ensures `DD_PATCH_MODULES` overrides `DD_TRACE_<MODULE>_ENABLED`."""
+    monkeypatch.setenv("DD_TRACE_OPENAI_ENABLED", "true")
+    monkeypatch.setenv("DD_TRACE_ANTHROPIC_ENABLED", "false")
+    monkeypatch.setenv("DD_PATCH_MODULES", "openai:false")
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        llmobs_service.enable()
+        mock_tracer_patch.assert_called_once()
+        kwargs = mock_tracer_patch.call_args[1]
+        for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
+            if module in ("openai", "anthropic"):
+                assert kwargs[module] is False
+                continue
+            assert kwargs[module] is True
+        llmobs_service.disable()
+
+
 def test_start_span_while_disabled_logs_warning(LLMObs, mock_logs):
     LLMObs.disable()
     _ = LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider")
@@ -177,15 +236,15 @@ def test_start_span_uses_kind_as_default_name(LLMObs):
 
 def test_start_span_with_session_id(LLMObs):
     with LLMObs.llm(model_name="test_model", session_id="test_session_id") as span:
-        assert span.get_tag(SESSION_ID) == "test_session_id"
+        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
     with LLMObs.tool(session_id="test_session_id") as span:
-        assert span.get_tag(SESSION_ID) == "test_session_id"
+        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
     with LLMObs.task(session_id="test_session_id") as span:
-        assert span.get_tag(SESSION_ID) == "test_session_id"
+        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
     with LLMObs.workflow(session_id="test_session_id") as span:
-        assert span.get_tag(SESSION_ID) == "test_session_id"
+        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
     with LLMObs.agent(session_id="test_session_id") as span:
-        assert span.get_tag(SESSION_ID) == "test_session_id"
+        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
 
 
 def test_session_id_becomes_top_level_field(LLMObs, mock_llmobs_span_writer):
@@ -211,9 +270,9 @@ def test_llm_span(LLMObs, mock_llmobs_span_writer):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "llm"
-        assert span.get_tag(MODEL_NAME) == "test_model"
-        assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span._get_ctx_item(SPAN_KIND) == "llm"
+        assert span._get_ctx_item(MODEL_NAME) == "test_model"
+        assert span._get_ctx_item(MODEL_PROVIDER) == "test_provider"
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
@@ -225,9 +284,9 @@ def test_llm_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "llm"
-        assert span.get_tag(MODEL_NAME) == "test_model"
-        assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span._get_ctx_item(SPAN_KIND) == "llm"
+        assert span._get_ctx_item(MODEL_NAME) == "test_model"
+        assert span._get_ctx_item(MODEL_PROVIDER) == "test_provider"
 
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
@@ -236,7 +295,7 @@ def test_llm_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer):
 
 def test_llm_span_no_model_sets_default(LLMObs, mock_llmobs_span_writer):
     with LLMObs.llm(name="test_llm_call", model_provider="test_provider") as span:
-        assert span.get_tag(MODEL_NAME) == "custom"
+        assert span._get_ctx_item(MODEL_NAME) == "custom"
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="custom", model_provider="test_provider")
@@ -248,9 +307,9 @@ def test_default_model_provider_set_to_custom(LLMObs):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "llm"
-        assert span.get_tag(MODEL_NAME) == "test_model"
-        assert span.get_tag(MODEL_PROVIDER) == "custom"
+        assert span._get_ctx_item(SPAN_KIND) == "llm"
+        assert span._get_ctx_item(MODEL_NAME) == "test_model"
+        assert span._get_ctx_item(MODEL_PROVIDER) == "custom"
 
 
 def test_tool_span(LLMObs, mock_llmobs_span_writer):
@@ -258,7 +317,7 @@ def test_tool_span(LLMObs, mock_llmobs_span_writer):
         assert span.name == "test_tool"
         assert span.resource == "tool"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "tool"
+        assert span._get_ctx_item(SPAN_KIND) == "tool"
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
 
 
@@ -267,7 +326,7 @@ def test_tool_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer)
         assert span.name == "test_tool"
         assert span.resource == "tool"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "tool"
+        assert span._get_ctx_item(SPAN_KIND) == "tool"
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
 
 
@@ -276,7 +335,7 @@ def test_task_span(LLMObs, mock_llmobs_span_writer):
         assert span.name == "test_task"
         assert span.resource == "task"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "task"
+        assert span._get_ctx_item(SPAN_KIND) == "task"
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
 
 
@@ -285,7 +344,7 @@ def test_task_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer)
         assert span.name == "test_task"
         assert span.resource == "task"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "task"
+        assert span._get_ctx_item(SPAN_KIND) == "task"
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
 
 
@@ -294,7 +353,7 @@ def test_workflow_span(LLMObs, mock_llmobs_span_writer):
         assert span.name == "test_workflow"
         assert span.resource == "workflow"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "workflow"
+        assert span._get_ctx_item(SPAN_KIND) == "workflow"
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
 
 
@@ -303,7 +362,7 @@ def test_workflow_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_wri
         assert span.name == "test_workflow"
         assert span.resource == "workflow"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "workflow"
+        assert span._get_ctx_item(SPAN_KIND) == "workflow"
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
 
 
@@ -312,7 +371,7 @@ def test_agent_span(LLMObs, mock_llmobs_span_writer):
         assert span.name == "test_agent"
         assert span.resource == "agent"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "agent"
+        assert span._get_ctx_item(SPAN_KIND) == "agent"
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
@@ -321,13 +380,13 @@ def test_agent_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_writer
         assert span.name == "test_agent"
         assert span.resource == "agent"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "agent"
+        assert span._get_ctx_item(SPAN_KIND) == "agent"
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
 def test_embedding_span_no_model_sets_default(LLMObs, mock_llmobs_span_writer):
     with LLMObs.embedding(name="test_embedding", model_provider="test_provider") as span:
-        assert span.get_tag(MODEL_NAME) == "custom"
+        assert span._get_ctx_item(MODEL_NAME) == "custom"
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "embedding", model_name="custom", model_provider="test_provider")
     )
@@ -338,9 +397,9 @@ def test_embedding_default_model_provider_set_to_custom(LLMObs):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "embedding"
-        assert span.get_tag(MODEL_NAME) == "test_model"
-        assert span.get_tag(MODEL_PROVIDER) == "custom"
+        assert span._get_ctx_item(SPAN_KIND) == "embedding"
+        assert span._get_ctx_item(MODEL_NAME) == "test_model"
+        assert span._get_ctx_item(MODEL_PROVIDER) == "custom"
 
 
 def test_embedding_span(LLMObs, mock_llmobs_span_writer):
@@ -348,9 +407,9 @@ def test_embedding_span(LLMObs, mock_llmobs_span_writer):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "embedding"
-        assert span.get_tag(MODEL_NAME) == "test_model"
-        assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span._get_ctx_item(SPAN_KIND) == "embedding"
+        assert span._get_ctx_item(MODEL_NAME) == "test_model"
+        assert span._get_ctx_item(MODEL_PROVIDER) == "test_provider"
 
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
@@ -364,9 +423,9 @@ def test_embedding_span_agentless(AgentlessLLMObs, mock_llmobs_span_agentless_wr
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert span.get_tag(SPAN_KIND) == "embedding"
-        assert span.get_tag(MODEL_NAME) == "test_model"
-        assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span._get_ctx_item(SPAN_KIND) == "embedding"
+        assert span._get_ctx_item(MODEL_NAME) == "test_model"
+        assert span._get_ctx_item(MODEL_PROVIDER) == "test_provider"
 
     mock_llmobs_span_agentless_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
@@ -395,7 +454,7 @@ def test_annotate_finished_span_does_nothing(LLMObs, mock_logs):
 def test_annotate_parameters(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, parameters={"temperature": 0.9, "max_tokens": 50})
-        assert json.loads(span.get_tag(INPUT_PARAMETERS)) == {"temperature": 0.9, "max_tokens": 50}
+        assert span._get_ctx_item(INPUT_PARAMETERS) == {"temperature": 0.9, "max_tokens": 50}
         mock_logs.warning.assert_called_once_with(
             "Setting parameters is deprecated, please set parameters and other metadata as tags instead."
         )
@@ -404,128 +463,92 @@ def test_annotate_parameters(LLMObs, mock_logs):
 def test_annotate_metadata(LLMObs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
-        assert json.loads(span.get_tag(METADATA)) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
+        assert span._get_ctx_item(METADATA) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
 
 
 def test_annotate_metadata_wrong_type_raises_warning(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, metadata="wrong_metadata")
-        assert span.get_tag(METADATA) is None
+        assert span._get_ctx_item(METADATA) is None
         mock_logs.warning.assert_called_once_with("metadata must be a dictionary of string key-value pairs.")
         mock_logs.reset_mock()
-
-
-def test_annotate_metadata_non_serializable_marks_with_placeholder_value(LLMObs):
-    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, metadata={"unserializable": object()})
-            metadata = json.loads(span.get_tag(METADATA))
-            assert metadata is not None
-            assert "[Unserializable object: <object object" in metadata["unserializable"]
-            mock_logs.warning.assert_called_once_with(
-                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
-            )
 
 
 def test_annotate_tag(LLMObs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, tags={"test_tag_name": "test_tag_value", "test_numeric_tag": 10})
-        assert json.loads(span.get_tag(TAGS)) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
+        assert span._get_ctx_item(TAGS) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
 
 
 def test_annotate_tag_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, tags=12345)
-        assert span.get_tag(TAGS) is None
+        assert span._get_ctx_item(TAGS) is None
         mock_logs.warning.assert_called_once_with(
             "span_tags must be a dictionary of string key - primitive value pairs."
         )
 
 
-def test_annotate_tag_non_serializable_marks_with_placeholder_value(LLMObs):
-    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, tags={"unserializable": object()})
-            tags = json.loads(span.get_tag(TAGS))
-            assert tags is not None
-            assert "[Unserializable object:" in tags["unserializable"]
-            mock_logs.warning.assert_called_once_with(
-                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
-            )
-
-
 def test_annotate_input_string(LLMObs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, input_data="test_input")
-        assert json.loads(llm_span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input"}]
+        assert llm_span._get_ctx_item(INPUT_MESSAGES) == [{"content": "test_input"}]
     with LLMObs.task() as task_span:
         LLMObs.annotate(span=task_span, input_data="test_input")
-        assert task_span.get_tag(INPUT_VALUE) == "test_input"
+        assert task_span._get_ctx_item(INPUT_VALUE) == "test_input"
     with LLMObs.tool() as tool_span:
         LLMObs.annotate(span=tool_span, input_data="test_input")
-        assert tool_span.get_tag(INPUT_VALUE) == "test_input"
+        assert tool_span._get_ctx_item(INPUT_VALUE) == "test_input"
     with LLMObs.workflow() as workflow_span:
         LLMObs.annotate(span=workflow_span, input_data="test_input")
-        assert workflow_span.get_tag(INPUT_VALUE) == "test_input"
+        assert workflow_span._get_ctx_item(INPUT_VALUE) == "test_input"
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, input_data="test_input")
-        assert agent_span.get_tag(INPUT_VALUE) == "test_input"
+        assert agent_span._get_ctx_item(INPUT_VALUE) == "test_input"
     with LLMObs.retrieval() as retrieval_span:
         LLMObs.annotate(span=retrieval_span, input_data="test_input")
-        assert retrieval_span.get_tag(INPUT_VALUE) == "test_input"
+        assert retrieval_span._get_ctx_item(INPUT_VALUE) == "test_input"
 
 
 def test_annotate_numeric_io(LLMObs):
     with LLMObs.task() as task_span:
         LLMObs.annotate(span=task_span, input_data=0, output_data=0)
-        assert task_span.get_tag(INPUT_VALUE) == "0"
-        assert task_span.get_tag(OUTPUT_VALUE) == "0"
+        assert task_span._get_ctx_item(INPUT_VALUE) == "0"
+        assert task_span._get_ctx_item(OUTPUT_VALUE) == "0"
     with LLMObs.task() as task_span:
         LLMObs.annotate(span=task_span, input_data=1.23, output_data=1.23)
-        assert task_span.get_tag(INPUT_VALUE) == "1.23"
-        assert task_span.get_tag(OUTPUT_VALUE) == "1.23"
+        assert task_span._get_ctx_item(INPUT_VALUE) == "1.23"
+        assert task_span._get_ctx_item(OUTPUT_VALUE) == "1.23"
 
 
 def test_annotate_input_serializable_value(LLMObs):
     with LLMObs.task() as task_span:
         LLMObs.annotate(span=task_span, input_data=["test_input"])
-        assert task_span.get_tag(INPUT_VALUE) == '["test_input"]'
+        assert task_span._get_ctx_item(INPUT_VALUE) == str(["test_input"])
     with LLMObs.tool() as tool_span:
         LLMObs.annotate(span=tool_span, input_data={"test_input": "hello world"})
-        assert tool_span.get_tag(INPUT_VALUE) == '{"test_input": "hello world"}'
+        assert tool_span._get_ctx_item(INPUT_VALUE) == str({"test_input": "hello world"})
     with LLMObs.workflow() as workflow_span:
         LLMObs.annotate(span=workflow_span, input_data=("asd", 123))
-        assert workflow_span.get_tag(INPUT_VALUE) == '["asd", 123]'
+        assert workflow_span._get_ctx_item(INPUT_VALUE) == str(("asd", 123))
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, input_data="test_input")
-        assert agent_span.get_tag(INPUT_VALUE) == "test_input"
+        assert agent_span._get_ctx_item(INPUT_VALUE) == "test_input"
     with LLMObs.retrieval() as retrieval_span:
         LLMObs.annotate(span=retrieval_span, input_data=[0, 1, 2, 3, 4])
-        assert retrieval_span.get_tag(INPUT_VALUE) == "[0, 1, 2, 3, 4]"
-
-
-def test_annotate_input_value_non_serializable_marks_with_placeholder_value(LLMObs):
-    with LLMObs.workflow() as span:
-        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, input_data=object())
-            input_value = span.get_tag(INPUT_VALUE)
-            assert input_value is not None
-            assert "[Unserializable object:" in input_value
-            mock_logs.warning.assert_called_once_with(
-                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
-            )
+        assert retrieval_span._get_ctx_item(INPUT_VALUE) == str([0, 1, 2, 3, 4])
 
 
 def test_annotate_input_llm_message(LLMObs):
     with LLMObs.llm(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data=[{"content": "test_input", "role": "human"}])
-        assert json.loads(span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input", "role": "human"}]
+        assert span._get_ctx_item(INPUT_MESSAGES) == [{"content": "test_input", "role": "human"}]
 
 
 def test_annotate_input_llm_message_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data=[{"content": object()}])
-        assert span.get_tag(INPUT_MESSAGES) is None
+        assert span._get_ctx_item(INPUT_MESSAGES) is None
         mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
 
 
@@ -541,13 +564,13 @@ def test_llmobs_annotate_incorrect_message_content_type_raises_warning(LLMObs, m
 def test_annotate_document_str(LLMObs):
     with LLMObs.embedding(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data="test_document_text")
-        documents = json.loads(span.get_tag(INPUT_DOCUMENTS))
+        documents = span._get_ctx_item(INPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
     with LLMObs.retrieval() as span:
         LLMObs.annotate(span=span, output_data="test_document_text")
-        documents = json.loads(span.get_tag(OUTPUT_DOCUMENTS))
+        documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
@@ -556,13 +579,13 @@ def test_annotate_document_str(LLMObs):
 def test_annotate_document_dict(LLMObs):
     with LLMObs.embedding(model_name="test_model") as span:
         LLMObs.annotate(span=span, input_data={"text": "test_document_text"})
-        documents = json.loads(span.get_tag(INPUT_DOCUMENTS))
+        documents = span._get_ctx_item(INPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
     with LLMObs.retrieval() as span:
         LLMObs.annotate(span=span, output_data={"text": "test_document_text"})
-        documents = json.loads(span.get_tag(OUTPUT_DOCUMENTS))
+        documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
@@ -574,7 +597,7 @@ def test_annotate_document_list(LLMObs):
             span=span,
             input_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
         )
-        documents = json.loads(span.get_tag(INPUT_DOCUMENTS))
+        documents = span._get_ctx_item(INPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 2
         assert documents[0]["text"] == "test_document_text"
@@ -587,7 +610,7 @@ def test_annotate_document_list(LLMObs):
             span=span,
             output_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
         )
-        documents = json.loads(span.get_tag(OUTPUT_DOCUMENTS))
+        documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 2
         assert documents[0]["text"] == "test_document_text"
@@ -617,30 +640,6 @@ def test_annotate_incorrect_document_type_raises_warning(LLMObs, mock_logs):
         mock_logs.reset_mock()
         LLMObs.annotate(span=span, output_data=object())
         mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
-
-
-def test_annotate_output_embedding_non_serializable_marks_with_placeholder_value(LLMObs):
-    with LLMObs.embedding(model_name="test_model") as span:
-        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, output_data=object())
-            output_value = json.loads(span.get_tag(OUTPUT_VALUE))
-            assert output_value is not None
-            assert "[Unserializable object:" in output_value
-            mock_logs.warning.assert_called_once_with(
-                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
-            )
-
-
-def test_annotate_input_retrieval_non_serializable_marks_with_placeholder_value(LLMObs):
-    with LLMObs.retrieval() as span:
-        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, input_data=object())
-            input_value = json.loads(span.get_tag(INPUT_VALUE))
-            assert input_value is not None
-            assert "[Unserializable object:" in input_value
-            mock_logs.warning.assert_called_once_with(
-                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
-            )
 
 
 def test_annotate_document_no_text_raises_warning(LLMObs, mock_logs):
@@ -678,87 +677,67 @@ def test_annotate_incorrect_document_field_type_raises_warning(LLMObs, mock_logs
 def test_annotate_output_string(LLMObs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, output_data="test_output")
-        assert json.loads(llm_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output"}]
+        assert llm_span._get_ctx_item(OUTPUT_MESSAGES) == [{"content": "test_output"}]
     with LLMObs.embedding(model_name="test_model") as embedding_span:
         LLMObs.annotate(span=embedding_span, output_data="test_output")
-        assert embedding_span.get_tag(OUTPUT_VALUE) == "test_output"
+        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
     with LLMObs.task() as task_span:
         LLMObs.annotate(span=task_span, output_data="test_output")
-        assert task_span.get_tag(OUTPUT_VALUE) == "test_output"
+        assert task_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
     with LLMObs.tool() as tool_span:
         LLMObs.annotate(span=tool_span, output_data="test_output")
-        assert tool_span.get_tag(OUTPUT_VALUE) == "test_output"
+        assert tool_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
     with LLMObs.workflow() as workflow_span:
         LLMObs.annotate(span=workflow_span, output_data="test_output")
-        assert workflow_span.get_tag(OUTPUT_VALUE) == "test_output"
+        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, output_data="test_output")
-        assert agent_span.get_tag(OUTPUT_VALUE) == "test_output"
+        assert agent_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
 
 
 def test_annotate_output_serializable_value(LLMObs):
     with LLMObs.embedding(model_name="test_model") as embedding_span:
         LLMObs.annotate(span=embedding_span, output_data=[[0, 1, 2, 3], [4, 5, 6, 7]])
-        assert embedding_span.get_tag(OUTPUT_VALUE) == "[[0, 1, 2, 3], [4, 5, 6, 7]]"
+        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == str([[0, 1, 2, 3], [4, 5, 6, 7]])
     with LLMObs.task() as task_span:
         LLMObs.annotate(span=task_span, output_data=["test_output"])
-        assert task_span.get_tag(OUTPUT_VALUE) == '["test_output"]'
+        assert task_span._get_ctx_item(OUTPUT_VALUE) == str(["test_output"])
     with LLMObs.tool() as tool_span:
         LLMObs.annotate(span=tool_span, output_data={"test_output": "hello world"})
-        assert tool_span.get_tag(OUTPUT_VALUE) == '{"test_output": "hello world"}'
+        assert tool_span._get_ctx_item(OUTPUT_VALUE) == str({"test_output": "hello world"})
     with LLMObs.workflow() as workflow_span:
         LLMObs.annotate(span=workflow_span, output_data=("asd", 123))
-        assert workflow_span.get_tag(OUTPUT_VALUE) == '["asd", 123]'
+        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == str(("asd", 123))
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, output_data="test_output")
-        assert agent_span.get_tag(OUTPUT_VALUE) == "test_output"
-
-
-def test_annotate_output_value_non_serializable_marks_with_placeholder_value(LLMObs):
-    with LLMObs.workflow() as span:
-        with mock.patch("ddtrace.llmobs._utils.log") as mock_logs:
-            LLMObs.annotate(span=span, output_data=object())
-            output_value = json.loads(span.get_tag(OUTPUT_VALUE))
-            assert output_value is not None
-            assert "[Unserializable object:" in output_value
-            mock_logs.warning.assert_called_once_with(
-                "I/O object is not JSON serializable. Defaulting to placeholder value instead."
-            )
+        assert agent_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
 
 
 def test_annotate_output_llm_message(LLMObs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, output_data=[{"content": "test_output", "role": "human"}])
-        assert json.loads(llm_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output", "role": "human"}]
+        assert llm_span._get_ctx_item(OUTPUT_MESSAGES) == [{"content": "test_output", "role": "human"}]
 
 
 def test_annotate_output_llm_message_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, output_data=[{"content": object()}])
-        assert llm_span.get_tag(OUTPUT_MESSAGES) is None
+        assert llm_span._get_ctx_item(OUTPUT_MESSAGES) is None
         mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
 def test_annotate_metrics(LLMObs):
     with LLMObs.llm(model_name="test_model") as span:
         LLMObs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30})
-        assert json.loads(span.get_tag(METRICS)) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+        assert span._get_ctx_item(METRICS) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
 
 
 def test_annotate_metrics_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, metrics=12345)
-        assert llm_span.get_tag(METRICS) is None
+        assert llm_span._get_ctx_item(METRICS) is None
         mock_logs.warning.assert_called_once_with("metrics must be a dictionary of string key - numeric value pairs.")
         mock_logs.reset_mock()
-
-
-def test_annotate_metrics_unserializable_uses_placeholder(LLMObs, mock_logs):
-    with LLMObs.llm(model_name="test_model") as llm_span:
-        LLMObs.annotate(span=llm_span, metrics={"content": object()})
-        metrics = json.loads(llm_span.get_tag(METRICS))
-        assert metrics is not None
-        assert "[Unserializable object: <object object at" in metrics["content"]
 
 
 def test_annotate_prompt_dict(LLMObs):
@@ -772,7 +751,7 @@ def test_annotate_prompt_dict(LLMObs):
                 "id": "test_prompt",
             },
         )
-        assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+        assert span._get_ctx_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -795,7 +774,7 @@ def test_annotate_prompt_dict_with_context_var_keys(LLMObs):
                 "rag_query_variables": ["user_input"],
             },
         )
-        assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+        assert span._get_ctx_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -818,7 +797,7 @@ def test_annotate_prompt_typed_dict(LLMObs):
                 rag_query_variables=["user_input"],
             ),
         )
-        assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+        assert span._get_ctx_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -831,7 +810,7 @@ def test_annotate_prompt_typed_dict(LLMObs):
 def test_annotate_prompt_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as span:
         LLMObs.annotate(span=span, prompt="prompt")
-        assert span.get_tag(INPUT_PROMPT) is None
+        assert span._get_ctx_item(INPUT_PROMPT) is None
         mock_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
         mock_logs.reset_mock()
 
@@ -1801,13 +1780,13 @@ def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmob
 def test_annotation_context_modifies_span_tags(LLMObs):
     with LLMObs.annotation_context(tags={"foo": "bar"}):
         with LLMObs.agent(name="test_agent") as span:
-            assert json.loads(span.get_tag(TAGS)) == {"foo": "bar"}
+            assert span._get_ctx_item(TAGS) == {"foo": "bar"}
 
 
 def test_annotation_context_modifies_prompt(LLMObs):
     with LLMObs.annotation_context(prompt={"template": "test_template"}):
         with LLMObs.llm(name="test_agent", model_name="test") as span:
-            assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+            assert span._get_ctx_item(INPUT_PROMPT) == {
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
@@ -1824,14 +1803,14 @@ def test_annotation_context_finished_context_does_not_modify_tags(LLMObs):
     with LLMObs.annotation_context(tags={"foo": "bar"}):
         pass
     with LLMObs.agent(name="test_agent") as span:
-        assert span.get_tag(TAGS) is None
+        assert span._get_ctx_item(TAGS) is None
 
 
 def test_annotation_context_finished_context_does_not_modify_prompt(LLMObs):
     with LLMObs.annotation_context(prompt={"template": "test_template"}):
         pass
     with LLMObs.llm(name="test_agent", model_name="test") as span:
-        assert span.get_tag(INPUT_PROMPT) is None
+        assert span._get_ctx_item(INPUT_PROMPT) is None
 
 
 def test_annotation_context_finished_context_does_not_modify_name(LLMObs):
@@ -1845,7 +1824,7 @@ def test_annotation_context_nested(LLMObs):
     with LLMObs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         with LLMObs.annotation_context(tags={"foo": "baz"}):
             with LLMObs.agent(name="test_agent") as span:
-                assert json.loads(span.get_tag(TAGS)) == {"foo": "baz", "boo": "bar"}
+                assert span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
 
 
 def test_annotation_context_nested_overrides_name(LLMObs):
@@ -1861,8 +1840,8 @@ def test_annotation_context_nested_maintains_trace_structure(LLMObs, mock_llmobs
         with LLMObs.agent(name="parent_span") as parent_span:
             with LLMObs.annotation_context(tags={"foo": "baz"}):
                 with LLMObs.workflow(name="child_span") as child_span:
-                    assert json.loads(child_span.get_tag(TAGS)) == {"foo": "baz", "boo": "bar"}
-                    assert json.loads(parent_span.get_tag(TAGS)) == {"foo": "bar", "boo": "bar"}
+                    assert child_span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
+                    assert parent_span._get_ctx_item(TAGS) == {"foo": "bar", "boo": "bar"}
 
     assert len(mock_llmobs_span_writer.enqueue.call_args_list) == 2
     parent_span, child_span = [span[0] for span, _ in mock_llmobs_span_writer.enqueue.call_args_list]
@@ -1906,7 +1885,7 @@ def test_annotation_context_only_applies_to_local_context(LLMObs):
         with LLMObs.annotation_context(name="expected_agent", tags={"foo": "bar"}):
             with LLMObs.agent(name="test_agent") as span:
                 event.wait()
-                agent_has_correct_tags = json.loads(span.get_tag(TAGS)) == {"foo": "bar"}
+                agent_has_correct_tags = span._get_ctx_item(TAGS) == {"foo": "bar"}
                 agent_has_correct_name = span.name == "expected_agent"
 
     # thread which registers an annotation context for 0.5 seconds
@@ -1917,7 +1896,7 @@ def test_annotation_context_only_applies_to_local_context(LLMObs):
             with LLMObs.annotation_context(name="expected_tool"):
                 with LLMObs.tool(name="test_tool") as tool_span:
                     event.wait()
-                    tool_does_not_have_tags = tool_span.get_tag(TAGS) is None
+                    tool_does_not_have_tags = tool_span._get_ctx_item(TAGS) is None
                     tool_has_correct_name = tool_span.name == "expected_tool"
 
     thread_one = threading.Thread(target=context_one)
@@ -1927,7 +1906,7 @@ def test_annotation_context_only_applies_to_local_context(LLMObs):
 
     with LLMObs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
-        assert span.get_tag(TAGS) is None
+        assert span._get_ctx_item(TAGS) is None
 
     event.set()
     thread_one.join()
@@ -1944,13 +1923,13 @@ def test_annotation_context_only_applies_to_local_context(LLMObs):
 async def test_annotation_context_async_modifies_span_tags(LLMObs):
     async with LLMObs.annotation_context(tags={"foo": "bar"}):
         with LLMObs.agent(name="test_agent") as span:
-            assert json.loads(span.get_tag(TAGS)) == {"foo": "bar"}
+            assert span._get_ctx_item(TAGS) == {"foo": "bar"}
 
 
 async def test_annotation_context_async_modifies_prompt(LLMObs):
     async with LLMObs.annotation_context(prompt={"template": "test_template"}):
         with LLMObs.llm(name="test_agent", model_name="test") as span:
-            assert json.loads(span.get_tag(INPUT_PROMPT)) == {
+            assert span._get_ctx_item(INPUT_PROMPT) == {
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
@@ -1967,14 +1946,14 @@ async def test_annotation_context_async_finished_context_does_not_modify_tags(LL
     async with LLMObs.annotation_context(tags={"foo": "bar"}):
         pass
     with LLMObs.agent(name="test_agent") as span:
-        assert span.get_tag(TAGS) is None
+        assert span._get_ctx_item(TAGS) is None
 
 
 async def test_annotation_context_async_finished_context_does_not_modify_prompt(LLMObs):
     async with LLMObs.annotation_context(prompt={"template": "test_template"}):
         pass
     with LLMObs.llm(name="test_agent", model_name="test") as span:
-        assert span.get_tag(INPUT_PROMPT) is None
+        assert span._get_ctx_item(INPUT_PROMPT) is None
 
 
 async def test_annotation_context_finished_context_async_does_not_modify_name(LLMObs):
@@ -1988,7 +1967,7 @@ async def test_annotation_context_async_nested(LLMObs):
     async with LLMObs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         async with LLMObs.annotation_context(tags={"foo": "baz"}):
             with LLMObs.agent(name="test_agent") as span:
-                assert json.loads(span.get_tag(TAGS)) == {"foo": "baz", "boo": "bar"}
+                assert span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
 
 
 def test_service_enable_starts_evaluator_runner_when_evaluators_exist():

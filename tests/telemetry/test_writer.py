@@ -357,6 +357,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": None},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
         {"name": "DD_IAST_REDACTION_ENABLED", "origin": "default", "value": True},
         {
             "name": "DD_IAST_REDACTION_NAME_PATTERN",
@@ -381,6 +382,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_IAST_REQUEST_SAMPLING", "origin": "default", "value": 30.0},
         {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
+        {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
         {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
         {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": None},
