@@ -151,6 +151,14 @@ components:
   vendor:
     - ddtrace/vendor/*
 suites:
+  conftest:
+    parallelism: 1
+    paths:
+      - 'conftest.py'
+      - '**/conftest.py'
+    pattern: meta-testing
+    runner: hatch
+    snapshot: false
   ddtracerun:
     parallelism: 6
     paths:
