@@ -123,6 +123,7 @@ def override_global_config(values):
         "_health_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
+        "_propagation_behavior_extract",
         "_x_datadog_tags_max_length",
         "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
