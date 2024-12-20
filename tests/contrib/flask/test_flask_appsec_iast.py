@@ -48,8 +48,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_header_injection()
             patch_json()
 
-            self.tracer._iast_enabled = True
-            self.tracer._asm_enabled = True
             self.tracer.configure(api_version="v0.4")
             oce.reconfigure()
 
@@ -367,11 +365,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
         with override_global_config(
             dict(
-                _iast_enabled=True,
                 _deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
+            # reconfigure tracer to apply the new config
+            self.tracer.configure(api_version="v0.4", iast_enabled=True, appsec_enabled=True)
             oce.reconfigure()
 
             if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
@@ -1381,8 +1380,6 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             )
         ):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
-            self.tracer._iast_enabled = False
-            self.tracer._asm_enabled = False
             self.tracer.configure(api_version="v0.4")
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")

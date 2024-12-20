@@ -15,6 +15,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -59,7 +60,7 @@ def _wrap_send(func, instance, args, kwargs):
     tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
 
     # skip if tracing is not enabled
-    if not tracer.enabled and not tracer._apm_opt_out:
+    if not tracer.enabled and not asm_config._apm_opt_out:
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")
