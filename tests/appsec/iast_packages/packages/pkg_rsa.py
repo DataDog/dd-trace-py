@@ -36,7 +36,7 @@ def pkg_rsa_view():
 def pkg_rsa_propagation_view():
     import rsa
 
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

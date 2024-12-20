@@ -50,7 +50,8 @@ def _patched_dictionary(origin_key, origin_value, original_func, instance, args,
 def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import origin_to_str
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    from ._taint_tracking._taint_objects import taint_pyobject
 
     def path(self) -> str:
         return taint_pyobject(
@@ -84,7 +85,8 @@ def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
 async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwargs):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import origin_to_str
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    from ._taint_tracking._taint_objects import taint_pyobject
 
     result = await wrapped(*args, **kwargs)
 
@@ -95,7 +97,8 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
 
 def _iast_instrument_starlette_scope(scope):
     from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    from ._taint_tracking._taint_objects import taint_pyobject
 
     if scope.get("path_params"):
         try:
