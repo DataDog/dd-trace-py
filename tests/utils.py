@@ -609,6 +609,11 @@ class DummyTracer(Tracer):
     DummyTracer is a tracer which uses the DummyWriter by default
     """
 
+    def ___new__(cls, *args, **kwargs):
+        # Override the __new__ method to ensure we can have multiple instances of the DummyTracer
+        cls._instance = super(object, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
