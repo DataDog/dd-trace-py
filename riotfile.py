@@ -103,6 +103,7 @@ venv = Venv(
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
+        "CARGO_BUILD_JOBS": "12",
         "DD_PYTEST_USE_NEW_PLUGIN_BETA": "true",
     },
     venvs=[
