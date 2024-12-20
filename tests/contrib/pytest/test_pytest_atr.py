@@ -97,10 +97,6 @@ class PytestATRTestCase(PytestTestCaseBase):
             return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True),
         ):
             yield
-            from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-            if CIVisibility.enabled:
-                CIVisibility.disable()
 
     def test_pytest_atr_no_ddtrace_does_not_retry(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)

@@ -76,11 +76,15 @@ if _pytest_version_supports_atr():
     from ddtrace.contrib.pytest._atr_utils import atr_get_teststatus
     from ddtrace.contrib.pytest._atr_utils import atr_handle_retries
     from ddtrace.contrib.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.pytest._atr_utils import quarantine_atr_get_teststatus
+    from ddtrace.contrib.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
 
 
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
+USER_PROPERTY_QUARANTINED = "dd_quarantined"
+OUTCOME_QUARANTINED = "quarantined"
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -327,6 +331,11 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
 
     collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
 
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+    if is_quarantined:
+        # We add this information to user_properties to have it available in pytest_runtest_makereport().
+        item.user_properties += [(USER_PROPERTY_QUARANTINED, True)]
+
     if collect_test_coverage:
         return _start_collecting_coverage()
 
@@ -457,6 +466,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
 
     test_id = _get_test_id_from_item(item)
 
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+
     test_outcome = _process_result(item, call, original_result)
 
     # A None value for test_outcome.status implies the test has not finished yet
@@ -472,6 +483,11 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
+    if original_result.failed and is_quarantined:
+        # Ensure test doesn't count as failed for pytest's exit status logic
+        # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
+        original_result.outcome = OUTCOME_QUARANTINED
+
     # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
     # NOTE: this mutates the original result's outcome
     if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
@@ -480,7 +496,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome)
+        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome, is_quarantined)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -538,6 +554,9 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         atr_pytest_terminal_summary_post_yield(terminalreporter)
+
+    quarantine_pytest_terminal_summary_post_yield(terminalreporter)
+
     return
 
 
@@ -577,7 +596,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.atr_has_failed_tests() and InternalTestSession.atr_has_failed_tests():
+    if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
@@ -615,7 +634,7 @@ def pytest_report_teststatus(
         return
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        test_status = atr_get_teststatus(report)
+        test_status = atr_get_teststatus(report) or quarantine_atr_get_teststatus(report)
         if test_status is not None:
             return test_status
 
@@ -623,6 +642,16 @@ def pytest_report_teststatus(
         test_status = efd_get_teststatus(report)
         if test_status is not None:
             return test_status
+
+    user_properties = getattr(report, "user_properties", [])
+    is_quarantined = (USER_PROPERTY_QUARANTINED, True) in user_properties
+    if is_quarantined:
+        if report.when == "teardown":
+            return (OUTCOME_QUARANTINED, "q", ("QUARANTINED", {"blue": True}))
+        else:
+            # Don't show anything for setup and call of quarantined tests, regardless of
+            # whether there were errors or not.
+            return ("", "", "")
 
 
 @pytest.hookimpl(trylast=True)
