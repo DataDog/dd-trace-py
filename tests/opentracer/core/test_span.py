@@ -1,16 +1,15 @@
 import pytest
 
 from ddtrace.opentracer.span import Span
-from tests.utils import DummyTracer
 
 
 @pytest.fixture
 def nop_tracer():
-    from ddtrace.opentracer import Tracer
+    from ddtrace.opentracer import Tracer as OTTracer
 
-    tracer = Tracer(service_name="mysvc", config={})
+    tracer = OTTracer(service_name="mysvc", config={})
     # use the same test tracer used by the primary tests
-    tracer._tracer = DummyTracer()
+    tracer._tracer = OTTracer()
     return tracer
 
 

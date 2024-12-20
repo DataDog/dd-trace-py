@@ -9,13 +9,13 @@ from opentracing import child_of
 import pytest
 
 import ddtrace
-from ddtrace import Tracer as DDTracer
 from ddtrace.constants import AUTO_KEEP
-from ddtrace.opentracer import Tracer
+from ddtrace.opentracer import Tracer as OTTracer
 from ddtrace.opentracer import set_global_tracer
 from ddtrace.opentracer.span_context import SpanContext
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import ConfigException
+from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -23,25 +23,25 @@ class TestTracerConfig(object):
     def test_config(self):
         """Test the configuration of the tracer"""
         config = {"enabled": True}
-        tracer = Tracer(service_name="myservice", config=config)
+        tracer = OTTracer(service_name="myservice", config=config)
 
         assert tracer._service_name == "myservice"
         assert tracer._dd_tracer.enabled is True
 
     def test_no_service_name(self):
         """A service_name should be generated if one is not provided."""
-        tracer = Tracer()
+        tracer = OTTracer()
         assert tracer._service_name in {"pytest.py", "pytest", "__main__.py"}
 
     def test_multiple_tracer_configs(self):
         """Ensure that a tracer config is a copy of the passed config."""
         config = {"enabled": True}
 
-        tracer1 = Tracer(service_name="serv1", config=config)
+        tracer1 = OTTracer(service_name="serv1", config=config)
         assert tracer1._service_name == "serv1"
 
         config["enabled"] = False
-        tracer2 = Tracer(service_name="serv2", config=config)
+        tracer2 = OTTracer(service_name="serv2", config=config)
 
         # Ensure tracer1's config was not mutated
         assert tracer1._service_name == "serv1"
@@ -53,26 +53,26 @@ class TestTracerConfig(object):
         config = {"enabeld": False}  # codespell:ignore
 
         # No debug flag should not raise an error
-        tracer = Tracer(service_name="mysvc", config=config)
+        tracer = OTTracer(service_name="mysvc", config=config)
 
         # With debug flag should raise an error
         config["debug"] = True
         with pytest.raises(ConfigException) as ce_info:
-            tracer = Tracer(config=config)
+            tracer = OTTracer(config=config)
             assert "enabeld" in str(ce_info)  # codespell:ignore
             assert tracer is not None
 
         # Test with multiple incorrect keys
         config["setttings"] = {}
         with pytest.raises(ConfigException) as ce_info:
-            tracer = Tracer(service_name="mysvc", config=config)
+            tracer = OTTracer(service_name="mysvc", config=config)
             assert ["enabeld", "setttings"] in str(ce_info)  # codespell:ignore
             assert tracer is not None
 
     def test_ddtrace_fallback_config(self):
         """Ensure datadog configuration is used by default."""
         with override_global_config(dict(_tracing_enabled=False)):
-            tracer = Tracer(dd_tracer=DDTracer())
+            tracer = OTTracer(dd_tracer=DummyTracer())
             assert tracer._dd_tracer.enabled is False
 
     def test_global_tags(self):
@@ -84,7 +84,7 @@ class TestTracerConfig(object):
             },
         }
 
-        tracer = Tracer(service_name="mysvc", config=config)
+        tracer = OTTracer(service_name="mysvc", config=config)
         with tracer.start_span("myop") as span:
             # global tags should be attached to generated all datadog spans
             assert span._dd_span.get_tag("tag1") == "value1"
@@ -579,14 +579,14 @@ class TestTracerCompatibility(object):
         by the underlying datadog tracer.
         """
         # a service name is required
-        tracer = Tracer("service")
+        tracer = OTTracer("service")
         with tracer.start_span("my_span") as span:
             assert span._dd_span.service
 
 
 def test_set_global_tracer():
     """Sanity check for set_global_tracer"""
-    my_tracer = Tracer("service")
+    my_tracer = OTTracer("service")
     set_global_tracer(my_tracer)
 
     assert opentracing.tracer is my_tracer

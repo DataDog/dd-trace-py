@@ -12,7 +12,6 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace import Tracer
 from ddtrace.contrib.kafka.patch import TracedConsumer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
@@ -105,7 +104,7 @@ def should_filter_empty_polls():
 @pytest.fixture
 def tracer(should_filter_empty_polls):
     patch()
-    t = Tracer()
+    t = DummyTracer()
     if should_filter_empty_polls:
         t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
     # disable backoff because it makes these tests less reliable
@@ -114,7 +113,6 @@ def tracer(should_filter_empty_polls):
         yield t
     finally:
         t.flush()
-        t.shutdown()
         unpatch()
 
 

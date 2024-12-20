@@ -1,16 +1,15 @@
 import functools
 import os
-from typing import Generator  # noqa:F401
 
 import mock
 import pytest
 
-from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import SamplingRule
+from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 from .test_integration import AGENT_VERSION
@@ -21,9 +20,8 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 @pytest.fixture
 def stats_tracer():
-    # type: (float) -> Generator[Tracer, None, None]
     with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = Tracer()
+        tracer = DummyTracer()
         yield tracer
         tracer.shutdown()
 
@@ -70,7 +68,7 @@ def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envv
     """Ensure stats computation can be enabled."""
 
     # Test enabling via `configure`
-    t = Tracer()
+    t = DummyTracer()
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     t.configure(compute_stats_enabled=True)
@@ -107,7 +105,7 @@ def test_apm_opt_out_compute_stats_and_configure(run_python_code_in_subprocess):
     """
 
     # Test via `configure`
-    t = Tracer()
+    t = DummyTracer()
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     t.configure(appsec_enabled=True, appsec_standalone_enabled=True)

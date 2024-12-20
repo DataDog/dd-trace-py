@@ -233,35 +233,35 @@ def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
 
 
 def test_tracer_url():
-    t = ddtrace.Tracer()
+    t = ddtrace.tracer
     t.configure(hostname="foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_https():
-    t = ddtrace.Tracer()
+    t = ddtrace.tracer
     t.configure(hostname="foobar", https=True)
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "https://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_uds_hostname():
-    t = ddtrace.Tracer()
+    t = ddtrace.tracer
     t.configure(hostname="foobar", uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "unix://foobar/foobar", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_uds():
-    t = ddtrace.Tracer()
+    t = ddtrace.tracer
     t.configure(uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "unix:///foobar", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_configure_after():
-    t = ddtrace.Tracer()
+    t = ddtrace.tracer
     prof = profiler.Profiler(tracer=t)
     t.configure(hostname="foobar")
     _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
@@ -280,7 +280,7 @@ def test_env_endpoint_url():
     from ddtrace.profiling import profiler
     from tests.profiling.test_profiler import _check_url
 
-    t = ddtrace.Tracer()
+    t = ddtrace.tracer
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "http://foobar:123", os.environ.get("DD_API_KEY"))
 

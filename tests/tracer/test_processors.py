@@ -3,7 +3,6 @@ from typing import Any  # noqa:F401
 import mock
 import pytest
 
-from ddtrace import Tracer
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -243,7 +242,7 @@ def test_aggregator_partial_flush_2_spans():
 
 def test_trace_top_level_span_processor_partial_flushing():
     """Parent span and child span have the same service name"""
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(
         partial_flush_enabled=True,
         partial_flush_min_spans=2,
@@ -270,7 +269,7 @@ def test_trace_top_level_span_processor_partial_flushing():
 def test_trace_top_level_span_processor_same_service_name():
     """Parent span and child span have the same service name"""
 
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test") as parent:
@@ -284,7 +283,7 @@ def test_trace_top_level_span_processor_same_service_name():
 def test_trace_top_level_span_processor_different_service_name():
     """Parent span and child span have the different service names"""
 
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service") as parent:
@@ -298,7 +297,7 @@ def test_trace_top_level_span_processor_different_service_name():
 def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
 
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
@@ -373,7 +372,7 @@ def test_span_creation_metrics():
 
 def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
     """Changing the tracer sampler should change the sampling processor's sampler"""
-    tracer = Tracer()
+    tracer = DummyTracer()
     # get processor
     for aggregator in tracer._deferred_processors:
         if type(aggregator) is SpanAggregator:
@@ -617,7 +616,7 @@ def test_endpoint_call_counter_processor_disabled():
 
 
 def test_endpoint_call_counter_processor_real_tracer():
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer._endpoint_call_counter_span_processor.enable()
     tracer.configure(writer=DummyWriter())
 
@@ -641,7 +640,7 @@ def test_endpoint_call_counter_processor_real_tracer():
 
 
 def test_trace_tag_processor_adds_chunk_root_tags():
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
@@ -664,7 +663,7 @@ def test_register_unregister_span_processor():
     tp = TestProcessor()
     tp.register()
 
-    tracer = Tracer()
+    tracer = DummyTracer()
 
     with tracer.trace("test") as span:
         assert span.get_tag("on_start") == "ok"

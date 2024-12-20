@@ -14,7 +14,6 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace import Tracer
 from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
@@ -30,6 +29,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
 from tests.appsec.utils import asm_context
+from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -279,7 +279,7 @@ def test_int_service(int_config, pin, config_val, default, global_service, expec
 
 def test_int_service_integration(int_config):
     pin = Pin()
-    tracer = Tracer()
+    tracer = DummyTracer()
     assert trace_utils.int_service(pin, int_config.myint) == "tests.tracer"
 
     with override_global_config(dict(service="global-svc")):
@@ -906,7 +906,7 @@ def test_distributed_tracing_enabled(int_config, props, default, expected):
 
 
 def test_activate_distributed_headers_enabled(int_config):
-    tracer = Tracer()
+    tracer = DummyTracer()
     int_config.myint["distributed_tracing_enabled"] = True
     headers = {
         HTTP_HEADER_PARENT_ID: "12345",
@@ -926,7 +926,7 @@ def test_activate_distributed_headers_enabled(int_config):
 
 
 def test_activate_distributed_headers_disabled(int_config):
-    tracer = Tracer()
+    tracer = DummyTracer()
     int_config.myint["distributed_tracing_enabled"] = False
     headers = {
         HTTP_HEADER_PARENT_ID: "12345",
@@ -942,7 +942,7 @@ def test_activate_distributed_headers_disabled(int_config):
 
 
 def test_activate_distributed_headers_no_headers(int_config):
-    tracer = Tracer()
+    tracer = DummyTracer()
     int_config.myint["distributed_tracing_enabled"] = True
 
     trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=None)
@@ -950,7 +950,7 @@ def test_activate_distributed_headers_no_headers(int_config):
 
 
 def test_activate_distributed_headers_override_true(int_config):
-    tracer = Tracer()
+    tracer = DummyTracer()
     int_config.myint["distributed_tracing_enabled"] = False
     headers = {
         HTTP_HEADER_PARENT_ID: "12345",
@@ -965,7 +965,7 @@ def test_activate_distributed_headers_override_true(int_config):
 
 
 def test_activate_distributed_headers_override_false(int_config):
-    tracer = Tracer()
+    tracer = DummyTracer()
     int_config.myint["distributed_tracing_enabled"] = True
     headers = {
         HTTP_HEADER_PARENT_ID: "12345",
@@ -978,7 +978,7 @@ def test_activate_distributed_headers_override_false(int_config):
 
 
 def test_activate_distributed_headers_existing_context(int_config):
-    tracer = Tracer()
+    tracer = DummyTracer()
     int_config.myint["distributed_tracing_enabled"] = True
 
     headers = {
@@ -994,7 +994,7 @@ def test_activate_distributed_headers_existing_context(int_config):
 
 
 def test_activate_distributed_headers_existing_context_different_trace_id(int_config):
-    tracer = Tracer()
+    tracer = DummyTracer()
     int_config.myint["distributed_tracing_enabled"] = True
 
     headers = {

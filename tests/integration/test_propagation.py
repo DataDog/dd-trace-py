@@ -1,8 +1,8 @@
 import pytest
 
-from ddtrace import Tracer
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.propagation.http import HTTPPropagator
+from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 from .test_integration import AGENT_VERSION
@@ -25,7 +25,7 @@ def tracer(request):
     partial_flush_enabled = request.param.get("partial_flush_enabled")
     partial_flush_min_spans = request.param.get("partial_flush_min_spans")
     with override_global_config(global_config):
-        tracer = Tracer()
+        tracer = DummyTracer()
         kwargs = dict()
         if partial_flush_enabled:
             kwargs["partial_flush_enabled"] = partial_flush_enabled
@@ -38,7 +38,7 @@ def tracer(request):
 
 @pytest.mark.snapshot()
 def test_trace_tags_multispan():
-    tracer = Tracer()
+    tracer = DummyTracer()
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
@@ -63,7 +63,7 @@ def test_trace_tags_multispan():
 
 @pytest.fixture
 def downstream_tracer():
-    tracer = Tracer()
+    tracer = DummyTracer()
     yield tracer
     tracer.shutdown()
 

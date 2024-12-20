@@ -7,7 +7,6 @@ import sys
 import mock
 import pytest
 
-from ddtrace import Tracer
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
@@ -17,6 +16,7 @@ from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import send_invalid_payload_and_get_logs
 from tests.integration.utils import skip_if_testagent
+from tests.utils import DummyTracer
 from tests.utils import call_program
 
 
@@ -24,7 +24,7 @@ FOUR_KB = 1 << 12
 
 
 def test_configure_keeps_api_hostname_and_port():
-    tracer = Tracer()
+    tracer = DummyTracer()
     assert tracer._writer.agent_url == "http://localhost:{}".format("9126" if AGENT_VERSION == "testagent" else "8126")
     tracer.configure(hostname="127.0.0.1", port=8127)
     assert tracer._writer.agent_url == "http://127.0.0.1:8127"
@@ -38,7 +38,7 @@ def test_configure_keeps_api_hostname_and_port():
 @mock.patch("signal.getsignal")
 def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
     mock_get_signal.return_value = None
-    tracer = Tracer()
+    tracer = DummyTracer()
     register_on_exit_signal(tracer._atexit)
     assert mock_signal.call_count == 2
     assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
@@ -507,7 +507,7 @@ def test_validate_headers_in_payload_to_intake_with_nested_spans():
 
 
 def test_trace_with_invalid_client_endpoint_generates_error_log():
-    t = Tracer()
+    t = DummyTracer()
     for client in t._writer._clients:
         client.ENDPOINT = "/bad"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -621,7 +621,7 @@ def test_api_version_downgrade_generates_no_warning_logs():
 
 
 def test_synchronous_writer_shutdown_raises_no_exception():
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
     tracer.shutdown()
 

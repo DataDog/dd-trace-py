@@ -8,9 +8,9 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.tracer import Tracer
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
+from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 from .test_integration import AGENT_VERSION
@@ -116,7 +116,7 @@ def test_priority_sampling_response():
 @pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.9999})
 def test_agent_sample_rate_keep():
     """Ensure that the agent sample rate is respected when a trace is auto sampled."""
-    tracer = Tracer()
+    tracer = DummyTracer()
 
     # First trace won't actually have the sample rate applied since the response has not yet been received.
     with tracer.trace(""):
@@ -137,9 +137,9 @@ def test_agent_sample_rate_keep():
 @pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.0001})
 def test_agent_sample_rate_reject():
     """Ensure that the agent sample rate is respected when a trace is auto rejected."""
-    from ddtrace.tracer import Tracer
+    from tests.utils import DummyTracer
 
-    tracer = Tracer()
+    tracer = DummyTracer()
 
     # First trace won't actually have the sample rate applied since the response has not yet been received.
     with tracer.trace(""):
