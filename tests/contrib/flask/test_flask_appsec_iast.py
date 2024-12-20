@@ -365,11 +365,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
         with override_global_config(
             dict(
-                _iast_enabled=True,
                 _deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
+            # reconfigure tracer to apply the new config
+            self.tracer.configure(api_version="v0.4", iast_enabled=True, appsec_enabled=True)
             oce.reconfigure()
 
             if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):

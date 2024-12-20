@@ -129,7 +129,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             with self.tracer.trace("root") as root:
 
                 def matcher(request):
-                    return self.headers_here(self.tracer, request, root)
+                    return self.headers_not_here(self.tracer, request)
 
                 adapter.register_uri("GET", "mock://datadog/foo", additional_matcher=matcher, text="bar")
                 resp = self.session.get("mock://datadog/foo")
