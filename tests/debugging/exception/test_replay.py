@@ -161,8 +161,8 @@ class ExceptionReplayTestCase(TracerTestCase):
                 m = 4
                 try:
                     a(bar % m)
-                except ValueError:
-                    raise KeyError("chain it")
+                except ValueError as exc:
+                    raise KeyError("chain it") from exc
 
         def c(foo=42):
             with self.trace("c"):

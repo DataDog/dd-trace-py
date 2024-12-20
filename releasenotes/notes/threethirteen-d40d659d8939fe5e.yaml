@@ -1,0 +1,52 @@
+---
+upgrade:
+  - |
+    Makes the library compatible with Python 3.13.
+
+    The following limitations currently apply to support for Python 3.13:
+      - ``ddtrace`` is not supported on Windows with Python 3.13
+      - Appsec Threat Detection is not tested against Django, Flask, or FastAPI with 3.13
+      - Automatic Service Naming is not tested with 3.13
+      - The ``ddtrace-run`` entrypoint is not tested with 3.13
+      - The following products are not tested with 3.13:
+        - Code Coverage
+        - Appsec IAST
+        - Data Streams Monitoring
+        - CI Visibility
+        - Continuous Profiling
+      - The following integrations are not tested with 3.13:
+        - aiobotocore
+        - aiomysql
+        - aiopg
+        - anthropic
+        - asyncpg
+        - avro
+        - botocore
+        - confluent-kafka
+        - consul
+        - django
+        - falcon
+        - fastapi
+        - freezegun
+        - gevent
+        - google_generativeai
+        - grpcio
+        - gunicorn
+        - langchain
+        - mysqlclient
+        - opentracing
+        - protobuf
+        - psycopg
+        - psycopg2
+        - pymysql
+        - pyodbc
+        - pytest
+        - pytest-bdd
+        - pytest-benchmark
+        - sanic
+        - selenium
+        - sqlalchemy
+        - sqlite3
+        - starlette
+        - tornado
+        - vertexai

@@ -13,14 +13,11 @@ message(STATUS "Building extension: ${EXTENSION_NAME}")
 # Get the cmake modules for this project
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 
-# Includes
-include(FetchContent)
-include(ExternalProject)
-include(FindLibdatadog)
-
-# Technically, this should be its own project which we `include()`, but I don't want to deal with that when so many
-# things may yet be factored differently.
-add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
+# Having a common target in a subdirectory like this is a hack and a mistake, but it's fiddly to change it so we haven't
+# been able to. Instead, make sure that the binary path set in the subdirectory is stable *as a string* in order to make
+# sure the caches work.
+get_filename_component(DD_WRAPPER_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build ABSOLUTE)
+add_subdirectory(../dd_wrapper ${DD_WRAPPER_BUILD_DIR})
 
 find_package(Python3 COMPONENTS Interpreter Development)
 

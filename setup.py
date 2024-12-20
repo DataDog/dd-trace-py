@@ -510,8 +510,11 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc.c",
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
+                "ddtrace/profiling/collector/_memalloc_reentrant.c",
             ],
-            extra_compile_args=debug_compile_args,
+            extra_compile_args=debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
+            if CURRENT_OS != "Windows"
+            else ["/std:c11"],
         ),
         Extension(
             "ddtrace.internal._threads",
@@ -527,7 +530,7 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
-                extra_compile_args=debug_compile_args,
+                extra_compile_args=extra_compile_args + debug_compile_args,
             )
         )
 
@@ -553,7 +556,7 @@ if not IS_PYSTON:
         )
 
         # Echion doesn't build on 3.7, so just skip it outright for now
-        if sys.version_info >= (3, 8):
+        if sys.version_info >= (3, 8) and sys.version_info < (3, 13):
             ext_modules.append(
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",

@@ -93,7 +93,6 @@ check_new_flaky_tests:
   stage: quality-gate
   extends: .testrunner
   script:
-    - curl -L --fail "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64" --output "/usr/local/bin/datadog-ci" && chmod +x /usr/local/bin/datadog-ci
     - export DD_SITE=datadoghq.com
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)

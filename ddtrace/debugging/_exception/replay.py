@@ -40,7 +40,8 @@ DEBUG_INFO_TAG = "error.debug_info_captured"
 CAPTURE_TRACE_TAG = "_dd.debug.error.trace_captured"
 
 # unique exception id
-EXCEPTION_ID_TAG = "_dd.debug.error.exception_id"
+EXCEPTION_HASH_TAG = "_dd.debug.error.exception_hash"
+EXCEPTION_ID_TAG = "_dd.debug.error.exception_capture_id"
 
 # link to matching snapshot for every frame in the traceback
 FRAME_SNAPSHOT_ID_TAG = "_dd.debug.error.%d.snapshot_id"
@@ -80,9 +81,8 @@ def exception_chain_ident(chain: ExceptionChain) -> int:
     return h
 
 
-def limit_exception(chain: ExceptionChain) -> bool:
+def limit_exception(exc_ident: int) -> bool:
     try:
-        exc_ident = exception_chain_ident(chain)
         hg = EXCEPTION_IDENT_LIMITER.get(exc_ident)
         if hg is None:
             # We haven't seen this exception yet, or it's been evicted
@@ -170,7 +170,7 @@ class SpanExceptionSnapshot(Snapshot):
     @property
     def data(self) -> t.Dict[str, t.Any]:
         data = super().data
-        data.update({"exception-id": str(self.exc_id)})
+        data.update({"exceptionId": str(self.exc_id)})
         return data
 
 
@@ -218,7 +218,8 @@ class SpanExceptionHandler:
             # No exceptions to capture
             return
 
-        if limit_exception(chain):
+        exc_ident = exception_chain_ident(chain)
+        if limit_exception(exc_ident):
             # We have seen this exception recently
             return
 
@@ -272,6 +273,7 @@ class SpanExceptionHandler:
                 _tb = _tb.tb_next
 
             span.set_tag_str(DEBUG_INFO_TAG, "true")
+            span.set_tag_str(EXCEPTION_HASH_TAG, str(exc_ident))
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
 
     @classmethod

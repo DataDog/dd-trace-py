@@ -264,7 +264,7 @@ def _inject():
     except Exception:
         _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
-        current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_1"
+        current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_2"
         _log("detected platform %s" % current_platform, level="debug")
 
         pkgs_path = os.path.join(SCRIPT_DIR, "ddtrace_pkgs")

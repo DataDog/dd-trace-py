@@ -213,6 +213,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh IAST_STANDALONE
 
+      - name: Run SCA_STANDALONE
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh SCA_STANDALONE
+
       - name: Run APPSEC_RUNTIME_ACTIVATION
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RUNTIME_ACTIVATION

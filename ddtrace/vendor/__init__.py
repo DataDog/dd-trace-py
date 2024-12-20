@@ -26,19 +26,6 @@ Notes:
   removed unnecessary compat utils
 
 
-monotonic
----------
-
-Website: https://pypi.org/project/monotonic/
-Source: https://github.com/atdt/monotonic
-Version: 1.5
-License: Apache License 2.0
-
-Notes:
-  The source `monotonic.py` was added as `monotonic/__init__.py`
-
-  No other changes were made
-
 debtcollector
 -------------
 
@@ -107,7 +94,7 @@ Notes:
     yacc.py and lex.py files here.
     Didn't copy: cpp.py, ctokens.py, ygen.py (didn't see them used)
 
-    
+
 jsonpath-ng
 ---------
 

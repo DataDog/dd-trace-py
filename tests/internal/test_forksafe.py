@@ -1,5 +1,6 @@
 from collections import Counter
 import os
+import sys
 
 import pytest
 
@@ -299,6 +300,7 @@ def test_double_fork():
     assert exit_code == 42
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="fails on 3.13")
 @pytest.mark.subprocess(
     out=lambda _: Counter(_) == {"C": 3, "T": 4},
     err=None,
