@@ -1,0 +1,3 @@
+prune .riot/
+prune benchmarks/
+prune releasenotes/
