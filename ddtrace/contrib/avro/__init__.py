@@ -15,15 +15,9 @@ Configuration
 ~~~~~~~~~~~~~
 
 """
-from ...internal.utils.importlib import require_modules
+# Expose public methods
+from ..internal.avro.patch import get_version
+from ..internal.avro.patch import patch
 
 
-required_modules = ["avro"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Expose public methods
-        from ..internal.avro.patch import get_version
-        from ..internal.avro.patch import patch
-
-        __all__ = ["patch", "get_version"]
+__all__ = ["patch", "get_version"]
