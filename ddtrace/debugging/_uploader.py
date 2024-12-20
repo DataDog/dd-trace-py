@@ -25,6 +25,7 @@ class UploaderProduct(str, Enum):
 
     DEBUGGER = "dynamic_instrumentation"
     EXCEPTION_REPLAY = "exception_replay"
+    CODE_ORIGIN_SPAN = "code_origin.span"
 
 
 class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
