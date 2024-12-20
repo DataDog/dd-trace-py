@@ -251,7 +251,6 @@ def llmobs(monkeypatch, tracer, llmobs_env, llmobs_span_writer):
     with override_global_config(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP"))):
         llmobs_service.enable(_tracer=tracer)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        llmobs_service._instance._trace_processor._span_writer = llmobs_span_writer
         yield llmobs
     llmobs_service.disable()
 
