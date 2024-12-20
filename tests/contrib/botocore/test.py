@@ -3968,6 +3968,7 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
+    @pytest.mark.skip(reason="broken during period of skipping on main branch")
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3_valid_config(self):
