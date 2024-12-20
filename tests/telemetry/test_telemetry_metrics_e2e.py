@@ -139,9 +139,9 @@ for _ in range(9):
 
 def test_span_creation_and_finished_metrics_opentracing(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
-from ddtrace.opentracer import Tracer
+from ddtrace.opentracer import Tracer as OTTracer
 
-ot = Tracer()
+ot = OTTracer()
 for _ in range(2):
     with ot.start_span('span'):
         pass
@@ -169,11 +169,11 @@ def test_span_creation_no_finish(test_agent_session, ddtrace_run_python_code_in_
     code = """
 import ddtrace
 import opentelemetry.trace
-from ddtrace import opentracer
+from ddtrace.opentracer import Tracer as OTTracer
 
 ddtracer = ddtrace.tracer
 otel = opentelemetry.trace.get_tracer(__name__)
-ot = opentracer.Tracer()
+ot = OTTracer()
 
 # we must finish at least one span to enable sending telemetry to the agent
 ddtracer.trace("first_span").finish()

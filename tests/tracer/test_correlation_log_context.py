@@ -1,8 +1,8 @@
 import pytest
 
-from ddtrace import Tracer
 from ddtrace import config
 from ddtrace import tracer
+from tests.utils import DummyTracer
 
 
 def global_config(config):
@@ -10,7 +10,7 @@ def global_config(config):
     config.env = "test-env"
     config.version = "test-version"
     global tracer
-    tracer = Tracer()
+    tracer = DummyTracer()
     yield
     config.service = config.env = config.version = None
 
@@ -33,10 +33,10 @@ def format_trace_id(span):
 @pytest.mark.subprocess()
 def test_get_log_correlation_service():
     """Ensure expected DDLogRecord service is generated via get_correlation_log_record."""
-    from ddtrace import Tracer
     from ddtrace import tracer
     from tests.tracer.test_correlation_log_context import format_trace_id
     from tests.utils import override_global_config
+    from tests.utils import DummyTracer
 
     with override_global_config(dict(service="test-service", env="test-env", version="test-version")):
         with tracer.trace("test-span-1", service="span-service") as span1:
@@ -49,7 +49,7 @@ def test_get_log_correlation_service():
             "version": "test-version",
         }
 
-        test_tracer = Tracer()
+        test_tracer = DummyTracer()
         with test_tracer.trace("test-span-2", service="span-service") as span2:
             dd_log_record = test_tracer.get_log_correlation_context()
         assert dd_log_record == {
@@ -64,13 +64,13 @@ def test_get_log_correlation_service():
 @pytest.mark.subprocess()
 def test_get_log_correlation_context_basic():
     """Ensure expected DDLogRecord is generated via get_correlation_log_record."""
-    from ddtrace import Tracer
+    from ddtrace import tracer
     from ddtrace.context import Context
     from tests.tracer.test_correlation_log_context import format_trace_id
+    from tests.utils import DummyTracer
     from tests.utils import override_global_config
 
     with override_global_config(dict(service="test-service", env="test-env", version="test-version")):
-        tracer = Tracer()
         with tracer.trace("test-span-1") as span1:
             dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
@@ -80,7 +80,7 @@ def test_get_log_correlation_context_basic():
             "env": "test-env",
             "version": "test-version",
         }, dd_log_record
-        test_tracer = Tracer()
+        test_tracer = DummyTracer()
         with test_tracer.trace("test-span-2") as span2:
             dd_log_record = test_tracer.get_log_correlation_context()
         assert dd_log_record == {
@@ -130,9 +130,8 @@ def test_get_log_correlation_context_opentracer():
 @pytest.mark.subprocess()
 def test_get_log_correlation_context_no_active_span():
     """Ensure empty DDLogRecord generated if no active span."""
-    from ddtrace import Tracer
+    from ddtrace import tracer
 
-    tracer = Tracer()
     dd_log_record = tracer.get_log_correlation_context()
     assert dd_log_record == {
         "span_id": "0",
@@ -146,9 +145,8 @@ def test_get_log_correlation_context_no_active_span():
 @pytest.mark.subprocess()
 def test_get_log_correlation_context_disabled_tracer():
     """Ensure get_correlation_log_record returns None if tracer is disabled."""
-    from ddtrace import Tracer
+    from ddtrace import tracer
 
-    tracer = Tracer()
     tracer.enabled = False
     with tracer.trace("test-span"):
         dd_log_record = tracer.get_log_correlation_context()

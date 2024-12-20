@@ -2,7 +2,7 @@ import unittest
 
 from flask import Flask
 
-from ddtrace._trace.tracer import Tracer
+from ddtrace import tracer
 from ddtrace.contrib.flask_cache import get_traced_cache
 from ddtrace.contrib.internal.flask_cache.utils import _extract_client
 from ddtrace.contrib.internal.flask_cache.utils import _extract_conn_tags
@@ -17,7 +17,6 @@ class FlaskCacheUtilsTest(unittest.TestCase):
 
     def test_extract_redis_connection_metadata(self):
         # create the TracedCache instance for a Flask app
-        tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
@@ -37,7 +36,6 @@ class FlaskCacheUtilsTest(unittest.TestCase):
 
     def test_extract_memcached_connection_metadata(self):
         # create the TracedCache instance for a Flask app
-        tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
@@ -56,7 +54,6 @@ class FlaskCacheUtilsTest(unittest.TestCase):
 
     def test_extract_memcached_multiple_connection_metadata(self):
         # create the TracedCache instance for a Flask app
-        tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
@@ -78,7 +75,6 @@ class FlaskCacheUtilsTest(unittest.TestCase):
 
     def test_resource_from_cache_with_prefix(self):
         # create the TracedCache instance for a Flask app
-        tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
@@ -94,7 +90,6 @@ class FlaskCacheUtilsTest(unittest.TestCase):
 
     def test_resource_from_cache_with_empty_prefix(self):
         # create the TracedCache instance for a Flask app
-        tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
@@ -110,7 +105,6 @@ class FlaskCacheUtilsTest(unittest.TestCase):
 
     def test_resource_from_cache_without_prefix(self):
         # create the TracedCache instance for a Flask app
-        tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         traced_cache = Cache(app, config={"CACHE_TYPE": "redis"})

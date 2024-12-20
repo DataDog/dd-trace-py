@@ -10,6 +10,7 @@ from weakref import WeakValueDictionary
 import pytest
 
 from ddtrace import Tracer
+from tests.utils import DummyTracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -17,8 +18,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @pytest.fixture
-def tracer() -> Tracer:
-    return Tracer()
+def tracer() -> DummyTracer:
+    return DummyTracer()
 
 
 def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs):
