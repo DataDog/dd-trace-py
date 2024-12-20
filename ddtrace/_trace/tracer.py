@@ -35,6 +35,7 @@ from ddtrace.filters import TraceFilter
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
+from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
@@ -856,6 +857,7 @@ class Tracer(object):
 
         if activate:
             self.context_provider.activate(span)
+            core.dispatch("span.activated", (span, self))
 
         # update set of services handled by tracer
         if service and service not in self._services and self._is_span_internal(span):
