@@ -2297,10 +2297,10 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        "valid_datadog_and_baggage_default_w_restart_behavior",
+        "valid_datadog_tracecontext_and_baggage_default_w_restart_behavior",
         None,
         _PROPAGATION_BEHAVIOR_RESTART,
-        DATADOG_BAGGAGE_HEADERS_VALID,
+        {**DATADOG_BAGGAGE_HEADERS_VALID, **TRACECONTEXT_HEADERS_VALID},
         {
             "trace_id": None,
             "span_id": None,
