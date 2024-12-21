@@ -47,20 +47,6 @@ Version: 5.6.7
 License: BSD 3
 
 
-contextvars
--------------
-
-Source: https://github.com/MagicStack/contextvars
-Version: 2.4
-License: Apache License 2.0
-
-Notes:
-  - removal of metaclass usage
-  - formatting
-  - use a plain old dict instead of immutables.Map
-  - removal of `*` syntax
-
-
 sqlcommenter
 ------------
 
