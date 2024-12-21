@@ -140,7 +140,7 @@ def test_send_multiple_events(mock_writer_logs, mock_http_writer_logs, mock_http
 
 def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
     env.update(

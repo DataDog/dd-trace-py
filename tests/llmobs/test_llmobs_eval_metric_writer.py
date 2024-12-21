@@ -125,6 +125,11 @@ def test_send_multiple_events(mock_writer_logs):
 
 
 def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update({"PYTHONPATH": ":".join(pypath)})
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import atexit
@@ -144,6 +149,7 @@ site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=0.01, timeout=1
 llmobs_eval_metric_writer.start()
 llmobs_eval_metric_writer.enqueue(_score_metric_event())
 """,
+        env=env,
     )
     assert status == 0, err
     assert out == b""
