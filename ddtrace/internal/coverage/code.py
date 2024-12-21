@@ -13,6 +13,7 @@ from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.packages import is_ddtrace_pytest_test
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path
@@ -327,7 +328,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Don't instrument code from standard library/site packages/etc.
             return code
 
-        if not is_user_code(code_path):
+        if not is_user_code(code_path) and not is_ddtrace_pytest_test(code_path):
             return code
 
         retval = self.instrument_code(code, _module.__package__ if _module is not None else "")
