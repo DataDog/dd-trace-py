@@ -207,7 +207,7 @@ class Tracer(object):
             # broken experience.
             # TODO(mabdinur): Convert this warning to an ValueError in 3.0.0
             deprecate(
-                "Creating multiple Tracer instances is deprecated",
+                "Support for multiple Tracer instances is deprecated",
                 ". Use ddtrace.tracer instead.",
                 category=DDTraceDeprecationWarning,
                 removal_version="3.0.0",

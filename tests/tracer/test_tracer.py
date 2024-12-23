@@ -2112,6 +2112,6 @@ def test_multiple_tracer_instances():
         assert t is ddtrace.tracer
         assert len(warns) == 1
         assert (
-            str(warns[0].message) == "Creating multiple Tracer instances is deprecated and will be "
+            str(warns[0].message) == "Support for multiple Tracer instances is deprecated and will be "
             "removed in version '3.0.0'. Use ddtrace.tracer instead."
         )
