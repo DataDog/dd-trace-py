@@ -125,17 +125,15 @@ def _should_iast_patch(module_name: Text) -> bool:
     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
-    dotted_module_name = module_name + "."
-
-    if IAST_DENYLIST_REGEX.match(dotted_module_name):
-        log.debug("IAST: denying %s. it's in the IAST_DENYLIST_REGEX", module_name)
-        return False
-
-    dotted_module_name = dotted_module_name.lower()
+    dotted_module_name = module_name.lower() + "."
 
     if dotted_module_name.startswith(IAST_ALLOWLIST):
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
         return True
+
+    if IAST_DENYLIST_REGEX.match(dotted_module_name):
+        log.debug("IAST: denying %s. it's in the IAST_DENYLIST_REGEX", module_name)
+        return False
 
     if IAST_DENYLIST_LEN and dotted_module_name.startswith(IAST_DENYLIST):
         log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
