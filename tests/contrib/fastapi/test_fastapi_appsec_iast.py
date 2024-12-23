@@ -31,8 +31,6 @@ from tests.utils import override_global_config
 TEST_FILE_PATH = "tests/contrib/fastapi/test_fastapi_appsec_iast.py"
 
 fastapi_version = tuple([int(v) for v in _fastapi_version.split(".")])
-if sys.version_info > (3, 12):
-    pytest.skip(reason="IAST only supports Py3.12 and older", allow_module_level=True)
 
 
 def _aux_appsec_prepare_tracer(tracer):
