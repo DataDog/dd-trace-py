@@ -8,7 +8,7 @@ from ddtrace.settings.asm import config as asm_config
 
 @lru_cache(maxsize=1)
 def _is_python_version_supported() -> bool:
-    # IAST supports Python versions 3.6 to 3.12
+    # IAST supports Python versions 3.6 to 3.13
     return (3, 6, 0) <= sys.version_info < (3, 14, 0)
 
 

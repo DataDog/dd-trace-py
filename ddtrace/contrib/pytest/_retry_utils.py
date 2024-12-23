@@ -52,6 +52,9 @@ def _get_outcome_from_retry(
     # _initrequest() needs to be called first because the test has already executed once
     item._initrequest()
 
+    # Reset output capture across retries.
+    item._report_sections = []
+
     # Setup
     setup_call, setup_report = _retry_run_when(item, "setup", outcomes)
     if setup_report.outcome == outcomes.FAILED:
@@ -80,7 +83,6 @@ def _get_outcome_from_retry(
             _outcome_status = TestStatus.SKIP
         elif call_report.outcome == outcomes.PASSED:
             _outcome_status = TestStatus.PASS
-
     # Teardown does not happen if setup skipped
     if not setup_report.skipped:
         teardown_call, teardown_report = _retry_run_when(item, "teardown", outcomes)
