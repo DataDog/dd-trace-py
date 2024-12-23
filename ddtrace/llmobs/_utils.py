@@ -135,6 +135,7 @@ def _get_ml_app(span: Span) -> str:
     ml_app = span._get_ctx_item(ML_APP)
     if ml_app:
         return ml_app
+    # TODO: go up the span tree to find the nearest LLMObs span with an ml_app
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         ml_app = nearest_llmobs_ancestor._get_ctx_item(ML_APP)
@@ -149,6 +150,7 @@ def _get_session_id(span: Span) -> Optional[str]:
     session_id = span._get_ctx_item(SESSION_ID)
     if session_id:
         return session_id
+    # TODO: go up the span tree to find the nearest LLMObs span with session
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         session_id = nearest_llmobs_ancestor._get_ctx_item(SESSION_ID)
