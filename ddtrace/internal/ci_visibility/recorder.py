@@ -145,6 +145,15 @@ def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
     return result
 
 
+class CIVisibilityTracer(Tracer):
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = object.__new__(cls)
+        else:
+            log.debug("CIVisibilityTracer instance already exists, returning existing instance")
+        return cls._instance
+
+
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
@@ -166,7 +175,7 @@ class CIVisibility(Service):
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     url = env_agent_url
 
-                self.tracer = Tracer(context_provider=CIContextProvider(), url=url)
+                self.tracer = CIVisibilityTracer(context_provider=CIContextProvider(), url=url)
             else:
                 self.tracer = ddtrace.tracer
 
