@@ -45,7 +45,7 @@ def pkg_pygments_propagation_view():
     from pygments.formatters import HtmlFormatter
     from pygments.lexers import PythonLexer
 
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
 
