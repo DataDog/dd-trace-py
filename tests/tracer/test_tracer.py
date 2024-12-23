@@ -2095,3 +2095,23 @@ def test_gc_not_used_on_root_spans():
     #     print("referrers:", [f"object {objects.index(r)}" for r in gc.get_referrers(obj)[:-2]])
     #     print("referents:", [f"object {objects.index(r)}" if r in objects else r for r in gc.get_referents(obj)])
     #     print("--------------------")
+
+
+@pytest.mark.subprocess()
+def test_multiple_tracer_instances():
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("always")
+        import ddtrace
+
+        assert ddtrace.tracer is not None
+        assert len(warns) == 0
+
+        t = ddtrace.Tracer()
+        assert t is ddtrace.tracer
+        assert len(warns) == 1
+        assert (
+            str(warns[0].message) == "Creating multiple Tracer instances is deprecated and will be "
+            "removed in version '3.0.0'. Use ddtrace.tracer instead."
+        )

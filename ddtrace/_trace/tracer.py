@@ -198,7 +198,7 @@ class Tracer(object):
     SHUTDOWN_TIMEOUT = 5
     _instance = None
 
-    def ___new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(Tracer, cls).__new__(cls)
         else:
@@ -209,7 +209,7 @@ class Tracer(object):
             # TODO(mabdinur): Convert this warning to an ValueError in 3.0.0
             deprecate(
                 "Creating multiple Tracer instances is deprecated",
-                "Use ddtrace.tracer to access the global tracer instance",
+                ". Use ddtrace.tracer instead.",
                 category=DDTraceDeprecationWarning,
                 removal_version="3.0.0",
             )

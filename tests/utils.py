@@ -609,9 +609,9 @@ class DummyTracer(Tracer):
     DummyTracer is a tracer which uses the DummyWriter by default
     """
 
-    def ___new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
         # Override the __new__ method to ensure we can have multiple instances of the DummyTracer
-        cls._instance = super(object, cls).__new__(cls)
+        cls._instance = object.__new__(cls)
         return cls._instance
 
     def __init__(self, *args, **kwargs):
