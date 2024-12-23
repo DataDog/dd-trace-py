@@ -13,7 +13,8 @@ from ddtrace.pin import Pin
 
 
 def get_version():
-    return getattr(langgraph, "__version__", "")
+    from langgraph import version
+    return getattr(version, "__version__", "")
 
 
 config._add(
@@ -42,7 +43,6 @@ def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     node_name = instance.steps[0].name
     if node_name in ("_write", "_route"):
         return func(*args, **kwargs)
-
     if node_name == "LangGraph":
         config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
         config.get("metadata", {})["_dd.subgraph"] = True
@@ -51,10 +51,36 @@ def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name), submit_to_llmobs=True,
     )
-
     result = None
     try:
         result = func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="node")
+        span.finish()
+    return result
+
+
+@with_traced_module
+async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwargs):
+    """Async version of traced_runnable_seq_invoke."""
+    integration: LangGraphIntegration = langgraph._datadog_integration
+    node_name = instance.steps[0].name
+    if node_name in ("_write", "_route"):
+        return await func(*args, **kwargs)
+    if node_name == "LangGraph":
+        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
+        config.get("metadata", {})["_dd.subgraph"] = True
+        return await func(*args, **kwargs)
+
+    span = integration.trace(
+        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name), submit_to_llmobs=True,
+    )
+    result = None
+    try:
+        result = await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -76,9 +102,7 @@ def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name), submit_to_llmobs=True,
     )
-
     result = None
-
     try:
         result = func(*args, **kwargs)
     except Exception:
@@ -89,7 +113,27 @@ def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
             span, args=args, kwargs={**kwargs, "name": instance.name}, response=result, operation="graph"
         )
         span.finish()
+    return result
 
+
+@with_traced_module
+async def traced_pregel_ainvoke(langgraph, pin, func, instance, args, kwargs):
+    """Async version of traced_pregel_invoke."""
+    integration: LangGraphIntegration = langgraph._datadog_integration
+    span = integration.trace(
+        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name), submit_to_llmobs=True,
+    )
+    result = None
+    try:
+        result = await func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(
+            span, args=args, kwargs={**kwargs, "name": instance.name}, response=result, operation="graph"
+        )
+        span.finish()
     return result
 
 
@@ -118,10 +162,15 @@ def patch():
     integration = LangGraphIntegration(integration_config=config.langgraph)
     langgraph._datadog_integration = integration
 
-    wrap("langgraph", "utils.runnable.RunnableSeq.invoke", traced_runnable_seq_invoke(langgraph))
-    wrap("langgraph", "pregel.Pregel.invoke", traced_pregel_invoke(langgraph))
-    wrap("langgraph", "pregel.loop.PregelLoop.tick", patched_pregel_loop_tick(langgraph))
+    from langgraph.utils.runnable import RunnableSeq
+    from langgraph.pregel import Pregel
+    from langgraph.pregel.loop import PregelLoop
 
+    wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
+    wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
+    wrap(Pregel, "invoke", traced_pregel_invoke(langgraph))
+    wrap(Pregel, "ainvoke", traced_pregel_ainvoke(langgraph))
+    wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
 
 def unpatch():
     if not getattr(langgraph, "_datadog_patch", False):
@@ -129,8 +178,14 @@ def unpatch():
 
     langgraph._datadog_patch = False
 
-    unwrap(langgraph.utils.runnable.RunnableSeq, "invoke")
-    unwrap(langgraph.pregel.Pregel, "invoke")
-    unwrap(langgraph.pregel.loop.PregelLoop, "tick")
+    from langgraph.utils.runnable import RunnableSeq
+    from langgraph.pregel import Pregel
+    from langgraph.pregel.loop import PregelLoop
+
+    unwrap(RunnableSeq, "invoke")
+    unwrap(RunnableSeq, "ainvoke")
+    unwrap(Pregel, "invoke")
+    unwrap(Pregel, "ainvoke")
+    unwrap(PregelLoop, "tick")
 
     delattr(langgraph, "_datadog_integration")
