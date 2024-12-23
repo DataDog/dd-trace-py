@@ -203,6 +203,6 @@ Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
 void
 Datadog::Profile::postfork_child()
 {
-    profile_mtx.unlock();
+    new (&profile_mtx) std::mutex();
     cycle_buffers();
 }

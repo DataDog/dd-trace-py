@@ -521,7 +521,7 @@ venv = Venv(
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.12"),
+                    pys=select_pys(),
                     pkgs={
                         "redis": latest,
                         "gevent": latest,

@@ -4,13 +4,13 @@ import _thread
 import abc
 import os.path
 import sys
+import time
 import types
 import typing
 
 import wrapt
 
 from ddtrace._trace.tracer import Tracer
-from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
@@ -117,12 +117,12 @@ class _ProfiledLock(wrapt.ObjectProxy):
         if not self._self_capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
-        start = compat.monotonic_ns()
+        start = time.monotonic_ns()
         try:
             return inner_func(*args, **kwargs)
         finally:
             try:
-                end = self._self_acquired_at = compat.monotonic_ns()
+                end = self._self_acquired_at = time.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 task_id, task_name, task_frame = _task.get_task(thread_id)
                 self._maybe_update_self_name()
@@ -185,7 +185,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
             try:
                 if hasattr(self, "_self_acquired_at"):
                     try:
-                        end = compat.monotonic_ns()
+                        end = time.monotonic_ns()
                         thread_id, thread_name = _current_thread()
                         task_id, task_name, task_frame = _task.get_task(thread_id)
                         lock_name = (
