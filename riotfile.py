@@ -2735,6 +2735,14 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="langgraph",
+            command="pytest {cmdargs} tests/contrib/langgraph",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "langgraph": "~=0.2.60",
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pys=select_pys(min_version="3.8", max_version="3.12"),
