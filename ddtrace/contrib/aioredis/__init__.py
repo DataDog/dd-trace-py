@@ -69,22 +69,17 @@ To configure the aioredis integration on a per-instance basis use the
     myaioredis = aioredis.Aioredis()
     Pin.override(myaioredis, service="myaioredis")
 """
-from ddtrace.internal.utils.importlib import require_modules  # noqa:E402
+import warnings as _w  # noqa: E402
 
 
-required_modules = ["aioredis"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    # Required to allow users to import from  `ddtrace.contrib.aioredis.patch` directly
+    from . import patch as _  # noqa: F401, I001
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.aioredis.patch` directly
-        import warnings as _w
+from ddtrace.contrib.internal.aioredis.patch import get_version  # noqa: E402
+from ddtrace.contrib.internal.aioredis.patch import patch  # noqa: E402
+from ddtrace.contrib.internal.aioredis.patch import unpatch  # noqa: E402
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
 
-        from ddtrace.contrib.internal.aioredis.patch import get_version
-        from ddtrace.contrib.internal.aioredis.patch import patch
-        from ddtrace.contrib.internal.aioredis.patch import unpatch
-
-        __all__ = ["patch", "unpatch", "get_version"]
+__all__ = ["patch", "unpatch", "get_version"]
