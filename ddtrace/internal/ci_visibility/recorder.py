@@ -147,10 +147,8 @@ def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
 
 class CIVisibilityTracer(Tracer):
     def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = object.__new__(cls)
-        else:
-            log.debug("CIVisibilityTracer instance already exists, returning existing instance")
+        # Allows for multiple instances of the civis tracer to be created (unlike ddtrace.tracer)
+        cls._instance = object.__new__(cls)
         return cls._instance
 
 
