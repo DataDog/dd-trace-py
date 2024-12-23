@@ -32,54 +32,50 @@ IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast.",)
 #  - go to scripts/iast/generate_import_exclusions_by_prefix.py
 #  - update IAST_DENYLIST and run the script
 #  - update IAST_DENYLIST_REGEX with the output
-IAST_DENYLIST_REGEX = (
-    r"(?:d(?:jango(?:\.(?:co(?:n(?:trib\.(?:a(?:dmin(?:\.(?:views\.(?:autocomplete\.|decorators\.|"
-    r"main\.)|w(?:agtail_hooks\.|idgets\.)|a(?:ctions\.|dmin\.|pps\.)|image_formats\.|"
-    r"templatetags\.|decorators\.|exceptions\.|helpers\.|options\.|checks\.|sites\.)|"
-    r"docs\.(?:utils\.|views\.))|uth\.(?:c(?:ontext_processors\.|hecks\.)|m(?:anagement\.|"
-    r"iddleware\.)|ba(?:se_user\.|ckends\.)|password_validation\.|a(?:dmin\.|pps\.)|"
-    r"image_formats\.|wagtail_hooks\.|templatetags\.|decorators\.|validators\.|"
-    r"hashers\.|signals\.))|s(?:essions\.(?:ba(?:se_session\.|ckends\.)|a(?:dmin\.|pps\.)|"
-    r"image_formats\.|wagtail_hooks\.|templatetags\.|exceptions\.|middleware\.)|"
-    r"taticfiles\.(?:a(?:dmin\.|pps\.)|image_formats\.|wagtail_hooks\.|templatetags\.|"
-    r"finders\.|storage\.|checks\.|models\.|utils\.)|ites\.)|messages\.(?:con(?:text_processors\.|"
-    r"stants\.)|a(?:p(?:ps\.|i\.)|dmin\.)|image_formats\.|wagtail_hooks\.|templatetags\.|"
-    r"middleware\.|storage\.|utils\.)|contenttypes\.(?:m(?:anagement\.|odels\.)|"
-    r"f(?:ields\.|orms\.)|a(?:dmin\.|pps\.)|image_formats\.|wagtail_hooks\.|templatetags\.|"
-    r"checks\.|views\.)|humanize\.templatetags\.)|f\.)|"
-    r"re\.(?:c(?:hecks\.(?:c(?:ompatibility\.(?:django_4_0\.)?|aches\.)|security\.(?:sessions\.|"
-    r"base\.|csrf\.)?|m(?:odel_checks\.|essages\.)|t(?:ranslation\.|emplates\.)|async_checks\.|"
-    r"database\.|registry\.|files\.|urls)|ache\.(?:backends\.|utils\.))|ma(?:nagement\.(?:color\.|"
-    r"base\.|sql\.)|il\.)|exceptions\.|validators\.|paginator\.|signing\.))|"
-    r"te(?:mplate(?:\.(?:l(?:oader(?:_tags\.|s\.|\.)|ibrary\.)|context(?:_processors\.|"  # codespell:ignore
-    r"\.)|default(?:filters\.|tags\.)|e(?:xceptions\.|ngine\.)|ba(?:ckends\.|se\.)|autoreload\.|"
-    r"response\.|smartif\.|utils\.)|tags\.)|st\.)|u(?:rls\.(?:con(?:verters\.|f\.)|exceptions\.|"
-    r"resolvers\.|utils\.|base\.)|tils\.)|apps\.(?:registry\.|config\.)|dispatch\.dispatcher\.)|"
-    r"_filters\.(?:rest_framework\.(?:filters(?:et\.|\.)|backends\.)?|co(?:n(?:stants\.|"
-    r"f\.)|mpat\.)|fi(?:lters(?:et\.|\.)|elds\.)|exceptions\.|widgets\.|utils\.))|"
-    r"i(?:ll\.(?:settings\.|info\.)|fflib\.)|e(?:fusedxml\.|precated\.)|d(?:sketch\.|trace\.)|"
-    r"ateutil\.)|c(?:har(?:det\.(?:lang(?:t(?:urkishmodel\.|haimodel\.)|bulgarianmodel\.|"
-    r"russianmodel\.|hebrewmodel\.|greekmodel\.)|e(?:uc(?:kr(?:prober\.|freq\.)|tw(?:prober\.|"
-    r"freq\.)|jpprober\.)|nums\.|scsm\.)|c(?:harsetgroupprober\.|p949prober\.)|"
-    r"sbc(?:harsetprober\.|sgroupprober\.)|mbcs(?:groupprober\.|sm\.)|gb2312(?:prober\.|freq\.)|"
-    r"big5(?:prober\.|freq\.)|hebrewprober\.|jisfreq\.)|set_normalizer\.)|"
-    r"o(?:n(?:current\.futures\.|figparser\.)|reschema\.|lorama\.)|r(?:ispy_forms\.|ypto\.)|"
-    r"e(?:rtifi\.|lery\.)|chardet\.|attrs\.|lick\.|math\.|ffi\.|v2\.)|"
-    r"a(?:sync(?:io\.(?:base_(?:subprocess\.|futures\.|events\.|tasks\.)|s(?:elector_events\.|"
-    r"ubprocess\.|taggered\.)|t(?:r(?:ansports\.|sock\.)|hreads\.|asks\.)|co(?:routines\.|"
-    r"nstants\.)|e(?:xceptions\.|vents\.)|lo(?:cks\.|g\.)|unix_events\.|protocols\.|futures\.|"
-    r"runners\.|queues\.)|pg\.pgproto\.)|io(?:http\.(?:_(?:h(?:ttp_(?:parser\.|writer\.)|"
-    r"elpers\.)|websocket\.)|tcp_helpers\.|log\.)|quic\.)|ttr\.(?:_(?:next_gen\.|config\.)|"
-    r"filters\.|setters\.)|pi_pb2(?:_grpc\.|\.)|llauth\.|nyio\.)|"
-    r"b(?:oto(?:core\.(?:vendored\.requests\.|docs\.bcdoc\.|retries\.)|3\.(?:docs\.docstring\.|"
-    r"s3\.))|rotli(?:cffi\.|\.)|ackports\.|ytecode\.|linker\.)|p(?:y(?:nndescent\.|cparser\.|"
-    r"dicom\.|test\.)|sycopg(?:2\.|\.)|kg_resources\.|ackaging\.|rotobuf\.|luggy\.|ip\.)|"
-    r"s(?:qlalchemy\.orm\.interfaces\.|etuptools\.|klearn\.|niffio\.|anic\.|cipy\.)|"
-    r"u(?:rlpatterns_reverse\.tests\.|v(?:icorn\.|loop\.)|nittest\.mock\.|map\.)|"
-    r"h(?:ttp(?:tools\.|core\.|x\.)|ypothesis\.|11\.)|i(?:mportlib_metadata\.|tsdangerous\.|"
-    r"nspect\.)|w(?:e(?:bsocket(?:s\.|\.)|rkzeug\.)|rapt\.)|google(?:cloudsdk\.|\.auth\.)|"
-    r"e(?:xceptiongroup\.|nvier\.)|_p(?:sycopg\.|ytest\.)|f(?:reezegun\.|lask\.)|n(?:ibabel\.|"
-    r"umpy\.)|opentelemetry\-api\.|typing_extensions\.|moto\.|rich\.|zipp\.)"
+IAST_DENYLIST_REGEX = re.compile(
+    r"(?:d(?:jango(?:\.(?:co(?:n(?:trib\.(?:a(?:dmin(?:\.(?:views\.(?:autocomplete\.|decorators\.|m"
+    r"ain\.)|w(?:agtail_hooks\.|idgets\.)|a(?:ctions\.|dmin\.|pps\.)|image_formats\.|templatetags\."
+    r"|decorators\.|exceptions\.|helpers\.|options\.|checks\.|sites\.)|docs\.(?:utils\.|views\.))|u"
+    r"th\.(?:c(?:ontext_processors\.|hecks\.)|m(?:anagement\.|iddleware\.)|ba(?:se_user\.|ckends\.)"
+    r"|password_validation\.|a(?:dmin\.|pps\.)|image_formats\.|wagtail_hooks\.|templatetags\.|decor"
+    r"ators\.|validators\.|hashers\.|signals\.))|s(?:essions\.(?:ba(?:se_session\.|ckends\.)|a(?:dm"
+    r"in\.|pps\.)|image_formats\.|wagtail_hooks\.|templatetags\.|exceptions\.|middleware\.)|taticfi"
+    r"les\.(?:a(?:dmin\.|pps\.)|image_formats\.|wagtail_hooks\.|templatetags\.|finders\.|storage\.|"
+    r"checks\.|models\.|utils\.)|ites\.)|messages\.(?:con(?:text_processors\.|stants\.)|a(?:p(?:ps\."
+    r"|i\.)|dmin\.)|image_formats\.|wagtail_hooks\.|templatetags\.|middleware\.|storage\.|utils\.)"
+    r"|contenttypes\.(?:m(?:anagement\.|odels\.)|f(?:ields\.|orms\.)|a(?:dmin\.|pps\.)|image_format"
+    r"s\.|wagtail_hooks\.|templatetags\.|checks\.|views\.)|humanize\.templatetags\.)|f\.)|re\.(?:c("
+    r"?:hecks\.(?:c(?:ompatibility\.(?:django_4_0\.)?|aches\.)|security\.(?:sessions\.|base\.|csrf\."
+    r")?|m(?:odel_checks\.|essages\.)|t(?:ranslation\.|emplates\.)|async_checks\.|database\.|regis"
+    r"try\.|files\.|urls)|ache\.(?:backends\.|utils\.))|ma(?:nagement\.(?:color\.|base\.|sql\.)|il\."
+    r")|exceptions\.|validators\.|paginator\.|signing\.))|te(?:mplate(?:\.(?:l(?:oader(?:_tags\.|s"  # codespell:ignore
+    r"\.|\.)|ibrary\.)|context(?:_processors\.|\.)|default(?:filters\.|tags\.)|e(?:xceptions\.|ngin"  # codespell:ignore
+    r"e\.)|ba(?:ckends\.|se\.)|autoreload\.|response\.|smartif\.|utils\.)|tags\.)|st\.)|u(?:rls\.(?"
+    r":con(?:verters\.|f\.)|exceptions\.|resolvers\.|utils\.|base\.)|tils\.)|apps\.(?:registry\.|co"
+    r"nfig\.)|dispatch\.dispatcher\.)|_filters\.(?:rest_framework\.(?:filters(?:et\.|\.)|backends\."
+    r")?|co(?:n(?:stants\.|f\.)|mpat\.)|fi(?:lters(?:et\.|\.)|elds\.)|exceptions\.|widgets\.|utils\."
+    r"))|i(?:ll\.(?:settings\.|info\.)|fflib\.)|e(?:fusedxml\.|precated\.)|d(?:sketch\.|trace\.)|a"
+    r"teutil\.)|c(?:har(?:det\.(?:lang(?:t(?:urkishmodel\.|haimodel\.)|bulgarianmodel\.|russianmode"
+    r"l\.|hebrewmodel\.|greekmodel\.)|e(?:uc(?:kr(?:prober\.|freq\.)|tw(?:prober\.|freq\.)|jpprober"
+    r"\.)|nums\.|scsm\.)|c(?:harsetgroupprober\.|p949prober\.)|sbc(?:harsetprober\.|sgroupprober\.)"
+    r"|mbcs(?:groupprober\.|sm\.)|gb2312(?:prober\.|freq\.)|big5(?:prober\.|freq\.)|hebrewprober\.|"
+    r"jisfreq\.)|set_normalizer\.)|o(?:n(?:current\.futures\.|figparser\.)|reschema\.|lorama\.)|r(?"
+    r":ispy_forms\.|ypto\.)|e(?:rtifi\.|lery\.)|chardet\.|attrs\.|lick\.|math\.|ffi\.|v2\.)|a(?:syn"
+    r"c(?:io\.(?:base_(?:subprocess\.|futures\.|events\.|tasks\.)|s(?:elector_events\.|ubprocess\.|"
+    r"taggered\.)|t(?:r(?:ansports\.|sock\.)|hreads\.|asks\.)|co(?:routines\.|nstants\.)|e(?:xcepti"
+    r"ons\.|vents\.)|lo(?:cks\.|g\.)|unix_events\.|protocols\.|futures\.|runners\.|queues\.)|pg\.pg"  # codespell:ignore
+    r"proto\.)|io(?:http\.(?:_(?:h(?:ttp_(?:parser\.|writer\.)|elpers\.)|websocket\.)|tcp_helpers\."
+    r"|log\.)|quic\.)|ttr\.(?:_(?:next_gen\.|config\.)|filters\.|setters\.)|pi_pb2(?:_grpc\.|\.)|ll"
+    r"auth\.|nyio\.|mqp\.)|b(?:oto(?:core\.(?:vendored\.requests\.|docs\.bcdoc\.|retries\.)|3\.(?:d"
+    r"ocs\.docstring\.|s3\.))|rotli(?:cffi\.|\.)|ackports\.|ytecode\.|linker\.)|p(?:y(?:nndescent\."
+    r"|cparser\.|dicom\.|test\.)|sycopg(?:2\.|\.)|kg_resources\.|ackaging\.|rotobuf\.|luggy\.|ip\.)"
+    r"|s(?:qlalchemy\.orm\.interfaces\.|etuptools\.|klearn\.|niffio\.|anic\.|cipy\.)|u(?:rlpatterns"
+    r"_reverse\.tests\.|v(?:icorn\.|loop\.)|nittest\.mock\.|map\.)|h(?:ttp(?:tools\.|core\.|x\.)|yp"
+    r"othesis\.|11\.)|i(?:mportlib_metadata\.|tsdangerous\.|nspect\.)|g(?:oogle(?:cloudsdk\.|\.auth"
+    r"\.)|reenlet\.)|w(?:e(?:bsocket(?:s\.|\.)|rkzeug\.)|rapt\.)|e(?:xceptiongroup\.|nvier\.)|_p(?:"
+    r"sycopg\.|ytest\.)|f(?:reezegun\.|lask\.)|m(?:atplotlib\.|oto\.)|n(?:ibabel\.|umpy\.)|opentele"
+    r"metry\-api\.|typing_extensions\.|r(?:edis\.|ich\.)|kombu\.|zipp\.|PIL\.)",
+    re.IGNORECASE,
 )
 IAST_DENYLIST: Tuple[Text, ...] = ()
 IAST_DENYLIST_LEN = 0
@@ -129,17 +125,22 @@ def _should_iast_patch(module_name: Text) -> bool:
     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
-    dotted_module_name = module_name.lower() + "."
+    dotted_module_name = module_name + "."
+
+    if IAST_DENYLIST_REGEX.match(dotted_module_name):
+        log.debug("IAST: denying %s. it's in the IAST_DENYLIST_REGEX", module_name)
+        return False
+
+    dotted_module_name = dotted_module_name.lower()
+
     if dotted_module_name.startswith(IAST_ALLOWLIST):
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
         return True
 
-    if re.match(IAST_DENYLIST_REGEX, dotted_module_name):
-        log.debug("IAST: denying %s. it's in the IAST_DENYLIST_REGEX", module_name)
-        return False
     if IAST_DENYLIST_LEN and dotted_module_name.startswith(IAST_DENYLIST):
         log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
         return False
+
     if _in_python_stdlib(module_name):
         log.debug("IAST: denying %s. it's in the _in_python_stdlib", module_name)
         return False

@@ -297,9 +297,21 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pydicom.",
     "nibabel.",
     "scipy.",
+    "kombu.",
+    "greenlet.",
+    "redis.",
+    "PIL.",
+    "matplotlib.",
+    "amqp.",
 )
 
 trie_regex = trieregex.TrieRegEx()
 for w in IAST_DENYLIST:
     trie_regex.add(w)
-print(trie_regex.regex())
+
+RESULT = trie_regex.regex()
+print("RESULT:\n")
+print(RESULT)
+print("RESULT (lines of 95):\n")
+for i in range(0, len(RESULT), 93):
+    print('r"' + RESULT[i : i + 93] + '"')
