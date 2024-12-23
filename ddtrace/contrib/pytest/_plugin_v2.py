@@ -6,12 +6,14 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
+from ddtrace import patch
 from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
@@ -74,11 +76,15 @@ if _pytest_version_supports_atr():
     from ddtrace.contrib.pytest._atr_utils import atr_get_teststatus
     from ddtrace.contrib.pytest._atr_utils import atr_handle_retries
     from ddtrace.contrib.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.pytest._atr_utils import quarantine_atr_get_teststatus
+    from ddtrace.contrib.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
 
 
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
+USER_PROPERTY_QUARANTINED = "dd_quarantined"
+OUTCOME_QUARANTINED = "quarantined"
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -163,6 +169,8 @@ def pytest_load_initial_conftests(early_config, parser, args):
     try:
         take_over_logger_stream_handler()
         log.warning("This version of the ddtrace pytest plugin is currently in beta.")
+        # Freezegun is proactively patched to avoid it interfering with internal timing
+        patch(freezegun=True)
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
@@ -192,6 +200,12 @@ def pytest_configure(config: pytest_Config) -> None:
             enable_test_visibility(config=dd_config.pytest)
             if _is_pytest_cov_enabled(config):
                 patch_coverage()
+
+            # pytest-bdd plugin support
+            if config.pluginmanager.hasplugin("pytest-bdd"):
+                from ddtrace.contrib.pytest._pytest_bdd_subplugin import _PytestBddSubPlugin
+
+                config.pluginmanager.register(_PytestBddSubPlugin(), "_datadog-pytest-bdd")
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
@@ -253,8 +267,16 @@ def _pytest_collection_finish(session) -> None:
         InternalTestSuite.discover(suite_id)
 
         item_path = Path(item.path if hasattr(item, "path") else item.fspath).absolute()
+        workspace_path = InternalTestSession.get_workspace_path()
+        if workspace_path:
+            try:
+                repo_relative_path = item_path.relative_to(workspace_path)
+            except ValueError:
+                repo_relative_path = item_path
+        else:
+            repo_relative_path = item_path
 
-        item_codeowners = InternalTestSession.get_path_codeowners(item_path)
+        item_codeowners = InternalTestSession.get_path_codeowners(repo_relative_path) if repo_relative_path else None
 
         source_file_info = _get_source_file_info(item, item_path)
 
@@ -308,6 +330,11 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
 
     collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
+
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+    if is_quarantined:
+        # We add this information to user_properties to have it available in pytest_runtest_makereport().
+        item.user_properties += [(USER_PROPERTY_QUARANTINED, True)]
 
     if collect_test_coverage:
         return _start_collecting_coverage()
@@ -439,6 +466,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
 
     test_id = _get_test_id_from_item(item)
 
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+
     test_outcome = _process_result(item, call, original_result)
 
     # A None value for test_outcome.status implies the test has not finished yet
@@ -446,9 +475,18 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if test_outcome.status is None and call.when != "teardown":
         return
 
+    # Support for pytest-benchmark plugin
+    if item.config.pluginmanager.hasplugin("benchmark"):
+        _set_benchmark_data_from_item(item)
+
     # Record a result if we haven't already recorded it:
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+
+    if original_result.failed and is_quarantined:
+        # Ensure test doesn't count as failed for pytest's exit status logic
+        # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
+        original_result.outcome = OUTCOME_QUARANTINED
 
     # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
     # NOTE: this mutates the original result's outcome
@@ -458,7 +496,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome)
+        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome, is_quarantined)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -516,12 +554,22 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         atr_pytest_terminal_summary_post_yield(terminalreporter)
+
+    quarantine_pytest_terminal_summary_post_yield(terminalreporter)
+
     return
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report flaky or failed tests"""
+    try:
+        from ddtrace.appsec._iast._pytest_plugin import print_iast_report
+
+        print_iast_report(terminalreporter)
+    except Exception:  # noqa: E722
+        log.debug("Encountered error during code security summary", exc_info=True)
+
     if not is_test_visibility_enabled():
         yield
         return
@@ -548,7 +596,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.atr_has_failed_tests() and InternalTestSession.atr_has_failed_tests():
+    if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
@@ -586,7 +634,7 @@ def pytest_report_teststatus(
         return
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        test_status = atr_get_teststatus(report)
+        test_status = atr_get_teststatus(report) or quarantine_atr_get_teststatus(report)
         if test_status is not None:
             return test_status
 
@@ -594,6 +642,16 @@ def pytest_report_teststatus(
         test_status = efd_get_teststatus(report)
         if test_status is not None:
             return test_status
+
+    user_properties = getattr(report, "user_properties", [])
+    is_quarantined = (USER_PROPERTY_QUARANTINED, True) in user_properties
+    if is_quarantined:
+        if report.when == "teardown":
+            return (OUTCOME_QUARANTINED, "q", ("QUARANTINED", {"blue": True}))
+        else:
+            # Don't show anything for setup and call of quarantined tests, regardless of
+            # whether there were errors or not.
+            return ("", "", "")
 
 
 @pytest.hookimpl(trylast=True)

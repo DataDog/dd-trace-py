@@ -16,6 +16,9 @@ def _iast_patched_module_and_patched_source(module_name):
     module = importlib.import_module(module_name)
     module_path, patched_module = astpatch_module(module)
 
+    if not patched_module:
+        assert False, "Module %s was not patched" % module_name
+
     compiled_code = compile(patched_module, module_path, "exec")
     exec(compiled_code, module.__dict__)
     return module, patched_module

@@ -3,7 +3,6 @@
 import ast
 import codecs
 import os
-import re
 from sys import builtin_module_names
 from sys import version_info
 import textwrap
@@ -280,6 +279,9 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pkg_resources.",
     "pluggy.",
     "protobuf.",
+    "psycopg.",  # PostgreSQL adapter for Python (v3)
+    "_psycopg.",  # PostgreSQL adapter for Python (v3)
+    "psycopg2.",  # PostgreSQL adapter for Python (v2)
     "pycparser.",  # this package is called when a module is imported, propagation is not needed
     "pytest.",  # Testing framework
     "_pytest.",
@@ -385,27 +387,6 @@ def visit_ast(
     return modified_ast
 
 
-_FLASK_INSTANCE_REGEXP = re.compile(r"(\S*)\s*=.*Flask\(.*")
-
-
-def _remove_flask_run(text: Text) -> Text:
-    """
-    Find and remove flask app.run() call. This is used for patching
-    the app.py file and exec'ing to replace the module without creating
-    a new instance.
-    """
-    flask_instance_name = re.search(_FLASK_INSTANCE_REGEXP, text)
-    if not flask_instance_name:
-        return text
-    groups = flask_instance_name.groups()
-    if not groups:
-        return text
-
-    instance_name = groups[-1]
-    new_text = re.sub(instance_name + r"\.run\(.*\)", "pass", text)
-    return new_text
-
-
 _DIR_WRAPPER = textwrap.dedent(
     f"""
 
@@ -439,7 +420,7 @@ def {_PREFIX}set_dir_filter():
 )
 
 
-def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, Optional[ast.Module]]:
+def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
     module_name = module.__name__
 
     module_origin = origin(module)
@@ -478,9 +459,6 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
         # Don't patch empty files like __init__.py
         log.debug("empty file: %s", module_path)
         return "", None
-
-    if remove_flask_run:
-        source_text = _remove_flask_run(source_text)
 
     if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)

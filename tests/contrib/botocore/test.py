@@ -3776,7 +3776,6 @@ class BotocoreTest(TracerTestCase):
             assert span.service == DEFAULT_SPAN_SERVICE_NAME
             assert span.name == "aws.secretsmanager.request"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs(self):
@@ -3822,7 +3821,6 @@ class BotocoreTest(TracerTestCase):
             trace_in_message = "MessageAttributes" in response["Messages"][0]
             assert trace_in_message is False
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
@@ -3870,7 +3868,6 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
@@ -3924,7 +3921,6 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3(self):
@@ -3954,7 +3950,6 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3_invalid_config(self):
@@ -3973,7 +3968,6 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3_valid_config(self):
@@ -3991,7 +3985,6 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_events
     def test_aws_payload_tagging_eventbridge(self):
@@ -4034,7 +4027,6 @@ class BotocoreTest(TracerTestCase):
 
             bridge.delete_event_bus(Name="a-test-bus")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_kinesis
     def test_aws_payload_tagging_kinesis(self):

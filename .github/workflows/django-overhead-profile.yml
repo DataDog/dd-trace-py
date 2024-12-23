@@ -26,12 +26,14 @@ jobs:
       DD_PROFILING_ENABLED: "1"
       DD_PROFILING_STACK_V2_ENABLED: ${{ matrix.stack_v2 }}
       DD_PROFILING_OUTPUT_PPROF: ${{ github.workspace }}/prefix/artifacts/ddtrace_profile
+      DD_EXCEPTION_REPLAY_ENABLED: "1"
     defaults:
       run:
         working-directory: ddtrace
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           path: ddtrace
 
       - uses: actions/setup-python@v5
@@ -50,4 +52,3 @@ jobs:
         with:
           name: django-overhead-profile${{ matrix.suffix }}
           path: ${{ github.workspace }}/prefix/artifacts
-

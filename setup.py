@@ -57,7 +57,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.21.0"
+LIBDDWAF_VERSION = "1.22.0"
 
 # DEV: update this accordingly when src/core upgrades libdatadog dependency.
 # libdatadog v14.1.0 requires rust 1.76.
@@ -510,8 +510,11 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc.c",
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
+                "ddtrace/profiling/collector/_memalloc_reentrant.c",
             ],
-            extra_compile_args=debug_compile_args,
+            extra_compile_args=debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
+            if CURRENT_OS != "Windows"
+            else ["/std:c11"],
         ),
         Extension(
             "ddtrace.internal._threads",
@@ -527,7 +530,7 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
-                extra_compile_args=debug_compile_args,
+                extra_compile_args=extra_compile_args + debug_compile_args,
             )
         )
 
@@ -553,7 +556,7 @@ if not IS_PYSTON:
         )
 
         # Echion doesn't build on 3.7, so just skip it outright for now
-        if sys.version_info >= (3, 8):
+        if sys.version_info >= (3, 8) and sys.version_info < (3, 13):
             ext_modules.append(
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
@@ -612,7 +615,11 @@ setup(
                 "ddtrace.profiling.collector.stack",
                 sources=["ddtrace/profiling/collector/stack.pyx"],
                 language="c",
-                extra_compile_args=extra_compile_args,
+                # cython generated code errors on build in toolchains that are strict about int->ptr conversion
+                # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying toolchain and
+                # emit the right flags, but as a compromise we assume Windows implies MSVC and everything else is on a
+                # GNU-like toolchain
+                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",
