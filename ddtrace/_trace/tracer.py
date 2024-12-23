@@ -53,7 +53,6 @@ from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
-from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -210,8 +209,6 @@ class Tracer(object):
         :param url: The Datadog agent URL.
         :param dogstatsd_url: The DogStatsD URL.
         """
-
-        maybe_start_serverless_mini_agent()
 
         self._filters: List[TraceFilter] = []
 
