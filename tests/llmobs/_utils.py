@@ -216,7 +216,7 @@ def _expected_llmobs_eval_metric_event(
     label,
     ml_app,
     tag_key=None,
-    tag_val=None,
+    tag_value=None,
     span_id=None,
     trace_id=None,
     timestamp_ms=None,
@@ -235,8 +235,8 @@ def _expected_llmobs_eval_metric_event(
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
     }
-    if tag_key is not None and tag_val is not None:
-        eval_metric_event["join_on"]["tag"] = {"tag_key": tag_key, "tag_value": tag_val}
+    if tag_key is not None and tag_value is not None:
+        eval_metric_event["join_on"]["tag"] = {"tag_key": tag_key, "tag_value": tag_value}
     if span_id is not None and trace_id is not None:
         eval_metric_event["join_on"]["span"] = {"span_id": span_id, "trace_id": trace_id}
     if categorical_value is not None:

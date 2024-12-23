@@ -4,7 +4,6 @@ import time
 from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 import ddtrace
@@ -784,7 +783,7 @@ class LLMObs(Service):
         metric_type: str,
         value: Union[str, int, float],
         span: Optional[dict] = None,
-        span_with_tag: Optional[Tuple[str, str]] = None,
+        span_with_tag_value: Optional[Dict[str, str]] = None,
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
@@ -798,7 +797,7 @@ class LLMObs(Service):
                       Must be a string (categorical), integer (score), or float (score).
         :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
                             the span associated with this evaluation.
-        :param tuple span_with_tag: A tuple of shape (tag_key, tag_value) uniquely identifying
+        :param tuple span_with_tag_value: A dictionary of shape {'tag_key': str, 'tag_value': str} uniquely identifying
                             the span associated with this evaluation.
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
@@ -811,19 +810,17 @@ class LLMObs(Service):
             )
             return
 
-        has_exactly_one_joining_key = (span is not None) ^ (span_with_tag is not None)
+        has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
 
         if not has_exactly_one_joining_key:
             raise ValueError(
-                "Exactly one of `span` or `span_with_tag` must be specified to submit an evaluation metric."
+                "Exactly one of `span` or `span_with_tag_value` must be specified to submit an evaluation metric."
             )
 
         join_on = {}
         if span is not None:
             if (
                 not isinstance(span, dict)
-                or "span_id" not in span
-                or "trace_id" not in span
                 or not isinstance(span.get("span_id"), str)
                 or not isinstance(span.get("trace_id"), str)
             ):
@@ -832,14 +829,19 @@ class LLMObs(Service):
                     "LLMObs.export_span() can be used to generate this dictionary from a given span."
                 )
             join_on["span"] = span
-        elif span_with_tag is not None:
+        elif span_with_tag_value is not None:
             if (
-                not isinstance(span_with_tag, tuple)
-                or len(span_with_tag) != 2
-                or not all(isinstance(i, str) for i in span_with_tag)
+                not isinstance(span_with_tag_value, dict)
+                or not isinstance(span_with_tag_value.get("tag_key"), str)
+                or not isinstance(span_with_tag_value.get("tag_value"), str)
             ):
-                raise TypeError("`span_with_tag` must be a tuple of shape (tag_key, tag_value)")
-            join_on["tag"] = {"tag_key": span_with_tag[0], "tag_value": span_with_tag[1]}
+                raise TypeError(
+                    "`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' containing string values"
+                )
+            join_on["tag"] = {
+                "tag_key": span_with_tag_value.get("tag_key"),
+                "tag_value": span_with_tag_value.get("tag_value"),
+            }
 
         timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
 

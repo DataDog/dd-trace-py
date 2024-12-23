@@ -2057,12 +2057,23 @@ def test_submit_evaluation_for_span_incorrect_type_raises_error(LLMObs, mock_log
         LLMObs.submit_evaluation_for(span="asd", label="toxicity", metric_type="categorical", value="high")
 
 
-def test_submit_evaluation_for_span_with_tag_incorrect_type_raises_error(LLMObs, mock_logs):
-    with pytest.raises(TypeError, match=r"`span_with_tag` must be a tuple of shape \(tag_key, tag_value\)"):
-        LLMObs.submit_evaluation_for(span_with_tag="asd", label="toxicity", metric_type="categorical", value="high")
-    with pytest.raises(TypeError, match=r"`span_with_tag` must be a tuple of shape \(tag_key, tag_value\)"):
+def test_submit_evaluation_for_span_with_tag_value_incorrect_type_raises_error(LLMObs, mock_logs):
+    with pytest.raises(
+        TypeError,
+        match=r"`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' containing string values",
+    ):
         LLMObs.submit_evaluation_for(
-            span_with_tag=("key", 1), label="toxicity", metric_type="categorical", value="high"
+            span_with_tag_value="asd", label="toxicity", metric_type="categorical", value="high"
+        )
+    with pytest.raises(
+        TypeError,
+        match=r"`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' containing string values",
+    ):
+        LLMObs.submit_evaluation_for(
+            span_with_tag_value={"tag_key": "hi", "tag_value": 1},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
         )
 
 
@@ -2089,9 +2100,14 @@ def test_submit_evaluation_for_empty_span_or_trace_id_raises_error(LLMObs, mock_
         LLMObs.submit_evaluation_for(span={"span_id": "456"}, label="toxicity", metric_type="categorical", value="high")
 
 
-def test_submit_evaluation_for_span_with_tag_empty_key_or_val_raises_error(LLMObs, mock_logs):
-    with pytest.raises(TypeError, match=r"`span_with_tag` must be a tuple of shape \(tag_key, tag_value\)"):
-        LLMObs.submit_evaluation_for(span_with_tag=("456"), label="toxicity", metric_type="categorical", value="high")
+def test_submit_evaluation_for_span_with_tag_value_empty_key_or_val_raises_error(LLMObs, mock_logs):
+    with pytest.raises(
+        TypeError,
+        match=r"`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' containing string values",
+    ):
+        LLMObs.submit_evaluation_for(
+            span_with_tag_value={"tag_value": "123"}, label="toxicity", metric_type="categorical", value="high"
+        )
 
 
 def test_submit_evaluation_for_invalid_timestamp_raises_error(LLMObs, mock_logs):
@@ -2200,11 +2216,11 @@ def test_submit_evaluation_for_metric_tags(LLMObs, mock_llmobs_eval_metric_write
     )
 
 
-def test_submit_evaluation_for_span_with_tag_enqueues_writer_with_categorical_metric(
+def test_submit_evaluation_for_span_with_tag_value_enqueues_writer_with_categorical_metric(
     LLMObs, mock_llmobs_eval_metric_writer
 ):
     LLMObs.submit_evaluation_for(
-        span_with_tag=("tag_key", "tag_val"),
+        span_with_tag_value={"tag_key": "tag_key", "tag_value": "tag_val"},
         label="toxicity",
         metric_type="categorical",
         value="high",
@@ -2214,7 +2230,7 @@ def test_submit_evaluation_for_span_with_tag_enqueues_writer_with_categorical_me
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             tag_key="tag_key",
-            tag_val="tag_val",
+            tag_value="tag_val",
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
