@@ -56,9 +56,11 @@ class LangGraphIntegration(BaseLLMIntegration):
                 SPAN_LINKS: current_span_links + span_links,
             }
         )
+        if operation == "graph" and not _is_subgraph(span):
+            self._graph_nodes_by_task_id.clear()
 
     def llmobs_handle_pregel_loop_tick(
-        self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph: bool = False
+        self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
     ):
         """Compute incoming and outgoing span links between finished tasks and queued tasks in the graph."""
         if not self.llmobs_enabled:
@@ -68,17 +70,19 @@ class LangGraphIntegration(BaseLLMIntegration):
             return
 
         if not more_tasks:
-            self._handle_finished_graph(graph_span, finished_tasks, is_subgraph)
+            self._handle_finished_graph(graph_span, finished_tasks, is_subgraph_node)
             return
         finished_task_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
         for task_id, task in next_tasks.items():
             self._link_task_to_parent(task_id, task, finished_task_names_to_ids)
 
 
-    def _handle_finished_graph(self, graph_span, finished_tasks, is_subgraph):
+    def _handle_finished_graph(self, graph_span, finished_tasks, is_subgraph_node):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
         Generate the output-to-output span links for the last nodes in a pregel graph.
         If the graph isn't a subgraph, add a span link from the graph span to the LLMObs parent span which called the graph.
+        Note: is_subgraph_node denotes whether the graph is a subgraph node,
+         not whether it is a standalone graph (called internally during a node execution).
         """
         graph_caller_span = _get_nearest_llmobs_ancestor(graph_span) if graph_span else None
         output_span_links = [
@@ -87,7 +91,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         ]
         graph_span_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
         graph_span._set_ctx_item(SPAN_LINKS, graph_span_span_links + output_span_links)
-        if graph_caller_span is not None and not is_subgraph:
+        if graph_caller_span is not None and not is_subgraph_node:
             graph_caller_span_links = graph_caller_span._get_ctx_item(SPAN_LINKS) or []
             span_links = [
                 {
@@ -97,8 +101,6 @@ class LangGraphIntegration(BaseLLMIntegration):
                 }
             ]
             graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
-        if not is_subgraph:
-            self._graph_nodes_by_task_id.clear()
         return
 
 
@@ -156,3 +158,17 @@ def _default_span_link(span: Span):
         "trace_id": "{:x}".format(span.trace_id),
         "attributes": {"from": "input", "to": "input"},
     }
+
+
+def _is_subgraph(graph_span):
+    """Helper to denote whether the LangGraph graph this span represents is a sub-graph or a standalone graph.
+    Note that this only considers if this graph is nested in the execution of a larger graph,
+    not whether this graph is represented as a single node in the larger graph
+    (counterexample being a standalone graph called internally during a node execution).
+    """
+    graph_caller_span = _get_nearest_llmobs_ancestor(graph_span)
+    while graph_caller_span is not None:
+        if graph_caller_span.resource.endswith("LangGraph"):
+            return True
+        graph_caller_span = _get_nearest_llmobs_ancestor(graph_caller_span)
+    return False

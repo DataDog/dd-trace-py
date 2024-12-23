@@ -103,8 +103,8 @@ def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
     finished_tasks = getattr(instance, "tasks", {})
     result = func(*args, **kwargs)
     next_tasks = getattr(instance, "tasks", {})  # instance.tasks gets updated by loop.tick()
-    is_subgraph = instance.config.get("metadata", {}).get("_dd.subgraph", False)
-    integration.llmobs_handle_pregel_loop_tick(finished_tasks, next_tasks, result, is_subgraph)
+    is_subgraph_node = instance.config.get("metadata", {}).get("_dd.subgraph", False)
+    integration.llmobs_handle_pregel_loop_tick(finished_tasks, next_tasks, result, is_subgraph_node)
     return result
 
 
