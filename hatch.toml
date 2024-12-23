@@ -304,6 +304,10 @@ python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 [envs.appsec_iast_packages]
 template = "appsec_iast_packages"
 dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
     "requests",
     "astunparse",
     "flask",
