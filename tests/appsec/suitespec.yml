@@ -73,6 +73,19 @@ suites:
       - '@remoteconfig'
     retry: 2
     runner: hatch
+  appsec_iast_packages:
+    parallelism: 5
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/iast_packages/*
+    retry: 2
+    runner: hatch
   appsec_integrations:
     parallelism: 7
     paths:
