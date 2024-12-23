@@ -1161,7 +1161,7 @@ def snapshot(
             clsname = ""
 
         if include_tracer:
-            tracer = Tracer()
+            tracer = DummyTracer()
         else:
             tracer = ddtrace.tracer
 

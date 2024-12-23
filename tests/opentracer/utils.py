@@ -1,4 +1,4 @@
-from ddtrace.opentracer import Tracer
+from ddtrace.opentracer import Tracer as OTTracer
 
 
 def init_tracer(service_name, dd_tracer, scope_manager=None):
@@ -7,5 +7,5 @@ def init_tracer(service_name, dd_tracer, scope_manager=None):
 
     It accepts a Datadog tracer that should be the same one used for testing.
     """
-    ot_tracer = Tracer(service_name, dd_tracer=dd_tracer, scope_manager=scope_manager)
+    ot_tracer = OTTracer(service_name, dd_tracer=dd_tracer, scope_manager=scope_manager)
     return ot_tracer
