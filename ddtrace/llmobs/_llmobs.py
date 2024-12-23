@@ -340,7 +340,6 @@ class LLMObs(Service):
         """Record a relationship between objects."""
         if source_obj is None or incoming_obj is None:
             return
-        # print(f"Recording relationship between {source_obj} and {incoming_obj} with operation {operation}")
         span_links = self.get_span_links(incoming_obj)
         self.add_span_links(source_obj, span_links)
 
@@ -379,30 +378,17 @@ class LLMObs(Service):
 
         return self.trace_call
 
-    def search_for_links(self, obj):
-        links = []
-        if isinstance(obj, dict):
-            for _, value in obj.items():
-                links += self.search_for_links(value)
-        elif isinstance(obj, list):
-            for value in obj:
-                links += self.search_for_links(value)
-        links += self.get_span_links(obj)
-        return links
-
     def record_object(self, span, obj, to):
         carried_span_links = []
-        if isinstance(obj, dict):
+        if isinstance(obj, dict) and not isinstance(obj, TrackedDict):
             old_obj = obj
             obj = TrackedDict(old_obj)
             self._record_relationship(obj, old_obj, "inherit")
-            carried_span_links += self.search_for_links(obj)
-        elif isinstance(obj, list):
+        elif isinstance(obj, list) and not isinstance(obj, TrackedList):
             old_obj = obj
             obj = TrackedList(old_obj)
             self._record_relationship(obj, old_obj, "inherit")
-            carried_span_links += self.search_for_links(obj)
-        elif isinstance(obj, str):
+        elif isinstance(obj, str) and not isinstance(obj, TrackedStr):
             old_obj = obj
             obj = TrackedStr(old_obj)
             self._record_relationship(obj, old_obj, "inherit")
@@ -410,28 +396,34 @@ class LLMObs(Service):
         carried_span_links += self.get_span_links(obj)
         current_span_links = []
         for span_link in carried_span_links:
-            if span_link["attributes"]["from"] == "input" and to == "output":
+            if span_link[2] == "input" and to == "output":
                 continue
-            span_link["attributes"]["to"] = to
-            current_span_links.append(span_link)
+            current_span_links.append(span_link + (to,))
 
         self._tag_span_links(span, current_span_links)
         self.add_span_links(
             obj,
-            [
-                {
-                    "trace_id": self.export_span(span)["trace_id"],
-                    "span_id": self.export_span(span)["span_id"],
-                    "attributes": {
-                        "from": to,
-                    },
-                }
-            ],
+            {
+                (
+                    self.export_span(span)["trace_id"],
+                    self.export_span(span)["span_id"],
+                    to,
+                ),
+            },
         )
         return obj
 
     def _tag_span_links(self, span, span_links):
-        span_links = [span_link for span_link in span_links if span_link["span_id"] != LLMObs.export_span(span)["span_id"]]
+        span_links = [
+            {
+                "trace_id": span_link[0],
+                "span_id": span_link[1],
+                "from": span_link[2],
+                "to": span_link[3],
+            }
+            for span_link in span_links
+            if span_link[1] != LLMObs.export_span(span)["span_id"]
+        ]
         current_span_links = span.get_tag("_ml_obs.span_links")
         if current_span_links:
             current_span_links = json.loads(current_span_links)
@@ -444,11 +436,11 @@ class LLMObs(Service):
     def add_span_links(self, obj, span_links):
         obj_id = self.get_obj_id(obj)
         if obj_id not in self._object_span_links:
-            self._object_span_links[obj_id] = []
-        self._object_span_links[obj_id] += span_links
+            self._object_span_links[obj_id] = set()
+        self._object_span_links[obj_id].update(span_links)
 
     def get_span_links(self, obj):
-        return self._object_span_links.get(self.get_obj_id(obj), [])
+        return self._object_span_links.get(self.get_obj_id(obj), {})
 
     @classmethod
     def annotation_context(

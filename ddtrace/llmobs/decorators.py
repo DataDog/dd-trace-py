@@ -125,7 +125,7 @@ def _llmobs_decorator(operation_kind):
                         span_name = func.__name__
                     traced_operation = getattr(LLMObs, operation_kind, "workflow")
                     with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
-                        args = [LLMObs._instance.record_object(span, arg, "input") for arg in args]
+                        args = tuple(LLMObs._instance.record_object(span, arg, "input") for arg in args)
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
@@ -139,8 +139,8 @@ def _llmobs_decorator(operation_kind):
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         resp = LLMObs._instance.record_object(span, resp, "output")
-                        if isinstance(resp, iter):
-                            resp = [LLMObs._instance.record_object(span, r, "output") for r in resp]
+                        if isinstance(resp, tuple):
+                            resp = tuple(LLMObs._instance.record_object(span, r, "output") for r in resp)
                         return resp
 
             return wrapper
