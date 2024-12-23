@@ -772,7 +772,7 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
 def test_fastapi_header_injection(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/header_injection/")
     async def header_injection(request: Request):
-        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
         tainted_string = request.headers.get("iast_header")
         assert is_pyobject_tainted(tainted_string)
