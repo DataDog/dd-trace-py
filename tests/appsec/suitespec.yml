@@ -89,7 +89,6 @@ suites:
     timeout: 50m
     only:
       - 'main'
-      - 'avara1986/migrate_test_packages_to_gitlab'
   appsec_integrations:
     parallelism: 7
     paths:
