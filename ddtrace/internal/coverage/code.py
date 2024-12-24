@@ -328,7 +328,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             return code
 
         if not is_user_code(code_path):
-            # print(f'code_path: {code_path} is not user code')
+            print(f'code_path: {code_path} is not user code')
             return code
         # print(f'code_path: {code_path} is user code')
 
