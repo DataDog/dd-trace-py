@@ -62,7 +62,7 @@ _DEPRECATED_MODULE_ATTRIBUTES = [
 
 def __getattr__(name):
     if name in _DEPRECATED_MODULE_ATTRIBUTES:
-        _debtcollector.deprecate(
+        _debtcollector.deprecate( # CLEAN UP
             ("%s.%s is deprecated" % (__name__, name)),
             category=_DDTraceDeprecationWarning,
             removal_version="3.0.0",

@@ -211,7 +211,7 @@ class SamplingRule(object):
         # If a string is passed in we create a GlobMatcher to handle the matching
         if callable(prop) or isinstance(prop, pattern_type):
             # deprecated: passing a function or a regular expression'
-            deprecate(
+            deprecate( # CLEAN UP
                 "Using methods or regular expressions for SamplingRule matching is deprecated. ",
                 message="Please move to passing in a string for Glob matching.",
                 removal_version="3.0.0",
