@@ -86,6 +86,10 @@ suites:
       - tests/appsec/iast_packages/*
     retry: 2
     runner: hatch
+    timeout: 45m
+    only:
+      - 'main'
+      - 'avara1986/migrate_test_packages_to_gitlab'
   appsec_integrations:
     parallelism: 7
     paths:
