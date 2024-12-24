@@ -39,7 +39,6 @@ def _aux_appsec_prepare_tracer(tracer):
     patch_sqlite_sqli()
     oce.reconfigure()
 
-    tracer._iast_enabled = True
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
 
