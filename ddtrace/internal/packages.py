@@ -251,6 +251,7 @@ def is_stdlib(path: Path) -> bool:
 def is_third_party(path: Path) -> bool:
     package = filename_to_package(str(path))
     if package is None:
+        print('   cannot detect package:', path)
         return False
     print('   package:', package.name)
     print('   third party:', _third_party_packages())
