@@ -1,10 +1,8 @@
-from datetime import datetime
 import json
 import logging
 import os
 import re
 import subprocess
-import sys
 from typing import List
 from typing import Optional
 
@@ -36,7 +34,14 @@ def re_matcher(pattern):
     return Match()
 
 
+@pytest.mark.subprocess()
 def test_standard_tags():
+    from datetime import datetime
+    import sys
+
+    import ddtrace
+    from ddtrace.internal import debug
+
     f = debug.collect(ddtrace.tracer)
 
     date = f.get("date")
@@ -94,7 +99,7 @@ def test_standard_tags():
     assert f.get("tracer_enabled") is True
     assert f.get("sampler_type") == "DatadogSampler"
     assert f.get("priority_sampler_type") == "N/A"
-    assert f.get("service") == "tests.integration"
+    assert f.get("service") == "ddtrace_subprocess_dir"
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
     assert f.get("enabled_cli") is False
@@ -110,8 +115,13 @@ def test_standard_tags():
     assert icfg["flask"] == "N/A"
 
 
+@pytest.mark.subprocess()
 def test_debug_post_configure():
-    tracer = ddtrace.Tracer()
+    import re
+
+    from ddtrace import tracer
+    from ddtrace.internal import debug
+
     tracer.configure(
         hostname="0.0.0.0",
         port=1234,
@@ -122,16 +132,21 @@ def test_debug_post_configure():
     agent_url = f.get("agent_url")
     assert agent_url == "http://0.0.0.0:1234"
 
-    assert f.get("is_global_tracer") is False
+    assert f.get("is_global_tracer") is True
     assert f.get("tracer_enabled") is True
 
     agent_error = f.get("agent_error")
     # Error code can differ between Python version
     assert re.match("^Agent not reachable.*Connection refused", agent_error)
 
-    # Tracer doesn't support re-configure()-ing with a UDS after an initial
-    # configure with normal http settings. So we need a new tracer instance.
-    tracer = ddtrace.Tracer()
+
+@pytest.mark.subprocess()
+def test_debug_post_configure_uds():
+    import re
+
+    from ddtrace import tracer
+    from ddtrace.internal import debug
+
     tracer.configure(uds_path="/file.sock")
 
     f = debug.collect(tracer)

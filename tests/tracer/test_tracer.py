@@ -2106,8 +2106,11 @@ def test_multiple_tracer_instances():
         import ddtrace
 
         assert ddtrace.tracer is not None
-        assert len(warns) == 0
+        for w in warns:
+            # Ensure the warning is not about multiple tracer instances is not logged when importing ddtrace
+            assert "Support for multiple Tracer instances is deprecated" not in str(w.message)
 
+        warns.clear()
         t = ddtrace.Tracer()
         assert t is ddtrace.tracer
         assert len(warns) == 1
