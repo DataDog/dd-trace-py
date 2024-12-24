@@ -183,6 +183,8 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
             ("teardown", "passed"),
         ]
 
+        assert len(rec.getcalls("pytest_pyfunc_call")) == 1
+
     def test_quarantine_outcomes_with_atr(self):
         self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
 
@@ -210,6 +212,8 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
             ("call", "dd_quarantine_atr_final_failed"),
             ("teardown", "passed"),
         ]
+
+        assert len(rec.getcalls("pytest_pyfunc_call")) == 6
 
     def test_quarantine_fail_setup(self):
         self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_SETUP_QUARANTINED)
@@ -366,6 +370,8 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
             ("setup", "skipped"),
             ("teardown", "passed"),
         ]
+
+        assert len(rec.getcalls("pytest_pyfunc_call")) == 0  # test function is not called
 
     def test_quarantine_fail_setup(self):
         self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_SETUP_QUARANTINED)
