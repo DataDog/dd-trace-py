@@ -195,6 +195,24 @@ class Tracer(object):
     """
 
     SHUTDOWN_TIMEOUT = 5
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(Tracer, cls).__new__(cls)
+        else:
+            # ddtrace library does not support context propagation for multiple tracers.
+            # All instances of ddtrace ContextProviders share the same ContextVars. This means that
+            # if you create multiple instances of Tracer, spans will be shared between them creating a
+            # broken experience.
+            # TODO(mabdinur): Convert this warning to an ValueError in 3.0.0
+            deprecate(
+                "Support for multiple Tracer instances is deprecated",
+                ". Use ddtrace.tracer instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="3.0.0",
+            )
+        return cls._instance
 
     def __init__(
         self,

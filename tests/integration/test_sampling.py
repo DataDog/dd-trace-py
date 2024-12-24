@@ -7,9 +7,8 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
+from tests.integration.utils import AGENT_VERSION
 from tests.utils import snapshot
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -19,6 +18,9 @@ TAGS = {"tag1": "mycooltag"}
 
 def snapshot_parametrized_with_writers(f):
     def _patch(writer, tracer):
+        old_sampler = tracer._sampler
+        old_writer = tracer._writer
+        old_tags = tracer._tags
         if writer == "sync":
             writer = AgentWriter(
                 tracer.agent_trace_url,
@@ -29,11 +31,13 @@ def snapshot_parametrized_with_writers(f):
             writer._headers = tracer._writer._headers
         else:
             writer = tracer._writer
-        tracer.configure(writer=writer)
         try:
             return f(writer, tracer)
         finally:
-            tracer.shutdown()
+            tracer.flush()
+            # Reset tracer configurations to avoid leaking state between tests
+            tracer.configure(sampler=old_sampler, writer=old_writer)
+            tracer._tags = old_tags
 
     wrapped = snapshot(include_tracer=True, token_override=f.__name__)(_patch)
     return pytest.mark.parametrize(

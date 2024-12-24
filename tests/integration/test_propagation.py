@@ -3,9 +3,8 @@ import pytest
 from ddtrace import Tracer
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.propagation.http import HTTPPropagator
+from tests.integration.utils import AGENT_VERSION
 from tests.utils import override_global_config
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -33,7 +32,7 @@ def tracer(request):
             kwargs["partial_flush_min_spans"] = partial_flush_min_spans
         tracer.configure(**kwargs)
         yield tracer
-        tracer.shutdown()
+        tracer.flush()
 
 
 @pytest.mark.snapshot()
@@ -65,7 +64,7 @@ def test_trace_tags_multispan():
 def downstream_tracer():
     tracer = Tracer()
     yield tracer
-    tracer.shutdown()
+    tracer.flush()
 
 
 @pytest.mark.snapshot()
