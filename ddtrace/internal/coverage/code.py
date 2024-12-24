@@ -330,7 +330,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         if not is_user_code(code_path):
             print(f'code_path: {code_path} is not user code')
             return code
-        # print(f'code_path: {code_path} is user code')
+        print(f'code_path: {code_path} is user code')
 
         retval = self.instrument_code(code, _module.__package__ if _module is not None else "")
 
