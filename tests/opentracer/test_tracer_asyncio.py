@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.asyncio import context_provider
+from ddtrace.contrib.internal.asyncio import context_provider
 
 
 @pytest.mark.asyncio

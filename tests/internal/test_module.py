@@ -580,7 +580,7 @@ def __getattr__(name):
             "ddtrace.contrib.trace_utils_redis",
             # TODO: The following contrib modules are part of the public API (unlike most integrations).
             # We should consider privatizing the internals of these integrations.
-            "ddtrace.contrib.unittest.patch",
+            "ddtrace.contrib.internal.unittest.patch",
             "ddtrace.contrib.unittest.constants",
             "ddtrace.contrib.pytest.constants",
             "ddtrace.contrib.pytest.newhooks",

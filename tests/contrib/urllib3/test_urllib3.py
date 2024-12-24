@@ -7,8 +7,8 @@ from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.urllib3 import patch
-from ddtrace.contrib.urllib3 import unpatch
+from ddtrace.contrib.internal.urllib3.patch import patch
+from ddtrace.contrib.internal.urllib3.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin

@@ -11,9 +11,9 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.grpc import constants
-from ddtrace.contrib.grpc import patch
-from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.internal.grpc.patch import _unpatch_server
+from ddtrace.contrib.internal.grpc.patch import patch
+from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import flaky

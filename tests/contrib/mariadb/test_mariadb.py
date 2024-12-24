@@ -5,8 +5,8 @@ import mariadb
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.mariadb import patch
-from ddtrace.contrib.mariadb import unpatch
+from ddtrace.contrib.internal.mariadb.patch import patch
+from ddtrace.contrib.internal.mariadb.patch import unpatch
 from tests.contrib.config import MARIADB_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import assert_dict_issuperset

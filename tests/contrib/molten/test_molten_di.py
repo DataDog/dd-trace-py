@@ -4,8 +4,8 @@ import molten
 from molten import DependencyInjector
 
 from ddtrace import Pin
-from ddtrace.contrib.molten import patch
-from ddtrace.contrib.molten import unpatch
+from ddtrace.contrib.internal.molten.patch import patch
+from ddtrace.contrib.internal.molten.patch import unpatch
 from tests.utils import TracerTestCase
 
 

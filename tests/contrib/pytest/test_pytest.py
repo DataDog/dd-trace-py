@@ -9,7 +9,7 @@ import pytest
 import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.pytest import get_version
+from ddtrace.contrib.internal.pytest.patch import get_version
 from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import is_enabled

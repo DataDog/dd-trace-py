@@ -3,9 +3,9 @@ import kombu
 import mock
 
 from ddtrace import Pin
-from ddtrace.contrib.kombu import utils
-from ddtrace.contrib.kombu.patch import patch
-from ddtrace.contrib.kombu.patch import unpatch
+from ddtrace.contrib.internal.kombu import utils
+from ddtrace.contrib.internal.kombu.patch import patch
+from ddtrace.contrib.internal.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME

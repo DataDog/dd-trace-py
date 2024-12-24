@@ -3,8 +3,8 @@ from opentracing.scope_managers.gevent import GeventScopeManager
 import pytest
 
 import ddtrace
-from ddtrace.contrib.gevent import patch
-from ddtrace.contrib.gevent import unpatch
+from ddtrace.contrib.internal.gevent.patch import patch
+from ddtrace.contrib.internal.gevent.patch import unpatch
 
 
 @pytest.fixture()

@@ -4,7 +4,7 @@ import pytest
 
 
 def test_not_deprecated():
-    from ddtrace.contrib.grpc import constants as grpc_constants
+    from ddtrace.contrib.internal.grpc import constants as grpc_constants
 
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("always")
