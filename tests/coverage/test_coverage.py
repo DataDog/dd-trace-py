@@ -10,7 +10,7 @@ time rather than at code execution time.
 import pytest
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(check_logs=False)
 def test_coverage_import_time_lib():
     import os
     from pathlib import Path
