@@ -213,7 +213,6 @@ venv = Venv(
                 "tortoise-orm": latest,
                 "peewee": latest,
                 "requests": latest,
-                "envier": "==0.5.2",
                 "cattrs": "<23.1.1",
                 "protobuf": ">=3",
                 "typing_extensions": latest,
@@ -2837,7 +2836,6 @@ venv = Venv(
                 "datadog-lambda": [">=4.66.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
-                "envier": "==0.5.2",
             },
         ),
         Venv(
