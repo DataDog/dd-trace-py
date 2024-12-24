@@ -31,6 +31,7 @@ def wrapped_function(wrapped, instance, args, kwargs):
 import inspect
 import os
 import sys
+import types
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -61,7 +62,7 @@ def ddtrace_iast_flask_patch():
     module_name = inspect.currentframe().f_back.f_globals["__name__"]
     module = sys.modules[module_name]
     try:
-        module_path, patched_ast = astpatch_module(module, remove_flask_run=True)
+        module_path, patched_ast = astpatch_module(module)
     except Exception:
         log.debug("Unexpected exception while AST patching", exc_info=True)
         return
@@ -71,8 +72,12 @@ def ddtrace_iast_flask_patch():
         return
 
     compiled_code = compile(patched_ast, module_path, "exec")
+    # creating a new module environment to execute the patched code from scratch
+    new_module = types.ModuleType(module_name)
+    module.__dict__.clear()
+    module.__dict__.update(new_module.__dict__)
+    # executing the compiled code in the new module environment
     exec(compiled_code, module.__dict__)  # nosec B102
-    sys.modules[module_name] = compiled_code
 
 
 _iast_propagation_enabled = False

@@ -36,7 +36,7 @@ class BedrockIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
-        if span._get_ctx_item(PROPAGATED_PARENT_ID_KEY) is None:
+        if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
             parent_id = _get_llmobs_parent_id(span) or "undefined"
             span._set_ctx_item(PARENT_ID_KEY, parent_id)
         parameters = {}
