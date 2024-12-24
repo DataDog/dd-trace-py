@@ -52,6 +52,7 @@ def test_coverage_import_time_lib():
         "tests/coverage/included_path/nested_import_time_lib.py": {1, 4},
     }
 
+    print('about to run assertions')
     assert (
         executable == expected_executable
     ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
@@ -59,6 +60,7 @@ def test_coverage_import_time_lib():
     assert (
         covered_with_imports == expected_covered_with_imports
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    print('just run all assertions')
 
 
 @pytest.mark.subprocess
