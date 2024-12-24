@@ -94,8 +94,10 @@ async def _blocked_asgi_app(scope, receive, send):
 def _parse_response_cookies(response_headers):
     cookies = {}
     try:
-        cookie_key, cookie_value = response_headers.get("set-cookie", "").split("=", maxsplit=1)
-        cookies[cookie_key] = cookie_value
+        result = response_headers.get("set-cookie", "").split("=", maxsplit=1)
+        if len(result) == 2:
+            cookie_key, cookie_value = result
+            cookies[cookie_key] = cookie_value
     except Exception:
         log.debug("failed to extract response cookies", exc_info=True)
     return cookies

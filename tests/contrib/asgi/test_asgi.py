@@ -663,6 +663,7 @@ async def test_request_parse_response_cookies(tracer, test_spans, caplog):
     [
         ({}, {}),
         ({"cookie": "cookie1=value1"}, {}),
+        ({"header-1": ""}, {}),
         ({"Set-cookie": "cookie1=value1"}, {}),
         ({"set-Cookie": "cookie1=value1"}, {}),
         ({"SET-cookie": "cookie1=value1"}, {}),
@@ -670,10 +671,14 @@ async def test_request_parse_response_cookies(tracer, test_spans, caplog):
         ({"set-cookie": "1234"}, {}),
         ({"set-cookie": "cookie1=value1"}, {"cookie1": "value1"}),
         ({"set-cookie": "cookie2=value1=value2"}, {"cookie2": "value1=value2"}),
+        ({"set-cookie": "cookie3=="}, {"cookie3": "="}),
     ],
 )
-def test__parse_response_cookies(headers, expected_result):
-    result = _parse_response_cookies(headers)
+def test__parse_response_cookies(headers, expected_result, caplog):
+    with caplog.at_level(logging.DEBUG):
+        result = _parse_response_cookies(headers)
+
+    assert "failed to extract response cookies" not in caplog.text
     assert result == expected_result
 
 
