@@ -15,10 +15,9 @@ from ddtrace.internal import debug
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter
 import ddtrace.sampler
+from tests.integration.utils import AGENT_VERSION
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION == "testagent", reason="The test agent doesn't support startup logs.")

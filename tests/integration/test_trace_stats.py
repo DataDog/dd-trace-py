@@ -10,10 +10,9 @@ from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import SamplingRule
+from tests.integration.utils import AGENT_VERSION
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -99,7 +98,7 @@ assert stats_processor._hostname == "" # report_hostname is disabled by default
     assert status == 0, out + err
 
 
-@pytest.mark.subprocess(err=b"WARNING:root:IAST not enabled but native module is being loaded\n")
+@pytest.mark.subprocess(err=None)
 def test_apm_opt_out_compute_stats_and_configure():
     """
     Ensure stats computation is disabled, but reported as enabled,

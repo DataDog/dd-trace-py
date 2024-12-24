@@ -11,12 +11,11 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal.writer import AgentWriter
+from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import mark_snapshot
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.utils import override_global_config
 from tests.utils import snapshot
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -31,7 +30,7 @@ def test_single_trace_single_span(tracer):
     s.set_metric("float_metric", 12.34)
     s.set_metric("int_metric", 4321)
     s.finish()
-    tracer.shutdown()
+    tracer.flush()
 
 
 @snapshot(include_tracer=True)
@@ -49,15 +48,22 @@ def test_multiple_traces(tracer):
         s.set_metric("float_metric", 12.34)
         s.set_metric("int_metric", 4321)
         tracer.trace("child").finish()
-    tracer.shutdown()
+    tracer.flush()
 
 
-@pytest.mark.parametrize(
-    "writer",
-    ("default", "sync"),
-)
 @snapshot(include_tracer=True)
-def test_filters(writer, tracer):
+@pytest.mark.subprocess(
+    parametrize={"DD_WRITER_MODE": ["default", "sync"]},
+    token="tests.integration.test_integration_snapshots.test_filters",
+)
+def test_filters():
+    import os
+
+    from ddtrace import tracer
+    from ddtrace.internal.writer import AgentWriter
+
+    writer = os.environ.get("DD_WRITER_MODE", "default")
+
     if writer == "sync":
         writer = AgentWriter(
             tracer.agent_trace_url,
@@ -89,15 +95,18 @@ def test_filters(writer, tracer):
     with tracer.trace("root"):
         with tracer.trace("child"):
             pass
-    tracer.shutdown()
+    tracer.flush()
 
 
 # Have to use sync mode snapshot so that the traces are associated to this
 # test case since we use a custom writer (that doesn't have the trace headers
 # injected).
+@pytest.mark.subprocess()
 @snapshot(async_mode=False)
 def test_synchronous_writer():
-    tracer = Tracer()
+    from ddtrace import tracer
+    from ddtrace.internal.writer import AgentWriter
+
     writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
     tracer.configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
@@ -122,14 +131,14 @@ def test_tracer_trace_across_popen():
     def task(tracer):
         with tracer.trace("child"):
             pass
-        tracer.shutdown()
+        tracer.flush()
 
     with tracer.trace("parent"):
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
 
-    tracer.shutdown()
+    tracer.flush()
 
 
 @snapshot(async_mode=False)
@@ -146,19 +155,19 @@ def test_tracer_trace_across_multiple_popens():
         def task2(tracer):
             with tracer.trace("child2"):
                 pass
-            tracer.shutdown()
+            tracer.flush()
 
         with tracer.trace("child1"):
             p = multiprocessing.Process(target=task2, args=(tracer,))
             p.start()
             p.join()
-        tracer.shutdown()
+        tracer.flush()
 
     with tracer.trace("parent"):
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
-    tracer.shutdown()
+    tracer.flush()
 
 
 @snapshot()
@@ -225,7 +234,7 @@ def test_tracetagsprocessor_only_adds_new_tags():
         span.context.sampling_priority = AUTO_KEEP
         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
 
-    tracer.shutdown()
+    tracer.flush()
 
 
 # Override the token so that both parameterizations of the test use the same snapshot

@@ -3,7 +3,6 @@ import os
 import mock
 import pytest
 
-from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -12,6 +11,7 @@ from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer as Tracer
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig

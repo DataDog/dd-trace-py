@@ -7,9 +7,8 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
+from tests.integration.utils import AGENT_VERSION
 from tests.utils import snapshot
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
