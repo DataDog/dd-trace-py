@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASGI: This fix resolves an issue parsing response cookies in FastAPI and awsgi
