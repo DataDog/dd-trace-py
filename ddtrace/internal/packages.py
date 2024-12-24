@@ -215,6 +215,7 @@ def _third_party_packages() -> set:
 @cached(maxsize=16384)
 def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
     mapping = _package_for_root_module_mapping()
+    print('   mapping for:', filename, mapping)
     if mapping is None:
         return None
 
@@ -253,8 +254,8 @@ def is_third_party(path: Path) -> bool:
     if package is None:
         print('   cannot detect package:', path)
         return False
-    print('   package:', package.name)
-    print('   third party:', _third_party_packages())
+    print('   detected package:', package.name, 'from', path)
+    print('   third party:', package.name in _third_party_packages())
     return package.name in _third_party_packages()
 
 
