@@ -1,5 +1,5 @@
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
 

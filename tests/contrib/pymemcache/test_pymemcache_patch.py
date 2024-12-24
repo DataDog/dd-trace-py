@@ -3,12 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.pymemcache import get_version
-from ddtrace.contrib.pymemcache.patch import patch
+from ddtrace.contrib.internal.pymemcache.patch import get_version
+from ddtrace.contrib.internal.pymemcache.patch import patch
 
 
 try:
-    from ddtrace.contrib.pymemcache.patch import unpatch
+    from ddtrace.contrib.internal.pymemcache.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

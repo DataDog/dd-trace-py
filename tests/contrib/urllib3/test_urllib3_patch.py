@@ -1,6 +1,6 @@
-from ddtrace.contrib.urllib3 import get_version
-from ddtrace.contrib.urllib3 import patch
-from ddtrace.contrib.urllib3 import unpatch
+from ddtrace.contrib.internal.urllib3.patch import get_version
+from ddtrace.contrib.internal.urllib3.patch import patch
+from ddtrace.contrib.internal.urllib3.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 

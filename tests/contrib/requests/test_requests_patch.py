@@ -3,12 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.requests import get_version
-from ddtrace.contrib.requests.patch import patch
+from ddtrace.contrib.internal.requests.patch import get_version
+from ddtrace.contrib.internal.requests.patch import patch
 
 
 try:
-    from ddtrace.contrib.requests.patch import unpatch
+    from ddtrace.contrib.internal.requests.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

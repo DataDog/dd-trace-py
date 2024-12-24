@@ -1,5 +1,5 @@
-from ddtrace.contrib.snowflake import get_version
-from ddtrace.contrib.snowflake import patch
+from ddtrace.contrib.internal.snowflake.patch import get_version
+from ddtrace.contrib.internal.snowflake.patch import patch
 from tests.contrib.patch import PatchTestCase
 
 

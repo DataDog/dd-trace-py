@@ -1,9 +1,9 @@
-from ddtrace.contrib.httplib.patch import get_version
-from ddtrace.contrib.httplib.patch import patch
+from ddtrace.contrib.internal.httplib.patch import get_version
+from ddtrace.contrib.internal.httplib.patch import patch
 
 
 try:
-    from ddtrace.contrib.httplib.patch import unpatch
+    from ddtrace.contrib.internal.httplib.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

@@ -1,7 +1,7 @@
 from falcon import testing
 
 from ddtrace import config
-from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 

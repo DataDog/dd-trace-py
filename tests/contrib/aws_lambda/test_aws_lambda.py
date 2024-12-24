@@ -1,7 +1,7 @@
 import pytest
 
-from ddtrace.contrib.aws_lambda import patch
-from ddtrace.contrib.aws_lambda import unpatch
+from ddtrace.contrib.internal.aws_lambda.patch import patch
+from ddtrace.contrib.internal.aws_lambda.patch import unpatch
 from tests.contrib.aws_lambda.handlers import class_handler
 from tests.contrib.aws_lambda.handlers import datadog
 from tests.contrib.aws_lambda.handlers import finishing_spans_early_handler

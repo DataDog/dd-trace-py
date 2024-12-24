@@ -116,8 +116,8 @@ def test_slow_imports():
         sys.meta_path.insert(0, BlockListFinder())
 
         import ddtrace
-        import ddtrace.contrib.aws_lambda  # noqa:F401
-        import ddtrace.contrib.psycopg  # noqa:F401
+        import ddtrace.contrib.internal.aws_lambda  # noqa:F401
+        import ddtrace.contrib.internal.psycopg  # noqa:F401
 
     finally:
         if isinstance(sys.meta_path[0], BlockListFinder):

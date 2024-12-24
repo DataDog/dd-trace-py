@@ -7,8 +7,8 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.vertica.patch import patch
-from ddtrace.contrib.vertica.patch import unpatch
+from ddtrace.contrib.internal.vertica.patch import patch
+from ddtrace.contrib.internal.vertica.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.settings.config import _deepmerge
 from tests.contrib.config import VERTICA_CONFIG

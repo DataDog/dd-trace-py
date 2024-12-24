@@ -1,6 +1,6 @@
-from ddtrace.contrib.vertexai import get_version
-from ddtrace.contrib.vertexai import patch
-from ddtrace.contrib.vertexai import unpatch
+from ddtrace.contrib.internal.vertexai.patch import get_version
+from ddtrace.contrib.internal.vertexai.patch import patch
+from ddtrace.contrib.internal.vertexai.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 

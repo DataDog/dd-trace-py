@@ -3,7 +3,7 @@ import flask
 import wrapt
 
 from ddtrace import Pin
-from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

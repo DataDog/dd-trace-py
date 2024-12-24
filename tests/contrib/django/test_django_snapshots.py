@@ -156,8 +156,8 @@ def test_404_exceptions(client):
 def psycopg2_patched(transactional_db):
     from django.db import connections
 
-    from ddtrace.contrib.psycopg.patch import patch
-    from ddtrace.contrib.psycopg.patch import unpatch
+    from ddtrace.contrib.internal.psycopg.patch import patch
+    from ddtrace.contrib.internal.psycopg.patch import unpatch
 
     patch()
 
@@ -204,8 +204,8 @@ def psycopg3_patched(transactional_db):
     else:
         from django.db import connections
 
-        from ddtrace.contrib.psycopg.patch import patch
-        from ddtrace.contrib.psycopg.patch import unpatch
+        from ddtrace.contrib.internal.psycopg.patch import patch
+        from ddtrace.contrib.internal.psycopg.patch import unpatch
 
         patch()
 

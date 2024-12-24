@@ -1,6 +1,6 @@
 from falcon import testing
 
-from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from tests.utils import TracerTestCase
 
 from .app import get_app

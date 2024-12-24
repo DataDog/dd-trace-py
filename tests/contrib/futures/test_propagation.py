@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from ddtrace.contrib.futures import patch
-from ddtrace.contrib.futures import unpatch
+from ddtrace.contrib.internal.futures.patch import patch
+from ddtrace.contrib.internal.futures.patch import unpatch
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase

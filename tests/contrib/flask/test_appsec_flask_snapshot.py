@@ -11,7 +11,7 @@ from typing import List  # noqa:F401
 import pytest
 
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.retry import RetryError

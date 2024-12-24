@@ -3,8 +3,8 @@ from flask.testing import FlaskClient
 import wrapt
 
 from ddtrace import Pin
-from ddtrace.contrib.flask import patch
-from ddtrace.contrib.flask import unpatch
+from ddtrace.contrib.internal.flask.patch import patch
+from ddtrace.contrib.internal.flask.patch import unpatch
 from tests.utils import TracerTestCase
 
 

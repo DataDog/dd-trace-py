@@ -11,8 +11,8 @@ import pytest
 from ddtrace import Pin
 from ddtrace._trace.context import Context
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.celery import patch
-from ddtrace.contrib.celery import unpatch
+from ddtrace.contrib.internal.celery.patch import patch
+from ddtrace.contrib.internal.celery.patch import unpatch
 import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from tests.opentracer.utils import init_tracer

@@ -4,8 +4,8 @@ import mongoengine
 import pymongo
 
 from ddtrace import Pin
-from ddtrace.contrib.mongoengine.patch import patch
-from ddtrace.contrib.mongoengine.patch import unpatch
+from ddtrace.contrib.internal.mongoengine.patch import patch
+from ddtrace.contrib.internal.mongoengine.patch import unpatch
 from ddtrace.ext import mongo as mongox
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
