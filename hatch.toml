@@ -124,7 +124,7 @@ extra-dependencies = [
 ]
 
 [envs.slotscheck.scripts]
-_ = [
+test = [
     "python -m slotscheck -v ddtrace/",
 ]
 
@@ -154,9 +154,12 @@ extra-dependencies = [
     "pytest-cov",
     "hypothesis<6.45.1"
 ]
+[envs.meta-testing.env-vars]
+DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
+
 [envs.meta-testing.scripts]
-meta-testing = [
-  "pytest {args} tests/meta"
+test = [
+  "pytest {args} --no-ddtrace tests/meta"
 ]
 
 [envs.integration_test]

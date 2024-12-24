@@ -521,7 +521,7 @@ venv = Venv(
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.12"),
+                    pys=select_pys(),
                     pkgs={
                         "redis": latest,
                         "gevent": latest,
@@ -586,6 +586,7 @@ venv = Venv(
                 "vertica-python": ">=0.6.0,<0.7.0",
                 "kombu": ">=4.2.0,<4.3.0",
                 "pytest-randomly": latest,
+                "requests": latest,
             },
         ),
         Venv(
@@ -805,6 +806,7 @@ venv = Venv(
                 "django-q": latest,
                 "spyne": latest,
                 "zeep": latest,
+                "bcrypt": "==4.2.1",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",

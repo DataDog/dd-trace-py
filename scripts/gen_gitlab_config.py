@@ -15,7 +15,7 @@ class JobSpec:
     runner: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
-    services: t.Optional[t.Set[str]] = None
+    services: t.Optional[t.List[str]] = None
     env: t.Optional[t.Dict[str, str]] = None
     parallelism: t.Optional[int] = None
     retry: t.Optional[int] = None
@@ -32,15 +32,24 @@ class JobSpec:
         lines.append(f"{self.name}:")
         lines.append(f"  extends: {base}")
 
-        if self.services:
+        services = set(self.services or [])
+        if services:
             lines.append("  services:")
 
-            _services = [f"!reference [.services, {_}]" for _ in self.services]
+            _services = [f"!reference [.services, {_}]" for _ in services]
             if self.snapshot:
                 _services.insert(0, f"!reference [{base}, services]")
 
             for service in _services:
                 lines.append(f"    - {service}")
+
+        wait_for: t.Set[str] = services.copy()
+        if self.snapshot:
+            wait_for.add("testagent")
+        if wait_for:
+            lines.append("  before_script:")
+            lines.append(f"    - !reference [{base}, before_script]")
+            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
         if not env or "SUITE_NAME" not in env:
@@ -86,10 +95,7 @@ def gen_required_suites() -> None:
         circleci_jobs = set(circleci_config["jobs"].keys())
 
     # Copy the template file
-    TESTS_GEN.write_text(
-        (GITLAB / "tests.yml").read_text().replace(r"{{services.yml}}", (GITLAB / "services.yml").read_text())
-    )
-
+    TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
@@ -153,16 +159,6 @@ def gen_pre_checks() -> None:
         name="Check suitespec coverage",
         command="hatch run lint:suitespec-check",
         paths={"*"},
-    )
-    check(
-        name="conftest",
-        command="hatch run meta-testing:meta-testing",
-        paths={"**conftest.py"},
-    )
-    check(
-        name="slotscheck",
-        command="hatch run slotscheck:_",
-        paths={"**.py"},
     )
 
 
