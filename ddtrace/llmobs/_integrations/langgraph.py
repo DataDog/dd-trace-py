@@ -43,7 +43,7 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         span_links = [_default_span_link(span)]
         invoked_node_span_links = invoked_node.get("span_links")
-        if invoked_node_span_links is not None and operation == "node":
+        if invoked_node_span_links is not None:
             span_links = invoked_node_span_links
         current_span_links = span._get_ctx_item(SPAN_LINKS) or []
 

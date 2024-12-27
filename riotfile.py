@@ -2736,6 +2736,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/langgraph",
             pys=select_pys(min_version="3.9"),
             pkgs={
+                "pytest-asyncio": latest,
                 "langgraph": "~=0.2.60",
             },
         ),
