@@ -45,6 +45,8 @@ add_library(
     src/crashtracker.cpp
     src/crashtracker_interface.cpp
     src/ddup_interface.cpp
+    src/library_config.cpp
+    src/library_config_interface.cpp
     src/profile.cpp
     src/receiver_interface.cpp
     src/sample.cpp
