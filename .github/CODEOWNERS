@@ -146,6 +146,8 @@ ddtrace/contrib/internal/google_generativeai            @DataDog/ml-observabilit
 ddtrace/contrib/google_generativeai                     @DataDog/ml-observability
 ddtrace/contrib/internal/vertexai                       @DataDog/ml-observability
 ddtrace/contrib/vertexai                                @DataDog/ml-observability
+ddtrace/contrib/langgraph                               @DataDog/ml-observability
+ddtrace/contrib/internal/langgraph                      @DataDog/ml-observability
 tests/llmobs                                            @DataDog/ml-observability
 tests/contrib/openai                                    @DataDog/ml-observability
 tests/contrib/langchain                                 @DataDog/ml-observability
@@ -155,6 +157,7 @@ tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observabilit
 tests/contrib/anthropic                                 @DataDog/ml-observability
 tests/contrib/google_generativeai                       @DataDog/ml-observability
 tests/contrib/vertexai                                  @DataDog/ml-observability
+tests/contrib/langgraph                                 @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                @DataDog/ml-observability
 
 # Remote Config

@@ -12,9 +12,9 @@ class TestLangGraphPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, langgraph):
-        from langgraph.utils.runnable import RunnableSeq
         from langgraph.pregel import Pregel
         from langgraph.pregel.loop import PregelLoop
+        from langgraph.utils.runnable import RunnableSeq
 
         self.assert_wrapped(RunnableSeq.invoke)
         self.assert_wrapped(RunnableSeq.ainvoke)
@@ -23,9 +23,9 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_wrapped(PregelLoop.tick)
 
     def assert_not_module_patched(self, langgraph):
-        from langgraph.utils.runnable import RunnableSeq
         from langgraph.pregel import Pregel
         from langgraph.pregel.loop import PregelLoop
+        from langgraph.utils.runnable import RunnableSeq
 
         self.assert_not_wrapped(RunnableSeq.invoke)
         self.assert_not_wrapped(RunnableSeq.ainvoke)
@@ -34,9 +34,9 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_not_wrapped(PregelLoop.tick)
 
     def assert_not_module_double_patched(self, langgraph):
-        from langgraph.utils.runnable import RunnableSeq
         from langgraph.pregel import Pregel
         from langgraph.pregel.loop import PregelLoop
+        from langgraph.utils.runnable import RunnableSeq
 
         self.assert_not_double_wrapped(RunnableSeq.invoke)
         self.assert_not_double_wrapped(RunnableSeq.ainvoke)

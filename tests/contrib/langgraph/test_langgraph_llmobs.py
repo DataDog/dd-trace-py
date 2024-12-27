@@ -17,7 +17,7 @@ def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
-    [{"_llmobs_enabled": True, "_api_key": "<not-a-real-key>", "_llmobs_ml_app": "unnamed-ml-app"}]
+    [{"_llmobs_enabled": True, "_api_key": "<not-a-real-key>", "_llmobs_ml_app": "unnamed-ml-app"}],
 )
 class TestLangGraphLLMObs:
     def test_simple_graph(self, ddtrace_global_config, langgraph, simple_graph, mock_llmobs_writer):
@@ -53,7 +53,9 @@ class TestLangGraphLLMObs:
         assert span_events[2][0][0]["name"] == "c"
         _assert_span_link(span_events[2][0][0], span_events[1][0][0], "output", "input")
 
-    async def test_conditional_graph_async(self, ddtrace_global_config, langgraph, conditional_graph, mock_llmobs_writer):
+    async def test_conditional_graph_async(
+        self, ddtrace_global_config, langgraph, conditional_graph, mock_llmobs_writer
+    ):
         await conditional_graph.ainvoke({"a_list": [], "which": "b"})
         span_events = mock_llmobs_writer.enqueue.call_args_list
         assert span_events[0][0][0]["name"] == "LangGraph"
@@ -115,7 +117,6 @@ class TestLangGraphLLMObs:
         assert span_events[4][0][0]["name"] == "d"
         _assert_span_link(span_events[4][0][0], span_events[2][0][0], "output", "input")
         _assert_span_link(span_events[4][0][0], span_events[3][0][0], "output", "input")
-
 
     async def test_fanning_graph_async(self, ddtrace_global_config, langgraph, fanning_graph, mock_llmobs_writer):
         await fanning_graph.ainvoke({"a_list": [], "which": ""})

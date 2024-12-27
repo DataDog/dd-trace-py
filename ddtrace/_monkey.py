@@ -147,7 +147,10 @@ _MODULES_FOR_CONTRIB = {
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
-    "langgraph": ("langgraph", "langgraph.graph",),
+    "langgraph": (
+        "langgraph",
+        "langgraph.graph",
+    ),
 }
 
 

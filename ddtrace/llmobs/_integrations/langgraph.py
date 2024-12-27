@@ -65,7 +65,9 @@ class LangGraphIntegration(BaseLLMIntegration):
         """Compute incoming and outgoing span links between finished tasks and queued tasks in the graph."""
         if not self.llmobs_enabled:
             return
-        graph_span = tracer.current_span() # we're running between nodes, so the current span should be the pregel graph
+        graph_span = (
+            tracer.current_span()
+        )  # we're running between nodes, so the current span should be the pregel graph
         if graph_span is None or graph_span.span_type != SpanTypes.LLM:
             return
 
@@ -76,11 +78,10 @@ class LangGraphIntegration(BaseLLMIntegration):
         for task_id, task in next_tasks.items():
             self._link_task_to_parent(task_id, task, finished_task_names_to_ids)
 
-
     def _handle_finished_graph(self, graph_span, finished_tasks, is_subgraph_node):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
         Generate the output-to-output span links for the last nodes in a pregel graph.
-        If the graph isn't a subgraph, add a span link from the graph span to the LLMObs parent span which called the graph.
+        If the graph isn't a subgraph, add a span link from the graph span to the calling LLMObs parent span.
         Note: is_subgraph_node denotes whether the graph is a subgraph node,
          not whether it is a standalone graph (called internally during a node execution).
         """
@@ -102,7 +103,6 @@ class LangGraphIntegration(BaseLLMIntegration):
             ]
             graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
         return
-
 
     def _link_task_to_parent(self, task_id, task, finished_task_names_to_ids):
         """Create the span links for a queued task from its triggering parent tasks."""

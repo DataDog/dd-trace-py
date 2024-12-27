@@ -14,6 +14,7 @@ from ddtrace.pin import Pin
 
 def get_version():
     from langgraph import version
+
     return getattr(version, "__version__", "")
 
 
@@ -49,7 +50,9 @@ def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     span = integration.trace(
-        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name), submit_to_llmobs=True,
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name),
+        submit_to_llmobs=True,
     )
     result = None
     try:
@@ -76,7 +79,9 @@ async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwar
         return await func(*args, **kwargs)
 
     span = integration.trace(
-        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name), submit_to_llmobs=True,
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name),
+        submit_to_llmobs=True,
     )
     result = None
     try:
@@ -100,7 +105,9 @@ def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
     span = integration.trace(
-        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name), submit_to_llmobs=True,
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name),
+        submit_to_llmobs=True,
     )
     result = None
     try:
@@ -121,7 +128,9 @@ async def traced_pregel_ainvoke(langgraph, pin, func, instance, args, kwargs):
     """Async version of traced_pregel_invoke."""
     integration: LangGraphIntegration = langgraph._datadog_integration
     span = integration.trace(
-        pin, "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name), submit_to_llmobs=True,
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name),
+        submit_to_llmobs=True,
     )
     result = None
     try:
@@ -162,9 +171,9 @@ def patch():
     integration = LangGraphIntegration(integration_config=config.langgraph)
     langgraph._datadog_integration = integration
 
-    from langgraph.utils.runnable import RunnableSeq
     from langgraph.pregel import Pregel
     from langgraph.pregel.loop import PregelLoop
+    from langgraph.utils.runnable import RunnableSeq
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
     wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
@@ -172,15 +181,16 @@ def patch():
     wrap(Pregel, "ainvoke", traced_pregel_ainvoke(langgraph))
     wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
 
+
 def unpatch():
     if not getattr(langgraph, "_datadog_patch", False):
         return
 
     langgraph._datadog_patch = False
 
-    from langgraph.utils.runnable import RunnableSeq
     from langgraph.pregel import Pregel
     from langgraph.pregel.loop import PregelLoop
+    from langgraph.utils.runnable import RunnableSeq
 
     unwrap(RunnableSeq, "invoke")
     unwrap(RunnableSeq, "ainvoke")

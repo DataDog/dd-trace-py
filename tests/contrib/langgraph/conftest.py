@@ -1,12 +1,12 @@
-from typing import TypedDict
-from typing import Annotated
 import operator
-
-from langgraph.graph import StateGraph
-from langgraph.graph import START
-from langgraph.graph import END
-import pytest
+from typing import Annotated
+from typing import TypedDict
 from unittest import mock
+
+from langgraph.graph import END
+from langgraph.graph import START
+from langgraph.graph import StateGraph
+import pytest
 
 from ddtrace import Pin
 from ddtrace.contrib.internal.langgraph.patch import patch
@@ -62,6 +62,7 @@ class State(TypedDict):
 def _do_op(name):
     def op(state: State):
         return {"a_list": [name]}
+
     return op
 
 
