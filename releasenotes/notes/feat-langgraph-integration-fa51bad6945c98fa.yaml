@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    langgraph: Introduces tracing support for the LangGraph framework's graph ``invoke()`` and ``ainvoke()`` calls.
+     See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#langgraph>`_ for more information.
+  - |
+    LLM Observability: Adds support to automatically submit LangGraph graph calls to LLM Observability.
