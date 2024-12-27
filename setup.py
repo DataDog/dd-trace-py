@@ -51,6 +51,7 @@ LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
+LIBRARY_CONFIG_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "library_config"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
@@ -551,6 +552,14 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
+                optional=False,
+            )
+        )
+
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.library_config._library_config",
+                source_dir=LIBRARY_CONFIG_DIR,
                 optional=False,
             )
         )

@@ -1,8 +1,18 @@
 import sys
+import os
 import warnings
 
 
 LOADED_MODULES = frozenset(sys.modules.keys())
+
+# Configuration for the whole tracer from file. Do it before anything else happens.
+from ddtrace.internal.datadog.profiling import library_config
+
+library_config.set_envp(["%s=%s" % (k, v) for k, v in os.environ.items()])
+library_config.set_args(sys.argv)
+for key, value in library_config.get_config(debug_logs=True).items():
+    os.environ[key] = str(value).lower()
+
 
 from ddtrace.internal.module import ModuleWatchdog
 
