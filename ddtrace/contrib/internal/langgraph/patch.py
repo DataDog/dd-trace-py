@@ -18,13 +18,7 @@ def get_version():
     return getattr(version, "__version__", "")
 
 
-config._add(
-    "langgraph",
-    {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGGRAPH_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_LANGGRAPH_SPAN_CHAR_LIMIT", 128)),
-    },
-)
+config._add("langgraph", {})
 
 
 @with_traced_module
