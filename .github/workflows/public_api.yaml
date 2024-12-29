@@ -1,0 +1,67 @@
+name: Public API Check
+on:
+  pull_request:
+
+jobs:
+  diff:
+    name: Diff Public API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        name: Install Python
+        with:
+          python-version: '3.13.1'
+
+      - name: Install Delta
+        run: |
+          wget "https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_amd64.deb"
+          sudo dpkg -i git-delta_0.18.2_amd64.deb
+
+      - name: Generate Public API
+        run: ./scripts/pyapi generate > new_api.yaml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Public API
+          path: |
+            .api.yaml
+            new_api.yaml
+
+      - name: Diff Public API
+        run: delta --paging=never .api.yaml new_api.yaml
+  lint:
+    name: Lint Public API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        name: Install Python
+        with:
+          python-version: '3.13.1'
+
+      - name: Lint Public API
+        continue-on-error: true
+        run: ./scripts/pyapi lint
+
+      - name: Dump Lint JSON
+        continue-on-error: true
+        run: ./scripts/pyapi lint --json > public_api_lint.json
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Public API Lint
+          path: |
+            public_api_lint.json
