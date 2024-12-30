@@ -42,6 +42,16 @@ def track_object_interactions(frame, event, arg):
     return track_object_interactions
 
 
+def track_item_if_primitive(item):
+    if isinstance(item, str):
+        item = TrackedStr(item)
+    elif isinstance(item, list):
+        item = TrackedList(item)
+    elif isinstance(item, dict):
+        item = TrackedDict(item)
+    return item
+
+
 class TrackedStr(str):
     def __add__(self, other):
         result = super().__add__(other)
@@ -99,6 +109,11 @@ class TrackedList(list):
         super().__setitem__(key, value)
         _record_relationship(self, value)
 
+    def __getitem__(self, key):
+        item = super().__setitem__(key)
+        item = track_item_if_primitive(item)
+        return item
+
     def __add__(self, other):
         result = super().__add__(other)
         _record_relationship(self, other)
@@ -124,6 +139,11 @@ class TrackedDict(dict):
         for arg in args:
             _record_relationship(self, arg)
         return result
+
+    def __getitem__(self, key):
+        item = super().__getitem__(key)
+        item = track_item_if_primitive(item)
+        return item
 
     def pop(self, key, *args, **kwargs):
         val = super().pop(key, *args, **kwargs)
