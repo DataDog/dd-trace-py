@@ -30,6 +30,7 @@ from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -570,7 +571,7 @@ def test_template_simple_view(client, test_spans):
     view_span = view_spans[0]
     view_span.assert_matches(
         name="django.view",
-        service="custom-service",
+        service="django",
         resource="tests.contrib.django.views.template_simple_view",
         error=0,
     )
@@ -754,7 +755,7 @@ def test_cache_get(test_spans):
     assert len(spans) == 1
 
     span = spans[0]
-    assert span.service == "default-cache"
+    assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
     assert span.name == "django.cache"
     assert span.span_type == "cache"
@@ -769,6 +770,25 @@ def test_cache_get(test_spans):
     assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
+def test_cache_service_schematization(test_spans):
+    from ddtrace import config
+
+    cache = django.core.cache.caches["default"]
+
+    env = os.environ.copy()
+
+    env["DD_SERVICE"] = "custom-service-name"
+
+    cache.set("test_key", "test_value")
+    expected_service_name = schematize_service_name(config.django.cache_service_name)
+
+    spans = test_spans.get_spans()
+    assert spans
+
+    span = spans[0]
+    assert span.service == expected_service_name
+
+
 def test_cache_get_rowcount_existing_key(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
@@ -781,7 +801,7 @@ def test_cache_get_rowcount_existing_key(test_spans):
     assert len(spans) == 2
 
     span = spans[1]
-    assert span.service == "default-cache"
+    assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
 
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
@@ -797,7 +817,7 @@ def test_cache_get_rowcount_missing_key(test_spans):
     assert len(spans) == 1
 
     span = spans[0]
-    assert span.service == "default-cache"
+    assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
 
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
@@ -838,7 +858,7 @@ def test_cache_get_rowcount_missing_key_with_default(test_spans):
     spans = test_spans.get_spans()
     assert len(spans) == 1
     span = spans[0]
-    assert span.service == "default-cache"
+    assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
     assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
 
@@ -976,7 +996,7 @@ def test_cache_get_unicode(test_spans):
     assert len(spans) == 1
 
     span = spans[0]
-    assert span.service == "default-cache"
+    assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
     assert span.name == "django.cache"
     assert span.span_type == "cache"
@@ -1169,12 +1189,12 @@ def test_cache_decr_2XX(test_spans):
     span_incr = spans[1]
 
     # LocMemCache doesn't provide an atomic operation
-    assert span_incr.service == "default-cache"
+    assert span_incr.service == "django"
     assert span_incr.resource == "django.core.cache.backends.locmem.incr"
     assert span_incr.name == "django.cache"
     assert span_incr.span_type == "cache"
     assert span_incr.error == 0
-    assert span_decr.service == "default-cache"
+    assert span_decr.service == "django"
     assert span_decr.resource == "django.core.cache.backends.base.decr"
     assert span_decr.name == "django.cache"
     assert span_decr.span_type == "cache"
@@ -1328,17 +1348,17 @@ def test_cache_set_many(test_spans):
     span_set_second = spans[2]
 
     # LocMemCache doesn't provide an atomic operation
-    assert span_set_first.service == "default-cache"
+    assert span_set_first.service == "django"
     assert span_set_first.resource == "django.core.cache.backends.locmem.set"
     assert span_set_first.name == "django.cache"
     assert span_set_first.span_type == "cache"
     assert span_set_first.error == 0
-    assert span_set_second.service == "default-cache"
+    assert span_set_second.service == "django"
     assert span_set_second.resource == "django.core.cache.backends.locmem.set"
     assert span_set_second.name == "django.cache"
     assert span_set_second.span_type == "cache"
     assert span_set_second.error == 0
-    assert span_set_many.service == "default-cache"
+    assert span_set_many.service == "django"
     assert span_set_many.resource == "django.core.cache.backends.base.set_many"
     assert span_set_many.name == "django.cache"
     assert span_set_many.span_type == "cache"
@@ -1363,17 +1383,17 @@ def test_cache_delete_many(test_spans):
     span_delete_second = spans[2]
 
     # LocMemCache doesn't provide an atomic operation
-    assert span_delete_first.service == "default-cache"
+    assert span_delete_first.service == "django"
     assert span_delete_first.resource == "django.core.cache.backends.locmem.delete"
     assert span_delete_first.name == "django.cache"
     assert span_delete_first.span_type == "cache"
     assert span_delete_first.error == 0
-    assert span_delete_second.service == "default-cache"
+    assert span_delete_second.service == "django"
     assert span_delete_second.resource == "django.core.cache.backends.locmem.delete"
     assert span_delete_second.name == "django.cache"
     assert span_delete_second.span_type == "cache"
     assert span_delete_second.error == 0
-    assert span_delete_many.service == "default-cache"
+    assert span_delete_many.service == "django"
     assert span_delete_many.resource == "django.core.cache.backends.base.delete_many"
     assert span_delete_many.name == "django.cache"
     assert span_delete_many.span_type == "cache"
