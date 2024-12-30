@@ -775,18 +775,13 @@ def test_cache_service_schematization(test_spans):
 
     cache = django.core.cache.caches["default"]
 
-    env = os.environ.copy()
-
-    env["DD_SERVICE"] = "custom-service-name"
-
-    cache.set("test_key", "test_value")
-    expected_service_name = schematize_service_name(config.django.cache_service_name)
-
-    spans = test_spans.get_spans()
-    assert spans
-
-    span = spans[0]
-    assert span.service == expected_service_name
+    with override_config("django", dict(cache_service_name="test-cache-service")):
+        cache.get("missing_key")
+        spans = test_spans.get_spans()
+        assert spans
+        span = spans[0]
+        expected_service_name = schematize_service_name(config.django.cache_service_name)
+        assert span.service == expected_service_name
 
 
 def test_cache_get_rowcount_existing_key(test_spans):
