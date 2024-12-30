@@ -808,11 +808,12 @@ class LLMObs(Service):
                       Must be a string (categorical), integer (score), or float (score).
         :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
                             the span associated with this evaluation.
-        :param tuple span_with_tag_value: A dictionary of shape {'tag_key': str, 'tag_value': str} uniquely identifying
-                            the span associated with this evaluation.
+        :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
+                            uniquely identifying the span associated with this evaluation.
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
-        :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
+        :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
+                                    If not set, the current time will be used.
         """
         if cls.enabled is False:
             log.debug(
@@ -873,9 +874,8 @@ class LLMObs(Service):
 
         if tags is not None and not isinstance(tags, dict):
             log.warning("tags must be a dictionary of string key-value pairs.")
-            tags = None
+            tags = {}
 
-        # initialize tags with default values that will be overridden by user-provided tags
         evaluation_tags = {
             "ddtrace.version": ddtrace.__version__,
             "ml_app": ml_app,
@@ -899,7 +899,7 @@ class LLMObs(Service):
         evaluation_metric = {
             "join_on": join_on,
             "label": str(label),
-            "metric_type": metric_type.lower(),
+            "metric_type": metric_type,
             "timestamp_ms": timestamp_ms,
             "{}_value".format(metric_type): value,
             "ml_app": ml_app,
