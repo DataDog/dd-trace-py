@@ -35,7 +35,7 @@ def track_object_interactions(frame, event, arg):
                 "extend",
                 "update",
             ]:
-                _record_relationship(source_obj, incoming_obj, f"{method_name} operation")
+                _record_relationship(source_obj, incoming_obj)
     except Exception as e:
         print("Error capturing object interactions ", e)
 
@@ -46,25 +46,25 @@ class TrackedStr(str):
     def __add__(self, other):
         result = super().__add__(other)
         result = TrackedStr(result)
-        _record_relationship(result, other, "__add__")
-        _record_relationship(result, self, "__add__")
+        _record_relationship(result, other)
+        _record_relationship(result, self)
         return result
 
     def __radd__(self, other):
         result = super().__radd__(other)
         result = TrackedStr(result)
-        _record_relationship(result, other, "__radd__")
-        _record_relationship(result, self, "__radd__")
+        _record_relationship(result, other)
+        _record_relationship(result, self)
         return result
 
     def format(self, *args, **kwargs):
         result = super().format(*args, **kwargs)
         result = TrackedStr(result)
         for arg in args:
-            _record_relationship(result, arg, "format")
+            _record_relationship(result, arg)
         for _, value in kwargs.items():
-            _record_relationship(result, value, "format")
-        _record_relationship(result, self, "format")
+            _record_relationship(result, value)
+        _record_relationship(result, self)
         return result
 
     def split(self, *args, **kwargs):
@@ -78,30 +78,30 @@ class TrackedList(list):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for item in self:
-            _record_relationship(self, item, "__init__")
+            _record_relationship(self, item)
 
     def append(self, item):
         result = super().append(item)
-        _record_relationship(self, item, "append")
+        _record_relationship(self, item)
         return result
 
     def extend(self, iterable):
         result = super().extend(iterable)
-        _record_relationship(self, iterable, "extend")
+        _record_relationship(self, iterable)
         return result
 
     def __delitem__(self, key) -> None:
         if key < len(self):
-            _remove_relationship(self, self[key], "__delitem__")
+            _remove_relationship(self, self[key])
         super().__delitem__(key)
 
     def __setitem__(self, key, value):
         super().__setitem__(key, value)
-        _record_relationship(self, value, "__setitem__")
+        _record_relationship(self, value)
 
     def __add__(self, other):
         result = super().__add__(other)
-        _record_relationship(self, other, "__add__")
+        _record_relationship(self, other)
         return result
 
 
@@ -109,45 +109,45 @@ class TrackedDict(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for key, value in self.items():
-            _record_relationship(self, key, "__init__")
-            _record_relationship(self, value, "__init__")
+            _record_relationship(self, key)
+            _record_relationship(self, value)
 
     def fromkeys(self, *args, **kwargs):
         ret = super().fromkeys(*args, **kwargs)
         for key, value in ret.items():
-            _record_relationship(ret, key, "fromkeys")
-            _record_relationship(ret, value, "fromkeys")
+            _record_relationship(ret, key)
+            _record_relationship(ret, value)
         return ret
 
     def update(self, *args, **kwargs):
         result = super().update(*args, **kwargs)
         for arg in args:
-            _record_relationship(self, arg, "update")
+            _record_relationship(self, arg)
         return result
 
     def pop(self, key, *args, **kwargs):
         val = super().pop(key, *args, **kwargs)
-        _remove_relationship(self, key, "pop")
+        _remove_relationship(self, key)
         if val is not None:
-            _remove_relationship(self, val, "pop")
+            _remove_relationship(self, val)
         return val
 
     def __delitem__(self, key) -> None:
         val = self.get(key)
         super().__delitem__(key)
-        _remove_relationship(self, key, "__delitem__")
+        _remove_relationship(self, key)
         if val is not None:
-            _remove_relationship(self, val, "__delitem__")
+            _remove_relationship(self, val)
 
     def __setitem__(self, key, value):
         if key in self:
-            _remove_relationship(self, self[key], "__setitem__")
+            _remove_relationship(self, self[key])
         super().__setitem__(key, value)
-        _record_relationship(self, value, "__setitem__")
-        _record_relationship(self, key, "__setitem__")
+        _record_relationship(self, value)
+        _record_relationship(self, key)
 
 
-def _remove_relationship(source_obj, incoming_obj, operation):
+def _remove_relationship(source_obj, incoming_obj):
     if source_obj is None or incoming_obj is None:
         return
     if source_obj not in _object_relationships:
@@ -155,7 +155,7 @@ def _remove_relationship(source_obj, incoming_obj, operation):
     _object_relationships[get_object_id(source_obj)].remove(get_object_id(incoming_obj))
 
 
-def _record_relationship(source_obj, incoming_obj, operation):
+def _record_relationship(source_obj, incoming_obj):
     if source_obj is None or incoming_obj is None:
         return
     if get_object_id(source_obj) not in _object_relationships:
