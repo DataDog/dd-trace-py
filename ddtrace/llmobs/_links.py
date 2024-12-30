@@ -111,7 +111,7 @@ class TrackedList(list):
 
     def __getitem__(self, key):
         item = super().__setitem__(key)
-        item = track_item_if_primitive(item)
+        _record_relationship(item, self)
         return item
 
     def __add__(self, other):
@@ -142,7 +142,7 @@ class TrackedDict(dict):
 
     def __getitem__(self, key):
         item = super().__getitem__(key)
-        item = track_item_if_primitive(item)
+        _record_relationship(item, self)
         return item
 
     def pop(self, key, *args, **kwargs):
