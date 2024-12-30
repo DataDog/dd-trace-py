@@ -557,10 +557,10 @@ Test Visibility
      default: True
      
      description: |
-        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog
-        `Intelligent Test Runner <https://docs.datadoghq.com/intelligent_test_runner/>_`. Setting the variable to
-        ``false`` will skip querying the API and disable code coverage
-        collection and test skipping.
+        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog `Test
+        Impact Analysis <https://docs.datadoghq.com/tests/test_impact_analysis>`_ (formerly Intelligent Test
+        Runner). Setting the variable to ``false`` will skip querying the API and disable code coverage collection and
+        test skipping.
      
      version_added:
         v1.13.0:
@@ -590,6 +590,22 @@ Test Visibility
      
      version_added:
         v2.16.0:
+
+   DD_PYTEST_USE_NEW_PLUGIN_BETA:
+     type: Boolean
+     default: False
+
+     description: |
+        Configures the ``CIVisibility`` service to use a beta release of the new version of the pytest plugin,
+        supporting `Auto Test Retries <https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries>`_,
+        `Early Flake Detection <https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection>`_, and
+        improved coverage collection for `Test Impact Analysis
+        <https://docs.datadoghq.com/tests/test_impact_analysis>`_. This version of the plugin will become the default in
+        the future. See the `release notes for v2.18.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v2.18.0>`_
+        for more information.
+
+     version_added:
+        v2.18.0:
 
    DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS:
      type: Integer
