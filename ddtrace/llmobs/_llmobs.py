@@ -48,8 +48,8 @@ from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._links import TrackedDict
 from ddtrace.llmobs._links import TrackedList
 from ddtrace.llmobs._links import TrackedStr
-from ddtrace.llmobs._links import add_span_links
-from ddtrace.llmobs._links import get_obj_id
+from ddtrace.llmobs._links import add_span_links_to_object
+from ddtrace.llmobs._links import get_object_id
 from ddtrace.llmobs._links import search_links_from_relationships
 from ddtrace.llmobs._links import track_object_interactions
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
@@ -288,14 +288,14 @@ class LLMObs(Service):
             obj = TrackedDict(obj)
 
         current_span_links = []
-        for span_link in search_links_from_relationships(get_obj_id(obj)):
+        for span_link in search_links_from_relationships(get_object_id(obj)):
             if span_link["attributes"]["from"] == "input" and to == "output":
                 continue
             span_link["attributes"]["to"] = to
             current_span_links.append(span_link)
 
         self._tag_span_links(span, current_span_links)
-        add_span_links(
+        add_span_links_to_object(
             obj,
             [
                 {

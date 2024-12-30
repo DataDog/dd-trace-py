@@ -62,7 +62,7 @@ class TrackedStr(str):
         result = TrackedStr(result)
         for arg in args:
             _record_relationship(result, arg, "format")
-        for key, value in kwargs.items():
+        for _, value in kwargs.items():
             _record_relationship(result, value, "format")
         _record_relationship(result, self, "format")
         return result
@@ -148,36 +148,34 @@ class TrackedDict(dict):
 
 
 def _remove_relationship(source_obj, incoming_obj, operation):
-    """Record a relationship between objects."""
     if source_obj is None or incoming_obj is None:
         return
     if source_obj not in _object_relationships:
-        _object_relationships[get_obj_id(source_obj)] = set()
-    _object_relationships[get_obj_id(source_obj)].remove(get_obj_id(incoming_obj))
+        _object_relationships[get_object_id(source_obj)] = set()
+    _object_relationships[get_object_id(source_obj)].remove(get_object_id(incoming_obj))
 
 
 def _record_relationship(source_obj, incoming_obj, operation):
-    """Record a relationship between objects."""
     if source_obj is None or incoming_obj is None:
         return
-    if get_obj_id(source_obj) not in _object_relationships:
-        _object_relationships[get_obj_id(source_obj)] = set()
-    _object_relationships[get_obj_id(source_obj)].add(get_obj_id(incoming_obj))
+    if get_object_id(source_obj) not in _object_relationships:
+        _object_relationships[get_object_id(source_obj)] = set()
+    _object_relationships[get_object_id(source_obj)].add(get_object_id(incoming_obj))
 
 
-def get_obj_id(obj):
+def get_object_id(obj):
     return f"{type(obj).__name__}_{id(obj)}"
 
 
-def add_span_links(obj, span_links):
-    obj_id = get_obj_id(obj)
+def add_span_links_to_object(obj, span_links):
+    obj_id = get_object_id(obj)
     if obj_id not in _object_span_links:
         _object_span_links[obj_id] = []
     _object_span_links[obj_id] += span_links
 
 
-def get_span_links(obj):
-    return _object_span_links.get(get_obj_id(obj), [])
+def get_span_links_from_object(obj):
+    return _object_span_links.get(get_object_id(obj), [])
 
 
 def search_links_from_relationships(obj_id, visited: Optional[set] = None, links: Optional[list] = None):
