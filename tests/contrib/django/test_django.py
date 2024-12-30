@@ -30,6 +30,7 @@ from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -1347,6 +1348,31 @@ def test_cache_set_many(test_spans):
     assert span_set_many.get_tag("django.cache.backend") == "django.core.cache.backends.locmem.LocMemCache"
     assert "first_key" in span_set_many.get_tag("django.cache.key")
     assert "second_key" in span_set_many.get_tag("django.cache.key")
+
+
+def test_schematized_service_name_cache(test_spans):
+    from ddtrace import config
+
+    cache = django.core.cache.caches["default"]
+    schema_version = "v1"
+    global_service_name = "custom-service"
+
+    config.django.cache_service_name = "default-cache"
+    if schema_version is not None:
+        config._service_name_schema_version = schema_version
+    if global_service_name is not None:
+        config.service = global_service_name
+
+    expected_service_name = schematize_service_name(config.django.cache_service_name)
+
+    cache.set("test_key", "test_value")
+
+    spans = test_spans.get_spans()
+    assert spans
+
+    span = spans[0]
+    assert span.service == expected_service_name
+    assert span.name == "django.cache"
 
 
 def test_cache_delete_many(test_spans):
