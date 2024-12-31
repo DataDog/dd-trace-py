@@ -18,3 +18,10 @@ def pt_literal_eval(origin_string):
 def pt_exec(origin_string):
     exec(origin_string)
     return "OR: " + origin_string
+
+
+def pt_exec_with_globals(origin_string):
+    my_var_in_pt_exec_with_globals = "abc"
+    exec(origin_string)
+    my_var_in_pt_exec_with_globals += "def"
+    return my_var_in_pt_exec_with_globals

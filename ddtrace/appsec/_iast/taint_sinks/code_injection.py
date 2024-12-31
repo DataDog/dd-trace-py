@@ -1,3 +1,4 @@
+import inspect
 from typing import Text
 
 from ddtrace.appsec._common_module_patches import try_unwrap
@@ -33,7 +34,9 @@ def patch():
         return
 
     try_wrap_function_wrapper("builtins", "eval", _iast_coi)
-    try_wrap_function_wrapper("builtins", "exec", _iast_coi)
+    # TODO: wrap exec functions is very dangerous because it needs and modifies locals and globals from the original
+    #  function
+    # try_wrap_function_wrapper("builtins", "exec", _iast_coi_exec)
     try_wrap_function_wrapper("ast", "literal_eval", _iast_coi)
 
     _set_metric_iast_instrumented_sink(VULN_CODE_INJECTION)
@@ -50,9 +53,30 @@ def unpatch():
 def _iast_coi(wrapped, instance, args, kwargs):
     if asm_config._iast_enabled and len(args) >= 1:
         _iast_report_code_injection(args[0])
-    if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
+
     return wrapped(*args, **kwargs)
+
+
+def _iast_coi_exec(wrapped, instance, args, kwargs):
+    if asm_config._iast_enabled and len(args) >= 1:
+        _iast_report_code_injection(args[0])
+
+    caller_frame = inspect.currentframe().f_back.f_back
+    if caller_frame is None:
+        return wrapped(*args, **kwargs)
+
+    caller_globals = caller_frame.f_globals
+    caller_locals = caller_frame.f_locals
+
+    original_globals = {}
+    if len(args) > 1:
+        original_globals = args[1]
+
+    original_locals = {}
+    if len(args) > 2:
+        original_locals = args[2]
+
+    return wrapped(args[0], {**caller_globals, **original_globals}, {**caller_locals, **original_locals})
 
 
 @oce.register
