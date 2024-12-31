@@ -1,5 +1,6 @@
 import os
 import sys
+from time import time_ns
 
 import confluent_kafka
 
@@ -12,7 +13,6 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
@@ -247,7 +247,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
-        child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
+        child_of=ctx if ctx is not None and ctx.trace_id is not None else pin.tracer.context_provider.active(),
         activate=True,
     ) as span:
         # reset span start time to before function call

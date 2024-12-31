@@ -13,14 +13,11 @@ message(STATUS "Building extension: ${EXTENSION_NAME}")
 # Get the cmake modules for this project
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 
-# Includes
-include(FetchContent)
-include(ExternalProject)
-include(FindLibdatadog)
-
-# Technically, this should be its own project which we `include()`, but I don't want to deal with that when so many
-# things may yet be factored differently.
-add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
+# Having a common target in a subdirectory like this is a hack and a mistake, but it's fiddly to change it so we haven't
+# been able to. Instead, make sure that the binary path set in the subdirectory is stable *as a string* in order to make
+# sure the caches work.
+get_filename_component(DD_WRAPPER_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build ABSOLUTE)
+add_subdirectory(../dd_wrapper ${DD_WRAPPER_BUILD_DIR})
 
 find_package(Python3 COMPONENTS Interpreter Development)
 
@@ -50,12 +47,8 @@ add_custom_command(
 add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
 
 add_ddup_config(${EXTENSION_NAME})
-# Cython generates code that produces errors for the following, so relax compile
-# options
-target_compile_options(
-    ${EXTENSION_NAME}
-    PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address
-)
+# Cython generates code that produces errors for the following, so relax compile options
+target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address)
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries). This suppresses that behavior,
 # which is required to ensure all paths can be inferred correctly by setup.py.
@@ -66,7 +59,7 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
-    ${Python3_INCLUDE_DIRS})
+                                                     ${Python3_INCLUDE_DIRS})
 
 if(Python3_LIBRARIES)
     target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})

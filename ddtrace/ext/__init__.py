@@ -7,6 +7,7 @@ class SpanTypes(object):
     HTTP = "http"
     MONGODB = "mongodb"
     REDIS = "redis"
+    SERVERLESS = "serverless"
     SQL = "sql"
     TEMPLATE = "template"
     TEST = "test"

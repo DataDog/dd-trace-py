@@ -4,10 +4,15 @@ from typing import Any  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Text  # noqa:F401
 
+from hypothesis import given
+from hypothesis.strategies import text
 import pytest
 
+from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
@@ -175,3 +180,101 @@ class TestOperatorModuloReplacement(BaseReplacement):
             expected_result="aaaaaaaaaaaa",
             escaped_expected_result="aaaaaaa:+-<input1>a<input1>-+:aaaa",
         )
+
+
+@pytest.mark.parametrize("is_tainted", [True, False])
+@given(text())
+def test_psycopg_queries_dump_bytes(is_tainted, string_data):
+    string_data_to_bytes = string_data.encode("utf-8")
+    bytes_to_test_orig = b"'%s'" % (string_data.encode("utf-8"))
+    if is_tainted:
+        bytes_to_test = taint_pyobject(
+            pyobject=bytes_to_test_orig,
+            source_name="string_data_to_bytes",
+            source_value=bytes_to_test_orig,
+            source_origin=OriginType.PARAMETER,
+        )
+    else:
+        bytes_to_test = bytes_to_test_orig
+
+    result = mod.psycopg_queries_dump_bytes((bytes_to_test,))
+    assert (
+        result
+        == b'INSERT INTO "show_client" ("username") VALUES (\'%s\') RETURNING "show_client"."id"' % string_data_to_bytes
+    )
+
+    if is_tainted and string_data_to_bytes:
+        ranges = get_tainted_ranges(result)
+        assert len(ranges) == 1
+        assert ranges[0].start == 47
+        assert ranges[0].length == len(bytes_to_test_orig)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == bytes_to_test_orig
+
+    result = mod.psycopg_queries_dump_bytes_with_keys({b"name": bytes_to_test})
+    assert (
+        result
+        == b'INSERT INTO "show_client" ("username") VALUES (\'%s\') RETURNING "show_client"."id"' % string_data_to_bytes
+    )
+
+    with pytest.raises(TypeError):
+        mod.psycopg_queries_dump_bytes(
+            (
+                bytes_to_test,
+                bytes_to_test,
+            )
+        )
+
+    with pytest.raises(TypeError):
+        _ = b'INSERT INTO "show_client" ("username") VALUES (%s) RETURNING "show_client"."id"' % ((1,))
+
+    with pytest.raises(TypeError):
+        mod.psycopg_queries_dump_bytes((1,))
+
+    with pytest.raises(KeyError):
+        _ = b'INSERT INTO "show_client" ("username") VALUES (%(name)s) RETURNING "show_client"."id"' % {
+            "name": bytes_to_test
+        }
+
+    with pytest.raises(KeyError):
+        mod.psycopg_queries_dump_bytes_with_keys({"name": bytes_to_test})
+
+
+@pytest.mark.parametrize("is_tainted", [True, False])
+@given(text())
+def test_psycopg_queries_dump_bytearray(is_tainted, string_data):
+    string_data_to_bytesarray = bytearray(string_data.encode("utf-8"))
+    bytesarray_to_test_orig = bytearray(b"'%s'" % (string_data.encode("utf-8")))
+    if is_tainted:
+        bytesarray_to_test = taint_pyobject(
+            pyobject=bytesarray_to_test_orig,
+            source_name="string_data_to_bytes",
+            source_value=bytesarray_to_test_orig,
+            source_origin=OriginType.PARAMETER,
+        )
+    else:
+        bytesarray_to_test = bytesarray_to_test_orig
+
+    result = mod.psycopg_queries_dump_bytearray((bytesarray_to_test,))
+    assert (
+        result
+        == b'INSERT INTO "show_client" ("username") VALUES (\'%s\') RETURNING "show_client"."id"'
+        % string_data_to_bytesarray
+    )
+
+    if is_tainted and string_data_to_bytesarray:
+        ranges = get_tainted_ranges(result)
+        assert len(ranges) == 1
+        assert ranges[0].start == 47
+        assert ranges[0].length == len(bytesarray_to_test_orig)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == bytesarray_to_test_orig
+
+    with pytest.raises(TypeError):
+        mod.psycopg_queries_dump_bytearray(
+            (
+                bytesarray_to_test,
+                bytesarray_to_test,
+            )
+        )
+
+        with pytest.raises(TypeError):
+            mod.psycopg_queries_dump_bytearray((1,))

@@ -25,6 +25,7 @@ from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
@@ -71,6 +72,7 @@ class TestVisibilitySessionSettings:
     coverage_enabled: bool = False
     efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
+    quarantine_settings: QuarantineSettings = dataclasses.field(default_factory=QuarantineSettings)
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
@@ -183,6 +185,9 @@ class TestVisibilityItemBase(abc.ABC):
             span_type=SpanTypes.TEST,
             activate=True,
         )
+        # Setting initial tags is necessary for integrations that might look at the span before it is finished
+        self._span.set_tag(EVENT_TYPE, self._event_type)
+        self._span.set_tag(SPAN_KIND, "test")
         log.debug("Started span %s for item %s", self._span, self)
 
     @_require_span
@@ -204,7 +209,14 @@ class TestVisibilityItemBase(abc.ABC):
         if self._session_settings.atr_settings is not None and self._session_settings.atr_settings.enabled:
             self._set_atr_tags()
 
-        # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
+        if (
+            self._session_settings.quarantine_settings is not None
+            and self._session_settings.quarantine_settings.enabled
+        ):
+            self._set_quarantine_tags()
+
+        # Allow items to potentially overwrite default and hierarchy tags.
+        self._set_item_tags()
         self._set_span_tags()
 
         self._add_all_tags_to_span()
@@ -219,8 +231,6 @@ class TestVisibilityItemBase(abc.ABC):
 
         self.set_tags(
             {
-                EVENT_TYPE: self._event_type,
-                SPAN_KIND: "test",
                 COMPONENT: self._session_settings.test_framework,
                 test.FRAMEWORK: self._session_settings.test_framework,
                 test.FRAMEWORK_VERSION: self._session_settings.test_framework_version,
@@ -246,6 +256,10 @@ class TestVisibilityItemBase(abc.ABC):
             if self._source_file_info.end_line is not None:
                 self.set_tag(test.SOURCE_END, self._source_file_info.end_line)
 
+    def _set_item_tags(self) -> None:
+        """Overridable by subclasses to set tags specific to the item type"""
+        pass
+
     def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Note: some tags are also added in the parent class as well as some individual item classes"""
         if not itr_enabled:
@@ -264,6 +278,10 @@ class TestVisibilityItemBase(abc.ABC):
 
     def _set_atr_tags(self) -> None:
         """ATR tags are only set at the test level"""
+        pass
+
+    def _set_quarantine_tags(self) -> None:
+        """Quarantine tags are only set at the test or session level"""
         pass
 
     def _set_span_tags(self):

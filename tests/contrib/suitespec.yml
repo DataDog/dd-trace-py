@@ -23,6 +23,9 @@ components:
     - ddtrace/contrib/aws_lambda/*
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_functions:
+    - ddtrace/contrib/azure_functions/*
+    - ddtrace/contrib/internal/azure_functions/*
   botocore:
     - ddtrace/contrib/botocore/*
     - ddtrace/contrib/internal/botocore/*
@@ -97,6 +100,9 @@ components:
     - ddtrace/contrib/flask_cache/*
     - ddtrace/contrib/internal/flask_cache/*
     - ddtrace/contrib/flask_login/*
+  freezegun:
+    - ddtrace/contrib/freezegun/*
+    - ddtrace/contrib/internal/freezegun/*
   futures:
     - ddtrace/contrib/futures/*
     - ddtrace/contrib/internal/futures/*
@@ -371,6 +377,17 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     snapshot: true
+  azure_functions:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - tests/contrib/azure_functions/*
+      - tests/snapshots/tests.contrib.azure_functions.*
+    runner: riot
+    snapshot: true
   botocore:
     parallelism: 6
     paths:
@@ -609,6 +626,16 @@ suites:
       - memcached
       - redis
     snapshot: true
+  freezegun:
+    paths:
+        - '@bootstrap'
+        - '@core'
+        - '@contrib'
+        - '@tracing'
+        - '@freezegun'
+        - tests/contrib/freezegun/*
+    runner: hatch
+    snapshot: true
   gevent:
     paths:
       - '@bootstrap'
@@ -618,7 +645,7 @@ suites:
       - '@gevent'
       - tests/contrib/gevent/*
     runner: riot
-    snapshot: true
+    snapshot: false
   graphene:
     paths:
       - '@bootstrap'
