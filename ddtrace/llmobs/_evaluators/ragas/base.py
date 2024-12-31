@@ -1,4 +1,5 @@
 import traceback
+from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -47,10 +48,6 @@ class MiniRagas:
 
         self.ensembler = ensembler
 
-        from ddtrace.llmobs._evaluators.ragas.models import ContextPrecisionVerification
-
-        self.ContextPrecisionVerification = ContextPrecisionVerification
-
         from ragas.metrics import faithfulness
 
         self.faithfulness = faithfulness
@@ -58,6 +55,10 @@ class MiniRagas:
         from ragas.metrics.base import get_segmenter
 
         self.get_segmenter = get_segmenter
+
+        from ddtrace.llmobs._evaluators.ragas.models import ContextPrecisionVerification
+
+        self.ContextPrecisionVerification = ContextPrecisionVerification
 
         from ddtrace.llmobs._evaluators.ragas.models import StatementFaithfulnessAnswers
 
@@ -73,7 +74,7 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     The `ml_app` spans generated from traces of ragas will be named as `dd-ragas-<ml_app>`
     or `dd-ragas` if `ml_app` is not present in the span event.
     """
-    tags = span_event.get("tags", [])  # list[str]
+    tags: List[str] = span_event.get("tags", [])
     ml_app = None
     for tag in tags:
         if isinstance(tag, str) and tag.startswith("ml_app:"):
@@ -107,6 +108,7 @@ class RagasBaseEvaluator:
         telemetry_state = "ok"
         try:
             self.mini_ragas = MiniRagas()
+            self.ragas_version = self.mini_ragas.ragas_version
         except Exception as e:
             telemetry_state = "fail"
             telemetry_writer.add_log(
@@ -127,6 +129,32 @@ class RagasBaseEvaluator:
                     ("ragas_version", self.ragas_version),
                 ),
             )
+
+    def run_and_submit_evaluation(self, span_event: dict):
+        if not span_event:
+            return
+        score_result_or_failure, metric_metadata = self.evaluate(span_event)
+        telemetry_writer.add_count_metric(
+            TELEMETRY_APM_PRODUCT.LLMOBS,
+            "evaluators.run",
+            1,
+            tags=(
+                ("evaluator_label", self.LABEL),
+                ("state", score_result_or_failure if isinstance(score_result_or_failure, str) else "success"),
+                ("ragas_version", self.ragas_version),
+            ),
+        )
+        if isinstance(score_result_or_failure, float):
+            self.llmobs_service.submit_evaluation(
+                span_context={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
+                label=self.LABEL,
+                metric_type=self.METRIC_TYPE,
+                value=score_result_or_failure,
+                metadata=metric_metadata,
+            )
+
+    def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
+        raise NotImplementedError("evaluate method must be implemented by individual ragas metrics")
 
     def _extract_evaluation_inputs_from_span(self, span_event: dict) -> Optional[dict]:
         """
@@ -182,28 +210,3 @@ class RagasBaseEvaluator:
                 return None
 
             return {"question": question, "contexts": contexts, "answer": answer}
-
-    def run_and_submit_evaluation(self, span_event: dict):
-        if not span_event:
-            return
-        score_result_or_failure, metric_metadata = self.evaluate(span_event)
-        telemetry_writer.add_count_metric(
-            TELEMETRY_APM_PRODUCT.LLMOBS,
-            "evaluators.run",
-            1,
-            tags=(
-                ("evaluator_label", self.LABEL),
-                ("state", score_result_or_failure if isinstance(score_result_or_failure, str) else "success"),
-            ),
-        )
-        if isinstance(score_result_or_failure, float):
-            self.llmobs_service.submit_evaluation(
-                span_context={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
-                label=self.LABEL,
-                metric_type=self.METRIC_TYPE,
-                value=score_result_or_failure,
-                metadata=metric_metadata,
-            )
-
-    def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
-        raise NotImplementedError("evaluate method must be implemented by individual ragas metrics")

@@ -77,11 +77,7 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
         evaluation_metadata = {EVALUATION_KIND_METADATA: "context_precision"}  # type: dict[str, Union[str, dict, list]]
 
         # initialize data we annotate for tracing ragas
-        score, question, answer = (
-            math.nan,
-            None,
-            None,
-        )
+        score = math.nan
 
         with self.llmobs_service.workflow(
             "dd-ragas.context_precision", ml_app=_get_ml_app_for_ragas_trace(span_event)
@@ -97,16 +93,12 @@ class RagasContextPrecisionEvaluator(RagasBaseEvaluator):
                     )
                     return "fail_extract_context_precision_inputs", evaluation_metadata
 
-                question = cp_inputs["question"]
-                contexts = cp_inputs["contexts"]
-                answer = cp_inputs["answer"]
-
                 # create a prompt to evaluate the relevancy of each context chunk
                 ctx_precision_prompts = [
                     self.ragas_context_precision_instance.context_precision_prompt.format(
-                        question=question, context=c, answer=answer
+                        question=cp_inputs["question"], context=c, answer=cp_inputs["answer"]
                     )
-                    for c in contexts
+                    for c in cp_inputs["contexts"]
                 ]
 
                 responses = []

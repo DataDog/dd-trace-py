@@ -9,42 +9,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
 from ddtrace.llmobs._constants import FAITHFULNESS_DISAGREEMENTS_METADATA
-from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 from ddtrace.llmobs._evaluators.ragas.base import RagasBaseEvaluator
+from ddtrace.llmobs._evaluators.ragas.base import _get_ml_app_for_ragas_trace
 
 
 logger = get_logger(__name__)
-
-
-class MiniRagas:
-    """
-    A helper class to store instances of ragas classes and functions
-    that may or may not exist in a user's environment.
-    """
-
-    llm_factory = None
-    RagasoutputParser = None
-    faithfulness = None
-    ensembler = None
-    get_segmenter = None
-    StatementFaithfulnessAnswers = None
-    StatementsAnswers = None
-
-
-def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
-    """
-    The `ml_app` spans generated from traces of ragas will be named as `dd-ragas-<ml_app>`
-    or `dd-ragas` if `ml_app` is not present in the span event.
-    """
-    tags = span_event.get("tags", [])  # list[str]
-    ml_app = None
-    for tag in tags:
-        if isinstance(tag, str) and tag.startswith("ml_app:"):
-            ml_app = tag.split(":")[1]
-            break
-    if not ml_app:
-        return RAGAS_ML_APP_PREFIX
-    return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
 
 
 class RagasFaithfulnessEvaluator(RagasBaseEvaluator):
