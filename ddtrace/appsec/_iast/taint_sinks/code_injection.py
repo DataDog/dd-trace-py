@@ -47,7 +47,7 @@ def unpatch():
     try_unwrap("builtins", "exec")
     try_unwrap("ast", "literal_eval")
 
-    set_module_unpatched("flask", default_attr="_datadog_code_injection_patch")
+    set_module_unpatched("ast", default_attr="_datadog_code_injection_patch")
 
 
 def _iast_coi(wrapped, instance, args, kwargs):
@@ -87,7 +87,9 @@ class CodeInjection(VulnerabilityBase):
 def _iast_report_code_injection(code_string: Text):
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CodeInjection.vulnerability_type)
     _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
-
-    if is_iast_request_enabled() and CodeInjection.has_quota():
+    print("LLEGA1!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    if is_iast_request_enabled():
+        print("LLEGA2!!!!!!!!!!!!!!!!!!!!!!!!!!")
         if is_pyobject_tainted(code_string):
+            print("LLEGA3!!!!!!!!!!!!!!!!!!!!!!!!!!")
             CodeInjection.report(evidence_value=code_string)
