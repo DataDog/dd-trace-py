@@ -521,7 +521,9 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_completion_stream_explicit_no_tokens(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_stream_explicit_no_tokens(
+        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -538,7 +540,11 @@ class TestLLMObsOpenaiV1:
                     expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
                     client = openai.OpenAI()
                     resp = client.chat.completions.create(
-                        model=model, messages=input_messages, stream=True, user="ddtrace-test", stream_options={"include_usage": False},
+                        model=model,
+                        messages=input_messages,
+                        stream=True,
+                        user="ddtrace-test",
+                        stream_options={"include_usage": False},
                     )
                     for chunk in resp:
                         resp_model = chunk.model
