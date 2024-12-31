@@ -521,13 +521,13 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_stream_explicit_no_tokens(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
         """
 
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
             with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
                 with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
                     mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
@@ -538,7 +538,7 @@ class TestLLMObsOpenaiV1:
                     expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
                     client = openai.OpenAI()
                     resp = client.chat.completions.create(
-                        model=model, messages=input_messages, stream=True, user="ddtrace-test"
+                        model=model, messages=input_messages, stream=True, user="ddtrace-test", stream_options={"include_usage": False},
                     )
                     for chunk in resp:
                         resp_model = chunk.model
@@ -551,8 +551,8 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
-                metadata={"stream": True, "stream_options": {"include_usage": True}, "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
+                metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
+                token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -675,7 +675,6 @@ class TestLLMObsOpenaiV1:
                 messages=[{"role": "user", "content": chat_completion_input_description}],
                 user="ddtrace-test",
                 stream=True,
-                stream_options={"include_usage": True},
             )
             for chunk in resp:
                 resp_model = chunk.model
