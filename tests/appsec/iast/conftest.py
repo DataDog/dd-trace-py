@@ -63,10 +63,8 @@ def _end_iast_context_and_oce(span=None):
 def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False):
     try:
         from ddtrace.contrib.langchain.patch import patch as langchain_patch
-        from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
     except Exception:
         langchain_patch = lambda: True  # noqa: E731
-        langchain_unpatch = lambda: True  # noqa: E731
     try:
         from ddtrace.contrib.sqlalchemy.patch import patch as sqlalchemy_patch
         from ddtrace.contrib.sqlalchemy.patch import unpatch as sqlalchemy_unpatch
@@ -116,7 +114,6 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         cmdi_unpatch()
         header_injection_unpatch()
         code_injection_unpatch()
-        langchain_unpatch()
         _end_iast_context_and_oce()
 
 
