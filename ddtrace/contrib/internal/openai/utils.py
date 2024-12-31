@@ -68,7 +68,7 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
 
     def __next__(self):
         try:
-            chunk = next(self.__wrapped__)
+            chunk = self.__wrapped__.__next__()
             self._extract_token_chunk(chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
             return chunk
@@ -93,7 +93,7 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         if not getattr(choice, "finish_reason", None):
             return
         try:
-            usage_chunk = next(self.__wrapped__)
+            usage_chunk = self.__wrapped__.__next__()
             self._streamed_chunks[0].insert(0, usage_chunk)
         except (StopIteration, GeneratorExit):
             return
@@ -128,7 +128,7 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
 
     async def __anext__(self):
         try:
-            chunk = await anext(self.__wrapped__)
+            chunk = await self.__wrapped__.__anext__()
             await self._extract_token_chunk(chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
             return chunk
@@ -153,7 +153,7 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
         if not getattr(choice, "finish_reason", None):
             return
         try:
-            usage_chunk = await anext(self.__wrapped__)
+            usage_chunk = await self.__wrapped__.__anext__()
             self._streamed_chunks[0].insert(0, usage_chunk)
         except (StopAsyncIteration, GeneratorExit):
             return

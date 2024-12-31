@@ -194,6 +194,13 @@ class _CompletionHook(_BaseCompletionHook):
                 prompt = [prompt]
             for idx, p in enumerate(prompt):
                 span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(str(p)))
+        if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
+            if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
+                return
+            span._set_ctx_item("openai_stream_magic", True)
+            stream_options = kwargs.get("stream_options", {})
+            stream_options["include_usage"] = True
+            kwargs["stream_options"] = stream_options
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
