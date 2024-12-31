@@ -7,6 +7,8 @@ from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
+from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
+from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
@@ -27,6 +29,9 @@ def patch():
     if not asm_config._iast_enabled:
         return
 
+    if not set_and_check_module_is_patched("ast", default_attr="_datadog_code_injection_patch"):
+        return
+
     try_wrap_function_wrapper("builtins", "eval", _iast_coi)
     try_wrap_function_wrapper("builtins", "exec", _iast_coi)
     try_wrap_function_wrapper("ast", "literal_eval", _iast_coi)
@@ -39,10 +44,14 @@ def unpatch():
     try_unwrap("builtins", "exec")
     try_unwrap("ast", "literal_eval")
 
+    set_module_unpatched("flask", default_attr="_datadog_code_injection_patch")
+
 
 def _iast_coi(wrapped, instance, args, kwargs):
     if asm_config._iast_enabled and len(args) >= 1:
         _iast_report_code_injection(args[0])
+    if hasattr(wrapped, "__func__"):
+        return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
