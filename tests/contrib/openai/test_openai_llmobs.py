@@ -561,20 +561,14 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
     )
     def test_chat_completion_stream_tokens(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-        """
-        Ensure llmobs records are emitted for chat completion endpoints when configured
-        with the `stream_options={"include_usage": True}`.
-        Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
-        """
+        """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
             model = "gpt-3.5-turbo"
             resp_model = model
             input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
             expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
             client = openai.OpenAI()
-            resp = client.chat.completions.create(
-                model=model, messages=input_messages, stream=True, stream_options={"include_usage": True}
-            )
+            resp = client.chat.completions.create(model=model, messages=input_messages, stream=True)
             for chunk in resp:
                 resp_model = chunk.model
         span = mock_tracer.pop_traces()[0][0]

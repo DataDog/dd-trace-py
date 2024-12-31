@@ -960,6 +960,7 @@ def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, sna
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
 def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    """Assert that streamed token chunk extraction logic works automatically."""
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
@@ -978,6 +979,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
 def test_chat_completion_stream_explicit_no_tokens(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    """Assert that streamed token chunk extraction logic is avoided if explicitly set to False by the user."""
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
@@ -1042,24 +1044,6 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
                 user="ddtrace-test",
             )
             _ = [c async for c in resp]
-
-
-@pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
-)
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
-def test_chat_completion_stream_tokens(openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
-        client = openai.OpenAI()
-        resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Who won the world series in 2020?"}],
-            stream=True,
-            user="ddtrace-test",
-            n=None,
-            stream_options={"include_usage": True},
-        )
-        _ = [c for c in resp]
 
 
 @pytest.mark.skipif(
