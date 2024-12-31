@@ -38,19 +38,6 @@ class BaseTracedOpenAIStream(wrapt.ObjectProxy):
         self._is_completion = is_completion
         self._kwargs = kwargs
 
-    def _extract_token_chunk(self, chunk):
-        """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
-        if not self._dd_span._get_ctx_item("openai_stream_magic"):
-            return
-        choice = getattr(chunk, "choices", [None])[0]
-        if not getattr(choice, "finish_reason", None):
-            return
-        try:
-            usage_chunk = next(self.__wrapped__)
-            self._streamed_chunks[0].insert(0, usage_chunk)
-        except (StopIteration, GeneratorExit):
-            pass
-
 
 class TracedOpenAIStream(BaseTracedOpenAIStream):
     def __enter__(self):
@@ -98,6 +85,19 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
             self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
 
+    def _extract_token_chunk(self, chunk):
+        """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
+        if not self._dd_span._get_ctx_item("openai_stream_magic"):
+            return
+        choice = getattr(chunk, "choices", [None])[0]
+        if not getattr(choice, "finish_reason", None):
+            return
+        try:
+            usage_chunk = next(self.__wrapped__)
+            self._streamed_chunks[0].insert(0, usage_chunk)
+        except (StopIteration, GeneratorExit):
+            return
+
 
 class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
     async def __aenter__(self):
@@ -107,11 +107,11 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
-    def __aiter__(self):
+    async def __aiter__(self):
         exception_raised = False
         try:
-            for chunk in self.__wrapped__:
-                self._extract_token_chunk(chunk)
+            async for chunk in self.__wrapped__:
+                await self._extract_token_chunk(chunk)
                 yield chunk
                 _loop_handler(self._dd_span, chunk, self._streamed_chunks)
         except Exception:
@@ -128,8 +128,8 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
 
     async def __anext__(self):
         try:
-            chunk = await self.__wrapped__.__anext__()
-            self._extract_token_chunk(chunk)
+            chunk = await anext(self.__wrapped__)
+            await self._extract_token_chunk(chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
             return chunk
         except StopAsyncIteration:
@@ -144,6 +144,19 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             self._dd_span.finish()
             self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
+
+    async def _extract_token_chunk(self, chunk):
+        """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
+        if not self._dd_span._get_ctx_item("openai_stream_magic"):
+            return
+        choice = getattr(chunk, "choices", [None])[0]
+        if not getattr(choice, "finish_reason", None):
+            return
+        try:
+            usage_chunk = await anext(self.__wrapped__)
+            self._streamed_chunks[0].insert(0, usage_chunk)
+        except (StopAsyncIteration, GeneratorExit):
+            return
 
 
 def _compute_token_count(content, model):
