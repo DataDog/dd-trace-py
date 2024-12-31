@@ -85,10 +85,12 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
 
 
-class RagasBaseEvaluator:
+class BaseRagasEvaluator:
     """A class used by EvaluatorRunner to conduct ragas evaluations
     on LLM Observability span events. The job of an Evaluator is to take a span and
     submit evaluation metrics based on the span's attributes.
+
+    Extenders of this class should only need to implement the `evaluate` method.
     """
 
     LABEL = "ragas"
@@ -109,14 +111,17 @@ class RagasBaseEvaluator:
         try:
             self.mini_ragas = MiniRagas()
             self.ragas_version = self.mini_ragas.ragas_version
+        except ImportError as e:
+            telemetry_state = "fail_import_error"
+            raise NotImplementedError("Failed to load dependencies for `{}` evaluator".format(self.LABEL)) from e
+        except AttributeError as e:
+            telemetry_state = "fail_attribute_error"
+            raise NotImplementedError("Failed to load dependencies for `{}` evaluator".format(self.LABEL)) from e
+        except NotImplementedError as e:
+            telemetry_state = "fail_not_supported"
+            raise NotImplementedError("Failed to load dependencies for `{}` evaluator".format(self.LABEL)) from e
         except Exception as e:
-            telemetry_state = "fail"
-            telemetry_writer.add_log(
-                level=TELEMETRY_LOG_LEVEL.ERROR,
-                message="Failed to import Ragas dependencies",
-                stack_trace=traceback.format_exc(),
-                tags={"ragas_version": self.ragas_version},
-            )
+            telemetry_state = "fail_unknown"
             raise NotImplementedError("Failed to load dependencies for `{}` evaluator".format(self.LABEL)) from e
         finally:
             telemetry_writer.add_count_metric(
@@ -129,6 +134,13 @@ class RagasBaseEvaluator:
                     ("ragas_version", self.ragas_version),
                 ),
             )
+            if telemetry_state != "ok":
+                telemetry_writer.add_log(
+                    level=TELEMETRY_LOG_LEVEL.ERROR,
+                    message="Failed to import Ragas dependencies",
+                    stack_trace=traceback.format_exc(),
+                    tags={"ragas_version": self.ragas_version},
+                )
 
     def run_and_submit_evaluation(self, span_event: dict):
         if not span_event:
@@ -159,11 +171,6 @@ class RagasBaseEvaluator:
     def _extract_evaluation_inputs_from_span(self, span_event: dict) -> Optional[dict]:
         """
         Extracts the question, answer, and context used as inputs for a ragas evaluation on a span event.
-
-        question - input.prompt.variables.question OR input.messages[-1].content
-        contexts - list of context prompt variables specified by
-                        `input.prompt._dd_context_variable_keys` or defaults to `input.prompt.variables.context`
-        answer - output.messages[-1].content
         """
         with self.llmobs_service.workflow("dd-ragas.extract_evaluation_inputs_from_span") as extract_inputs_workflow:
             self.llmobs_service.annotate(span=extract_inputs_workflow, input_data=span_event)

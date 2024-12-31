@@ -67,7 +67,7 @@ class EvaluatorRunner(PeriodicService):
                         ),
                     )
             else:
-                logger.warning("parsed unsupported evaluator: `%r`", evaluator)
+                raise ValueError("Parsed unsupported evaluator: {}".format(evaluator))
 
     def start(self, *args, **kwargs):
         if not self.evaluators:
