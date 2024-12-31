@@ -47,12 +47,7 @@ def _check_positions_contained(needle, container):
 
 class VulnerabilityBase(Operation):
     vulnerability_type = ""
-    _redacted_report_cache = LFUCache()
 
-    @classmethod
-    def _reset_cache_for_testing(cls):
-        """Reset the redacted reports and deduplication cache. For testing purposes only."""
-        cls._redacted_report_cache.clear()
 
     @classmethod
     def wrap(cls, func: Callable) -> Callable:
