@@ -258,7 +258,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
             if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
                 return
-            span._set_ctx_item("openai_stream_magic", True)
+            span._set_ctx_item("_dd.auto_extract_token_chunk", True)
             stream_options = kwargs.get("stream_options", {})
             stream_options["include_usage"] = True
             kwargs["stream_options"] = stream_options
