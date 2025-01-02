@@ -120,6 +120,7 @@ class LLMObs(Service):
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
+        is_llm_span = span._get_ctx_item(SPAN_KIND) == "llm"
         is_ragas_integration_span = False
         try:
             span_event, is_ragas_integration_span = self._llmobs_span_event(span)
@@ -129,7 +130,7 @@ class LLMObs(Service):
                 "Error generating LLMObs span event for span %s, likely due to malformed span", span, exc_info=True
             )
         finally:
-            if not span_event or is_ragas_integration_span:
+            if not span_event or not is_llm_span or is_ragas_integration_span:
                 return
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)

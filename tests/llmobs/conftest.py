@@ -130,6 +130,13 @@ def mock_http_writer_logs():
 
 
 @pytest.fixture
+def mock_llmobs_logs():
+    with mock.patch("ddtrace.llmobs._llmobs.log") as m:
+        yield m
+        m.reset_mock()
+
+
+@pytest.fixture
 def ddtrace_global_config():
     config = {}
     return config
@@ -243,15 +250,25 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def llmobs(monkeypatch, tracer, llmobs_env, llmobs_span_writer):
+def llmobs(
+    ddtrace_global_config,
+    monkeypatch,
+    tracer,
+    llmobs_env,
+    llmobs_span_writer,
+    mock_llmobs_eval_metric_writer,
+    mock_llmobs_evaluator_runner,
+):
     for env, val in llmobs_env.items():
         monkeypatch.setenv(env, val)
-
+    global_config = default_global_config()
+    global_config.update(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP")))
+    global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
-    with override_global_config(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP"))):
+    with override_global_config(global_config):
         llmobs_service.enable(_tracer=tracer)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs
+        yield llmobs_service
     llmobs_service.disable()
 
 
