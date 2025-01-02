@@ -1,5 +1,6 @@
 import asyncio
 from functools import partial
+import logging
 import os
 import random
 
@@ -9,6 +10,7 @@ import pytest
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -632,6 +634,52 @@ async def test_tasks_asgi_without_more_body(scope, tracer, test_spans):
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+
+@pytest.mark.asyncio
+async def test_request_parse_response_cookies(tracer, test_spans, caplog):
+    """
+    Regression test https://github.com/DataDog/dd-trace-py/issues/11818
+    """
+
+    async def tasks_cookies(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"set-cookie", b"test_cookie"]]})
+            await send({"type": "http.response.body", "body": b"*"})
+            await asyncio.sleep(1)
+
+    with caplog.at_level(logging.DEBUG):
+        app = TraceMiddleware(tasks_cookies, tracer=tracer)
+        async with httpx.AsyncClient(app=app) as client:
+            response = await client.get("http://testserver/")
+            assert response.status_code == 200
+
+    assert "failed to extract response cookies" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "headers,expected_result",
+    [
+        ({}, {}),
+        ({"cookie": "cookie1=value1"}, {}),
+        ({"header-1": ""}, {}),
+        ({"Set-cookie": "cookie1=value1"}, {}),
+        ({"set-Cookie": "cookie1=value1"}, {}),
+        ({"SET-cookie": "cookie1=value1"}, {}),
+        ({"set-cookie": "a"}, {}),
+        ({"set-cookie": "1234"}, {}),
+        ({"set-cookie": "cookie1=value1"}, {"cookie1": "value1"}),
+        ({"set-cookie": "cookie2=value1=value2"}, {"cookie2": "value1=value2"}),
+        ({"set-cookie": "cookie3=="}, {"cookie3": "="}),
+    ],
+)
+def test__parse_response_cookies(headers, expected_result, caplog):
+    with caplog.at_level(logging.DEBUG):
+        result = _parse_response_cookies(headers)
+
+    assert "failed to extract response cookies" not in caplog.text
+    assert result == expected_result
 
 
 @pytest.mark.asyncio

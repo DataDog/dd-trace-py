@@ -33,6 +33,11 @@ from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
 
 
+# TODO(mabdinur): Remove this once we have a better way to start the mini agent
+from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent as _start_mini_agent
+
+_start_mini_agent()
+
 # DEV: Import deprecated tracer module in order to retain side-effect of package
 # initialization, which added this module to sys.modules. We catch deprecation
 # warnings as this is only to retain a side effect of the package
