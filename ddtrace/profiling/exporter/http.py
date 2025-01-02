@@ -66,9 +66,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         self.version: typing.Optional[str] = version
         self.tags: typing.Dict[str, str] = tags if tags is not None else {}
         self.max_retry_delay: typing.Optional[float] = max_retry_delay
-        self.endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = (
-            endpoint_call_counter_span_processor
-        )
+        self.endpoint_call_counter_span_processor: typing.Optional[
+            EndpointCallCounterProcessor
+        ] = endpoint_call_counter_span_processor
 
         self.__post_init__()
 
