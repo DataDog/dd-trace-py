@@ -66,9 +66,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         self.version: typing.Optional[str] = version
         self.tags: typing.Dict[str, str] = tags if tags is not None else {}
         self.max_retry_delay: typing.Optional[float] = max_retry_delay
-        self.endpoint_call_counter_span_processor: typing.Optional[
-            EndpointCallCounterProcessor
-        ] = endpoint_call_counter_span_processor
+        self.endpoint_call_counter_span_processor: typing.Optional[EndpointCallCounterProcessor] = (
+            endpoint_call_counter_span_processor
+        )
 
         self.__post_init__()
 
@@ -220,8 +220,18 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "family": "python",
             "attachments": [item["filename"].decode("utf-8") for item in data],
             "tags_profiler": self._get_tags(service),
-            "start": (datetime.datetime.fromtimestamp(start_time_ns / 1e9, tz=datetime.timezone.utc).replace(microsecond=0).isoformat() + "Z"),
-            "end": (datetime.datetime.fromtimestamp(end_time_ns / 1e9, tz=datetime.timezone.utc).replace(microsecond=0).isoformat() + "Z"),
+            "start": (
+                datetime.datetime.fromtimestamp(start_time_ns / 1e9, tz=datetime.timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()
+                + "Z"
+            ),
+            "end": (
+                datetime.datetime.fromtimestamp(end_time_ns / 1e9, tz=datetime.timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()
+                + "Z"
+            ),
         }  # type: Dict[str, Any]
 
         if self.endpoint_call_counter_span_processor is not None:
