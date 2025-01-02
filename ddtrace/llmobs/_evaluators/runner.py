@@ -8,6 +8,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 
@@ -17,6 +18,7 @@ logger = get_logger(__name__)
 
 SUPPORTED_EVALUATORS = {
     RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,
+    RagasContextPrecisionEvaluator.LABEL: RagasContextPrecisionEvaluator,
 }
 
 
@@ -64,6 +66,8 @@ class EvaluatorRunner(PeriodicService):
                             ("state", evaluator_init_state),
                         ),
                     )
+            else:
+                raise ValueError("Parsed unsupported evaluator: {}".format(evaluator))
 
     def start(self, *args, **kwargs):
         if not self.evaluators:
