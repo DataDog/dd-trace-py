@@ -771,8 +771,6 @@ def test_cache_get(test_spans):
 
 
 def test_cache_service_schematization(test_spans):
-    from ddtrace import config
-
     cache = django.core.cache.caches["default"]
 
     with override_config("django", dict(cache_service_name="test-cache-service")):
