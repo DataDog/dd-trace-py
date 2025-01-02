@@ -937,7 +937,7 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, snapsho
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             client = openai.AsyncOpenAI()
-            resp = await client.completions.create(model="ada", prompt="Hello world", stream=True)
+            resp = await client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
             _ = [c async for c in resp]
 
 
