@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixes issue where django cache is represented as django service rather than the third party service.
+    django: Fixes issue where django cache is represented as a django service rather than the third party service.
