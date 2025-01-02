@@ -25,6 +25,7 @@ from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
@@ -71,6 +72,7 @@ class TestVisibilitySessionSettings:
     coverage_enabled: bool = False
     efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
+    quarantine_settings: QuarantineSettings = dataclasses.field(default_factory=QuarantineSettings)
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
@@ -207,6 +209,12 @@ class TestVisibilityItemBase(abc.ABC):
         if self._session_settings.atr_settings is not None and self._session_settings.atr_settings.enabled:
             self._set_atr_tags()
 
+        if (
+            self._session_settings.quarantine_settings is not None
+            and self._session_settings.quarantine_settings.enabled
+        ):
+            self._set_quarantine_tags()
+
         # Allow items to potentially overwrite default and hierarchy tags.
         self._set_item_tags()
         self._set_span_tags()
@@ -270,6 +278,10 @@ class TestVisibilityItemBase(abc.ABC):
 
     def _set_atr_tags(self) -> None:
         """ATR tags are only set at the test level"""
+        pass
+
+    def _set_quarantine_tags(self) -> None:
+        """Quarantine tags are only set at the test or session level"""
         pass
 
     def _set_span_tags(self):

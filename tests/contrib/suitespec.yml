@@ -645,7 +645,7 @@ suites:
       - '@gevent'
       - tests/contrib/gevent/*
     runner: riot
-    snapshot: true
+    snapshot: false
   graphene:
     paths:
       - '@bootstrap'
