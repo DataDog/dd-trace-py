@@ -1,4 +1,3 @@
-import mock
 import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -302,10 +301,14 @@ def test_extended_sampling_float_special_case_match_star(writer, tracer):
         span.set_tag("tag", 20.1)
 
 
+@pytest.mark.subprocess()
 def test_rate_limiter_on_spans(tracer):
     """
     Ensure that the rate limiter is applied to spans
     """
+    from ddtrace import tracer
+    from ddtrace.sampler import DatadogSampler
+
     # Rate limit is only applied if a sample rate or trace sample rule is set
     tracer.configure(sampler=DatadogSampler(default_sample_rate=1, rate_limit=10))
     spans = []
@@ -329,10 +332,16 @@ def test_rate_limiter_on_spans(tracer):
     assert dropped_span.context.sampling_priority < 0
 
 
+@pytest.mark.subprocess()
 def test_rate_limiter_on_long_running_spans(tracer):
     """
     Ensure that the rate limiter is applied on increasing time intervals
     """
+    import mock
+
+    from ddtrace import tracer
+    from ddtrace.sampler import DatadogSampler
+
     tracer.configure(sampler=DatadogSampler(rate_limit=5))
 
     with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns", return_value=1617333414):

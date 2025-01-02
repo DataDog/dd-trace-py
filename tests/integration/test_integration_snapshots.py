@@ -7,9 +7,6 @@ import pytest
 
 from ddtrace import Tracer
 from ddtrace import tracer
-from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.constants import USER_KEEP
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import mark_snapshot
 from tests.integration.utils import parametrize_with_all_encodings
@@ -21,7 +18,10 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 
 @snapshot(include_tracer=True)
+@pytest.mark.subprocess()
 def test_single_trace_single_span(tracer):
+    from ddtrace import tracer
+
     s = tracer.trace("operation", service="my-svc")
     s.set_tag("k", "v")
     # numeric tag
@@ -33,7 +33,10 @@ def test_single_trace_single_span(tracer):
 
 
 @snapshot(include_tracer=True)
+@pytest.mark.subprocess()
 def test_multiple_traces(tracer):
+    from ddtrace import tracer
+
     with tracer.trace("operation1", service="my-svc") as s:
         s.set_tag("k", "v")
         s.set_tag("num", 1234)
@@ -125,7 +128,6 @@ def test_tracer_trace_across_popen():
         the child span has does not have '_dd.p.dm' shows that sampling was run
         before fork automatically.
     """
-    tracer = Tracer()
 
     def task(tracer):
         with tracer.trace("child"):
@@ -148,7 +150,6 @@ def test_tracer_trace_across_multiple_popens():
         the child span has does not have '_dd.p.dm' shows that sampling was run
         before fork automatically.
     """
-    tracer = Tracer()
 
     def task(tracer):
         def task2(tracer):
@@ -170,9 +171,13 @@ def test_tracer_trace_across_multiple_popens():
 
 
 @snapshot()
+@pytest.mark.subprocess()
 def test_wrong_span_name_type_not_sent():
     """Span names should be a text type."""
-    tracer = Tracer()
+    import mock
+
+    from ddtrace import tracer
+
     with mock.patch("ddtrace._trace.span.log") as log:
         with tracer.trace(123):
             pass
@@ -188,11 +193,9 @@ def test_wrong_span_name_type_not_sent():
     ],
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-@snapshot()
 def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
-        tracer = Tracer()
         with mock.patch("ddtrace._trace.span.log") as log:
             with tracer.trace("root") as root:
                 root._meta = meta
@@ -211,8 +214,6 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     ],
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-@snapshot()
-@pytest.mark.xfail
 def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
     """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
@@ -226,9 +227,14 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch)
             log.exception.assert_called_once_with("error closing trace")
 
 
-@snapshot()
+@pytest.mark.subprocess()
+@pytest.mark.snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
-    tracer = Tracer()
+    from ddtrace import tracer
+    from ddtrace.constants import AUTO_KEEP
+    from ddtrace.constants import SAMPLING_PRIORITY_KEY
+    from ddtrace.constants import USER_KEEP
+
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
