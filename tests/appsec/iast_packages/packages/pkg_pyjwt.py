@@ -25,7 +25,7 @@ def pkg_pyjwt_view():
         secret_key = "your-256-bit-secret"
         user_payload = request.args.get("package_param", "default-user")
 
-        payload = {"user": user_payload, "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=30)}
+        payload = {"user": user_payload, "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=30)}
 
         try:
             # Encode the payload to create a JWT

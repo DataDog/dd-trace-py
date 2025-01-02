@@ -118,7 +118,7 @@ def collect(tracer):
 
     return dict(
         # Timestamp UTC ISO 8601
-        date=datetime.datetime.utcnow().isoformat(),
+        date=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         # eg. "Linux", "Darwin"
         os_name=platform.system(),
         # eg. 12.5.0
