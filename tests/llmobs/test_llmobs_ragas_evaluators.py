@@ -6,7 +6,7 @@ import pytest
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.span import Span
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import _expected_ragas_spans
+from tests.llmobs._utils import _expected_ragas_faithfulness_spans
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_prompt
 
@@ -15,7 +15,7 @@ def _llm_span_without_io():
     return _expected_llmobs_llm_span_event(Span("dummy"))
 
 
-def test_ragas_evaluator_init(ragas, LLMObs):
+def test_ragas_faithfulness_evaluator_init(ragas, LLMObs):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
     assert rf_evaluator.llmobs_service == LLMObs
     assert rf_evaluator.ragas_faithfulness_instance == ragas.metrics.faithfulness
@@ -176,7 +176,7 @@ def test_ragas_faithfulness_emits_traces(ragas, LLMObs):
     spans = [call[0][0] for call in calls]
 
     # check name, io, span kinds match
-    assert spans == _expected_ragas_spans()
+    assert spans == _expected_ragas_faithfulness_spans()
 
     # verify the trace structure
     root_span = spans[0]
@@ -228,7 +228,7 @@ from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import logs_vcr
 
 ctx = logs_vcr.use_cassette(
-    "tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit.yaml"
+    "tests.llmobs.test_llmobs_ragas_evaluators.emits_traces_and_evaluations_on_exit.yaml"
 )
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
