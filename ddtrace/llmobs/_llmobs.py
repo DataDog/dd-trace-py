@@ -13,6 +13,9 @@ from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
 from ddtrace._trace.context import Context
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import core
@@ -27,6 +30,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -62,11 +66,6 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
-
-from ..constants import ERROR_MSG
-from ..constants import ERROR_STACK
-from ..constants import ERROR_TYPE
-from . import _constants as constants
 
 
 log = get_logger(__name__)
@@ -121,7 +120,6 @@ class LLMObs(Service):
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
-        is_llm_span = span._get_ctx_item(SPAN_KIND) == "llm"
         is_ragas_integration_span = False
         try:
             span_event, is_ragas_integration_span = self._llmobs_span_event(span)
@@ -131,7 +129,7 @@ class LLMObs(Service):
                 "Error generating LLMObs span event for span %s, likely due to malformed span", span, exc_info=True
             )
         finally:
-            if not span_event or not is_llm_span or is_ragas_integration_span:
+            if not span_event or is_ragas_integration_span:
                 return
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)

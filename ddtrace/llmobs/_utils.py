@@ -135,10 +135,12 @@ def _get_ml_app(span: Span) -> str:
     ml_app = span._get_ctx_item(ML_APP)
     if ml_app:
         return ml_app
-    # TODO: go up the span tree to find the nearest LLMObs span with an ml_app
-    nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
-    if nearest_llmobs_ancestor:
-        ml_app = nearest_llmobs_ancestor._get_ctx_item(ML_APP)
+    llmobs_parent = _get_nearest_llmobs_ancestor(span)
+    while llmobs_parent:
+        ml_app = llmobs_parent._get_ctx_item(ML_APP)
+        if ml_app is not None:
+            return ml_app
+        llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
     return ml_app or config._llmobs_ml_app or "unknown-ml-app"
 
 
@@ -150,10 +152,12 @@ def _get_session_id(span: Span) -> Optional[str]:
     session_id = span._get_ctx_item(SESSION_ID)
     if session_id:
         return session_id
-    # TODO: go up the span tree to find the nearest LLMObs span with session
-    nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
-    if nearest_llmobs_ancestor:
-        session_id = nearest_llmobs_ancestor._get_ctx_item(SESSION_ID)
+    llmobs_parent = _get_nearest_llmobs_ancestor(span)
+    while llmobs_parent:
+        session_id = llmobs_parent._get_ctx_item(SESSION_ID)
+        if session_id is not None:
+            return session_id
+        llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
     return session_id
 
 

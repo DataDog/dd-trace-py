@@ -1948,4 +1948,3 @@ def test_service_enable_does_not_start_evaluator_runner():
         assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
         llmobs_service.disable()
-
