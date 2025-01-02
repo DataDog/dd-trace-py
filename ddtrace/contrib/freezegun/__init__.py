@@ -13,16 +13,10 @@ Configuration
 The freezegun integration is not configurable, but may be disabled using DD_PATCH_MODULES=freezegun:false .
 """
 
-from ...internal.utils.importlib import require_modules
+# Expose public methods
+from ..internal.freezegun.patch import get_version
+from ..internal.freezegun.patch import patch
+from ..internal.freezegun.patch import unpatch
 
 
-required_modules = ["freezegun"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Expose public methods
-        from ..internal.freezegun.patch import get_version
-        from ..internal.freezegun.patch import patch
-        from ..internal.freezegun.patch import unpatch
-
-        __all__ = ["get_version", "patch", "unpatch"]
+__all__ = ["get_version", "patch", "unpatch"]
