@@ -117,8 +117,8 @@ def collect(tracer):
     from ddtrace._trace.tracer import log
 
     return dict(
-        # Timestamp UTC ISO 8601
-        date=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        # Timestamp UTC ISO 8601 with the trailing +00:00 removed
+        date=datetime.datetime.now(datetime.timezone.utc).isoformat()[0:-6],
         # eg. "Linux", "Darwin"
         os_name=platform.system(),
         # eg. 12.5.0

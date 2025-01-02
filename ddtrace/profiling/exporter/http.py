@@ -223,13 +223,13 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "start": (
                 datetime.datetime.fromtimestamp(start_time_ns / 1e9, tz=datetime.timezone.utc)
                 .replace(microsecond=0)
-                .isoformat()
+                .isoformat()[0:-6]  # removes the trailing +00:00 portion of the time
                 + "Z"
             ),
             "end": (
                 datetime.datetime.fromtimestamp(end_time_ns / 1e9, tz=datetime.timezone.utc)
                 .replace(microsecond=0)
-                .isoformat()
+                .isoformat()[0:-6]  # removes the trailing +00:00 portion of the time
                 + "Z"
             ),
         }  # type: Dict[str, Any]
