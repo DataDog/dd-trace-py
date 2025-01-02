@@ -589,7 +589,7 @@ def test_traced_session_no_patch_all(tmpdir):
         """
 import mock
 import ddtrace
-from ddtrace.contrib.internal.requests.session import TracedSession
+from ddtrace.contrib.requests import TracedSession
 
 # disable tracer writing to agent
 # FIXME: Remove use of this internal attribute of Tracer to disable writer
