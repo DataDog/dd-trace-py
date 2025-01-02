@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 from typing import Any
 from typing import Dict
@@ -45,6 +46,13 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._links import TrackedDict
+from ddtrace.llmobs._links import TrackedList
+from ddtrace.llmobs._links import TrackedStr
+from ddtrace.llmobs._links import add_span_links_to_object
+from ddtrace.llmobs._links import get_object_id
+from ddtrace.llmobs._links import search_links_from_relationships
+from ddtrace.llmobs._links import track_object_interactions
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
@@ -107,6 +115,8 @@ class LLMObs(Service):
         self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
         self.tracer.on_start_span(self._do_annotations)
+
+        sys.settrace(track_object_interactions)
 
     def _do_annotations(self, span):
         # get the current span context
@@ -260,6 +270,7 @@ class LLMObs(Service):
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
             return
+        sys.settrace(None)
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
 
@@ -269,6 +280,46 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    def record_object(self, span, obj, to):
+        if isinstance(obj, str) and not isinstance(obj, TrackedStr):
+            obj = TrackedStr(obj)
+        elif isinstance(obj, list) and not isinstance(obj, TrackedList):
+            obj = TrackedList(obj)
+        elif isinstance(obj, dict) and not isinstance(obj, TrackedDict):
+            obj = TrackedDict(obj)
+
+        current_span_links = []
+        for span_link in search_links_from_relationships(get_object_id(obj)):
+            if span_link["attributes"]["from"] == "input" and to == "output":
+                continue
+            span_link["attributes"]["to"] = to
+            current_span_links.append(span_link)
+
+        self._tag_span_links(span, current_span_links)
+        add_span_links_to_object(
+            obj,
+            [
+                {
+                    "trace_id": self.export_span(span)["trace_id"],
+                    "span_id": self.export_span(span)["span_id"],
+                    "attributes": {
+                        "from": to,
+                    },
+                }
+            ],
+        )
+        return obj
+
+    def _tag_span_links(self, span, span_links):
+        span_links = [
+            span_link for span_link in span_links if span_link["span_id"] != LLMObs.export_span(span)["span_id"]
+        ]
+        current_span_links = span.get_tag("_ml_obs.span_links")
+        if current_span_links:
+            current_span_links = json.loads(current_span_links)
+            span_links = current_span_links + span_links
+        span.set_tag_str("_ml_obs.span_links", safe_json(span_links))
 
     @classmethod
     def annotation_context(
@@ -632,6 +683,10 @@ class LLMObs(Service):
         if span.finished:
             log.warning("Cannot annotate a finished span.")
             return
+        if input_data is not None:
+            cls._instance.record_object(span, input_data, "input")
+        if output_data is not None:
+            cls._instance.record_object(span, output_data, "output")
         if metadata is not None:
             cls._tag_metadata(span, metadata)
         if metrics is not None:
