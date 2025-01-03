@@ -573,6 +573,24 @@ class LLMObs(Service):
         return cls._instance._start_span("retrieval", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
+    def undefined_kind(
+        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
+    ) -> Span:
+        """
+        Trace a generic operation. Used when the span kind is not specified, 
+
+        :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+        return cls._instance._start_span("undefined", name=name, session_id=session_id, ml_app=ml_app)
+
+    @classmethod
     def annotate(
         cls,
         span: Optional[Span] = None,

@@ -253,6 +253,41 @@ def _llmobs_decorator(operation_kind):
 
     return decorator
 
+def _generic_decorator(operation_kind):
+    def decorator(
+        original_func: Optional[Callable] = None,
+        kind: Optional[str] = None,
+        model_name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        _automatic_io_annotation: bool = True,
+    ):
+        if kind in MODEL_DECORATORS:
+            decorator = _model_decorator(kind)
+            return decorator(
+                original_func,
+                model_name,
+                model_provider,
+                name,
+                session_id,
+                ml_app,
+            )
+        else:
+            decorator = _llmobs_decorator(kind or operation_kind)
+            return decorator(
+                original_func,
+                name,
+                session_id,
+                ml_app,
+                _automatic_io_annotation,
+            )
+
+    return decorator
+
+
+MODEL_DECORATORS = ["llm", "embedding"]
 
 llm = _model_decorator("llm")
 embedding = _model_decorator("embedding")
@@ -261,3 +296,4 @@ task = _llmobs_decorator("task")
 tool = _llmobs_decorator("tool")
 retrieval = _llmobs_decorator("retrieval")
 agent = _llmobs_decorator("agent")
+observe = _generic_decorator("undefined_kind")
