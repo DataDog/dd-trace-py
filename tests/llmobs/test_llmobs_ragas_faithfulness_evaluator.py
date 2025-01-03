@@ -167,19 +167,18 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, L
 
 
 @pytest.mark.vcr_logs
-def test_ragas_faithfulness_emits_traces(ragas, LLMObs):
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+def test_ragas_faithfulness_emits_traces(ragas, llmobs, llmobs_events):
+    """Why are we asserting only 7 spans caught?"""
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     rf_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
-    assert rf_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 7
-    calls = rf_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_args_list
-
-    spans = [call[0][0] for call in calls]
-
+    ragas_spans = [event for event in llmobs_events if event["name"].startswith("dd-ragas.")]
+    ragas_spans = sorted(ragas_spans, key=lambda d: d["start_ns"])
+    assert len(ragas_spans) == 7
     # check name, io, span kinds match
-    assert spans == _expected_ragas_spans()
+    assert ragas_spans == _expected_ragas_spans()
 
     # verify the trace structure
-    root_span = spans[0]
+    root_span = ragas_spans[0]
     root_span_id = root_span["span_id"]
     assert root_span["parent_id"] == "undefined"
     assert root_span["meta"] is not None
@@ -187,16 +186,15 @@ def test_ragas_faithfulness_emits_traces(ragas, LLMObs):
     assert isinstance(root_span["meta"]["metadata"]["faithfulness_list"], list)
     assert isinstance(root_span["meta"]["metadata"]["statements"], list)
     root_span_trace_id = root_span["trace_id"]
-    for child_span in spans[1:]:
+    for child_span in ragas_spans[1:]:
         assert child_span["trace_id"] == root_span_trace_id
 
-    assert spans[1]["parent_id"] == root_span_id  # input extraction (task)
-    assert spans[2]["parent_id"] == root_span_id  # create statements (workflow)
-    assert spans[4]["parent_id"] == root_span_id  # create verdicts (workflow)
-    assert spans[6]["parent_id"] == root_span_id  # create score (task)
-
-    assert spans[3]["parent_id"] == spans[2]["span_id"]  # create statements prompt (task)
-    assert spans[5]["parent_id"] == spans[4]["span_id"]  # create verdicts prompt (task)
+    assert ragas_spans[1]["parent_id"] == root_span_id  # input extraction (task)
+    assert ragas_spans[2]["parent_id"] == root_span_id  # create statements (workflow)
+    assert ragas_spans[4]["parent_id"] == root_span_id  # create verdicts (workflow)
+    assert ragas_spans[6]["parent_id"] == root_span_id  # create score (task)
+    assert ragas_spans[3]["parent_id"] == ragas_spans[2]["span_id"]  # create statements prompt (task)
+    assert ragas_spans[5]["parent_id"] == ragas_spans[4]["span_id"]  # create verdicts prompt (task)
 
 
 def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_logs, run_python_code_in_subprocess):
