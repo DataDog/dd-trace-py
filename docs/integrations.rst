@@ -262,6 +262,12 @@ LangChain
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib.langchain
 
+.. _langgraph:
+
+LangGraph
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.langgraph
+
 .. _logbook:
 
 Logbook
