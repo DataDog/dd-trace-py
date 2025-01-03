@@ -118,11 +118,17 @@ class _TelemetryClient:
                 conn.request("POST", self._endpoint, rb_json, headers)
                 resp = get_connection_response(conn)
             if resp.status < 300:
-                log.debug("sent %d in %.5fs to %s. response: %s", len(rb_json), sw.elapsed(), self.url, resp.status)
+                log.debug(
+                    "Instrumentation Telemetry sent %d in %.5fs to %s. response: %s",
+                    len(rb_json),
+                    sw.elapsed(),
+                    self.url,
+                    resp.status,
+                )
             else:
-                log.debug("failed to send telemetry to %s. response: %s", self.url, resp.status)
-        except Exception:
-            log.debug("failed to send telemetry to %s.", self.url, exc_info=True)
+                log.debug("Failed to send Instrumentation Telemetry to %s. response: %s", self.url, resp.status)
+        except Exception as e:
+            log.debug("Failed to send Instrumentation Telemetry to %s. Error: %s", self.url, str(e))
         finally:
             if conn is not None:
                 conn.close()
