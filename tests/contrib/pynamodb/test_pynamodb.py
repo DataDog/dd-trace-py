@@ -5,8 +5,8 @@ from pynamodb.connection.base import Connection
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.pynamodb.patch import patch
-from ddtrace.contrib.pynamodb.patch import unpatch
+from ddtrace.contrib.internal.pynamodb.patch import patch
+from ddtrace.contrib.internal.pynamodb.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

@@ -2,9 +2,9 @@ import sqlalchemy
 from sqlalchemy import text
 
 from ddtrace import Pin
-from ddtrace.contrib.sqlalchemy import get_version
-from ddtrace.contrib.sqlalchemy import patch
-from ddtrace.contrib.sqlalchemy import unpatch
+from ddtrace.contrib.internal.sqlalchemy.patch import get_version
+from ddtrace.contrib.internal.sqlalchemy.patch import patch
+from ddtrace.contrib.internal.sqlalchemy.patch import unpatch
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

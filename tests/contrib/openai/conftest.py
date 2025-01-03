@@ -9,7 +9,7 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace import patch
-from ddtrace.contrib.openai.patch import unpatch
+from ddtrace.contrib.internal.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
 from ddtrace.llmobs import LLMObs
 from tests.utils import DummyTracer

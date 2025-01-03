@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from ddtrace.contrib.sqlalchemy import trace_engine
+from ddtrace.contrib.internal.sqlalchemy.engine import trace_engine
 from tests.opentracer.utils import init_tracer
 
 

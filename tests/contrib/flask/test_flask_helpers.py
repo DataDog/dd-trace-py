@@ -3,8 +3,8 @@ from io import BytesIO
 import flask
 
 from ddtrace import Pin
-from ddtrace.contrib.flask import unpatch
-from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.contrib.internal.flask.patch import flask_version
+from ddtrace.contrib.internal.flask.patch import unpatch
 from ddtrace.internal.compat import StringIO
 
 from . import BaseFlaskTestCase

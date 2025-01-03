@@ -4,9 +4,9 @@ import pytest
 from webtest import TestApp
 
 from ddtrace import config
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
-from ddtrace.contrib.wsgi import DDWSGIMiddleware
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -397,7 +397,7 @@ def test_get_request_headers(extra, expected):
 def test_schematization(ddtrace_run_python_code_in_subprocess, service_name, schema_version):
     code = """
 from webtest import TestApp
-from ddtrace.contrib.wsgi import DDWSGIMiddleware
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from tests.conftest import *
 from tests.contrib.wsgi.test_wsgi import application
 

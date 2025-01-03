@@ -12,8 +12,8 @@ from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 class TestFreezegunTestCase:
     @pytest.fixture(autouse=True)
     def _patch_freezegun(self):
-        from ddtrace.contrib.freezegun import patch
-        from ddtrace.contrib.freezegun import unpatch
+        from ddtrace.contrib.internal.freezegun.patch import patch
+        from ddtrace.contrib.internal.freezegun.patch import unpatch
 
         patch()
         yield
@@ -22,7 +22,7 @@ class TestFreezegunTestCase:
     def test_freezegun_unpatch(self):
         import freezegun
 
-        from ddtrace.contrib.freezegun import unpatch
+        from ddtrace.contrib.internal.freezegun.patch import unpatch
 
         unpatch()
 
@@ -75,7 +75,7 @@ class PytestFreezegunTestCase(PytestTestCaseBase):
         """Tests that pytest's patching of freezegun in the v1 plugin version works"""
         import sys
 
-        from ddtrace.contrib.freezegun import unpatch
+        from ddtrace.contrib.internal.freezegun.patch import unpatch
 
         unpatch()
         if "freezegun" in sys.modules:

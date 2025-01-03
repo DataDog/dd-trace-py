@@ -7,9 +7,9 @@ import pylibmc
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.pylibmc import TracedClient
-from ddtrace.contrib.pylibmc.patch import patch
-from ddtrace.contrib.pylibmc.patch import unpatch
+from ddtrace.contrib.internal.pylibmc.client import TracedClient
+from ddtrace.contrib.internal.pylibmc.patch import patch
+from ddtrace.contrib.internal.pylibmc.patch import unpatch
 from ddtrace.ext import memcached
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 from tests.opentracer.utils import init_tracer

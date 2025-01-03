@@ -6,7 +6,7 @@ import wrapt
 class DramatiqPatchTest(unittest.TestCase):
     def test_patch_before_import(self):
         from ddtrace import patch
-        from ddtrace.contrib.dramatiq import unpatch
+        from ddtrace.contrib.internal.dramatiq.patch import unpatch
 
         # Patch dramatiq before dramatiq imports
         patch(dramatiq=True)
@@ -36,7 +36,7 @@ class DramatiqPatchTest(unittest.TestCase):
         from dramatiq.brokers.stub import StubBroker
 
         from ddtrace import patch
-        from ddtrace.contrib.dramatiq import unpatch
+        from ddtrace.contrib.internal.dramatiq.patch import unpatch
 
         # Patch after all dramatiq imports
         patch(dramatiq=True)

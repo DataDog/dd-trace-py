@@ -5,8 +5,8 @@ import psycopg
 import pytest
 import wrapt
 
-from ddtrace.contrib.psycopg.patch import patch
-from ddtrace.contrib.psycopg.patch import unpatch
+from ddtrace.contrib.internal.psycopg.patch import patch
+from ddtrace.contrib.internal.psycopg.patch import unpatch
 
 
 @pytest.fixture(autouse=True)

@@ -2,7 +2,7 @@ import aiohttp  # noqa:F401
 import pytest
 
 from ddtrace.contrib.aiohttp.middlewares import trace_app
-from ddtrace.contrib.aiohttp.patch import unpatch
+from ddtrace.contrib.internal.aiohttp.patch import unpatch
 from ddtrace.internal.utils import version  # noqa:F401
 
 from .app.web import setup_app

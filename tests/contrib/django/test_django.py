@@ -24,9 +24,9 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.django.patch import instrument_view
-from ddtrace.contrib.django.patch import traced_get_response
 from ddtrace.contrib.django.utils import get_request_uri
+from ddtrace.contrib.internal.django.patch import instrument_view
+from ddtrace.contrib.internal.django.patch import traced_get_response
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
