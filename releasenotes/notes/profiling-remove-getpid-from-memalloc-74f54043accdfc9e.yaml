@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Removed a system call from the memory allocation profiler, used to detect forks,
+    which ran on every allocation and resulted in a significant slowdown.

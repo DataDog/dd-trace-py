@@ -57,6 +57,28 @@ static alloc_tracker_t* global_alloc_tracker;
 static void
 memalloc_init(void);
 
+static void
+memalloc_prefork(void)
+{
+    // Lock the mutex prior to forking. This ensures that the memory profiler
+    // data structures will be in a consistent state in the child process.
+    // The rest of the memalloc calls do trylock so we don't run the risk
+    // of deadlocking if some other fork handler allocates
+    memlock_lock(&g_memalloc_lock);
+}
+
+static void
+memalloc_postfork_parent(void)
+{
+    memlock_unlock(&g_memalloc_lock);
+}
+
+static void
+memalloc_postfork_child(void)
+{
+    memlock_unlock(&g_memalloc_lock);
+}
+
 #ifdef _MSC_VER
 #pragma section(".CRT$XCU", read)
 __declspec(allocate(".CRT$XCU")) void (*memalloc_init_func)(void) = memalloc_init;
@@ -81,6 +103,9 @@ memalloc_init()
         }
     }
     memlock_init(&g_memalloc_lock, crash_on_mutex_pass);
+#ifndef _WIN32
+    pthread_atfork(memalloc_prefork, memalloc_postfork_parent, memalloc_postfork_child);
+#endif
 }
 
 static void
