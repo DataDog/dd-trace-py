@@ -15,27 +15,27 @@ def _llm_span_without_io():
     return _expected_llmobs_llm_span_event(Span("dummy"))
 
 
-def test_ragas_evaluator_init(ragas, LLMObs):
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    assert rf_evaluator.llmobs_service == LLMObs
+def test_ragas_evaluator_init(ragas, llmobs):
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
+    assert rf_evaluator.llmobs_service == llmobs
     assert rf_evaluator.ragas_faithfulness_instance == ragas.metrics.faithfulness
     assert rf_evaluator.ragas_faithfulness_instance.llm == ragas.llms.llm_factory()
 
 
-def test_ragas_faithfulness_throws_if_dependencies_not_present(LLMObs, mock_ragas_dependencies_not_present, ragas):
+def test_ragas_faithfulness_throws_if_dependencies_not_present(llmobs, mock_ragas_dependencies_not_present, ragas):
     with pytest.raises(NotImplementedError, match="Failed to load dependencies for `ragas_faithfulness` evaluator"):
-        RagasFaithfulnessEvaluator(LLMObs)
+        RagasFaithfulnessEvaluator(llmobs)
 
 
-def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, LLMObs):
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, llmobs):
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     failure_msg, _ = rf_evaluator.evaluate(_llm_span_without_io())
     assert failure_msg == "fail_extract_faithfulness_inputs"
     assert rf_evaluator.llmobs_service.submit_evaluation.call_count == 0
 
 
 def test_ragas_faithfulness_has_modified_faithfulness_instance(
-    ragas, mock_llmobs_submit_evaluation, reset_ragas_faithfulness_llm, LLMObs
+    ragas, mock_llmobs_submit_evaluation, reset_ragas_faithfulness_llm, llmobs
 ):
     """Faithfulness instance used in ragas evaluator should match the global ragas faithfulness instance"""
     from ragas.llms import BaseRagasLLM
@@ -53,7 +53,7 @@ def test_ragas_faithfulness_has_modified_faithfulness_instance(
 
     faithfulness.llm = FirstDummyLLM()
 
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
 
     assert rf_evaluator.ragas_faithfulness_instance.llm.generate_text() == "dummy llm"
 
@@ -74,9 +74,9 @@ def test_ragas_faithfulness_has_modified_faithfulness_instance(
 
 
 @pytest.mark.vcr_logs
-def test_ragas_faithfulness_submits_evaluation(ragas, LLMObs, mock_llmobs_submit_evaluation):
+def test_ragas_faithfulness_submits_evaluation(ragas, llmobs, mock_llmobs_submit_evaluation):
     """Test that evaluation is submitted for a valid llm span where question is in the prompt variables"""
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
     rf_evaluator.run_and_submit_evaluation(llm_span)
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
@@ -101,10 +101,10 @@ def test_ragas_faithfulness_submits_evaluation(ragas, LLMObs, mock_llmobs_submit
 
 @pytest.mark.vcr_logs
 def test_ragas_faithfulness_submits_evaluation_on_span_with_question_in_messages(
-    ragas, LLMObs, mock_llmobs_submit_evaluation
+    ragas, llmobs, mock_llmobs_submit_evaluation
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_messages()
     rf_evaluator.run_and_submit_evaluation(llm_span)
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
@@ -128,9 +128,9 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_question_in_messages
 
 
 @pytest.mark.vcr_logs
-def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, LLMObs, mock_llmobs_submit_evaluation):
+def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, llmobs, mock_llmobs_submit_evaluation):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     llm_span = _expected_llmobs_llm_span_event(
         Span("dummy"),
         prompt={
