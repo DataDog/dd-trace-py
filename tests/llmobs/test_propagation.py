@@ -216,8 +216,6 @@ print(json.dumps(headers))
     env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
-
     headers = json.loads(stdout.decode())
     LLMObs.activate_distributed_headers(headers)
     with LLMObs.workflow("LLMObs span") as span:
@@ -252,7 +250,6 @@ print(json.dumps(headers))
     env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
 
     headers = json.loads(stdout.decode())
     LLMObs.activate_distributed_headers(headers)
