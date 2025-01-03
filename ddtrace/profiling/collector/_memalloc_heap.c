@@ -36,6 +36,25 @@ static heap_tracker_t global_heap_tracker;
 static void
 memheap_init(void);
 
+static void
+memheap_prefork(void)
+{
+    // See memalloc_prefork for an explanation of why this is here
+    memlock_lock(&g_memheap_lock);
+}
+
+static void
+memheap_postfork_parent(void)
+{
+    memlock_unlock(&g_memheap_lock);
+}
+
+static void
+memheap_postfork_child(void)
+{
+    memlock_unlock(&g_memheap_lock);
+}
+
 #ifdef _MSC_VER
 #pragma section(".CRT$XCU", read)
 __declspec(allocate(".CRT$XCU")) void (*memheap_init_func)(void) = memheap_init;
@@ -60,6 +79,9 @@ memheap_init()
         }
     }
     memlock_init(&g_memheap_lock, crash_on_mutex_pass);
+#ifndef _WIN32
+    pthread_atfork(memheap_prefork, memheap_postfork_parent, memheap_postfork_child);
+#endif
 }
 
 static uint32_t
