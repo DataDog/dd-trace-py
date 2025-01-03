@@ -18,6 +18,7 @@ from ddtrace._trace.span import Span as DatadogSpan
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import ConfigException
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.logger import get_logger
 from .propagation import HTTPPropagator
@@ -70,8 +71,8 @@ class Tracer(opentracing.Tracer):
             If ``None`` is provided, defaults to
             :class:`opentracing.scope_managers.ThreadLocalScopeManager`.
         :param dd_tracer: (optional) the Datadog tracer for this tracer to use. This
-            should only be passed if a custom Datadog tracer is being used. Defaults
-            to the global ``ddtrace.tracer`` tracer.
+            parameter is deprecated and will be removed in v3.0.0. The
+            to the global tracer (``ddtrace.tracer``) should always be used.
         """
         # Merge the given config with the default into a new dict
         self._config = DEFAULT_CONFIG.copy()
@@ -99,7 +100,14 @@ class Tracer(opentracing.Tracer):
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
-        self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
+        if dd_tracer is not None:
+            deprecate(
+                "The ``dd_tracer`` parameter is deprecated",
+                message="The global tracer (``ddtrace.tracer``) will be used instead.",
+                removal_version="3.0.0",
+            )
+
+        self._dd_tracer = dd_tracer or ddtrace.tracer
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))  # type: ignore[arg-type]
         self._dd_tracer.configure(
             enabled=self._config.get(keys.ENABLED),

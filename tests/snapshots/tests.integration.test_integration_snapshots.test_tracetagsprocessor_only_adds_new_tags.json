@@ -1,7 +1,7 @@
 [[
   {
     "name": "web.request",
-    "service": "tests.integration",
+    "service": "ddtrace_subprocess_dir",
     "resource": "web.request",
     "trace_id": 0,
     "span_id": 1,

@@ -609,6 +609,11 @@ class DummyTracer(Tracer):
     DummyTracer is a tracer which uses the DummyWriter by default
     """
 
+    def __new__(cls, *args, **kwargs):
+        # Override the __new__ method to ensure we can have multiple instances of the DummyTracer
+        cls._instance = object.__new__(cls)
+        return cls._instance
+
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
@@ -1155,11 +1160,6 @@ def snapshot(
         else:
             clsname = ""
 
-        if include_tracer:
-            tracer = Tracer()
-        else:
-            tracer = ddtrace.tracer
-
         module = inspect.getmodule(wrapped)
 
         # Use the fully qualified function name as a unique test token to
@@ -1173,14 +1173,14 @@ def snapshot(
         with snapshot_context(
             token,
             ignores=ignores,
-            tracer=tracer,
+            tracer=ddtrace.tracer,
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
         ):
             # Run the test.
             if include_tracer:
-                kwargs["tracer"] = tracer
+                kwargs["tracer"] = ddtrace.tracer
             return wrapped(*args, **kwargs)
 
     return wrapper

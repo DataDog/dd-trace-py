@@ -1,0 +1,70 @@
+[[
+  {
+    "name": "p",
+    "service": "tests.integration",
+    "resource": "p",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 5678,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-1",
+      "_dd.p.test": "value",
+      "language": "python",
+      "runtime-id": "65e7346cd27a4fcbb1a2ccb98722fed3"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4531
+    },
+    "duration": 48000,
+    "start": 1735013581776627000
+  },
+     {
+       "name": "c1",
+       "service": "tests.integration",
+       "resource": "c1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.test": "value"
+       },
+       "duration": 5000,
+       "start": 1735013581776649000
+     },
+     {
+       "name": "c2",
+       "service": "tests.integration",
+       "resource": "c2",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.test": "value"
+       },
+       "duration": 7000,
+       "start": 1735013581776662000
+     },
+        {
+          "name": "gc",
+          "service": "tests.integration",
+          "resource": "gc",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.test": "value"
+          },
+          "duration": 11000,
+          "start": 1735013581776667000
+        }]]
