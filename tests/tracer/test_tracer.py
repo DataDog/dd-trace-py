@@ -2112,7 +2112,8 @@ def test_multiple_tracer_instances():
 
         warns.clear()
         t = ddtrace.Tracer()
-        assert t is ddtrace.tracer
+        # TODO: Update this assertion when the deprecation is removed and the tracer becomes a singleton
+        assert t is not ddtrace.tracer
         assert len(warns) == 1
         assert (
             str(warns[0].message) == "Support for multiple Tracer instances is deprecated and will be "
