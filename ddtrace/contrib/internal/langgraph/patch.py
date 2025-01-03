@@ -89,12 +89,14 @@ async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwar
 
 
 @with_traced_module
-def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
+def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
     """
-    Trace the invocation of a Pregel (CompiledGraph) instance.
+    Trace the streaming of a Pregel (CompiledGraph) instance.
     This operation represents the parent execution of an individual graph.
     This graph could be standalone, or embedded as a subgraph in a node of a larger graph.
     Under the hood, this graph will `tick` through until all computed tasks are completed.
+
+    Calling `invoke` on a graph calls `stream` under the hood.
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
     span = integration.trace(
@@ -102,41 +104,71 @@ def traced_pregel_invoke(langgraph, pin, func, instance, args, kwargs):
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name),
         submit_to_llmobs=True,
     )
-    result = None
+
     try:
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(
-            span, args=args, kwargs={**kwargs, "name": instance.name}, response=result, operation="graph"
-        )
         span.finish()
-    return result
+        raise
+
+    def _stream():
+        item = None
+        while True:
+            try:
+                item = next(result)
+                yield item
+            except StopIteration:
+                response = item[-1] if isinstance(item, tuple) else item
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs={**kwargs, "name": instance.name}, response=response, operation="graph"
+                )
+                span.finish()
+                break
+            except Exception:
+                span.set_exc_info(*sys.exc_info())
+                span.finish()
+                raise
+
+    return _stream()
 
 
 @with_traced_module
-async def traced_pregel_ainvoke(langgraph, pin, func, instance, args, kwargs):
-    """Async version of traced_pregel_invoke."""
+def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
+    """Async version of traced_pregel_stream."""
     integration: LangGraphIntegration = langgraph._datadog_integration
     span = integration.trace(
         pin,
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name),
         submit_to_llmobs=True,
     )
-    result = None
+
     try:
-        result = await func(*args, **kwargs)
+        result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(
-            span, args=args, kwargs={**kwargs, "name": instance.name}, response=result, operation="graph"
-        )
         span.finish()
-    return result
+        raise
+
+    async def _astream():
+        item = None
+        while True:
+            try:
+                item = await anext(result)
+                yield item
+            except StopAsyncIteration:
+                response = item[-1] if isinstance(item, tuple) else item
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs={**kwargs, "name": instance.name}, response=response, operation="graph"
+                )
+                span.finish()
+                break
+            except Exception:
+                span.set_exc_info(*sys.exc_info())
+                span.finish()
+                raise
+
+    return _astream()
 
 
 @with_traced_module
@@ -170,8 +202,8 @@ def patch():
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
     wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
-    wrap(Pregel, "invoke", traced_pregel_invoke(langgraph))
-    wrap(Pregel, "ainvoke", traced_pregel_ainvoke(langgraph))
+    wrap(Pregel, "stream", traced_pregel_stream(langgraph))
+    wrap(Pregel, "astream", traced_pregel_astream(langgraph))
     wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
 
 
@@ -187,8 +219,8 @@ def unpatch():
 
     unwrap(RunnableSeq, "invoke")
     unwrap(RunnableSeq, "ainvoke")
-    unwrap(Pregel, "invoke")
-    unwrap(Pregel, "ainvoke")
+    unwrap(Pregel, "stream")
+    unwrap(Pregel, "astream")
     unwrap(PregelLoop, "tick")
 
     delattr(langgraph, "_datadog_integration")
