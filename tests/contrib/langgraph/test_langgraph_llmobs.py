@@ -1,5 +1,6 @@
-import pytest
 import json
+
+import pytest
 
 
 def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
