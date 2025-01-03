@@ -3,8 +3,8 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.internal.cassandra.patch import get_version
 from ddtrace.contrib.internal.cassandra.patch import patch
+from ddtrace.contrib.internal.cassandra.session import get_version
 
 
 try:
