@@ -198,16 +198,20 @@ def mock_ragas_dependencies_not_present():
 @pytest.fixture
 def ragas(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
     with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
-        import ragas
-
+        try:
+            import ragas
+        except ImportError:
+            pytest.skip("Ragas not installed")
         with override_env(dict(OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"))):
             yield ragas
 
 
 @pytest.fixture
 def reset_ragas_faithfulness_llm():
-    import ragas
-
+    try:
+        import ragas
+    except ImportError:
+        pytest.skip("Ragas not installed")
     previous_llm = ragas.metrics.faithfulness.llm
     yield
     ragas.metrics.faithfulness.llm = previous_llm
