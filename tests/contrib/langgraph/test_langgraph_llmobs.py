@@ -1,4 +1,5 @@
 import pytest
+import json
 
 
 def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
@@ -21,7 +22,7 @@ def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
 )
 class TestLangGraphLLMObs:
     def test_simple_graph(self, ddtrace_global_config, langgraph, simple_graph, mock_llmobs_writer):
-        simple_graph.invoke({"a_list": [], "which": "a"})
+        simple_graph.invoke({"a_list": [], "which": "a"}, stream_mode=["values"])
         span_events = mock_llmobs_writer.enqueue.call_args_list
         assert span_events[0][0][0]["name"] == "LangGraph"
         _assert_span_link(span_events[0][0][0], None, "input", "input")
@@ -30,6 +31,10 @@ class TestLangGraphLLMObs:
         _assert_span_link(span_events[1][0][0], span_events[0][0][0], "input", "input")
         assert span_events[2][0][0]["name"] == "b"
         _assert_span_link(span_events[2][0][0], span_events[1][0][0], "output", "input")
+
+        # Check that the graph span has the appropriate output
+        # stream_mode=["values"] should result in the last yield being a tuple
+        assert span_events[0][0][0]["meta"]["output"]["value"] == json.dumps({"a_list": ["a", "b"], "which": "a"})
 
     async def test_simple_graph_async(self, ddtrace_global_config, langgraph, simple_graph, mock_llmobs_writer):
         await simple_graph.ainvoke({"a_list": [], "which": "a"})
@@ -41,6 +46,10 @@ class TestLangGraphLLMObs:
         _assert_span_link(span_events[1][0][0], span_events[0][0][0], "input", "input")
         assert span_events[2][0][0]["name"] == "b"
         _assert_span_link(span_events[2][0][0], span_events[1][0][0], "output", "input")
+
+        # Check that the graph span has the appropriate output
+        # default stream_mode of "values" should result in the last yield being an object
+        assert span_events[0][0][0]["meta"]["output"]["value"] == json.dumps({"a_list": ["a", "b"], "which": "a"})
 
     def test_conditional_graph(self, ddtrace_global_config, langgraph, conditional_graph, mock_llmobs_writer):
         conditional_graph.invoke({"a_list": [], "which": "c"})
@@ -84,7 +93,7 @@ class TestLangGraphLLMObs:
         assert span_events[5][0][0]["name"] == "b3"
         _assert_span_link(span_events[5][0][0], span_events[4][0][0], "output", "input")
 
-    async def test_subgraph_async_lol(self, ddtrace_global_config, langgraph, complex_graph, mock_llmobs_writer):
+    async def test_subgraph_async(self, ddtrace_global_config, langgraph, complex_graph, mock_llmobs_writer):
         await complex_graph.ainvoke({"a_list": [], "which": "b"})
         span_events = mock_llmobs_writer.enqueue.call_args_list
         assert span_events[0][0][0]["name"] == "LangGraph"

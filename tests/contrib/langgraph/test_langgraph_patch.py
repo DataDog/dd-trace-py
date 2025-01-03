@@ -18,8 +18,8 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
         self.assert_wrapped(RunnableSeq.invoke)
         self.assert_wrapped(RunnableSeq.ainvoke)
-        self.assert_wrapped(Pregel.invoke)
-        self.assert_wrapped(Pregel.ainvoke)
+        self.assert_wrapped(Pregel.stream)
+        self.assert_wrapped(Pregel.astream)
         self.assert_wrapped(PregelLoop.tick)
 
     def assert_not_module_patched(self, langgraph):
@@ -29,8 +29,8 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
         self.assert_not_wrapped(RunnableSeq.invoke)
         self.assert_not_wrapped(RunnableSeq.ainvoke)
-        self.assert_not_wrapped(Pregel.invoke)
-        self.assert_not_wrapped(Pregel.ainvoke)
+        self.assert_not_wrapped(Pregel.stream)
+        self.assert_not_wrapped(Pregel.astream)
         self.assert_not_wrapped(PregelLoop.tick)
 
     def assert_not_module_double_patched(self, langgraph):
@@ -40,6 +40,6 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
         self.assert_not_double_wrapped(RunnableSeq.invoke)
         self.assert_not_double_wrapped(RunnableSeq.ainvoke)
-        self.assert_not_double_wrapped(Pregel.invoke)
-        self.assert_not_double_wrapped(Pregel.ainvoke)
+        self.assert_not_double_wrapped(Pregel.stream)
+        self.assert_not_double_wrapped(Pregel.astream)
         self.assert_not_double_wrapped(PregelLoop.tick)
