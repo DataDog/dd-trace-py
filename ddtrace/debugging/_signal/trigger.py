@@ -39,9 +39,9 @@ class Trigger(LogSignal):
         self._link_session()
 
     def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float, scope: t.Mapping[str, t.Any]) -> None:
-        session = self.session
-        if session is not None:
-            session.unlink_from_trace(self.trace_context)
+        # DEV: We do not unlink on exit explicitly here. We let the weak
+        # reference to the context object do the job.
+        pass
 
     def line(self, scope: t.Mapping[str, t.Any]):
         self._link_session()

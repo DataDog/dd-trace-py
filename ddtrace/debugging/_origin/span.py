@@ -154,12 +154,20 @@ class EntrySpanWrappingContext(WrappingContext):
             s.set_tag_str("_dd.code_origin.frames.0.type", location.module)
             s.set_tag_str("_dd.code_origin.frames.0.method", location.name)
 
+        return self
+
+    def _close_signal(self, retval=None, exc_info=(None, None, None)):
+        root = ddtrace.tracer.current_root_span()
+        span = ddtrace.tracer.current_span()
+        if root is None or span is None:
+            return
+
         # Check if we have any level 2 debugging sessions running for the
         # current trace
         if any(s.level >= 2 for s in Session.from_trace()):
             # Create a snapshot
             snapshot = Snapshot(
-                probe=location.probe,
+                probe=self.location.probe,
                 frame=self.__frame__,
                 thread=current_thread(),
                 trace_context=root,
@@ -175,18 +183,9 @@ class EntrySpanWrappingContext(WrappingContext):
             self.set("snapshot", snapshot)
             self.set("start_time", compat.monotonic_ns())
 
-        return self
+            snapshot.do_exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
 
-    def _close_signal(self, retval=None, exc_info=(None, None, None)):
-        try:
-            snapshot: Snapshot = t.cast(Snapshot, self.get("snapshot"))
-        except KeyError:
-            # No snapshot was created
-            return
-
-        snapshot.do_exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
-
-        self.collector.push(snapshot)
+            self.collector.push(snapshot)
 
     def __return__(self, retval):
         self._close_signal(retval=retval)

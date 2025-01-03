@@ -128,6 +128,17 @@ class Signal(abc.ABC):
 
         return exceeded
 
+    def _session_check(self) -> bool:
+        # Check that we emit signals from probes with a session ID only if the
+        # session is active. If the probe has no session ID, or the session ID
+        # is active, we can proceed with the signal emission.
+        session_id = self.probe.tags.get("sessionId")
+        if session_id is not None:
+            session = Session.lookup(session_id)
+            if session is None or session.level == 0:
+                return False
+        return True
+
     @property
     def session(self):
         session_id = self.probe.tags.get("sessionId")
@@ -150,6 +161,9 @@ class Signal(abc.ABC):
         pass
 
     def do_enter(self) -> None:
+        if not self._session_check():
+            return
+
         if self._timing is not ProbeEvalTiming.ENTRY:
             return
 
@@ -163,6 +177,9 @@ class Signal(abc.ABC):
         self.enter(scope)
 
     def do_exit(self, retval: Any, exc_info: ExcInfoType, duration: int) -> None:
+        if not self._session_check():
+            return
+
         if self.state is not SignalState.NONE:
             # The signal has already been handled and move to a final state
             return
@@ -192,6 +209,9 @@ class Signal(abc.ABC):
         self.state = SignalState.DONE
 
     def do_line(self, global_limiter: Optional[RateLimiter] = None) -> None:
+        if not self._session_check():
+            return
+
         frame = self.frame
         scope = ChainMap(frame.f_locals, frame.f_globals)
 

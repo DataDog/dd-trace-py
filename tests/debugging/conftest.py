@@ -5,9 +5,8 @@ import pytest
 
 @pytest.fixture
 def stuff():
-    was_loaded = False
-    if "tests.submod.stuff" in sys.modules:
-        was_loaded = True
+    was_loaded = "tests.submod.stuff" in sys.modules
+    if was_loaded:
         del sys.modules["tests.submod.stuff"]
 
     __import__("tests.submod.stuff")

@@ -121,6 +121,7 @@ def trigger_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("session_id", str(uuid.uuid4))
         kwargs.setdefault("level", 0)
+        kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
         return f(*args, **kwargs)
 
     return _wrapper

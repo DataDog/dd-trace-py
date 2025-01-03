@@ -7,16 +7,21 @@ from ddtrace import tracer
 
 SessionId = str
 
+DEFAULT_SESSION_LEVEL = 1
+
 
 def _sessions_from_debug_tag(debug_tag: str) -> t.Generator["Session", None, None]:
     for session in debug_tag.split("."):
         ident, _, level = session.partition(":")
-        yield Session(ident=ident, level=int(level or 0))
+        yield Session(ident=ident, level=int(level or DEFAULT_SESSION_LEVEL))
 
 
 def _sessions_to_debug_tag(sessions: t.Iterable["Session"]) -> str:
     # TODO: Validate tag length
-    return ".".join(f"{session.ident}:{session.level}" for session in sessions)
+    return ".".join(
+        (f"{session.ident}:{session.level}" if session.level != DEFAULT_SESSION_LEVEL else session.ident)
+        for session in sessions
+    )
 
 
 @dataclass
