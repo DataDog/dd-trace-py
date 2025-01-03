@@ -940,18 +940,23 @@ class Tracer(object):
         )
 
     def current_root_span(self) -> Optional[Span]:
-        """Returns the root span of the current execution.
+        """Returns the local root span of the current execution/process.
 
-        This is useful for attaching information related to the trace as a
-        whole without needing to add to child spans.
+        Note: This cannot be used to access the true root span of the trace
+        in a distributed tracing setup if the actual root span occurred in
+        another execution/process.
+
+        This is useful for attaching information to the local root span
+        of the current execution/process, which is often also service
+        entry span.
 
         For example::
 
-            # get the root span
-            root_span = tracer.current_root_span()
+            # get the local root span
+            local_root_span = tracer.current_root_span()
             # set the host just once on the root span
-            if root_span:
-                root_span.set_tag('host', '127.0.0.1')
+            if local_root_span:
+                local_root_span.set_tag('host', '127.0.0.1')
         """
         span = self.current_span()
         if span is None:
