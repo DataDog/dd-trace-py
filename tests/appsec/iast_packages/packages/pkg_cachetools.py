@@ -50,7 +50,7 @@ def pkg_cachetools_view():
 def pkg_cachetools_propagation_view():
     import cachetools
 
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
 
