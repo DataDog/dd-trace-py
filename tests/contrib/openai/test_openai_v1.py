@@ -921,7 +921,10 @@ def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
                 )
 
 
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_completion_stream",
+    ignores=["metrics.openai.response.usage.completion_tokens", "metrics.openai.response.usage.total_tokens"],
+)
 def test_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
@@ -931,7 +934,10 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
             _ = [c for c in resp]
 
 
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_completion_stream",
+    ignores=["metrics.openai.response.usage.completion_tokens", "metrics.openai.response.usage.total_tokens"],
+)
 async def test_completion_async_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
@@ -945,7 +951,10 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, snapsho
     parse_version(openai_module.version.VERSION) < (1, 6, 0),
     reason="Streamed response context managers are only available v1.6.0+",
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_completion_stream",
+    ignores=["metrics.openai.response.usage.completion_tokens", "metrics.openai.response.usage.total_tokens"],
+)
 def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
