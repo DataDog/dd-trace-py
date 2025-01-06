@@ -16,6 +16,8 @@ from tests.contrib.config import HTTPBIN_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
+from ddtrace.settings.asm import config as asm_config
+from tests.utils import override_global_config
 
 
 # host:port of httpbin_local container
@@ -535,7 +537,8 @@ class TestUrllib3(BaseUrllib3TestCase):
         self.tracer.enabled = False
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
-        ) as m_make_request:
+        ) as m_make_request, override_global_config(dict(_appsec_standalone_enabled=True, _asm_enabled=True)):
+            assert asm_config._apm_opt_out
             with pytest.raises(ValueError):
                 self.http.request("GET", URL_200)
 
@@ -582,7 +585,8 @@ class TestUrllib3(BaseUrllib3TestCase):
         self.tracer.enabled = False
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
-        ) as m_make_request:
+        ) as m_make_request, override_global_config(dict(_appsec_standalone_enabled=False, _asm_enabled=True)):
+            assert not asm_config._apm_opt_out
             with pytest.raises(ValueError):
                 self.http.request("GET", URL_200)
 
