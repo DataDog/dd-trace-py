@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracer: This fix resolves and issue where baggage header extraction was case sensitive.
+    Now the baggage header will be extracted regardless of casing.
+    
