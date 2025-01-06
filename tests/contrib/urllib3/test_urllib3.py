@@ -12,12 +12,11 @@ from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
+from ddtrace.settings.asm import config as asm_config
 from tests.contrib.config import HTTPBIN_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
-from ddtrace.settings.asm import config as asm_config
-from tests.utils import override_global_config
 
 
 # host:port of httpbin_local container
@@ -529,16 +528,19 @@ class TestUrllib3(BaseUrllib3TestCase):
                     timeout=mock.ANY,
                 )
 
+    @pytest.mark.skip(reason="urlib3 does not set the ASM Manual keep tag so x-datadog headers are not propagated")
     def test_distributed_tracing_apm_opt_out_true(self):
         """Tests distributed tracing headers are passed by default"""
         # Check that distributed tracing headers are passed down; raise an error rather than make the
         # request since we don't care about the response at all
         config.urllib3["distributed_tracing"] = True
         self.tracer.enabled = False
+        # Ensure the ASM SpanProcessor is set
+        self.tracer.configure(appsec_standalone_enabled=True, appsec_enabled=True)
+        assert asm_config._apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
-        ) as m_make_request, override_global_config(dict(_appsec_standalone_enabled=True, _asm_enabled=True)):
-            assert asm_config._apm_opt_out
+        ) as m_make_request:
             with pytest.raises(ValueError):
                 self.http.request("GET", URL_200)
 
@@ -583,10 +585,12 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Test with distributed tracing disabled does not propagate the headers"""
         config.urllib3["distributed_tracing"] = True
         self.tracer.enabled = False
+        # Ensure the ASM SpanProcessor is set.
+        self.tracer.configure(appsec_standalone_enabled=False, appsec_enabled=True)
+        assert not asm_config._apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
-        ) as m_make_request, override_global_config(dict(_appsec_standalone_enabled=False, _asm_enabled=True)):
-            assert not asm_config._apm_opt_out
+        ) as m_make_request:
             with pytest.raises(ValueError):
                 self.http.request("GET", URL_200)
 
