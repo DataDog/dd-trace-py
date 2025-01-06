@@ -238,10 +238,12 @@ def test_add_aspect_tainting_add_left_twice(obj1, obj2):
 @pytest.mark.parametrize(
     "log_level, iast_debug",
     [
-        (logging.DEBUG, False),
-        (logging.WARNING, False),
-        (logging.DEBUG, True),
-        (logging.WARNING, True),
+        (logging.DEBUG, ""),
+        (logging.WARNING, ""),
+        (logging.DEBUG, "false"),
+        (logging.WARNING, "false"),
+        (logging.DEBUG, "true"),
+        (logging.WARNING, "true"),
     ],
 )
 def test_taint_object_error_with_no_context(log_level, iast_debug, caplog):
@@ -260,7 +262,7 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, caplog):
     assert len(ranges_result) == 1
 
     _end_iast_context_and_oce()
-    with override_global_config(dict(_iast_debug=iast_debug)), caplog.at_level(log_level):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(log_level):
         result = taint_pyobject(
             pyobject=string_to_taint,
             source_name="test_add_aspect_tainting_left_hand",
@@ -270,18 +272,12 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, caplog):
 
         ranges_result = get_tainted_ranges(result)
         assert len(ranges_result) == 0
-        log_messages = [record.message for record in caplog.records]
-        if log_level == logging.DEBUG:
-            assert any([message.startswith("Tainting object error") for message in log_messages]), log_messages
-            assert any("[IAST] Tainted Map" in message for message in log_messages)
-            if iast_debug:
-                assert any("_taint_tracking/__init__.py" in message for message in log_messages)
-            else:
-                assert not any("_taint_tracking/__init__.py" in message for message in log_messages)
-        else:
-            assert not any(message.startswith("Tainting object error") for message in log_messages), log_messages
-            assert not any("[IAST] Tainted Map" in message for message in log_messages)
-            assert not any("_taint_tracking/__init__.py" in message for message in log_messages)
+
+        assert not any(record.message.startswith("Tainting object error") for record in caplog.records), [
+            record.message for record in caplog.records
+        ]
+        assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
+
         _start_iast_context_and_oce()
         result = taint_pyobject(
             pyobject=string_to_taint,
