@@ -532,7 +532,6 @@ class TestUrllib3(BaseUrllib3TestCase):
         # Check that distributed tracing headers are passed down; raise an error rather than make the
         # request since we don't care about the response at all
         config.urllib3["distributed_tracing"] = True
-        self.tracer._apm_opt_out = True
         self.tracer.enabled = False
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
@@ -580,7 +579,6 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_distributed_tracing_apm_opt_out_false(self):
         """Test with distributed tracing disabled does not propagate the headers"""
         config.urllib3["distributed_tracing"] = True
-        self.tracer._apm_opt_out = False
         self.tracer.enabled = False
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
