@@ -56,10 +56,6 @@ class MiniRagas:
 
         self.get_segmenter = get_segmenter
 
-        from ddtrace.llmobs._evaluators.ragas.models import ContextPrecisionVerification
-
-        self.ContextPrecisionVerification = ContextPrecisionVerification
-
         from ddtrace.llmobs._evaluators.ragas.models import StatementFaithfulnessAnswers
 
         self.StatementFaithfulnessAnswers = StatementFaithfulnessAnswers
