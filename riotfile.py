@@ -807,6 +807,7 @@ venv = Venv(
                 "django-q": latest,
                 "spyne": latest,
                 "zeep": latest,
+                "bcrypt": "==4.2.1",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -1610,7 +1611,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
             },
             venvs=[
                 Venv(
@@ -1637,6 +1638,18 @@ venv = Venv(
                                 "pytest": ["~=7.0", latest],
                                 "pytest-cov": "==2.12.0",
                             },
+                            venvs=[
+                                Venv(
+                                    env={
+                                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                                    },
+                                ),
+                                Venv(
+                                    env={
+                                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                                    },
+                                ),
+                            ],
                         ),
                     ],
                 ),
@@ -1653,6 +1666,18 @@ venv = Venv(
                         "more_itertools": "<8.11.0",
                         "httpx": latest,
                     },
+                    venvs=[
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                            },
+                        ),
+                    ],
                 ),
             ],
         ),
