@@ -370,11 +370,10 @@ class LLMObs(Service):
         If no span is provided, the current active LLMObs-type span will be used.
         """
         if span is None:
-            span = cls._instance.current_span()
+            span = cls._instance._current_span()
             if span is None:
                 log.warning("No span provided and no active LLMObs-generated span found.")
                 return None
-            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
         try:
             if span.span_type != SpanTypes.LLM:
                 log.warning("Span must be an LLMObs-generated span.")
@@ -384,7 +383,7 @@ class LLMObs(Service):
             log.warning("Failed to export span. Span must be a valid Span object.")
             return None
 
-    def current_span(self) -> Optional[Span]:
+    def _current_span(self) -> Optional[Span]:
         """Returns the currently active LLMObs-generated span.
         Note that there may be an active span represented by a context object
         (i.e. a distributed trace) which will not be returned by this method.
@@ -392,7 +391,7 @@ class LLMObs(Service):
         active = self._llmobs_context_provider.active()
         return active if isinstance(active, Span) else None
 
-    def current_trace_context(self) -> Optional[Context]:
+    def _current_trace_context(self) -> Optional[Context]:
         """Returns the context for the current LLMObs trace."""
         active = self._llmobs_context_provider.active()
         if isinstance(active, Context):
@@ -640,7 +639,7 @@ class LLMObs(Service):
                         such as `{prompt,completion,total}_tokens`.
         """
         if span is None:
-            span = cls._instance.current_span()
+            span = cls._instance._current_span()
             if span is None:
                 log.warning("No span provided and no active LLMObs-generated span found.")
                 return
@@ -928,7 +927,7 @@ class LLMObs(Service):
 
     @classmethod
     def _inject_llmobs_context(cls, request_headers: Dict[str, str]) -> Dict[str, str]:
-        active_ctx = cls._instance.current_trace_context()
+        active_ctx = cls._instance._current_trace_context()
         if active_ctx is None:
             parent_id = ROOT_PARENT_ID
         else:
@@ -949,7 +948,7 @@ class LLMObs(Service):
             log.warning("request_headers must be a dictionary of string key-value pairs.")
             return request_headers
         if span is None:
-            span = cls._instance.current_span()
+            span = cls._instance._current_span()
         if span is None:
             log.warning("No span provided and no currently active span found.")
             return request_headers
@@ -961,11 +960,7 @@ class LLMObs(Service):
         return request_headers
 
     @classmethod
-    def _activate_llmobs_distributed_headers(
-        cls, request_headers: Dict[str, str], context: Optional[Context] = None
-    ) -> None:
-        if not context:
-            context = HTTPPropagator.extract(request_headers)
+    def _activate_llmobs_distributed_headers(cls, request_headers: Dict[str, str], context: Context) -> None:
         if not context.trace_id or not context.span_id:
             log.warning("Failed to extract trace/span ID from request headers.")
             return

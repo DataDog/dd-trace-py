@@ -19,7 +19,7 @@ def _wrap_submit(func, args, kwargs):
     if config._llmobs_enabled:
         from ddtrace.llmobs import LLMObs
 
-        llmobs_ctx = LLMObs._instance.current_trace_context()
+        llmobs_ctx = LLMObs._instance._current_trace_context()
 
     # The target function can be provided as a kwarg argument "fn" or the first positional argument
     self = args[0]
