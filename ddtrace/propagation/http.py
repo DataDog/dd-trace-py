@@ -976,15 +976,15 @@ class HTTPPropagator(object):
     def _extract_configured_contexts_avail(normalized_headers):
         contexts = []
         styles_w_ctx = []
-        for prop_style in config._propagation_style_extract:
-            propagator = _PROP_STYLES[prop_style]
-            context = propagator._extract(normalized_headers)
-            # baggage is handled separately
-            if prop_style == _PROPAGATION_STYLE_BAGGAGE:
-                continue
-            if context:
-                contexts.append(context)
-                styles_w_ctx.append(prop_style)
+        if config._propagation_style_extract is not None:
+            for prop_style in config._propagation_style_extract:
+                if prop_style == _PROPAGATION_STYLE_BAGGAGE:
+                    continue
+                propagator = _PROP_STYLES[prop_style]
+                context = propagator._extract(normalized_headers)
+                if context:
+                    contexts.append(context)
+                    styles_w_ctx.append(prop_style)
         return contexts, styles_w_ctx
 
     @staticmethod
