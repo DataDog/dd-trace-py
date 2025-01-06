@@ -532,7 +532,6 @@ class TestUrllib3(BaseUrllib3TestCase):
         # Check that distributed tracing headers are passed down; raise an error rather than make the
         # request since we don't care about the response at all
         config.urllib3["distributed_tracing"] = True
-        self.tracer.enabled = False
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:
