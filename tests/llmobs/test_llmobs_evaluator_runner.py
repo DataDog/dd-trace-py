@@ -22,7 +22,7 @@ def test_evaluator_runner_start(mock_evaluator_logs):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
     evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=mock.MagicMock()))
     evaluator_runner.start()
-    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r to %r", "EvaluatorRunner")])
+    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r", "EvaluatorRunner")])
 
 
 def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
