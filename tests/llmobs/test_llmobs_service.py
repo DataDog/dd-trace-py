@@ -1746,8 +1746,8 @@ async def test_annotation_context_async_nested(llmobs):
                 assert span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
 
 
-@pytest.mark.skipif(not RAGAS_AVAILABLE, reason="Test requires ragas to be available on user env")
 def test_service_enable_starts_evaluator_runner_when_evaluators_exist():
+    pytest.importorskip("ragas")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
             dummy_tracer = DummyTracer()
