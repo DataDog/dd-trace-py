@@ -222,7 +222,7 @@ class Span(OtelSpan):
         if isinstance(status, Status):
             if description is not None and description != status.description:
                 log.warning(
-                    "Conflicting descriptions detected. The following status description will be ignored for %s: %s",
+                    "Conflicting descriptions detected. The following description will not be set on the %s span: %s. "
                     "Ensure `Span.set_status(...)` is called with `(Status(status_code, description), None)` "
                     "or `(status_code, description)`",
                     self._ddspan.name,
