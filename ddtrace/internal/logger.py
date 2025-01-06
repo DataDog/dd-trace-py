@@ -194,6 +194,7 @@ class DDLogger(logging.Logger):
     def _report_telemetry_log(self, record):
         # type: (logging.LogRecord) -> None
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+
         key = (record.name, record.levelno, record.pathname, record.lineno)
         current_bucket = int(record.created / _TelemetryConfig.TELEMETRY_HEARTBEAT_INTERVAL)
         key_bucket = self.telemetry_log_buckets[key]
@@ -202,11 +203,14 @@ class DDLogger(logging.Logger):
         else:
             self.telemetry_log_buckets[key] = DDLogger.LoggingBucket(current_bucket, 0)
             level = (
-                TELEMETRY_LOG_LEVEL.ERROR if record.levelno >= logging.ERROR
-                else TELEMETRY_LOG_LEVEL.WARNING if record.levelno == logging.WARNING
+                TELEMETRY_LOG_LEVEL.ERROR
+                if record.levelno >= logging.ERROR
+                else TELEMETRY_LOG_LEVEL.WARNING
+                if record.levelno == logging.WARNING
                 else TELEMETRY_LOG_LEVEL.DEBUG
             )
             from ddtrace.internal import telemetry
+
             tags = {
                 "lib_language": "python",
             }
@@ -214,16 +218,19 @@ class DDLogger(logging.Logger):
             if record.exc_info:
                 _, _, traceback_object = record.exc_info
                 if traceback_object:
-                    stack_trace = ''.join(traceback.format_tb(traceback_object))
+                    stack_trace = "".join(traceback.format_tb(traceback_object))
                     # TODO redact absolute file paths and unknown packages
             if record.levelno >= logging.ERROR or stack_trace is not None:
                 # Report only an error or an exception with a stack trace
-                telemetry.telemetry_writer.add_log(level, record.msg, tags=tags, stack_trace=stack_trace, count=key_bucket.skipped + 1)
+                telemetry.telemetry_writer.add_log(
+                    level, record.msg, tags=tags, stack_trace=stack_trace, count=key_bucket.skipped + 1
+                )
 
 
 class _TelemetryConfig:
     TELEMETRY_ENABLED = os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower() in ("true", "1")
-    LOG_COLLECTION_ENABLED = TELEMETRY_ENABLED and os.getenv("DD_TELEMETRY_LOG_COLLECTION_ENABLED", "true").lower() in ("true", "1")
+    LOG_COLLECTION_ENABLED = TELEMETRY_ENABLED and os.getenv("DD_TELEMETRY_LOG_COLLECTION_ENABLED", "true").lower() in (
+        "true",
+        "1",
+    )
     TELEMETRY_HEARTBEAT_INTERVAL = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
-
-
