@@ -1,6 +1,5 @@
 from collections import Counter
 import os
-import socket
 import subprocess
 from time import sleep
 
@@ -194,7 +193,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
-            assert async_span.get_tag("out.host") == socket.gethostname()
+            assert async_span.get_tag("out.host") == "memory://"
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -239,7 +238,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
-            assert async_span.get_tag("out.host") == socket.gethostname()
+            assert async_span.get_tag("out.host") == "memory://"
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -442,6 +441,41 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("span.kind") == "consumer"
         assert span.error == 0
 
+    def test_task_chain_same_trace(self):
+        @self.app.task(max_retries=1, default_retry_delay=1)
+        def fn_b(user, force_logout=False):
+            raise ValueError("Foo")
+
+        self.celery_worker.reload()  # Reload after each task or we get an unregistered error
+
+        @self.app.task(bind=True, max_retries=1, autoretry_for=(Exception,), default_retry_delay=1)
+        def fn_a(self, user, force_logout=False):
+            fn_b.apply_async(args=[user], kwargs={"force_logout": force_logout})
+            raise ValueError("foo")
+
+        self.celery_worker.reload()  # Reload after each task or we get an unregistered error
+
+        traces = None
+        try:
+            with self.override_config("celery", dict(distributed_tracing=True)):
+                t = fn_a.apply_async(args=["user"], kwargs={"force_logout": True})
+                # We wait 10 seconds so all tasks finish.  While it'd be nice to block
+                # until all tasks complete, celery doesn't offer an option. Using get()
+                # causes a deadlock, since in test-mode we only have one worker.
+                import time
+
+                time.sleep(10)
+                t.get()
+        except Exception:
+            pass
+
+        traces = self.pop_traces()
+        # The below tests we have 1 trace with 8 spans, which is the shape generated
+        assert len(traces) > 0
+        assert sum([1 for trace in traces for span in trace]) == 8
+        trace_id = traces[0][0].trace_id
+        assert all(trace_id == span.trace_id for trace in traces for span in trace)
+
     @mock.patch("kombu.messaging.Producer.publish", mock.Mock(side_effect=ValueError))
     def test_fn_task_apply_async_soft_exception(self):
         # If the underlying library runs into an exception that doesn't crash the app
@@ -600,7 +634,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
-            assert async_span.get_tag("out.host") == socket.gethostname()
+            assert async_span.get_tag("out.host") == "memory://"
 
         run_span = self.find_span(name="celery.run")
         assert run_span.name == "celery.run"

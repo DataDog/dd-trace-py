@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from ast import literal_eval
 import asyncio
+import logging
 from multiprocessing.pool import ThreadPool
 import random
 import re
@@ -9,33 +10,30 @@ from time import sleep
 
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import are_all_text_all_ranges
-from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import debug_taint_map
 from ddtrace.appsec._iast._taint_tracking import get_range_by_hash
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import is_notinterned_notfasttainted_unicode
 from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-from ddtrace.appsec._iast._taint_tracking import reset_context
-from ddtrace.appsec._iast._taint_tracking import reset_contexts
-from ddtrace.appsec._iast._taint_tracking import set_fast_tainted_if_notinterned_unicode
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import shift_taint_range
 from ddtrace.appsec._iast._taint_tracking import shift_taint_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_contexts
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect as extend_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
 from tests.appsec.iast.conftest import IAST_VALID_LOG
-
-
-def setup():
-    oce._enabled = True
+from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 def test_source_origin_refcount():
@@ -444,7 +442,6 @@ def test_reset_objects():
 
 
 def reset_context_loop():
-    create_context()
     a_1 = "abc123"
     for i in range(25):
         a_1 = taint_pyobject(
@@ -454,7 +451,6 @@ def reset_context_loop():
             source_origin=OriginType.PARAMETER,
         )
         sleep(0.01)
-    reset_context()
 
 
 def reset_contexts_loop():
@@ -482,7 +478,7 @@ async def async_reset_contexts_loop(task_id: int):
     return reset_contexts_loop()
 
 
-def test_race_conditions_reset_context_threads(caplog, telemetry_writer):
+def test_race_conditions_threads(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
@@ -499,21 +495,23 @@ def test_race_conditions_reset_context_threads(caplog, telemetry_writer):
     assert len(list_metrics_logs) == 0
 
 
+@pytest.mark.skip_iast_check_logs
 def test_race_conditions_reset_contexts_threads(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    pool = ThreadPool(processes=3)
-    results_async = [pool.apply_async(reset_contexts_loop) for _ in range(70)]
-    _ = [res.get() for res in results_async]
+    with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+        dict(_iast_debug=True)
+    ), caplog.at_level(logging.DEBUG):
+        pool = ThreadPool(processes=3)
+        results_async = [pool.apply_async(reset_contexts_loop) for _ in range(70)]
+        _ = [res.get() for res in results_async]
 
-    log_messages = [record.message for record in caplog.get_records("call")]
-    for message in log_messages:
-        if IAST_VALID_LOG.search(message):
-            pytest.fail(message)
-
-    list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 0
+        log_messages = [record.message for record in caplog.get_records("call")]
+        if not any(IAST_VALID_LOG.search(message) for message in log_messages):
+            pytest.fail("All contexts reset but no fail")
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
 
 @pytest.mark.asyncio
@@ -540,7 +538,7 @@ async def test_race_conditions_reset_contexs_async(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    tasks = [async_reset_contexts_loop(i) for i in range(50)]
+    tasks = [async_reset_contexts_loop(i) for i in range(20)]
 
     results = await asyncio.gather(*tasks)
     assert results

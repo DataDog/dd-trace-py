@@ -185,7 +185,7 @@ class TracerFlareMultiprocessTests(TestCase):
 
     def test_multiple_process_partial_failure(self):
         """
-        Validte that even if the tracer flare fails for one process, we should
+        Validate that even if the tracer flare fails for one process, we should
         still continue the work for the other processes (ensure best effort)
         """
         processes = []
@@ -234,7 +234,7 @@ class MockPubSubConnector(PublisherSubscriberConnector):
 
 
 class TracerFlareSubscriberTests(TestCase):
-    agent_config = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
+    agent_config = [False, {"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
     agent_task = [
         False,
         {

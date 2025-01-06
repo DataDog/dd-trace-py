@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+from time import time_ns
 from typing import Any
 from typing import Dict
 from typing import List
@@ -12,7 +13,6 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -153,8 +153,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
             activate=True,
             func_run=is_getrecords_call,
             start_ns=start_ns,
-            call_key="patched_kinesis_api_call",
-        ) as ctx, ctx.get_item(ctx.get_item("call_key")):
+        ) as ctx, ctx.span:
             core.dispatch("botocore.patched_kinesis_api_call.started", [ctx])
 
             if is_kinesis_put_operation:
@@ -181,7 +180,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                         ctx,
                         e.response,
                         botocore.exceptions.ClientError,
-                        config.botocore.operations[ctx[ctx["call_key"]].resource].is_error_code,
+                        config.botocore.operations[ctx.span.resource].is_error_code,
                     ],
                 )
                 raise

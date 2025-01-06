@@ -3,25 +3,20 @@ import logging
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Source
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import TaintRange
     from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-    from ddtrace.appsec._iast._taint_tracking import reset_context
     from ddtrace.appsec._iast._taint_tracking import set_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking._context import reset_context
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-
-
-def setup():
-    oce._enabled = True
 
 
 def test_taint_ranges_as_evidence_info_nothing_tainted():
@@ -52,7 +47,9 @@ def test_taint_object_with_no_context_should_be_noop():
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context(caplog):
     reset_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+    with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+        dict(_iast_debug=True)
+    ), caplog.at_level(logging.DEBUG):
         string_input = taint_pyobject(
             pyobject="abcde", source_name="abcde", source_value="abcde", source_origin=OriginType.PARAMETER
         )

@@ -27,6 +27,7 @@ SNAPSHOT_IGNORES = [
     "meta.test_module_id",
     "meta.test_session_id",
     "meta.test_suite_id",
+    "meta._dd.base_service",
     "metrics._dd.top_level",
     "metrics._dd.tracer_kr",
     "metrics._sampling_priority_v1",
@@ -355,3 +356,47 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             replace_os_env=True,
         ):
             subprocess.run(["python", "fake_runner_efd_faulty_session.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_atr_mix_pass(self):
+        import fake_runner_atr_mix_pass
+
+        fake_runner_src = inspect.getsource(fake_runner_atr_mix_pass)
+        self.testdir.makepyfile(fake_runner_atr_mix_pass=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            _get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                ),
+                mock_ci_env=True,
+            ),
+            replace_os_env=True,
+        ):
+            subprocess.run(["python", "fake_runner_atr_mix_pass.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_atr_mix_fail(self):
+        import fake_runner_atr_mix_fail
+
+        fake_runner_src = inspect.getsource(fake_runner_atr_mix_fail)
+        self.testdir.makepyfile(fake_runner_atr_mix_fail=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            _get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    DD_CIVISIBILITY_FLAKY_RETRY_COUNT="7",
+                    DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT="20",
+                ),
+                mock_ci_env=True,
+            ),
+            replace_os_env=True,
+        ):
+            subprocess.run(["python", "fake_runner_atr_mix_fail.py"])

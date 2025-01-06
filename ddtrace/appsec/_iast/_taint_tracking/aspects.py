@@ -19,86 +19,113 @@ from typing import Union
 import _io
 
 from ddtrace.appsec._constants import IAST
-
-from .._taint_tracking import TagMappingMode
-from .._taint_tracking import TaintRange
-from .._taint_tracking import _aspect_ospathbasename
-from .._taint_tracking import _aspect_ospathdirname
-from .._taint_tracking import _aspect_ospathjoin
-from .._taint_tracking import _aspect_ospathnormcase
-from .._taint_tracking import _aspect_ospathsplit
-from .._taint_tracking import _aspect_ospathsplitdrive
-from .._taint_tracking import _aspect_ospathsplitext
-from .._taint_tracking import _aspect_ospathsplitroot
-from .._taint_tracking import _aspect_rsplit
-from .._taint_tracking import _aspect_split
-from .._taint_tracking import _aspect_splitlines
-from .._taint_tracking import _convert_escaped_text_to_tainted_text
-from .._taint_tracking import _format_aspect
-from .._taint_tracking import are_all_text_all_ranges
-from .._taint_tracking import as_formatted_evidence
-from .._taint_tracking import common_replace
-from .._taint_tracking import copy_and_shift_ranges_from_strings
-from .._taint_tracking import copy_ranges_from_strings
-from .._taint_tracking import get_ranges
-from .._taint_tracking import get_tainted_ranges
-from .._taint_tracking import iast_taint_log_error
-from .._taint_tracking import is_pyobject_tainted
-from .._taint_tracking import new_pyobject_id
-from .._taint_tracking import parse_params
-from .._taint_tracking import set_ranges
-from .._taint_tracking import shift_taint_range
-from .._taint_tracking import taint_pyobject_with_ranges
-from .._taint_tracking._native import aspects  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking import TagMappingMode
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathbasename
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathdirname
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathjoin
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathnormcase
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplit
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplitdrive
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplitext
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplitroot
+from ddtrace.appsec._iast._taint_tracking import _aspect_rsplit
+from ddtrace.appsec._iast._taint_tracking import _aspect_split
+from ddtrace.appsec._iast._taint_tracking import _aspect_splitlines
+from ddtrace.appsec._iast._taint_tracking import _convert_escaped_text_to_tainted_text
+from ddtrace.appsec._iast._taint_tracking import _format_aspect
+from ddtrace.appsec._iast._taint_tracking import are_all_text_all_ranges
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import common_replace
+from ddtrace.appsec._iast._taint_tracking import copy_and_shift_ranges_from_strings
+from ddtrace.appsec._iast._taint_tracking import copy_ranges_from_strings
+from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast._taint_tracking import new_pyobject_id
+from ddtrace.appsec._iast._taint_tracking import parse_params
+from ddtrace.appsec._iast._taint_tracking import set_ranges
+from ddtrace.appsec._iast._taint_tracking import shift_taint_range
+from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
+from ddtrace.appsec._iast._taint_tracking._native import aspects  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_iterable_with_strings
+from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_string
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]
 
+_extend_aspect = aspects.extend_aspect
+_join_aspect = aspects.join_aspect
 add_aspect = aspects.add_aspect
 add_inplace_aspect = aspects.add_inplace_aspect
-_extend_aspect = aspects.extend_aspect
 index_aspect = aspects.index_aspect
-_join_aspect = aspects.join_aspect
-slice_aspect = aspects.slice_aspect
 modulo_aspect = aspects.modulo_aspect
-split_aspect = _aspect_split
-rsplit_aspect = _aspect_rsplit
-splitlines_aspect = _aspect_splitlines
-str_aspect = aspects.str_aspect
-ospathjoin_aspect = _aspect_ospathjoin
 ospathbasename_aspect = _aspect_ospathbasename
 ospathdirname_aspect = _aspect_ospathdirname
-ospathsplit_aspect = _aspect_ospathsplit
-ospathsplitext_aspect = _aspect_ospathsplitext
-ospathsplitdrive_aspect = _aspect_ospathsplitdrive
-ospathsplitroot_aspect = _aspect_ospathsplitroot
+ospathjoin_aspect = _aspect_ospathjoin
 ospathnormcase_aspect = _aspect_ospathnormcase
+ospathsplit_aspect = _aspect_ospathsplit
+ospathsplitdrive_aspect = _aspect_ospathsplitdrive
+ospathsplitext_aspect = _aspect_ospathsplitext
+ospathsplitroot_aspect = _aspect_ospathsplitroot
+rsplit_aspect = _aspect_rsplit
+slice_aspect = aspects.slice_aspect
+split_aspect = _aspect_split
+splitlines_aspect = _aspect_splitlines
+str_aspect = aspects.str_aspect
 
 __all__ = [
+    "_aspect_rsplit",
+    "_aspect_split",
+    "_aspect_splitlines",
     "add_aspect",
     "add_inplace_aspect",
-    "str_aspect",
+    "bytearray_aspect",
     "bytearray_extend_aspect",
+    "bytes_aspect",
+    "bytesio_aspect",
+    "capitalize_aspect",
+    "casefold_aspect",
     "decode_aspect",
     "encode_aspect",
-    "re_sub_aspect",
-    "ospathjoin_aspect",
-    "_aspect_split",
-    "split_aspect",
-    "_aspect_rsplit",
-    "rsplit_aspect",
+    "format_aspect",
+    "format_map_aspect",
+    "index_aspect",
+    "join_aspect",
+    "ljust_aspect",
+    "lower_aspect",
     "modulo_aspect",
-    "_aspect_splitlines",
-    "splitlines_aspect",
     "ospathbasename_aspect",
     "ospathdirname_aspect",
+    "ospathjoin_aspect",
     "ospathnormcase_aspect",
     "ospathsplit_aspect",
-    "ospathsplitext_aspect",
     "ospathsplitdrive_aspect",
+    "ospathsplitext_aspect",
     "ospathsplitroot_aspect",
-    "bytesio_aspect",
+    "re_expand_aspect",
+    "re_findall_aspect",
+    "re_finditer_aspect",
+    "re_fullmatch_aspect",
+    "re_group_aspect",
+    "re_groups_aspect",
+    "re_match_aspect",
+    "re_search_aspect",
+    "re_sub_aspect",
+    "re_subn_aspect",
+    "replace_aspect",
+    "repr_aspect",
+    "rsplit_aspect",
+    "slice_aspect",
+    "split_aspect",
+    "splitlines_aspect",
+    "str_aspect",
     "stringio_aspect",
+    "swapcase_aspect",
+    "title_aspect",
+    "translate_aspect",
+    "upper_aspect",
 ]
 
 
@@ -114,7 +141,7 @@ def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
 
     if args and is_pyobject_tainted(args[0]) and isinstance(result, _io.StringIO):
         try:
-            copy_and_shift_ranges_from_strings(args[0], result, 0)
+            copy_ranges_from_strings(args[0], result)
         except Exception as e:
             iast_taint_log_error("IAST propagation error. stringio_aspect. {}".format(e))
     return result
@@ -132,7 +159,7 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
 
     if args and is_pyobject_tainted(args[0]) and isinstance(result, _io.BytesIO):
         try:
-            copy_and_shift_ranges_from_strings(args[0], result, 0)
+            copy_ranges_from_strings(args[0], result)
         except Exception as e:
             iast_taint_log_error("IAST propagation error. bytesio_aspect. {}".format(e))
     return result
@@ -757,6 +784,8 @@ def aspect_replace_api(
             len(old_value),
             candidate_text_ranges,
         )
+    else:
+        new_elements = [element for element in new_elements if element is not None]
 
     result_formatted = as_formatted_evidence(new_value, tag_mapping_function=TagMappingMode.Mapper).join(new_elements)
 
@@ -943,25 +972,26 @@ def re_findall_aspect(
     args = args[(flag_added_args or 1) :]
     result = orig_function(*args, **kwargs)
 
-    if not isinstance(self, (Pattern, ModuleType)):
-        # This is not the sub we're looking for
-        return result
-    elif isinstance(self, ModuleType):
-        if self.__name__ != "re" or self.__package__ not in ("", "re"):
+    try:
+        if not isinstance(self, (Pattern, ModuleType)):
+            # This is not the sub we're looking for
             return result
-        # In this case, the first argument is the pattern
-        # which we don't need to check for tainted ranges
-        args = args[1:]
-    elif not isinstance(result, list) or not len(result):
-        return result
+        elif isinstance(self, ModuleType):
+            if self.__name__ != "re" or self.__package__ not in ("", "re"):
+                return result
+            # In this case, the first argument is the pattern
+            # which we don't need to check for tainted ranges
+            args = args[1:]
+        elif not isinstance(result, list) or not len(result):
+            return result
 
-    if len(args) >= 1:
-        string = args[0]
-        if is_pyobject_tainted(string):
-            for i in result:
-                if len(i):
-                    # Taint results
-                    copy_and_shift_ranges_from_strings(string, i, 0, len(i))
+        if len(args) >= 1:
+            string = args[0]
+            ranges = get_tainted_ranges(string)
+            if ranges:
+                result = copy_ranges_to_iterable_with_strings(result, ranges)
+    except Exception as e:
+        iast_taint_log_error("re_findall_aspect. {}".format(e))
 
     return result
 
@@ -977,27 +1007,29 @@ def re_finditer_aspect(orig_function: Optional[Callable], flag_added_args: int, 
     self = args[0]
     args = args[(flag_added_args or 1) :]
     result = orig_function(*args, **kwargs)
-
-    if not isinstance(self, (Pattern, ModuleType)):
-        # This is not the sub we're looking for
-        return result
-    elif isinstance(self, ModuleType):
-        if self.__name__ != "re" or self.__package__ not in ("", "re"):
+    try:
+        if not isinstance(self, (Pattern, ModuleType)):
+            # This is not the sub we're looking for
             return result
-        # In this case, the first argument is the pattern
-        # which we don't need to check for tainted ranges
-        args = args[1:]
+        elif isinstance(self, ModuleType):
+            if self.__name__ != "re" or self.__package__ not in ("", "re"):
+                return result
+            # In this case, the first argument is the pattern
+            # which we don't need to check for tainted ranges
+            args = args[1:]
 
-    elif not isinstance(result, Iterator):
-        return result
+        elif not isinstance(result, Iterator):
+            return result
 
-    if len(args) >= 1:
-        string = args[0]
-        if is_pyobject_tainted(string):
-            ranges = get_ranges(string)
-            result, result_backup = itertools.tee(result)
-            for elem in result_backup:
-                taint_pyobject_with_ranges(elem, ranges)
+        if len(args) >= 1:
+            string = args[0]
+            if is_pyobject_tainted(string):
+                ranges = get_ranges(string)
+                result, result_backup = itertools.tee(result)
+                for elem in result_backup:
+                    taint_pyobject_with_ranges(elem, ranges)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. re_finditer_aspect. {}".format(e))
     return result
 
 
@@ -1169,11 +1201,11 @@ def re_groups_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
     if not result or not isinstance(self, Match) or not is_pyobject_tainted(self):
         return result
 
-    for group in result:
-        if group is not None:
-            copy_and_shift_ranges_from_strings(self, group, 0, len(group))
-
-    return result
+    try:
+        return copy_ranges_to_iterable_with_strings(result, get_ranges(self))
+    except Exception as e:
+        iast_taint_log_error("re_groups_aspect. {}".format(e))
+        return result
 
 
 def re_group_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
@@ -1191,12 +1223,13 @@ def re_group_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
     if not result or not isinstance(self, Match) or not is_pyobject_tainted(self):
         return result
 
-    if isinstance(result, tuple):
-        for group in result:
-            if group is not None:
-                copy_and_shift_ranges_from_strings(self, group, 0, len(group))
-    else:
-        copy_and_shift_ranges_from_strings(self, result, 0, len(result))
+    try:
+        if isinstance(result, tuple):
+            result = copy_ranges_to_iterable_with_strings(result, get_ranges(self))
+        else:
+            result = copy_ranges_to_string(result, get_ranges(self))
+    except Exception as e:
+        iast_taint_log_error("re_group_aspect. {}".format(e))
 
     return result
 
@@ -1217,13 +1250,16 @@ def re_expand_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
         # No need to taint the result
         return result
 
-    if not is_pyobject_tainted(self) and len(args) and not is_pyobject_tainted(args[0]):
-        # Nothing tainted, no need to taint the result either
-        return result
+    try:
+        if not is_pyobject_tainted(self) and len(args) and not is_pyobject_tainted(args[0]):
+            # Nothing tainted, no need to taint the result either
+            return result
 
-    if is_pyobject_tainted(self):
-        copy_and_shift_ranges_from_strings(self, result, 0, len(result))
-    elif is_pyobject_tainted(args[0]):
-        copy_and_shift_ranges_from_strings(args[0], result, 0, len(result))
+        if is_pyobject_tainted(self):
+            result = copy_ranges_to_string(result, get_ranges(self))
+        elif is_pyobject_tainted(args[0]):
+            result = copy_ranges_to_string(result, get_ranges(args[0]))
+    except Exception as e:
+        iast_taint_log_error("re_expand_aspect. {}".format(e))
 
     return result

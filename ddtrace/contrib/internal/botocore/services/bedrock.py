@@ -77,10 +77,18 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
 
     def __iter__(self):
         """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
+        exception_raised = False
         try:
             for line in self.__wrapped__:
                 self._body.append(json.loads(line["chunk"]["bytes"]))
                 yield line
+        except Exception:
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
+            exception_raised = True
+            raise
+        finally:
+            if exception_raised:
+                return
             metadata = _extract_streamed_response_metadata(self._execution_ctx, self._body)
             formatted_response = _extract_streamed_response(self._execution_ctx, self._body)
             model_provider = self._execution_ctx["model_provider"]
@@ -92,9 +100,6 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 "botocore.bedrock.process_response",
                 [self._execution_ctx, formatted_response, metadata, self._body, should_set_choice_ids],
             )
-        except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
-            raise
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -287,7 +292,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
     prompt = None
     for k, v in request_params.items():
-        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx[ctx["call_key"]]):
+        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
             prompt = v
     ctx.set_item("prompt", prompt)
 
@@ -334,7 +339,6 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         ),
         resource=function_vars.get("operation"),
         span_type=SpanTypes.LLM if submit_to_llmobs else None,
-        call_key="instrumented_bedrock_call",
         call_trace=True,
         bedrock_integration=integration,
         params=params,

@@ -1,0 +1,10 @@
+[
+    {"name": "min glibc x64", "filepath":  "/some/path", "args": [], "envars":  [], "host": {"os": "linux", "arch": "x64", "libc":  "glibc:2.17"}},
+    {"name": "ok glibc x64", "filepath":  "/some/path", "args": [], "envars":  [], "host": {"os": "linux", "arch": "x64", "libc":  "glibc:2.23"}},
+    {"name": "high glibc x64", "filepath":  "/some/path", "args": [], "envars":  [], "host": {"os": "linux", "arch": "x64", "libc":  "glibc:3.0"}},
+    {"name": "musl x64", "filepath":  "/some/path", "args": [], "envars":  [], "host": {"os": "linux", "arch": "x64", "libc":  "musl:1.2.2"}},
+    {"name": "min glibc arm64", "filepath":  "/some/path", "args": [], "envars":  [], "host": {"os": "linux", "arch": "arm64", "libc":  "glibc:2.17"}},
+    {"name": "ok glibc arm64", "filepath":  "/some/path", "args": [], "envars":  [], "host": {"os": "linux", "arch": "arm64", "libc":  "glibc:2.23"}},
+    {"name": "high glibc arm64", "filepath":  "/some/path", "args": [], "envars":  [], "host": {"os": "linux", "arch": "arm64", "libc":  "glibc:3.0"}},
+    {"name": "musl arm64", "filepath":  "/some/path", "args": [], "envars":  [], "host": {"os": "linux", "arch": "arm64", "libc":  "musl:1.2.2"}}
+  ]

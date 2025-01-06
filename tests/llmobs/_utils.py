@@ -12,6 +12,7 @@ import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 
 
 if vcr:
@@ -19,7 +20,7 @@ if vcr:
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
         record_mode="once",
         match_on=["path"],
-        filter_headers=[("DD-API-KEY", "XXXXXX")],
+        filter_headers=["authorization", "OpenAI-Organization", "api-key", "x-api-key", ("DD-API-KEY", "XXXXXX")],
         # Ignore requests to the agent
         ignore_localhost=True,
     )
@@ -33,7 +34,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     expected_tags = [
         "version:{}".format(tags.get("version", "")),
         "env:{}".format(tags.get("env", "")),
-        "service:{}".format(tags.get("service", "")),
+        "service:{}".format(tags.get("service", "tests.llmobs")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
         "ddtrace.version:{}".format(ddtrace.__version__),
@@ -56,6 +57,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
 def _expected_llmobs_llm_span_event(
     span,
     span_kind="llm",
+    prompt=None,
     input_messages=None,
     input_documents=None,
     output_messages=None,
@@ -94,6 +96,8 @@ def _expected_llmobs_llm_span_event(
             meta_dict["input"].update({"messages": input_messages})
         if output_messages is not None:
             meta_dict["output"].update({"messages": output_messages})
+        if prompt is not None:
+            meta_dict["input"].update({"prompt": prompt})
     if span_kind == "embedding":
         if input_documents is not None:
             meta_dict["input"].update({"documents": input_documents})
@@ -107,8 +111,7 @@ def _expected_llmobs_llm_span_event(
         meta_dict.update({"model_name": model_name})
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
-    if metadata is not None:
-        meta_dict.update({"metadata": metadata})
+    meta_dict.update({"metadata": metadata or {}})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
     span_event["meta"].update(meta_dict)
@@ -159,8 +162,7 @@ def _expected_llmobs_non_llm_span_event(
         meta_dict["input"].update({"value": input_value})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
-    if metadata is not None:
-        meta_dict.update({"metadata": metadata})
+    meta_dict.update({"metadata": metadata or {}})
     if output_value is not None:
         meta_dict["output"].update({"value": output_value})
     if not meta_dict["input"]:
@@ -174,13 +176,7 @@ def _expected_llmobs_non_llm_span_event(
 
 
 def _llmobs_base_span_event(
-    span,
-    span_kind,
-    tags=None,
-    session_id=None,
-    error=None,
-    error_message=None,
-    error_stack=None,
+    span, span_kind, tags=None, session_id=None, error=None, error_message=None, error_stack=None
 ):
     span_event = {
         "trace_id": "{:x}".format(span.trace_id),
@@ -225,6 +221,7 @@ def _expected_llmobs_eval_metric_event(
     score_value=None,
     numerical_value=None,
     tags=None,
+    metadata=None,
 ):
     eval_metric_event = {
         "span_id": span_id,
@@ -251,7 +248,8 @@ def _expected_llmobs_eval_metric_event(
 
     if ml_app is not None:
         eval_metric_event["ml_app"] = ml_app
-
+    if metadata is not None:
+        eval_metric_event["metadata"] = metadata
     return eval_metric_event
 
 
@@ -263,7 +261,7 @@ def _completion_event():
         "parent_id": "",
         "session_id": "98765432101",
         "name": "completion_span",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223236,
         "duration": 12345678900,
         "error": 0,
@@ -294,7 +292,7 @@ def _chat_completion_event():
         "parent_id": "",
         "session_id": "98765432102",
         "name": "chat_completion_span",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -325,6 +323,45 @@ def _chat_completion_event():
     }
 
 
+def _chat_completion_event_with_unserializable_field():
+    return {
+        "span_id": "12345678902",
+        "trace_id": "98765432102",
+        "parent_id": "",
+        "session_id": "98765432102",
+        "name": "chat_completion_span",
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "error": 0,
+        "meta": {
+            "span.kind": "llm",
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "metadata": {"unserializable": object()},
+            "input": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
+                    {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": "Ah, a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very well, little creature, I shall play along. But know that I am always watching, and your quest will not go unnoticed",  # noqa: E501
+                        "role": "assistant",
+                    },
+                ]
+            },
+        },
+        "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
+    }
+
+
 def _large_event():
     return {
         "span_id": "12345678903",
@@ -332,7 +369,7 @@ def _large_event():
         "parent_id": "",
         "session_id": "98765432103",
         "name": "large_span",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -370,7 +407,7 @@ def _oversized_llm_event():
         "parent_id": "",
         "session_id": "98765432104",
         "name": "oversized_llm_event",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -408,7 +445,7 @@ def _oversized_workflow_event():
         "parent_id": "",
         "session_id": "98765432105",
         "name": "oversized_workflow_event",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -428,7 +465,7 @@ def _oversized_retrieval_event():
         "parent_id": "",
         "session_id": "98765432106",
         "name": "oversized_retrieval_event",
-        "tags": ["version:", "env:", "service:", "source:integration"],
+        "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
         "error": 0,
@@ -439,6 +476,54 @@ def _oversized_retrieval_event():
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
+
+
+def expected_ragas_trace_tags():
+    return [
+        "version:",
+        "env:",
+        "service:tests.llmobs",
+        "source:integration",
+        "ml_app:dd-ragas-unnamed-ml-app",
+        "ddtrace.version:{}".format(ddtrace.__version__),
+        "language:python",
+        "error:0",
+        "runner.integration:ragas",
+    ]
+
+
+default_ragas_inputs = {
+    "question": "What is the capital of France?",
+    "context": "The capital of France is Paris.",
+    "answer": "The capital of France is Paris",
+}
+
+
+def _llm_span_with_expected_ragas_inputs_in_prompt(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+
+    return _expected_llmobs_llm_span_event(
+        span=Span("dummy"),
+        prompt={
+            "variables": {"question": ragas_inputs["question"], "context": ragas_inputs["context"]},
+        },
+        output_messages=[{"content": ragas_inputs["answer"]}],
+    )
+
+
+def _llm_span_with_expected_ragas_inputs_in_messages(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+
+    return _expected_llmobs_llm_span_event(
+        span=Span("dummy"),
+        prompt={
+            "variables": {"context": ragas_inputs["context"]},
+        },
+        input_messages=[{"content": ragas_inputs["question"]}],
+        output_messages=[{"content": ragas_inputs["answer"]}],
+    )
 
 
 class DummyEvaluator:
@@ -454,3 +539,141 @@ class DummyEvaluator:
             value=1.0,
             metric_type="score",
         )
+
+
+def _dummy_evaluator_eval_metric_event(span_id, trace_id):
+    return LLMObsEvaluationMetricEvent(
+        span_id=span_id,
+        trace_id=trace_id,
+        score_value=1.0,
+        ml_app="unnamed-ml-app",
+        timestamp_ms=mock.ANY,
+        metric_type="score",
+        label=DummyEvaluator.LABEL,
+        tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
+    )
+
+
+def _expected_ragas_spans(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+    return [
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": "undefined",
+            "name": "dd-ragas.faithfulness",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": "1.0"},
+                "metadata": {
+                    "statements": mock.ANY,
+                    "faithfulness_list": mock.ANY,
+                },
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.extract_faithfulness_inputs",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.create_statements",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.create_statements_prompt",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {"span.kind": "task", "metadata": {}},
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.create_verdicts",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.create_natural_language_inference_prompt",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {"span.kind": "task", "metadata": {}},
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.compute_score",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "task",
+                "output": {"value": "1.0"},
+                "metadata": {"faithful_statements": 1, "num_statements": 1},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+        },
+    ]

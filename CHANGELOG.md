@@ -4,6 +4,713 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.18.1
+
+
+### Bug Fixes
+
+Profiling:
+- Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
+- Fixes a bug where profiling mutexes were not cleared on fork in the child process. This could cause deadlocks in certain configurations.
+
+Tracing:
+- celery: Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
+
+---
+
+## 2.18.0
+
+### Upgrade Notes
+- ASM
+  - With this upgrade, you can now control how the stack trace report are cropped when reported for exploit prevention or IAST.  
+    - `DD_APPSEC_MAX_STACK_TRACE_DEPTH` allowed to control the maximum stack trace size reported (default 32)
+    - `DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT` allows now to specify how the stack trace is cropped as a percentage.
+
+    For example, a value of 100 will report the top DD_APPSEC_MAX_STACK_TRACE_DEPTH frames from the stack, while a value of 0 will report the bottom DD_APPSEC_MAX_STACK_TRACE_DEPTH frames of the trace. A value of 50 will report half of DD_APPSEC_MAX_STACK_TRACE_DEPTH (rounded down) frames from the top of the stack and the rest from bottom. Default value is 75.
+  - Upgrades `libddwaf` to 1.22.0
+  - Upgrades `libddwaf` to 1.21.0 and security rule file to 1.13.3
+
+
+### Deprecation Notes
+- Python 3.7 support is deprecated and will be removed in 3.0
+
+
+### New Features
+- CI Visibility
+  - Beta release of the new version of the pytest plugin, introducing the following features:  
+    - [Auto Test Retries](https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries)
+    - [Early Flake Detection](https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection)
+    - Improved coverage collection for [Test Impact Analysis](https://docs.datadoghq.com/tests/test_impact_analysis) (formerly Intelligent Test Runner) now uses an internal collection method instead of [coverage.py](https://github.com/nedbat/coveragepy), with improved dependency discovery.
+
+    Set the `DD_PYTEST_USE_NEW_PLUGIN_BETA` environment variable to `true` to use this new version.
+
+    **NOTE:** this new version of the plugin introduces breaking changes:  
+    - `module`, `suite`, and `test` names are now parsed from the `item.nodeid` attribute
+    - test names now include the class for class-based tests
+    - Test skipping by Test Impact Analysis (formerly Intelligent Test Runner) is now done at the suite level, instead of at the test level
+- Adds support for [Selenium and RUM integration](https://docs.datadoghq.com/tests/browser_tests/)
+
+- Code Security
+  - Introduces "Standalone Code Security", a feature that disables APM in the tracer but keeps Code Security (IAST) enabled. In order to enable it, set the environment variables `DD_IAST_ENABLED=1` and `DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED=1`.
+
+- LLM Observability
+  - Adds support to automatically submit Vertex AI Python calls to LLM Observability.
+  - `vertexai`: Introduces tracing support for Google's Vertex AI SDK for Python's `generate_content` and `send_message` calls. See [the docs](https://ddtrace.readthedocs.io/en/stable/integrations.html#vertexai) for more information.
+
+- Profiling
+  - Profiler uses agent url configured via `tracer.configure()`
+
+
+### Bug Fixes
+- ASM
+  - Ensures that common patches for exploit prevention and sca are only loaded if required, and only loaded once.
+  - Resolves an issue where AppSec was using a patched JSON loads, creating telemetry errors.
+  - Resolves an issue where some root span where not appropriately tagged for ASM standalone.
+  - ASM: Resolves an issue where AppSec was using a patched request and builtins functions, 
+    creating telemetry errors.
+
+- CI Visibility
+  - Fixes an issue where the CIVisbility service would incorrectly default the tracer env to `None` in EVP proxy mode if `DD_ENV` was not specified but the agent had a default environment set to a value other than `none` (eg: using `DD_APM_ENV` in the agent's environment).
+  - Updates the inferred base service name algorithm to ensure that arguments following `--ddtrace` are no longer skipped when executing tests with pytest. Previously, the algorithm misinterpreted these arguments as standard flags, overlooking possible test paths that may contribute to the inferred service name.
+
+- Code Security
+  - Patches the module dir function so original pre-patch results are not changed.
+  - Resolves a patching issue with `psycopg3`.
+  - This fix resolves an issue where the modulo (%) operator would not be replaced correctly for bytes and bytesarray if IAST is enabled.
+  - Ensures IAST SSRF vulnerability redacts the url query parameters correctly.
+  - Adds `umap`, `numba` and `pynndescent` to the Code Security denylist.
+
+- Crashtracking
+  - Resolves issue where the crashtracker receiver may leave a zombie process behind after a crash.
+
+- Lib-Injection
+  - Ensures any user defined `sitecustomize.py` are preserved when auto-injecting.
+  - Supports Python 2.7+ for injection compatibility check.
+  - Resolves an issue where the default versions of `click` and `jinja2` installed on 3.8 were outside of the allowed minimum versions for autoinstrumentation.
+
+- LLM Observability
+  - Ensures bedrock spans are finished even when streamed responses are not fully consumed.
+  - `langchain`: Resolves a JSON decoding issue resulting from tagging streamed outputs from chains ending with a PydanticOutputParser.
+  - Fixes an issue where decorators were not tracing generator functions properly.
+
+- Profiling
+  - Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file. This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14, and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.
+  - Fixes unbounded memory usage growth caused by keeping arbitrary user-generated strings (e.g. asyncio Task names) in an internal table and never removing them.
+  - Fixes an issue where `asyncio` task names are not properly propagated when using stack v2, i.e. when `DD_PROFILING_STACK_V2_ENABLED` is set. Fixes an issue where `asyncio` tasks are not associated with spans when using stack v2, i.e. when `DD_PROFILING_STACK_V2_ENABLED` is set.
+
+- Telemetry
+  - Ensures that Telemetry heartbeats are not skipped for forked processes, as doing so could result in the dependency list being lost over time.
+
+- Tracing
+  - `botocore`: This fix resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
+  - `botocore`: This fix resolves the issue where the span pointer for deserialized DynamoDB requests (through the resource-based API) were not being generated.
+  - `botocore`: This fix resolves an issue where our span pointer calculation code added recently logged unactionable messages.
+  - `celery`: This fix resolves two issues with context propagation in celery
+    1.  Invalid span parentage when task A calls task B async and task A errors out, causing A's queuing of B, and B itself to not be parented under A.
+    2.  Invalid context propagation from client to workers, and across retries, causing multiple traces instead of a single trace
+  - `celery`: Changes celery `out.host` span tag to point towards broker host url instead of local celery process hostname. Fixes inferred service representation issues when using celery.
+  - `grpcaio`: Resolves a concurrency bug where distributed tracing headers were overwritten resulting in spans being assigned to the wrong trace.
+  - `kafka`: Fixes an issue with Kafka consumer spans not using the active trace context when distributed tracing was enabled and no valid distributed context found was found within a consumed message.
+
+
+### Other Changes
+- Tracing
+  - Removed x-forwarded from headers used for client IP resolution (but not from collected headers). We lack evidence of actual usage, and whether this should follow RFC 7239 or regular XFF list format.
+
+---
+
+## 2.17.3
+
+### Bug Fixes
+
+- SCA:
+  - Ensure that Telemetry heartbeats are not skipped for forked processes, as doing so could result in the dependency list being lost over time.
+
+- Celery:
+  - This fix resolves two issues with context propagation in celery
+    - 1.  Invalid span parentage when task A calls task B async and task A errors out, causing A's queuing of B, and B itself to not be parented under A.
+    - 2.  Invalid context propagation from client to workers, and across retries, causing multiple traces instead of a single trace
+
+- Code Security:
+  - This fix resolves a patching issue with <span class="title-ref">psycopg3</span>.
+  - This fix resolves an issue where the modulo (%) operator would not be replaced correctly for bytes and bytesarray if IAST is enabled.
+  - Ensure IAST SSRF vulnerability redacts the url query parameters correctly.
+
+- Profiling:
+    - Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file. This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14, and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.
+
+---
+
+## 2.16.6
+
+### Bug Fixes
+
+- SCA:
+    - Ensure that Telemetry heartbeats are not skipped for forked processes, as doing so could result in the dependency list being lost over time.
+
+- Code Security:
+    - Resolve a patching issue with psycopg3.
+    - Resolve an issue where the modulo (%) operator would not be replaced correctly for bytes and bytesarray if IAST is enabled.
+    - Ensure IAST SSRF vulnerability redacts the url query parameters correctly.
+
+- Lib-Injection:
+    - Fix injection guardrail check when sys.argv is not available.
+
+- Profiling
+  - Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file. This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14, and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.
+
+
+---
+
+## 2.17.2
+
+### Bug Fixes
+
+- ASM
+  - Ensures that common patches for exploit prevention and SCA are only loaded if required, and only loaded once.
+
+- LLM Observability
+  - Ensures bedrock spans are finished even when streamed responses are not fully consumed.
+  - Fixes an issue where decorators were not tracing generator functions properly.
+
+- Tracing
+  - `botocore`: Resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
+  - `celery`: Changes celery `out.host` span tag to point towards broker host url instead of local celery process hostname. Fixes inferred service representation issues when using celery.
+  - `grpcaio`: Resolves a concurrency bug where distributed tracing headers were overwritten resulting in spans being assigned to the wrong trace.
+
+
+---
+
+## 2.17.1
+
+### Bug Fixes
+- ASM
+  - Resolves an issue where some root spans were not appropriately tagged for ASM standalone.
+- Code Security
+  - Patches the module dir function so original pre-patch results are not changed.
+- Tracing
+  - Resolves an issue where the default versions of `click` and `jinja2` installed on 3.8 were outside of the allowed minimum versions for autoinstrumentation.
+
+
+---
+
+## 2.17.0
+
+### New Features
+- ASM
+  - Support added for session fingerprints.
+
+- LLM Observability
+  - When not using a provider integration (OpenAI, Anthropic, or Bedrock) with the LangChain integration, token metrics will be appended to the LLM Observability `llm` span.
+  - LLM Observability: When langchain's `chat_model.with_structured_output(..., method="json_mode")` is used, or `response_format={"type": "json_object"}` is passed into a langchain chat model invocation, the LLM Observability span will be an `llm` span instead of a `workflow` span.
+
+- SSI
+  - Adds `requirements.json` to SSI artifact for bailing out on unsupported systems.
+
+- Tracing
+  - Adds support for expanding AWS request/response Payloads into flattened span tags.
+  - Updates the service naming algorithm to infer the base service name when `DD_SERVICE` is not set, replacing instances of `'unnamed-python-service'`. Ensures that a more meaningful service name is used whenever possible, enhancing clarity in service identification.
+
+### Bug Fixes
+- ASM
+  - The new user events policy is preventing users PII to be added by default as span tags. To allow customers using the Django auto instrumentation to still have those information, new environment variables have been added. In particular `DD_DJANGO_INCLUDE_EMAIL` (false by default), will tag user events with user email as before.
+
+- Code Security/IAST
+  - Adds `umap`, `numba` and `pynndescent` to the Code Security denylist.
+  - Adds `googlecloudsdk` and `google auth` to the Code Security deny list.
+  - Resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError
+
+- Crashtracking
+  - Fixes an issue where the use of the Crashtracking component could result in zombie processes.
+
+- Lib-Injection
+  - Supports Python 2.7+ for injection compatibility check.
+  - Adds more commands to the auto-injection denylist.
+  - Ensures we do not import the user installed `ddtrace` if it is present.
+  - Fixes injection guardrail check when `sys.argv` is not available.
+
+- LLM Observability
+  - Resolves an issue where annotating spans with non-ASCII language input/output values resulted in encoded unicode being submitted.
+
+- Profiling
+  - Fixes a data race where span information associated with a thread was read and updated concurrently, leading to segfaults
+  - Fixes an issue where cpu-time was not profiled for services using gunicorn, when `DD_PROFILING_STACK_V2_ENABLED` was set.
+  - Fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+  - The lock profiler would log a warning if it couldn't determine a name for a lock, and it would try determining a name multiple times for the same lock. This lead to excessive log spam. Downgrade this to a debug log and only try to determine the name once.
+  - Fixes an issue where the profiler was allocating too much memory from `ensure_binary_or_empty()` function, on Python versions before 3.12, with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Fixes an issue where the sample pool could deadlock after `fork()` by clearing it in the child process.
+  - When a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when `DD_PROFILING_ENDPOINT_COLLECTION_ENABLED` and `DD_PROFILING_STACK_V2_ENABLED` were set to enable grouping of profiles for endpoints.
+
+- Tracing
+  - Updates the inferred base service name algorithm to ensure that arguments following `--ddtrace` are no longer skipped when executing tests with pytest. Previously, the algorithm misinterpreted these arguments as standard flags, overlooking possible test paths that may contribute to the inferred service name.
+  - `botocore`: Resolves the issue where the span pointer for deserialized DynamoDB requests (through the resource-based API) were not being generated.
+  - `botocore`: Resolves an issue where our span pointer calculation code added recently logged unactionable messages.
+  - `pymongo`: add type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+
+
+---
+
+## 2.16.5
+
+### Bug Fixes
+
+- ASM
+  - Ensures that common patches for exploit prevention and sca are only loaded if required, and only loaded once.
+  - Resolves an issue where some root span where not appropriately tagged for ASM standalone.
+
+- Auto-Instrumentation
+  - Resolves an issue where the default versions of `click` and `jinja2` installed on python3.8 were outside of the allowed minimum versions for auto-instrumentation.
+
+- Code Security
+  - Patches the module dir function so original pre-patch results are not changed.
+
+- LLM Observability
+  - Ensures bedrock spans are finished even when streamed responses are not fully consumed.
+
+- Tracing
+  - `botocore`: Resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
+
+
+---
+
+## 2.16.3
+
+### Bug Fixes
+
+  - Code Security: add umap, numba and pynndescent to the Code Security denylist.
+
+
+---
+
+## 2.16.1
+
+### Bug Fixes
+
+- Threats
+  - The new user events policy is preventing users PII to be added by default as span tags. To allow customers using the Django auto instrumentation to still have those information, new environment variables have been added. In particular `DD_DJANGO_INCLUDE_EMAIL` (false by default), will tag user events with user email as before.
+
+- Code Security
+  - Add googlecloudsdk and google auth to the Code Security deny list.
+
+- Crashtracking
+  - Fixes an issue where the use of the crashtracking component could result in zombie processes.
+
+- Lib-Injection
+  - This fix adds more commands to the auto-injection denylist.
+  - This fix ensures we do not import the user installed `ddtrace` if it is present.
+
+- LLM Observability
+  - Resolves an issue where annotating spans with non-ASCII language input/output values resulted in encoded unicode being submitted.
+
+- Profiling
+  - Fixes an issue where cpu-time was not profiled for services using gunicorn, when `DD_PROFILING_STACK_V2_ENABLED` was set.
+  - Fixes an issue where the profiler was allocating too much memory from `ensure_binary_or_empty()` function, on Python versions before 3.12, with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Fixes an issue where the sample pool could deadlock after `fork()` by clearing it in the child process.
+
+
+---
+
+## 2.15.4
+
+### Bug Fixes
+
+- ASM
+  - Ensures that common patches for exploit prevention and sca are only loaded if required, and only loaded once.
+  - Resolves an issue where some root span where not appropriately tagged for ASM standalone.
+
+- Auto-Instrumentation
+  - Resolves an issue where the default versions of `click` and `jinja2` installed on python3.8 were outside of the allowed minimum versions for auto-instrumentation.
+
+- Code Security
+  - Patches the module dir function so original pre-patch results are not changed.
+
+- LLM Observability
+  - Ensures bedrock spans are finished even when streamed responses are not fully consumed.
+
+- Tracing
+  - `botocore`: Resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
+
+
+---
+
+## 2.15.3
+
+### Bug Fixes
+
+- ASM: 
+  - The new user events policy is preventing users PII to be added by default as span tags. To allow customers using the Django auto instrumentation to still have those information, new environment variables have been added. In particular DD\_DJANGO\_INCLUDE\_EMAIL (false by default), will tag user events with user email as before.
+
+- LLM Observability: 
+      - Resolves an issue where annotating spans with non-ASCII language input/output values resulted in encoded unicode being submitted.
+
+- Code Security: 
+  - Add googlecloudsdk,google auth, umap, numba and pynndescent to the Code Security deny list.
+
+- Profiling: 
+  - Fixes an issue where cpu-time was not profiled for services using gunicorn, when <span class="title-ref">\`DD\_PROFILING\_STACK\_V2\_ENABLED</span> was set.
+
+  - The lock profiler would log a warning if it couldn't determine a  
+      name for a lock, and it would try determining a name multiple times for the same lock. This lead to excessive log spam. Downgrade this to a debug log and only try to determine the name once.
+
+  - Fixes an issue where the sample pool could deadlock after `fork()`  
+      by clearing it in the child process.
+
+
+---
+
+## 2.14.7
+
+### Bug Fixes
+
+- Code Security:
+	- Add googlecloudsdk and google auth to the Code Security deny list.
+
+- Profiling:
+  - Fixes an issue where cpu-time was not profiled for services using gunicorn, when `DD_PROFILING_STACK_V2_ENABLED` was set.
+
+  - Fixes an issue where the sample pool could deadlock after `fork()` by clearing it in the child process.
+
+
+---
+
+## 2.14.5
+
+### Bug Fixes
+
+  - LLM Observability: This fix resolves an issue where LLMObs.enable() did not patch google\_generativeai library.
+  - CI Visibility: fixes a bug where `CODEOWNERS` would incorrectly fail to discard line-level trailing comments (eg: `@code/owner # my comment` would result in codeowners being parsed as `@code/owner`, `#`, `my`, and `comment`)
+  - CI Visibility: fixes unnecessary logging of an exception that would appear when trying to upload git metadata in an environment without functioning git (eg: missing `git` binary or `.git` directory)
+  - elasticsearch: this fix resolves an issue where span tags were not fully populated on "sampled" spans, causing metric dimensions to be incorrect when spans were prematurely marked as sampled, including resource\_name.
+  - Code security: This fix resolves an issue where partial matches on function names we aimed to patch were being patched instead of full matches on them.
+  - Code Security: This fix resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError
+  - profiling: Improves the error message when the native exporter fails to load and stops profiling from starting if ddtrace is also being injected.
+  - profiling: fix a data race where span information associated with a thread was read and updated concurrently, leading to segfaults
+  - profiling: resolves an issue where endpoint profiling for stack v2 throws `TypeError` exception when it is given a `Span` with `None` span\_type.
+
+
+---
+
+## 2.13.3
+
+### Bug Fixes
+
+- CI Visibility
+  - Fixes a bug where `CODEOWNERS` would incorrectly fail to discard line-level trailing comments (eg: `@code/owner # my comment` would result in codeowners being parsed as `@code/owner`, `#`, `my`, and `comment`)
+  - Fixes unnecessary logging of an exception that would appear when trying to upload git metadata in an environment without functioning git (eg: missing `git` binary or `.git` directory)
+
+- Code security
+  - Resolves an issue where partial matches on function names we aimed to patch were being patched instead of full matches on them.
+  - Resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError
+
+- LLM Observability
+  - Resolves an issue where LLM Observability evaluation metrics were not being submitted in forked processes. The evaluation metric writer thread now automatically restarts when a forked process is detected.
+  - Resolves an issue where input and output values equal to zero were not being annotated on workflow, task, agent and tool spans when using `LLMObs.annotate`.
+
+- Profiling
+  - Improves the error message when the native exporter fails to load and stops profiling from starting if ddtrace is also being injected.
+  - Fixes a data race where span information associated with a thread was read and updated concurrently, leading to segfaults
+  - Resolves an issue where endpoint profiling for stack v2 throws `TypeError` exception when it is given a `Span` with `None` span_type.
+
+- Tracing
+  - `elasticsearch`: Resolves an issue where span tags were not fully populated on "sampled" spans, causing metric dimensions to be incorrect when spans were prematurely marked as sampled, including resource_name.
+
+
+---
+
+## 2.16.4
+
+
+### Bug Fixes
+
+- Tracing
+  - botocore: Resolves the issue where the span pointer for deserialized DynamoDB requests (through the resource-based API) were not being generated.
+  - botocore: Resolves an issue where our span pointer calculation code added recently logged unactionable messages.
+
+
+---
+
+## 2.16.2
+
+
+### Bug Fixes
+
+- Profiling
+  - The lock profiler would log a warning if it couldn't determine a name for a lock, and it would try determining a name multiple times for the same lock. This lead to excessive log spam. Downgrade this to a debug log and only try to determine the name once.
+
+- Tracing
+  - pymongo: Adds type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+
+
+---
+
+## 2.14.6
+
+### Bug Fixes
+
+- Profiling
+  - Fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+  - Fixes an issue where the profiler was allocating too much memory from `ensure_binary_or_empty()` function, on Python versions before 3.12, with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - When a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when `DD_PROFILING_ENDPOINT_COLLECTION_ENABLED` and `DD_PROFILING_STACK_V2_ENABLED` were set to enable grouping of profiles for endpoints.
+  - Resolves an issue where asyncio task names are not captured by stack v2, when `DD_PROFILING_STACK_V2_ENABLED` is set.
+
+- Tracing
+  - pymongo: Adds type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+
+
+---
+
+## 2.15.2
+
+### Bug Fixes
+
+- Profiling: 
+  - Fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+  - Fixes an issue where the profiler was allocating too much memory from `ensure_binary_or_empty()` function, on Python versions before 3.12, with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - When a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when `DD_PROFILING_ENDPOINT_COLLECTION_ENABLED` and `DD_PROFILING_STACK_V2_ENABLED` were set to enable grouping of profiles for endpoints.
+  - Resolves an issue where asyncio task names are not captured by stack v2, when `DD_PROFILING_STACK_V2_ENABLED` is set.
+- Tracing: 
+  - pymongo: Adds type checking to solve an issue where `NoneType` instead of expected `Pin` object would throw an error in `TracedTopology` method.
+
+
+---
+
+## 2.16.0
+
+### New Features
+- LLM Observability
+  - When starting LLM and embedding spans, the `model_name` argument is now optional and will default to `custom`. This applies to both inline methods (e.g. `LLMObs.llm()`) and function decorators (e.g. `@llm`).
+  - Introduces the ability to add metadata for evaluation metrics via the `submit_evaluation` method. For more information, see [submitting evaluations with the SDK.](https://docs.datadoghq.com/llm_observability/submit_evaluations/#submitting-evaluations-with-the-sdk)
+
+- Tracing
+  - Introduces support for Baggage as defined by the [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/baggage/api/).
+  - botocore: Adds span pointers for successful DynamoDB `BatchWriteItem` spans. Table Primary Keys will need to be provided with the `ddtrace.config.botocore.dynamodb_primary_key_names_for_tables` option or the `DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS` environment variable to correctly handle the `PutRequest` items.
+  - botocore: Adds span pointers for successful DynamoDB `TransactWriteItems` spans. Table Primary Keys will need to be provided with the `ddtrace.config.botocore.dynamodb_primary_key_names_for_tables` option or the `DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS` environment variable to correctly handle the `Put` items.
+  - botocore: Adds `ddtrace.config.botocore.add_span_pointers` option or the `DD_BOTOCORE_ADD_SPAN_POINTERS` environment variable to control adding span pointers to some successful AWS API requests. This option is enabled by default.
+
+
+### Bug Fixes
+- CI Visibility
+  - Fixes a bug where `CODEOWNERS` would incorrectly fail to discard line-level trailing comments (eg: `@code/owner # my comment` would result in codeowners being parsed as `@code/owner`, `#`, `my`, and `comment`)
+  - Fixes unnecessary logging of an exception that would appear when trying to upload git metadata in an environment without functioning git (eg: missing `git` binary or `.git` directory)
+
+- Code Security
+  - Resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError
+
+- Dynamic Instrumentation
+  - Fixes an issue that prevented dynamic span tags probes from adding the requested tags to the requested span.
+
+- LLM Observability
+  - Resolves two issues with annotation contexts:  
+    - annotations registered via annotation contexts were being applied globally. Annotations are now only applied to the current trace context and do not pollute to other threads & processes.
+    - annotations from nested annotation contexts were applied in a non-deterministic order. Annotations are now applied in the order they were registered.
+  - Resolves an issue where input and output values equal to zero were not being annotated on workflow, task, agent and tool spans when using `LLMObs.annotate`.
+  - Resolves errors where the disabled setting was being ignored when forking.
+
+- Profiling
+  - Fixes a data race where span information associated with a thread was read and updated concurrently, leading to segfaults.
+  - Fixes an issue where enabling native exporter via `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_TIMELINE_ENABLED` or `DD_PROFILING_STACK_V2_ENABLED` turned off live heap profiling.
+  - When a Python thread finishes, this change frees memory used for mapping its thread id to `Span`. The mapping is populated and used when `DD_PROFILING_ENDPOINT_COLLECTION_ENABLED` and `DD_PROFILING_STACK_V2_ENABLED` were set to enable grouping of profiles for endpoints.
+  - Resolves an issue where asyncio task names are not captured by stack v2, when `DD_PROFILING_STACK_V2_ENABLED` is set.
+  - Resolves an issue where endpoint profiling for stack v2 throws `TypeError` exception when it is given a `Span` with `None` span_type.
+
+- Tracing
+  - Resolves the issue where tracer flares would not be generated if unexpected types were received in the `AGENT_CONFIG` remote configuration product. 
+  - elasticsearch: Resolves an issue where span tags were not fully populated on "sampled" spans, causing metric dimensions to be incorrect when spans were prematurely marked as sampled, including resource_name.
+
+
+### Other Changes
+- LLM Observability
+  - Updates the merging behavior for tags when `LLMObs.annotate` is called multiple times on the same span so that the latest value for a tag key overrides the previous value.
+
+
+---
+
+## 2.15.1
+
+### Bug Fixes
+
+- CI Visibility: 
+  - Fixes a bug where `CODEOWNERS` would incorrectly fail to discard line-level trailing comments (eg: `@code/owner # my comment` would result in codeowners being parsed as `@code/owner`, `#`, `my`, and `comment`)
+  - Fixes unnecessary logging of an exception that would appear when trying to upload git metadata in an environment without functioning git (eg: missing `git` binary or `.git` directory)
+- Code Security: 
+  - Resolves an issue where importing the `google.cloud.storage.batch` module would fail raising an ImportError.
+- Dynamic Instrumentation: 
+  - Fixes an issue that prevented dynamic span tags probes from adding the requested tags to the requested span.
+- LLM Observability:
+  - This fix resolves two issues with annotation contexts:  
+    - annotations registered via annotation contexts were being applied globally. Annotations are now only applied to the current trace context and do not pollute to other threads & processes.
+    - annotations from nested annotation contexts were applied in a non-deterministic order. Annotations are now applied in the order they were registered.
+- Profiling: 
+  - fix a data race where span information associated with a thread was read and updated concurrently, leading to segfaults
+  - resolves an issue where endpoint profiling for stack v2 throws `TypeError` exception when it is given a `Span` with `None` span\_type.
+
+### Other Changes
+- LLM Observability: 
+  - Updates the merging behavior for tags when <span class="title-ref">LLMObs.annotate</span> is called multiple times on the same span so that the latest value for a tag key overrides the previous value.
+
+
+---
+
+## 2.15.0
+
+### New Features
+- LLM Observability
+  - Introduces `prompt` and `name` arguments to `LLMObs.annotation_context` to support setting an integration generated span's name and `prompt` field. For more information on annotation contexts, see the docs [here](https://docs.datadoghq.com/llm_observability/setup/sdk/#annotating-a-span).
+  - langchain: Adds support for tracing `stream` calls on LCEL chains, chat completion models, or completion models. Note that due to an upstream issue with the `langchain` library itself, streamed responses will not be tagged correctly based on the choice index when the underlying model is configured to return `n>1` choices. Please refer to [this GitHub issue](https://github.com/langchain-ai/langchain/issues/26719) for more details.
+  - LangChain streamed calls (`llm.stream`, `chat_model.stream`, and `chain.stream`) submit to LLM Observability.
+
+- CI Visibility
+  - Adds the `test_session.name` tag to test events. The test session name can be set via the `DD_TEST_SESSION_NAME` environment variable. If `DD_TEST_SESSION_NAME` is not specified, the test session name is set from the CI job id and the test command.
+
+- Tracing
+  - Introduces Code Origin for Span, a new feature that allows collecting information about where entry and exit spans have been created in the user code . This feature is disabled by default and can be enabled by setting the `DD_CODE_ORIGIN_FOR_SPANS_ENABLED` environment variable to `true`.
+  - botocore: Adds span pointers for successful DynamoDB `DeleteItem` spans.
+  - botocore: Adds span pointers for successful DynamoDB `PutItem` spans. Table Primary Keys need to be provided with the `ddtrace.config.botocore.dynamodb_primary_key_names_for_tables` option or the `DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS` environment variable.
+  - botocore: Adds span pointers for successful DynamoDB `UpdateItem` spans.
+  - botocore: Adds span pointers for successful S3 `CompleteMultipartUpload` spans.
+  - botocore: Adds span pointers for successful S3 CopyObject spans.
+  - Adds `DD_TRACE_HTTP_CLIENT_ERROR_STATUSES` environment variable to configure the list of HTTP status codes that should be considered errors when instrumenting HTTP servers.
+
+
+### Deprecation Notes
+- Tracing
+  - The following attributes are now private and should not be accessed directly. The corresponding environment variables should be used instead.  
+    - Use `DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING` instead of `ddtrace.config.http_tag_query_string`
+    - Use `DD_TRACE_HEADER_TAGS` instead of `ddtrace.config.trace_http_header_tags`
+    - Use `DD_TRACE_REPORT_HOSTNAME` instead of `ddtrace.config.report_hostname`
+    - Use `DD_TRACE_HEALTH_METRICS_ENABLED` instead of `ddtrace.config.health_metrics_enabled`
+    - Use `DD_TRACE_ANALYTICS_ENABLED` instead of `ddtrace.config.analytics_enabled`
+    - Use `DD_TRACE_CLIENT_IP_HEADER` instead of `ddtrace.config.client_ip_header`
+    - Use `DD_TRACE_CLIENT_IP_ENABLED` instead of `ddtrace.config.retrieve_client_ip`
+    - Use `DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED` instead of `ddtrace.config.propagation_http_baggage_enabled`
+    - Set `DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP` to an empty string instead of setting `ddtrace.config.global_query_string_obfuscation_disabled` to True (default value is False)
+    - Use `DD_TRACE_METHODS` instead of `ddtrace.config.trace_methods`
+    - Use `DD_CIVISIBILITY_LOG_LEVEL` instead of `ddtrace.config.ci_visibility_log_level`
+  - Deprecates the `DD_TRACE_SAMPLE_RATE` environment variable. It will be removed in 3.0.0. Use `DD_TRACE_SAMPLING_RULES` to configure sampling rates instead.
+  - `DD_TRACE_API_VERSION=v0.3` is deprecated. Use `v0.4` or `v0.5` instead.
+
+
+### Bug Fixes
+- Code security
+  - Resolves an issue where partial matches on function names we aimed to patch were being patched instead of full matches on them.
+  - Always report a telemetry log error when an IAST propagation error raises, regardless of whether the `_DD_IAST_DEBUG` environment variable is enabled or not.
+  - Ensures that only the IAST propagation context is cleared instead of all contexts, which could otherwise cause propagation loss in multithreaded applications. Additionally, it improves validations in both the Processor and Vulnerability Reporter, depending on whether IAST is active or not.
+  - Ensures IAST propagation does not raise side effects related to `re.finditer`.
+
+- LLM Observability
+  - Resolves an issue where `LLMObs.enable()` did not patch google_generativeai library.
+  - botocore: Fixes the bedrock model and model provider interpretation from `modelId` when using cross-region inference.
+  -  Resolves an issue where LLM Observability evaluation metrics were not being submitted in forked processes. The evaluation metric writer thread now automatically restarts when a forked process is detected.
+  - The OpenAI, LangChain, Anthropic, Bedrock, and Gemini integrations now will handle and log errors during LLM Observability span processing to avoid disrupting user applications.
+
+- Profiling
+  - Improves the error message when the native exporter fails to load and stops profiling from starting if ddtrace is also being injected.
+  - All files with platform-dependent code have had their filenames updated to reflect the platform they are for. This fixes issues where the wrong file would be used on a given platform.
+  - Fixes endpoint profiling for stack v2, when `DD_PROFILING_STACK_V2_ENABLED` is set.
+  - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Enables code provenance when using libdatadog exporter with `DD_PROFILING_EXPORT_LIBDD_ENABLED`, `DD_PROFILING_STACK_V2_ENABLED`, or `DD_PROFILING_TIMELINE_ENABLED`.
+  - Fixes an issue where stack v2 couldn't be enabled as pthread was not properly linked on some debian based images for aarch64 architecture.
+  - Fixes an issue where the flame graph was upside down for stack v2 with `DD_PROFILING_STACK_V2_ENABLED`.
+
+- Tracing
+  - elasticsearch: Resolves an issue where span tags were not fully populated on "sampled" spans, causing metric dimensions to be incorrect when spans were prematurely marked as sampled, including `resource_name`.
+  - Resolves the issue where tracer flares would not be generated if unexpected types were received in the `AGENT_CONFIG` remote configuration product.
+  - celery: Fixes an issue where `celery.apply` spans didn't close if the `after_task_publish` or `task_postrun` signals didn't get sent when using `apply_async`, which can happen if there is an internal exception during the handling of the task. This update also marks the span as an error if an exception occurs.
+  - celery: Fixes an issue where `celery.apply` spans using task_protocol 1 didn't close by improving the check for the task id in the body.
+  - Removes a reference cycle that caused unnecessary garbage collection for top-level spans.
+  - Ensures that `http.url` span tag contains the full query string when `DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP` is set to an empty string.
+  - Ensures `DD_TRACE_RATE_LIMIT` environment variable is only applied to spans for which tracer sampling is configured. For spans not matching sampling rules default rate limits should be applied by the Datadog Agent.
+
+- Other
+  - Updates import path in FastAPI module to use the new ASGI module location.
+
+### Other Changes
+- Code Security
+  - Update default security rules to 1.13.1. This enable Exploit Prevention powered by RASP for LFI and Command Injection by default when ASM is enabled.
+
+
+---
+
+## 2.14.4
+
+
+### Bug Fixes
+- Code Security
+  - Ensures IAST propagation does not raise side effects related to `re.finditer`.
+- LLM Observability
+  - botocore: Fixes bedrock model and model provider interpretation from `modelId` when using cross-region inference.
+- Profiling
+  - Fixes an issue where stack v2 couldn't be enabled as pthread was not properly linked on some debian based images for aarch64 architecture.
+- Tracing
+  - Resolves the issue where tracer flares would not be generated if unexpected types were received in the `AGENT_CONFIG` remote configuration product.
+
+---
+
+## 2.13.2
+
+
+### Bug Fixes
+- Code Security
+  - Ensures IAST propagation does not raise side effects related to `re.finditer`.
+- LLM Observability
+  - botocore: Fixes bedrock model and model provider interpretation from `modelId` when using cross-region inference.
+- Profiling
+  - Fixes an issue where stack v2 couldn't be enabled as pthread was not properly linked on some debian based images for aarch64 architecture.
+- Tracing
+  - Resolves the issue where tracer flares would not be generated if unexpected types were received in the `AGENT_CONFIG` remote configuration product.
+
+---
+
+## 2.12.4
+
+
+### Bug Fixes
+- Profiling
+  - Fixes an issue where stack v2 couldn't be enabled as pthread was not properly linked on some debian based images for aarch64 architecture.
+- Tracing
+  - Resolves the issue where tracer flares would not be generated if unexpected types were received in the `AGENT_CONFIG` remote configuration product.
+
+---
+
+## 2.11.8
+
+
+### Bug Fixes
+
+- Tracing
+  - Resolves the issue where tracer flares would not be generated if unexpected types were received in the `AGENT_CONFIG` remote configuration product.
+
+---
+
+## 2.11.7
+
+### Bug Fixes
+
+- LLM Observability
+  - Fixes an issue where the OpenAI and LangChain integrations would still submit integration metrics even in agentless mode. Integration metrics are now disabled if using agentless mode via `LLMObs.enable(agentless_enabled=True)` or setting `DD_LLMOBS_AGENTLESS_ENABLED=1`.
+- Code Security
+  - Resolves an issue where exploit prevention was not properly blocking requests with custom redirection actions.
+  - Resolves an issue where partial matches on function names we aimed to patch were being patched instead of full matches on them.
+  - Ensures the `Initializer` object is always reset and freed before the Python runtime.
+- Profiling
+  - Improves the error message when the native exporter fails to load and stops profiling from starting if ddtrace is also being injected.
+  - Fixes endpoint profiling when using libdatadog exporter, either with `DD_PROFILING_EXPORT_LIBDD_ENABLED` or `DD_PROFILING_TIMELINE_ENABLED`.
+
+---
+
+## 2.14.3
+
+### Bug Fixes
+
+- Code Security (IAST)
+  - Ensures that only the IAST propagation context is cleared instead of all contexts, which could otherwise cause propagation loss in multithreaded applications. Additionally, it improves validations in both the Processor and Vulnerability Reporter, depending on whether IAST is active or not.
+- Profiling
+  - Fixes endpoint profiling for stack v2, when ``DD_PROFILING_STACK_V2_ENABLED`` is set.
+- Tracing
+  - Ensures `DD_TRACE_RATE_LIMIT` environment variable is only applied to spans for which tracer sampling is configured. For spans not matching sampling rules default rate limits should be applied by the Datadog Agent.
+
+---
+
 ## 2.12.3
 
 ### Bug Fixes
@@ -1225,7 +1932,7 @@ tracing: This release adds support for lazy sampling, essentially moving when we
 
 - profiler: Fixes a sigabrt when shutdown occurs during an upload
 
-- otel: Ensures all otel sampling decisions are consistent with Datadog Spans. This prevents otel spans in a distrbuted trace from being sampled differently than Datadog spans in the same trace.
+- otel: Ensures all otel sampling decisions are consistent with Datadog Spans. This prevents otel spans in a distributed trace from being sampled differently than Datadog spans in the same trace.
 
 - tracing: Fix an issue where remote configuration values would not be reverted when unset in the UI.
 
@@ -5321,7 +6028,7 @@ If you are using the profiler, please note that `ddtrace.profile` has been renam
 - Check profiler accuracy (#1260)
 - chore(ci): fix flake8 and pin pytest and readme_renderer (#1278)
 - fix(tests,profile): do not test the number of locking events (#1282)
-- fix: do not build wheels on Python 3.4 + run test buildin wheels in the CI (#1287)
+- fix: do not build wheels on Python 3.4 + run test building wheels in the CI (#1287)
 - fix(tests,profiling): correct number of frames handling (#1290)
 - fix(tests, opentracer): flaky threading test (#1293)
 - build: use latest manylinux images (#1305)

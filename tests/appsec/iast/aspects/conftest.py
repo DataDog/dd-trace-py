@@ -3,9 +3,11 @@ import types
 
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
+from tests.appsec.iast.conftest import _end_iast_context_and_oce
+from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from tests.utils import override_global_config
 
 
 class IastTestException(Exception):
@@ -29,8 +31,9 @@ def _iast_patched_module(module_name, new_module_object=False):
     return module
 
 
-@pytest.fixture(autouse=True, scope="module")
-def _enable_oce():
-    oce._enabled = True
-    yield
-    oce._enabled = False
+@pytest.fixture(autouse=True)
+def iast_create_context():
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100)):
+        _start_iast_context_and_oce()
+        yield
+        _end_iast_context_and_oce()

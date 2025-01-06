@@ -589,3 +589,8 @@ def test_hourglass_turn():
         while hg.trickling():
             sleep(0.1)
         assert sw.elapsed() > 1.1
+
+
+def test_hourglass_sorting():
+    """Test that we can sort hourglasses."""
+    sorted(time.HourGlass(1) for _ in range(100))

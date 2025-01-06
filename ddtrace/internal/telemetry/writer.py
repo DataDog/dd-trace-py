@@ -17,17 +17,17 @@ import urllib.parse as parse
 
 from ...internal import atexit
 from ...internal import forksafe
+from ...settings._inferred_base_service import detect_service
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
-from ..runtime import container
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
-from ..utils.version import _pep440_to_semver
+from ..utils.version import version as tracer_version
 from . import modules
 from .constants import TELEMETRY_APM_PRODUCT
 from .constants import TELEMETRY_LOG_LEVEL  # noqa:F401
@@ -47,6 +47,9 @@ from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 
+_inferred_service = detect_service(sys.argv)
+
+
 log = getLogger(__name__)
 
 
@@ -54,7 +57,7 @@ class _TelemetryConfig:
     API_KEY = os.environ.get("DD_API_KEY", None)
     SITE = os.environ.get("DD_SITE", "datadoghq.com")
     ENV = os.environ.get("DD_ENV", "")
-    SERVICE = os.environ.get("DD_SERVICE", "unnamed-python-service")
+    SERVICE = os.environ.get("DD_SERVICE", _inferred_service or "unnamed-python-service")
     VERSION = os.environ.get("DD_VERSION", "")
     AGENTLESS_MODE = asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
     HEARTBEAT_INTERVAL = float(os.environ.get("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
@@ -93,7 +96,7 @@ class _TelemetryClient:
         self._headers = {
             "Content-Type": "application/json",
             "DD-Client-Library-Language": "python",
-            "DD-Client-Library-Version": _pep440_to_semver(),
+            "DD-Client-Library-Version": tracer_version,
         }
 
         if agentless and _TelemetryConfig.API_KEY:
@@ -132,7 +135,6 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
-        container.update_headers_with_container_info(headers, container.get_container_info())
         return headers
 
     def get_endpoint(self, agentless: bool) -> str:
@@ -179,7 +181,6 @@ class TelemetryWriter(PeriodicService):
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
-        self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, str] = dict()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._send_product_change_updates = False
@@ -231,9 +232,8 @@ class TelemetryWriter(PeriodicService):
             self.start()
             return True
 
+        # currently self._is_periodic is always true
         self.status = ServiceStatus.RUNNING
-        if _TelemetryConfig.DEPENDENCY_COLLECTION:
-            modules.install_import_hook()
         return True
 
     def disable(self):
@@ -243,12 +243,7 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
-        modules.uninstall_import_hook()
         self.reset_queues()
-        if self._is_running():
-            self.stop()
-        else:
-            self.status = ServiceStatus.STOPPED
 
     def enable_agentless_client(self, enabled=True):
         # type: (bool) -> None
@@ -297,7 +292,7 @@ class TelemetryWriter(PeriodicService):
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
         # Integrations can be patched before the telemetry writer is enabled.
-        with self._lock:
+        with self._service_lock:
             if integration_name not in self._integrations_queue:
                 self._integrations_queue[integration_name] = {"name": integration_name}
 
@@ -331,7 +326,7 @@ class TelemetryWriter(PeriodicService):
         self.started = True
 
         products = {
-            product: {"version": _pep440_to_semver(), "enabled": status}
+            product: {"version": tracer_version, "enabled": status}
             for product, status in self._product_enablement.items()
         }
 
@@ -360,14 +355,6 @@ class TelemetryWriter(PeriodicService):
 
     def _app_heartbeat_event(self):
         # type: () -> None
-        if self._forked:
-            # TODO: Enable app-heartbeat on forks
-            #   Since we only send app-started events in the main process
-            #   any forked processes won't be able to access the list of
-            #   dependencies for this app, and therefore app-heartbeat won't
-            #   add much value today.
-            return
-
         self.add_event({}, "app-heartbeat")
 
     def _app_closing_event(self):
@@ -390,20 +377,20 @@ class TelemetryWriter(PeriodicService):
     def _flush_integrations_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued integrations"""
-        with self._lock:
+        with self._service_lock:
             integrations = list(self._integrations_queue.values())
             self._integrations_queue = dict()
         return integrations
 
     def _flush_new_imported_dependencies(self) -> Set[str]:
-        with self._lock:
+        with self._service_lock:
             new_deps = modules.get_newly_imported_modules()
         return new_deps
 
     def _flush_configuration_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
-        with self._lock:
+        with self._service_lock:
             configurations = list(self._configuration_queue.values())
             self._configuration_queue = {}
         return configurations
@@ -422,7 +409,7 @@ class TelemetryWriter(PeriodicService):
         if not _TelemetryConfig.DEPENDENCY_COLLECTION or not self._enabled:
             return
 
-        with self._lock:
+        with self._service_lock:
             packages = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
         if packages:
@@ -438,7 +425,7 @@ class TelemetryWriter(PeriodicService):
 
         payload = {
             "products": {
-                product: {"version": _pep440_to_semver(), "enabled": status}
+                product: {"version": tracer_version, "enabled": status}
                 for product, status in self._product_enablement.items()
             }
         }
@@ -446,30 +433,34 @@ class TelemetryWriter(PeriodicService):
         self._send_product_change_updates = False
 
     def product_activated(self, product, enabled):
-        # type: (TELEMETRY_APM_PRODUCT, bool) -> None
+        # type: (str, bool) -> None
         """Updates the product enablement dict"""
 
-        if self._product_enablement[product.value] == enabled:
+        if self._product_enablement.get(product, False) is enabled:
             return
 
-        self._product_enablement[product.value] = enabled
+        self._product_enablement[product] = enabled
 
         # If the app hasn't started, the product status will be included in the app_started event's payload
         if self.started:
             self._send_product_change_updates = True
 
     def remove_configuration(self, configuration_name):
-        with self._lock:
+        with self._service_lock:
             del self._configuration_queue[configuration_name]
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
         # type: (str, Any, str) -> None
         """Creates and queues the name, origin, value of a configuration"""
-        if not isinstance(configuration_value, (bool, str, int, float, type(None))):
+        if isinstance(configuration_value, dict):
+            configuration_value = ",".join(":".join((k, str(v))) for k, v in configuration_value.items())
+        elif isinstance(configuration_value, (list, tuple)):
+            configuration_value = ",".join(str(v) for v in configuration_value)
+        elif not isinstance(configuration_value, (bool, str, int, float, type(None))):
             # convert unsupported types to strings
             configuration_value = str(configuration_value)
 
-        with self._lock:
+        with self._service_lock:
             self._configuration_queue[configuration_name] = {
                 "name": configuration_name,
                 "origin": origin,
@@ -479,7 +470,7 @@ class TelemetryWriter(PeriodicService):
     def add_configurations(self, configuration_list):
         # type: (List[Tuple[str, Union[bool, float, str], str]]) -> None
         """Creates and queues a list of configurations"""
-        with self._lock:
+        with self._service_lock:
             for name, value, _origin in configuration_list:
                 self._configuration_queue[name] = {
                     "name": name,
@@ -570,7 +561,7 @@ class TelemetryWriter(PeriodicService):
 
     def _flush_log_metrics(self):
         # type () -> Set[Metric]
-        with self._lock:
+        with self._service_lock:
             log_metrics = self._logs
             self._logs = set()
         return log_metrics
@@ -656,7 +647,7 @@ class TelemetryWriter(PeriodicService):
     def _flush_events_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all telemtery event"""
-        with self._lock:
+        with self._service_lock:
             events = self._events_queue
             self._events_queue = []
         return events
@@ -672,7 +663,6 @@ class TelemetryWriter(PeriodicService):
 
         if self._is_running():
             self.stop(join=False)
-
         # Enable writer service in child process to avoid interpreter shutdown
         # error in Python 3.12
         self.enable()

@@ -85,6 +85,9 @@ class Probe(abc.ABC):
         for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
 
+    def is_global_rate_limited(self) -> bool:
+        return False
+
     def __hash__(self):
         return hash(self.probe_id)
 
@@ -156,9 +159,9 @@ class LineLocationMixin(ProbeLocationMixin):
         return (maybe_stringify(self.resolved_source_file), self.line)
 
 
-class ProbeEvaluateTimingForMethod(str, Enum):
+class ProbeEvalTiming(str, Enum):
     DEFAULT = "DEFAULT"
-    ENTER = "ENTER"
+    ENTRY = "ENTRY"
     EXIT = "EXIT"
 
 
@@ -166,10 +169,14 @@ class ProbeEvaluateTimingForMethod(str, Enum):
 class FunctionLocationMixin(ProbeLocationMixin):
     module: str = field(compare=False)
     func_qname: str = field(compare=False)
-    evaluate_at: ProbeEvaluateTimingForMethod
 
     def location(self):
         return (self.module, self.func_qname)
+
+
+@dataclass
+class TimingMixin(AbstractProbeMixIn):
+    evaluate_at: ProbeEvalTiming
 
 
 class MetricProbeKind(str, Enum):
@@ -192,7 +199,7 @@ class MetricLineProbe(Probe, LineLocationMixin, MetricProbeMixin, ProbeCondition
 
 
 @dataclass
-class MetricFunctionProbe(Probe, FunctionLocationMixin, MetricProbeMixin, ProbeConditionMixin):
+class MetricFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, MetricProbeMixin, ProbeConditionMixin):
     pass
 
 
@@ -241,12 +248,14 @@ class LogProbeMixin(AbstractProbeMixIn):
 
 @dataclass
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    pass
+    def is_global_rate_limited(self) -> bool:
+        return self.take_snapshot
 
 
 @dataclass
-class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    pass
+class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
+    def is_global_rate_limited(self) -> bool:
+        return self.take_snapshot
 
 
 @dataclass
@@ -288,7 +297,7 @@ class SpanDecorationLineProbe(Probe, LineLocationMixin, SpanDecorationMixin):
 
 
 @dataclass
-class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, SpanDecorationMixin):
+class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, SpanDecorationMixin):
     pass
 
 

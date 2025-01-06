@@ -3,16 +3,17 @@ The Overhead control engine (OCE) is an element that by design ensures that the 
 limit. It will measure operations being executed in a request and it will deactivate detection
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
-import os
 from typing import Set
 from typing import Text
 from typing import Tuple
 from typing import Type
 
 from ddtrace._trace.span import Span
+from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -20,11 +21,7 @@ log = get_logger(__name__)
 
 def get_request_sampling_value() -> float:
     # Percentage of requests analyzed by IAST (default: 30%)
-    return float(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30.0))
-
-
-MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
-MAX_VULNERABILITIES_PER_REQUEST = int(os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST", 2))
+    return float(asm_config._iast_request_sampling)
 
 
 class Operation(object):
@@ -33,12 +30,12 @@ class Operation(object):
     """
 
     _lock = threading.Lock()
-    _vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
+    _vulnerability_quota = asm_config._iast_max_vulnerabilities_per_requests
     _reported_vulnerabilities: Set[Tuple[str, int]] = set()
 
     @classmethod
     def reset(cls):
-        cls._vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
+        cls._vulnerability_quota = asm_config._iast_max_vulnerabilities_per_requests
         cls._reported_vulnerabilities = set()
 
     @classmethod
@@ -55,7 +52,7 @@ class Operation(object):
     def increment_quota(cls) -> bool:
         cls._lock.acquire()
         result = False
-        if cls._vulnerability_quota < MAX_VULNERABILITIES_PER_REQUEST:
+        if cls._vulnerability_quota < asm_config._iast_max_vulnerabilities_per_requests:
             cls._vulnerability_quota += 1
             result = True
         cls._lock.release()
@@ -84,19 +81,25 @@ class OverheadControl(object):
     """
 
     _lock = threading.Lock()
-    _request_quota = MAX_REQUESTS
+    _request_quota = asm_config._iast_max_concurrent_requests
     _vulnerabilities: Set[Type[Operation]] = set()
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def reconfigure(self):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
+        self._request_quota = asm_config._iast_max_concurrent_requests
 
     def acquire_request(self, span: Span) -> bool:
         """Decide whether if IAST analysis will be done for this request.
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
-        if self._request_quota <= 0 or not self._sampler.sample(span):
+        if self._request_quota <= 0:
+            return False
+
+        if span and not self._sampler.sample(span):
+            if _is_iast_debug_enabled():
+                log.debug("[IAST] Skip request by sampling rate")
             return False
 
         with self._lock:

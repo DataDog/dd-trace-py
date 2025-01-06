@@ -1,8 +1,11 @@
+import logging
+import sys
 from typing import Any
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
@@ -15,8 +18,6 @@ log = get_logger(__name__)
 
 
 def parse_response_body(raw_body):
-    import json
-
     import xmltodict
 
     from ddtrace.appsec import _asm_request_context
@@ -52,7 +53,7 @@ def parse_response_body(raw_body):
     try:
         # TODO handle charset
         if "json" in content_type:
-            req_body = json.loads(access_body(raw_body))
+            req_body = unpatched_json_loads(access_body(raw_body))
         elif "xml" in content_type:
             req_body = xmltodict.parse(access_body(raw_body))
         else:
@@ -143,7 +144,7 @@ class _UserInfoRetriever:
 
         return self.find_in_user_model(self.possible_name_fields)
 
-    def get_user_info(self):
+    def get_user_info(self, login=False, email=False, name=False):
         """
         In safe mode, try to get the user id from the user object.
         In extended mode, try to also get the username (which will be the returned user_id),
@@ -155,12 +156,12 @@ class _UserInfoRetriever:
         if not user_id:
             return None, {}
 
-        user_extra_info = {
-            "login": self.get_username(),
-            "email": self.get_user_email(),
-            "name": self.get_name(),
-        }
-
+        if login:
+            user_extra_info["login"] = self.get_username()
+        if email:
+            user_extra_info["email"] = self.get_user_email()
+        if name:
+            user_extra_info["name"] = self.get_name()
         return user_id, user_extra_info
 
 
@@ -182,3 +183,10 @@ def get_triggers(span) -> Any:
         except Exception:
             log.debug("Failed to parse triggers", exc_info=True)
     return None
+
+
+def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
+    if sys.version_info < (3, 8):
+        return msg
+    filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
+    return f"{msg}[{filename}, line {line_number}, in {function_name}]"

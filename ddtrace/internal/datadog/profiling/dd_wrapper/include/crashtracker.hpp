@@ -31,13 +31,13 @@ struct ProfilingState
 class Crashtracker
 {
   private:
-    bool create_alt_stack = false;
-    bool wait_for_receiver = true;
+    bool create_alt_stack = true;
+    bool use_alt_stack = true;
     std::optional<std::string> stderr_filename{ std::nullopt };
     std::optional<std::string> stdout_filename{ std::nullopt };
     std::string path_to_receiver_binary;
     ddog_crasht_StacktraceCollection resolve_frames = DDOG_CRASHT_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS;
-    uint64_t timeout_secs = g_crashtracker_timeout_secs;
+    uint64_t timeout_ms = g_crashtracker_timeout_ms;
 
     ProfilingState profiling_state;
 
@@ -72,9 +72,9 @@ class Crashtracker
     void set_library_version(std::string_view _library_version);
     void set_url(std::string_view _url);
     void set_tag(std::string_view _key, std::string_view _value);
-    void set_wait_for_receiver(bool _wait);
 
     void set_create_alt_stack(bool _create_alt_stack);
+    void set_use_alt_stack(bool _use_alt_stack);
     void set_stderr_filename(std::string_view _stderr_filename);
     void set_stdout_filename(std::string_view _stdout_filename);
     bool set_receiver_binary_path(std::string_view _path_to_receiver_binary);
@@ -83,7 +83,6 @@ class Crashtracker
 
     // Helpers
     bool start();
-    bool atfork_child();
 
     // State transition
     void sampling_start();

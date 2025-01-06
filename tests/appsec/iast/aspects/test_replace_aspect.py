@@ -7,9 +7,9 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import set_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
@@ -678,6 +678,31 @@ def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcoun
     else:
         replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
         assert replaced == origstr.replace(substr, replstr, maxcount)
+
+    assert as_formatted_evidence(replaced) == formatted
+    assert is_pyobject_tainted(replaced) is False
+
+
+@pytest.mark.parametrize(
+    "origstr,formatted",
+    [
+        ("/", ""),
+        ("", ""),
+        ("", ""),
+        ("/waf/", "waf/"),
+        ("waf/", "waf"),
+        ("//waf/", "/waf/"),
+        ("path/waf/", "pathwaf/"),
+        ("a/:", "a:"),
+        # TODO: this replace raises basic_string::substr: __pos (which is 4) > this->size() (which is 3)
+        # ("a/:+-/", ":+-<joiner>a<joiner>-+::+-<joiner>a/<joiner>-+:"),
+    ],
+)
+def test_replace_tainted_results_in_no_tainted_django(origstr, formatted):
+    path_info = origstr.encode("iso-8859-1").decode()
+    sep = taint_pyobject(pyobject="/", source_name="d", source_value="/", source_origin=OriginType.PARAMETER)
+    replaced = ddtrace_aspects.replace_aspect(path_info.replace, 1, path_info, sep, "", 1)
+    assert replaced == path_info.replace(sep, "", 1)
 
     assert as_formatted_evidence(replaced) == formatted
     assert is_pyobject_tainted(replaced) is False

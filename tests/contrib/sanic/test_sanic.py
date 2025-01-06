@@ -17,8 +17,8 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation import http as http_propagation
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_config
 from tests.utils import override_http_config
 
@@ -427,7 +427,7 @@ def test_service_name_schematization(ddtrace_run_python_code_in_subprocess, sche
     expected_service_name = {
         None: service_name or "sanic",
         "v0": service_name or "sanic",
-        "v1": service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
     code = """
 import asyncio

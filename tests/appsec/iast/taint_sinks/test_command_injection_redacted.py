@@ -1,10 +1,9 @@
 from mock.mock import ANY
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.reporter import Evidence
@@ -12,13 +11,13 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.taint_sinks.command_injection import CommandInjection
-from ddtrace.internal import core
-from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import _taint_pyobject_multiranges
-from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
+from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
 
 
 @pytest.mark.parametrize("evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_CMDI)))
-def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_span_defaults):
+def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults):
     tainted_object = _taint_pyobject_multiranges(
         evidence_input["value"],
         [
@@ -35,16 +34,13 @@ def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_
 
     CommandInjection.report(tainted_object)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert span_report
-
-    span_report.build_and_scrub_value_parts()
-    result = span_report._to_dict()
-    vulnerability = list(result["vulnerabilities"])[0]
-    source = list(result["sources"])[0]
+    data = _get_iast_data()
+    vulnerability = list(data["vulnerabilities"])[0]
+    source = list(data["sources"])[0]
     source["origin"] = origin_to_str(source["origin"])
 
     assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"] == vulnerabilities_expected["evidence"]
     assert source == sources_expected
 
 
@@ -78,7 +74,7 @@ def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_
         "/mytest/../folder/file.txt",
     ],
 )
-def test_cmdi_redact_rel_paths_and_sudo(file_path):
+def test_cmdi_redact_rel_paths_and_sudo(file_path, iast_context_defaults):
     file_path = taint_pyobject(pyobject=file_path, source_name="test_ossystem", source_value=file_path)
     ev = Evidence(value=add_aspect("sudo ", add_aspect("ls ", file_path)))
     loc = Location(path="foobar.py", line=35, spanId=123)
@@ -110,7 +106,7 @@ def test_cmdi_redact_rel_paths_and_sudo(file_path):
         "-c /mytest/folder",
     ],
 )
-def test_cmdi_redact_sudo_command_with_options(file_path):
+def test_cmdi_redact_sudo_command_with_options(file_path, iast_context_defaults):
     file_path = taint_pyobject(pyobject=file_path, source_name="test_ossystem", source_value=file_path)
     ev = Evidence(value=add_aspect("sudo ", add_aspect("ls ", file_path)))
     loc = Location(path="foobar.py", line=35, spanId=123)
@@ -142,7 +138,7 @@ def test_cmdi_redact_sudo_command_with_options(file_path):
         "-c /mytest/folder",
     ],
 )
-def test_cmdi_redact_command_with_options(file_path):
+def test_cmdi_redact_command_with_options(file_path, iast_context_defaults):
     file_path = taint_pyobject(pyobject=file_path, source_name="test_ossystem", source_value=file_path)
     ev = Evidence(value=add_aspect("ls ", file_path))
     loc = Location(path="foobar.py", line=35, spanId=123)
@@ -190,7 +186,7 @@ def test_cmdi_redact_command_with_options(file_path):
         "/mytest/../folder/file.txt",
     ],
 )
-def test_cmdi_redact_rel_paths(file_path):
+def test_cmdi_redact_rel_paths(file_path, iast_context_defaults):
     file_path = taint_pyobject(pyobject=file_path, source_name="test_ossystem", source_value=file_path)
     ev = Evidence(value=add_aspect("dir -l ", file_path))
     loc = Location(path="foobar.py", line=35, spanId=123)
@@ -223,7 +219,7 @@ def test_cmdi_redact_rel_paths(file_path):
         " -c /mytest/folder",
     ],
 )
-def test_cmdi_redact_source_command(file_path):
+def test_cmdi_redact_source_command(file_path, iast_context_defaults):
     Ls_cmd = taint_pyobject(pyobject="ls ", source_name="test_ossystem", source_value="ls ")
 
     ev = Evidence(value=add_aspect("sudo ", add_aspect(Ls_cmd, file_path)))

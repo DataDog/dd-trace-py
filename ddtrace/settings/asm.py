@@ -14,21 +14,21 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
+from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
-from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._core import report_telemetry as _report_telemetry
 from ddtrace.vendor.debtcollector import deprecate
 
 
-def _validate_sample_rate(r: float) -> None:
-    if r < 0.0 or r > 1.0:
-        raise ValueError("sample rate value must be between 0.0 and 1.0")
-
-
 def _validate_non_negative_int(r: int) -> None:
     if r < 0:
         raise ValueError("value must be non negative")
+
+
+def _validate_percentage(r: float) -> None:
+    if r < 0 or r > 100:
+        raise ValueError("percentage value must be between 0 and 100")
 
 
 def _parse_options(options: List[str]):
@@ -65,7 +65,13 @@ class ASMConfig(Env):
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
-    _iast_enabled = Env.var(bool, IAST_ENV, default=False)
+    _iast_enabled = tracer_config._from_endpoint.get(  # type: ignore
+        "iast_enabled", Env.var(bool, IAST.ENV, default=False)
+    )
+    _iast_request_sampling = Env.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
+    _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False, private=True)
+    _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
+    _iast_telemetry_report_lvl = Env.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
@@ -100,7 +106,7 @@ class ASMConfig(Env):
     _auto_user_instrumentation_local_mode = Env.var(
         str,
         APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
-        default="",
+        default=LOGIN_EVENTS_MODE.IDENT,
         parser=_parse_options([LOGIN_EVENTS_MODE.DISABLED, LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON]),
     )
     _auto_user_instrumentation_rc_mode: Optional[str] = None
@@ -110,7 +116,6 @@ class ASMConfig(Env):
     _user_model_email_field = Env.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
     _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
     _api_security_enabled = Env.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
-    _api_security_sample_rate = 0.0
     _api_security_sample_delay = Env.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
     _api_security_parse_response_body = Env.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
 
@@ -135,10 +140,10 @@ class ASMConfig(Env):
         str, APPSEC.OBFUSCATION_PARAMETER_VALUE_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
     )
 
-    _iast_redaction_enabled = Env.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)
+    _iast_redaction_enabled = Env.var(bool, IAST.REDACTION_ENABLED, default=True)
     _iast_redaction_name_pattern = Env.var(
         str,
-        "DD_IAST_REDACTION_NAME_PATTERN",
+        IAST.REDACTION_NAME_PATTERN,
         default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
         + r"public_?|access_?|secret_?)key(?:_?id)?|password|token|username|user_id|last.name|"
         + r"consumer_?(?:id|key|secret)|"
@@ -146,10 +151,20 @@ class ASMConfig(Env):
     )
     _iast_redaction_value_pattern = Env.var(
         str,
-        "DD_IAST_REDACTION_VALUE_PATTERN",
+        IAST.REDACTION_VALUE_PATTERN,
         default=r"(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|"
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
+    )
+    _iast_max_concurrent_requests = Env.var(
+        int,
+        IAST.DD_IAST_MAX_CONCURRENT_REQUESTS,
+        default=2,
+    )
+    _iast_max_vulnerabilities_per_requests = Env.var(
+        int,
+        IAST.DD_IAST_VULNERABILITIES_PER_REQUEST,
+        default=2,
     )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
     _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
@@ -166,6 +181,19 @@ class ASMConfig(Env):
         int, EXPLOIT_PREVENTION.MAX_STACK_TRACE_DEPTH, default=32, validator=_validate_non_negative_int
     )
 
+    # percentage of stack trace reported on top, in case depth is larger than max_stack_trace_depth
+    _ep_stack_top_percent = Env.var(
+        float, EXPLOIT_PREVENTION.STACK_TOP_PERCENT, default=75.0, validator=_validate_percentage
+    )
+
+    _iast_stack_trace_enabled = Env.var(bool, IAST.STACK_TRACE_ENABLED, default=True)
+
+    # Django ATO
+    _django_include_user_name = Env.var(bool, "DD_DJANGO_INCLUDE_USER_NAME", default=True)
+    _django_include_user_email = Env.var(bool, "DD_DJANGO_INCLUDE_USER_EMAIL", default=False)
+    _django_include_user_login = Env.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=True)
+    _django_include_user_realname = Env.var(bool, "DD_DJANGO_INCLUDE_USER_REALNAME", default=False)
+
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
@@ -175,6 +203,10 @@ class ASMConfig(Env):
         "_asm_obfuscation_parameter_value_regexp",
         "_appsec_standalone_enabled",
         "_iast_enabled",
+        "_iast_request_sampling",
+        "_iast_debug",
+        "_iast_propagation_debug",
+        "_iast_telemetry_report_lvl",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",
@@ -185,23 +217,30 @@ class ASMConfig(Env):
         "_user_model_email_field",
         "_user_model_name_field",
         "_api_security_enabled",
-        "_api_security_sample_rate",
         "_api_security_sample_delay",
         "_api_security_parse_response_body",
         "_waf_timeout",
         "_iast_redaction_enabled",
         "_iast_redaction_name_pattern",
         "_iast_redaction_value_pattern",
+        "_iast_max_concurrent_requests",
+        "_iast_max_vulnerabilities_per_requests",
         "_iast_lazy_taint",
         "_ep_stack_trace_enabled",
         "_ep_max_stack_traces",
         "_ep_max_stack_trace_depth",
+        "_ep_stack_top_percent",
+        "_iast_stack_trace_enabled",
         "_asm_config_keys",
         "_deduplication_enabled",
+        "_django_include_user_name",
+        "_django_include_user_email",
+        "_django_include_user_login",
+        "_django_include_user_realname",
     ]
     _iast_redaction_numeral_pattern = Env.var(
         str,
-        "DD_IAST_REDACTION_VALUE_NUMERAL",
+        IAST.REDACTION_VALUE_NUMERAL,
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
@@ -209,10 +248,10 @@ class ASMConfig(Env):
     def __init__(self):
         super().__init__()
         # Is one click available?
-        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._eval_asm_can_be_enabled()
         # Only for deprecation phase
-        if self._auto_user_instrumentation_local_mode == "":
-            self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode or LOGIN_EVENTS_MODE.IDENT
+        if self._automatic_login_events_mode and APPSEC.AUTO_USER_INSTRUMENTATION_MODE not in os.environ:
+            self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode
         if not self._asm_libddwaf_available:
             self._asm_enabled = False
             self._asm_can_be_enabled = False
@@ -220,12 +259,21 @@ class ASMConfig(Env):
             self._api_security_enabled = False
 
     def reset(self):
-        """For testing puposes, reset the configuration to its default values given current environment variables."""
+        """For testing purposes, reset the configuration to its default values given current environment variables."""
         self.__init__()
+
+    def _eval_asm_can_be_enabled(self):
+        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
 
     @property
     def _api_security_feature_active(self) -> bool:
         return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
+
+    @property
+    def _apm_opt_out(self) -> bool:
+        return (
+            self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
+        ) and self._appsec_standalone_enabled
 
     @property
     def _user_event_mode(self) -> str:

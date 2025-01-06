@@ -30,11 +30,12 @@ from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_dict_issuperset
 from tests.utils import flaky
@@ -769,6 +770,18 @@ def test_cache_get(test_spans):
     assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
+def test_cache_service_schematization(test_spans):
+    cache = django.core.cache.caches["default"]
+
+    with override_config("django", dict(cache_service_name="test-cache-service")):
+        cache.get("missing_key")
+        spans = test_spans.get_spans()
+        assert spans
+        span = spans[0]
+        expected_service_name = schematize_service_name(config.django.cache_service_name)
+        assert span.service == expected_service_name
+
+
 def test_cache_get_rowcount_existing_key(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
@@ -1425,14 +1438,14 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
-        "_dd.base_service": "",
+        "_dd.base_service": "tests.contrib.django",
     }
 
     expected_meta_header = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
-        "_dd.base_service": "",
+        "_dd.base_service": "tests.contrib.django",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1497,11 +1510,13 @@ def test_service_can_be_overridden(client, test_spans):
 
 @pytest.mark.parametrize("global_service_name", [None, "mysvc"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_schematized_default_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+def test_schematized_default_service_name(
+    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name, request
+):
     expected_service_name = {
         None: global_service_name or "django",
         "v0": global_service_name or "django",
-        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
     code = """
 import pytest
@@ -1540,15 +1555,17 @@ if __name__ == "__main__":
     assert status == 0, (out, err)
 
 
-@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
-@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+@pytest.mark.parametrize(
+    "schema_version, global_service_name",
+    [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
+)
 def test_schematized_default_db_service_name(
-    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name
+    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name, request
 ):
     expected_service_name = {
         None: "defaultdb",
         "v0": "defaultdb",
-        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
     code = """
 import pytest

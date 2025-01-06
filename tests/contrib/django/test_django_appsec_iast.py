@@ -14,7 +14,6 @@ from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.internal.compat import urlencode
-from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -24,14 +23,11 @@ TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
 
 
 @pytest.fixture(autouse=True)
-def reset_context():
-    with override_env({IAST.ENV: "True"}):
-        from ddtrace.appsec._iast._taint_tracking import create_context
-        from ddtrace.appsec._iast._taint_tracking import reset_context
-
-        _ = create_context()
+def iast_context():
+    with override_env(
+        {IAST.ENV: "True", IAST.ENV_REQUEST_SAMPLING: "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
+    ):
         yield
-        reset_context()
 
 
 # The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
@@ -44,7 +40,9 @@ def check_native_code_exception_in_each_django_test(request, caplog, telemetry_w
         yield
     else:
         caplog.set_level(logging.DEBUG)
-        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+            dict(_iast_debug=True)
+        ), caplog.at_level(logging.DEBUG):
             yield
 
         log_messages = [record.message for record in caplog.get_records("call")]
@@ -67,8 +65,6 @@ def _aux_appsec_get_root_span(
 ):
     if cookies is None:
         cookies = {}
-    tracer._asm_enabled = asm_config._asm_enabled
-    tracer._iast_enabled = asm_config._iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     # Set cookies
@@ -113,7 +109,7 @@ def _aux_appsec_get_root_span_with_exception(
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_weak_hash(client, test_spans, tracer):
-    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True, _deduplication_enabled=False)):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)):
         oce.reconfigure()
         patch_iast({"weak_hash": True})
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
@@ -160,15 +156,15 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 @pytest.mark.parametrize(
     "sampling",
     [
-        "0",
-        "100",
-        "50",
+        0.0,
+        100.0,
+        50.0,
     ],
 )
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_view_with_exception(client, test_spans, tracer, payload, content_type, deduplication, sampling):
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(
-        {"DD_IAST_REQUEST_SAMPLING": sampling}
+    with override_global_config(
+        dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
     ):
         response = _aux_appsec_get_root_span_with_exception(
             client,
@@ -205,14 +201,14 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
             tracer,
             payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
             content_type="application/x-www-form-urlencoded",
-            url="/appsec/sqli_http_request_parameter/?q=SELECT 1 FROM sqlite_master",
+            url="/appsec/sqli_http_request_parameter/?q=SELECT 1 FROM sqlite_master WHERE name='",
             headers={"HTTP_USER_AGENT": "test/1.2.3"},
         )
 
@@ -229,7 +225,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
             {
                 "name": "q",
                 "origin": "http.request.parameter",
-                "pattern": "abcdefghijklmnopqrstuvwxyzA",
+                "pattern": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN",
                 "redacted": True,
             }
         ]
@@ -239,7 +235,9 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
             "valueParts": [
                 {"source": 0, "value": "SELECT "},
                 {"pattern": "h", "redacted": True, "source": 0},
-                {"source": 0, "value": " FROM sqlite_master"},
+                {"source": 0, "value": " FROM sqlite_master WHERE name='"},
+                {"redacted": True},
+                {"value": "'"},
             ]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
@@ -594,16 +592,16 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
 @pytest.mark.parametrize(
     "sampling",
     [
-        "0",
-        "100",
-        "50",
+        0.0,
+        100.0,
+        50.0,
     ],
 )
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, content_type, deduplication, sampling):
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(
-        {"DD_IAST_REQUEST_SAMPLING": sampling}
+    with override_global_config(
+        dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
     ):
         root_span, response = _aux_appsec_get_root_span(
             client,

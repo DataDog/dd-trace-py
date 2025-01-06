@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: this resolves an issue where asyncio task names are not captured
+    by stack v2, when ``DD_PROFILING_STACK_V2_ENABLED`` is set.

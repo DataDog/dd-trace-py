@@ -4,7 +4,7 @@ from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
@@ -29,7 +29,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
         ".txt",
     ],
 )
-def test_path_traversal_redact_exclude(file_path):
+def test_path_traversal_redact_exclude(file_path, iast_context_defaults):
     file_path = taint_pyobject(pyobject=file_path, source_name="path_traversal", source_value=file_path)
     ev = Evidence(value=file_path)
     loc = Location(path="foobar.py", line=35, spanId=123)
@@ -81,7 +81,7 @@ def test_path_traversal_redact_exclude(file_path):
         "/mytest/../folder/file.txt",
     ],
 )
-def test_path_traversal_redact_rel_paths(file_path):
+def test_path_traversal_redact_rel_paths(file_path, iast_context_defaults):
     file_path = taint_pyobject(pyobject=file_path, source_name="path_traversal", source_value=file_path)
     ev = Evidence(value=file_path)
     loc = Location(path="foobar.py", line=35, spanId=123)
@@ -103,7 +103,7 @@ def test_path_traversal_redact_rel_paths(file_path):
     }
 
 
-def test_path_traversal_redact_abs_paths():
+def test_path_traversal_redact_abs_paths(iast_context_defaults):
     file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "path_traversal_test_file.txt")
     file_path = taint_pyobject(pyobject=file_path, source_name="path_traversal", source_value=file_path)
     ev = Evidence(value=file_path)

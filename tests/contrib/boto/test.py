@@ -721,7 +721,7 @@ class BotoTest(TracerTestCase):
         False,
         (
             "Test to reproduce the case where args sent to patched function are None,"
-            "can't be mocked: needs AWS crendentials"
+            "can't be mocked: needs AWS credentials"
         ),
     )
     def test_elasticache_client(self):

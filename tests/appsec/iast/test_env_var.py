@@ -4,6 +4,8 @@ import subprocess
 
 import pytest
 
+from .conftest import CONFIG_SERVER_PORT
+
 
 def _run_python_file(*args, **kwargs):
     current_dir = os.path.dirname(__file__)
@@ -50,11 +52,79 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     assert "IAST enabled" not in captured.err
 
 
-@pytest.mark.subprocess(
-    env=dict(DD_IAST_ENABLED="False"), err=b"WARNING:root:IAST not enabled but native module is being loaded\n"
+@pytest.mark.parametrize(
+    "env_vars",
+    [
+        {"DD_IAST_ENABLED": "true"},
+        {
+            "DD_IAST_ENABLED": "true",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "DD_IAST_ENABLED": "false",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "DD_IAST_ENABLED": "false",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED_TIMEOUT",
+            "_DD_CONFIG_ENDPOINT_TIMEOUT": "5",
+        },
+        {
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+    ],
 )
-def test_env_var_iast_disabled_native_module_warning():
-    import ddtrace.appsec._iast._taint_tracking._native  # noqa: F401
+def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_vars):
+    env = os.environ.copy()
+    for k, v in env_vars.items():
+        env[k] = v
+    _run_python_file(env=env)
+    captured = capfd.readouterr()
+    assert "hi" in captured.out
+    assert "IAST enabled" in captured.err
+
+
+@pytest.mark.parametrize(
+    "env_vars",
+    [
+        {},
+        {"DD_IAST_ENABLED": "false"},
+        {
+            "DD_IAST_ENABLED": "true",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "DD_IAST_ENABLED": "false",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "DD_IAST_ENABLED": "false",
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED_TIMEOUT",
+            "_DD_CONFIG_ENDPOINT_TIMEOUT": "2",
+        },
+        {
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+        {
+            "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
+            "_DD_CONFIG_ENDPOINT_RETRIES": "10",
+        },
+    ],
+)
+def test_env_var_iast_disabled_parametrized(capfd, configuration_endpoint, env_vars):
+    env = os.environ.copy()
+    for k, v in env_vars.items():
+        env[k] = v
+    _run_python_file(env=env)
+    captured = capfd.readouterr()
+    assert "hi" in captured.out
+    assert "IAST enabled" not in captured.err
 
 
 @pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="True"), err=None)

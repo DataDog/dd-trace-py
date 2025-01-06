@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
 import os
 from typing import Any
 from typing import Dict
@@ -53,12 +52,6 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
 
     Parameters `test_tracer` and `start_subscribers` are needed for testing purposes
     """
-    # Import tracer here to avoid a circular import
-    if test_tracer is None:
-        from ddtrace import tracer
-    else:
-        tracer = test_tracer
-
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
     asm_callback = (
         remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
@@ -69,10 +62,15 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
     if _asm_feature_is_required():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
 
-    if tracer._asm_enabled and asm_config._asm_static_rule_file is None:
+    if asm_config._asm_enabled and asm_config._asm_static_rule_file is None:
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
+    # ensure exploit prevention patches are loaded by one-click activation
+    if asm_config._asm_enabled:
+        from ddtrace.appsec import load_common_appsec_modules
+
+        load_common_appsec_modules()
 
     forksafe.register(_forksafe_appsec_rc)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
@@ -89,14 +87,17 @@ def disable_appsec_rc():
 def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, ruleset: Dict[str, Any]) -> None:
     rules = features.get(feature, None)
     if rules is not None:
-        try:
-            if ruleset.get(feature) is None:
-                ruleset[feature] = rules
+        if ruleset.get(feature) is None:
+            ruleset[feature] = rules
+        else:
+            current_rules = ruleset[feature]
+            if isinstance(rules, list) and isinstance(current_rules, list):
+                ruleset[feature] = current_rules + rules
+            elif isinstance(rules, dict) and isinstance(current_rules, dict):
+                ruleset[feature] = {**current_rules, **rules}
             else:
-                ruleset[feature] = ruleset[feature] + rules
-            log.debug("Reloading Appsec %s: %s", message, str(rules)[:20])
-        except json.JSONDecodeError:
-            log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
+                log.debug("Invalid type for %s: %s with %s", message, str(type(current_rules)), str(type(rules)))
+        log.debug("Reloading Appsec %s: %s", message, str(rules)[:20])
 
 
 def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
@@ -128,6 +129,8 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
         _add_rules_to_list(features, "rules_data", "rules data", ruleset)
         _add_rules_to_list(features, "rules_override", "rules override", ruleset)
         _add_rules_to_list(features, "scanners", "scanners", ruleset)
+        _add_rules_to_list(features, "metadata", "metadata", ruleset)
+
         if ruleset:
             return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
 
@@ -217,12 +220,12 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
             )
 
             if rc_asm_enabled:
-                if not tracer._asm_enabled:
+                if not asm_config._asm_enabled:
                     tracer.configure(appsec_enabled=True)
                 else:
                     asm_config._asm_enabled = True
             else:
-                if tracer._asm_enabled:
+                if asm_config._asm_enabled:
                     tracer.configure(appsec_enabled=False)
                 else:
                     asm_config._asm_enabled = False

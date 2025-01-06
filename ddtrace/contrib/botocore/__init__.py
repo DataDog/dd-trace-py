@@ -139,25 +139,31 @@ Configuration
 
     Default: ``{}``
 
+
+.. py:data:: ddtrace.config.botocore['add_span_pointers']
+
+    This enables the addition of span pointers to spans associated with
+    successful AWS API calls.
+
+    Alternatively, you can set this option with the
+    ``DD_BOTOCORE_ADD_SPAN_POINTERS`` environment variable.
+
+    Default: ``True``
+
 """
 
 
-from ddtrace.internal.utils.importlib import require_modules
+# Required to allow users to import from  `ddtrace.contrib.botocore.patch` directly
+import warnings as _w
 
 
-required_modules = ["botocore.client"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.botocore.patch` directly
-        import warnings as _w
+from ddtrace.contrib.internal.botocore.patch import get_version
+from ddtrace.contrib.internal.botocore.patch import patch
+from ddtrace.contrib.internal.botocore.patch import patch_submodules
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
 
-        from ddtrace.contrib.internal.botocore.patch import get_version
-        from ddtrace.contrib.internal.botocore.patch import patch
-        from ddtrace.contrib.internal.botocore.patch import patch_submodules
-
-        __all__ = ["patch", "patch_submodules", "get_version"]
+__all__ = ["patch", "patch_submodules", "get_version"]

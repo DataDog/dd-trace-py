@@ -17,6 +17,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_global_config
 
 
@@ -55,12 +56,12 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
 @pytest.mark.parametrize(
     "env_var,value,expected_value",
     [
-        ("DD_APPSEC_SCA_ENABLED", "true", "true"),
-        ("DD_APPSEC_SCA_ENABLED", "True", "true"),
-        ("DD_APPSEC_SCA_ENABLED", "1", "true"),
-        ("DD_APPSEC_SCA_ENABLED", "false", "false"),
-        ("DD_APPSEC_SCA_ENABLED", "False", "false"),
-        ("DD_APPSEC_SCA_ENABLED", "0", "false"),
+        ("DD_APPSEC_SCA_ENABLED", "true", True),
+        ("DD_APPSEC_SCA_ENABLED", "True", True),
+        ("DD_APPSEC_SCA_ENABLED", "1", True),
+        ("DD_APPSEC_SCA_ENABLED", "false", False),
+        ("DD_APPSEC_SCA_ENABLED", "False", False),
+        ("DD_APPSEC_SCA_ENABLED", "0", False),
     ],
 )
 def test_app_started_event_configuration_override_asm(
@@ -152,7 +153,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "profiling_enabled", "origin": "default", "value": "false"},
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
-                    {"name": "crashtracking_alt_stack", "origin": "unknown", "value": False},
+                    {"name": "crashtracking_create_alt_stack", "origin": "unknown", "value": True},
+                    {"name": "crashtracking_use_alt_stack", "origin": "unknown", "value": True},
                     {"name": "crashtracking_available", "origin": "unknown", "value": sys.platform == "linux"},
                     {"name": "crashtracking_debug_url", "origin": "unknown", "value": None},
                     {"name": "crashtracking_enabled", "origin": "unknown", "value": sys.platform == "linux"},
@@ -204,16 +206,12 @@ def test_app_started_event_configuration_override(test_agent_session, run_python
     which is then sent by periodic()
     """
     code = """
-import logging
-logging.basicConfig()
-
+# most configurations are reported when ddtrace.auto is imported
 import ddtrace.auto
-
-# By default telemetry collection is enabled after 10 seconds, so we either need to
-# to sleep for 10 seconds or manually call _app_started() to generate the app started event.
-# This delay allows us to collect start up errors and dynamic configurations
-import ddtrace
-ddtrace.internal.telemetry.telemetry_writer._app_started()
+# report configurations not used by ddtrace.auto
+import ddtrace.settings.symbol_db
+import ddtrace.settings.dynamic_instrumentation
+import ddtrace.settings.exception_replay
     """
 
     env = os.environ.copy()
@@ -271,6 +269,10 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
     env["DD_SITE"] = "datadoghq.com"
+    # By default telemetry collection is enabled after 10 seconds, so we either need to
+    # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
+    # This delay allows us to collect start up errors and dynamic configurations
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -289,10 +291,11 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING", "origin": "default", "value": ""},
         {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "default", "value": ""},
+        {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "default", "value": "identification"},
         {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_APPSEC_MAX_STACK_TRACES", "origin": "default", "value": 2},
         {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH", "origin": "default", "value": 32},
+        {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT", "origin": "default", "value": 75.0},
         {
             "name": "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP",
             "origin": "default",
@@ -312,6 +315,11 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         },
         {"name": "DD_APPSEC_RASP_ENABLED", "origin": "default", "value": True},
         {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
+        {
+            "name": "DD_APPSEC_SCA_ENABLED",
+            "origin": "default",
+            "value": None,
+        },
         {"name": "DD_APPSEC_STACK_TRACE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_APPSEC_WAF_TIMEOUT", "origin": "default", "value": 5.0},
         {"name": "DD_CIVISIBILITY_AGENTLESS_ENABLED", "origin": "env_var", "value": False},
@@ -319,15 +327,20 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
-        {"name": "DD_CRASHTRACKING_ALT_STACK", "origin": "default", "value": False},
+        {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER", "origin": "default", "value": "full"},
         {"name": "DD_CRASHTRACKING_STDERR_FILENAME", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_STDOUT_FILENAME", "origin": "default", "value": None},
-        {"name": "DD_CRASHTRACKING_TAGS", "origin": "default", "value": "{}"},
+        {"name": "DD_CRASHTRACKING_TAGS", "origin": "default", "value": ""},
+        {"name": "DD_CRASHTRACKING_USE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_WAIT_FOR_RECEIVER", "origin": "default", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_DJANGO_INCLUDE_USER_EMAIL", "origin": "default", "value": False},
+        {"name": "DD_DJANGO_INCLUDE_USER_LOGIN", "origin": "default", "value": True},
+        {"name": "DD_DJANGO_INCLUDE_USER_NAME", "origin": "default", "value": True},
+        {"name": "DD_DJANGO_INCLUDE_USER_REALNAME", "origin": "default", "value": False},
         {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": None},
         {"name": "DD_DOGSTATSD_URL", "origin": "default", "value": None},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL", "origin": "default", "value": 3600},
@@ -343,6 +356,7 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": None},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
         {"name": "DD_IAST_REDACTION_ENABLED", "origin": "default", "value": True},
         {
             "name": "DD_IAST_REDACTION_NAME_PATTERN",
@@ -364,6 +378,10 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
             "[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(\\.[\\w.+\\/=-]+)?|[\\-]{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}"
             "[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
+        {"name": "DD_IAST_REQUEST_SAMPLING", "origin": "default", "value": 30.0},
+        {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
+        {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
         {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
         {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": None},
@@ -372,6 +390,7 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
+        {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
@@ -385,15 +404,14 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
         {"name": "DD_PROFILING_OUTPUT_PPROF", "origin": "default", "value": None},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
-        {"name": "DD_PROFILING_TAGS", "origin": "default", "value": "{}"},
+        {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
         {"name": "DD_PROFILING__FORCE_LEGACY_EXPORTER", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
-        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_SERVICE", "origin": "default", "value": "unnamed-python-service"},
+        {"name": "DD_SERVICE", "origin": "default", "value": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME},
         {"name": "DD_SERVICE_MAPPING", "origin": "env_var", "value": "default_dd_service:remapped_dd_service"},
         {"name": "DD_SITE", "origin": "env_var", "value": "datadoghq.com"},
         {"name": "DD_SPAN_SAMPLING_RULES", "origin": "env_var", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
@@ -404,6 +422,7 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         },
         {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": "set()"},
         {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_TAGS", "origin": "env_var", "value": "team:apm,component:web"},
         {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": 60},
         {"name": "DD_TESTING_RAISE", "origin": "env_var", "value": True},
@@ -417,6 +436,8 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": None},
         {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_TRACE_HEADER_TAGS", "origin": "default", "value": ""},
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
         {"name": "DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "origin": "default", "value": "500-599"},
@@ -431,6 +452,12 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
+        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "env_var", "value": 0.5},
+        {
+            "name": "DD_TRACE_SAMPLING_RULES",
+            "origin": "env_var",
+            "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
+        },
         {"name": "DD_TRACE_SPAN_AGGREGATOR_RLOCK", "origin": "default", "value": True},
         {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": 30},
         {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": True},
@@ -447,24 +474,11 @@ ddtrace.internal.telemetry.telemetry_writer._app_started()
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_INJECT_WAS_ATTEMPTED", "origin": "default", "value": False},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "appsec_enabled", "origin": "env_var", "value": "true"},
-        {"name": "data_streams_enabled", "origin": "env_var", "value": "true"},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
-        {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
-        {"name": "profiling_enabled", "origin": "env_var", "value": "true"},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
         {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
-        {"name": "trace_enabled", "origin": "env_var", "value": "false"},
-        {"name": "trace_header_tags", "origin": "default", "value": ""},
-        {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
-        {
-            "name": "trace_sampling_rules",
-            "origin": "env_var",
-            "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
-        },
-        {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
     ]
     assert configurations == expected, configurations
 
@@ -492,8 +506,8 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict")
-    events = test_agent_session.get_events("app-dependencies-loaded")
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
+    events = test_agent_session.get_events("app-dependencies-loaded", subprocess=True)
     assert len(events) == 0, events
 
 
@@ -644,7 +658,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     # Assert next flush contains app-heartbeat event
     for _ in range(telemetry_writer._periodic_threshold):
         telemetry_writer.periodic()
-        assert test_agent_session.get_events("app-heartbeat") == []
+        assert test_agent_session.get_events("app-heartbeat", filter_heartbeats=False) == []
 
     telemetry_writer.periodic()
     heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
@@ -803,3 +817,64 @@ def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available(
     assert telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
     assert telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
     assert "dd-api-key" not in telemetry_writer._client._headers
+
+
+def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess, tmpdir):
+    """
+    asserts that telemetry data is submitted for OpenTelemetry configurations
+    """
+
+    env = os.environ.copy()
+    env["DD_SERVICE"] = "dd_service"
+    env["OTEL_SERVICE_NAME"] = "otel_service"
+    env["OTEL_LOG_LEVEL"] = "DEBUG"
+    env["OTEL_PROPAGATORS"] = "tracecontext"
+    env["OTEL_TRACES_SAMPLER"] = "always_on"
+    env["OTEL_TRACES_EXPORTER"] = "none"
+    env["OTEL_LOGS_EXPORTER"] = "otlp"
+    env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
+    env["OTEL_SDK_DISABLED"] = "true"
+    env["OTEL_UNSUPPORTED_CONFIG"] = "value"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    assert status == 0, stderr
+
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations()}
+
+    assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
+    assert configurations["OTEL_LOG_LEVEL"] == {"name": "OTEL_LOG_LEVEL", "origin": "env_var", "value": "debug"}
+    assert configurations["OTEL_PROPAGATORS"] == {
+        "name": "OTEL_PROPAGATORS",
+        "origin": "env_var",
+        "value": "tracecontext",
+    }
+    assert configurations["OTEL_TRACES_SAMPLER"] == {
+        "name": "OTEL_TRACES_SAMPLER",
+        "origin": "env_var",
+        "value": "always_on",
+    }
+    assert configurations["OTEL_TRACES_EXPORTER"] == {
+        "name": "OTEL_TRACES_EXPORTER",
+        "origin": "env_var",
+        "value": "none",
+    }
+    assert configurations["OTEL_LOGS_EXPORTER"] == {"name": "OTEL_LOGS_EXPORTER", "origin": "env_var", "value": "otlp"}
+    assert configurations["OTEL_RESOURCE_ATTRIBUTES"] == {
+        "name": "OTEL_RESOURCE_ATTRIBUTES",
+        "origin": "env_var",
+        "value": "team=apm,component=web",
+    }
+    assert configurations["OTEL_SDK_DISABLED"] == {"name": "OTEL_SDK_DISABLED", "origin": "env_var", "value": "true"}
+
+    env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
+    tags = [m["tags"] for m in env_hiding_metrics]
+    assert tags == [["config_opentelemetry:otel_service_name", "config_datadog:dd_service"]]
+
+    env_unsupported_metrics = test_agent_session.get_metrics("otel.env.unsupported")
+    tags = [m["tags"] for m in env_unsupported_metrics]
+    assert tags == [["config_opentelemetry:otel_unsupported_config"]]
+
+    env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
+    tags = [m["tags"] for m in env_invalid_metrics]
+    assert tags == [["config_opentelemetry:otel_logs_exporter", "config_datadog:"]]

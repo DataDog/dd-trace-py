@@ -5,6 +5,7 @@ from typing import Optional
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
@@ -14,10 +15,12 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ENABLED
+from ddtrace.internal.ci_visibility.constants import TEST_SESSION_QUARANTINE_ENABLED
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 
 
 log = get_logger(__name__)
@@ -46,6 +49,9 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
 
         self._efd_abort_reason: Optional[str] = None
         self._efd_is_faulty_session: Optional[bool] = None
+        self._efd_has_efd_failed_tests: bool = False
+
+        self._atr_total_retries: int = 0
 
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
 
@@ -65,6 +71,9 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
         elif self.efd_is_faulty_session():
             self.set_tag(TEST_EFD_ABORT_REASON, "faulty")
+
+    def _set_quarantine_tags(self):
+        self.set_tag(TEST_SESSION_QUARANTINE_ENABLED, True)
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Set session-level tags based in ITR enablement status"""
@@ -104,13 +113,18 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
     def get_session(self):
         return self
 
+    #
     # EFD (Early Flake Detection) functionality
+    #
+    def efd_is_enabled(self):
+        return self._session_settings.efd_settings.enabled
+
     def set_efd_abort_reason(self, abort_reason: str):
         self._efd_abort_reason = abort_reason
 
     def efd_is_faulty_session(self):
-        """A session is considered "EFD faulty" if percentage of tests considered new is greater than the given
-        threshold
+        """A session is considered "EFD faulty" if the percentage of tests considered new is greater than the
+        given threshold, and the total number of news tests exceeds the threshold.
 
         NOTE: this behavior is cached on the assumption that this method will only be called once
         """
@@ -120,17 +134,56 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         if self._session_settings.efd_settings.enabled is False:
             return False
 
-        total_tests = 0
-        new_tests = 0
+        total_tests_count = 0
+        new_tests_count = 0
         for _module in self._children.values():
             for _suite in _module._children.values():
                 for _test in _suite._children.values():
-                    total_tests += 1
+                    total_tests_count += 1
                     if _test.is_new():
-                        new_tests += 1
+                        new_tests_count += 1
 
-        new_tests_pct = 100 * (new_tests / total_tests)
+        if new_tests_count <= self._session_settings.efd_settings.faulty_session_threshold:
+            return False
+
+        new_tests_pct = 100 * (new_tests_count / total_tests_count)
 
         self._efd_is_faulty_session = new_tests_pct > self._session_settings.efd_settings.faulty_session_threshold
 
         return self._efd_is_faulty_session
+
+    def efd_has_failed_tests(self):
+        if (not self._session_settings.efd_settings.enabled) or self.efd_is_faulty_session():
+            return False
+
+        for _module in self._children.values():
+            for _suite in _module._children.values():
+                for _test in _suite._children.values():
+                    if _test.efd_has_retries() and _test.efd_get_final_status() == EFDTestStatus.ALL_FAIL:
+                        return True
+        return False
+
+    #
+    # ATR (Auto Test Retries , AKA Flaky Test Retries) functionality
+    #
+    def atr_is_enabled(self) -> bool:
+        return self._session_settings.atr_settings.enabled
+
+    def atr_max_retries_reached(self) -> bool:
+        return self._atr_total_retries >= self._session_settings.atr_settings.max_session_total_retries
+
+    def _atr_count_retry(self):
+        self._atr_total_retries += 1
+
+    def atr_has_failed_tests(self):
+        if not self._session_settings.atr_settings.enabled:
+            return False
+
+        for _module in self._children.values():
+            for _suite in _module._children.values():
+                for _test in _suite._children.values():
+                    if _test.is_quarantined():
+                        continue
+                    if _test.atr_has_retries() and _test.atr_get_final_status() == TestStatus.FAIL:
+                        return True
+        return False

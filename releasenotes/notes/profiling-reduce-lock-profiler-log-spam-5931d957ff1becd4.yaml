@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: The lock profiler would log a warning if it couldn't determine a
+      name for a lock, and it would try determining a name multiple times for
+      the same lock.  This lead to excessive log spam. Downgrade this to a
+      debug log and only try to determine the name once.

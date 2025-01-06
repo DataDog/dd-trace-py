@@ -134,10 +134,17 @@ class RateByServiceSampler(BasePrioritySampler):
     def set_sample_rate(
         self,
         sample_rate,  # type: float
-        service="",  # type: str
-        env="",  # type: str
+        service=None,  # type: Optional[str]
+        env=None,  # type: Optional[str]
     ):
         # type: (...) -> None
+
+        # if we have a blank service, we need to match it to the config.service
+        if service is None:
+            service = config.service
+        if env is None:
+            env = config.env
+
         self._by_service_samplers[self._key(service, env)] = _AgentRateSampler(sample_rate)
 
     def sample(self, span):
