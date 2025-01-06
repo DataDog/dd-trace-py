@@ -13,9 +13,9 @@ with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import TaintRange
     from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-    from ddtrace.appsec._iast._taint_tracking import reset_context
     from ddtrace.appsec._iast._taint_tracking import set_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking._context import reset_context
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
 

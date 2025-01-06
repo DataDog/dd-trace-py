@@ -88,8 +88,6 @@ class Contrib_TestClass_For_Threats:
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
-        interface.tracer._asm_enabled = asm_config._asm_enabled
-        interface.tracer._iast_enabled = asm_config._iast_enabled
         interface.tracer.configure(api_version="v0.4")
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
