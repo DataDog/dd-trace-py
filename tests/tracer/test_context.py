@@ -39,10 +39,6 @@ def test_eq(ctx1, ctx2):
         ),
         (
             Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2),
-            Context(trace_id=123, span_id=3210, dd_origin="synthetics", sampling_priority=2),
-        ),
-        (
-            Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2),
             Context(trace_id=123, span_id=321, dd_origin="synthetics1", sampling_priority=2),
         ),
         (

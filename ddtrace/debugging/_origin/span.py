@@ -4,6 +4,7 @@ from itertools import count
 from pathlib import Path
 import sys
 from threading import current_thread
+from time import monotonic_ns
 from types import FrameType
 from types import FunctionType
 import typing as t
@@ -22,7 +23,6 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.ext import EXIT_SPAN_TYPES
-from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
@@ -181,9 +181,9 @@ class EntrySpanWrappingContext(WrappingContext):
             span.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
 
             self.set("snapshot", snapshot)
-            self.set("start_time", compat.monotonic_ns())
+            self.set("start_time", monotonic_ns())
 
-            snapshot.do_exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
+            snapshot.do_exit(retval, exc_info, monotonic_ns() - self.get("start_time"))
 
             self.collector.push(snapshot)
 

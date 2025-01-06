@@ -992,8 +992,8 @@ class HTTPPropagator(object):
         primary_context = contexts[0]
         links = []
 
-        for context in contexts[1:]:
-            style_w_ctx = styles_w_ctx[contexts.index(context)]
+        for i, context in enumerate(contexts[1:], 1):
+            style_w_ctx = styles_w_ctx[i]
             # encoding expects at least trace_id and span_id
             if context.span_id and context.trace_id and context.trace_id != primary_context.trace_id:
                 links.append(
