@@ -127,4 +127,3 @@ def test_memory_collector_ignore_profiler(tmp_path):
         pprof_utils.parse_profile(output_filename)
     except AssertionError as e:
         assert "No samples found" in str(e)
-
