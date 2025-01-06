@@ -364,15 +364,14 @@ def discard_local_item(data_key: str) -> None:
 def get_span() -> Optional["Span"]:
     current: Optional[ExecutionContext] = _CURRENT_CONTEXT.get()
     while current is not None:
-        try:
-            return current.span
-        except ValueError:
-            current = current.parent
+        if current._inner_span is not None:
+            return current._inner_span
+        current = current.parent
     return None
 
 
 def get_root_span() -> Optional["Span"]:
-    span = _CURRENT_CONTEXT.get().span
+    span = get_span()
     if span is None:
         return None
     return span._local_root or span
