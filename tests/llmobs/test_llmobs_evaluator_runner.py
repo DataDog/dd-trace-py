@@ -61,7 +61,7 @@ def test_evaluator_runner_timed_enqueues_eval_metric(llmobs, mock_llmobs_eval_me
 
 def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
     env.update({"PYTHONPATH": ":".join(pypath), "_DD_LLMOBS_EVALUATOR_INTERVAL": "5"})
