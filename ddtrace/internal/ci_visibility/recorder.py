@@ -456,6 +456,14 @@ class CIVisibility(Service):
         )
 
     @classmethod
+    def should_skip_quarantined_tests(cls):
+        if cls._instance is None:
+            return False
+        return cls._instance._api_settings.quarantine.skip_quarantined_tests and asbool(
+            os.getenv("DD_TEST_QUARANTINE_ENABLED", default=True)
+        )
+
+    @classmethod
     def should_collect_coverage(cls):
         return cls._instance._api_settings.coverage_enabled or asbool(
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
@@ -1040,6 +1048,12 @@ def _on_session_should_collect_coverage() -> bool:
 
 
 @_requires_civisibility_enabled
+def _on_session_should_skip_quarantined_tests() -> bool:
+    log.debug("Handling should skip quarantined tests")
+    return CIVisibility.should_skip_quarantined_tests()
+
+
+@_requires_civisibility_enabled
 def _on_session_get_codeowners() -> Optional[Codeowners]:
     log.debug("Getting codeowners")
     return CIVisibility.get_codeowners()
@@ -1100,6 +1114,11 @@ def _register_session_handlers():
         "is_test_skipping_enabled",
     )
     core.on("test_visibility.session.set_covered_lines_pct", _on_session_set_covered_lines_pct)
+    core.on(
+        "test_visibility.session.should_skip_quarantined_tests",
+        _on_session_should_skip_quarantined_tests,
+        "should_skip_quarantined_tests",
+    )
 
 
 @_requires_civisibility_enabled
