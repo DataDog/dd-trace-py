@@ -4,6 +4,7 @@ from typing import Dict
 
 import langchain
 
+
 try:
     import langchain_core
 except ImportError:
@@ -26,16 +27,16 @@ except ImportError:
 
 
 from ddtrace import Span
-from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.contrib.internal.langchain.utils import _extract_api_key
-from ddtrace.contrib.internal.langchain.utils import _extract_model_name
 from ddtrace.contrib.internal.langchain.constants import COMPLETION_TOKENS
 from ddtrace.contrib.internal.langchain.constants import MODEL
 from ddtrace.contrib.internal.langchain.constants import PROMPT_TOKENS
 from ddtrace.contrib.internal.langchain.constants import TOTAL_COST
-from ddtrace.internal.logger import get_logger
 from ddtrace.contrib.internal.langchain.utils import PATCH_LANGCHAIN_V0
+from ddtrace.contrib.internal.langchain.utils import _extract_api_key
+from ddtrace.contrib.internal.langchain.utils import _extract_model_name
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 
 
 log = get_logger(__name__)

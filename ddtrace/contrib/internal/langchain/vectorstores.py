@@ -2,6 +2,7 @@ import sys
 
 import langchain
 
+
 try:
     import langchain_community
 except ImportError:
@@ -15,8 +16,8 @@ from ddtrace.contrib.internal.langchain.constants import API_KEY
 from ddtrace.contrib.internal.langchain.utils import PATCH_LANGCHAIN_V0
 from ddtrace.contrib.internal.langchain.utils import _extract_api_key
 from ddtrace.contrib.internal.langchain.utils import _format_api_key
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.internal.utils import get_argument_value
 
 
 def _is_pinecone_vectorstore_instance(instance):

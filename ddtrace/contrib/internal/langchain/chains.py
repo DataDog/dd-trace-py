@@ -1,11 +1,11 @@
 import sys
 
 from ddtrace.appsec._iast import _is_iast_enabled
+from ddtrace.contrib.internal.langchain.utils import PATCH_LANGCHAIN_V0
 from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import deep_getattr
-from ddtrace.contrib.internal.langchain.utils import PATCH_LANGCHAIN_V0
-from ddtrace.internal.utils import ArgumentError
 
 
 def taint_outputs(instance, inputs, outputs):

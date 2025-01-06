@@ -4,14 +4,14 @@ except ImportError:
     langchain_core = None
 
 from ddtrace import Span
+from ddtrace.contrib.internal.langchain.utils import _extract_api_key
+from ddtrace.contrib.internal.langchain.utils import _extract_model_name
+from ddtrace.contrib.internal.langchain.utils import shared_stream
+from ddtrace.contrib.internal.langchain.utils import tag_general_message_input
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.langchain import LangChainIntegration
-from ddtrace.contrib.internal.langchain.utils import _extract_api_key
-from ddtrace.contrib.internal.langchain.utils import _extract_model_name
-from ddtrace.contrib.internal.langchain.utils import tag_general_message_input
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.contrib.internal.langchain.utils import shared_stream
 
 
 @with_traced_module

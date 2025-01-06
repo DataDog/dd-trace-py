@@ -1,7 +1,7 @@
 import sys
 
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._utils import safe_json
 
 

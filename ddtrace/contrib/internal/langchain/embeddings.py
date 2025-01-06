@@ -1,10 +1,10 @@
 import sys
 
-from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.contrib.internal.langchain.utils import _extract_api_key
 from ddtrace.contrib.internal.langchain.utils import _extract_model_name
+from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.internal.utils import ArgumentError
+from ddtrace.internal.utils import get_argument_value
 
 
 @with_traced_module
