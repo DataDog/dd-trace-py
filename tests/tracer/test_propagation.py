@@ -3005,6 +3005,18 @@ INJECT_FIXTURES = [
         },
     ),
     (
+        "baggage_case_insensitive",
+        [
+            _PROPAGATION_STYLE_BAGGAGE,
+        ],
+        {
+            "BAggAGE": {"foo": "bar"},
+        },
+        {
+            _HTTP_HEADER_BAGGAGE: "foo=bar",
+        },
+    ),
+    (
         "baggage_and_datadog",
         [
             PROPAGATION_STYLE_DATADOG,
