@@ -921,10 +921,19 @@ def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
                 )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_completion_stream",
-    ignores=["metrics.openai.response.usage.completion_tokens", "metrics.openai.response.usage.total_tokens"],
-)
+@pytest.mark.snapshot
+@pytest.mark.skipif(TIKTOKEN_AVAILABLE, reason="This test estimates token counts")
+def test_completion_stream_est_tokens(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with openai_vcr.use_cassette("completion_streamed.yaml"):
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
+            client = openai.OpenAI()
+            resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
+            _ = [c for c in resp]
+
+
+@pytest.mark.skipif(not TIKTOKEN_AVAILABLE, reason="This test computes token counts using tiktoken")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
 def test_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
@@ -934,10 +943,8 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
             _ = [c for c in resp]
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_completion_stream",
-    ignores=["metrics.openai.response.usage.completion_tokens", "metrics.openai.response.usage.total_tokens"],
-)
+@pytest.mark.skipif(not TIKTOKEN_AVAILABLE, reason="This test computes token counts using tiktoken")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
 async def test_completion_async_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
@@ -948,13 +955,10 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, snapsho
 
 
 @pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 6, 0),
+    parse_version(openai_module.version.VERSION) < (1, 6, 0) or not TIKTOKEN_AVAILABLE,
     reason="Streamed response context managers are only available v1.6.0+",
 )
-@pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_completion_stream",
-    ignores=["metrics.openai.response.usage.completion_tokens", "metrics.openai.response.usage.total_tokens"],
-)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
 def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
