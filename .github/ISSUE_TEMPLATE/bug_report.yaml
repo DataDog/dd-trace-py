@@ -1,0 +1,64 @@
+name: "Bug Report (Low Priority)"
+description: "Create a public Bug Report. Note that these may not be addressed as quickly as the helpdesk and that looking up account information will be difficult."
+title: "[BUG]: "
+labels: bug
+body:
+  - type: input
+    attributes:
+      label: Tracer Version(s)
+      description: "Version(s) of the tracer affected by this bug"
+      placeholder: "1.23.4, 2.8.0"
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Python Version(s)
+      description: "Version(s) of Python (`python --version`) that you've encountered this bug with"
+      placeholder: "Python 3.9.15"
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Pip Version(s)
+      description: "Version(s) of Pip (`pip --version`) that you've encountered this bug with"
+      placeholder: "pip 22.0.4"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Bug Report
+      description: Please add a clear and concise description of the bug here
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Reproduction Code
+      description: Please add code here to help us reproduce the problem
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Error Logs
+      description: "Please provide any error logs from the tracer (`DD_TRACE_DEBUG=true` can help)"
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Libraries in Use
+      description: "Which libraries and their versions are you using? Paste output from `pip freeze` here."
+    validations:
+      required: false
+
+  - type: input
+    attributes:
+      label: Operating System
+      description: "Provide your operating system and version (e.g. `uname -a`)"
+      placeholder: Darwin Kernel Version 23.6.0
+    validations:
+      required: false

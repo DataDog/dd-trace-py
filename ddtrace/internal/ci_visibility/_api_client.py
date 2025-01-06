@@ -4,6 +4,7 @@ import dataclasses
 from http.client import RemoteDisconnected
 import json
 from json import JSONDecodeError
+import os
 import socket
 import typing as t
 from uuid import uuid4
@@ -38,6 +39,7 @@ from ddtrace.internal.ci_visibility.utils import combine_url_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
@@ -88,6 +90,12 @@ class EarlyFlakeDetectionSettings:
 
 
 @dataclasses.dataclass(frozen=True)
+class QuarantineSettings:
+    enabled: bool = False
+    skip_quarantined_tests: bool = False
+
+
+@dataclasses.dataclass(frozen=True)
 class TestVisibilityAPISettings:
     __test__ = False
     coverage_enabled: bool = False
@@ -96,6 +104,7 @@ class TestVisibilityAPISettings:
     itr_enabled: bool = False
     flaky_test_retries_enabled: bool = False
     early_flake_detection: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
+    quarantine: QuarantineSettings = dataclasses.field(default_factory=QuarantineSettings)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -359,7 +368,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skipping_enabled = attributes["tests_skipping"]
             require_git = attributes["require_git"]
             itr_enabled = attributes["itr_enabled"]
-            flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"]
+            flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] or asbool(
+                os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
+            )
 
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(
@@ -372,6 +383,14 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 )
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()
+
+            quarantine = QuarantineSettings(
+                enabled=attributes.get("quarantine", {}).get("enabled", False)
+                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE")),
+                skip_quarantined_tests=attributes.get("quarantine", {}).get("skip_quarantined_tests", False)
+                or asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")),
+            )
+
         except KeyError:
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             raise
@@ -383,6 +402,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             itr_enabled=itr_enabled,
             flaky_test_retries_enabled=flaky_test_retries_enabled,
             early_flake_detection=early_flake_detection,
+            quarantine=quarantine,
         )
 
         record_settings_response(
@@ -392,6 +412,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             itr_enabled=api_settings.itr_enabled,
             flaky_test_retries_enabled=api_settings.flaky_test_retries_enabled,
             early_flake_detection_enabled=api_settings.early_flake_detection.enabled,
+            quarantine_enabled=api_settings.quarantine.enabled,
         )
 
         return api_settings

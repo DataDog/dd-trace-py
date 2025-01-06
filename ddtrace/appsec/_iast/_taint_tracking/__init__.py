@@ -1,76 +1,48 @@
-from io import BytesIO
-from io import StringIO
-import itertools
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any
-from typing import Tuple
+from ddtrace.appsec._iast._taint_tracking._native import ops  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_format import _format_aspect  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import _convert_escaped_text_to_tainted_text
 
+# noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import as_formatted_evidence  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import common_replace  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import parse_params  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import set_ranges_on_splitted  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_split import _aspect_rsplit  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_split import _aspect_split  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_split import _aspect_splitlines  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathbasename  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathdirname  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathjoin  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathnormcase  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplit  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitdrive  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitext  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitroot  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.initializer import active_map_addreses_size  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.initializer import debug_taint_map  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.initializer import initializer_size  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.initializer import num_objects_tainted  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Source  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TagMappingMode  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import copy_and_shift_ranges_from_strings  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import copy_ranges_from_strings  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_range_by_hash  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_ranges  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_tainted  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Sequence  # noqa:F401
-
-from ddtrace.internal._unpatched import _threading as threading
+# noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_ranges  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_taint_range  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_taint_ranges  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import str_to_origin  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import taint_range as TaintRange  # noqa: F401
 from ddtrace.internal.logger import get_logger
-
-from ..._constants import IAST
-from ..._constants import IAST_SPAN_TAGS
-from .._iast_request_context import is_iast_request_enabled
-from .._metrics import _set_iast_error_metric
-from .._metrics import _set_metric_iast_executed_source
-from .._metrics import increment_iast_span_metric
-from .._utils import _is_iast_debug_enabled
-from .._utils import _is_iast_propagation_debug_enabled
-from .._utils import _is_python_version_supported
 
 
 log = get_logger(__name__)
-
-if _is_python_version_supported():
-    from ._native import ops
-    from ._native.aspect_format import _format_aspect
-    from ._native.aspect_helpers import _convert_escaped_text_to_tainted_text
-    from ._native.aspect_helpers import as_formatted_evidence
-    from ._native.aspect_helpers import common_replace
-    from ._native.aspect_helpers import parse_params
-    from ._native.aspect_helpers import set_ranges_on_splitted
-    from ._native.aspect_split import _aspect_rsplit
-    from ._native.aspect_split import _aspect_split
-    from ._native.aspect_split import _aspect_splitlines
-    from ._native.aspects_ospath import _aspect_ospathbasename
-    from ._native.aspects_ospath import _aspect_ospathdirname
-    from ._native.aspects_ospath import _aspect_ospathjoin
-    from ._native.aspects_ospath import _aspect_ospathnormcase
-    from ._native.aspects_ospath import _aspect_ospathsplit
-    from ._native.aspects_ospath import _aspect_ospathsplitdrive
-    from ._native.aspects_ospath import _aspect_ospathsplitext
-    from ._native.aspects_ospath import _aspect_ospathsplitroot
-    from ._native.initializer import active_map_addreses_size
-    from ._native.initializer import create_context
-    from ._native.initializer import debug_taint_map
-    from ._native.initializer import initializer_size
-    from ._native.initializer import num_objects_tainted
-    from ._native.initializer import reset_context
-    from ._native.initializer import reset_contexts
-    from ._native.taint_tracking import OriginType
-    from ._native.taint_tracking import Source
-    from ._native.taint_tracking import TagMappingMode
-    from ._native.taint_tracking import are_all_text_all_ranges
-    from ._native.taint_tracking import copy_and_shift_ranges_from_strings
-    from ._native.taint_tracking import copy_ranges_from_strings
-    from ._native.taint_tracking import get_range_by_hash
-    from ._native.taint_tracking import get_ranges
-    from ._native.taint_tracking import is_notinterned_notfasttainted_unicode
-    from ._native.taint_tracking import is_tainted
-    from ._native.taint_tracking import origin_to_str
-    from ._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
-    from ._native.taint_tracking import set_ranges
-    from ._native.taint_tracking import shift_taint_range
-    from ._native.taint_tracking import shift_taint_ranges
-    from ._native.taint_tracking import str_to_origin
-    from ._native.taint_tracking import taint_range as TaintRange
-
-    new_pyobject_id = ops.new_pyobject_id
-    set_ranges_from_values = ops.set_ranges_from_values
 
 __all__ = [
     "OriginType",
@@ -103,10 +75,9 @@ __all__ = [
     "debug_taint_map",
     "get_range_by_hash",
     "get_ranges",
-    "iast_taint_log_error",
     "initializer_size",
+    "is_tainted",
     "is_notinterned_notfasttainted_unicode",
-    "is_pyobject_tainted",
     "modulo_aspect",
     "new_pyobject_id",
     "num_objects_tainted",
