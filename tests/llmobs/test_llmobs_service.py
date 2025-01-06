@@ -38,6 +38,9 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
+RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
+
+
 def run_llmobs_trace_filter(dummy_tracer):
     with dummy_tracer.trace("span1", span_type=SpanTypes.LLM) as span:
         span.set_tag_str(SPAN_KIND, "llm")
@@ -1743,6 +1746,7 @@ async def test_annotation_context_async_nested(llmobs):
                 assert span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
 
 
+@pytest.mark.skipif(not RAGAS_AVAILABLE, reason="Test requires ragas to be available on user env")
 def test_service_enable_starts_evaluator_runner_when_evaluators_exist():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
