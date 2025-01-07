@@ -2494,14 +2494,14 @@ def test_propagation_extract_w_config(
         overrides["_propagation_style_extract"] = styles
     if extract_behavior is not None:
         overrides["_propagation_behavior_extract"] = extract_behavior
-        with override_global_config(overrides):
-            context = HTTPPropagator.extract(headers)
-            if not expected_context.get("tracestate"):
-                assert context == Context(**expected_context)
-            else:
-                copied_expectation = expected_context.copy()
-                tracestate = copied_expectation.pop("tracestate")
-                assert context == Context(**copied_expectation, meta={"tracestate": tracestate})
+    with override_global_config(overrides):
+        context = HTTPPropagator.extract(headers)
+        if not expected_context.get("tracestate"):
+            assert context == Context(**expected_context)
+        else:
+            copied_expectation = expected_context.copy()
+            tracestate = copied_expectation.pop("tracestate")
+            assert context == Context(**copied_expectation, meta={"tracestate": tracestate})
 
 
 EXTRACT_OVERRIDE_FIXTURES = [
