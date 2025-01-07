@@ -13,6 +13,7 @@ from fastapi import UploadFile
 from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
 import pytest
+from starlette.responses import PlainTextResponse
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
@@ -779,6 +780,8 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         # label test_fastapi_header_injection
         result_response.headers["Header-Injection"] = tainted_string
         result_response.headers["Vary"] = tainted_string
+        result_response.headers["Foo"] = "bar"
+
         return result_response
 
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
@@ -793,7 +796,9 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(span.get_tag(IAST.JSON))
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
         line, hash_value = get_line_and_hash(
             "test_fastapi_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE_PATH
         )
@@ -804,3 +809,35 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
         assert vulnerability["location"]["spanId"]
+
+
+def test_fastapi_header_injection_inline_response(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/header_injection_inline_response/", response_class=PlainTextResponse)
+    async def header_injection_inline_response(request: Request):
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+
+        tainted_string = request.headers.get("test")
+        assert is_pyobject_tainted(tainted_string)
+        return PlainTextResponse(
+            content="OK",
+            headers={"Header-Injection": tainted_string, "Vary": tainted_string, "Foo": "bar"},
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+        _aux_appsec_prepare_tracer(tracer)
+        patch_iast({"header_injection": True})
+        resp = client.get(
+            "/header_injection_inline_response/",
+            headers={"test": "test\r\nInjection: header"},
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_HEADER_INJECTION
