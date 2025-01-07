@@ -773,9 +773,10 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
     async def header_injection(request: Request):
         from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
-        tainted_string = request.headers.get("iast_header")
+        tainted_string = request.headers.get("test")
         assert is_pyobject_tainted(tainted_string)
         result_response = JSONResponse(content={"message": "OK"})
+        # label test_fastapi_header_injection
         result_response.headers["Header-Injection"] = tainted_string
         result_response.headers["Vary"] = tainted_string
         return result_response
@@ -785,7 +786,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         patch_iast({"header_injection": True})
         resp = client.get(
             "/header_injection/",
-            headers={"iast_header": "test\r\nInjection: header"},
+            headers={"test": "test\r\nInjection: header"},
         )
         assert resp.status_code == 200
 
