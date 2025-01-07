@@ -532,6 +532,7 @@ def request_patcher(name):
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
             tags={COMPONENT: config.flask.integration_name},
+            activate_distributed_headers=True,
         ) as ctx, ctx.span:
             core.dispatch("flask._patched_request", (ctx,))
             return wrapped(*args, **kwargs)

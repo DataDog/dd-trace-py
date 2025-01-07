@@ -175,7 +175,9 @@ class ExecutionContext(AbstractContextManager):
     def __enter__(self) -> "ExecutionContext":
         if self._span is None and "_CURRENT_CONTEXT" in globals():
             self._token: contextvars.Token["ExecutionContext"] = _CURRENT_CONTEXT.set(self)
+            # context.started.flask._patched_request
         dispatch("context.started.%s" % self.identifier, (self,))
+        # context.started.start_span.flask._patched_request
         dispatch("context.started.start_span.%s" % self.identifier, (self,))
         return self
 

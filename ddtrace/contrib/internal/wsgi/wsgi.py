@@ -95,6 +95,9 @@ class _DDWSGIMiddlewareBase(object):
         headers = get_request_headers(environ)
         closing_iterable = ()
         not_blocked = True
+        # this would be the fix, we'd basically just add a kwarg activate_distributed_headers, and then
+        # when we call _start_span in core, we check if it's set to true or not, if it's not 
+        # (for every non local root span) we don't call activate_distributed_headers
         with core.context_with_data(
             "wsgi.__call__",
             remote_addr=environ.get("REMOTE_ADDR"),
@@ -104,8 +107,9 @@ class _DDWSGIMiddlewareBase(object):
             span_type=SpanTypes.WEB,
             span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
             middleware_config=self._config,
-            distributed_headers_config=self._config,
+            integration_config=self._config,
             distributed_headers=environ,
+            activate_distributed_headers=True,
             environ=environ,
             middleware=self,
             span_key="req_span",
