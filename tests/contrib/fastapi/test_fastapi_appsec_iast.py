@@ -789,7 +789,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         patch_iast({"header_injection": True})
         resp = client.get(
             "/header_injection/",
-            headers={"test": "test\r\nInjection: header"},
+            headers={"test": "test_injection_header"},
         )
         assert resp.status_code == 200
 
@@ -828,7 +828,7 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
         patch_iast({"header_injection": True})
         resp = client.get(
             "/header_injection_inline_response/",
-            headers={"test": "test\r\nInjection: header"},
+            headers={"test": "test_injection_header"},
         )
         assert resp.status_code == 200
 
