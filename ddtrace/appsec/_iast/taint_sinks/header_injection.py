@@ -92,7 +92,7 @@ def unpatch():
     try_unwrap("django.http.response", "HttpResponseBase.__setitem__")
     try_unwrap("django.http.response", "ResponseHeaders.__setitem__")
     try_unwrap("starlette.datastructures", "MutableHeaders.__setitem__")
-    try_unwrap("starlette.responses", "response.init_headers")
+    try_unwrap("starlette.responses", "Response.init_headers")
 
     set_module_unpatched("flask", default_attr="_datadog_header_injection_patch")
     set_module_unpatched("django", default_attr="_datadog_header_injection_patch")
