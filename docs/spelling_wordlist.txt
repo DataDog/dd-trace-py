@@ -9,6 +9,8 @@ aioredis
 algolia
 algoliasearch
 analytics
+anthropic
+Anthropic
 AnyCallable
 api
 app

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from itertools import count
 from pathlib import Path
 import sys
+import time
 
 # from threading import current_thread
 from types import FrameType
@@ -24,7 +25,6 @@ from ddtrace.debugging._probe.model import ProbeEvalTiming
 # from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.ext import EXIT_SPAN_TYPES
-from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
@@ -170,7 +170,7 @@ class EntrySpanWrappingContext(WrappingContext):
         #     span.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
 
         #     self.set("context", context)
-        #     self.set("start_time", compat.monotonic_ns())
+        #     self.set("start_time", time.monotonic_ns())
 
         return self
 
@@ -181,7 +181,7 @@ class EntrySpanWrappingContext(WrappingContext):
             # No snapshot was created
             return
 
-        signal.do_exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
+        signal.do_exit(retval, exc_info, time.monotonic_ns() - self.get("start_time"))
 
     def __return__(self, retval):
         self._close_signal(retval=retval)
