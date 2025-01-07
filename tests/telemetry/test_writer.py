@@ -410,6 +410,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_MEMORY_EVENTS_BUFFER", "origin": "default", "value": 16},
         {"name": "DD_PROFILING_OUTPUT_PPROF", "origin": "default", "value": None},
+        {"name": "DD_PROFILING_PYTORCH_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": False},
