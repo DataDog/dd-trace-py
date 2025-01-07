@@ -154,7 +154,7 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
         item = None
         while True:
             try:
-                item = await anext(result)
+                item = await result.__anext__()
                 yield item
             except StopAsyncIteration:
                 response = item[-1] if isinstance(item, tuple) else item
