@@ -579,7 +579,7 @@ class LLMObs(Service):
         """
         Trace a generic operation. Used when the span kind is not specified, 
 
-        :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
+        :param str name: The name of the traced operation. If not provided, a default value of "undefined" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
                            value will be set to the value of `DD_LLMOBS_ML_APP`.

@@ -274,15 +274,14 @@ def _generic_decorator(operation_kind):
                 session_id,
                 ml_app,
             )
-        else:
-            decorator = _llmobs_decorator(kind or operation_kind)
-            return decorator(
-                original_func,
-                name,
-                session_id,
-                ml_app,
-                _automatic_io_annotation,
-            )
+        decorator = _llmobs_decorator(kind or operation_kind)
+        return decorator(
+            original_func,
+            name,
+            session_id,
+            ml_app,
+            _automatic_io_annotation,
+        )
 
     return decorator
 
