@@ -171,7 +171,6 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, L
 
 @pytest.mark.vcr_logs
 def test_ragas_faithfulness_emits_traces(ragas, llmobs, llmobs_events):
-    """Why are we asserting only 7 spans caught?"""
     rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     rf_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
     ragas_spans = [event for event in llmobs_events if event["name"].startswith("dd-ragas.")]
