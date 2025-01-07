@@ -123,7 +123,7 @@ def _get_updatable_packages_implementing(modules: typing.Set[str]) -> typing.Set
         if not _venv_sets_latest_for_package(v, package):
             pinned_packages.add(package)
 
-    packages = {m for m in modules if "." not in m}
+    packages = {m for m in modules if "." not in m and m not in pinned_packages}
     return packages
 
 
