@@ -6,6 +6,7 @@ import re
 import shlex
 import subprocess  # nosec
 from threading import RLock
+from typing import Callable  # noqa:F401
 from typing import Deque  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -38,11 +39,30 @@ def get_version():
     return ""
 
 
-def patch():
-    # type: () -> List[str]
-    patched = []  # type: List[str]
-    if not asm_config._asm_enabled:
-        return patched
+_STR_CALLBACKS: Dict[str, Callable[[str], None]] = {}
+_LST_CALLBACKS: Dict[str, Callable[[List[str]], None]] = {}
+
+
+def add_str_callback(name: str, callback: Callable[[str], None]):
+    _STR_CALLBACKS[name] = callback
+
+
+def del_str_callback(name: str):
+    _STR_CALLBACKS.pop(name, None)
+
+
+def add_lst_callback(name: str, callback: Callable[[List[str]], None]):
+    _LST_CALLBACKS[name] = callback
+
+
+def del_lst_callback(name: str):
+    _LST_CALLBACKS.pop(name, None)
+
+
+def patch() -> List[str]:
+    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+        return []
+    patched: List[str] = []
 
     import os
 
@@ -71,7 +91,7 @@ def patch():
 
 
 @dataclass(eq=False)
-class SubprocessCmdLineCacheEntry(object):
+class SubprocessCmdLineCacheEntry:
     binary: Optional[str] = None
     arguments: Optional[List] = None
     truncated: bool = False
@@ -80,7 +100,7 @@ class SubprocessCmdLineCacheEntry(object):
     as_string: Optional[str] = None
 
 
-class SubprocessCmdLine(object):
+class SubprocessCmdLine:
     # This catches the computed values into a SubprocessCmdLineCacheEntry object
     _CACHE = {}  # type: Dict[str, SubprocessCmdLineCacheEntry]
     _CACHE_DEQUE = collections.deque()  # type: Deque[str]
@@ -299,13 +319,16 @@ def unpatch():
 
     SubprocessCmdLine._clear_cache()
 
-    os._datadog_patch = False
-    subprocess._datadog_patch = False
+    os.__dict__.pop("_datadog_patch", None)
+    subprocess.__dict__.pop("_datadog_patch", None)
 
 
 @trace_utils.with_traced_module
 def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     try:
+        if isinstance(args[0], str):
+            for callback in _STR_CALLBACKS.values():
+                callback(args[0])
         shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
@@ -342,6 +365,10 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
 def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
     try:
         mode, file, func_args, _, _ = args
+        if isinstance(func_args, (list, tuple)):
+            commands = [file] + list(func_args)
+            for callback in _LST_CALLBACKS.values():
+                callback(commands)
         shellcmd = SubprocessCmdLine(func_args, shell=False)
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
@@ -366,6 +393,12 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
         cmd_args = args[0] if len(args) else kwargs["args"]
+        if isinstance(cmd_args, str):
+            for callback in _STR_CALLBACKS.values():
+                callback(cmd_args)
+        elif isinstance(cmd_args, list):
+            for callback in _LST_CALLBACKS.values():
+                callback(cmd_args)
         cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
         is_shell = kwargs.get("shell", False)
         shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec

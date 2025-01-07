@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sqlite3
+import subprocess
 from typing import Optional
 
 from fastapi import FastAPI
@@ -178,13 +179,24 @@ def get_app():
                     res.append(f"Error: {e}")
             tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
+        elif endpoint == "shell_injection":
+            res = ["shell_injection endpoint"]
+            for param in query_params:
+                if param.startswith("cmd"):
+                    cmd = query_params[param]
+                    try:
+                        res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                    except Exception as e:
+                        res.append(f"Error: {e}")
+            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+            return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "command_injection":
             res = ["command_injection endpoint"]
             for param in query_params:
                 if param.startswith("cmd"):
                     cmd = query_params[param]
                     try:
-                        res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                        res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"])}')
                     except Exception as e:
                         res.append(f"Error: {e}")
             tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)

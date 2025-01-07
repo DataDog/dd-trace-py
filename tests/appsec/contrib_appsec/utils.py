@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import itertools
 import json
+import os
 import sys
 from typing import Dict
 from typing import List
@@ -83,7 +84,7 @@ class Contrib_TestClass_For_Threats:
 
     def check_rules_triggered(self, rule_id: List[str], root_span):
         triggers = get_triggers(root_span())
-        assert triggers is not None, "no appsec struct in root span"
+        assert triggers is not None, ("no appsec struct in root span", os.system)
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
@@ -1308,10 +1309,18 @@ class Contrib_TestClass_For_Threats:
         + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))]
         + [
             (
-                "command_injection",
+                "shell_injection",
                 "cmd_1=$(cat /etc/passwd 1>%262 ; echo .)&cmd_2=$(uname -a 1>%262 ; echo .)",
                 "rasp-932-100",
                 ("system", "rasp"),
+            )
+        ]
+        + [
+            (
+                "command_injection",
+                "cmd_1=/sbin/ping&cmd_2=/usr/bin/ls",
+                "rasp-932-110",
+                ("Popen", "rasp"),
             )
         ],
     )
@@ -1381,11 +1390,12 @@ class Contrib_TestClass_For_Threats:
                         trace
                     ), f"unknown top function {trace['frames'][0]} {[t['function'] for t in trace['frames'][:4]]}"
                 # assert mocked.call_args_list == []
+                expected_rule_type = "command_injection" if endpoint == "shell_injection" else endpoint
                 matches = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.match"]
-                assert matches == [(("rule_type", endpoint), ("waf_version", DDWAF_VERSION))], matches
+                assert matches == [(("rule_type", expected_rule_type), ("waf_version", DDWAF_VERSION))], matches
                 evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
                 # there may have been multiple evaluations of other rules too
-                assert (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)) in evals
+                assert (("rule_type", expected_rule_type), ("waf_version", DDWAF_VERSION)) in evals
                 if action_level == 2:
                     assert get_tag("rasp.request.done") is None, get_tag("rasp.request.done")
                 else:
