@@ -55,6 +55,13 @@ aiohttp_jinja2
 .. automodule:: ddtrace.contrib.aiohttp_jinja2
 
 
+.. _anthropic:
+
+anthropic
+^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.anthropic
+
+
 .. _asyncio:
 
 asyncio
@@ -487,7 +494,7 @@ urllib3
 .. _vertexai:
 
 vertexai
-^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
 .. automodule:: ddtrace.contrib.vertexai
 
 
