@@ -3958,7 +3958,7 @@ class BotocoreTest(TracerTestCase):
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3_invalid_config(self):
-        # Setting the validated flag to False ensures the payload config is re-validated
+        # Setting the validated flag to False ensures the redaction paths configurations are re-validated
         # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
         # config.botocore.payload_tagging_request
         # FIXME: Ensure AWSPayloadTagging._RESPONSE_REDACTION_PATHS_DEFAULTS is always in sync with
