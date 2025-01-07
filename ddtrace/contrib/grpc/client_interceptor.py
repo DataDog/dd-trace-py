@@ -193,9 +193,7 @@ class _ClientInterceptor(
     def _intercept_client_call(self, method_kind, client_call_details):
         tracer = self._pin.tracer
 
-        # This used to use .trace instead, which caused spans to leak when using the .future interface. Instead we now just create the span and
-        # activate it at points where we call the continuations
-        span = tracer.start_span(
+        # NOTE: We use start_span here and manually activate the span when invoking continuations, in order to avoid leaking spans when using the .future interface        span = tracer.start_span(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
             service=trace_utils.ext_service(self._pin, config.grpc),
@@ -266,9 +264,6 @@ class _ClientInterceptor(
         with _activated_span(span):
             response_iterator = continuation(client_call_details, request)
         response_iterator = _WrappedResponseCallFuture(response_iterator, span)
-        # Set the span's parent as the active trace so that we don't "leak" the span when
-        # using the .future(...) interface
-        self._pin.tracer.context_provider.activate(span._parent)
         return response_iterator
 
     def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
