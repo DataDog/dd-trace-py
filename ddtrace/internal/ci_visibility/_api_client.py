@@ -92,6 +92,7 @@ class EarlyFlakeDetectionSettings:
 @dataclasses.dataclass(frozen=True)
 class QuarantineSettings:
     enabled: bool = False
+    skip_quarantined_tests: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -385,7 +386,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
             quarantine = QuarantineSettings(
                 enabled=attributes.get("quarantine", {}).get("enabled", False)
-                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE"))
+                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE")),
+                skip_quarantined_tests=attributes.get("quarantine", {}).get("skip_quarantined_tests", False)
+                or asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")),
             )
 
         except KeyError:
