@@ -283,10 +283,16 @@ class SpanTestCase(TracerTestCase):
                 assert 0, "should have failed"
 
             stack = s.get_tag(ERROR_STACK)
+            assert stack, "No error stack collected"
             # one header "Traceback (most recent call last):" and one footer "ZeroDivisionError: division by zero"
             header_and_footer_lines = 2
+            # Python 3.13 adds extra lines to the traceback:
+            #   File dd-trace-py/tests/tracer/test_span.py", line 279, in test_custom_traceback_size_with_error
+            #     wrapper()
+            #     ~~~~~~~^^
+            multiplier = 3 if "~~" in stack else 2
             assert (
-                len(stack.splitlines()) == tb_length_limit * 2 + header_and_footer_lines
+                len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines
             ), "stacktrace should contain two lines per entry"
 
     def test_ctx_mgr(self):
