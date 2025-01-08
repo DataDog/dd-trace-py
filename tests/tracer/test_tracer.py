@@ -61,7 +61,7 @@ class TracerTestCases(TracerTestCase):
         span.finish()
 
         span = self.trace("a")
-        span.assert_matches(name="a", service=None, resource="a", span_type=None)
+        span.assert_matches(name="a", resource="a", span_type=None)
         span.finish()
 
     def test_tracer(self):
@@ -400,7 +400,7 @@ class TracerTestCases(TracerTestCase):
 
     def test_start_span_service_default(self):
         span = self.start_span("")
-        span.assert_matches(service=None)
+        span.assert_matches(service="tests.tracer")
         span.finish()
 
     def test_start_span_service_from_parent(self):
@@ -465,13 +465,14 @@ class TracerTestCases(TracerTestCase):
             _parent=None,
         )
 
+    @run_in_subprocess()
     def test_adding_services(self):
-        assert self.tracer._services == set()
+        assert self.tracer._services == set(), self.tracer._services
         with self.start_span("root", service="one") as root:
-            assert self.tracer._services == set(["one"])
+            assert self.tracer._services == set(["one"]), self.tracer._services
             with self.start_span("child", service="two", child_of=root):
                 pass
-        assert self.tracer._services == set(["one", "two"])
+        assert self.tracer._services == set(["one", "two"]), self.tracer._services
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="two:three"))
     def test_adding_mapped_services(self):
@@ -2042,21 +2043,31 @@ def test_import_ddtrace_tracer_not_module():
     assert isinstance(tracer, Tracer)
 
 
-def test_asm_standalone_configuration():
-    tracer = ddtrace.Tracer()
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
-    assert tracer._asm_enabled is True
-    assert tracer._appsec_standalone_enabled is True
-    assert tracer._apm_opt_out is True
-    assert tracer.enabled is False
+@pytest.mark.parametrize("sca_enabled", ["true", "false"])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
+@pytest.mark.parametrize("iast_enabled", [True, False])
+def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled):
+    if not appsec_enabled and not iast_enabled and sca_enabled == "false":
+        pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    assert isinstance(tracer._sampler.limiter, RateLimiter)
-    assert tracer._sampler.limiter.rate_limit == 1
-    assert tracer._sampler.limiter.time_window == 60e9
+    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
+        ddtrace.config._reset()
+        tracer = ddtrace.Tracer()
+        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, appsec_standalone_enabled=True)
+        if sca_enabled == "true":
+            assert bool(ddtrace.config._sca_enabled) is True
+        assert tracer.enabled is False
 
-    assert tracer._compute_stats is False
+        assert isinstance(tracer._sampler.limiter, RateLimiter)
+        assert tracer._sampler.limiter.rate_limit == 1
+        assert tracer._sampler.limiter.time_window == 60e9
+
+        assert tracer._compute_stats is False
+
     # reset tracer values
-    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+    with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
+        ddtrace.config._reset()
+        tracer.configure(appsec_enabled=False, iast_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_gc_not_used_on_root_spans():

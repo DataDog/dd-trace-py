@@ -30,6 +30,7 @@ from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -769,6 +770,18 @@ def test_cache_get(test_spans):
     assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
+def test_cache_service_schematization(test_spans):
+    cache = django.core.cache.caches["default"]
+
+    with override_config("django", dict(cache_service_name="test-cache-service")):
+        cache.get("missing_key")
+        spans = test_spans.get_spans()
+        assert spans
+        span = spans[0]
+        expected_service_name = schematize_service_name(config.django.cache_service_name)
+        assert span.service == expected_service_name
+
+
 def test_cache_get_rowcount_existing_key(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
@@ -1425,14 +1438,14 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
-        "_dd.base_service": "",
+        "_dd.base_service": "tests.contrib.django",
     }
 
     expected_meta_header = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
-        "_dd.base_service": "",
+        "_dd.base_service": "tests.contrib.django",
     }
 
     assert span_view.get_tags() == expected_meta_view

@@ -7,13 +7,13 @@ from ddtrace import config
 from ddtrace.contrib.internal.google_generativeai._utils import TracedAsyncGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import _extract_api_key
-from ddtrace.contrib.internal.google_generativeai._utils import _extract_model_name
 from ddtrace.contrib.internal.google_generativeai._utils import tag_request
 from ddtrace.contrib.internal.google_generativeai._utils import tag_response
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
+from ddtrace.llmobs._integrations.utils import extract_model_name_google
 from ddtrace.pin import Pin
 
 
@@ -42,7 +42,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
-        model=_extract_model_name(instance),
+        model=extract_model_name_google(instance, "model_name"),
         submit_to_llmobs=True,
     )
     try:
@@ -75,7 +75,7 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
-        model=_extract_model_name(instance),
+        model=extract_model_name_google(instance, "model_name"),
         submit_to_llmobs=True,
     )
     try:

@@ -23,6 +23,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -69,6 +70,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "openai": "openai",
     "langchain": "langchain",
     "google_generativeai": "google_generativeai",
+    "vertexai": "vertexai",
 }
 
 
@@ -346,8 +348,20 @@ class LLMObs(Service):
 
     @staticmethod
     def _patch_integrations() -> None:
-        """Patch LLM integrations."""
-        patch(**{integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()})  # type: ignore[arg-type]
+        """
+        Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
+        """
+        integrations_to_patch = {integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+        for module, _ in integrations_to_patch.items():
+            env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+            if env_var in os.environ:
+                integrations_to_patch[module] = asbool(os.environ[env_var])
+        dd_patch_modules = os.getenv("DD_PATCH_MODULES")
+        dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
+        integrations_to_patch.update(
+            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+        )
+        patch(**integrations_to_patch)  # type: ignore[arg-type]
         log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
@@ -385,23 +399,23 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
-        span.set_tag_str(SPAN_KIND, operation_kind)
+        span._set_ctx_item(SPAN_KIND, operation_kind)
         if model_name is not None:
-            span.set_tag_str(MODEL_NAME, model_name)
+            span._set_ctx_item(MODEL_NAME, model_name)
         if model_provider is not None:
-            span.set_tag_str(MODEL_PROVIDER, model_provider)
+            span._set_ctx_item(MODEL_PROVIDER, model_provider)
         session_id = session_id if session_id is not None else _get_session_id(span)
         if session_id is not None:
-            span.set_tag_str(SESSION_ID, session_id)
+            span._set_ctx_item(SESSION_ID, session_id)
         if ml_app is None:
             ml_app = _get_ml_app(span)
-        span.set_tag_str(ML_APP, ml_app)
+        span._set_ctx_item(ML_APP, ml_app)
         if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
             # For non-distributed traces or spans in the first service of a distributed trace,
             # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
             # in these cases to avoid conflicting with the later propagated tags.
             parent_id = _get_llmobs_parent_id(span) or "undefined"
-            span.set_tag_str(PARENT_ID_KEY, str(parent_id))
+            span._set_ctx_item(PARENT_ID_KEY, str(parent_id))
         return span
 
     @classmethod
@@ -624,7 +638,7 @@ class LLMObs(Service):
             cls._tag_metrics(span, metrics)
         if tags is not None:
             cls._tag_span_tags(span, tags)
-        span_kind = span.get_tag(SPAN_KIND)
+        span_kind = span._get_ctx_item(SPAN_KIND)
         if parameters is not None:
             log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
@@ -650,7 +664,7 @@ class LLMObs(Service):
         """Tags a given LLMObs span with a prompt"""
         try:
             validated_prompt = validate_prompt(prompt)
-            span.set_tag_str(INPUT_PROMPT, safe_json(validated_prompt))
+            span._set_ctx_item(INPUT_PROMPT, validated_prompt)
         except TypeError:
             log.warning("Failed to validate prompt with error: ", exc_info=True)
             return
@@ -663,7 +677,7 @@ class LLMObs(Service):
         if not isinstance(params, dict):
             log.warning("parameters must be a dictionary of key-value pairs.")
             return
-        span.set_tag_str(INPUT_PARAMETERS, safe_json(params))
+        span._set_ctx_item(INPUT_PARAMETERS, params)
 
     @classmethod
     def _tag_llm_io(cls, span, input_messages=None, output_messages=None):
@@ -675,7 +689,7 @@ class LLMObs(Service):
                 if not isinstance(input_messages, Messages):
                     input_messages = Messages(input_messages)
                 if input_messages.messages:
-                    span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages.messages))
+                    span._set_ctx_item(INPUT_MESSAGES, input_messages.messages)
             except TypeError:
                 log.warning("Failed to parse input messages.", exc_info=True)
         if output_messages is None:
@@ -685,7 +699,7 @@ class LLMObs(Service):
                 output_messages = Messages(output_messages)
             if not output_messages.messages:
                 return
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages.messages))
+            span._set_ctx_item(OUTPUT_MESSAGES, output_messages.messages)
         except TypeError:
             log.warning("Failed to parse output messages.", exc_info=True)
 
@@ -699,12 +713,12 @@ class LLMObs(Service):
                 if not isinstance(input_documents, Documents):
                     input_documents = Documents(input_documents)
                 if input_documents.documents:
-                    span.set_tag_str(INPUT_DOCUMENTS, safe_json(input_documents.documents))
+                    span._set_ctx_item(INPUT_DOCUMENTS, input_documents.documents)
             except TypeError:
                 log.warning("Failed to parse input documents.", exc_info=True)
         if output_text is None:
             return
-        span.set_tag_str(OUTPUT_VALUE, safe_json(output_text))
+        span._set_ctx_item(OUTPUT_VALUE, str(output_text))
 
     @classmethod
     def _tag_retrieval_io(cls, span, input_text=None, output_documents=None):
@@ -712,7 +726,7 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
         if input_text is not None:
-            span.set_tag_str(INPUT_VALUE, safe_json(input_text))
+            span._set_ctx_item(INPUT_VALUE, str(input_text))
         if output_documents is None:
             return
         try:
@@ -720,7 +734,7 @@ class LLMObs(Service):
                 output_documents = Documents(output_documents)
             if not output_documents.documents:
                 return
-            span.set_tag_str(OUTPUT_DOCUMENTS, safe_json(output_documents.documents))
+            span._set_ctx_item(OUTPUT_DOCUMENTS, output_documents.documents)
         except TypeError:
             log.warning("Failed to parse output documents.", exc_info=True)
 
@@ -730,9 +744,9 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
         if input_value is not None:
-            span.set_tag_str(INPUT_VALUE, safe_json(input_value))
+            span._set_ctx_item(INPUT_VALUE, str(input_value))
         if output_value is not None:
-            span.set_tag_str(OUTPUT_VALUE, safe_json(output_value))
+            span._set_ctx_item(OUTPUT_VALUE, str(output_value))
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
@@ -745,12 +759,9 @@ class LLMObs(Service):
             log.warning("span_tags must be a dictionary of string key - primitive value pairs.")
             return
         try:
-            current_tags_str = span.get_tag(TAGS)
-            if current_tags_str:
-                current_tags = json.loads(current_tags_str)
-                current_tags.update(span_tags)
-                span_tags = current_tags
-            span.set_tag_str(TAGS, safe_json(span_tags))
+            existing_tags = span._get_ctx_item(TAGS) or {}
+            existing_tags.update(span_tags)
+            span._set_ctx_item(TAGS, existing_tags)
         except Exception:
             log.warning("Failed to parse tags.", exc_info=True)
 
@@ -762,7 +773,7 @@ class LLMObs(Service):
         if not isinstance(metadata, dict):
             log.warning("metadata must be a dictionary of string key-value pairs.")
             return
-        span.set_tag_str(METADATA, safe_json(metadata))
+        span._set_ctx_item(METADATA, metadata)
 
     @staticmethod
     def _tag_metrics(span: Span, metrics: Dict[str, Any]) -> None:
@@ -772,7 +783,7 @@ class LLMObs(Service):
         if not isinstance(metrics, dict):
             log.warning("metrics must be a dictionary of string key - numeric value pairs.")
             return
-        span.set_tag_str(METRICS, safe_json(metrics))
+        span._set_ctx_item(METRICS, metrics)
 
     @classmethod
     def submit_evaluation(

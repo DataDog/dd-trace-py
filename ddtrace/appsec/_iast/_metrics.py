@@ -132,22 +132,39 @@ def _set_span_tag_iast_executed_sink(span):
 
     if data is not None:
         for key, value in data.items():
-            if key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK):
+            if key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK) or key.startswith(
+                IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE
+            ):
                 span.set_tag(key, value)
 
     reset_iast_span_metrics()
 
 
+def _metric_key_as_snake_case(key):
+    from ._taint_tracking import OriginType
+
+    if isinstance(key, OriginType):
+        from ._taint_tracking import origin_to_str
+
+        key = origin_to_str(key)
+    key = key.replace(".", "_")
+    return key.lower()
+
+
 def increment_iast_span_metric(prefix: str, metric_key: str, counter: int = 1) -> None:
     data = get_iast_span_metrics()
-    full_key = prefix + "." + metric_key.lower()
+    full_key = prefix + "." + _metric_key_as_snake_case(metric_key)
     result = data.get(full_key, 0)
     data[full_key] = result + counter
 
 
 def get_iast_span_metrics() -> Dict:
-    return _IAST_SPAN_METRICS
+    from ddtrace.appsec._iast._iast_request_context import _get_iast_context
+
+    env = _get_iast_context()
+    return env.iast_span_metrics if env else dict()
 
 
 def reset_iast_span_metrics() -> None:
-    _IAST_SPAN_METRICS.clear()
+    metrics = get_iast_span_metrics()
+    metrics.clear()

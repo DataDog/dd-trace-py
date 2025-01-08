@@ -116,10 +116,6 @@ class PytestEFDTestCase(PytestTestCaseBase):
             ),
         ):
             yield
-            from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-            if CIVisibility.enabled:
-                CIVisibility.disable()
 
     def test_pytest_efd_no_ddtrace_does_not_retry(self):
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)

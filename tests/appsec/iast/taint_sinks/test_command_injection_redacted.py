@@ -3,7 +3,7 @@ import pytest
 
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.reporter import Evidence
@@ -40,6 +40,7 @@ def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_
     source["origin"] = origin_to_str(source["origin"])
 
     assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"] == vulnerabilities_expected["evidence"]
     assert source == sources_expected
 
 

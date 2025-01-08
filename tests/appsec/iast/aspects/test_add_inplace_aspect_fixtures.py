@@ -4,8 +4,8 @@ from copy import copy
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
@@ -39,7 +39,7 @@ class TestOperatorAddInplaceReplacement(object):
 
         bytecode = dis.Bytecode(mod.do_operator_add_inplace_params)
         dis.dis(mod.do_operator_add_inplace_params)
-        assert bytecode.codeobj.co_names == ("ddtrace_aspects", "add_inplace_aspect")
+        assert bytecode.codeobj.co_names == ("_ddtrace_aspects", "add_inplace_aspect")
 
     def test_string_operator_add_inplace_one_tainted(self) -> None:
         string_input = taint_pyobject(

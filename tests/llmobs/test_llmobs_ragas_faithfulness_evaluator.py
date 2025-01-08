@@ -5,11 +5,10 @@ import pytest
 
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.span import Span
-
-from ._utils import _expected_llmobs_llm_span_event
-from ._utils import _expected_ragas_spans
-from ._utils import _llm_span_with_expected_ragas_inputs_in_messages
-from ._utils import _llm_span_with_expected_ragas_inputs_in_prompt
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_ragas_spans
+from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
+from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_prompt
 
 
 def _llm_span_without_io():
@@ -30,7 +29,8 @@ def test_ragas_faithfulness_throws_if_dependencies_not_present(LLMObs, mock_raga
 
 def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, LLMObs):
     rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    assert rf_evaluator.evaluate(_llm_span_without_io()) == "fail_extract_faithfulness_inputs"
+    failure_msg, _ = rf_evaluator.evaluate(_llm_span_without_io())
+    assert failure_msg == "fail_extract_faithfulness_inputs"
     assert rf_evaluator.llmobs_service.submit_evaluation.call_count == 0
 
 
@@ -89,6 +89,11 @@ def test_ragas_faithfulness_submits_evaluation(ragas, LLMObs, mock_llmobs_submit
                 label=RagasFaithfulnessEvaluator.LABEL,
                 metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
                 value=1.0,
+                metadata={
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                    "_dd.faithfulness_disagreements": mock.ANY,
+                    "_dd.evaluation_kind": "faithfulness",
+                },
             )
         ]
     )
@@ -112,6 +117,50 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_question_in_messages
                 label=RagasFaithfulnessEvaluator.LABEL,
                 metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
                 value=1.0,
+                metadata={
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                    "_dd.faithfulness_disagreements": mock.ANY,
+                    "_dd.evaluation_kind": "faithfulness",
+                },
+            )
+        ]
+    )
+
+
+@pytest.mark.vcr_logs
+def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, LLMObs, mock_llmobs_submit_evaluation):
+    """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
+    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+    llm_span = _expected_llmobs_llm_span_event(
+        Span("dummy"),
+        prompt={
+            "variables": {
+                "user_input": "Is france part of europe?",
+                "context_1": "hello, ",
+                "context_2": "france is ",
+                "context_3": "part of europe",
+            },
+            "_dd_context_variable_keys": ["context_1", "context_2", "context_3"],
+            "_dd_query_variable_keys": ["user_input"],
+        },
+        output_messages=[{"content": "France is indeed part of europe"}],
+    )
+    rf_evaluator.run_and_submit_evaluation(llm_span)
+    rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+        [
+            mock.call(
+                span_context={
+                    "span_id": llm_span.get("span_id"),
+                    "trace_id": llm_span.get("trace_id"),
+                },
+                label=RagasFaithfulnessEvaluator.LABEL,
+                metric_type=RagasFaithfulnessEvaluator.METRIC_TYPE,
+                value=1.0,
+                metadata={
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                    "_dd.faithfulness_disagreements": mock.ANY,
+                    "_dd.evaluation_kind": "faithfulness",
+                },
             )
         ]
     )

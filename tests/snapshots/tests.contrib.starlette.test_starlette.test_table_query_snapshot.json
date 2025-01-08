@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.starlette",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65e7e27f00000000",
       "component": "starlette",
@@ -42,7 +42,7 @@
        "type": "sql",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.starlette",
          "component": "sqlalchemy",
          "span.kind": "client",
          "sql.db": "test.db"
@@ -66,7 +66,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.starlette",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65e7e27f00000000",
       "component": "starlette",
@@ -99,7 +99,7 @@
        "type": "sql",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.starlette",
          "component": "sqlalchemy",
          "span.kind": "client",
          "sql.db": "test.db"

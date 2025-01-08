@@ -15,10 +15,12 @@ import ddtrace
 import platform
 from .._types import StringType
 from ..util import sanitize_string
+from ddtrace.internal import agent
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -66,6 +68,9 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
     void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
     void ddup_push_heap(Sample *sample, int64_t size)
+    void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
+    void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
+    void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
     void ddup_push_task_id(Sample *sample, int64_t task_id)
@@ -75,8 +80,10 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
+    void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
+    void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
 
@@ -300,6 +307,18 @@ cdef call_ddup_push_class_name(Sample* sample, class_name: StringType):
     if utf8_data != NULL:
         ddup_push_class_name(sample, string_view(utf8_data, utf8_size))
 
+cdef call_ddup_push_gpu_device_name(Sample* sample, device_name: StringType):
+    if not device_name:
+        return
+    if isinstance(device_name, bytes):
+        ddup_push_gpu_device_name(sample, string_view(<const char*>device_name, len(device_name)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(device_name, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_gpu_device_name(sample, string_view(utf8_data, utf8_size))
+
 cdef call_ddup_push_trace_type(Sample* sample, trace_type: StringType):
     if not trace_type:
         return
@@ -339,7 +358,6 @@ def config(
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
@@ -354,8 +372,6 @@ def config(
         call_func_with_str(ddup_config_env, env)
     if version:
         call_func_with_str(ddup_config_version, version)
-    if url:
-        call_func_with_str(ddup_config_url, url)
     if output_filename:
         call_func_with_str(ddup_config_output_filename, output_filename)
 
@@ -388,14 +404,27 @@ def start() -> None:
     ddup_start()
 
 
-def upload() -> None:
+def _get_endpoint(tracer)-> str:
+    # DEV: ddtrace.profiling.utils has _get_endpoint but importing that function
+    # leads to a circular import, so re-implementing it here.
+    # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
+    # build exporter for agentless mode too.
+    tracer_agent_url = tracer.agent_trace_url
+    endpoint = tracer_agent_url if tracer_agent_url else agent.get_trace_url()
+    return endpoint
+
+
+def upload(tracer: Optional[Tracer] = ddtrace.tracer) -> None:
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
-    processor = ddtrace.tracer._endpoint_call_counter_span_processor
+    processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
 
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
+
+    endpoint = _get_endpoint(tracer)
+    call_func_with_str(ddup_config_url, endpoint)
 
     with nogil:
         ddup_upload()
@@ -435,6 +464,18 @@ cdef class SampleHandle:
     def push_heap(self, value: int) -> None:
         if self.ptr is not NULL:
             ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
+
+    def push_gpu_gputime(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_gputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_memory(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_memory(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_flops(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_flops(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
@@ -482,6 +523,10 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             call_ddup_push_class_name(self.ptr, class_name)
 
+    def push_gpu_device_name(self, device_name: StringType) -> None:
+        if self.ptr is not NULL:
+            call_ddup_push_gpu_device_name(self.ptr, device_name)
+
     def push_span(self, span: Optional[Span]) -> None:
         if self.ptr is NULL:
             return
@@ -499,6 +544,10 @@ cdef class SampleHandle:
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
             ddup_push_monotonic_ns(self.ptr, <int64_t>monotonic_ns)
+
+    def push_absolute_ns(self, timestamp_ns: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_absolute_ns(self.ptr, <int64_t>timestamp_ns)
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use

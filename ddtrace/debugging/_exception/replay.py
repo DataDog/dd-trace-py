@@ -20,6 +20,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.internal.utils.time import HourGlass
 
 
 log = get_logger(__name__)
@@ -39,7 +40,8 @@ DEBUG_INFO_TAG = "error.debug_info_captured"
 CAPTURE_TRACE_TAG = "_dd.debug.error.trace_captured"
 
 # unique exception id
-EXCEPTION_ID_TAG = "_dd.debug.error.exception_id"
+EXCEPTION_HASH_TAG = "_dd.debug.error.exception_hash"
+EXCEPTION_ID_TAG = "_dd.debug.error.exception_capture_id"
 
 # link to matching snapshot for every frame in the traceback
 FRAME_SNAPSHOT_ID_TAG = "_dd.debug.error.%d.snapshot_id"
@@ -47,13 +49,69 @@ FRAME_FUNCTION_TAG = "_dd.debug.error.%d.function"
 FRAME_FILE_TAG = "_dd.debug.error.%d.file"
 FRAME_LINE_TAG = "_dd.debug.error.%d.line"
 
+EXCEPTION_IDENT_LIMIT = 3600.0  # 1 hour
+EXCEPTION_IDENT_LIMITER: t.Dict[int, HourGlass] = {}
+
+
+ExceptionChain = t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]]
+
+
+def exception_ident(exc: BaseException, tb: t.Optional[TracebackType]) -> int:
+    """Compute the identity of an exception.
+
+    We use the exception type and the traceback to generate a unique identifier
+    that we can use to identify the exception. This can be used to rate limit
+    the number of times we capture information of the same exception.
+    """
+    h = 0
+    _tb = tb
+    while _tb is not None:
+        frame = _tb.tb_frame
+        h = (h << 1) ^ (id(frame.f_code) << 4 | frame.f_lasti)
+        h &= 0xFFFFFFFFFFFFFFFF
+        _tb = _tb.tb_next
+    return (id(type(exc)) << 64) | h
+
+
+def exception_chain_ident(chain: ExceptionChain) -> int:
+    h = 0
+    for exc, tb in chain:
+        h = (h << 1) ^ exception_ident(exc, tb)
+        h &= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+    return h
+
+
+def limit_exception(exc_ident: int) -> bool:
+    try:
+        hg = EXCEPTION_IDENT_LIMITER.get(exc_ident)
+        if hg is None:
+            # We haven't seen this exception yet, or it's been evicted
+            hg = EXCEPTION_IDENT_LIMITER[exc_ident] = HourGlass(duration=EXCEPTION_IDENT_LIMIT)
+            hg.turn()
+            return False
+
+        if hg.trickling():
+            # We have seen this exception recently
+            return True
+
+        # We haven't seen this exception in a while
+        hg.turn()
+
+        return False
+    finally:
+        if len(EXCEPTION_IDENT_LIMITER) > 1024:
+            # We limit the number of exception identities we track to avoid
+            # memory leaks.
+            sorted_keys = sorted(EXCEPTION_IDENT_LIMITER, key=lambda k: EXCEPTION_IDENT_LIMITER[k])
+            for k in sorted_keys[:256]:
+                del EXCEPTION_IDENT_LIMITER[k]
+
 
 def unwind_exception_chain(
-    exc: t.Optional[BaseException],
-    tb: t.Optional[TracebackType],
-) -> t.Tuple[t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]], t.Optional[uuid.UUID]]:
+    exc: t.Optional[BaseException], tb: t.Optional[TracebackType]
+) -> t.Tuple[ExceptionChain, t.Optional[uuid.UUID]]:
     """Unwind the exception chain and assign it an ID."""
-    chain: t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]] = deque()
+    chain: ExceptionChain = deque()
 
     while exc is not None:
         chain.append((exc, tb))
@@ -112,7 +170,7 @@ class SpanExceptionSnapshot(Snapshot):
     @property
     def data(self) -> t.Dict[str, t.Any]:
         data = super().data
-        data.update({"exception-id": str(self.exc_id)})
+        data.update({"exceptionId": str(self.exc_id)})
         return data
 
 
@@ -160,6 +218,11 @@ class SpanExceptionHandler:
             # No exceptions to capture
             return
 
+        exc_ident = exception_chain_ident(chain)
+        if limit_exception(exc_ident):
+            # We have seen this exception recently
+            return
+
         seq = count(1)  # 1-based sequence number
 
         while chain:
@@ -170,7 +233,7 @@ class SpanExceptionHandler:
                 continue
 
             # DEV: We go from the handler up to the root exception
-            while _tb and _tb.tb_frame:
+            while _tb:
                 frame = _tb.tb_frame
                 code = frame.f_code
                 seq_nr = next(seq)
@@ -210,6 +273,7 @@ class SpanExceptionHandler:
                 _tb = _tb.tb_next
 
             span.set_tag_str(DEBUG_INFO_TAG, "true")
+            span.set_tag_str(EXCEPTION_HASH_TAG, str(exc_ident))
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
 
     @classmethod

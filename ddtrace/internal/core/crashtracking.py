@@ -7,6 +7,8 @@ from ddtrace.internal.datadog.profiling import crashtracker
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.settings.crashtracker import config as crashtracker_config
+from ddtrace.settings.profiling import config as profiling_config
+from ddtrace.settings.profiling import config_str
 
 
 is_available: bool = crashtracker.is_available
@@ -56,6 +58,9 @@ def start() -> bool:
     # Add user tags
     for key, value in crashtracker_config.tags.items():
         add_tag(key, value)
+
+    if profiling_config.enabled:
+        add_tag("profiler_config", config_str(profiling_config))
 
     # Only start if it is enabled
     if crashtracker_config.enabled:
