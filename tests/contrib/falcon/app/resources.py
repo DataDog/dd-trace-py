@@ -1,5 +1,11 @@
 import falcon
 
+from ddtrace.internal.utils.version import parse_version
+
+
+FALCON_VERSION = parse_version(falcon.__version__)
+TEXT_ATTR = "text" if FALCON_VERSION >= (3, 0, 0) else "body"
+
 
 class Resource200(object):
     """Throw a handled exception here to ensure our use of
@@ -13,26 +19,26 @@ class Resource200(object):
             pass
 
         resp.status = falcon.HTTP_200
-        resp.body = "Success"
+        setattr(resp, TEXT_ATTR, "Success")
         resp.append_header("my-response-header", "my_response_value")
 
 
 class DynamicURIResource(object):
     def on_get(self, req, resp, name):
         resp.status = falcon.HTTP_200
-        resp.body = name
+        setattr(resp, TEXT_ATTR, name)
 
 
 class Resource201(object):
     def on_post(self, req, resp, **kwargs):
         resp.status = falcon.HTTP_201
-        resp.body = "Success"
+        setattr(resp, TEXT_ATTR, "Success")
 
 
 class Resource500(object):
     def on_get(self, req, resp, **kwargs):
         resp.status = falcon.HTTP_500
-        resp.body = "Failure"
+        setattr(resp, TEXT_ATTR, "Failure")
 
 
 class ResourceException(object):
