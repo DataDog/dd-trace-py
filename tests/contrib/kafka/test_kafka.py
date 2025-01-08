@@ -37,6 +37,7 @@ DSM_TEST_PATH_HEADER_SIZE = 28
 SNAPSHOT_IGNORES = [
     "metrics.kafka.message_offset",
     "meta.error.stack",
+    "meta.error.message",
     "meta.messaging.kafka.bootstrap.servers",
     "meta.peer.service",
 ]

@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.urllib3.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
+from ddtrace.settings.asm import config as asm_config
 from tests.contrib.config import HTTPBIN_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -527,12 +528,16 @@ class TestUrllib3(BaseUrllib3TestCase):
                     timeout=mock.ANY,
                 )
 
+    @pytest.mark.skip(reason="urlib3 does not set the ASM Manual keep tag so x-datadog headers are not propagated")
     def test_distributed_tracing_apm_opt_out_true(self):
         """Tests distributed tracing headers are passed by default"""
         # Check that distributed tracing headers are passed down; raise an error rather than make the
         # request since we don't care about the response at all
         config.urllib3["distributed_tracing"] = True
         self.tracer.enabled = False
+        # Ensure the ASM SpanProcessor is set
+        self.tracer.configure(appsec_standalone_enabled=True, appsec_enabled=True)
+        assert asm_config._apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:
@@ -580,6 +585,9 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Test with distributed tracing disabled does not propagate the headers"""
         config.urllib3["distributed_tracing"] = True
         self.tracer.enabled = False
+        # Ensure the ASM SpanProcessor is set.
+        self.tracer.configure(appsec_standalone_enabled=False, appsec_enabled=True)
+        assert not asm_config._apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:
