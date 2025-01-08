@@ -193,7 +193,8 @@ class _ClientInterceptor(
     def _intercept_client_call(self, method_kind, client_call_details):
         tracer = self._pin.tracer
 
-        # NOTE: We use start_span here and manually activate the span when invoking continuations, in order to avoid leaking spans when using the .future interface        span = tracer.start_span(
+        # NOTE: We use start_span here and manually activate the span when invoking continuations, in order to avoid leaking spans when using the .future interface
+        span = tracer.start_span(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
             service=trace_utils.ext_service(self._pin, config.grpc),
