@@ -167,7 +167,12 @@ class ElasticsearchPatchTest(TracerTestCase):
             es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
             es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
             es.index(id=12, body={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
-            result = es.search(sort=["name:desc"], size=100, body={"query": {"match_all": {}}}, **args)
+            result = es.search(
+                sort={"name": {"order": "desc", "unmapped_type": "keyword"}},
+                size=100,
+                body={"query": {"match_all": {}}},
+                **args,
+            )
 
         assert len(result["hits"]["hits"]) == 3, result
         spans = self.get_spans()
