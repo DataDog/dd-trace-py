@@ -42,16 +42,6 @@ def mock_llmobs_span_writer():
 
 
 @pytest.fixture
-def mock_llmobs_span_agentless_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    LLMObsSpanWriterMock = patcher.start()
-    m = mock.MagicMock()
-    LLMObsSpanWriterMock.return_value = m
-    yield m
-    patcher.stop()
-
-
-@pytest.fixture
 def mock_llmobs_eval_metric_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsEvalMetricWriter")
     LLMObsEvalMetricWriterMock = patcher.start()
@@ -85,10 +75,7 @@ def mock_llmobs_submit_evaluation():
 def mock_http_writer_send_payload_response():
     with mock.patch(
         "ddtrace.internal.writer.HTTPWriter._send_payload",
-        return_value=Response(
-            status=200,
-            body="{}",
-        ),
+        return_value=Response(status=200, body="{}"),
     ):
         yield
 
@@ -124,12 +111,6 @@ def mock_evaluator_sampler_logs():
 
 
 @pytest.fixture
-def mock_http_writer_logs():
-    with mock.patch("ddtrace.internal.writer.writer.log") as m:
-        yield m
-
-
-@pytest.fixture
 def mock_llmobs_logs():
     with mock.patch("ddtrace.llmobs._llmobs.log") as m:
         yield m
@@ -161,7 +142,7 @@ def LLMObs(
 
 @pytest.fixture
 def AgentlessLLMObs(
-    mock_llmobs_span_agentless_writer,
+    mock_llmobs_span_writer,
     mock_llmobs_eval_metric_writer,
     mock_llmobs_evaluator_runner,
     ddtrace_global_config,

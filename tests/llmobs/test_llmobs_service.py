@@ -1189,10 +1189,10 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
 
 
 def test_flush_calls_periodic_agentless(
-    AgentlessLLMObs, mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner
+    AgentlessLLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner
 ):
     AgentlessLLMObs.flush()
-    mock_llmobs_span_agentless_writer.periodic.assert_called_once()
+    mock_llmobs_span_writer.periodic.assert_called_once()
     mock_llmobs_eval_metric_writer.periodic.assert_called_once()
     mock_llmobs_evaluator_runner.periodic.assert_called_once()
 
@@ -1216,14 +1216,14 @@ def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
 
 def test_flush_does_not_call_periodic_when_llmobs_is_disabled_agentless(
     AgentlessLLMObs,
-    mock_llmobs_span_agentless_writer,
+    mock_llmobs_span_writer,
     mock_llmobs_eval_metric_writer,
     mock_llmobs_evaluator_runner,
     mock_llmobs_logs,
     disabled_llmobs,
 ):
     AgentlessLLMObs.flush()
-    mock_llmobs_span_agentless_writer.periodic.assert_not_called()
+    mock_llmobs_span_writer.periodic.assert_not_called()
     mock_llmobs_eval_metric_writer.periodic.assert_not_called()
     mock_llmobs_evaluator_runner.periodic.assert_not_called()
     mock_llmobs_logs.warning.assert_has_calls(
