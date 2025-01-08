@@ -340,7 +340,7 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
 
     class TYPE(metaclass=Constant_Class):
         CMDI: Literal["command_injection"] = "command_injection"
-        SHI: Literal["command_injection"] = "command_injection"
+        SHI: Literal["shell_injection"] = "shell_injection"
         LFI: Literal["lfi"] = "lfi"
         SSRF: Literal["ssrf"] = "ssrf"
         SQLI: Literal["sql_injection"] = "sql_injection"
