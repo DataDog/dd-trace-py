@@ -1160,7 +1160,7 @@ class HTTPPropagator(object):
                     context.sampling_priority = None
                 # If the trace has appsec propagation tag, the default priority is user keep
                 elif context and APPSEC.PROPAGATION_HEADER in context._meta:
-                    context.sampling_priority = 2  # type: ignore[assignment]
+                    context.sampling_priority = 2
 
             return context
 
