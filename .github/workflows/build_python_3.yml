@@ -132,6 +132,10 @@ jobs:
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
           CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
+          # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
+          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+          # See: https://stackoverflow.com/a/65402241
+          CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
