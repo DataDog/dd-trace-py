@@ -287,7 +287,7 @@ class SubprocessCmdLine:
         msg = ' "4kB argument truncated by %d characters"' % oversize
         return str_[0 : -(oversize + len(msg))] + msg
 
-    def _as_list_and_string(self) -> Tuple[list[str], str]:
+    def _as_list_and_string(self) -> Tuple[List[str], str]:
         total_list = self.env_vars + [self.binary] + self.arguments
         truncated_str = self.truncate_string(shjoin(total_list))
         truncated_list = shlex.split(truncated_str)
