@@ -76,9 +76,7 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def _llmobs_span_event(self, span: Span) -> Tuple[Dict[str, Any], bool]:
         """Span event object structure."""
-        span_kind = span._get_ctx_item(SPAN_KIND)
-        if not span_kind:
-            raise KeyError("Span kind not found in span context")
+        span_kind = span._get_ctx_item(SPAN_KIND) or ""
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
