@@ -5,12 +5,13 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
+from ddtrace.appsec import load_common_appsec_modules
+
 from .appsec._iast._utils import _is_iast_enabled
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .settings import _config as config
-from .settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -40,6 +41,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
+    "freezegun": True,
     "google_generativeai": True,
     "gevent": True,
     "graphql": True,
@@ -69,6 +71,7 @@ PATCH_MODULES = {
     "aiobotocore": False,
     "httplib": False,
     "urllib3": False,
+    "vertexai": True,
     "vertica": True,
     "molten": True,
     "jinja2": True,
@@ -91,6 +94,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_functions": True,
     "tornado": False,
     "openai": True,
     "langchain": True,
@@ -98,6 +102,7 @@ PATCH_MODULES = {
     "subprocess": True,
     "unittest": True,
     "coverage": False,
+    "selenium": True,
 }
 
 
@@ -139,6 +144,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_functions": ("azure.functions",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
@@ -167,17 +173,22 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
+            imported_module.patch()
+            if hasattr(imported_module, "patch_submodules"):
+                imported_module.patch_submodules(patch_indicator)
         except Exception as e:
             if raise_errors:
                 raise
-            error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
-            log.error(error_msg, exc_info=True)
-            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
+            log.error(
+                "failed to enable ddtrace support for %s: %s",
+                module,
+                str(e),
+            )
+            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(
                 "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
             )
         else:
-            imported_module.patch()
             if hasattr(imported_module, "get_versions"):
                 versions = imported_module.get_versions()
                 for name, v in versions.items():
@@ -189,9 +200,6 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                 telemetry.telemetry_writer.add_integration(
                     module, True, PATCH_MODULES.get(module) is True, "", version=version
                 )
-
-            if hasattr(imported_module, "patch_submodules"):
-                imported_module.patch_submodules(patch_indicator)
 
     return on_import
 
@@ -233,10 +241,7 @@ def patch_all(**patch_modules):
         patch_iast()
         enable_iast_propagation()
 
-    if asm_config._ep_enabled or asm_config._iast_enabled:
-        from ddtrace.appsec._common_module_patches import patch_common_modules
-
-        patch_common_modules()
+    load_common_appsec_modules()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):

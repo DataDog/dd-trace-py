@@ -6,8 +6,10 @@ import pytest
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
+from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import request_token
 
@@ -55,6 +57,26 @@ def mock_llmobs_eval_metric_writer():
     LLMObsEvalMetricWriterMock = patcher.start()
     m = mock.MagicMock()
     LLMObsEvalMetricWriterMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_llmobs_evaluator_runner():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.EvaluatorRunner")
+    LLMObsEvalRunner = patcher.start()
+    m = mock.MagicMock()
+    LLMObsEvalRunner.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_llmobs_submit_evaluation():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObs.submit_evaluation")
+    LLMObsMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsMock.return_value = m
     yield m
     patcher.stop()
 
@@ -118,7 +140,9 @@ def default_global_config():
 
 
 @pytest.fixture
-def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
+def LLMObs(
+    mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner, ddtrace_global_config
+):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
@@ -129,7 +153,12 @@ def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_glob
 
 
 @pytest.fixture
-def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
+def AgentlessLLMObs(
+    mock_llmobs_span_agentless_writer,
+    mock_llmobs_eval_metric_writer,
+    mock_llmobs_evaluator_runner,
+    ddtrace_global_config,
+):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     global_config.update(dict(_llmobs_agentless_enabled=True))
@@ -141,7 +170,92 @@ def AgentlessLLMObs(mock_llmobs_span_agentless_writer, mock_llmobs_eval_metric_w
 
 
 @pytest.fixture
-def mock_ragas_evaluator(mock_llmobs_eval_metric_writer):
-    with mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate") as m:
-        m.return_value = 1.0
-        yield RagasFaithfulnessEvaluator
+def disabled_llmobs():
+    prev = llmobs_service.enabled
+    llmobs_service.enabled = False
+    yield
+    llmobs_service.enabled = prev
+
+
+@pytest.fixture
+def mock_ragas_dependencies_not_present():
+    import ragas
+
+    previous = ragas.__version__
+    ## unsupported version
+    ragas.__version__ = "0.0.0"
+    yield
+    ragas.__version__ = previous
+
+
+@pytest.fixture
+def ragas(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
+        import ragas
+
+        with override_env(dict(OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"))):
+            yield ragas
+
+
+@pytest.fixture
+def reset_ragas_faithfulness_llm():
+    import ragas
+
+    previous_llm = ragas.metrics.faithfulness.llm
+    yield
+    ragas.metrics.faithfulness.llm = previous_llm
+
+
+@pytest.fixture
+def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
+    patcher = mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate")
+    LLMObsMockRagas = patcher.start()
+    LLMObsMockRagas.return_value = 1.0
+    yield RagasFaithfulnessEvaluator
+    patcher.stop()
+
+
+@pytest.fixture
+def tracer():
+    return DummyTracer()
+
+
+@pytest.fixture
+def llmobs_env():
+    return {
+        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+    }
+
+
+class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.events = []
+
+    def enqueue(self, event):
+        self.events.append(event)
+
+
+@pytest.fixture
+def llmobs_span_writer():
+    yield TestLLMObsSpanWriter(interval=1.0, timeout=1.0)
+
+
+@pytest.fixture
+def llmobs(monkeypatch, tracer, llmobs_env, llmobs_span_writer):
+    for env, val in llmobs_env.items():
+        monkeypatch.setenv(env, val)
+
+    # TODO: remove once rest of tests are moved off of global config tampering
+    with override_global_config(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP"))):
+        llmobs_service.enable(_tracer=tracer)
+        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        llmobs_service._instance._trace_processor._span_writer = llmobs_span_writer
+        yield llmobs
+    llmobs_service.disable()
+
+
+@pytest.fixture
+def llmobs_events(llmobs, llmobs_span_writer):
+    return llmobs_span_writer.events

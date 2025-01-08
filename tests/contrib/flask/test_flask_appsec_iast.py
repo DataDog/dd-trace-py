@@ -19,6 +19,7 @@ from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_hea
 from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -35,7 +36,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         self._caplog = caplog
 
     def setUp(self):
-        with override_global_config(
+        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
             dict(
                 _iast_enabled=True,
                 _deduplication_enabled=False,
@@ -47,9 +48,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_header_injection()
             patch_json()
 
-            self.tracer._iast_enabled = True
-            self.tracer._asm_enabled = True
-            self.tracer.configure(api_version="v0.4")
+            self.tracer.configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -58,7 +57,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def sqli_1(param_str):
             import sqlite3
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             assert is_pyobject_tainted(param_str)
@@ -272,8 +271,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import request
 
             from ddtrace.appsec._iast._taint_tracking import OriginType
-            from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             header_ranges = get_tainted_ranges(request.headers["User-Agent"])
             assert header_ranges
@@ -323,7 +322,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def sqli_6(param_str):
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             # Note: these are not tainted because of request sampling at 0%
             assert not is_pyobject_tainted(request.headers["User-Agent"])
@@ -535,7 +534,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -600,7 +599,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -665,7 +664,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -730,7 +729,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -797,7 +796,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             def iterate_json(data, parent_key=""):
@@ -938,7 +937,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -1041,7 +1040,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1067,20 +1066,70 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             loaded = json.loads(root_span.get_tag(IAST.JSON))
             assert loaded["sources"] == [{"origin": "http.request.parameter", "name": "name", "value": "test"}]
 
-            line, hash_value = get_line_and_hash(
-                "test_flask_header_injection_label",
-                VULN_HEADER_INJECTION,
-                filename=TEST_FILE_PATH,
-            )
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_HEADER_INJECTION
             assert vulnerability["evidence"] == {
                 "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "test"}]
             }
             # TODO: vulnerability path is flaky, it points to "tests/contrib/flask/__init__.py"
-            # assert vulnerability["location"]["path"] == TEST_FILE_PATH
-            # assert vulnerability["location"]["line"] == line
-            # assert vulnerability["hash"] == hash_value
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_header_injection_exlusions_location(self):
+        @self.app.route("/header_injection/", methods=["GET", "POST"])
+        def header_injection():
+            from flask import Response
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.headers["Location"] = tainted_string
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/header_injection/", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            assert root_span.get_tag(IAST.JSON) is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_header_injection_exlusions_access_control(self):
+        @self.app.route("/header_injection/", methods=["GET", "POST"])
+        def header_injection():
+            from flask import Response
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.headers["Access-Control-Allow-Example1"] = tainted_string
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/header_injection/", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            assert root_span.get_tag(IAST.JSON) is None
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_insecure_cookie(self):
@@ -1089,7 +1138,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1127,7 +1176,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1157,7 +1206,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1195,7 +1244,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1226,7 +1275,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1264,7 +1313,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1292,7 +1341,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1330,8 +1379,6 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             )
         ):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
-            self.tracer._iast_enabled = False
-            self.tracer._asm_enabled = False
             self.tracer.configure(api_version="v0.4")
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -1467,7 +1514,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
         def test_sqli(param_str):
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             assert not is_pyobject_tainted(request.headers["User-Agent"])
             assert not is_pyobject_tainted(request.query_string)

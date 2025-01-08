@@ -4,6 +4,7 @@ from .bedrock import BedrockIntegration
 from .gemini import GeminiIntegration
 from .langchain import LangChainIntegration
 from .openai import OpenAIIntegration
+from .vertexai import VertexAIIntegration
 
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "GeminiIntegration",
     "LangChainIntegration",
     "OpenAIIntegration",
+    "VertexAIIntegration",
 ]

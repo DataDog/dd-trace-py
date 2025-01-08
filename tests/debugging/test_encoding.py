@@ -191,7 +191,21 @@ def test_capture_context_exc():
 
         exc = context.pop("throwable")
         assert context["arguments"] == {}
-        assert context["locals"] == {"@exception": {"type": "Exception", "fields": {}}}
+        assert context["locals"] == {
+            "@exception": {
+                "type": "Exception",
+                "fields": {
+                    "args": {
+                        "type": "tuple",
+                        "elements": [{"type": "str", "value": "'test'"}, {"type": "str", "value": "'me'"}],
+                        "size": 2,
+                    },
+                    "__cause__": {"type": "NoneType", "isNull": True},
+                    "__context__": {"type": "NoneType", "isNull": True},
+                    "__suppress_context__": {"type": "bool", "value": "False"},
+                },
+            }
+        }
         assert exc["message"] == "'test', 'me'"
         assert exc["type"] == "Exception"
 
@@ -210,7 +224,7 @@ def test_batch_json_encoder():
     buffer_size = 30 * (1 << 20)
     queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
 
-    s.line()
+    s.line({})
 
     snapshot_size = queue.put(s)
 
@@ -241,7 +255,7 @@ def test_batch_flush_reencode():
         thread=threading.current_thread(),
     )
 
-    s.line()
+    s.line({})
 
     queue = SignalQueue(LogSignalJsonEncoder(None))
 

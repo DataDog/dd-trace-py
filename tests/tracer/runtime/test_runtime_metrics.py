@@ -46,7 +46,7 @@ class TestRuntimeTags(TracerTestCase):
         with self.override_global_tracer():
             with self.trace("test", service="test"):
                 tags = [k for (k, v) in RuntimeTags(enabled=[SERVICE])]
-                self.assertEqual(tags, [SERVICE])
+                self.assertEqual(set(tags), set([SERVICE]))
 
     def test_env_tag(self):
         def filter_only_env_tags(tags):
@@ -76,10 +76,10 @@ def test_runtime_tags_empty():
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 
     tags = list(RuntimeTags())
-    assert len(tags) == 4
+    assert len(tags) == 5
 
     tags = dict(tags)
-    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version"])
+    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "service"])
 
 
 @pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"})
@@ -103,11 +103,11 @@ def test_runtime_tags_dd_tags():
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 
     tags = list(RuntimeTags())
-    assert len(tags) == 7, tags
+    assert len(tags) == 8, tags
 
     tags = dict(tags)
     assert set(tags.keys()) == set(
-        ["lang", "lang_interpreter", "lang_version", "tracer_version", "version", "custom", "test"]
+        ["lang", "lang_interpreter", "lang_version", "tracer_version", "version", "custom", "test", "service"]
     )
     assert tags["custom"] == "tag"
     assert tags["test"] == "key"
@@ -122,10 +122,10 @@ def test_runtime_tags_manual_tracer_tags():
     tracer.set_tags({"manual": "tag"})
 
     tags = list(RuntimeTags())
-    assert len(tags) == 5, tags
+    assert len(tags) == 6, tags
 
     tags = dict(tags)
-    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "manual"])
+    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "manual", "service"])
     assert tags["manual"] == "tag"
 
 

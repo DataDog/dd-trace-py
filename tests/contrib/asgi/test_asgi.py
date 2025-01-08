@@ -1,5 +1,6 @@
 import asyncio
 from functools import partial
+import logging
 import os
 import random
 
@@ -10,8 +11,9 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.asgi import span_from_scope
-from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
+from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.propagation import http as http_propagation
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import DummyTracer
 from tests.utils import override_http_config
 
@@ -234,13 +236,16 @@ if __name__ == "__main__":
     assert err == b"", f"STDOUT\n{out.decode()}\nSTDERR\n{err.decode()}"
 
 
-@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
+@pytest.mark.parametrize(
+    "schema_version, global_service_name",
+    [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
+)
 def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+    inferred_base_service = DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
     expected_service_name = {
-        None: global_service_name or "",
-        "v0": global_service_name or "",
-        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+        None: global_service_name or inferred_base_service,
+        "v0": global_service_name or inferred_base_service,
+        "v1": global_service_name or inferred_base_service,
     }[schema_version]
     code = """
 import pytest
@@ -629,6 +634,52 @@ async def test_tasks_asgi_without_more_body(scope, tracer, test_spans):
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+
+@pytest.mark.asyncio
+async def test_request_parse_response_cookies(tracer, test_spans, caplog):
+    """
+    Regression test https://github.com/DataDog/dd-trace-py/issues/11818
+    """
+
+    async def tasks_cookies(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"set-cookie", b"test_cookie"]]})
+            await send({"type": "http.response.body", "body": b"*"})
+            await asyncio.sleep(1)
+
+    with caplog.at_level(logging.DEBUG):
+        app = TraceMiddleware(tasks_cookies, tracer=tracer)
+        async with httpx.AsyncClient(app=app) as client:
+            response = await client.get("http://testserver/")
+            assert response.status_code == 200
+
+    assert "failed to extract response cookies" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "headers,expected_result",
+    [
+        ({}, {}),
+        ({"cookie": "cookie1=value1"}, {}),
+        ({"header-1": ""}, {}),
+        ({"Set-cookie": "cookie1=value1"}, {}),
+        ({"set-Cookie": "cookie1=value1"}, {}),
+        ({"SET-cookie": "cookie1=value1"}, {}),
+        ({"set-cookie": "a"}, {}),
+        ({"set-cookie": "1234"}, {}),
+        ({"set-cookie": "cookie1=value1"}, {"cookie1": "value1"}),
+        ({"set-cookie": "cookie2=value1=value2"}, {"cookie2": "value1=value2"}),
+        ({"set-cookie": "cookie3=="}, {"cookie3": "="}),
+    ],
+)
+def test__parse_response_cookies(headers, expected_result, caplog):
+    with caplog.at_level(logging.DEBUG):
+        result = _parse_response_cookies(headers)
+
+    assert "failed to extract response cookies" not in caplog.text
+    assert result == expected_result
 
 
 @pytest.mark.asyncio

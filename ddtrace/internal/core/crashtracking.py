@@ -7,6 +7,8 @@ from ddtrace.internal.datadog.profiling import crashtracker
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.settings.crashtracker import config as crashtracker_config
+from ddtrace.settings.profiling import config as profiling_config
+from ddtrace.settings.profiling import config_str
 
 
 is_available: bool = crashtracker.is_available
@@ -37,8 +39,8 @@ def start() -> bool:
     crashtracker.set_runtime_id(get_runtime_id())
     crashtracker.set_runtime_version(platform.python_version())
     crashtracker.set_library_version(version.get_version())
-    crashtracker.set_alt_stack(bool(crashtracker_config.alt_stack))
-    crashtracker.set_wait_for_receiver(bool(crashtracker_config.wait_for_receiver))
+    crashtracker.set_create_alt_stack(bool(crashtracker_config.create_alt_stack))
+    crashtracker.set_use_alt_stack(bool(crashtracker_config.use_alt_stack))
     if crashtracker_config.stacktrace_resolver == "fast":
         crashtracker.set_resolve_frames_fast()
     elif crashtracker_config.stacktrace_resolver == "full":
@@ -56,6 +58,9 @@ def start() -> bool:
     # Add user tags
     for key, value in crashtracker_config.tags.items():
         add_tag(key, value)
+
+    if profiling_config.enabled:
+        add_tag("profiler_config", config_str(profiling_config))
 
     # Only start if it is enabled
     if crashtracker_config.enabled:

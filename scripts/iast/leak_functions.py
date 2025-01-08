@@ -13,7 +13,7 @@ from ddtrace.appsec._iast._iast_request_context import end_iast_context
 from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context import start_iast_context
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from tests.utils import override_env
 
 
@@ -70,8 +70,7 @@ async def iast_leaks(iterations: int, fail_percent: float, print_every: int):
         for i in range(iterations):
             _start_iast_context_and_oce()
             result = await test_doit()
-            # TODO(avara1986): `Match` contains errors. APPSEC-55239
-            # assert result == "DDD_III_extend", f"result is {result}"
+            assert result == "DDD_III_extend", f"result is {result}"
             assert is_pyobject_tainted(result)
             _end_iast_context_and_oce()
 

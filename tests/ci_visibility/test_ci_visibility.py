@@ -48,6 +48,23 @@ TEST_SHA_1 = "b3672ea5cbc584124728c48a443825d2940e0ddd"
 TEST_SHA_2 = "b3672ea5cbc584124728c48a443825d2940e0eee"
 
 
+@pytest.fixture(scope="function", autouse=True)
+def _disable_ci_visibility():
+    try:
+        if CIVisibility.enabled:
+            CIVisibility.disable()
+    except Exception:  # noqa: E722
+        # no-dd-sa:python-best-practices/no-silent-exception
+        pass
+    yield
+    try:
+        if CIVisibility.enabled:
+            CIVisibility.disable()
+    except Exception:  # noqa: E722
+        # no-dd-sa:python-best-practices/no-silent-exception
+        pass
+
+
 @contextlib.contextmanager
 def _dummy_noop_git_client():
     with mock.patch.multiple(
@@ -511,7 +528,7 @@ def test_git_do_request_agentless(git_repo):
                 {"mock_header_name": "mock_header_value"},
             )
 
-            mock_get_connection.assert_called_once_with("http://base_url/repository/endpoint", timeout=20)
+            mock_get_connection.assert_any_call("http://base_url/repository/endpoint", timeout=20)
             mock_http_connection.request.assert_called_once_with(
                 "POST",
                 "/repository/endpoint",
@@ -544,7 +561,7 @@ def test_git_do_request_evp(git_repo):
                 {"mock_header_name": "mock_header_value"},
             )
 
-            mock_get_connection.assert_called_once_with("https://base_url/repository/endpoint", timeout=20)
+            mock_get_connection.assert_any_call("https://base_url/repository/endpoint", timeout=20)
             mock_http_connection.request.assert_called_once_with(
                 "POST",
                 "/repository/endpoint",
@@ -590,7 +607,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+                _get_connection.assert_any_call("https://citestcov-intake.datadoghq.com", 2.0)
 
     def test_civisibilitywriter_coverage_agentless_with_intake_url_param(self):
         ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
@@ -606,10 +623,12 @@ class TestCIVisibilityWriter(TracerTestCase):
             cov_client = dummy_writer._clients[1]
             assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
-            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+            with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection, mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+            ):
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
+                _get_connection.assert_any_call("https://citestcov-intake.datadoghq.com", 2.0)
 
     def test_civisibilitywriter_coverage_evp_proxy_url(self):
         with _ci_override_env(
@@ -629,7 +648,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_called_once_with("http://arandomhost:9126", 2.0)
+                _get_connection.assert_any_call("http://arandomhost:9126", 2.0)
 
 
 def test_civisibilitywriter_agentless_url_envvar():
@@ -842,6 +861,15 @@ class TestUploadGitMetadata:
             git_client = CIVisibilityGitClient(api_key, requests_mode)
             git_client.upload_git_metadata()
             assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.UNNECESSARY
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_upload_no_git_dir(self, api_key, requests_mode):
+        with mock.patch.object(CIVisibilityGitClient, "_get_git_dir", mock.Mock(return_value=None)):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client.upload_git_metadata()
+
+            # Notably, this should _not_ raise ValueError
+            assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.FAILED
 
 
 def test_get_filtered_revisions():

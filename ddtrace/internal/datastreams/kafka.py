@@ -21,6 +21,7 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     from . import data_streams_processor as processor
 
     topic = core.get_item("kafka_topic")
+    cluster_id = core.get_item("kafka_cluster_id")
     message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
     key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
     headers = kwargs.get("headers", {})
@@ -30,9 +31,11 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     payload_size += _calculate_byte_size(key)
     payload_size += _calculate_byte_size(headers)
 
-    ctx = processor().set_checkpoint(
-        ["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
-    )
+    edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
+    if cluster_id:
+        edge_tags.append("kafka_cluster_id:" + str(cluster_id))
+
+    ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
 
     DsmPathwayCodec.encode(ctx, headers)
     kwargs["headers"] = headers
@@ -67,6 +70,7 @@ def dsm_kafka_message_consume(instance, message, span):
 
     headers = {header[0]: header[1] for header in (message.headers() or [])}
     topic = core.get_item("kafka_topic")
+    cluster_id = core.get_item("kafka_cluster_id")
     group = instance._group_id
 
     payload_size = 0
@@ -80,8 +84,15 @@ def dsm_kafka_message_consume(instance, message, span):
     payload_size += _calculate_byte_size(headers)
 
     ctx = DsmPathwayCodec.decode(headers, processor())
+
+    edge_tags = ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"]
+    if cluster_id:
+        edge_tags.append("kafka_cluster_id:" + str(cluster_id))
+
     ctx.set_checkpoint(
-        ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
+        edge_tags,
+        payload_size=payload_size,
+        span=span,
     )
 
     if instance._auto_commit:

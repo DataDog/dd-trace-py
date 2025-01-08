@@ -3,7 +3,9 @@ import logging
 from math import ceil
 import os
 import threading
+import time
 import typing  # noqa:F401
+from typing import Optional
 
 
 try:
@@ -11,7 +13,6 @@ try:
 except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
-from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -69,20 +70,22 @@ class MemoryCollector(collector.PeriodicCollector):
         self,
         recorder: Recorder,
         _interval: float = _DEFAULT_INTERVAL,
-        _max_events: int = config.memory.events_buffer,
-        max_nframe: int = config.max_frames,
-        heap_sample_size: int = config.heap.sample_size,
-        ignore_profiler: bool = config.ignore_profiler,
-        _export_libdd_enabled: bool = config.export.libdd_enabled,
+        _max_events: Optional[int] = None,
+        max_nframe: Optional[int] = None,
+        heap_sample_size: Optional[int] = None,
+        ignore_profiler: Optional[bool] = None,
+        _export_libdd_enabled: Optional[bool] = None,
     ):
         super().__init__(recorder=recorder)
         self._interval: float = _interval
         # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-        self._max_events: int = _max_events
-        self.max_nframe: int = max_nframe
-        self.heap_sample_size: int = heap_sample_size
-        self.ignore_profiler: bool = ignore_profiler
-        self._export_libdd_enabled: bool = _export_libdd_enabled
+        self._max_events: int = _max_events if _max_events is not None else config.memory.events_buffer
+        self.max_nframe: int = max_nframe if max_nframe is not None else config.max_frames
+        self.heap_sample_size: int = heap_sample_size if heap_sample_size is not None else config.heap.sample_size
+        self.ignore_profiler: bool = ignore_profiler if ignore_profiler is not None else config.ignore_profiler
+        self._export_libdd_enabled: bool = (
+            _export_libdd_enabled if _export_libdd_enabled is not None else config.export.libdd_enabled
+        )
 
     def _start_service(self):
         # type: (...) -> None
@@ -186,7 +189,7 @@ class MemoryCollector(collector.PeriodicCollector):
                 if thread_id in thread_id_ignore_set:
                     continue
                 handle = ddup.SampleHandle()
-                handle.push_monotonic_ns(compat.monotonic_ns())
+                handle.push_monotonic_ns(time.monotonic_ns())
                 handle.push_alloc(int((ceil(size) * alloc_count) / count), count)  # Roundup to help float precision
                 handle.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)

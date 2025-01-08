@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Adds support to automatically submit Vertex AI Python calls to LLM Observability.
+

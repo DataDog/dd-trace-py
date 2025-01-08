@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import sys
 import threading
+import time
+from types import CodeType
 from types import FunctionType
 from types import ModuleType
 from types import TracebackType
@@ -24,37 +26,24 @@ from ddtrace import config as ddconfig
 from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._function.store import FullyNamedWrappedFunction
+from ddtrace.debugging._function.store import FullyNamedContextWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import FunctionProbe
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LineProbe
-from ddtrace.debugging._probe.model import LogFunctionProbe
-from ddtrace.debugging._probe.model import LogLineProbe
-from ddtrace.debugging._probe.model import MetricFunctionProbe
-from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
-from ddtrace.debugging._probe.model import SpanDecorationLineProbe
-from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
-from ddtrace.debugging._signal.collector import SignalContext
-from ddtrace.debugging._signal.metric_sample import MetricSample
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
-from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.debugging._signal.tracing import DynamicSpan
-from ddtrace.debugging._signal.tracing import SpanDecoration
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import ModuleHookType
@@ -63,11 +52,8 @@ from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
 from ddtrace.internal.module import unregister_post_run_module_hook
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
-from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.wrapping.context import WrappingContext
 
 
@@ -87,6 +73,9 @@ class DebuggerError(Exception):
 
 class DebuggerModuleWatchdog(ModuleWatchdog):
     _locations: Set[str] = set()
+
+    def transform(self, code: CodeType, module: ModuleType) -> CodeType:
+        return FunctionDiscovery.transformer(code, module)
 
     @classmethod
     def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
@@ -170,7 +159,7 @@ class DebuggerWrappingContext(WrappingContext):
     def has_probes(self) -> bool:
         return bool(self.probes)
 
-    def _open_contexts(self) -> None:
+    def _open_signals(self) -> None:
         frame = self.__frame__
         assert frame is not None  # nosec
 
@@ -184,7 +173,7 @@ class DebuggerWrappingContext(WrappingContext):
         for p in self.probes.values():
             (context_creators if p.__context_creator__ else context_consumers).append(p)
 
-        contexts: Deque[SignalContext] = deque()
+        signals: Deque[Signal] = deque()
 
         # Trigger the context creators first, so that the new context can be
         # consumed by the consumers.
@@ -193,54 +182,44 @@ class DebuggerWrappingContext(WrappingContext):
             # for each probe.
             trace_context = self._tracer.current_trace_context()
 
-            if isinstance(probe, MetricFunctionProbe):
-                signal = MetricSample(
-                    probe=probe,
+            try:
+                signal = Signal.from_probe(
+                    probe,
                     frame=frame,
                     thread=thread,
                     trace_context=trace_context,
                     meter=self._probe_meter,
                 )
-            elif isinstance(probe, LogFunctionProbe):
-                signal = Snapshot(
-                    probe=probe,
-                    frame=frame,
-                    thread=thread,
-                    trace_context=trace_context,
-                )
-            elif isinstance(probe, SpanFunctionProbe):
-                signal = DynamicSpan(
-                    probe=probe,
-                    frame=frame,
-                    thread=thread,
-                    trace_context=trace_context,
-                )
-            elif isinstance(probe, SpanDecorationFunctionProbe):
-                signal = SpanDecoration(
-                    probe=probe,
-                    frame=frame,
-                    thread=thread,
-                )
-            else:
+            except TypeError:
                 log.error("Unsupported probe type: %s", type(probe))
                 continue
 
-            contexts.append(self._collector.attach(signal))
+            try:
+                signal.do_enter()
+            except Exception:
+                log.exception("Failed to enter signal %r", signal)
+                continue
+            signals.append(signal)
 
         # Save state on the wrapping context
-        self.set("start_time", compat.monotonic_ns())
-        self.set("contexts", contexts)
+        self.set("start_time", time.monotonic_ns())
+        self.set("signals", signals)
 
-    def _close_contexts(self, retval=None, exc_info=(None, None, None)) -> None:
-        end_time = compat.monotonic_ns()
-        contexts = self.get("contexts")
-        while contexts:
-            # Open probe signal contexts are ordered, with those that have
-            # created new tracing context first. We need to finalise them in
-            # reverse order, so we pop them from the end of the queue (LIFO).
-            context = contexts.pop()
-            context.exit(retval, exc_info, end_time - self.get("start_time"))
-            signal = context.signal
+    def _close_signals(self, retval=None, exc_info=(None, None, None)) -> None:
+        end_time = time.monotonic_ns()
+        signals = cast(Deque[Signal], self.get("signals"))
+        while signals:
+            # Open probe signals are ordered, with those that have created new
+            # tracing context first. We need to finalize them in reverse order,
+            # so we pop them from the end of the queue (LIFO).
+            signal = signals.pop()
+            try:
+                signal.do_exit(retval, exc_info, end_time - self.get("start_time"))
+            except Exception:
+                log.exception("Failed to exit signal %r", signal)
+                continue
+
+            self._collector.push(signal)
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(signal.probe)
 
@@ -248,7 +227,7 @@ class DebuggerWrappingContext(WrappingContext):
         super().__enter__()
 
         try:
-            self._open_contexts()
+            self._open_signals()
         except Exception:
             log.exception("Failed to open debugging contexts")
 
@@ -256,7 +235,7 @@ class DebuggerWrappingContext(WrappingContext):
 
     def __return__(self, value: T) -> T:
         try:
-            self._close_contexts(retval=value)
+            self._close_signals(retval=value)
         except Exception:
             log.exception("Failed to close debugging contexts from return")
         return super().__return__(value)
@@ -265,7 +244,7 @@ class DebuggerWrappingContext(WrappingContext):
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
         try:
-            self._close_contexts(exc_info=(exc_type, exc_val, exc_tb))
+            self._close_signals(exc_info=(exc_type, exc_val, exc_tb))
         except Exception:
             log.exception("Failed to close debugging contexts from exception block")
         super().__exit__(exc_type, exc_val, exc_tb)
@@ -305,7 +284,6 @@ class Debugger(Service):
         debugger.start()
 
         register_post_run_module_hook(cls._on_run_module)
-        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
 
         log.debug("%s enabled", cls.__name__)
 
@@ -334,7 +312,6 @@ class Debugger(Service):
             metrics.disable()
 
         di_config.enabled = False
-        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
 
         log.debug("%s disabled", cls.__name__)
 
@@ -380,45 +357,25 @@ class Debugger(Service):
         instrumented code is running.
         """
         try:
-            actual_frame = sys._getframe(1)
-            signal: Optional[Signal] = None
-            if isinstance(probe, MetricLineProbe):
-                signal = MetricSample(
-                    probe=probe,
-                    frame=actual_frame,
+            try:
+                signal = Signal.from_probe(
+                    probe,
+                    frame=sys._getframe(1),
                     thread=threading.current_thread(),
                     trace_context=self._tracer.current_trace_context(),
                     meter=self._probe_meter,
                 )
-            elif isinstance(probe, LogLineProbe):
-                if probe.take_snapshot:
-                    # TODO: Global limit evaluated before probe conditions
-                    if self._global_rate_limiter.limit() is RateLimitExceeded:
-                        return
-
-                signal = Snapshot(
-                    probe=probe,
-                    frame=actual_frame,
-                    thread=threading.current_thread(),
-                    trace_context=self._tracer.current_trace_context(),
-                )
-            elif isinstance(probe, SpanDecorationLineProbe):
-                signal = SpanDecoration(
-                    probe=probe,
-                    frame=actual_frame,
-                    thread=threading.current_thread(),
-                )
-            else:
-                log.error("Unsupported probe type: %r", type(probe))
+            except TypeError:
+                log.error("Unsupported probe type: %r", type(probe), exc_info=True)
                 return
 
-            signal.line()
-
-            log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
-            self.__uploader__.get_collector().push(signal)
+            signal.do_line(self._global_rate_limiter if probe.is_global_rate_limited() else None)
 
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(probe)
+
+            log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
+            self.__uploader__.get_collector().push(signal)
 
         except Exception:
             log.error("Failed to execute probe hook", exc_info=True)
@@ -429,7 +386,7 @@ class Debugger(Service):
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
-        probes_for_function: Dict[FullyNamedWrappedFunction, List[Probe]] = defaultdict(list)
+        probes_for_function: Dict[FullyNamedContextWrappedFunction, List[Probe]] = defaultdict(list)
         for probe in self._probe_registry.get_pending(str(origin(module))):
             if not isinstance(probe, LineLocationMixin):
                 continue
@@ -453,7 +410,7 @@ class Debugger(Service):
                 log.error(message)
                 self._probe_registry.set_error(probe, "NoFunctionsAtLine", message)
                 continue
-            for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
+            for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
                 probes_for_function[function].append(cast(LineProbe, probe))
 
         for function, probes in probes_for_function.items():
@@ -528,14 +485,14 @@ class Debugger(Service):
             module = self.__watchdog__.get_by_origin(resolved_source)
             if module is not None:
                 # The module is still loaded, so we can try to eject the hooks
-                probes_for_function: Dict[FullyNamedWrappedFunction, List[LineProbe]] = defaultdict(list)
+                probes_for_function: Dict[FullyNamedContextWrappedFunction, List[LineProbe]] = defaultdict(list)
                 for probe in probes:
                     if not isinstance(probe, LineLocationMixin):
                         continue
                     line = probe.line
                     assert line is not None, probe  # nosec
                     functions = FunctionDiscovery.from_module(module).at_line(line)
-                    for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
+                    for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
                         probes_for_function[function].append(probe)
 
                 for function, ps in probes_for_function.items():
@@ -642,7 +599,7 @@ class Debugger(Service):
                     context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
                     context.remove_probe(probe)
                     if not context.has_probes():
-                        self._function_store.unwrap(cast(FullyNamedWrappedFunction, function))
+                        self._function_store.unwrap(cast(FullyNamedContextWrappedFunction, function))
                     log.debug("Unwrapped %r", registered_probe)
                 else:
                     log.error("Attempted to unwrap %r, but no wrapper found", registered_probe)

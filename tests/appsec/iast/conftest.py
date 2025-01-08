@@ -1,5 +1,7 @@
 import logging
+import os
 import re
+import subprocess
 
 import pytest
 
@@ -25,6 +27,9 @@ from ddtrace.contrib.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+CONFIG_SERVER_PORT = "9596"
 
 
 @pytest.fixture
@@ -77,7 +82,6 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         _trace_id_64bits = 17577308072598193742
 
     env.update({"_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
-    VulnerabilityBase._reset_cache_for_testing()
     with override_global_config(
         dict(
             _asm_enabled=asm_enabled,
@@ -86,6 +90,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
+        VulnerabilityBase._reset_cache_for_testing()
         _start_iast_context_and_oce(MockSpan())
         weak_hash_patch()
         weak_cipher_patch()
@@ -137,7 +142,9 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
         yield
     else:
-        with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
+        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+            dict(_iast_debug=True)
+        ), caplog.at_level(logging.DEBUG):
             yield
 
         log_messages = [record.message for record in caplog.get_records("call")]
@@ -148,3 +155,16 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
         # TODO(avara1986): iast tests throw a timeout in gitlab
         #   list_metrics_logs = list(telemetry_writer._logs)
         #   assert len(list_metrics_logs) == 0
+
+
+@pytest.fixture(scope="session")
+def configuration_endpoint():
+    current_dir = os.path.dirname(__file__)
+    cmd = [
+        "python",
+        os.path.join(current_dir, "fixtures", "integration", "http_config_server.py"),
+        CONFIG_SERVER_PORT,
+    ]
+    process = subprocess.Popen(cmd, cwd=current_dir)
+    yield
+    process.kill()

@@ -111,6 +111,17 @@ class APPSEC(metaclass=Constant_Class):
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
 
 
+TELEMETRY_OFF_NAME = "OFF"
+TELEMETRY_DEBUG_NAME = "DEBUG"
+TELEMETRY_MANDATORY_NAME = "MANDATORY"
+TELEMETRY_INFORMATION_NAME = "INFORMATION"
+
+TELEMETRY_DEBUG_VERBOSITY = 10
+TELEMETRY_INFORMATION_VERBOSITY = 20
+TELEMETRY_MANDATORY_VERBOSITY = 30
+TELEMETRY_OFF_VERBOSITY = 40
+
+
 class IAST(metaclass=Constant_Class):
     """Specific constants for IAST"""
 
@@ -118,13 +129,32 @@ class IAST(metaclass=Constant_Class):
     ENV_DEBUG: Literal["DD_IAST_DEBUG"] = "DD_IAST_DEBUG"
     ENV_PROPAGATION_DEBUG: Literal["DD_IAST_PROPAGATION_DEBUG"] = "DD_IAST_PROPAGATION_DEBUG"
     ENV_REQUEST_SAMPLING: Literal["DD_IAST_REQUEST_SAMPLING"] = "DD_IAST_REQUEST_SAMPLING"
-    TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
+    DD_IAST_VULNERABILITIES_PER_REQUEST: Literal[
+        "DD_IAST_VULNERABILITIES_PER_REQUEST"
+    ] = "DD_IAST_VULNERABILITIES_PER_REQUEST"
+    DD_IAST_MAX_CONCURRENT_REQUESTS: Literal["DD_IAST_MAX_CONCURRENT_REQUESTS"] = "DD_IAST_MAX_CONCURRENT_REQUESTS"
+    ENV_TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
     LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
+    ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
+    PATCH_ADDED_SYMBOL_PREFIX: Literal["_ddtrace_"] = "_ddtrace_"
+    REDACTION_ENABLED: Literal["DD_IAST_REDACTION_ENABLED"] = "DD_IAST_REDACTION_ENABLED"
+    REDACTION_NAME_PATTERN: Literal["DD_IAST_REDACTION_NAME_PATTERN"] = "DD_IAST_REDACTION_NAME_PATTERN"
+    REDACTION_VALUE_PATTERN: Literal["DD_IAST_REDACTION_VALUE_PATTERN"] = "DD_IAST_REDACTION_VALUE_PATTERN"
+    REDACTION_VALUE_NUMERAL: Literal["DD_IAST_REDACTION_VALUE_NUMERAL"] = "DD_IAST_REDACTION_VALUE_NUMERAL"
+    STACK_TRACE_ENABLED: Literal["DD_IAST_STACK_TRACE_ENABLED"] = "DD_IAST_STACK_TRACE_ENABLED"
+
+    METRICS_REPORT_LVLS = (
+        (TELEMETRY_DEBUG_VERBOSITY, TELEMETRY_DEBUG_NAME),
+        (TELEMETRY_INFORMATION_VERBOSITY, TELEMETRY_INFORMATION_NAME),
+        (TELEMETRY_MANDATORY_VERBOSITY, TELEMETRY_MANDATORY_NAME),
+        (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
+    )
+
     TEXT_TYPES = (str, bytes, bytearray)
     TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
 
@@ -134,6 +164,7 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 
     TELEMETRY_REQUEST_TAINTED: Literal["_dd.iast.telemetry.request.tainted"] = "_dd.iast.telemetry.request.tainted"
     TELEMETRY_EXECUTED_SINK: Literal["_dd.iast.telemetry.executed.sink"] = "_dd.iast.telemetry.executed.sink"
+    TELEMETRY_EXECUTED_SOURCE: Literal["_dd.iast.telemetry.executed.source"] = "_dd.iast.telemetry.executed.source"
 
 
 class WAF_DATA_NAMES(metaclass=Constant_Class):
@@ -176,6 +207,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     SSRF_ADDRESS: Literal["server.io.net.url"] = "server.io.net.url"
     SQLI_ADDRESS: Literal["server.db.statement"] = "server.db.statement"
     SQLI_SYSTEM_ADDRESS: Literal["server.db.system"] = "server.db.system"
+    LOGIN_FAILURE: Literal["server.business_logic.users.login.failure"] = "server.business_logic.users.login.failure"
+    LOGIN_SUCCESS: Literal["server.business_logic.users.login.success"] = "server.business_logic.users.login.success"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -295,12 +328,14 @@ class DEFAULT(metaclass=Constant_Class):
 
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
-    STACK_TRACES: Literal["_dd.stack"] = "_dd.stack"
     STACK_TRACE_ID: Literal["stack_id"] = "stack_id"
     EP_ENABLED: Literal["DD_APPSEC_RASP_ENABLED"] = "DD_APPSEC_RASP_ENABLED"
     STACK_TRACE_ENABLED: Literal["DD_APPSEC_STACK_TRACE_ENABLED"] = "DD_APPSEC_STACK_TRACE_ENABLED"
     MAX_STACK_TRACES: Literal["DD_APPSEC_MAX_STACK_TRACES"] = "DD_APPSEC_MAX_STACK_TRACES"
     MAX_STACK_TRACE_DEPTH: Literal["DD_APPSEC_MAX_STACK_TRACE_DEPTH"] = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
+    STACK_TOP_PERCENT: Literal[
+        "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT"
+    ] = "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT"
 
     class TYPE(metaclass=Constant_Class):
         CMDI: Literal["command_injection"] = "command_injection"
@@ -322,3 +357,9 @@ class FINGERPRINTING(metaclass=Constant_Class):
     HEADER = PREFIX + "http.header"
     NETWORK = PREFIX + "http.network"
     SESSION = PREFIX + "session"
+
+
+class STACK_TRACE(metaclass=Constant_Class):
+    RASP = "exploit"
+    IAST = "vulnerability"
+    TAG: Literal["_dd.stack"] = "_dd.stack"

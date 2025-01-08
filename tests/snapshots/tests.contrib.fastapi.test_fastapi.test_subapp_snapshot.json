@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "tests.contrib.fastapi",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65e2cd9000000000",
       "component": "fastapi",
@@ -42,7 +42,7 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
+         "_dd.base_service": "tests.contrib.fastapi",
          "component": "fastapi",
          "http.method": "GET",
          "http.status_code": "200",
@@ -64,7 +64,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": ""
+            "_dd.base_service": "tests.contrib.fastapi"
           },
           "duration": 42000,
           "start": 1709362576025776000

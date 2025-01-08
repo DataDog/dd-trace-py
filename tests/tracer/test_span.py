@@ -98,20 +98,46 @@ class SpanTestCase(TracerTestCase):
 
     def test_set_baggage_item(self):
         s = Span(name="test.span")
-        s._set_baggage_item("custom.key", "123")
-        assert s._get_baggage_item("custom.key") == "123"
+        s.context.set_baggage_item("custom.key", "123")
+        assert s.context.get_baggage_item("custom.key") == "123"
 
-    def test_baggage_propagation(self):
+    def test_baggage_get(self):
         span1 = Span(name="test.span1")
-        span1._set_baggage_item("item1", "123")
+        span1.context.set_baggage_item("item1", "123")
 
         span2 = Span(name="test.span2", context=span1.context)
-        span2._set_baggage_item("item2", "456")
+        span2.context.set_baggage_item("item2", "456")
 
-        assert span2._get_baggage_item("item1") == "123"
-        assert span2._get_baggage_item("item2") == "456"
-        assert span1._get_baggage_item("item1") == "123"
-        assert span1._get_baggage_item("item2") is None
+        assert span2.context.get_baggage_item("item1") == "123"
+        assert span2.context.get_baggage_item("item2") == "456"
+        assert span1.context.get_baggage_item("item1") == "123"
+
+    def test_baggage_remove(self):
+        span1 = Span(name="test.span1")
+        span1.context.set_baggage_item("item1", "123")
+        span1.context.set_baggage_item("item2", "456")
+
+        span1.context.remove_baggage_item("item1")
+        assert span1.context.get_baggage_item("item1") is None
+        assert span1.context.get_baggage_item("item2") == "456"
+        span1.context.remove_baggage_item("item2")
+        assert span1.context.get_baggage_item("item2") is None
+
+    def test_baggage_remove_all(self):
+        span1 = Span(name="test.span1")
+        span1.context.set_baggage_item("item1", "123")
+        span1.context.set_baggage_item("item2", "456")
+
+        span1.context.remove_all_baggage_items()
+        assert span1.context.get_baggage_item("item1") is None
+        assert span1.context.get_baggage_item("item2") is None
+
+    def test_baggage_get_all(self):
+        span1 = Span(name="test.span1")
+        span1.context.set_baggage_item("item1", "123")
+        span1.context.set_baggage_item("item2", "456")
+
+        assert span1.context.get_all_baggage_items() == {"item1": "123", "item2": "456"}
 
     def test_set_tag_metric(self):
         s = Span(name="test.span")
@@ -257,10 +283,16 @@ class SpanTestCase(TracerTestCase):
                 assert 0, "should have failed"
 
             stack = s.get_tag(ERROR_STACK)
+            assert stack, "No error stack collected"
             # one header "Traceback (most recent call last):" and one footer "ZeroDivisionError: division by zero"
             header_and_footer_lines = 2
+            # Python 3.13 adds extra lines to the traceback:
+            #   File dd-trace-py/tests/tracer/test_span.py", line 279, in test_custom_traceback_size_with_error
+            #     wrapper()
+            #     ~~~~~~~^^
+            multiplier = 3 if "~~" in stack else 2
             assert (
-                len(stack.splitlines()) == tb_length_limit * 2 + header_and_footer_lines
+                len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines
             ), "stacktrace should contain two lines per entry"
 
     def test_ctx_mgr(self):

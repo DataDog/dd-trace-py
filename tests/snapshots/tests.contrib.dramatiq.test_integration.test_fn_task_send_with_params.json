@@ -1,7 +1,7 @@
 [[
   {
     "name": "dramatiq.Actor.send_with_options",
-    "service": "",
+    "service": "tests.contrib.dramatiq",
     "resource": "dramatiq.Actor.send_with_options",
     "trace_id": 0,
     "span_id": 1,
@@ -29,7 +29,7 @@
 [
   {
     "name": "dramatiq.Actor.send_with_options",
-    "service": "",
+    "service": "tests.contrib.dramatiq",
     "resource": "dramatiq.Actor.send_with_options",
     "trace_id": 1,
     "span_id": 1,

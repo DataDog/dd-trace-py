@@ -13,8 +13,8 @@ from pydantic_core import SchemaValidator
 import requests
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
 
 v = SchemaValidator(
@@ -297,7 +297,7 @@ async def test_doit():
     string8_5 = format_variants(string8_4, string1)
     await anyio.to_thread.run_sync(modulo_exceptions, string8_5)
 
-    string8_6 = string8_5[65:150]
+    string8_6 = string8_5[25:150]
 
     string9 = "notainted#{}".format(string8_6)
     string9_2 = f"{string9}_notainted"
@@ -321,9 +321,7 @@ async def test_doit():
     string18 = os.path.splitext(string17 + ".jpg")[0]
     string19 = os.path.normcase(string18)
     string20 = os.path.splitdrive(string19)[1]
-    # TODO(avara1986): Re.Match contains errors. APPSEC-55239
-    # string21 = re_module(string20)
-    string21 = string20
+    string21 = re_module(string20)
     tmp_str2 = "_extend"
     string21 += tmp_str2
 

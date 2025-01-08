@@ -3,6 +3,7 @@ import typing as t
 from typing import NamedTuple
 
 from ddtrace import Span
+from ddtrace import Tracer
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
@@ -12,6 +13,9 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal import core
 from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._atr_mixins import ATRSessionMixin
+from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
+from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDSessionMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -28,8 +32,28 @@ class InternalTestBase(ext_api.TestBase):
     def get_span(item_id: t.Union[ext_api.TestVisibilityItemId, InternalTestId]) -> Span:
         return _get_item_span(item_id)
 
+    @staticmethod
+    @_catch_and_log_exceptions
+    def stash_set(item_id, key: str, value: object):
+        log.debug("Stashing value %s for key %s in item %s", value, key, item_id)
+        core.dispatch("test_visibility.item.stash_set", (item_id, key, value))
 
-class InternalTestSession(ext_api.TestSession, EFDSessionMixin):
+    @staticmethod
+    @_catch_and_log_exceptions
+    def stash_get(item_id: ext_api.TestVisibilityItemId, key: str):
+        log.debug("Getting stashed value for key %s in item %s", key, item_id)
+        stash_value = core.dispatch_with_results("test_visibility.item.stash_get", (item_id, key)).stash_value.value
+        log.debug("Got stashed value %s for key %s in item %s", stash_value, key, item_id)
+        return stash_value
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def stash_delete(item_id: ext_api.TestVisibilityItemId, key: str):
+        log.debug("Deleting stashed value for key %s in item %s", key, item_id)
+        core.dispatch("test_visibility.item.stash_delete", (item_id, key))
+
+
+class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin):
     @staticmethod
     def get_span() -> Span:
         return _get_item_span(TestSessionId())
@@ -50,7 +74,15 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_workspace_path() -> Path:
+    def get_tracer() -> t.Optional[Tracer]:
+        log.debug("Getting test session tracer")
+        tracer: t.Optional[Tracer] = core.dispatch_with_results("test_visibility.session.get_tracer").tracer.value
+        log.debug("Got test session tracer: %s", tracer)
+        return tracer
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_workspace_path() -> t.Optional[Path]:
         log.debug("Getting session workspace path")
 
         workspace_path: Path = core.dispatch_with_results(
@@ -86,6 +118,20 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin):
 
     @staticmethod
     @_catch_and_log_exceptions
+    def should_skip_quarantined_tests() -> bool:
+        log.debug("Checking if quarantined tests should be skipped")
+
+        should_skip = bool(
+            core.dispatch_with_results(
+                "test_visibility.session.should_skip_quarantined_tests"
+            ).should_skip_quarantined_tests.value
+        )
+        log.debug("Quarantined tests should be skipped: %s", should_skip)
+
+        return should_skip
+
+    @staticmethod
+    @_catch_and_log_exceptions
     def set_covered_lines_pct(coverage_pct: float):
         log.debug("Setting covered lines percentage for session to %s", coverage_pct)
 
@@ -110,7 +156,7 @@ class InternalTestSuite(ext_api.TestSuite, InternalTestBase, ITRMixin):
     pass
 
 
-class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin):
+class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin, BenchmarkTestMixin):
     class FinishArgs(NamedTuple):
         """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
 
@@ -142,3 +188,42 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin):
         is_new = bool(core.dispatch_with_results("test_visibility.test.is_new", (item_id,)).is_new.value)
         log.debug("Test %s is new: %s", item_id, is_new)
         return is_new
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def is_quarantined_test(item_id: InternalTestId) -> bool:
+        log.debug("Checking if test %s is quarantined", item_id)
+        is_quarantined = bool(
+            core.dispatch_with_results("test_visibility.test.is_quarantined", (item_id,)).is_quarantined.value
+        )
+        log.debug("Test %s is quarantined: %s", item_id, is_quarantined)
+        return is_quarantined
+
+    class OverwriteAttributesArgs(NamedTuple):
+        test_id: InternalTestId
+        name: t.Optional[str] = None
+        suite_name: t.Optional[str] = None
+        parameters: t.Optional[str] = None
+        codeowners: t.Optional[t.List[str]] = None
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def overwrite_attributes(
+        item_id: InternalTestId,
+        name: t.Optional[str] = None,
+        suite_name: t.Optional[str] = None,
+        parameters: t.Optional[str] = None,
+        codeowners: t.Optional[t.List[str]] = None,
+    ):
+        log.debug(
+            "Overwriting attributes for test %s: name=%s" ", suite_name=%s" ", parameters=%s" ", codeowners=%s",
+            item_id,
+            name,
+            suite_name,
+            parameters,
+            codeowners,
+        )
+        core.dispatch(
+            "test_visibility.test.overwrite_attributes",
+            (InternalTest.OverwriteAttributesArgs(item_id, name, suite_name, parameters, codeowners),),
+        )

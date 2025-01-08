@@ -1,6 +1,5 @@
-"""Fake test runner where all too many tests are new, so the session is faulty and no retries are done
-
-Incorporates setting and deleting tags, as well.
+"""Fake test runner where too many tests are new, so the session is faulty and no retries are done
+.
 Starts session before discovery (simulating pytest behavior)
 
 Comment lines in the test start/finish lines are there for visual distinction.
@@ -11,7 +10,6 @@ from pathlib import Path
 from unittest import mock
 
 from ddtrace.ext.test_visibility import api as ext_api
-from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.test_visibility import api
@@ -91,18 +89,8 @@ def run_tests():
     m2_s1_id = ext_api.TestSuiteId(m2_id, "m2_s1")
     api.InternalTestSuite.discover(m2_s1_id)
 
-    # M2_S1 tests (mostly exist to keep under faulty session threshold)
-    m2_s1_test_ids = [
-        api.InternalTestId(m2_s1_id, "m2_s1_t1"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t2"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t3"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t4"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t5"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t6"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t7"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t8"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t9"),
-    ]
+    # M2_S1 tests
+    m2_s1_test_ids = [api.InternalTestId(m2_s1_id, f"m2_s1_t{i}") for i in range(35)]
     for test_id in m2_s1_test_ids:
         api.InternalTest.discover(test_id)
 
@@ -136,7 +124,7 @@ def run_tests():
 
     # START TESTS
 
-    assert api.InternalTestSession.is_faulty_session(), "Session should be faulty"
+    assert api.InternalTestSession.efd_is_faulty_session(), "Session should be faulty"
 
     # START M1
 
@@ -147,25 +135,23 @@ def run_tests():
     api.InternalTestSuite.start(m1_s1_id)
 
     api.InternalTest.start(m1_s1_t1_id)
-    api.InternalTest.efd_record_initial(m1_s1_t1_id, TestStatus.PASS)
-    assert not api.InternalTest.efd_should_retry(m1_s1_t1_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m1_s1_t1_id)
+    assert not api.InternalTest.efd_should_retry(m1_s1_t1_id), "Should not retry: session is faulty"
 
     api.InternalTest.start(m1_s1_t2_id)
-    api.InternalTest.efd_record_initial(m1_s1_t2_id, TestStatus.PASS)
-    assert not api.InternalTest.efd_should_retry(m1_s1_t2_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m1_s1_t2_id)
+    assert not api.InternalTest.efd_should_retry(m1_s1_t2_id), "Should not retry: session is faulty"
 
     api.InternalTest.start(m1_s1_t3_id)
-    assert not api.InternalTest.efd_should_retry(m1_s1_t3_id), "Should not retry: session is faulty"
     api.InternalTest.mark_skip(m1_s1_t3_id)
+    assert not api.InternalTest.efd_should_retry(m1_s1_t3_id), "Should not retry: session is faulty"
 
     api.InternalTest.start(m1_s1_t4_p1_id)
-    assert not api.InternalTest.efd_should_retry(m1_s1_t4_p1_id), "Should not retry: session is faulty"
     api.InternalTest.mark_skip(m1_s1_t4_p1_id)
+    assert not api.InternalTest.efd_should_retry(m1_s1_t4_p1_id), "Should not retry: session is faulty"
     api.InternalTest.start(m1_s1_t4_p2_id)
-    assert not api.InternalTest.efd_should_retry(m1_s1_t4_p2_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m1_s1_t4_p2_id)
+    assert not api.InternalTest.efd_should_retry(m1_s1_t4_p2_id), "Should not retry: session is faulty"
 
     api.InternalTestSuite.finish(m1_s1_id)
 
@@ -185,8 +171,8 @@ def run_tests():
 
     for test_id in m2_s1_test_ids:
         api.InternalTest.start(test_id)
-        assert not api.InternalTest.efd_should_retry(test_id), "Should not retry: session is faulty"
         api.InternalTest.mark_pass(test_id)
+        assert not api.InternalTest.efd_should_retry(test_id), "Should not retry: session is faulty"
 
     api.InternalTestSuite.finish(m2_s1_id)
 
@@ -197,25 +183,24 @@ def run_tests():
     api.InternalTestSuite.start(m2_s2_id)
 
     api.InternalTest.start(m2_s2_t1_id)
-    assert not api.InternalTest.efd_should_retry(m2_s2_t1_id), "Should not retry: session is faulty"
     api.InternalTest.mark_skip(m2_s2_t1_id)
+    assert not api.InternalTest.efd_should_retry(m2_s2_t1_id), "Should not retry: session is faulty"
 
     api.InternalTest.start(m2_s2_t2_id)
-    api.InternalTest.efd_record_initial(m2_s2_t2_id, TestStatus.PASS)
-    assert not api.InternalTest.efd_should_retry(m2_s2_t2_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m2_s2_t2_id)
+    assert not api.InternalTest.efd_should_retry(m2_s2_t2_id), "Should not retry: session is faulty"
 
     api.InternalTest.start(m2_s2_t3_id)
-    assert not api.InternalTest.efd_should_retry(m2_s2_t3_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m2_s2_t3_id)
+    assert not api.InternalTest.efd_should_retry(m2_s2_t3_id), "Should not retry: session is faulty"
 
     api.InternalTest.start(m2_s2_t4_id)
-    assert not api.InternalTest.efd_should_retry(m2_s2_t4_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m2_s2_t4_id)
+    assert not api.InternalTest.efd_should_retry(m2_s2_t4_id), "Should not retry: session is faulty"
 
     api.InternalTest.start(m2_s2_t5_id)
-    assert not api.InternalTest.efd_should_retry(m2_s2_t5_id), "Should not retry: session is faulty"
     api.InternalTest.mark_pass(m2_s2_t5_id)
+    assert not api.InternalTest.efd_should_retry(m2_s2_t5_id), "Should not retry: session is faulty"
 
     api.InternalTestSuite.finish(m2_s2_id)
 

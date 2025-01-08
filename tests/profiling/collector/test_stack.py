@@ -22,11 +22,13 @@ from tests.utils import flaky
 from . import test_collector
 
 
-# FIXME: remove version limitation when gevent segfaults are fixed on Python 3.12
-# Python 3.11.9 is not compatible with gevent, https://github.com/python/cpython/issues/117983
-# The fix was not backported to 3.11. 3.12 got the fix but was not released yet.
-# Revisit this when 3.12.5 is released to check whether tests can be enabled.
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and sys.version_info < (3, 11, 9)
+# Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
+# https://github.com/python/cpython/issues/117983
+# The fix was not backported to 3.11. The fix was first released in 3.12.5 for
+# Python 3.12. Tested with Python 3.11.8 and 3.12.5 to confirm the issue.
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
+    sys.version_info < (3, 11, 9) or sys.version_info >= (3, 12, 5)
+)
 
 
 def func1():
@@ -252,13 +254,12 @@ def test_ignore_profiler_single():
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_API_TIMEOUT="0.1"))
 def test_ignore_profiler_gevent_task():
     import gevent.monkey
 
     gevent.monkey.patch_all()
 
-    import os
     import time
 
     from ddtrace.profiling import collector  # noqa:F401
@@ -280,28 +281,22 @@ def test_ignore_profiler_gevent_task():
             _fib(22)
             return []
 
-    for ignore in (True, False):
-        os.environ["DD_PROFILING_API_TIMEOUT"] = "0.1"
-        os.environ["DD_PROFILING_IGNORE_PROFILER"] = str(ignore)
-        p = profiler.Profiler()
-        p.start()
-        # This test is particularly useful with gevent enabled: create a test collector that run often and for long
-        # we're sure to catch it with the StackProfiler and that it's not ignored.
-        c = CollectorTest(p._profiler._recorder, interval=0.00001)
-        c.start()
+    p = profiler.Profiler()
+    p.start()
+    # This test is particularly useful with gevent enabled: create a test collector that run often and for long
+    # we're sure to catch it with the StackProfiler and that it's not ignored.
+    c = CollectorTest(p._profiler._recorder, interval=0.00001)
+    c.start()
 
-        for _ in range(100):
-            events = p._profiler._recorder.reset()
-            ids = {e.task_id for e in events[stack_event.StackSampleEvent]}
-            if (c._worker.ident in ids) != str(ignore):
-                break
-            # Give some time for gevent to switch greenlets
-            time.sleep(0.1)
-        else:
-            raise AssertionError("ignore == " + ignore)
+    for _ in range(100):
+        events = p._profiler._recorder.reset()
+        ids = {e.task_id for e in events[stack_event.StackSampleEvent]}
+        if c._worker.ident in ids:
+            raise AssertionError("Collector thread found")
+        time.sleep(0.1)
 
-        c.stop()
-        p.stop(flush=False)
+    c.stop()
+    p.stop(flush=False)
 
 
 def test_collect():

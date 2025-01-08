@@ -4,7 +4,6 @@ import ddtrace.auto  # noqa: F401
 # ensure the tracer is loaded and started first for possible iast patching
 print(f"ddtrace version {ddtrace.version.get_version()}")
 
-import unittest.mock  # noqa: E402
 
 import pytest  # noqa: E402
 
@@ -37,25 +36,26 @@ def root_span(test_spans):
 
 
 @pytest.fixture
-def check_waf_timeout(request, printer):
-    with unittest.mock.patch("ddtrace.appsec._processor._set_waf_error_metric", autospec=True) as mock_metrics:
-        # change timeout to 50 seconds to avoid flaky timeouts
-        previous_timeout = asm_config._waf_timeout
-        asm_config._waf_timeout = 50_000.0
-        test_failed = request.session.testsfailed
-        yield
-        if request.session.testsfailed > test_failed:
-            for args in mock_metrics.call_args_list:
-                args = list(args)
-                if args[0][0] == "WAF run. Timeout errors":
-                    # report the waf timeout error as an addtionnal test error
-                    pytest.fail(f"WAF timeout detected. WAF info {args[0][2]}")
-        asm_config._waf_timeout = previous_timeout
+def check_waf_timeout(request):
+    # change timeout to 50 seconds to avoid flaky timeouts
+    previous_timeout = asm_config._waf_timeout
+    asm_config._waf_timeout = 50_000.0
+    yield
+    asm_config._waf_timeout = previous_timeout
 
 
 @pytest.fixture
-def get_tag(root_span):
-    yield lambda name: root_span().get_tag(name)
+def get_tag(test_spans, root_span):
+    # checking both root spans and web spans for the tag
+    def get(name):
+        for span in test_spans.spans:
+            if span.parent_id is None or span.span_type == "web":
+                res = span.get_tag(name)
+                if res is not None:
+                    return res
+        return root_span().get_tag(name)
+
+    yield get
 
 
 @pytest.fixture

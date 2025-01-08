@@ -6,9 +6,9 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import index_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_expand_aspect
@@ -22,6 +22,10 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_search_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
+
+
+mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")
 
 
 def test_re_findall_aspect_tainted_string():
@@ -449,6 +453,32 @@ def test_re_search_aspect_tainted_string_re_module():
             assert not is_pyobject_tainted(res_str)
 
 
+def test_re_search_aspect_tainted_bytes_re_module():
+    tainted_isaac_newton = taint_pyobject(
+        pyobject=b"Isaac Newton, physicist",
+        source_name="test_re_search_group_aspect_tainted_string",
+        source_value="Isaac Newton, physicist",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    re_search = re_search_aspect(None, 1, re, rb"(\w+) (\w+)", tainted_isaac_newton)
+    result = re_groups_aspect(None, 1, re_search)
+    assert result == (b"Isaac", b"Newton")
+    for res_str in result:
+        if len(res_str):
+            assert get_tainted_ranges(res_str) == [
+                TaintRange(
+                    0,
+                    len(res_str),
+                    Source(
+                        "test_re_search_group_aspect_tainted_string", "Isaac Newton, physicist", OriginType.PARAMETER
+                    ),
+                ),
+            ]
+        else:
+            assert not is_pyobject_tainted(res_str)
+
+
 def test_re_search_aspect_not_tainted_re_module():
     not_tainted_isaac_newton = "Isaac Newton, physicist"
 
@@ -566,7 +596,7 @@ def test_re_finditer_aspect_tainted_bytes():
     tainted_multipart = taint_pyobject(
         pyobject=b' name="files"; filename="test.txt"\r\nContent-Type: text/plain',
         source_name="test_re_finditer_aspect_tainted_string",
-        source_value=b"/foo/bar/baaz.jpeg",
+        source_value="/foo/bar/baaz.jpeg",
         source_origin=OriginType.PARAMETER,
     )
     SPECIAL_CHARS = re.escape(b'()<>@,;:\\"/[]?={} \t')
@@ -660,3 +690,33 @@ def test_re_match_getitem_aspect_not_tainted_string_re_object():
     assert not is_pyobject_tainted(isaac_newton)
     assert not is_pyobject_tainted(isaac)
     assert not is_pyobject_tainted(newton)
+
+
+@pytest.mark.parametrize(
+    "input_str, expected_result, tainted",
+    [
+        ("print('Hello, world!')", "print", True),
+    ],
+)
+def test_match_group_complex(input_str, expected_result, tainted):
+    regex = re.compile(
+        r"(?<!\.)(__import__|a(?:bs|iter|ll|ny)|b(?:in|ool|reakpoint|yte(?:array|s))|c(?:allable|hr|lassmethod|"
+        r"omp(?:ile|lex))|d(?:elattr|i(?:ct|r|vmod))|e(?:numerate|val)|f(?:ilter|(?:loa|orma|rozense)t)|"
+        r"g(?:etattr|lobals)|h(?:as(?:attr|h)|ex)|i(?:d|n(?:(?:(?:pu)?)t)|s(?:instance|subclass)|ter)|"
+        r"l(?:en|ist|ocals)|m(?:a(?:[px])|emoryview|in)|next|o(?:bject|ct|pen|rd)|p(?:ow|r(?:int|"  # codespell:ignore
+        r"operty))|r(?:ange|e(?:pr|versed)|ound)|s(?:et(?:(?:attr)?)|lice|orted|t(?:aticmethod|r)|"
+        r"u(?:m|per))|t(?:(?:upl|yp)e)|vars|zip)\b",
+        re.MULTILINE,
+    )
+
+    matches = regex.match(input_str, 0)
+
+    input_tainted = taint_pyobject(
+        pyobject=input_str,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=input_str,
+        source_origin=OriginType.PARAMETER,
+    )
+    result = mod.do_match_group(input_tainted)
+    assert result == matches.group() == expected_result
+    assert is_pyobject_tainted(result) is tainted

@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    ASM: This upgrades libddwaf to 1.21.0 and security rule file to 1.13.3

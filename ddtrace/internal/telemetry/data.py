@@ -77,15 +77,15 @@ def update_imported_dependencies(already_imported: Dict[str, str], new_modules: 
         if not dists:
             continue
 
-        for name, version in dists.items():
-            if name == "ddtrace":
-                continue
+        name, version = dists
+        if name == "ddtrace":
+            continue
 
-            if name in already_imported:
-                continue
+        if name in already_imported:
+            continue
 
-            already_imported[name] = version
-            deps.append({"name": name, "version": version})
+        already_imported[name] = version
+        deps.append({"name": name, "version": version})
 
     return deps
 

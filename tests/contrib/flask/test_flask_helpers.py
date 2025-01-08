@@ -49,7 +49,7 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 3)
 
-        self.assertIsNone(spans[0].service)
+        self.assertEqual(spans[0].service, "tests.contrib.flask")
         self.assertEqual(spans[0].name, "flask.jsonify")
         self.assertEqual(spans[0].resource, "flask.jsonify")
         assert set(spans[0].get_tags().keys()) == {"runtime-id", "_dd.p.dm", "_dd.p.tid", "component", "language"}

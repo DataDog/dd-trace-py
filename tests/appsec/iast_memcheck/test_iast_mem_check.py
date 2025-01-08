@@ -7,12 +7,12 @@ from pytest_memray import Stack
 from ddtrace.appsec._iast._stacktrace import get_info_frame
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
-from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import initializer_size
 from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-from ddtrace.appsec._iast._taint_tracking import reset_context
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info_frame_py
@@ -83,7 +83,7 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
         span_report = _get_span_report()
         assert len(span_report.sources) > 0
         assert len(span_report.vulnerabilities) > 0
-        assert len(get_tainted_ranges(result)) == 6
+        assert len(get_tainted_ranges(result)) == 1
 
         if _num_objects_tainted == 0:
             _num_objects_tainted = num_objects_tainted()
