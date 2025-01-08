@@ -33,8 +33,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
@@ -63,8 +62,8 @@ def patch() -> List[str]:
         return []
     patched: List[str] = []
 
-    import os
-    import subprocess
+    import os  # nosec
+    import subprocess  # nosec
 
     should_patch_system = not trace_utils.iswrapped(os.system)
     should_patch_fork = not trace_utils.iswrapped(os.fork)
@@ -109,8 +108,8 @@ class SubprocessCmdLineCacheEntry:
 
 class SubprocessCmdLine:
     # This catches the computed values into a SubprocessCmdLineCacheEntry object
-    _CACHE = {}  # type: Dict[str, SubprocessCmdLineCacheEntry]
-    _CACHE_DEQUE = collections.deque()  # type: Deque[str]
+    _CACHE: Dict[str, SubprocessCmdLineCacheEntry] = {}
+    _CACHE_DEQUE: Deque[str] = collections.deque()
     _CACHE_MAXSIZE = 32
     _CACHE_LOCK = RLock()
 
@@ -165,8 +164,7 @@ class SubprocessCmdLine:
     ]
     _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
-    def __init__(self, shell_args, shell=False):
-        # type: (Union[str, List[str]], bool) -> None
+    def __init__(self, shell_args: Union[str, List[str]], shell: bool = False) -> None:
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -277,8 +275,7 @@ class SubprocessCmdLine:
 
         self.arguments = new_args
 
-    def truncate_string(self, str_):
-        # type: (str) -> str
+    def truncate_string(self, str_: str) -> str:
         oversize = len(str_) - self.TRUNCATE_LIMIT
 
         if oversize <= 0:
@@ -290,9 +287,7 @@ class SubprocessCmdLine:
         msg = ' "4kB argument truncated by %d characters"' % oversize
         return str_[0 : -(oversize + len(msg))] + msg
 
-    def _as_list_and_string(self):
-        # type: () -> Tuple[list[str], str]
-
+    def _as_list_and_string(self) -> Tuple[list[str], str]:
         total_list = self.env_vars + [self.binary] + self.arguments
         truncated_str = self.truncate_string(shjoin(total_list))
         truncated_list = shlex.split(truncated_str)
@@ -317,10 +312,9 @@ class SubprocessCmdLine:
         return str_res
 
 
-def unpatch():
-    # type: () -> None
-    import os
-    import subprocess
+def unpatch() -> None:
+    import os  # nosec
+    import subprocess  # nosec
 
     trace_utils.unwrap(os, "system")
     trace_utils.unwrap(os, "_spawnvef")
