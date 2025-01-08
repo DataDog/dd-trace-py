@@ -234,7 +234,7 @@ def _expected_llmobs_eval_metric_event(
         ],
     }
     if tag_key is not None and tag_value is not None:
-        eval_metric_event["join_on"]["tag"] = {"tag_key": tag_key, "tag_value": tag_value}
+        eval_metric_event["join_on"]["tag"] = {"key": tag_key, "value": tag_value}
     if span_id is not None and trace_id is not None:
         eval_metric_event["join_on"]["span"] = {"span_id": span_id, "trace_id": trace_id}
     if categorical_value is not None:
