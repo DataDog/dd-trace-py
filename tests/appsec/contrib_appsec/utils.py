@@ -1,7 +1,6 @@
 from contextlib import contextmanager
 import itertools
 import json
-import os
 import sys
 from typing import Dict
 from typing import List
@@ -84,7 +83,7 @@ class Contrib_TestClass_For_Threats:
 
     def check_rules_triggered(self, rule_id: List[str], root_span):
         triggers = get_triggers(root_span())
-        assert triggers is not None, ("no appsec struct in root span", os.system)
+        assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
