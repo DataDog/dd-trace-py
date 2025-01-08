@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: Fixed an issue where distributed tracing headers were improperly propagated when tracing was disabled. Now, headers are only propagated for traces with the _dd.p.appsec tag, regardless of the propagation style (e.g., TraceContext). Previously, this logic applied only to Datadog headers, potentially allowing invalid trace info to be injected or extracted.
