@@ -331,7 +331,7 @@ def test_rate_limiter_on_long_running_spans(tracer):
     """
     tracer.configure(sampler=DatadogSampler(rate_limit=5))
 
-    with mock.patch("ddtrace.internal.rate_limiter.compat.monotonic_ns", return_value=1617333414):
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns", return_value=1617333414):
         span_m30 = tracer.trace(name="march 30")
         span_m30.start = 1622347257  # Mar 30 2021
         span_m30.finish(1617333414)  # April 2 2021
