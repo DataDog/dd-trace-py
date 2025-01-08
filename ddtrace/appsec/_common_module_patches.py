@@ -13,6 +13,7 @@ from wrapt import resolve_path
 
 import ddtrace
 from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -31,6 +32,9 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
 _is_patched = False
 
+_RASP_SYSTEM = "rasp_os.system"
+_RASP_POPEN = "rasp_Popen"
+
 
 def patch_common_modules():
     global _is_patched
@@ -42,8 +46,8 @@ def patch_common_modules():
     try_wrap_function_wrapper("_io", "StringIO.read", wrapped_read_F3E51D71B4EC16EF)
     # ensure that the subprocess patch is applied even after one click activation
     subprocess_patch.patch()
-    subprocess_patch.add_str_callback("rasp os.system", wrapped_system_5542593D237084A7)
-    subprocess_patch.add_lst_callback("rasp Popen", popen_FD233052260D8B4D)
+    subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
+    subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
@@ -58,7 +62,8 @@ def unpatch_common_modules():
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("_io", "BytesIO.read")
     try_unwrap("_io", "StringIO.read")
-    subprocess_patch.del_str_callback("rasp os.system")
+    subprocess_patch.del_str_callback(_RASP_SYSTEM)
+    subprocess_patch.del_lst_callback(_RASP_POPEN)
     _is_patched = False
 
 
@@ -111,7 +116,6 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
-            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
@@ -129,7 +133,9 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
                 rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
             )
             if res and _must_block(res.actions):
-                raise BlockingException(get_blocked(), "exploit_prevention", "lfi", filename)
+                raise BlockingException(
+                    get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.LFI, filename
+                )
     try:
         return original_open_callable(*args, **kwargs)
     except Exception as e:
@@ -156,7 +162,6 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
-            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
@@ -173,7 +178,9 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
                 if res and _must_block(res.actions):
-                    raise BlockingException(get_blocked(), "exploit_prevention", "ssrf", url)
+                    raise BlockingException(
+                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, url
+                    )
     return original_open_callable(*args, **kwargs)
 
 
@@ -196,7 +203,6 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
-            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
@@ -211,7 +217,9 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
                 if res and _must_block(res.actions):
-                    raise BlockingException(get_blocked(), "exploit_prevention", "ssrf", url)
+                    raise BlockingException(
+                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, url
+                    )
 
     return original_request_callable(*args, **kwargs)
 
@@ -229,7 +237,6 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
-            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             return
 
@@ -240,7 +247,9 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
                 rule_type=EXPLOIT_PREVENTION.TYPE.SHI,
             )
             if res and _must_block(res.actions):
-                raise BlockingException(get_blocked(), "exploit_prevention", "shi", command)
+                raise BlockingException(
+                    get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SHI, command
+                )
 
 
 def popen_FD233052260D8B4D(arg_list) -> None:
@@ -256,7 +265,6 @@ def popen_FD233052260D8B4D(arg_list) -> None:
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
-            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             return
 
@@ -267,7 +275,9 @@ def popen_FD233052260D8B4D(arg_list) -> None:
                 rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
             )
             if res and _must_block(res.actions):
-                raise BlockingException(get_blocked(), "exploit_prevention", "cmdi", arg_list)
+                raise BlockingException(
+                    get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.CMDI, arg_list
+                )
 
 
 _DB_DIALECTS = {
@@ -297,7 +307,6 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
-            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # execute is used during module initialization
             # and shouldn't be changed at that time
@@ -314,7 +323,9 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
                     rule_type=EXPLOIT_PREVENTION.TYPE.SQLI,
                 )
                 if res and _must_block(res.actions):
-                    raise BlockingException(get_blocked(), "exploit_prevention", "sqli", query)
+                    raise BlockingException(
+                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SQLI, query
+                    )
 
 
 def try_unwrap(module, name):

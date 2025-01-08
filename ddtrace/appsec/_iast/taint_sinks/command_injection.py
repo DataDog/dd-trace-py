@@ -23,17 +23,20 @@ def get_version() -> str:
     return ""
 
 
+_IAST_CMDI = "iast_cmdi"
+
+
 def patch():
     if asm_config._iast_enabled:
         subprocess_patch.patch()
-        subprocess_patch.add_str_callback("iast cmdi", _iast_report_cmdi)
-        subprocess_patch.add_lst_callback("iast cmdi", _iast_report_cmdi)
+        subprocess_patch.add_str_callback(_IAST_CMDI, _iast_report_cmdi)
+        subprocess_patch.add_lst_callback(_IAST_CMDI, _iast_report_cmdi)
         _set_metric_iast_instrumented_sink(VULN_CMDI)
 
 
 def unpatch() -> None:
-    subprocess_patch.del_str_callback("iast cmdi")
-    subprocess_patch.del_lst_callback("iast cmdi")
+    subprocess_patch.del_str_callback(_IAST_CMDI)
+    subprocess_patch.del_lst_callback(_IAST_CMDI)
 
 
 @oce.register
