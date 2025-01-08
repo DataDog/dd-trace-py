@@ -851,8 +851,8 @@ class LLMObs(Service):
                     "`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' containing string values"
                 )
             join_on["tag"] = {
-                "tag_key": span_with_tag_value.get("tag_key"),
-                "tag_value": span_with_tag_value.get("tag_value"),
+                "key": span_with_tag_value.get("tag_key"),
+                "value": span_with_tag_value.get("tag_value"),
             }
 
         timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
