@@ -560,14 +560,12 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
     """
     if override is False:
         return None
-
     if override or (int_config and distributed_tracing_enabled(int_config)):
         context = HTTPPropagator.extract(request_headers)
 
         # Only need to activate the new context if something was propagated
-        if not context.trace_id or context._baggage:
+        if not context.trace_id and not context._baggage:
             return None
-
         # Do not reactivate a context with the same trace id
         # DEV: An example could be nested web frameworks, when one layer already
         #      parsed request headers and activated them.
