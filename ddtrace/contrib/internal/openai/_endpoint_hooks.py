@@ -257,6 +257,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
             span.set_tag_str("openai.request.messages.%d.name" % idx, str(name))
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
             if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
+                # Only perform token chunk auto-extraction if this option is not explicitly set
                 return
             span._set_ctx_item("_dd.auto_extract_token_chunk", True)
             stream_options = kwargs.get("stream_options", {})

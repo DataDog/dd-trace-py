@@ -91,8 +91,11 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
             return
         choice = getattr(chunk, "choices", [None])[0]
         if not getattr(choice, "finish_reason", None):
+            # Only the second-last chunk in the stream with token usage enabled will have finish_reason set
             return
         try:
+            # User isn't expecting last token chunk to be present since it's not part of the default streamed response,
+            # so we consume it and extract the token usage metadata before it reaches the user.
             usage_chunk = self.__wrapped__.__next__()
             self._streamed_chunks[0].insert(0, usage_chunk)
         except (StopIteration, GeneratorExit):
