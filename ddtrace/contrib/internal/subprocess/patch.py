@@ -4,7 +4,6 @@ from fnmatch import fnmatch
 import os
 import re
 import shlex
-import subprocess  # nosec
 from threading import RLock
 from typing import Callable  # noqa:F401
 from typing import Deque  # noqa:F401
@@ -65,26 +64,34 @@ def patch() -> List[str]:
     patched: List[str] = []
 
     import os
+    import subprocess
 
-    if not getattr(os, "_datadog_patch", False):
+    should_patch_system = not trace_utils.iswrapped(os.system)
+    should_patch_fork = not trace_utils.iswrapped(os.fork)
+    spawnvef = getattr(os, "_spawnvef", None)
+    should_patch_spawnvef = spawnvef is not None and not trace_utils.iswrapped(spawnvef)
+
+    if should_patch_system or should_patch_fork or should_patch_spawnvef:
         Pin().onto(os)
-        trace_utils.wrap(os, "system", _traced_ossystem(os))
-        trace_utils.wrap(os, "fork", _traced_fork(os))
-
-        # all os.spawn* variants eventually use this one:
-        trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
-
+        if should_patch_system:
+            trace_utils.wrap(os, "system", _traced_ossystem(os))
+        if should_patch_fork:
+            trace_utils.wrap(os, "fork", _traced_fork(os))
+        if should_patch_spawnvef:
+            # all os.spawn* variants eventually use this one:
+            trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
         patched.append("os")
 
-    if not getattr(subprocess, "_datadog_patch", False):
+    should_patch_Popen_init = not trace_utils.iswrapped(subprocess.Popen.__init__)
+    should_patch_Popen_wait = not trace_utils.iswrapped(subprocess.Popen.wait)
+    if should_patch_Popen_init or should_patch_Popen_wait:
         Pin().onto(subprocess)
         # We store the parameters on __init__ in the context and set the tags on wait
         # (where all the Popen objects eventually arrive, unless killed before it)
-        trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
-        trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
-
-        os._datadog_patch = True
-        subprocess._datadog_patch = True
+        if should_patch_Popen_init:
+            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
+        if should_patch_Popen_wait:
+            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
         patched.append("subprocess")
 
     return patched
@@ -312,15 +319,15 @@ class SubprocessCmdLine:
 
 def unpatch():
     # type: () -> None
+    import os
+    import subprocess
+
     trace_utils.unwrap(os, "system")
     trace_utils.unwrap(os, "_spawnvef")
     trace_utils.unwrap(subprocess.Popen, "__init__")
     trace_utils.unwrap(subprocess.Popen, "wait")
 
     SubprocessCmdLine._clear_cache()
-
-    os.__dict__.pop("_datadog_patch", None)
-    subprocess.__dict__.pop("_datadog_patch", None)
 
 
 @trace_utils.with_traced_module
