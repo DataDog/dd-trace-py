@@ -105,6 +105,12 @@ class BotocoreTest(TracerTestCase):
         super(BotocoreTest, self).setUp()
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(botocore.parsers.ResponseParser)
+        # Setting the validated flag to False ensures the redaction paths configurations are re-validated
+        # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
+        # config.botocore.payload_tagging_request
+        # FIXME: Ensure AWSPayloadTagging._RESPONSE_REDACTION_PATHS_DEFAULTS is always in sync with
+        # config.botocore.payload_tagging_response
+        span_tags._PAYLOAD_TAGGER.validated = False
 
     def tearDown(self):
         super(BotocoreTest, self).tearDown()
@@ -3781,7 +3787,6 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     def test_aws_payload_tagging_sqs(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
-            span_tags._PAYLOAD_TAGGER.validated = False
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
@@ -3827,7 +3832,6 @@ class BotocoreTest(TracerTestCase):
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns(self):
-        span_tags._PAYLOAD_TAGGER.validated = False
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
             region = "us-east-1"
             sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
@@ -3875,7 +3879,6 @@ class BotocoreTest(TracerTestCase):
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns_valid_config(self):
-        span_tags._PAYLOAD_TAGGER.validated = False
         with self.override_config(
             "botocore",
             dict(
@@ -3928,7 +3931,6 @@ class BotocoreTest(TracerTestCase):
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3(self):
-        span_tags._PAYLOAD_TAGGER.validated = False
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
             s3 = self.session.create_client("s3", region_name="us-west-2")
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
@@ -3958,12 +3960,6 @@ class BotocoreTest(TracerTestCase):
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3_invalid_config(self):
-        # Setting the validated flag to False ensures the redaction paths configurations are re-validated
-        # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
-        # config.botocore.payload_tagging_request
-        # FIXME: Ensure AWSPayloadTagging._RESPONSE_REDACTION_PATHS_DEFAULTS is always in sync with
-        # config.botocore.payload_tagging_response
-        span_tags._PAYLOAD_TAGGER.validated = False
         with self.override_config(
             "botocore",
             dict(payload_tagging_request="non_json_path", payload_tagging_response="$..Attr ibutes.PlatformCredential"),
@@ -3985,7 +3981,6 @@ class BotocoreTest(TracerTestCase):
         with self.override_config(
             "botocore", dict(payload_tagging_request="$..bucket", payload_tagging_response="$..HTTPHeaders")
         ):
-            span_tags._PAYLOAD_TAGGER.validated = False
             s3 = self.session.create_client("s3", region_name="us-west-2")
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
 
@@ -4000,7 +3995,6 @@ class BotocoreTest(TracerTestCase):
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_events
     def test_aws_payload_tagging_eventbridge(self):
-        span_tags._PAYLOAD_TAGGER.validated = False
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
             bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
             bridge.create_event_bus(Name="a-test-bus")
@@ -4044,7 +4038,6 @@ class BotocoreTest(TracerTestCase):
     @mock_kinesis
     def test_aws_payload_tagging_kinesis(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
-            span_tags._PAYLOAD_TAGGER.validated = False
             client = self.session.create_client("kinesis", region_name="us-east-1")
             stream_name = "test"
 
