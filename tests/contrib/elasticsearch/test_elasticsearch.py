@@ -1,6 +1,7 @@
 import datetime
 from http.client import HTTPConnection
 from importlib import import_module
+import json
 import time
 
 import pytest
@@ -188,13 +189,25 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert url.endswith("/_search")
         assert url == span.get_tag("elasticsearch.url")
         if elasticsearch.__version__ >= (8, 0, 0):
-            assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}},"size":100}'
-            assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc"}
-            assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc"}
+            # Key order is not consistent, parse into dict to compare
+            body = json.loads(span.get_tag("elasticsearch.body"))
+            assert body == {
+                "query": {"match_all": {}},
+                "sort": {"name": {"order": "desc", "unmapped_type": "keyword"}},
+                "size": 100,
+            }
+            assert not span.get_tag("elasticsearch.params")
+            assert not span.get_tag(http.QUERY_STRING)
         else:
             assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
-            assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
-            assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}
+            assert set(span.get_tag("elasticsearch.params").split("&")) == {
+                "sort=%7B%27name%27%3A+%7B%27order%27%3A+%27desc%27%2C+%27unmapped_type%27%3A+%27keyword%27%7D%7D",
+                "size=100",
+            }
+            assert set(span.get_tag(http.QUERY_STRING).split("&")) == {
+                "sort=%7B%27name%27%3A+%7B%27order%27%3A+%27desc%27%2C+%27unmapped_type%27%3A+%27keyword%27%7D%7D",
+                "size=100",
+            }
         assert span.get_tag("component") == "elasticsearch"
         assert span.get_tag("span.kind") == "client"
 
