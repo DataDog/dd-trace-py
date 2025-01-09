@@ -1936,6 +1936,14 @@ EXTRACT_FIXTURES = [
         B3_SINGLE_HEADERS_VALID,
         CONTEXT_EMPTY,
     ),
+    (
+        "baggage_case_insensitive",
+        None,
+        {"BAgGage": "key1=val1,key2=val2"},
+        {
+            "baggage": {"key1": "val1", "key2": "val2"},
+        },
+    ),
     # All valid headers
     (
         "valid_all_headers_default_style",
