@@ -355,12 +355,9 @@ _TRIE_DENYLIST = build_trie(IAST_DENYLIST)
 
 
 def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
-    if not string or not trie:
-        return False
-
     node = trie
-    for idx, char in enumerate(string):
-        if node.is_end or idx == len(string) - 1:
+    for char in string:
+        if node.is_end:
             return True
 
         if char not in node.children:
@@ -368,7 +365,7 @@ def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
 
         node = node.children[char]
 
-    return False
+    return node.is_end
 
 
 def get_encoding(module_path: Text) -> Text:
