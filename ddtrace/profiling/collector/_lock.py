@@ -123,7 +123,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
         finally:
             try:
                 end = self._self_acquired_at = time.monotonic_ns()
-                print("lock acquired at ", end)
                 thread_id, thread_name = _current_thread()
                 task_id, task_name, task_frame = _task.get_task(thread_id)
                 self._maybe_update_self_name()
@@ -186,6 +185,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # _self_acquired_at is only set when the acquire was captured
             # if it's not set, we're not capturing the release
             start = self.self_acquired_at
+
         try:
             return inner_func(*args, **kwargs)
         finally:
