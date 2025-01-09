@@ -327,6 +327,50 @@ ENCODING = ""
 log = get_logger(__name__)
 
 
+class _TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+        
+    def __iter__(self):
+        if self.is_end:
+            yield ("", None)
+        else:
+            for k, v in self.children.items():
+                yield (k, dict(v))
+
+def build_trie(words: tuple[str, ...]) -> _TrieNode:
+    root = _TrieNode()
+    for word in words:
+        node = root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = _TrieNode()
+            node = node.children[char]
+        node.is_end = True
+    return root
+
+_TRIE_ALLOWLIST = build_trie(IAST_ALLOWLIST)
+_TRIE_DENYLIST = build_trie(IAST_DENYLIST)
+
+
+def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
+    if not string or not trie:
+        return False
+
+    node = trie
+    for idx, char in enumerate(string):
+        if node.is_end or idx == len(string) - 1:
+            return True
+
+        if char not in node.children:
+            return False
+
+        node = node.children[char]
+
+    return False
+
+
 def get_encoding(module_path: Text) -> Text:
     """
     First tries to detect the encoding for the file,
@@ -359,10 +403,10 @@ def _should_iast_patch(module_name: Text) -> bool:
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
     dotted_module_name = module_name.lower() + "."
-    if dotted_module_name.startswith(IAST_ALLOWLIST):
+    if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
         return True
-    if dotted_module_name.startswith(IAST_DENYLIST):
+    if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
         log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
         return False
     if _in_python_stdlib(module_name):
