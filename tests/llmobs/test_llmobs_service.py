@@ -29,6 +29,8 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._writer import LLMObsAgentlessEventClient
+from ddtrace.llmobs._writer import LLMObsProxiedEventClient
 from ddtrace.llmobs.utils import Prompt
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -47,7 +49,7 @@ def run_llmobs_trace_filter(dummy_tracer):
     return dummy_tracer._writer.pop()
 
 
-def test_service_enable():
+def test_service_enable_proxy_default():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         llmobs_service.enable(_tracer=dummy_tracer)
@@ -55,6 +57,21 @@ def test_service_enable():
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
+        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
+        assert run_llmobs_trace_filter(dummy_tracer) is not None
+
+        llmobs_service.disable()
+
+
+def test_enable_agentless():
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=True)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert llmobs_instance.tracer == dummy_tracer
+        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsAgentlessEventClient)
         assert run_llmobs_trace_filter(dummy_tracer) is not None
 
         llmobs_service.disable()
@@ -1188,42 +1205,14 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
     )
 
 
-def test_flush_calls_periodic_agentless(
-    AgentlessLLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner
-):
-    AgentlessLLMObs.flush()
-    mock_llmobs_span_writer.periodic.assert_called_once()
-    mock_llmobs_eval_metric_writer.periodic.assert_called_once()
-    mock_llmobs_evaluator_runner.periodic.assert_called_once()
-
-
 def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
     llmobs,
-    mock_llmobs_span_writer,
     mock_llmobs_eval_metric_writer,
     mock_llmobs_evaluator_runner,
     mock_llmobs_logs,
-    disabled_llmobs,
 ):
+    llmobs.enabled = False
     llmobs.flush()
-    mock_llmobs_span_writer.periodic.assert_not_called()
-    mock_llmobs_eval_metric_writer.periodic.assert_not_called()
-    mock_llmobs_evaluator_runner.periodic.assert_not_called()
-    mock_llmobs_logs.warning.assert_has_calls(
-        [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
-    )
-
-
-def test_flush_does_not_call_periodic_when_llmobs_is_disabled_agentless(
-    AgentlessLLMObs,
-    mock_llmobs_span_writer,
-    mock_llmobs_eval_metric_writer,
-    mock_llmobs_evaluator_runner,
-    mock_llmobs_logs,
-    disabled_llmobs,
-):
-    AgentlessLLMObs.flush()
-    mock_llmobs_span_writer.periodic.assert_not_called()
     mock_llmobs_eval_metric_writer.periodic.assert_not_called()
     mock_llmobs_evaluator_runner.periodic.assert_not_called()
     mock_llmobs_logs.warning.assert_has_calls(
