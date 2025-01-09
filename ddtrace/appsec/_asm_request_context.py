@@ -526,6 +526,13 @@ def _on_set_request_tags(request, span, flask_config):
             override_pyobject_tainted=True,
         )
 
+        request.args = taint_structure(
+            request.args,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )
+
         request.form = taint_structure(
             request.form,
             OriginType.PARAMETER_NAME,
