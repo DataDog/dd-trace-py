@@ -53,7 +53,6 @@ from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
-from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -107,14 +106,11 @@ def _default_span_processors_factory(
     trace_writer: TraceWriter,
     partial_flush_enabled: bool,
     partial_flush_min_spans: int,
-    appsec_enabled: bool,
-    iast_enabled: bool,
     compute_stats_enabled: bool,
     single_span_sampling_rules: List[SpanSamplingRule],
     agent_url: str,
     trace_sampler: BaseSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
-    apm_opt_out: bool = False,
 ) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
@@ -122,7 +118,9 @@ def _default_span_processors_factory(
     trace_processors += [
         PeerServiceProcessor(_ps_config),
         BaseServiceProcessor(),
-        TraceSamplingProcessor(compute_stats_enabled, trace_sampler, single_span_sampling_rules, apm_opt_out),
+        TraceSamplingProcessor(
+            compute_stats_enabled, trace_sampler, single_span_sampling_rules, asm_config._apm_opt_out
+        ),
         TraceTagsProcessor(),
     ]
     trace_processors += trace_filters
@@ -131,7 +129,7 @@ def _default_span_processors_factory(
     span_processors += [TopLevelSpanProcessor()]
 
     if asm_config._asm_libddwaf_available:
-        if appsec_enabled:
+        if asm_config._asm_enabled:
             if asm_config._api_security_enabled:
                 from ddtrace.appsec._api_security.api_manager import APIManager
 
@@ -153,7 +151,7 @@ def _default_span_processors_factory(
     else:
         appsec_processor = None
 
-    if iast_enabled:
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         span_processors.append(AppSecIastSpanProcessor())
@@ -211,8 +209,6 @@ class Tracer(object):
         :param dogstatsd_url: The DogStatsD URL.
         """
 
-        maybe_start_serverless_mini_agent()
-
         self._filters: List[TraceFilter] = []
 
         # globally set tags
@@ -232,12 +228,8 @@ class Tracer(object):
         self.context_provider = context_provider or DefaultContextProvider()
         # _user_sampler is the backup in case we need to revert from remote config to local
         self._user_sampler: Optional[BaseSampler] = DatadogSampler()
-        self._asm_enabled = asm_config._asm_enabled
-        self._iast_enabled = asm_config._iast_enabled
-        self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        self._apm_opt_out = (self._asm_enabled or self._iast_enabled) and self._appsec_standalone_enabled
-        if self._apm_opt_out:
+        if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
@@ -258,8 +250,10 @@ class Tracer(object):
                 agent_url=self._agent_url,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
-                headers={"Datadog-Client-Computed-Stats": "yes"} if (self._compute_stats or self._apm_opt_out) else {},
-                report_metrics=not self._apm_opt_out,
+                headers={"Datadog-Client-Computed-Stats": "yes"}
+                if (self._compute_stats or asm_config._apm_opt_out)
+                else {},
+                report_metrics=not asm_config._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
         self._single_span_sampling_rules: List[SpanSamplingRule] = get_span_sampling_rules()
@@ -267,21 +261,17 @@ class Tracer(object):
         self._partial_flush_enabled = config._partial_flush_enabled
         self._partial_flush_min_spans = config._partial_flush_min_spans
         # Direct link to the appsec processor
-        self._appsec_processor = None
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
-            self._asm_enabled,
-            self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
-            self._apm_opt_out,
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -336,7 +326,7 @@ class Tracer(object):
     https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_TRACE_SAMPLING_RULES""",
             category=DDTraceDeprecationWarning,
         )
-        if self._apm_opt_out:
+        if asm_config._apm_opt_out:
             log.warning("Cannot set a custom sampler with Standalone ASM mode")
             return
         self._sampler = value
@@ -408,7 +398,7 @@ class Tracer(object):
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
-        if active is None and (self.enabled or self._apm_opt_out):
+        if active is None and (self.enabled or asm_config._apm_opt_out):
             active = self.context_provider.active()
 
         if isinstance(active, Span) and active.service:
@@ -490,16 +480,15 @@ class Tracer(object):
             self._partial_flush_min_spans = partial_flush_min_spans
 
         if appsec_enabled is not None:
-            self._asm_enabled = asm_config._asm_enabled = appsec_enabled
+            asm_config._asm_enabled = appsec_enabled
 
         if iast_enabled is not None:
-            self._iast_enabled = asm_config._iast_enabled = iast_enabled
+            asm_config._iast_enabled = iast_enabled
 
         if appsec_standalone_enabled is not None:
-            self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled = appsec_standalone_enabled
+            asm_config._appsec_standalone_enabled = appsec_standalone_enabled
 
-        if self._appsec_standalone_enabled and (self._asm_enabled or self._iast_enabled):
-            self._apm_opt_out = True
+        if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
@@ -558,7 +547,7 @@ class Tracer(object):
         if writer is not None:
             self._writer = writer
         elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url, appsec_enabled]):
-            if self._asm_enabled:
+            if asm_config._asm_enabled:
                 api_version = "v0.4"
             self._writer = AgentWriter(
                 self._agent_url,
@@ -567,9 +556,11 @@ class Tracer(object):
                 api_version=api_version,
                 # if apm opt out, neither agent or tracer should compute the stats
                 headers=(
-                    {"Datadog-Client-Computed-Stats": "yes"} if (compute_stats_enabled or self._apm_opt_out) else {}
+                    {"Datadog-Client-Computed-Stats": "yes"}
+                    if (compute_stats_enabled or asm_config._apm_opt_out)
+                    else {}
                 ),
-                report_metrics=not self._apm_opt_out,
+                report_metrics=not asm_config._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
         elif writer is None and isinstance(self._writer, LogWriter):
@@ -602,14 +593,11 @@ class Tracer(object):
                 self._writer,
                 self._partial_flush_enabled,
                 self._partial_flush_min_spans,
-                self._asm_enabled,
-                self._iast_enabled,
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
                 self._sampler,
                 self._endpoint_call_counter_span_processor,
-                self._apm_opt_out,
             )
 
         if context_provider is not None:
@@ -668,14 +656,11 @@ class Tracer(object):
             self._writer,
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
-            self._asm_enabled,
-            self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
-            self._apm_opt_out,
         )
 
         self._new_process = True
@@ -860,7 +845,7 @@ class Tracer(object):
             self._services.add(service)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or self._apm_opt_out:
+        if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
@@ -877,7 +862,7 @@ class Tracer(object):
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or self._apm_opt_out:
+        if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
 
@@ -955,18 +940,23 @@ class Tracer(object):
         )
 
     def current_root_span(self) -> Optional[Span]:
-        """Returns the root span of the current execution.
+        """Returns the local root span of the current execution/process.
 
-        This is useful for attaching information related to the trace as a
-        whole without needing to add to child spans.
+        Note: This cannot be used to access the true root span of the trace
+        in a distributed tracing setup if the actual root span occurred in
+        another execution/process.
+
+        This is useful for attaching information to the local root span
+        of the current execution/process, which is often also service
+        entry span.
 
         For example::
 
-            # get the root span
-            root_span = tracer.current_root_span()
+            # get the local root span
+            local_root_span = tracer.current_root_span()
             # set the host just once on the root span
-            if root_span:
-                root_span.set_tag('host', '127.0.0.1')
+            if local_root_span:
+                local_root_span.set_tag('host', '127.0.0.1')
         """
         span = self.current_span()
         if span is None:

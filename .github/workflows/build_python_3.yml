@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.8'
-      - run: pip install cibuildwheel==2.16.5
+      - run: pip install cibuildwheel==2.22.0
       - id: set-matrix
         env:
           CIBW_BUILD: ${{ inputs.cibw_build }}
@@ -34,7 +34,7 @@ jobs:
             {
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | grep -v 313 | jq -cR '{only: ., os: "windows-latest"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cR '{only: ., os: "macos-13"}'
             } | jq -sc
           )
@@ -83,7 +83,7 @@ jobs:
 
       - name: Build wheels arm64
         if: always() && matrix.os == 'arm-4core-linux'
-        run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --only ${{ matrix.only }}
+        run: /home/runner/.local/bin/pipx run cibuildwheel==2.22.0 --only ${{ matrix.only }}
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
@@ -107,7 +107,7 @@ jobs:
             rm -rf ./tempwheelhouse
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
             zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
-            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+            MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
             choco install -y 7zip &&
             7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
@@ -117,7 +117,7 @@ jobs:
 
       - name: Build wheels
         if: always() && matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.22.0
         with:
           only: ${{ matrix.only }}
         env:
@@ -132,6 +132,10 @@ jobs:
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
           CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
+          # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
+          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+          # See: https://stackoverflow.com/a/65402241
+          CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
@@ -143,7 +147,7 @@ jobs:
             rm -rf ./tempwheelhouse
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
             zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
-            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+            MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
             choco install -y 7zip &&
             7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
