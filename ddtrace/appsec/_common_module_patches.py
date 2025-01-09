@@ -272,7 +272,7 @@ def popen_FD233052260D8B4D(arg_list: Union[List[str], str]) -> None:
 
         if in_asm_context():
             res = call_waf_callback(
-                {EXPLOIT_PREVENTION.ADDRESS.CMDI: arg_list},
+                {EXPLOIT_PREVENTION.ADDRESS.CMDI: arg_list if isinstance(arg_list, list) else [arg_list]},
                 crop_trace="popen_FD233052260D8B4D",
                 rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
             )

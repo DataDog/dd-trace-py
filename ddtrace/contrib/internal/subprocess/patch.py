@@ -395,8 +395,12 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
         cmd_args = args[0] if len(args) else kwargs["args"]
         if isinstance(cmd_args, (list, tuple, str)):
-            for callback in _LST_CALLBACKS.values():
-                callback(cmd_args)
+            if kwargs.get("shell", False):
+                for callback in _STR_CALLBACKS.values():
+                    callback(cmd_args)
+            else:
+                for callback in _LST_CALLBACKS.values():
+                    callback(cmd_args)
         cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
         is_shell = kwargs.get("shell", False)
         shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
