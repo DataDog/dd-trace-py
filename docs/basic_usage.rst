@@ -9,10 +9,10 @@ Automatic Instrumentation
 ``ddtrace.auto``
 ----------------
 
-To enable full ddtrace support (library instrumentations, profiling, application security monitoring, dynamic instrumentation, etc.) call :ref:`import ddtrace.auto<ddtraceauto>` as the very first thing
+To enable full ddtrace support (library instrumentation, profiling, application security monitoring, dynamic instrumentation, etc.) call :ref:`import ddtrace.auto<ddtraceauto>` as the very first thing
 in your application. This will only work if your application is not running under ``ddtrace-run``.
 
-Note: Some Datadog products and instrumentations are disabled by default. Products and instrumentations can be enabled/disable via environment variables, see :ref:`configurations <Configuration>` page for more details.
+Note: Some Datadog products and instrumentation are disabled by default. Products and instrumentation can be enabled/disable via environment variables, see :ref:`configurations <Configuration>` page for more details.
 
 Tracing
 ~~~~~~~
