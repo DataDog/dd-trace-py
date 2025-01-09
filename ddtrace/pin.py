@@ -6,6 +6,7 @@ from typing import Optional  # noqa:F401
 import wrapt
 
 import ddtrace
+from ddtrace.vendor.debtcollector import deprecate
 
 from .internal.logger import get_logger
 
@@ -41,6 +42,12 @@ class Pin(object):
         _config=None,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
+        if tracer is not None:
+            deprecate(
+                "Initalizing ddtrace.Pin with `tracer` argument is deprecated",
+                message="All Pin instances should use the global tracer instance",
+                removal_version="3.0.0",
+            )
         tracer = tracer or ddtrace.tracer
         self.tags = tags
         self.tracer = tracer
@@ -132,6 +139,12 @@ class Pin(object):
             >>> # Override a pin for a specific connection
             >>> Pin.override(conn, service='user-db')
         """
+        if tracer is not None:
+            deprecate(
+                "Calling ddtrace.Pin.override(...) with the `tracer` argument is deprecated",
+                message="All Pin instances should use the global tracer instance",
+                removal_version="3.0.0",
+            )
         if not obj:
             return
 
@@ -192,6 +205,13 @@ class Pin(object):
         # do a shallow copy of Pin dicts
         if not tags and self.tags:
             tags = self.tags.copy()
+
+        if tracer is not None:
+            deprecate(
+                "Initalizing ddtrace.Pin with `tracer` argument is deprecated",
+                message="All Pin instances should use the global tracer instance",
+                removal_version="3.0.0",
+            )
 
         # we use a copy instead of a deepcopy because we expect configurations
         # to have only a root level dictionary without nested objects. Using
