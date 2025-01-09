@@ -17,7 +17,7 @@ class ExceptionReplayConfig(En):
     max_frames = En.v(
         int,
         "replay.capture_max_frames",
-        default=float("inf"),
+        default=8,
         help_type="int",
         help="The maximum number of frames to capture for each exception",
     )
