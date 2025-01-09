@@ -51,7 +51,7 @@ tests/opentracer                    @DataDog/apm-core-python
 tests/runtime                       @DataDog/apm-core-python
 tests/tracer                        @DataDog/apm-core-python
 
-# CI App and related
+# Test Visibility and related
 ddtrace/contrib/asynctest                             @DataDog/ci-app-libraries
 ddtrace/contrib/coverage                              @DataDog/ci-app-libraries
 ddtrace/contrib/pytest                                @DataDog/ci-app-libraries
@@ -77,6 +77,15 @@ tests/coverage                                        @DataDog/apm-core-python @
 tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
 ddtrace/ext/git.py                                    @DataDog/ci-app-libraries @DataDog/apm-core-python
 scripts/ci_visibility/*                               @DataDog/ci-app-libraries
+# Test Visibility owns the freezegun integration because it's the team most affected by it
+ddtrace/contrib/freezegun                             @DataDog/ci-app-libraries
+ddtrace/contrib/internal/freezegun                    @DataDog/ci-app-libraries
+tests/contrib/freezegun                               @DataDog/ci-app-libraries
+# Test Visibility: Selenium integration
+ddtrace/contrib/selenium                              @DataDog/ci-app-libraries
+ddtrace/internal/selenium                             @DataDog/ci-app-libraries
+tests/contrib/selenium                                @DataDog/ci-app-libraries
+tests/snapshots/test_selenium_*                       @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
@@ -101,6 +110,7 @@ benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/settings/asm.py             @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
+ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
 ddtrace/contrib/flask_login/        @DataDog/asm-python
 ddtrace/contrib/webbrowser          @DataDog/asm-python
 ddtrace/contrib/urllib              @DataDog/asm-python

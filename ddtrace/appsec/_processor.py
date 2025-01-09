@@ -21,10 +21,12 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
+from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
@@ -201,6 +203,10 @@ class AppSecSpanProcessor(SpanProcessor):
         return WAF_DATA_NAMES.LFI_ADDRESS in self._addresses_to_keep
 
     @property
+    def rasp_shi_enabled(self) -> bool:
+        return WAF_DATA_NAMES.SHI_ADDRESS in self._addresses_to_keep
+
+    @property
     def rasp_cmdi_enabled(self) -> bool:
         return WAF_DATA_NAMES.CMDI_ADDRESS in self._addresses_to_keep
 
@@ -325,10 +331,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 blocked = parameters
                 blocked[WAF_ACTIONS.TYPE] = "none"
             elif action == WAF_ACTIONS.STACK_ACTION:
-                from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
-
                 stack_trace_id = parameters["stack_id"]
-                report_stack("exploit detected", span, crop_trace, stack_id=stack_trace_id)
+                report_stack("exploit detected", span, crop_trace, stack_id=stack_trace_id, namespace=STACK_TRACE.RASP)
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
 

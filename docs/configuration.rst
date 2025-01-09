@@ -10,6 +10,12 @@ see specific integration documentation for more details.
 
 The following environment variables for the tracer are supported:
 
+Common Configurations
+---------------------
+
+For common configuration variables (not language specific), see `Configure the Datadog Tracing Library`_.
+
+
 Unified Service Tagging
 -----------------------
 
@@ -176,18 +182,6 @@ Traces
          Enables AWS response payload tagging when set to ``"all"`` or a valid comma-separated list of ``JSONPath``\s.
       version_added:
          v2.17.0:
-
-   DD_TRACE_ENABLED:
-     type: Boolean
-     default: True
-     
-     description: |
-         Enable sending of spans to the Agent. Note that instrumentation will still be installed and spans will be
-         generated.
-     
-     version_added:
-       v0.41.0: |
-           Formerly named ``DATADOG_TRACE_ENABLED``
 
    DD_TRACE_HEADER_TAGS:
      description: |
@@ -563,10 +557,10 @@ Test Visibility
      default: True
      
      description: |
-        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog
-        `Intelligent Test Runner <https://docs.datadoghq.com/intelligent_test_runner/>_`. Setting the variable to
-        ``false`` will skip querying the API and disable code coverage
-        collection and test skipping.
+        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog `Test
+        Impact Analysis <https://docs.datadoghq.com/tests/test_impact_analysis>`_ (formerly Intelligent Test
+        Runner). Setting the variable to ``false`` will skip querying the API and disable code coverage collection and
+        test skipping.
      
      version_added:
         v1.13.0:
@@ -597,6 +591,33 @@ Test Visibility
      version_added:
         v2.16.0:
 
+   DD_PYTEST_USE_NEW_PLUGIN_BETA:
+     type: Boolean
+     default: False
+
+     description: |
+        Configures the ``CIVisibility`` service to use a beta release of the new version of the pytest plugin,
+        supporting `Auto Test Retries <https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries>`_,
+        `Early Flake Detection <https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection>`_, and
+        improved coverage collection for `Test Impact Analysis
+        <https://docs.datadoghq.com/tests/test_impact_analysis>`_. This version of the plugin will become the default in
+        the future. See the `release notes for v2.18.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v2.18.0>`_
+        for more information.
+
+     version_added:
+        v2.18.0:
+
+   DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS:
+     type: Integer
+     default: 500
+
+     description: |
+        Configures how long, in milliseconds, the Selenium integration will wait after invoking the RUM flush function
+        during calls to the driver's ``quit()`` or ``close()`` methods. This helps ensure that the call to the
+        asynchronous function finishes before the driver is closed.
+
+     version_added:
+        v2.18.0:
 
 Agent
 -----
@@ -870,6 +891,8 @@ Other
 
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+
+.. _Configure the Datadog Tracing Library: https://docs.datadoghq.com/tracing/trace_collection/library_config/
 
 
 Profiling

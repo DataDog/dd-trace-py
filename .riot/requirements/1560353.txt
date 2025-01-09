@@ -4,8 +4,8 @@
 #
 #    pip-compile --allow-unsafe --no-annotate .riot/requirements/1560353.in
 #
-attrs==24.2.0
-coverage[toml]==7.6.4
+attrs==24.3.0
+coverage[toml]==7.6.10
 gevent==24.11.1
 greenlet==3.1.1
 gunicorn[gevent]==23.0.0
@@ -16,7 +16,7 @@ opentracing==2.4.0
 packaging==24.2
 pluggy==1.5.0
 py-cpuinfo==8.0.0
-pytest==8.3.3
+pytest==8.3.4
 pytest-asyncio==0.21.1
 pytest-benchmark==5.1.0
 pytest-cov==6.0.0
@@ -25,7 +25,7 @@ pytest-randomly==3.16.0
 sortedcontainers==2.4.0
 uwsgi==2.0.28
 zope-event==5.0
-zope-interface==7.1.1
+zope-interface==7.2
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==75.3.0
+setuptools==75.7.0

@@ -156,6 +156,16 @@ class ASMConfig(Env):
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
+    _iast_max_concurrent_requests = Env.var(
+        int,
+        IAST.DD_IAST_MAX_CONCURRENT_REQUESTS,
+        default=2,
+    )
+    _iast_max_vulnerabilities_per_requests = Env.var(
+        int,
+        IAST.DD_IAST_VULNERABILITIES_PER_REQUEST,
+        default=2,
+    )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
     _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
 
@@ -213,6 +223,8 @@ class ASMConfig(Env):
         "_iast_redaction_enabled",
         "_iast_redaction_name_pattern",
         "_iast_redaction_value_pattern",
+        "_iast_max_concurrent_requests",
+        "_iast_max_vulnerabilities_per_requests",
         "_iast_lazy_taint",
         "_ep_stack_trace_enabled",
         "_ep_max_stack_traces",
@@ -256,6 +268,12 @@ class ASMConfig(Env):
     @property
     def _api_security_feature_active(self) -> bool:
         return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
+
+    @property
+    def _apm_opt_out(self) -> bool:
+        return (
+            self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
+        ) and self._appsec_standalone_enabled
 
     @property
     def _user_event_mode(self) -> str:

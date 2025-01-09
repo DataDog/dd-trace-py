@@ -9,7 +9,7 @@
 void
 simple_init()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
     std::exit(0);
 }
 
@@ -51,7 +51,7 @@ short_lifetime_init()
         std::string service("my_test_service");
         std::string env("my_test_env");
         std::string version("0.0.1");
-        std::string url("https://localhost:8126");
+        std::string url("https://127.0.0.1:9126");
         std::string runtime("cpython");
         std::string runtime_version("3.10.6");
         std::string profiler_version("3.100");
