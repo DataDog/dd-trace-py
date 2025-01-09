@@ -47,7 +47,7 @@ def get_logger(name):
         logger = manager.loggerDict[name]
         if isinstance(manager.loggerDict[name], logging.PlaceHolder):
             placeholder = logger
-            logger = DDLogger(name=name)
+            logger = _new_logger(name=name)
             manager.loggerDict[name] = logger
             # DEV: `_fixupChildren` and `_fixupParents` have been around for awhile,
             # DEV: but add the `hasattr` guard... just in case.
@@ -56,13 +56,20 @@ def get_logger(name):
             if hasattr(manager, "_fixupParents"):
                 manager._fixupParents(logger)
     else:
-        logger = DDLogger(name=name)
+        logger = _new_logger(name=name)
         manager.loggerDict[name] = logger
         if hasattr(manager, "_fixupParents"):
             manager._fixupParents(logger)
 
     # Return our logger
     return cast(DDLogger, logger)
+
+
+def _new_logger(name):
+    if _TelemetryConfig.LOG_COLLECTION_ENABLED:
+        if name.startswith("ddtrace.contrib."):
+            return DDTelemetryLogger(name=name)
+    return DDLogger(name=name)
 
 
 def hasHandlers(self):
@@ -121,14 +128,6 @@ class DDLogger(logging.Logger):
         else:
             self.rate_limit = 60
 
-        self.telemetry_log_buckets = None
-        if _TelemetryConfig.LOG_COLLECTION_ENABLED:
-            if self.name.startswith("ddtrace.contrib."):
-                # Collect only errors logged within the integration package
-                self.telemetry_log_buckets = collections.defaultdict(
-                    lambda: DDLogger.LoggingBucket(0, 0)
-                )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
-
     def handle(self, record):
         # type: (logging.LogRecord) -> None
         """
@@ -150,9 +149,6 @@ class DDLogger(logging.Logger):
             # currently we only have one error code
             full_file_name = os.path.join(record.pathname, record.filename)
             telemetry.telemetry_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
-
-        if self.telemetry_log_buckets is not None:
-            self._report_telemetry_log(record)
 
         # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
         # If the logging is in debug, then do not apply any limits to any log
@@ -191,8 +187,25 @@ class DDLogger(logging.Logger):
             # DEV: `self.buckets[key]` is a tuple which is immutable so recreate instead
             self.buckets[key] = DDLogger.LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
 
-    def _report_telemetry_log(self, record):
+
+class DDTelemetryLogger(DDLogger):
+    """
+    Logger that intercepts and reports exceptions to the telemetry.
+    """
+
+    def __init__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
+        """Constructor for ``DDTelemetryLogger``"""
+        super(DDTelemetryLogger, self).__init__(*args, **kwargs)
+
+        self.telemetry_log_buckets = collections.defaultdict(
+            lambda: DDLogger.LoggingBucket(0, 0)
+        )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
+
+
+    def handle(self, record):
         # type: (logging.LogRecord) -> None
+
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
         key = (record.name, record.levelno, record.pathname, record.lineno)
@@ -225,6 +238,8 @@ class DDLogger(logging.Logger):
                 telemetry.telemetry_writer.add_log(
                     level, record.msg, tags=tags, stack_trace=stack_trace, count=key_bucket.skipped + 1
                 )
+
+        super().handle(record)
 
 
 class _TelemetryConfig:
