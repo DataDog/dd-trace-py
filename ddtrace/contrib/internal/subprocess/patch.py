@@ -38,7 +38,7 @@ def get_version() -> str:
 
 
 _STR_CALLBACKS: Dict[str, Callable[[str], None]] = {}
-_LST_CALLBACKS: Dict[str, Callable[[List[str]], None]] = {}
+_LST_CALLBACKS: Dict[str, Callable[[Union[List[str], str]], None]] = {}
 
 
 def add_str_callback(name: str, callback: Callable[[str], None]):
@@ -49,7 +49,7 @@ def del_str_callback(name: str):
     _STR_CALLBACKS.pop(name, None)
 
 
-def add_lst_callback(name: str, callback: Callable[[List[str]], None]):
+def add_lst_callback(name: str, callback: Callable[[Union[List[str], str]], None]):
     _LST_CALLBACKS[name] = callback
 
 
@@ -366,7 +366,7 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
 def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
     try:
         mode, file, func_args, _, _ = args
-        if isinstance(func_args, (list, tuple)):
+        if isinstance(func_args, (list, tuple, str)):
             commands = [file] + list(func_args)
             for callback in _LST_CALLBACKS.values():
                 callback(commands)
@@ -394,10 +394,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
         cmd_args = args[0] if len(args) else kwargs["args"]
-        if isinstance(cmd_args, str):
-            for callback in _STR_CALLBACKS.values():
-                callback(cmd_args)
-        elif isinstance(cmd_args, list):
+        if isinstance(cmd_args, (list, tuple, str)):
             for callback in _LST_CALLBACKS.values():
                 callback(cmd_args)
         cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args

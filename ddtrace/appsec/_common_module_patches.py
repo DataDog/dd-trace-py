@@ -7,6 +7,8 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Iterable
+from typing import List
+from typing import Union
 
 from wrapt import FunctionWrapper
 from wrapt import resolve_path
@@ -252,7 +254,7 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
                 )
 
 
-def popen_FD233052260D8B4D(arg_list) -> None:
+def popen_FD233052260D8B4D(arg_list: Union[List[str], str]) -> None:
     """
     listener for subprocess.Popen class
     """
