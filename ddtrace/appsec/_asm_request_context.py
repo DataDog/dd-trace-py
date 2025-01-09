@@ -514,6 +514,7 @@ def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
 
         if not is_iast_request_enabled():
             return
@@ -525,8 +526,8 @@ def _on_set_request_tags(request, span, flask_config):
             override_pyobject_tainted=True,
         )
 
-        request.args = taint_structure(
-            request.args,
+        request.form = taint_structure(
+            request.form,
             OriginType.PARAMETER_NAME,
             OriginType.PARAMETER,
             override_pyobject_tainted=True,
