@@ -29,7 +29,7 @@ class WrappedConnect(wrapt.ObjectProxy):
         client = self.__wrapped__(*args, **kwargs)
         pin = ddtrace.Pin.get_from(self)
         if pin:
-            # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deperecation warning.
+            # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
             # Remove this if statement when the `tracer` argument is removed
             if pin.tracer is ddtrace.tracer:
                 ddtrace.Pin(service=pin.service).onto(client)

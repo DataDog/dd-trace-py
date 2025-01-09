@@ -44,7 +44,7 @@ class Pin(object):
         # type: (...) -> None
         if tracer is not None:
             deprecate(
-                "Initalizing ddtrace.Pin with `tracer` argument is deprecated",
+                "Initializing ddtrace.Pin with `tracer` argument is deprecated",
                 message="All Pin instances should use the global tracer instance",
                 removal_version="3.0.0",
             )
@@ -208,7 +208,7 @@ class Pin(object):
 
         if tracer is not None:
             deprecate(
-                "Initalizing ddtrace.Pin with `tracer` argument is deprecated",
+                "Initializing ddtrace.Pin with `tracer` argument is deprecated",
                 message="All Pin instances should use the global tracer instance",
                 removal_version="3.0.0",
             )

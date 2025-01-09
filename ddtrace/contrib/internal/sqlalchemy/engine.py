@@ -67,7 +67,7 @@ class EngineTracer(object):
         self.name = schematize_database_operation("%s.query" % self.vendor, database_provider=self.vendor)
 
         # attach the PIN
-        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deperecation warning.
+        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
         # Remove this if statement when the `tracer` argument is removed
         if self.tracer is ddtrace.tracer:
             Pin(service=self.service).onto(engine)

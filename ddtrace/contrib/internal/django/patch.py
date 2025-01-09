@@ -148,7 +148,7 @@ def patch_conn(django, conn):
         tags = {"django.db.vendor": vendor, "django.db.alias": alias}
         tags.update(getattr(conn, "_datadog_tags", {}))
 
-        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deperecation warning.
+        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
         # Remove this if statement when the `tracer` argument is removed
         if pin.tracer is ddtrace.tracer:
             pin = Pin(service, tags=tags)
