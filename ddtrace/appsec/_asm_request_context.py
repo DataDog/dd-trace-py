@@ -525,6 +525,13 @@ def _on_set_request_tags(request, span, flask_config):
             override_pyobject_tainted=True,
         )
 
+        request.args = taint_structure(
+            request.args,
+            OriginType.QUERY_PARAMETER_NAME,
+            OriginType.QUERY_PARAMETER,
+            override_pyobject_tainted=True,
+        )
+
 
 def _on_pre_tracedrequest(ctx):
     current_span = ctx.span

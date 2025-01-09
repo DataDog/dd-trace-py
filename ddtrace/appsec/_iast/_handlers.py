@@ -91,12 +91,12 @@ def _on_flask_patch(flask_version):
         )
         _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
-        try_wrap_function_wrapper(
-            "werkzeug.datastructures",
-            "ImmutableMultiDict.keys",
-            functools.partial(if_iast_taint_yield_iterator_for, OriginType.PARAMETER_NAME),
-        )
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+        # try_wrap_function_wrapper(
+        #     "werkzeug.datastructures",
+        #     "ImmutableMultiDict.keys",
+        #     functools.partial(if_iast_taint_yield_iterator_for, OriginType.PARAMETER_NAME),
+        # )
+        # _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
 
         try_wrap_function_wrapper(
             "werkzeug.datastructures",
