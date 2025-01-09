@@ -64,15 +64,7 @@ def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subproces
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update(
-        {
-            "DD_API_KEY": os.getenv("DD_API_KEY", "dummy-api-key"),
-            "DD_SITE": "datad0g.com",
-            "PYTHONPATH": ":".join(pypath),
-            "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-            "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
-        }
-    )
+    env.update({"PYTHONPATH": ":".join(pypath), "_DD_LLMOBS_EVALUATOR_INTERVAL": "5"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import os
@@ -87,7 +79,7 @@ from tests.llmobs._utils import DummyEvaluator
 ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_evaluator_runner.send_score_metric.yaml")
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
-LLMObs.enable()
+LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app")
 LLMObs._instance._evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
 LLMObs._instance._evaluator_runner.start()
 LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, None)

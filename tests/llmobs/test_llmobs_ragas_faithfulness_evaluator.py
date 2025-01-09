@@ -205,14 +205,11 @@ def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_log
         pypath.append(env["PYTHONPATH"])
     env.update(
         {
-            "DD_API_KEY": os.getenv("DD_API_KEY", "dummy-api-key"),
-            "DD_SITE": "datad0g.com",
             "PYTHONPATH": ":".join(pypath),
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "dummy-openai-api-key"),
-            "DD_LLMOBS_ML_APP": "unnamed-ml-app",
             "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
             "_DD_LLMOBS_EVALUATORS": "ragas_faithfulness",
-            "DD_LLMOBS_AGENTLESS_ENABLED": "true",
+            "DD_TRACE_ENABLED": "0",
         }
     )
     out, err, status, pid = run_python_code_in_subprocess(
@@ -231,14 +228,8 @@ ctx = logs_vcr.use_cassette(
 )
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
-with mock.patch(
-    "ddtrace.internal.writer.HTTPWriter._send_payload",
-    return_value=Response(
-        status=200,
-        body="{}",
-    ),
-):
-    LLMObs.enable()
+with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}")):
+    LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
     LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
     """,
         env=env,
