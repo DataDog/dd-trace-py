@@ -7,6 +7,7 @@ from sys import builtin_module_names
 from sys import version_info
 import textwrap
 from types import ModuleType
+from typing import Iterable
 from typing import Optional
 from typing import Text
 from typing import Tuple
@@ -340,7 +341,7 @@ class _TrieNode:
             for k, v in self.children.items():
                 yield (k, dict(v))
 
-def build_trie(words: tuple[str, ...]) -> _TrieNode:
+def build_trie(words: Iterable[str]) -> _TrieNode:
     root = _TrieNode()
     for word in words:
         node = root
@@ -367,8 +368,6 @@ def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
     return node.is_end
 
 
-
-
 def get_encoding(module_path: Text) -> Text:
     """
     First tries to detect the encoding for the file,
@@ -383,11 +382,11 @@ def get_encoding(module_path: Text) -> Text:
     return ENCODING
 
 
-_NOT_PATCH_MODULE_NAMES = _stdlib_for_python_version() | set(builtin_module_names)
+_NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
 
 
 def _in_python_stdlib(module_name: str) -> bool:
-    return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
+    return module_name.split(".")[0].lower() in _NOT_PATCH_MODULE_NAMES
 
 
 def _should_iast_patch(module_name: Text) -> bool:
