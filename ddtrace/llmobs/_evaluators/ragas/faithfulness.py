@@ -46,13 +46,13 @@ class RagasFaithfulnessEvaluator(BaseRagasEvaluator):
         """
         super().__init__(llmobs_service)
         self.ragas_faithfulness_instance = self._get_faithfulness_instance()
-        self.llm_output_parser_for_generated_statements = self.mini_ragas.RagasoutputParser(
-            pydantic_object=self.mini_ragas.StatementsAnswers
+        self.llm_output_parser_for_generated_statements = self.ragas_dependencies.RagasoutputParser(
+            pydantic_object=self.ragas_dependencies.StatementsAnswers
         )
-        self.llm_output_parser_for_faithfulness_score = self.mini_ragas.RagasoutputParser(
-            pydantic_object=self.mini_ragas.StatementFaithfulnessAnswers
+        self.llm_output_parser_for_faithfulness_score = self.ragas_dependencies.RagasoutputParser(
+            pydantic_object=self.ragas_dependencies.StatementFaithfulnessAnswers
         )
-        self.split_answer_into_sentences = self.mini_ragas.get_segmenter(
+        self.split_answer_into_sentences = self.ragas_dependencies.get_segmenter(
             language=self.ragas_faithfulness_instance.nli_statements_message.language, clean=False
         )
 
@@ -62,11 +62,11 @@ class RagasFaithfulnessEvaluator(BaseRagasEvaluator):
         ragas evaluator is updated with the latest ragas faithfulness
         instance AND has an non-null llm
         """
-        if self.mini_ragas.faithfulness is None:
+        if self.ragas_dependencies.faithfulness is None:
             return None
-        ragas_faithfulness_instance = self.mini_ragas.faithfulness
+        ragas_faithfulness_instance = self.ragas_dependencies.faithfulness
         if not ragas_faithfulness_instance.llm:
-            ragas_faithfulness_instance.llm = self.mini_ragas.llm_factory()
+            ragas_faithfulness_instance.llm = self.ragas_dependencies.llm_factory()
         return ragas_faithfulness_instance
 
     def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
@@ -199,9 +199,9 @@ class RagasFaithfulnessEvaluator(BaseRagasEvaluator):
                 return None
 
             # collapse multiple generations into a single faithfulness list
-            faithfulness_list = self.mini_ragas.ensembler.from_discrete(raw_faithfulness_list, "verdict")
+            faithfulness_list = self.ragas_dependencies.ensembler.from_discrete(raw_faithfulness_list, "verdict")
             try:
-                return self.mini_ragas.StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
+                return self.ragas_dependencies.StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
             except Exception as e:
                 logger.debug("Failed to parse faithfulness_list", exc_info=e)
                 return None
