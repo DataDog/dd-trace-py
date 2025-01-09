@@ -1,4 +1,5 @@
 import mock
+import pytest
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
@@ -78,6 +79,7 @@ def test_not_azure_function_consumption_plan():
     assert in_azure_function() is False
 
 
+@pytest.mark.subprocess()
 def test_slow_imports():
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
@@ -114,6 +116,10 @@ def test_slow_imports():
 
     try:
         sys.meta_path.insert(0, BlockListFinder())
+
+        for mod in sys.modules.copy():
+            if mod in blocklist or mod.startswith("ddtrace"):
+                del sys.modules[mod]
 
         import ddtrace
         import ddtrace.contrib.internal.aws_lambda  # noqa:F401
