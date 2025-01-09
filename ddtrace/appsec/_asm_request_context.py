@@ -527,8 +527,8 @@ def _on_set_request_tags(request, span, flask_config):
 
         request.args = taint_structure(
             request.args,
-            OriginType.QUERY_PARAMETER_NAME,
-            OriginType.QUERY_PARAMETER,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
             override_pyobject_tainted=True,
         )
 
