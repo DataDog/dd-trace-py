@@ -1888,6 +1888,14 @@ EXTRACT_FIXTURES = [
         B3_SINGLE_HEADERS_VALID,
         CONTEXT_EMPTY,
     ),
+    (
+        "baggage_case_insensitive",
+        None,
+        {"BAgGage": "key1=val1,key2=val2"},
+        {
+            "baggage": {"key1": "val1", "key2": "val2"},
+        },
+    ),
     # All valid headers
     (
         "valid_all_headers_default_style",
@@ -2278,14 +2286,14 @@ def test_propagation_extract_w_config(name, styles, headers, expected_context, r
     overrides = {}
     if styles is not None:
         overrides["_propagation_style_extract"] = styles
-        with override_global_config(overrides):
-            context = HTTPPropagator.extract(headers)
-            if not expected_context.get("tracestate"):
-                assert context == Context(**expected_context)
-            else:
-                copied_expectation = expected_context.copy()
-                tracestate = copied_expectation.pop("tracestate")
-                assert context == Context(**copied_expectation, meta={"tracestate": tracestate})
+    with override_global_config(overrides):
+        context = HTTPPropagator.extract(headers)
+        if not expected_context.get("tracestate"):
+            assert context == Context(**expected_context)
+        else:
+            copied_expectation = expected_context.copy()
+            tracestate = copied_expectation.pop("tracestate")
+            assert context == Context(**copied_expectation, meta={"tracestate": tracestate})
 
 
 EXTRACT_OVERRIDE_FIXTURES = [

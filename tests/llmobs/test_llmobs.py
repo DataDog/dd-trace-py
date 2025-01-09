@@ -1,4 +1,3 @@
-import mock
 import pytest
 
 from ddtrace.ext import SpanTypes
@@ -7,12 +6,6 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_session_id
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-
-
-@pytest.fixture
-def mock_logs():
-    with mock.patch("ddtrace.llmobs._trace_processor.log") as mock_logs:
-        yield mock_logs
 
 
 class TestMLApp:
@@ -49,17 +42,17 @@ class TestMLApp:
             assert "ml_app:test-ml-app" in llmobs_event["tags"]
 
 
-def test_set_correct_parent_id(LLMObs):
+def test_set_correct_parent_id(llmobs):
     """Test that the parent_id is set as the span_id of the nearest LLMObs span in the span's ancestor tree."""
-    with LLMObs._instance.tracer.trace("root"):
-        with LLMObs.workflow("llm_span") as llm_span:
+    with llmobs._instance.tracer.trace("root"):
+        with llmobs.workflow("llm_span") as llm_span:
             pass
     assert llm_span._get_ctx_item(PARENT_ID_KEY) is ROOT_PARENT_ID
-    with LLMObs.workflow("root_llm_span") as root_span:
+    with llmobs.workflow("root_llm_span") as root_span:
         assert root_span._get_ctx_item(PARENT_ID_KEY) is ROOT_PARENT_ID
-        with LLMObs._instance.tracer.trace("child_span") as child_span:
+        with llmobs._instance.tracer.trace("child_span") as child_span:
             assert child_span._get_ctx_item(PARENT_ID_KEY) is None
-            with LLMObs.task("llm_span") as grandchild_span:
+            with llmobs.task("llm_span") as grandchild_span:
                 assert grandchild_span._get_ctx_item(PARENT_ID_KEY) == str(root_span.span_id)
 
 
@@ -228,19 +221,19 @@ def test_model_and_provider_are_set(tracer, llmobs_events):
     assert span_event["meta"]["model_provider"] == "model_provider"
 
 
-def test_malformed_span_logs_error_instead_of_raising(mock_logs, tracer, llmobs_events):
+def test_malformed_span_logs_error_instead_of_raising(tracer, llmobs_events, mock_llmobs_logs):
     """Test that a trying to create a span event from a malformed span will log an error instead of crashing."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         # span does not have SPAN_KIND tag
         pass
-    mock_logs.error.assert_called_once_with(
-        "Error generating LLMObs span event for span %s, likely due to malformed span", llm_span
+    mock_llmobs_logs.error.assert_called_with(
+        "Error generating LLMObs span event for span %s, likely due to malformed span", llm_span, exc_info=True
     )
     assert len(llmobs_events) == 0
 
 
-def test_processor_only_creates_llmobs_span_event(tracer, llmobs_events):
-    """Test that the LLMObsTraceProcessor only creates LLMObs span events for LLM span types."""
+def test_only_generate_span_events_from_llmobs_spans(tracer, llmobs_events):
+    """Test that we only generate LLMObs span events for LLM span types."""
     with tracer.trace("root_llm_span", service="tests.llmobs", span_type=SpanTypes.LLM) as root_span:
         root_span._set_ctx_item(const.SPAN_KIND, "llm")
         with tracer.trace("child_span"):
