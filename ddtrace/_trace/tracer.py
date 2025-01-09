@@ -773,10 +773,8 @@ class Tracer(object):
 
         # Update the service name based on any mapping
         service = config.service_mapping.get(service, service)
-
         links = context._span_links if not parent else []
-
-        if trace_id:
+        if trace_id or links:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
                 name=name,
