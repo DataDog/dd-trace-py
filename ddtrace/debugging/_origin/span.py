@@ -154,6 +154,8 @@ class EntrySpanWrappingContext(WrappingContext):
             s.set_tag_str("_dd.code_origin.frames.0.type", location.module)
             s.set_tag_str("_dd.code_origin.frames.0.method", location.name)
 
+        self.set("start_time", monotonic_ns())
+
         return self
 
     def _close_signal(self, retval=None, exc_info=(None, None, None)):
@@ -179,9 +181,6 @@ class EntrySpanWrappingContext(WrappingContext):
             # Correlate the snapshot with the span
             root.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
             span.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
-
-            self.set("snapshot", snapshot)
-            self.set("start_time", monotonic_ns())
 
             snapshot.do_exit(retval, exc_info, monotonic_ns() - self.get("start_time"))
 
