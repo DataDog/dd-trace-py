@@ -32,16 +32,6 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def mock_llmobs_span_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    LLMObsSpanWriterMock = patcher.start()
-    m = mock.MagicMock()
-    LLMObsSpanWriterMock.return_value = m
-    yield m
-    patcher.stop()
-
-
-@pytest.fixture
 def mock_llmobs_eval_metric_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsEvalMetricWriter")
     LLMObsEvalMetricWriterMock = patcher.start()
@@ -128,44 +118,6 @@ def default_global_config():
 
 
 @pytest.fixture
-def LLMObs(
-    mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_llmobs_evaluator_runner, ddtrace_global_config
-):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
-        yield llmobs_service
-        llmobs_service.disable()
-
-
-@pytest.fixture
-def AgentlessLLMObs(
-    mock_llmobs_span_writer,
-    mock_llmobs_eval_metric_writer,
-    mock_llmobs_evaluator_runner,
-    ddtrace_global_config,
-):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    global_config.update(dict(_llmobs_agentless_enabled=True))
-    with override_global_config(global_config):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
-        yield llmobs_service
-        llmobs_service.disable()
-
-
-@pytest.fixture
-def disabled_llmobs():
-    prev = llmobs_service.enabled
-    llmobs_service.enabled = False
-    yield
-    llmobs_service.enabled = prev
-
-
-@pytest.fixture
 def mock_ragas_dependencies_not_present():
     import ragas
 
@@ -177,7 +129,7 @@ def mock_ragas_dependencies_not_present():
 
 
 @pytest.fixture
-def ragas(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
+def ragas(mock_llmobs_eval_metric_writer):
     with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
         try:
             import ragas
