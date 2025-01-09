@@ -91,13 +91,6 @@ def _on_flask_patch(flask_version):
         )
         _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
-        # try_wrap_function_wrapper(
-        #     "werkzeug.datastructures",
-        #     "ImmutableMultiDict.keys",
-        #     functools.partial(if_iast_taint_yield_iterator_for, OriginType.PARAMETER_NAME),
-        # )
-        # _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
-
         try_wrap_function_wrapper(
             "werkzeug.datastructures",
             "EnvironHeaders.__getitem__",
@@ -315,19 +308,6 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
     return value
-
-
-def if_iast_taint_yield_iterator_for(origin, wrapped, instance, args, kwargs):
-    if _is_iast_enabled():
-        if not is_iast_request_enabled():
-            for val in wrapped(*args, **kwargs):
-                yield val
-        else:
-            for val in wrapped(*args, **kwargs):
-                yield taint_pyobject(pyobject=val, source_name=origin, source_value=val, source_origin=origin)
-    else:
-        for val in wrapped(*args, **kwargs):
-            yield val
 
 
 def _on_iast_fastapi_patch():
