@@ -328,6 +328,7 @@ log = get_logger(__name__)
 
 
 class _TrieNode:
+    __slots__ = ('children', 'is_end')
     def __init__(self):
         self.children = {}
         self.is_end = False
@@ -357,15 +358,15 @@ _TRIE_DENYLIST = build_trie(IAST_DENYLIST)
 def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
     node = trie
     for char in string:
-        if node.is_end:
-            return True
-
-        if char not in node.children:
+        node = node.children.get(char)
+        if not node:
             return False
 
-        node = node.children[char]
-
+        if node.is_end:
+            return True
     return node.is_end
+
+
 
 
 def get_encoding(module_path: Text) -> Text:
