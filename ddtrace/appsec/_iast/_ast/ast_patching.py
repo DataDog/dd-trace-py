@@ -329,17 +329,19 @@ log = get_logger(__name__)
 
 
 class _TrieNode:
-    __slots__ = ('children', 'is_end')
+    __slots__ = ("children", "is_end")
+
     def __init__(self):
         self.children = {}
         self.is_end = False
-        
+
     def __iter__(self):
         if self.is_end:
             yield ("", None)
         else:
             for k, v in self.children.items():
                 yield (k, dict(v))
+
 
 def build_trie(words: Iterable[str]) -> _TrieNode:
     root = _TrieNode()
@@ -351,6 +353,7 @@ def build_trie(words: Iterable[str]) -> _TrieNode:
             node = node.children[char]
         node.is_end = True
     return root
+
 
 _TRIE_ALLOWLIST = build_trie(IAST_ALLOWLIST)
 _TRIE_DENYLIST = build_trie(IAST_DENYLIST)

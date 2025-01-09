@@ -312,60 +312,58 @@ def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_n
             assert name in patched_dir
 
 
-
 def test_build_trie():
     from ddtrace.appsec._iast._ast.ast_patching import build_trie
 
     trie = build_trie(["abc", "def", "ghi", "jkl", "mno", "pqr", "stu", "vwx", "yz"])
-    dict_trie = dict(trie)
     assert dict(trie) == {
         "a": {
             "b": {
-                "c": {'': None},
+                "c": {"": None},
             },
         },
         "d": {
             "e": {
-                "f": {'': None},
+                "f": {"": None},
             },
         },
         "g": {
             "h": {
-                "i": {'': None},
+                "i": {"": None},
             },
         },
         "j": {
             "k": {
-                "l": {'': None},
+                "l": {"": None},
             },
         },
         "m": {
             "n": {
-                "o": {'': None},
+                "o": {"": None},
             },
         },
         "p": {
             "q": {
-                "r": {'': None},
+                "r": {"": None},
             },
         },
         "s": {
             "t": {
-                "u": {'': None},
+                "u": {"": None},
             },
         },
         "v": {
             "w": {
-                "x": {'': None},
+                "x": {"": None},
             },
         },
         "y": {
-            "z": {'': None},
+            "z": {"": None},
         },
     }
 
-def test_trie_has_string_match():
 
+def test_trie_has_string_match():
     trie = build_trie(["abc", "def", "ghi", "jkl", "mno", "pqr", "stu", "vwx", "yz"])
     assert _trie_has_prefix_for(trie, "abc")
     assert not _trie_has_prefix_for(trie, "ab")
