@@ -213,6 +213,7 @@ def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_log
             "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
             "_DD_LLMOBS_EVALUATORS": "ragas_faithfulness",
             "DD_LLMOBS_AGENTLESS_ENABLED": "true",
+            "DD_TRACE_ENABLED": "0",
         }
     )
     out, err, status, pid = run_python_code_in_subprocess(

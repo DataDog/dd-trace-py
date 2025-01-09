@@ -109,10 +109,6 @@ class LLMObs(Service):
         self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
 
-        # Register hooks for span events
-        core.on("trace.span_start", self._do_annotations)
-        core.on("trace.span_finish", self._on_span_finish)
-
     def _on_span_finish(self, span):
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._submit_llmobs_span(span)
@@ -363,6 +359,10 @@ class LLMObs(Service):
         cls._instance = cls(tracer=_tracer)
         cls.enabled = True
         cls._instance.start()
+
+        # Register hooks for span events
+        core.on("trace.span_start", cls._instance._do_annotations)
+        core.on("trace.span_finish", cls._instance._on_span_finish)
 
         atexit.register(cls.disable)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
