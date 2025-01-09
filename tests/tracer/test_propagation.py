@@ -1939,6 +1939,7 @@ EXTRACT_FIXTURES = [
     (
         "baggage_case_insensitive",
         None,
+        None,
         {"BAgGage": "key1=val1,key2=val2"},
         {
             "baggage": {"key1": "val1", "key2": "val2"},

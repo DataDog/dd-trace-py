@@ -564,7 +564,8 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         context = HTTPPropagator.extract(request_headers)
 
         # Only need to activate the new context if something was propagated
-        if not context.trace_id and not context._baggage:
+        # The new context must have one of these values in order for it to be activated
+        if not context.trace_id and not context._baggage and not context._span_links:
             return None
         # Do not reactivate a context with the same trace id
         # DEV: An example could be nested web frameworks, when one layer already
@@ -576,8 +577,8 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         #     app = DDWSGIMiddleware(app)  # Extra layer on top for WSGI
         current_context = tracer.current_trace_context()
 
-        # We accept incoming contexts with only baggage, however if we
-        # already have a current_context then a baggage only context will be tossed out
+        # We accept incoming contexts with only baggage or only span_links, however if we
+        # already have a current_context then a baggage only or span_link only context will be tossed out
         if current_context and (not context.trace_id or current_context.trace_id == context.trace_id):
             log.debug(
                 "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
