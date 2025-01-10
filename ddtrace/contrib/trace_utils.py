@@ -560,6 +560,7 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
     """
     if override is False:
         return None
+
     if override or (int_config and distributed_tracing_enabled(int_config)):
         context = HTTPPropagator.extract(request_headers)
 
