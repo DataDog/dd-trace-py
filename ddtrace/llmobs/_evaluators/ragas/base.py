@@ -17,7 +17,7 @@ from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 logger = get_logger(__name__)
 
 
-class MiniRagas:
+class RagasDependencies:
     """
     A helper class to store instances of ragas classes and functions
     that may or may not exist in a user's environment.
@@ -109,8 +109,8 @@ class BaseRagasEvaluator:
         self.ragas_version = "unknown"
         telemetry_state = "ok"
         try:
-            self.mini_ragas = MiniRagas()
-            self.ragas_version = self.mini_ragas.ragas_version
+            self.ragas_dependencies = RagasDependencies()
+            self.ragas_version = self.ragas_dependencies.ragas_version
         except ImportError as e:
             telemetry_state = "fail_import_error"
             raise NotImplementedError("Failed to load dependencies for `{}` evaluator".format(self.LABEL)) from e
@@ -131,7 +131,7 @@ class BaseRagasEvaluator:
                 tags=(
                     ("evaluator_label", self.LABEL),
                     ("state", telemetry_state),
-                    ("ragas_version", self.ragas_version),
+                    ("evaluator_version", self.ragas_version),
                 ),
             )
             if telemetry_state != "ok":
@@ -139,7 +139,7 @@ class BaseRagasEvaluator:
                     level=TELEMETRY_LOG_LEVEL.ERROR,
                     message="Failed to import Ragas dependencies",
                     stack_trace=traceback.format_exc(),
-                    tags={"ragas_version": self.ragas_version},
+                    tags={"evaluator_version": self.ragas_version},
                 )
 
     def run_and_submit_evaluation(self, span_event: dict):
@@ -153,7 +153,7 @@ class BaseRagasEvaluator:
             tags=(
                 ("evaluator_label", self.LABEL),
                 ("state", score_result_or_failure if isinstance(score_result_or_failure, str) else "success"),
-                ("ragas_version", self.ragas_version),
+                ("evaluator_version", self.ragas_version),
             ),
         )
         if isinstance(score_result_or_failure, float):
@@ -166,7 +166,7 @@ class BaseRagasEvaluator:
             )
 
     def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
-        raise NotImplementedError("evaluate method must be implemented by individual ragas metrics")
+        raise NotImplementedError("evaluate method must be implemented by individual evaluators")
 
     def _extract_evaluation_inputs_from_span(self, span_event: dict) -> Optional[dict]:
         """
@@ -188,9 +188,7 @@ class BaseRagasEvaluator:
 
             prompt = meta_input.get("prompt")
             if prompt is None:
-                logger.debug(
-                    "Failed to extract `prompt` from span for ragas evaluation",
-                )
+                logger.debug("Failed to extract `prompt` from span for ragas evaluation")
                 return None
             prompt_variables = prompt.get("variables")
 

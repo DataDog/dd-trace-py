@@ -13,31 +13,34 @@ from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_prompt
 
 
+pytest.importorskip("ragas", reason="Tests require ragas to be available on user env")
+
+
 def _llm_span_without_io():
     return _expected_llmobs_llm_span_event(Span("dummy"))
 
 
-def test_ragas_faithfulness_evaluator_init(ragas, LLMObs):
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
-    assert rf_evaluator.llmobs_service == LLMObs
+def test_ragas_evaluator_init(ragas, llmobs):
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
+    assert rf_evaluator.llmobs_service == llmobs
     assert rf_evaluator.ragas_faithfulness_instance == ragas.metrics.faithfulness
     assert rf_evaluator.ragas_faithfulness_instance.llm == ragas.llms.llm_factory()
 
 
-def test_ragas_faithfulness_throws_if_dependencies_not_present(LLMObs, mock_ragas_dependencies_not_present, ragas):
+def test_ragas_faithfulness_throws_if_dependencies_not_present(llmobs, mock_ragas_dependencies_not_present, ragas):
     with pytest.raises(NotImplementedError, match="Failed to load dependencies for `ragas_faithfulness` evaluator"):
-        RagasFaithfulnessEvaluator(LLMObs)
+        RagasFaithfulnessEvaluator(llmobs)
 
 
-def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, LLMObs):
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+def test_ragas_faithfulness_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, llmobs):
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     failure_msg, _ = rf_evaluator.evaluate(_llm_span_without_io())
     assert failure_msg == "fail_extract_faithfulness_inputs"
     assert rf_evaluator.llmobs_service.submit_evaluation.call_count == 0
 
 
 def test_ragas_faithfulness_has_modified_faithfulness_instance(
-    ragas, mock_llmobs_submit_evaluation, reset_ragas_faithfulness_llm, LLMObs
+    ragas, mock_llmobs_submit_evaluation, reset_ragas_faithfulness_llm, llmobs
 ):
     """Faithfulness instance used in ragas evaluator should match the global ragas faithfulness instance"""
     from ragas.llms import BaseRagasLLM
@@ -55,7 +58,7 @@ def test_ragas_faithfulness_has_modified_faithfulness_instance(
 
     faithfulness.llm = FirstDummyLLM()
 
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
 
     assert rf_evaluator.ragas_faithfulness_instance.llm.generate_text() == "dummy llm"
 
@@ -76,9 +79,9 @@ def test_ragas_faithfulness_has_modified_faithfulness_instance(
 
 
 @pytest.mark.vcr_logs
-def test_ragas_faithfulness_submits_evaluation(ragas, LLMObs, mock_llmobs_submit_evaluation):
+def test_ragas_faithfulness_submits_evaluation(ragas, llmobs, mock_llmobs_submit_evaluation):
     """Test that evaluation is submitted for a valid llm span where question is in the prompt variables"""
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
     rf_evaluator.run_and_submit_evaluation(llm_span)
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
@@ -103,10 +106,10 @@ def test_ragas_faithfulness_submits_evaluation(ragas, LLMObs, mock_llmobs_submit
 
 @pytest.mark.vcr_logs
 def test_ragas_faithfulness_submits_evaluation_on_span_with_question_in_messages(
-    ragas, LLMObs, mock_llmobs_submit_evaluation
+    ragas, llmobs, mock_llmobs_submit_evaluation
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_messages()
     rf_evaluator.run_and_submit_evaluation(llm_span)
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
@@ -130,9 +133,9 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_question_in_messages
 
 
 @pytest.mark.vcr_logs
-def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, LLMObs, mock_llmobs_submit_evaluation):
+def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, llmobs, mock_llmobs_submit_evaluation):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     llm_span = _expected_llmobs_llm_span_event(
         Span("dummy"),
         prompt={
@@ -169,19 +172,17 @@ def test_ragas_faithfulness_submits_evaluation_on_span_with_custom_keys(ragas, L
 
 
 @pytest.mark.vcr_logs
-def test_ragas_faithfulness_emits_traces(ragas, LLMObs):
-    rf_evaluator = RagasFaithfulnessEvaluator(LLMObs)
+def test_ragas_faithfulness_emits_traces(ragas, llmobs, llmobs_events):
+    rf_evaluator = RagasFaithfulnessEvaluator(llmobs)
     rf_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
-    assert rf_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 7
-    calls = rf_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_args_list
-
-    spans = [call[0][0] for call in calls]
-
+    ragas_spans = [event for event in llmobs_events if event["name"].startswith("dd-ragas.")]
+    ragas_spans = sorted(ragas_spans, key=lambda d: d["start_ns"])
+    assert len(ragas_spans) == 7
     # check name, io, span kinds match
-    assert spans == _expected_ragas_faithfulness_spans()
+    assert ragas_spans == _expected_ragas_faithfulness_spans()
 
     # verify the trace structure
-    root_span = spans[0]
+    root_span = ragas_spans[0]
     root_span_id = root_span["span_id"]
     assert root_span["parent_id"] == "undefined"
     assert root_span["meta"] is not None
@@ -189,16 +190,15 @@ def test_ragas_faithfulness_emits_traces(ragas, LLMObs):
     assert isinstance(root_span["meta"]["metadata"]["faithfulness_list"], list)
     assert isinstance(root_span["meta"]["metadata"]["statements"], list)
     root_span_trace_id = root_span["trace_id"]
-    for child_span in spans[1:]:
+    for child_span in ragas_spans[1:]:
         assert child_span["trace_id"] == root_span_trace_id
 
-    assert spans[1]["parent_id"] == root_span_id  # input extraction (task)
-    assert spans[2]["parent_id"] == root_span_id  # create statements (workflow)
-    assert spans[4]["parent_id"] == root_span_id  # create verdicts (workflow)
-    assert spans[6]["parent_id"] == root_span_id  # create score (task)
-
-    assert spans[3]["parent_id"] == spans[2]["span_id"]  # create statements prompt (task)
-    assert spans[5]["parent_id"] == spans[4]["span_id"]  # create verdicts prompt (task)
+    assert ragas_spans[1]["parent_id"] == root_span_id  # input extraction (task)
+    assert ragas_spans[2]["parent_id"] == root_span_id  # create statements (workflow)
+    assert ragas_spans[4]["parent_id"] == root_span_id  # create verdicts (workflow)
+    assert ragas_spans[6]["parent_id"] == root_span_id  # create score (task)
+    assert ragas_spans[3]["parent_id"] == ragas_spans[2]["span_id"]  # create statements prompt (task)
+    assert ragas_spans[5]["parent_id"] == ragas_spans[4]["span_id"]  # create verdicts prompt (task)
 
 
 def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_logs, run_python_code_in_subprocess):
@@ -215,7 +215,7 @@ def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_log
             "DD_LLMOBS_ML_APP": "unnamed-ml-app",
             "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
             "_DD_LLMOBS_EVALUATORS": "ragas_faithfulness",
-            "DD_LLMOBS_AGENTLESS_ENABLED": "true",
+            "DD_LLMOBS_AGENTLESS_ENABLED": "1",
         }
     )
     out, err, status, pid = run_python_code_in_subprocess(
@@ -243,7 +243,7 @@ with mock.patch(
 ):
     LLMObs.enable()
     LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
-""",
+    """,
         env=env,
     )
     assert status == 0, err
