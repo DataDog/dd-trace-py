@@ -6,7 +6,7 @@ import pytest
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.span import Span
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import _expected_ragas_spans
+from tests.llmobs._utils import _expected_ragas_faithfulness_spans
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_prompt
 
@@ -177,7 +177,8 @@ def test_ragas_faithfulness_emits_traces(ragas, llmobs, llmobs_events):
     ragas_spans = sorted(ragas_spans, key=lambda d: d["start_ns"])
     assert len(ragas_spans) == 7
     # check name, io, span kinds match
-    assert ragas_spans == _expected_ragas_spans()
+    assert ragas_spans == _expected_ragas_faithfulness_spans()
+
     # verify the trace structure
     root_span = ragas_spans[0]
     root_span_id = root_span["span_id"]
@@ -212,7 +213,7 @@ def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_log
             "DD_LLMOBS_ML_APP": "unnamed-ml-app",
             "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
             "_DD_LLMOBS_EVALUATORS": "ragas_faithfulness",
-            "DD_LLMOBS_AGENTLESS_ENABLED": "true",
+            "DD_LLMOBS_AGENTLESS_ENABLED": "1",
         }
     )
     out, err, status, pid = run_python_code_in_subprocess(
@@ -227,7 +228,7 @@ from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import logs_vcr
 
 ctx = logs_vcr.use_cassette(
-    "tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit.yaml"
+    "tests.llmobs.test_llmobs_ragas_evaluators.emits_traces_and_evaluations_on_exit.yaml"
 )
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
