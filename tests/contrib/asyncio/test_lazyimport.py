@@ -16,3 +16,10 @@ def test_lazy_import():
     assert tracer.context_provider.active() is span
     span.finish()
     assert tracer.context_provider.active() is None
+
+
+@pytest.mark.subprocess()
+def test_asyncio_not_imported_by_auto_instrumentation():
+    import sys
+    import ddtrace.auto
+    assert "asyncio" not in sys.modules
