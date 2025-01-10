@@ -103,7 +103,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_http_request_path_parameter_name_post(self):
+    def test_flask_full_sqli_iast_http_request_parameter_name_post(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["POST"])
         def sqli_1(param_str):
             import sqlite3
@@ -118,7 +118,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
-            # label test_flask_full_sqli_iast_http_request_path_parameter_name_post
+            # label test_flask_full_sqli_iast_http_request_parameter_name_post
             cur.execute(add_aspect("SELECT 1 FROM ", first_param))
 
             return "OK", 200
@@ -137,11 +137,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             loaded = json.loads(root_span.get_tag(IAST.JSON))
             assert loaded["sources"] == [
-                {"origin": "http.request.path.parameter.name", "name": "sqlite_master", "value": "unused"}
+                {"origin": "http.request.parameter.name", "name": "sqlite_master", "value": "sqlite_master"}
             ]
 
             line, hash_value = get_line_and_hash(
-                "test_flask_full_sqli_iast_http_request_path_parameter_name_post",
+                "test_flask_full_sqli_iast_http_request_parameter_name_post",
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )
@@ -160,7 +160,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_http_request_path_parameter_name_get(self):
+    def test_flask_full_sqli_iast_http_request_parameter_name_get(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET"])
         def sqli_1(param_str):
             import sqlite3
@@ -175,7 +175,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
-            # label test_flask_full_sqli_iast_http_request_path_parameter_name_get
+            # label test_flask_full_sqli_iast_http_request_parameter_name_get
             cur.execute(add_aspect("SELECT 1 FROM ", first_param))
 
             return "OK", 200
@@ -194,11 +194,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             loaded = json.loads(root_span.get_tag(IAST.JSON))
             assert loaded["sources"] == [
-                {"origin": "http.request.path.parameter.name", "name": "sqlite_master", "value": "unused"}
+                {"origin": "http.request.parameter.name", "name": "sqlite_master", "value": "sqlite_master"}
             ]
 
             line, hash_value = get_line_and_hash(
-                "test_flask_full_sqli_iast_http_request_path_parameter_name_get",
+                "test_flask_full_sqli_iast_http_request_parameter_name_get",
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )
