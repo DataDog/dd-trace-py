@@ -327,7 +327,7 @@ test = [
 # if you add or remove a version here, please also update the parallelism parameter
 # in .circleci/config.templ.yml
 [[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.11"]
+python = ["3.8", "3.10", "3.13"]
 fastapi = ["==0.86.0"]
 anyio = ["==3.7.1"]
 
