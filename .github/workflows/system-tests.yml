@@ -20,6 +20,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          ref: gnufede/APPSEC-56293
 
       - name: Build agent
         run: ./build.sh -i agent
@@ -65,6 +66,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          ref: gnufede/APPSEC-56293
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@v4
@@ -117,6 +119,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          ref: gnufede/APPSEC-56293
 
       - name: Build runner
         uses: ./.github/actions/install_runner
