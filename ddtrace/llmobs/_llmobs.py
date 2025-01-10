@@ -109,6 +109,10 @@ class LLMObs(Service):
         self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
 
+    def _on_span_start(self, span):
+        if self.enabled and span.span_type == SpanTypes.LLM:
+            self._do_annotations(span)
+
     def _on_span_finish(self, span):
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._submit_llmobs_span(span)
@@ -267,8 +271,8 @@ class LLMObs(Service):
 
     def _stop_service(self) -> None:
         # Remove listener hooks for span events
-        core.reset_listeners("trace.span_start")
-        core.reset_listeners("trace.span_finish")
+        core.reset_listeners("trace.span_start", self._on_span_start)
+        core.reset_listeners("trace.span_finish", self._on_span_finish)
 
         try:
             self._evaluator_runner.stop()
@@ -365,7 +369,7 @@ class LLMObs(Service):
         cls._instance.start()
 
         # Register hooks for span events
-        core.on("trace.span_start", cls._instance._do_annotations)
+        core.on("trace.span_start", cls._instance._on_span_start)
         core.on("trace.span_finish", cls._instance._on_span_finish)
 
         atexit.register(cls.disable)
