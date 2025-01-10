@@ -47,6 +47,7 @@ def spend_cpu_3():
 # We allow 5% error:
 TOLERANCE = 0.05
 
+
 def assert_almost_equal(value, target, tolerance=TOLERANCE):
     if abs(value - target) / target > tolerance:
         raise AssertionError(
