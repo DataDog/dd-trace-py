@@ -190,7 +190,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
             return inner_func(*args, **kwargs)
         finally:
             if start is not None:
-                end = time.monotonic_ns()
+                end = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 task_id, task_name, task_frame = _task.get_task(thread_id)
                 lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
