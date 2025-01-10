@@ -201,7 +201,7 @@ class _ImportHookChainedLoader:
         except (AttributeError, TypeError):
             pass
         try:
-            object.__getattribute__(module, "spec").loader = self.loader
+            module.spec.loader = self.loader
         except (AttributeError, TypeError):
             pass
 
@@ -313,10 +313,7 @@ class _ImportHookChainedLoader:
                     exception_hook(self, module)
                 raise
 
-        try:
-            self.call_back(module)
-        except Exception:
-            log.exception("Failed to call back on module %s", module)
+        self.call_back(module)
 
 
 class BaseModuleWatchdog(abc.ABC):
