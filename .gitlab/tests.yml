@@ -84,13 +84,14 @@ build_base_venvs:
   retry: 2
   before_script:
     - !reference [.testrunner, before_script]
-    - pip install riot==0.20.1
+    - pip install riot==0.20.1 "setuptools_scm[toml]>=4"
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
   script:
     - |
+      python -m setuptools_scm --force-write-version-files
       hashes=( $(riot list --hash-only "${SUITE_NAME}" | sort | ./.gitlab/ci-split-input.sh) )
       if [[ ${#hashes[@]} -eq 0 ]]; then
         echo "No riot hashes found for ${SUITE_NAME}"
