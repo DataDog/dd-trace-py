@@ -19,5 +19,5 @@ else:
     from .module_names_py312 import STDLIB_MODULE_NAMES
 
 
-def _stdlib_for_python_version():  # type: () -> set
+def _stdlib_for_python_version():  # type: () -> set[str]
     return STDLIB_MODULE_NAMES
