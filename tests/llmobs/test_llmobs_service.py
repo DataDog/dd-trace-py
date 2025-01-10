@@ -9,7 +9,7 @@ import ddtrace
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import TraceFilter
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS

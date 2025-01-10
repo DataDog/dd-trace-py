@@ -33,7 +33,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from ddtrace.settings.config import Config
 
 from .services.bedrock import patched_bedrock_api_call

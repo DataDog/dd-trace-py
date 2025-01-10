@@ -5,7 +5,7 @@ import pytest
 
 from ddtrace.contrib.dramatiq import patch
 from ddtrace.contrib.dramatiq import unpatch
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import snapshot
 

@@ -10,7 +10,7 @@ from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.contrib.trace_utils import unwrap as _u
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from ddtrace.settings.asm import config as asm_config
 
 from .connection import _wrap_send

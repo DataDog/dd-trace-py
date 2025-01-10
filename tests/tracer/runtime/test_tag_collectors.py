@@ -77,7 +77,7 @@ def test_tracer_tags_config():
 def test_tracer_tags_service_from_code():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace
-    from ddtrace.filters import TraceFilter
+    from ddtrace.trace import TraceFilter
     from ddtrace.internal.runtime import tag_collectors
     from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 

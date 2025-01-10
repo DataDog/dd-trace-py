@@ -152,7 +152,7 @@ import asyncio
 import pytest
 import sys
 from tests.conftest import *
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 import aredis
 from tests.contrib.config import REDIS_CONFIG
 from tests.contrib.aredis.test_aredis import traced_aredis

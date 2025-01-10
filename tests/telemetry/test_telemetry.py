@@ -148,7 +148,7 @@ import logging
 logging.basicConfig()
 
 from ddtrace import tracer
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import TraceFilter
 
 class FailingFilture(TraceFilter):
     def process_trace(self, trace):

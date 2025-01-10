@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from ddtrace import config
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from ddtrace.settings import IntegrationConfig
 
 

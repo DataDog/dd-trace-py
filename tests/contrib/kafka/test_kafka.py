@@ -16,7 +16,7 @@ from ddtrace import Tracer
 from ddtrace.contrib.kafka.patch import TracedConsumer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey

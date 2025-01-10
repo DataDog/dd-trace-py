@@ -31,7 +31,7 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import TraceFilter
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat

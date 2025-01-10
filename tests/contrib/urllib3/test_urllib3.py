@@ -11,7 +11,7 @@ from ddtrace.contrib.urllib3 import patch
 from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from ddtrace.settings.asm import config as asm_config
 from tests.contrib.config import HTTPBIN_CONFIG
 from tests.opentracer.utils import init_tracer
