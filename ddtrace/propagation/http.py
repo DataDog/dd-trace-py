@@ -1175,7 +1175,7 @@ class HTTPPropagator(object):
                 baggage_context = _BaggageHeader._extract(normalized_headers)
                 if baggage_context._baggage != {}:
                     if context:
-                        context._baggage = baggage_context._baggage
+                        context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
