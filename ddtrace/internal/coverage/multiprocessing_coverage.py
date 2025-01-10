@@ -17,10 +17,7 @@ from pathlib import Path
 import typing as t
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
-from ddtrace.internal.logger import get_logger
 
-
-log = get_logger(__name__)
 
 BaseProcess = multiprocessing.process.BaseProcess
 base_process_bootstrap = BaseProcess._bootstrap  # type: ignore[attr-defined]
@@ -39,24 +36,12 @@ def _is_patched():
 
 class CoverageCollectingMultiprocess(BaseProcess):
     def _absorb_child_coverage(self):
-        if not ModuleCodeCollector.coverage_enabled() or ModuleCodeCollector._instance is None:
+        if ModuleCodeCollector._instance is None:
             return
 
-        if self._parent_conn is None:
-            log.debug("Pipe was None when absorbing child coverage data", exc_info=True)
-            return
-
-        try:
-            if self._parent_conn.poll():
-                rcvd = self._parent_conn.recv()
-                if rcvd:
-                    ModuleCodeCollector.absorb_data_json(rcvd)
-                else:
-                    log.debug("Child process sent empty coverage data")
-            else:
-                log.debug("Child process did not send coverage data")
-        except Exception:
-            log.debug("Failed to absorb child coverage data", exc_info=True)
+        rcvd = self._parent_conn.recv()
+        if rcvd:
+            ModuleCodeCollector.absorb_data_json(rcvd)
 
     def _bootstrap(self, *args, **kwargs):
         """Wraps around the execution of the process to collect coverage data
@@ -76,11 +61,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
         # Call the original bootstrap method
         rval = base_process_bootstrap(self, *args, **kwargs)
 
-        if self._dd_coverage_enabled and self._child_conn is not None:
-            try:
-                self._child_conn.send(ModuleCodeCollector.get_data_json())
-            except Exception:
-                log.warning("Failed to send coverage data to parent process", exc_info=True)
+        self._child_conn.send(ModuleCodeCollector.get_data_json())
 
         return rval
 
@@ -88,16 +69,13 @@ class CoverageCollectingMultiprocess(BaseProcess):
         self._dd_coverage_enabled = False
         self._dd_coverage_include_paths = []
 
-        # If coverage is not enabled, the pipe used to communicate coverage data from child to parent is not needed
-        self._parent_conn: t.Optional[multiprocessing.Pipe] = None
-        self._child_conn: t.Optional[multiprocessing.Pipe] = None
+        # This pipe is used to communicate final gathered coverage from the parent process to the child
+        parent_conn, child_conn = multiprocessing.Pipe()
+        self._parent_conn = parent_conn
+        self._child_conn = child_conn
 
         # Only enable coverage in a child process being created if the parent process has coverage enabled
         if ModuleCodeCollector.coverage_enabled():
-            parent_conn, child_conn = multiprocessing.Pipe()
-            self._parent_conn = parent_conn
-            self._child_conn = child_conn
-
             self._dd_coverage_enabled = True
             self._dd_coverage_include_paths = ModuleCodeCollector._instance._include_paths
 

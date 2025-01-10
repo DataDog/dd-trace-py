@@ -13,10 +13,7 @@ from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.packages import platlib_path
-from ddtrace.internal.packages import platstdlib_path
-from ddtrace.internal.packages import purelib_path
-from ddtrace.internal.packages import stdlib_path
+from ddtrace.internal.packages import is_stdlib
 from ddtrace.vendor.contextvars import ContextVar
 
 
@@ -36,19 +33,13 @@ class ModuleCodeCollector(ModuleWatchdog):
 
     def __init__(self) -> None:
         super().__init__()
-        # Coverage collection configuration
-        self._collect_import_coverage: bool = False
-        self._include_paths: t.List[Path] = []
-        # By default, exclude standard / venv paths (eg: avoids over-instrumenting cases where a virtualenv is created
-        # in the root directory of a repository)
-        self._exclude_paths: t.List[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
-
-        self._coverage_enabled: bool = False
         self.seen: t.Set[t.Tuple[CodeType, str]] = set()
-
-        # Data structures for coverage data
-        self.lines: t.DefaultDict[str, t.Set] = defaultdict(set)
-        self.covered: t.DefaultDict[str, t.Set] = defaultdict(set)
+        self._collect_import_coverage: bool = False
+        self._coverage_enabled: bool = False
+        self.lines: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
+        self.covered: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
+        self._include_paths: t.List[Path] = []
+        self.lines_by_context: t.DefaultDict[str, t.DefaultDict[str, t.Set]] = defaultdict(lambda: defaultdict(set))
 
         # Import-time coverage data
         self._import_time_covered: t.DefaultDict[str, t.Set[int]] = defaultdict(set)
@@ -325,14 +316,15 @@ class ModuleCodeCollector(ModuleWatchdog):
         if _module is None:
             return code
 
-        code_path = Path(code.co_filename).resolve()
+        code_path = Path(code.co_filename)
 
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument
             return code
 
-        if any(code_path.is_relative_to(exclude_path) for exclude_path in self._exclude_paths):
-            # Don't instrument code from standard library/site packages/etc.
+        if is_stdlib(code_path):
+            # Don't instrument standard library code (example: can happen when a virtual env is created in the same
+            # directory as the include paths)
             return code
 
         retval = self.instrument_code(code, _module.__package__ if _module is not None else "")
