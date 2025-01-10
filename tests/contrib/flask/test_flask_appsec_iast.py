@@ -129,7 +129,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _deduplication_enabled=False,
             )
         ):
-            resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"})
+            resp = self.client.post("/sqli/test/", data={"name": "sqlite_master"})
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
@@ -137,7 +137,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             loaded = json.loads(root_span.get_tag(IAST.JSON))
             assert loaded["sources"] == [
-                {"origin": "http.request.path.parameter.name", "name": "name", "value": "test"}
+                {"origin": "http.request.path.parameter.name", "name": "name", "value": "sqlite_master"}
             ]
 
             line, hash_value = get_line_and_hash(
@@ -152,7 +152,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     {"value": "SELECT "},
                     {"redacted": True},
                     {"value": " FROM "},
-                    {"value": "test", "source": 0},
+                    {"value": "sqlite_master", "source": 0},
                 ]
             }
             assert vulnerability["location"]["line"] == line
@@ -186,7 +186,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _deduplication_enabled=False,
             )
         ):
-            resp = self.client.get("/sqli/sqlite_master/", params={"name": "test"})
+            resp = self.client.get("/sqli/test/", params={"name": "sqlite_master"})
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
@@ -194,7 +194,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             loaded = json.loads(root_span.get_tag(IAST.JSON))
             assert loaded["sources"] == [
-                {"origin": "http.request.path.parameter.name", "name": "name", "value": "test"}
+                {"origin": "http.request.path.parameter.name", "name": "name", "value": "sqlite_master"}
             ]
 
             line, hash_value = get_line_and_hash(
@@ -209,7 +209,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     {"value": "SELECT "},
                     {"redacted": True},
                     {"value": " FROM "},
-                    {"value": "test", "source": 0},
+                    {"value": "sqlite_master", "source": 0},
                 ]
             }
             assert vulnerability["location"]["line"] == line
