@@ -45,8 +45,8 @@ class RagasContextPrecisionEvaluator(BaseRagasEvaluator):
         """
         super().__init__(llmobs_service)
         self.ragas_context_precision_instance = self._get_context_precision_instance()
-        self.context_precision_output_parser = self.mini_ragas.RagasoutputParser(
-            pydantic_object=self.mini_ragas.ContextPrecisionVerification
+        self.context_precision_output_parser = self.ragas_dependencies.RagasoutputParser(
+            pydantic_object=self.ragas_dependencies.ContextPrecisionVerification
         )
 
     def _get_context_precision_instance(self):
@@ -55,11 +55,11 @@ class RagasContextPrecisionEvaluator(BaseRagasEvaluator):
         ragas evaluator is updated with the latest ragas context precision instance
         instance AND has an non-null llm
         """
-        if self.mini_ragas.context_precision is None:
+        if self.ragas_dependencies.context_precision is None:
             return None
-        ragas_context_precision_instance = self.mini_ragas.context_precision
+        ragas_context_precision_instance = self.ragas_dependencies.context_precision
         if not ragas_context_precision_instance.llm:
-            ragas_context_precision_instance.llm = self.mini_ragas.llm_factory()
+            ragas_context_precision_instance.llm = self.ragas_dependencies.llm_factory()
         return ragas_context_precision_instance
 
     def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
@@ -125,10 +125,10 @@ class RagasContextPrecisionEvaluator(BaseRagasEvaluator):
 
                 answers = []
                 for response in responses:
-                    agg_answer = self.mini_ragas.ensembler.from_discrete([response], "verdict")
+                    agg_answer = self.ragas_dependencies.ensembler.from_discrete([response], "verdict")
                     if agg_answer:
                         try:
-                            agg_answer = self.mini_ragas.ContextPrecisionVerification.parse_obj(agg_answer[0])
+                            agg_answer = self.ragas_dependencies.ContextPrecisionVerification.parse_obj(agg_answer[0])
                         except Exception as e:
                             logger.debug(
                                 "Failed to parse context precision verification for `ragas_context_precision`",

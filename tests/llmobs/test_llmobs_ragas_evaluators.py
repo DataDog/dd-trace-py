@@ -251,29 +251,29 @@ with mock.patch(
     assert err == b""
 
 
-def test_ragas_context_precision_init(ragas, LLMObs):
-    rcp_evaluator = RagasContextPrecisionEvaluator(LLMObs)
-    assert rcp_evaluator.llmobs_service == LLMObs
+def test_ragas_context_precision_init(ragas, llmobs):
+    rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
+    assert rcp_evaluator.llmobs_service == llmobs
     assert rcp_evaluator.ragas_context_precision_instance == ragas.metrics.context_precision
     assert rcp_evaluator.ragas_context_precision_instance.llm == ragas.llms.llm_factory()
 
 
-def test_ragas_context_precision_throws_if_dependencies_not_present(LLMObs, mock_ragas_dependencies_not_present, ragas):
+def test_ragas_context_precision_throws_if_dependencies_not_present(llmobs, mock_ragas_dependencies_not_present, ragas):
     with pytest.raises(
         NotImplementedError, match="Failed to load dependencies for `ragas_context_precision` evaluator"
     ):
-        RagasContextPrecisionEvaluator(LLMObs)
+        RagasContextPrecisionEvaluator(llmobs)
 
 
-def test_ragas_context_precision_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, LLMObs):
-    rcp_evaluator = RagasContextPrecisionEvaluator(LLMObs)
+def test_ragas_context_precision_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, llmobs):
+    rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
     failure_msg, _ = rcp_evaluator.evaluate(_llm_span_without_io())
     assert failure_msg == "fail_extract_context_precision_inputs"
     assert rcp_evaluator.llmobs_service.submit_evaluation.call_count == 0
 
 
 def test_ragas_context_precision_has_modified_context_precision_instance(
-    ragas, mock_llmobs_submit_evaluation, reset_ragas_context_precision_llm, LLMObs
+    ragas, mock_llmobs_submit_evaluation, reset_ragas_context_precision_llm, llmobs
 ):
     """Context precision instance used in ragas evaluator should match the global ragas context precision instance"""
     from ragas.llms import BaseRagasLLM
@@ -291,7 +291,7 @@ def test_ragas_context_precision_has_modified_context_precision_instance(
 
     context_precision.llm = FirstDummyLLM()
 
-    rf_evaluator = RagasContextPrecisionEvaluator(LLMObs)
+    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
 
     assert rf_evaluator.ragas_context_precision_instance.llm.generate_text() == "dummy llm"
 
@@ -307,15 +307,15 @@ def test_ragas_context_precision_has_modified_context_precision_instance(
 
     context_precision.llm = SecondDummyLLM()
 
-    rf_evaluator = RagasContextPrecisionEvaluator(LLMObs)
+    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
 
     assert rf_evaluator.ragas_context_precision_instance.llm.generate_text() == "second dummy llm"
 
 
 @pytest.mark.vcr_logs
-def test_ragas_context_precision_submits_evaluation(ragas, LLMObs, mock_llmobs_submit_evaluation):
+def test_ragas_context_precision_submits_evaluation(ragas, llmobs, mock_llmobs_submit_evaluation):
     """Test that evaluation is submitted for a valid llm span where question is in the prompt variables"""
-    rf_evaluator = RagasContextPrecisionEvaluator(LLMObs)
+    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
     rf_evaluator.run_and_submit_evaluation(llm_span)
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
@@ -339,10 +339,10 @@ def test_ragas_context_precision_submits_evaluation(ragas, LLMObs, mock_llmobs_s
 
 @pytest.mark.vcr_logs
 def test_ragas_context_precision_submits_evaluation_on_span_with_question_in_messages(
-    ragas, LLMObs, mock_llmobs_submit_evaluation
+    ragas, llmobs, mock_llmobs_submit_evaluation
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
-    rf_evaluator = RagasContextPrecisionEvaluator(LLMObs)
+    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_messages()
     rf_evaluator.run_and_submit_evaluation(llm_span)
     rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
@@ -366,10 +366,10 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_question_in_mes
 
 @pytest.mark.vcr_logs
 def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
-    ragas, LLMObs, mock_llmobs_submit_evaluation
+    ragas, llmobs, mock_llmobs_submit_evaluation
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
-    rf_evaluator = RagasContextPrecisionEvaluator(LLMObs)
+    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
     llm_span = _expected_llmobs_llm_span_event(
         Span("dummy"),
         prompt={
@@ -404,8 +404,8 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
 
 
 @pytest.mark.vcr_logs
-def test_ragas_context_precision_emits_traces(ragas, LLMObs):
-    rcp_evaluator = RagasContextPrecisionEvaluator(LLMObs)
+def test_ragas_context_precision_emits_traces(ragas, llmobs):
+    rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
     rcp_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
     assert rcp_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 2
     calls = rcp_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_args_list
