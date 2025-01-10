@@ -1,5 +1,6 @@
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
+from itertools import chain
 from types import FrameType
 from typing import Any
 from typing import Dict
@@ -23,11 +24,11 @@ def get_args(frame: FrameType) -> Iterator[Tuple[str, Any]]:
 
 def get_locals(frame: FrameType) -> Iterator[Tuple[str, Any]]:
     code = frame.f_code
+    _locals = frame.f_locals
     nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
-    names = code.co_varnames[nargs:]
-    values = (frame.f_locals.get(name) for name in names)
-
-    return zip(names, values)
+    return (
+        (name, _locals.get(name)) for name in chain(code.co_varnames[nargs:], code.co_freevars, code.co_cellvars)
+    )  # include freevars and cellvars
 
 
 def get_globals(frame: FrameType) -> Iterator[Tuple[str, Any]]:
