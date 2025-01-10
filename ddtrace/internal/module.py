@@ -194,15 +194,14 @@ class _ImportHookChainedLoader:
         self.transformers[key] = transformer
 
     def call_back(self, module: ModuleType) -> None:
-        # Restore the original loader, if possible. Some specs might be native
-        # and won't support attribute assignment.
+        # Restore the original loader
         try:
             module.__loader__ = self.loader
-        except (AttributeError, TypeError):
+        except AttributeError:
             pass
         try:
             module.spec.loader = self.loader
-        except (AttributeError, TypeError):
+        except AttributeError:
             pass
 
         if module.__name__ == "pkg_resources":
@@ -236,10 +235,7 @@ class _ImportHookChainedLoader:
         else:
             module = self.loader.load_module(fullname)
 
-        try:
-            self.call_back(module)
-        except Exception:
-            log.exception("Failed to call back on module %s", module)
+        self.call_back(module)
 
         return module
 
