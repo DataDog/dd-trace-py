@@ -22,7 +22,7 @@ def test_evaluator_runner_start(mock_evaluator_logs):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
     evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=mock.MagicMock()))
     evaluator_runner.start()
-    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r to %r", "EvaluatorRunner")])
+    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r", "EvaluatorRunner")])
 
 
 def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
@@ -34,9 +34,9 @@ def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
     )
 
 
-def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
-    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
-    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
+def test_evaluator_runner_periodic_enqueues_eval_metric(llmobs, mock_llmobs_eval_metric_writer):
+    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
+    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=llmobs))
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
     evaluator_runner.periodic()
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
@@ -45,9 +45,9 @@ def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval
 
 
 @pytest.mark.vcr_logs
-def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer):
-    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
-    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
+def test_evaluator_runner_timed_enqueues_eval_metric(llmobs, mock_llmobs_eval_metric_writer):
+    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
+    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=llmobs))
     evaluator_runner.start()
 
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
@@ -97,6 +97,12 @@ LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"
     assert status == 0, err
     assert out == b""
     assert err == b""
+
+
+def test_evaluator_runner_unsupported_evaluator():
+    with override_env({"_DD_LLMOBS_EVALUATORS": "unsupported"}):
+        with pytest.raises(ValueError):
+            EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
 
 
 def test_evaluator_runner_sampler_single_rule(monkeypatch):

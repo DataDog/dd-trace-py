@@ -557,7 +557,46 @@ def _dummy_evaluator_eval_metric_event(span_id, trace_id):
     )
 
 
-def _expected_ragas_spans(ragas_inputs=None):
+def _expected_ragas_context_precision_spans(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+    return [
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": "undefined",
+            "name": "dd-ragas.context_precision",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": "1.0"},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.extract_evaluation_inputs_from_span",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+    ]
+
+
+def _expected_ragas_faithfulness_spans(ragas_inputs=None):
     if not ragas_inputs:
         ragas_inputs = default_ragas_inputs
     return [
@@ -585,7 +624,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "trace_id": mock.ANY,
             "span_id": mock.ANY,
             "parent_id": mock.ANY,
-            "name": "dd-ragas.extract_faithfulness_inputs",
+            "name": "dd-ragas.extract_evaluation_inputs_from_span",
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
