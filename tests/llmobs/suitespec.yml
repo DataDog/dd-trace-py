@@ -107,4 +107,4 @@ suites:
       - '@llmobs'
       - tests/contrib/langgraph/*
     runner: riot
-    snapshot: false
+    snapshot: true
