@@ -186,16 +186,6 @@ class _ImportHookChainedLoader:
         self.transformers[key] = transformer
 
     def call_back(self, module: ModuleType) -> None:
-        # Restore the original loader
-        try:
-            module.__loader__ = self.loader
-        except AttributeError:
-            pass
-        try:
-            module.spec.loader = self.loader
-        except AttributeError:
-            pass
-
         if module.__name__ == "pkg_resources":
             # DEV: pkg_resources support to prevent errors such as
             # NotImplementedError: Can't perform this operation for unregistered
