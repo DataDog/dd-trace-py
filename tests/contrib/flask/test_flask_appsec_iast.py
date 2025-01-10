@@ -118,7 +118,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
-            # label test_flask_full_sqli_iast_http_request_path_parameter
+            # label test_flask_full_sqli_iast_http_request_path_parameter_name_post
             cur.execute(add_aspect("SELECT 1 FROM ", first_param))
 
             return "OK", 200
@@ -175,7 +175,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
-            # label test_flask_full_sqli_iast_http_request_path_parameter
+            # label test_flask_full_sqli_iast_http_request_path_parameter_name_get
             cur.execute(add_aspect("SELECT 1 FROM ", first_param))
 
             return "OK", 200
@@ -186,7 +186,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _deduplication_enabled=False,
             )
         ):
-            resp = self.client.get("/sqli/sqlite_master/", data={"name": "test"})
+            resp = self.client.get("/sqli/sqlite_master/", params={"name": "test"})
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
