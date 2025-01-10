@@ -41,7 +41,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
 
         rcvd = self._parent_conn.recv()
         if rcvd:
-            ModuleCodeCollector.absorb_data_json(rcvd)
+            ModuleCodeCollector._instance.absorb_data_json(rcvd)
 
     def _bootstrap(self, *args, **kwargs):
         """Wraps around the execution of the process to collect coverage data

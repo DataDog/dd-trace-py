@@ -49,22 +49,19 @@ class CoverageCollectingThread(threading.Thread):
             self._coverage_context = ModuleCodeCollector.CollectInContext()
             self._coverage_context.__enter__()
 
-        try:
-            thread_boostrap_inner(self)
-        finally:
-            # Ensure coverage data is collected, and context is exited, even if an exception is raised
-            if self._should_cover:
-                covered_lines = ModuleCodeCollector.get_context_data_json()
-                self._coverage_context.__exit__()
-                self._coverage_queue.put(covered_lines)
+        thread_boostrap_inner(self)
+
+        if self._should_cover:
+            covered_lines = ModuleCodeCollector.get_context_data_json()
+            self._coverage_context.__exit__()
+            self._coverage_queue.put(covered_lines)
 
     def join(self, *args, **kwargs):
         """Absorb coverage data from the thread after it's joined"""
         thread_join(self, *args, **kwargs)
         if self._should_cover:
-            if self._coverage_queue.qsize():
-                thread_coverage = self._coverage_queue.get()
-                ModuleCodeCollector.absorb_data_json(thread_coverage)
+            thread_coverage = self._coverage_queue.get()
+            ModuleCodeCollector._instance.absorb_data_json(thread_coverage)
 
 
 def _patch_threading():

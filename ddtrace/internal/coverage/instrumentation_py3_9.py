@@ -10,7 +10,7 @@ from ddtrace.internal.injection import HookType
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-assert sys.version_info >= (3, 7) and sys.version_info < (3, 8)  # nosec
+assert sys.version_info >= (3, 9) and sys.version_info < (3, 10)  # nosec
 
 
 class JumpDirection(int, Enum):
@@ -24,16 +24,17 @@ class JumpDirection(int, Enum):
 
 class Jump(ABC):
     # NOTE: in Python 3.9, jump arguments are offsets, vs instruction numbers (ie offsets/2) in Python 3.10
-    def __init__(self, start: int, arg: int) -> None:
+    def __init__(self, start: int, argbytes: list[int]) -> None:
         self.start = start
         self.end: int
-        self.arg = arg
+        self.arg = int.from_bytes(argbytes, "big", signed=False)
+        self.argsize = len(argbytes)
 
 
 class AJump(Jump):
     __opcodes__ = set(dis.hasjabs)
 
-    def __init__(self, start: int, arg: int) -> None:
+    def __init__(self, start: int, arg: list[int]) -> None:
         super().__init__(start, arg)
         self.end = self.arg
 
@@ -41,7 +42,7 @@ class AJump(Jump):
 class RJump(Jump):
     __opcodes__ = set(dis.hasjrel)
 
-    def __init__(self, start: int, arg: int, direction: JumpDirection) -> None:
+    def __init__(self, start: int, arg: list[int], direction: JumpDirection) -> None:
         super().__init__(start, arg)
         self.direction = direction
         self.end = start + (self.arg) * self.direction + 2
@@ -80,14 +81,13 @@ class ABranch(Branch):
 
 
 EXTENDED_ARG = dis.EXTENDED_ARG
-NO_OFFSET = -1
 
 
 def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
     instructions = [Instruction(-1, opcode, arg & 0xFF)]
     arg >>= 8
     while arg:
-        instructions.insert(0, Instruction(NO_OFFSET, EXTENDED_ARG, arg & 0xFF))
+        instructions.insert(0, Instruction(-1, EXTENDED_ARG, arg & 0xFF))
         arg >>= 8
     return instructions
 
@@ -108,7 +108,7 @@ def update_location_data(
 
     current_orig_offset = 0  # Cumulative offset used to compare against trap offsets
 
-    # All instructions have to have line numbers, so the first instructions of the trap call must mark the
+    # In 3.9 , all instructions have to have line numbers, so the first instructions of the trap call must mark the
     # beginning of the line. The subsequent offsets need to be incremented by the size of the trap call instructions
     # plus any extended args.
 
@@ -163,20 +163,18 @@ def update_location_data(
 LOAD_CONST = dis.opmap["LOAD_CONST"]
 CALL = dis.opmap["CALL_FUNCTION"]
 POP_TOP = dis.opmap["POP_TOP"]
-IMPORT_NAME = dis.opmap["IMPORT_NAME"]
-IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 
 
 def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     return (
         *instr_with_arg(LOAD_CONST, trap_index),
         *instr_with_arg(LOAD_CONST, arg_index),
-        Instruction(NO_OFFSET, CALL, 1),
-        Instruction(NO_OFFSET, POP_TOP, 0),
+        Instruction(-1, CALL, 1),
+        Instruction(-1, POP_TOP, 0),
     )
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[CodeType, t.Set[int]]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
@@ -196,14 +194,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     line_map = {}
     line_starts = dict(dis.findlinestarts(code))
 
-    # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
-    # For example, from ...package import module
-    current_arg: int = 0
-    previous_arg: int = 0
-    previous_previous_arg: int = 0
-    current_import_name: t.Optional[str] = None
-    current_import_package: t.Optional[str] = None
-
     try:
         code_iter = iter(enumerate(code.co_code))
         ext: list[int] = []
@@ -218,14 +208,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
                 trap_instructions = trap_call(trap_index, len(new_consts))
                 traps[original_offset] = len(trap_instructions)
                 instructions.extend(trap_instructions)
-
-                # Make sure that the current module is marked as depending on its own package by instrumenting the
-                # first executable line
-                package_dep = None
-                if code.co_name == "<module>" and len(new_consts) == len(code.co_consts) + 1:
-                    package_dep = (package, ("",))
-
-                new_consts.append((line, trap_arg, package_dep))
+                new_consts.append((line, trap_arg))
 
                 line_map[original_offset] = trap_instructions[0]
 
@@ -238,45 +221,11 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
             # Propagate code
             instructions.append(Instruction(original_offset, opcode, arg))
 
-            if opcode is EXTENDED_ARG:
-                ext.append(arg)
-                continue
-            else:
-                previous_previous_arg = previous_arg
-                previous_arg = current_arg
-                current_arg = int.from_bytes([*ext, arg], "big", signed=False)
-                ext.clear()
-
-            # Track imports names
-            if opcode == IMPORT_NAME:
-                import_depth = code.co_consts[previous_previous_arg]
-                current_import_name = code.co_names[current_arg]
-                # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
-                current_import_package = (
-                    ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
-                )
-                new_consts[-1] = (
-                    new_consts[-1][0],
-                    new_consts[-1][1],
-                    (current_import_package, (current_import_name,)),
-                )
-
-            # Also track import from statements since it's possible that the "from" target is a module, eg:
-            # from my_package import my_module
-            # Since the package has not changed, we simply extend the previous import names with the new value
-            if opcode == IMPORT_FROM:
-                import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
-                new_consts[-1] = (
-                    new_consts[-1][0],
-                    new_consts[-1][1],
-                    (new_consts[-1][2][0], tuple(list(new_consts[-1][2][1]) + [import_from_name])),
-                )
-
             # Collect branching instructions for processing
             if opcode in AJump.__opcodes__:
-                jumps[offset] = AJump(original_offset, current_arg)
+                jumps[offset] = AJump(original_offset, [*ext, arg])
             elif opcode in RJump.__opcodes__:
-                jumps[offset] = RJump(original_offset, current_arg, JumpDirection.from_opcode(opcode))
+                jumps[offset] = RJump(original_offset, [*ext, arg], JumpDirection.from_opcode(opcode))
 
             if opcode is EXTENDED_ARG:
                 ext.append(arg)
@@ -344,7 +293,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
                     if jump_instr.targets:
                         for target in jump_instr.targets:
                             if target.end is not jump_instr:
-                                raise ValueError("Invalid target")
+                                raise (ValueError("Jump instruction is not the end of the branch"))
                             target.end = ext_instr
                         ext_instr.targets.extend(jump_instr.targets)
                         jump_instr.targets.clear()
@@ -372,28 +321,20 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     # Instrument nested code objects recursively
     for original_offset, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType):
-            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
+            new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg)
             seen_lines.update(nested_lines)
 
     ext_arg_offsets = [(instr.offset, s) for instr, s in exts]
+    new_lnotab = update_location_data(code, traps, ext_arg_offsets)
+
+    replace = code.replace(
+        co_code=bytes(new_code),
+        co_consts=tuple(new_consts),
+        co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+        co_lnotab=new_lnotab,
+    )
 
     return (
-        CodeType(
-            code.co_argcount,
-            code.co_kwonlyargcount,
-            code.co_nlocals,
-            code.co_stacksize + 4,
-            code.co_flags,
-            bytes(new_code),
-            tuple(new_consts),
-            code.co_names,
-            code.co_varnames,
-            code.co_filename,
-            code.co_name,
-            code.co_firstlineno,
-            update_location_data(code, traps, ext_arg_offsets),
-            code.co_freevars,
-            code.co_cellvars,
-        ),
+        replace,
         seen_lines,
     )

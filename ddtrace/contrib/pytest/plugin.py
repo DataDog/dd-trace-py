@@ -118,7 +118,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
 
-            install(include_paths=[workspace_path], collect_import_time_coverage=True)
+            install(include_paths=[workspace_path])
             if COVER_SESSION:
                 ModuleCodeCollector.start_coverage()
         else:

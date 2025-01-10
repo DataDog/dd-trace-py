@@ -1,0 +1,3 @@
+import typing as t
+
+def replace_in_tuple(tup: tuple, item: t.Any, replacement: t.Any) -> None: ...

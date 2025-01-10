@@ -73,7 +73,7 @@ def test_coverage_multiprocessing_context():
             process.start()
             process.join()
 
-            context_covered = dict(context_collector.get_covered_lines())
+        context_covered = dict(context_collector.get_covered_lines())
 
         expected_lines = {
             f"{cwd}/tests/coverage/included_path/callee.py": {10, 11, 13, 14},
@@ -160,7 +160,7 @@ def test_coverage_concurrent_futures_processpool_context():
                 future = executor.submit(called_in_context_main, 1, 2)
                 future.result()
 
-            context_covered = dict(context_collector.get_covered_lines())
+        context_covered = dict(context_collector.get_covered_lines())
 
         expected_lines = {
             f"{cwd}/tests/coverage/included_path/callee.py": {10, 11, 13, 14},

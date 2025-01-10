@@ -158,8 +158,8 @@ exclude-modules = '''
   | ddtrace.internal.datadog.profiling.ddup._ddup
   | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
   # coverage has version-specific checks that prevent import
-  | ddtrace.internal.coverage.instrumentation_py3_7
   | ddtrace.internal.coverage.instrumentation_py3_8
+  | ddtrace.internal.coverage.instrumentation_py3_9
   | ddtrace.internal.coverage.instrumentation_py3_10
   | ddtrace.internal.coverage.instrumentation_py3_11
   | ddtrace.internal.coverage.instrumentation_py3_12
