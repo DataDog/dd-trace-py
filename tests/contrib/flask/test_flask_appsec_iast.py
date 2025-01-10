@@ -129,7 +129,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _deduplication_enabled=False,
             )
         ):
-            resp = self.client.post("/sqli/test/", data={"name": "sqlite_master"})
+            resp = self.client.post("/sqli/test/", data={"sqlite_master": "unused"})
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
@@ -137,7 +137,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             loaded = json.loads(root_span.get_tag(IAST.JSON))
             assert loaded["sources"] == [
-                {"origin": "http.request.path.parameter.name", "name": "name", "value": "sqlite_master"}
+                {"origin": "http.request.path.parameter.name", "name": "sqlite_master", "value": "unused"}
             ]
 
             line, hash_value = get_line_and_hash(
@@ -186,7 +186,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _deduplication_enabled=False,
             )
         ):
-            resp = self.client.get("/sqli/test/", params={"name": "sqlite_master"})
+            resp = self.client.get("/sqli/test/", params={"sqlite_master": "unused"})
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
@@ -194,7 +194,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             loaded = json.loads(root_span.get_tag(IAST.JSON))
             assert loaded["sources"] == [
-                {"origin": "http.request.path.parameter.name", "name": "name", "value": "sqlite_master"}
+                {"origin": "http.request.path.parameter.name", "name": "sqlite_master", "value": "unused"}
             ]
 
             line, hash_value = get_line_and_hash(
