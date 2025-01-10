@@ -651,7 +651,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 telemetry_writer.periodic(force_flush=True)
                 # asserts unsuccessful status code was logged
                 log.debug.assert_called_with(
-                    "failed to send telemetry to %s. response: %s",
+                    "Failed to send Instrumentation Telemetry to %s. response: %s",
                     telemetry_writer._client.url,
                     mock_status,
                 )
