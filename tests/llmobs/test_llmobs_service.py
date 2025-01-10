@@ -1310,6 +1310,34 @@ def test_activate_distributed_headers_activates_context(llmobs, mock_llmobs_logs
             mock_activate.assert_called_once_with(dummy_context)
 
 
+def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
+    """
+    Regression test that ensures that listener hooks enqueue span events to the correct writer,
+    not the default writer created at startup.
+    """
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="repro-issue", agentless_enabled=True, api_key="foobar.baz", site="datad0g.com")
+with LLMObs.agent("dummy"):
+    pass
+""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == b""
+    agentless_writer_log = b"failed to send traces to intake at https://llmobs-intake.datad0g.com/api/v2/llmobs: HTTP error status 403, reason Forbidden\n"  # noqa: E501
+    agent_proxy_log = b"failed to send, dropping 1 traces to intake at http://localhost:8126/evp_proxy/v2/api/v2/llmobs after 5 retries"  # noqa: E501
+    assert err == agentless_writer_log
+    assert agent_proxy_log not in err
+
+
 def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
