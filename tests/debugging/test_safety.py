@@ -15,7 +15,10 @@ def test_get_args():
         assert set(dict(_safety.get_args(inspect.currentframe().f_back)).keys()) == args
 
     def assert_locals(_locals):
-        assert set(dict(_safety.get_locals(inspect.currentframe().f_back)).keys()) == _locals
+        assert set(dict(_safety.get_locals(inspect.currentframe().f_back)).keys()) == _locals | {
+            "assert_args",
+            "assert_locals",
+        }
 
     def assert_globals(_globals):
         assert set(dict(_safety.get_globals(inspect.currentframe().f_back)).keys()) == _globals

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where enabling LLM Observability in agentless mode would result in traces also being sent to the agent proxy endpoint.

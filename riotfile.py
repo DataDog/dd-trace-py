@@ -2958,8 +2958,8 @@ venv = Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
             pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
-            pys=select_pys(min_version="3.7"),
             venvs=[
+                Venv(pys="3.7"),
                 Venv(pys=select_pys(min_version="3.8"), pkgs={"ragas": "==0.1.21", "langchain": latest}),
             ],
         ),
