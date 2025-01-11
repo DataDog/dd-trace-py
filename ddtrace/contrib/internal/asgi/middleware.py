@@ -150,12 +150,12 @@ class TraceMiddleware:
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
-        # Calling ddtrace.trace.Pin.Pin(...) with the `tracer` argument is deprecated
+        # Calling ddtrace.trace.Pin(...) with the `tracer` argument is deprecated
         # Remove this if statement when the `tracer` argument is removed
         if self.tracer is ddtrace.tracer:
-            pin = ddtrace.trace.Pin.Pin(service="asgi")
+            pin = ddtrace.trace.Pin(service="asgi")
         else:
-            pin = ddtrace.trace.Pin.Pin(service="asgi", tracer=self.tracer)
+            pin = ddtrace.trace.Pin(service="asgi", tracer=self.tracer)
 
         with core.context_with_data(
             "asgi.__call__",

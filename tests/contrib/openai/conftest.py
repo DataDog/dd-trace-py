@@ -10,8 +10,8 @@ import pytest
 from ddtrace import Pin
 from ddtrace import patch
 from ddtrace.contrib.openai.patch import unpatch
-from ddtrace.trace import TraceFilter
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import TraceFilter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config

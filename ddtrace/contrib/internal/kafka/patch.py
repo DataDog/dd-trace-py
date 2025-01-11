@@ -24,8 +24,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import Pin
 from ddtrace.propagation.http import HTTPPropagator as Propagator
+from ddtrace.trace import Pin
 
 
 _Producer = confluent_kafka.Producer

@@ -22,8 +22,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.trace import Pin
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Pin
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
