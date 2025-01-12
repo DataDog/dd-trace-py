@@ -393,6 +393,7 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
         ]
     )
 
+
 @pytest.mark.vcr_logs
 def test_ragas_context_precision_emits_traces(ragas, llmobs, llmobs_events):
     rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
