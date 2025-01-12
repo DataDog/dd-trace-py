@@ -210,11 +210,13 @@ def _get_llmobs_parent_id(span: Span):
 
 
 def _expected_llmobs_eval_metric_event(
-    span_id,
-    trace_id,
     metric_type,
     label,
     ml_app,
+    tag_key=None,
+    tag_value=None,
+    span_id=None,
+    trace_id=None,
     timestamp_ms=None,
     categorical_value=None,
     score_value=None,
@@ -223,8 +225,7 @@ def _expected_llmobs_eval_metric_event(
     metadata=None,
 ):
     eval_metric_event = {
-        "span_id": span_id,
-        "trace_id": trace_id,
+        "join_on": {},
         "metric_type": metric_type,
         "label": label,
         "tags": [
@@ -232,6 +233,10 @@ def _expected_llmobs_eval_metric_event(
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
     }
+    if tag_key is not None and tag_value is not None:
+        eval_metric_event["join_on"]["tag"] = {"key": tag_key, "value": tag_value}
+    if span_id is not None and trace_id is not None:
+        eval_metric_event["join_on"]["span"] = {"span_id": span_id, "trace_id": trace_id}
     if categorical_value is not None:
         eval_metric_event["categorical_value"] = categorical_value
     if score_value is not None:
@@ -542,8 +547,7 @@ class DummyEvaluator:
 
 def _dummy_evaluator_eval_metric_event(span_id, trace_id):
     return LLMObsEvaluationMetricEvent(
-        span_id=span_id,
-        trace_id=trace_id,
+        join_on={"span": {"span_id": span_id, "trace_id": trace_id}},
         score_value=1.0,
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,
