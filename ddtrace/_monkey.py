@@ -206,7 +206,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
 
 def patch_all(**patch_modules):
     # type: (bool) -> None
-    """enables ddtrace instrumentation of all available supported modules
+    """Enables ddtrace library instrumentation
 
     In addition to ``patch_modules``, an override can be specified via an
     environment variable, ``DD_TRACE_<module>_ENABLED`` for each module.
