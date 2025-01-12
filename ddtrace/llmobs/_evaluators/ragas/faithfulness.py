@@ -9,45 +9,14 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
 from ddtrace.llmobs._constants import FAITHFULNESS_DISAGREEMENTS_METADATA
-from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
-from ddtrace.llmobs._evaluators.ragas.base import RagasBaseEvaluator
+from ddtrace.llmobs._evaluators.ragas.base import BaseRagasEvaluator
+from ddtrace.llmobs._evaluators.ragas.base import _get_ml_app_for_ragas_trace
 
 
 logger = get_logger(__name__)
 
 
-class MiniRagas:
-    """
-    A helper class to store instances of ragas classes and functions
-    that may or may not exist in a user's environment.
-    """
-
-    llm_factory = None
-    RagasoutputParser = None
-    faithfulness = None
-    ensembler = None
-    get_segmenter = None
-    StatementFaithfulnessAnswers = None
-    StatementsAnswers = None
-
-
-def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
-    """
-    The `ml_app` spans generated from traces of ragas will be named as `dd-ragas-<ml_app>`
-    or `dd-ragas` if `ml_app` is not present in the span event.
-    """
-    tags = span_event.get("tags", [])  # list[str]
-    ml_app = None
-    for tag in tags:
-        if isinstance(tag, str) and tag.startswith("ml_app:"):
-            ml_app = tag.split(":")[1]
-            break
-    if not ml_app:
-        return RAGAS_ML_APP_PREFIX
-    return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
-
-
-class RagasFaithfulnessEvaluator(RagasBaseEvaluator):
+class RagasFaithfulnessEvaluator(BaseRagasEvaluator):
     """A class used by EvaluatorRunner to conduct ragas faithfulness evaluations
     on LLM Observability span events. The job of an Evaluator is to take a span and
     submit evaluation metrics based on the span's attributes.
@@ -77,13 +46,13 @@ class RagasFaithfulnessEvaluator(RagasBaseEvaluator):
         """
         super().__init__(llmobs_service)
         self.ragas_faithfulness_instance = self._get_faithfulness_instance()
-        self.llm_output_parser_for_generated_statements = self.mini_ragas.RagasoutputParser(
-            pydantic_object=self.mini_ragas.StatementsAnswers
+        self.llm_output_parser_for_generated_statements = self.ragas_dependencies.RagasoutputParser(
+            pydantic_object=self.ragas_dependencies.StatementsAnswers
         )
-        self.llm_output_parser_for_faithfulness_score = self.mini_ragas.RagasoutputParser(
-            pydantic_object=self.mini_ragas.StatementFaithfulnessAnswers
+        self.llm_output_parser_for_faithfulness_score = self.ragas_dependencies.RagasoutputParser(
+            pydantic_object=self.ragas_dependencies.StatementFaithfulnessAnswers
         )
-        self.split_answer_into_sentences = self.mini_ragas.get_segmenter(
+        self.split_answer_into_sentences = self.ragas_dependencies.get_segmenter(
             language=self.ragas_faithfulness_instance.nli_statements_message.language, clean=False
         )
 
@@ -93,11 +62,11 @@ class RagasFaithfulnessEvaluator(RagasBaseEvaluator):
         ragas evaluator is updated with the latest ragas faithfulness
         instance AND has an non-null llm
         """
-        if self.mini_ragas.faithfulness is None:
+        if self.ragas_dependencies.faithfulness is None:
             return None
-        ragas_faithfulness_instance = self.mini_ragas.faithfulness
+        ragas_faithfulness_instance = self.ragas_dependencies.faithfulness
         if not ragas_faithfulness_instance.llm:
-            ragas_faithfulness_instance.llm = self.mini_ragas.llm_factory()
+            ragas_faithfulness_instance.llm = self.ragas_dependencies.llm_factory()
         return ragas_faithfulness_instance
 
     def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
@@ -230,9 +199,9 @@ class RagasFaithfulnessEvaluator(RagasBaseEvaluator):
                 return None
 
             # collapse multiple generations into a single faithfulness list
-            faithfulness_list = self.mini_ragas.ensembler.from_discrete(raw_faithfulness_list, "verdict")
+            faithfulness_list = self.ragas_dependencies.ensembler.from_discrete(raw_faithfulness_list, "verdict")
             try:
-                return self.mini_ragas.StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
+                return self.ragas_dependencies.StatementFaithfulnessAnswers.parse_obj(faithfulness_list)
             except Exception as e:
                 logger.debug("Failed to parse faithfulness_list", exc_info=e)
                 return None

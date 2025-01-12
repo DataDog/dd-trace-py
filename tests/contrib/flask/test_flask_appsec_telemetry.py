@@ -16,7 +16,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         self.telemetry_writer = telemetry_writer
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
-        self.tracer._asm_enabled = appsec_enabled
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 

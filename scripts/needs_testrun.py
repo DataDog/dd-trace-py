@@ -36,7 +36,7 @@ def get_base_branch(pr_number: int) -> str:
     >>> with vcr.use_cassette(
     ...   "scripts/vcr/needs_testrun.yaml",
     ...   filter_headers=["authorization", "user-agent"],
-    ...   record_mode="all"):
+    ...   record_mode="none"):
     ...     get_base_branch(6412)
     ...     get_base_branch(11534)
     ...     get_base_branch(11690)
@@ -135,7 +135,7 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]
     >>> with vcr.use_cassette(
     ...   "scripts/vcr/needs_testrun.yaml",
     ...   filter_headers=["authorization", "user-agent"],
-    ...   record_mode="all"):
+    ...   record_mode="none"):
     ...     sorted(get_changed_files(6388))  # doctest: +NORMALIZE_WHITESPACE
     ['ddtrace/debugging/_expressions.py',
     'releasenotes/notes/fix-debugger-expressions-none-literal-30f3328d2e386f40.yaml',
@@ -165,7 +165,7 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     >>> with vcr.use_cassette(
     ...   "scripts/vcr/needs_testrun.yaml",
     ...   filter_headers=["authorization", "user-agent"],
-    ...   record_mode="all"):
+    ...   record_mode="none"):
     ...     needs_testrun("debugger", 6485)
     ...     needs_testrun("debugger", 6388)
     ...     needs_testrun("foobar", 6412)
@@ -270,8 +270,13 @@ def extract_git_commit_selections(git_commit_message: str) -> t.Set[str]:
 def main() -> bool:
     argp = ArgumentParser()
 
+    try:
+        default_pr_number = _get_pr_number()
+    except RuntimeError:
+        default_pr_number = None
+
     argp.add_argument("suite", help="The suite to use", type=str)
-    argp.add_argument("--pr", help="The PR number", type=int, default=_get_pr_number())
+    argp.add_argument("--pr", help="The PR number", type=int, default=default_pr_number)
     argp.add_argument(
         "--sha", help="Commit hash to use as diff base (defaults to PR merge root)", type=lambda v: v or None
     )
@@ -281,6 +286,9 @@ def main() -> bool:
 
     if args.verbose:
         LOGGER.setLevel(logging.INFO)
+
+    if not args.pr:
+        raise RuntimeError("Could not determine PR number")
 
     return needs_testrun(args.suite, args.pr, sha=args.sha)
 

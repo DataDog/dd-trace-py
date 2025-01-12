@@ -118,11 +118,17 @@ class _TelemetryClient:
                 conn.request("POST", self._endpoint, rb_json, headers)
                 resp = get_connection_response(conn)
             if resp.status < 300:
-                log.debug("sent %d in %.5fs to %s. response: %s", len(rb_json), sw.elapsed(), self.url, resp.status)
+                log.debug(
+                    "Instrumentation Telemetry sent %d in %.5fs to %s. response: %s",
+                    len(rb_json),
+                    sw.elapsed(),
+                    self.url,
+                    resp.status,
+                )
             else:
-                log.debug("failed to send telemetry to %s. response: %s", self.url, resp.status)
-        except Exception:
-            log.debug("failed to send telemetry to %s.", self.url, exc_info=True)
+                log.debug("Failed to send Instrumentation Telemetry to %s. response: %s", self.url, resp.status)
+        except Exception as e:
+            log.debug("Failed to send Instrumentation Telemetry to %s. Error: %s", self.url, str(e))
         finally:
             if conn is not None:
                 conn.close()
@@ -181,7 +187,6 @@ class TelemetryWriter(PeriodicService):
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
-        self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, str] = dict()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._send_product_change_updates = False
@@ -245,10 +250,6 @@ class TelemetryWriter(PeriodicService):
         """
         self._enabled = False
         self.reset_queues()
-        if self._is_running():
-            self.stop()
-        else:
-            self.status = ServiceStatus.STOPPED
 
     def enable_agentless_client(self, enabled=True):
         # type: (bool) -> None
@@ -297,7 +298,7 @@ class TelemetryWriter(PeriodicService):
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
         # Integrations can be patched before the telemetry writer is enabled.
-        with self._lock:
+        with self._service_lock:
             if integration_name not in self._integrations_queue:
                 self._integrations_queue[integration_name] = {"name": integration_name}
 
@@ -382,20 +383,20 @@ class TelemetryWriter(PeriodicService):
     def _flush_integrations_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued integrations"""
-        with self._lock:
+        with self._service_lock:
             integrations = list(self._integrations_queue.values())
             self._integrations_queue = dict()
         return integrations
 
     def _flush_new_imported_dependencies(self) -> Set[str]:
-        with self._lock:
+        with self._service_lock:
             new_deps = modules.get_newly_imported_modules()
         return new_deps
 
     def _flush_configuration_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
-        with self._lock:
+        with self._service_lock:
             configurations = list(self._configuration_queue.values())
             self._configuration_queue = {}
         return configurations
@@ -414,7 +415,7 @@ class TelemetryWriter(PeriodicService):
         if not _TelemetryConfig.DEPENDENCY_COLLECTION or not self._enabled:
             return
 
-        with self._lock:
+        with self._service_lock:
             packages = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
         if packages:
@@ -451,7 +452,7 @@ class TelemetryWriter(PeriodicService):
             self._send_product_change_updates = True
 
     def remove_configuration(self, configuration_name):
-        with self._lock:
+        with self._service_lock:
             del self._configuration_queue[configuration_name]
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
@@ -465,7 +466,7 @@ class TelemetryWriter(PeriodicService):
             # convert unsupported types to strings
             configuration_value = str(configuration_value)
 
-        with self._lock:
+        with self._service_lock:
             self._configuration_queue[configuration_name] = {
                 "name": configuration_name,
                 "origin": origin,
@@ -475,7 +476,7 @@ class TelemetryWriter(PeriodicService):
     def add_configurations(self, configuration_list):
         # type: (List[Tuple[str, Union[bool, float, str], str]]) -> None
         """Creates and queues a list of configurations"""
-        with self._lock:
+        with self._service_lock:
             for name, value, _origin in configuration_list:
                 self._configuration_queue[name] = {
                     "name": name,
@@ -566,7 +567,7 @@ class TelemetryWriter(PeriodicService):
 
     def _flush_log_metrics(self):
         # type () -> Set[Metric]
-        with self._lock:
+        with self._service_lock:
             log_metrics = self._logs
             self._logs = set()
         return log_metrics
@@ -652,7 +653,7 @@ class TelemetryWriter(PeriodicService):
     def _flush_events_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all telemtery event"""
-        with self._lock:
+        with self._service_lock:
             events = self._events_queue
             self._events_queue = []
         return events
@@ -668,7 +669,6 @@ class TelemetryWriter(PeriodicService):
 
         if self._is_running():
             self.stop(join=False)
-
         # Enable writer service in child process to avoid interpreter shutdown
         # error in Python 3.12
         self.enable()

@@ -14,7 +14,16 @@ import riotfile  # noqa:E402
 
 OUT_FILENAME = "min_compatible_versions.csv"
 OUT_DIRECTORIES = (".", "lib-injection/sources")
-IGNORED_PACKAGES = {"setuptools", "attrs", "pytest-randomly", "pillow", "botocore", "pytest-asyncio", "click"}
+IGNORED_PACKAGES = {
+    "attrs",
+    "botocore",
+    "click",
+    "pillow",
+    "pytest-asyncio",
+    "pytest-randomly",
+    "python-json-logger",
+    "setuptools",
+}
 
 
 def _format_version_specifiers(spec: Set[str]) -> Set[str]:

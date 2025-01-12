@@ -5,14 +5,14 @@ from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
-from ddtrace.llmobs._evaluators.ragas.base import RagasBaseEvaluator
+from ddtrace.llmobs._evaluators.ragas.base import BaseRagasEvaluator
 from ddtrace.llmobs._evaluators.ragas.base import _get_ml_app_for_ragas_trace
 
 
 logger = get_logger(__name__)
 
 
-class RagasAnswerRelevancyEvaluator(RagasBaseEvaluator):
+class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
     """A class used by EvaluatorRunner to conduct ragas answer relevancy evaluations
     on LLM Observability span events. The job of an Evaluator is to take a span and
     submit evaluation metrics based on the span's attributes.

@@ -3,11 +3,11 @@
 import ast
 import codecs
 import os
-import re
 from sys import builtin_module_names
 from sys import version_info
 import textwrap
 from types import ModuleType
+from typing import Iterable
 from typing import Optional
 from typing import Text
 from typing import Tuple
@@ -328,6 +328,49 @@ ENCODING = ""
 log = get_logger(__name__)
 
 
+class _TrieNode:
+    __slots__ = ("children", "is_end")
+
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+    def __iter__(self):
+        if self.is_end:
+            yield ("", None)
+        else:
+            for k, v in self.children.items():
+                yield (k, dict(v))
+
+
+def build_trie(words: Iterable[str]) -> _TrieNode:
+    root = _TrieNode()
+    for word in words:
+        node = root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = _TrieNode()
+            node = node.children[char]
+        node.is_end = True
+    return root
+
+
+_TRIE_ALLOWLIST = build_trie(IAST_ALLOWLIST)
+_TRIE_DENYLIST = build_trie(IAST_DENYLIST)
+
+
+def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
+    node = trie
+    for char in string:
+        node = node.children.get(char)
+        if not node:
+            return False
+
+        if node.is_end:
+            return True
+    return node.is_end
+
+
 def get_encoding(module_path: Text) -> Text:
     """
     First tries to detect the encoding for the file,
@@ -342,11 +385,11 @@ def get_encoding(module_path: Text) -> Text:
     return ENCODING
 
 
-_NOT_PATCH_MODULE_NAMES = _stdlib_for_python_version() | set(builtin_module_names)
+_NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
 
 
 def _in_python_stdlib(module_name: str) -> bool:
-    return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
+    return module_name.split(".")[0].lower() in _NOT_PATCH_MODULE_NAMES
 
 
 def _should_iast_patch(module_name: Text) -> bool:
@@ -360,10 +403,10 @@ def _should_iast_patch(module_name: Text) -> bool:
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
     dotted_module_name = module_name.lower() + "."
-    if dotted_module_name.startswith(IAST_ALLOWLIST):
+    if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
         return True
-    if dotted_module_name.startswith(IAST_DENYLIST):
+    if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
         log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
         return False
     if _in_python_stdlib(module_name):
@@ -386,27 +429,6 @@ def visit_ast(
 
     ast.fix_missing_locations(modified_ast)
     return modified_ast
-
-
-_FLASK_INSTANCE_REGEXP = re.compile(r"(\S*)\s*=.*Flask\(.*")
-
-
-def _remove_flask_run(text: Text) -> Text:
-    """
-    Find and remove flask app.run() call. This is used for patching
-    the app.py file and exec'ing to replace the module without creating
-    a new instance.
-    """
-    flask_instance_name = re.search(_FLASK_INSTANCE_REGEXP, text)
-    if not flask_instance_name:
-        return text
-    groups = flask_instance_name.groups()
-    if not groups:
-        return text
-
-    instance_name = groups[-1]
-    new_text = re.sub(instance_name + r"\.run\(.*\)", "pass", text)
-    return new_text
 
 
 _DIR_WRAPPER = textwrap.dedent(
@@ -442,7 +464,7 @@ def {_PREFIX}set_dir_filter():
 )
 
 
-def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, Optional[ast.Module]]:
+def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
     module_name = module.__name__
 
     module_origin = origin(module)
@@ -481,9 +503,6 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
         # Don't patch empty files like __init__.py
         log.debug("empty file: %s", module_path)
         return "", None
-
-    if remove_flask_run:
-        source_text = _remove_flask_run(source_text)
 
     if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)

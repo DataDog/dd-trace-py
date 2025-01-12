@@ -72,6 +72,7 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
+<<<<<<< HEAD
       string: !!binary |
         H4sIAAAAAAAAA2yRW4vbMBCF3/0rxDzHi+2mySZvbUOhsPRGoSxxsBV5bKuVJaGZ9ELIfy9yvEnK
         7oseztH5NGd0TIQA3cBagOolq8Gb9M3D5tPi1zuz+r0qHjavv27a74+vPj5+sG8z8wVmMeH2P1Dx
@@ -81,10 +82,29 @@ interactions:
         e5r8i95qq6mvAkpyNk5M7DyM7ikRYjdu6/DfAsAHN3iu2P1EG4GLLD/z4PpJV7dYTCY7luYmVSxn
         L/CqBllqQzf7BiVVj801miU35Z4/+hLiXFDb7hklmUhAf4lxqFptOww+6PMPtr6a3xeqKORyryA5
         Jf8AAAD//wMAn6C7Cc8CAAA=
+=======
+<<<<<<<< HEAD:tests/llmobs/llmobs_cassettes/tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit.yaml
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        dummy-op********-key. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+========
+      string: !!binary |
+        H4sIAAAAAAAAA4xSwYrbMBS8+yvEO8eL403iTW49bEtuWdpCIQ62Ij/bam1J6L1AS8i/FznZ2Mtu
+        oRcdZt6MZp50joQAXcFGgGolq9518acf0hyX6+02W26T3e7Ly/r5JTltv9rvNT/DLCjs8ScqflU9
+        KNu7Dllbc6WVR8kYXOfZY7pcrVeLx4HobYVdkDWO44WNe210nCbpIk6yeP50U7dWKyTYiH0khBDn
+        4Qw5TYW/YSOS2SvSI5FsEDb3ISHA2y4gIIk0sTQMs5FU1jCaIXpZlvtzDoQBUVgM9vngL3IgHTr5
+        glgy9miYArXP4VuLQkmnWXbC1uKzl0ah0CR20mt6yOFwOZRlOb3UY30iGYqbU9fd8Mu9RWcb5+2R
+        bvwdr7XR1BYeJVkTEhNbBwN7iYQ4DNs6vVkAOG97xwXbX2iC4SqZX/1gfKSRTVc3ki3LbqJKs9kH
+        fkWFLHVHk32DkqrFapSOjyNPlbYTIpq0fp/mI+9rc22a/7EfCaXQMVaF81hp9bbxOOYx/OF/jd23
+        PAQG+kOMfVFr06B3Xl9/UO2KJEuWx/opUwlEl+gvAAAA//8DABrEjBtPAwAA
+>>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c:tests/llmobs/llmobs_cassettes/tests.llmobs.test_llmobs_ragas_evaluators.emits_traces_and_evaluations_on_exit.yaml
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
+<<<<<<< HEAD
       - 8d6b5b701f294367-EWR
       Connection:
       - keep-alive
@@ -114,6 +134,50 @@ interactions:
       - datadog-staging
       openai-processing-ms:
       - '496'
+=======
+<<<<<<<< HEAD:tests/llmobs/llmobs_cassettes/tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit.yaml
+      - 8f0a37055b6a43c9-EWR
+========
+      - 8e84af2fba19c952-IAD
+>>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c:tests/llmobs/llmobs_cassettes/tests.llmobs.test_llmobs_ragas_evaluators.emits_traces_and_evaluations_on_exit.yaml
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '270'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+<<<<<<<< HEAD:tests/llmobs/llmobs_cassettes/tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit.yaml
+      - Thu, 12 Dec 2024 02:16:53 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=tsTMtFLakdJEC6pZi9qDFxtRlPBCHLf1DYsmb.f7JSc-1733969813-1.0.1.1-cxUdAvt3rjIZsIJ889b37xrJXEJJFxpEoCgPkf1eU9cnDejs227o8rx9kNERGzD8XAVYXutat7XUAF8VVDD6_Q;
+        path=/; expires=Thu, 12-Dec-24 02:46:53 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=nX_aH4E6WCOEIAbar7JHuQN_pvwvAgFxMBWBTr3bdgQ-1733969813447-0.0.1.1-604800000;
+========
+      - Mon, 25 Nov 2024 21:20:43 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=CVMxqIcHUHNjX56k1MKjj4MgiYNVAlg_B7yyVaP_z1o-1732569643-1.0.1.1-HOtZfXprHWr_DjtorQ_ZK6bbSmcOsBrphniRCaC9XQ2tTtO5JVpyDQK1HRFo3kUE9GEi9J.sR0_L6nBtXlGj8w;
+        path=/; expires=Mon, 25-Nov-24 21:50:43 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=sqtPZaucqBJu1r4exJtYym3vbKmuuSO6o0np5VglPsw-1732569643935-0.0.1.1-604800000;
+>>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c:tests/llmobs/llmobs_cassettes/tests.llmobs.test_llmobs_ragas_evaluators.emits_traces_and_evaluations_on_exit.yaml
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+<<<<<<<< HEAD:tests/llmobs/llmobs_cassettes/tests.llmobs.test_llmobs_ragas_faithfulness_evaluator.emits_traces_and_evaluations_on_exit.yaml
+========
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '370'
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -131,7 +195,11 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
+<<<<<<< HEAD
       - req_33b8cddecaab8b8bc36e90f58f844636
+=======
+      - req_02ed729afc2d9083921e3fe5b7528550
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
     status:
       code: 200
       message: OK
@@ -193,8 +261,13 @@ interactions:
       content-type:
       - application/json
       cookie:
+<<<<<<< HEAD
       - __cf_bm=iQaF937ylY7BvvBCyWYQoxiJwi1nBp5.LILrHLw1uno-1729619715-1.0.1.1-jS4Dz7yc_ud.hKZlJ_CAZkSQesqzVkfrA5F30zI7CtJsbEKyAiuVlpX0CPf816UtlhXQEW8T5nsc.UvnsCOzOw;
         _cfuvid=wQzHCwLW6CPU768K_tlLklWp36I8zYCVJkKlAMtnMkk-1729619715162-0.0.1.1-604800000
+=======
+      - __cf_bm=CVMxqIcHUHNjX56k1MKjj4MgiYNVAlg_B7yyVaP_z1o-1732569643-1.0.1.1-HOtZfXprHWr_DjtorQ_ZK6bbSmcOsBrphniRCaC9XQ2tTtO5JVpyDQK1HRFo3kUE9GEi9J.sR0_L6nBtXlGj8w;
+        _cfuvid=sqtPZaucqBJu1r4exJtYym3vbKmuuSO6o0np5VglPsw-1732569643935-0.0.1.1-604800000
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
       host:
       - api.openai.com
       user-agent:
@@ -220,6 +293,7 @@ interactions:
   response:
     body:
       string: !!binary |
+<<<<<<< HEAD
         H4sIAAAAAAAAA2xSQW7bMBC86xWLPVuBpTqR7VuAoGiBAmmLHhrEgUVTK2tdiSTIdZDA8N8Lyorl
         ILnwMLMznB3ykAAgV7gE1I0S3bk2vf1xd19M/c3u4frhu/37Tet73qm7383r7fwXTqLCbnak5U11
         pW3nWhK25kRrT0ooumZFvrjJFkV23ROdraiNsq2TdGbTjg2n+TSfpdMizeaDurGsKeASHhMAgEN/
@@ -228,11 +302,26 @@ interactions:
         k73IcMMz+Yp1nyk7PpVlebmEp3ofVCzS7Nt2wI/nVlq7dd5uwsCf8ZoNh2Z9Ch8bCGId9uwxAXjq
         29+/KxSdt52Ttdh/ZKJhUcxPfjg++sh+WQykWFHtiM+zYvKJ37oiUdyGi/dDrXRD1SidJhfLfbz0
         M4vTgmy2H1ySwQnDaxDq1jWbLXnn+fQjareezXOd56rYaEyOyX8AAAD//wMAUtzROh8DAAA=
+=======
+        H4sIAAAAAAAAA4xTwW6bQBC98xWjPZsIOzg43Fqp7a2y2iqqFEew3h1gWthd7Y6jpJb/vVrsGEdJ
+        pV44vDfv8eYN7BMAQVqUIFQnWQ2uTz/8lEZ9/NI9//mafVt9Wt61uxbvtt+3Oa3XYhYVdvsLFb+o
+        rpQdXI9M1hxp5VEyRtd5cb1Y3tze5PlIDFZjH2Wt4zS36UCG0kW2yNOsSOerk7qzpDCIEu4TAID9
+        +Iw5jcYnUUI2e0EGDEG2KMrzEIDwto+IkCFQYGlYzCZSWcNoxuh1Xd/vNyKwZBzQ8EaUsBE/OgQl
+        HbHswTbw2UujECjAWnoKVxsxg43wKIM1k+DsEQclaPKoGDw6ZIq1RCfuEMg01g9yhJy3j6RRA5mR
+        G5M98ekNj+g1qTHT/PBQ1/XlEh6bXZCxSLPr+xN+OLfS29Z5uw0n/ow3ZCh01TF8bCCwdWJkDwnA
+        w9j+7lWhwnk7OK7Y/kYTDYtidfQT09En9vr2RLJl2U/4al7M3vGrNLKkPlzcTyipOtSTdDq23Gmy
+        F0RysfXbNO95Hzcn0/6P/UQohY5RV85jvMmrjacxj/Gf+NfYueUxsAjPgXGoGjIteufp+EU2rsqK
+        bLltVoXKRHJI/gIAAP//AwDgYzoinwMAAA==
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
+<<<<<<< HEAD
       - 8d6b5b744e034367-EWR
+=======
+      - 8e84af32dc70c952-IAD
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
       Connection:
       - keep-alive
       Content-Encoding:
@@ -240,7 +329,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
+<<<<<<< HEAD
       - Tue, 22 Oct 2024 17:55:16 GMT
+=======
+      - Mon, 25 Nov 2024 21:20:45 GMT
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -254,7 +347,11 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
+<<<<<<< HEAD
       - '749'
+=======
+      - '1168'
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -272,22 +369,37 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
+<<<<<<< HEAD
       - req_fbb01161a03eb6f478ff52314b72cfd6
+=======
+      - req_702ebaa1edbab95fb42f52baa4b34661
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
     status:
       code: 200
       message: OK
 - request:
+<<<<<<< HEAD
     body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"span_id":
       "6877142543397072040", "trace_id": "6717e70200000000a99ea8ad36f4f36d", "label":
       "ragas_faithfulness", "metric_type": "score", "timestamp_ms": 1729619716093,
       "score_value": 1.0, "ml_app": "unnamed-ml-app", "tags": ["ddtrace.version:2.15.0.dev219+ge047e25bb.d20241022",
       "ml_app:unnamed-ml-app"]}]}}}'
+=======
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"join_on":
+      {"span": {"span_id": "7678809694384023494", "trace_id": "6744ea2b00000000995e7b2ceabfce01"}},
+      "label": "ragas_faithfulness", "metric_type": "score", "timestamp_ms": 1732569645205,
+      "score_value": 1.0, "ml_app": "unnamed-ml-app", "tags": ["ddtrace.version:2.15.0.dev351+g152f3e3b6.d20241122",
+      "ml_app:unnamed-ml-app"], "metadata": {"_dd.evaluation_kind": "faithfulness",
+      "_dd.evaluation_span": {"span_id": "5771061714047746387", "trace_id": "6744ea2b000000007099aeb477077763"},
+      "_dd.faithfulness_disagreements": []}}]}}}'
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
     headers:
       Content-Type:
       - application/json
       DD-API-KEY:
       - XXXXXX
     method: POST
+<<<<<<< HEAD
     uri: https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric
   response:
     body:
@@ -295,11 +407,21 @@ interactions:
     headers:
       content-length:
       - '414'
+=======
+    uri: https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric
+  response:
+    body:
+      string: '{"data":{"id":"f1470aa7-b97f-4809-825d-6932af26a81c","type":"evaluation_metric","attributes":{"metrics":[{"id":"EPRU-72kfP","join_on":{"span":{"trace_id":"6744ea2b00000000995e7b2ceabfce01","span_id":"7678809694384023494"}},"timestamp_ms":1732569645205,"ml_app":"unnamed-ml-app","metric_type":"score","label":"ragas_faithfulness","score_value":1,"tags":["ddtrace.version:2.15.0.dev351+g152f3e3b6.d20241122","ml_app:unnamed-ml-app"],"metadata":{"_dd.evaluation_kind":"faithfulness","_dd.evaluation_span":{"span_id":"5771061714047746387","trace_id":"6744ea2b000000007099aeb477077763"},"_dd.faithfulness_disagreements":[]}}]}}}'
+    headers:
+      content-length:
+      - '623'
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
       content-type:
       - application/vnd.api+json
       date:
+<<<<<<< HEAD
       - Tue, 22 Oct 2024 17:55:17 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
@@ -312,4 +434,17 @@ interactions:
     status:
       code: 202
       message: Accepted
+=======
+      - Mon, 25 Nov 2024 21:20:45 GMT
+>>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c:tests/llmobs/llmobs_cassettes/tests.llmobs.test_llmobs_ragas_evaluators.emits_traces_and_evaluations_on_exit.yaml
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Origin
+      x-request-id:
+      - req_c8d54071e4b1918edf93a566a7df96cd
+    status:
+      code: 401
+      message: Unauthorized
+>>>>>>> d0b151a9f8490dacc2f4b1840f82ffe8a363399c
 version: 1

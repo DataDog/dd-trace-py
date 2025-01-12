@@ -1,4 +1,5 @@
 import traceback
+from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -16,7 +17,7 @@ from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 logger = get_logger(__name__)
 
 
-class MiniRagas:
+class RagasDependencies:
     """
     A helper class to store instances of ragas classes and functions
     that may or may not exist in a user's environment.
@@ -47,10 +48,6 @@ class MiniRagas:
 
         self.ensembler = ensembler
 
-        from ddtrace.llmobs._evaluators.ragas.models import ContextPrecisionVerification
-
-        self.ContextPrecisionVerification = ContextPrecisionVerification
-
         from ragas.metrics import faithfulness
 
         self.faithfulness = faithfulness
@@ -67,25 +64,13 @@ class MiniRagas:
 
         self.StatementsAnswers = StatementsAnswers
 
-        from ddtrace.llmobs._evaluators.ragas.models import AnswerRelevanceClassification
-
-        self.AnswerRelevanceClassification = AnswerRelevanceClassification
-
-        from ragas.metrics import answer_relevancy
-
-        self.answer_relevancy = answer_relevancy
-
-        from ragas.embeddings import embedding_factory
-
-        self.embedding_factory = embedding_factory
-
 
 def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     """
     The `ml_app` spans generated from traces of ragas will be named as `dd-ragas-<ml_app>`
     or `dd-ragas` if `ml_app` is not present in the span event.
     """
-    tags = span_event.get("tags", [])  # list[str]
+    tags: List[str] = span_event.get("tags", [])
     ml_app = None
     for tag in tags:
         if isinstance(tag, str) and tag.startswith("ml_app:"):
@@ -96,10 +81,12 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
 
 
-class RagasBaseEvaluator:
+class BaseRagasEvaluator:
     """A class used by EvaluatorRunner to conduct ragas evaluations
     on LLM Observability span events. The job of an Evaluator is to take a span and
     submit evaluation metrics based on the span's attributes.
+
+    Extenders of this class should only need to implement the `evaluate` method.
     """
 
     LABEL = "ragas"
@@ -118,15 +105,19 @@ class RagasBaseEvaluator:
         self.ragas_version = "unknown"
         telemetry_state = "ok"
         try:
-            self.mini_ragas = MiniRagas()
+            self.ragas_dependencies = RagasDependencies()
+            self.ragas_version = self.ragas_dependencies.ragas_version
+        except ImportError as e:
+            telemetry_state = "fail_import_error"
+            raise NotImplementedError("Failed to load dependencies for `{}` evaluator".format(self.LABEL)) from e
+        except AttributeError as e:
+            telemetry_state = "fail_attribute_error"
+            raise NotImplementedError("Failed to load dependencies for `{}` evaluator".format(self.LABEL)) from e
+        except NotImplementedError as e:
+            telemetry_state = "fail_not_supported"
+            raise NotImplementedError("Failed to load dependencies for `{}` evaluator".format(self.LABEL)) from e
         except Exception as e:
-            telemetry_state = "fail"
-            telemetry_writer.add_log(
-                level=TELEMETRY_LOG_LEVEL.ERROR,
-                message="Failed to import Ragas dependencies",
-                stack_trace=traceback.format_exc(),
-                tags={"ragas_version": self.ragas_version},
-            )
+            telemetry_state = "fail_unknown"
             raise NotImplementedError("Failed to load dependencies for `{}` evaluator".format(self.LABEL)) from e
         finally:
             telemetry_writer.add_count_metric(
@@ -136,18 +127,46 @@ class RagasBaseEvaluator:
                 tags=(
                     ("evaluator_label", self.LABEL),
                     ("state", telemetry_state),
-                    ("ragas_version", self.ragas_version),
+                    ("evaluator_version", self.ragas_version),
                 ),
             )
+            if telemetry_state != "ok":
+                telemetry_writer.add_log(
+                    level=TELEMETRY_LOG_LEVEL.ERROR,
+                    message="Failed to import Ragas dependencies",
+                    stack_trace=traceback.format_exc(),
+                    tags={"evaluator_version": self.ragas_version},
+                )
+
+    def run_and_submit_evaluation(self, span_event: dict):
+        if not span_event:
+            return
+        score_result_or_failure, metric_metadata = self.evaluate(span_event)
+        telemetry_writer.add_count_metric(
+            TELEMETRY_APM_PRODUCT.LLMOBS,
+            "evaluators.run",
+            1,
+            tags=(
+                ("evaluator_label", self.LABEL),
+                ("state", score_result_or_failure if isinstance(score_result_or_failure, str) else "success"),
+                ("evaluator_version", self.ragas_version),
+            ),
+        )
+        if isinstance(score_result_or_failure, float):
+            self.llmobs_service.submit_evaluation(
+                span_context={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
+                label=self.LABEL,
+                metric_type=self.METRIC_TYPE,
+                value=score_result_or_failure,
+                metadata=metric_metadata,
+            )
+
+    def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
+        raise NotImplementedError("evaluate method must be implemented by individual evaluators")
 
     def _extract_evaluation_inputs_from_span(self, span_event: dict) -> Optional[dict]:
         """
         Extracts the question, answer, and context used as inputs for a ragas evaluation on a span event.
-
-        question - input.prompt.variables.question OR input.messages[-1].content
-        contexts - list of context prompt variables specified by
-                        `input.prompt._dd_context_variable_keys` or defaults to `input.prompt.variables.context`
-        answer - output.messages[-1].content
         """
         with self.llmobs_service.workflow("dd-ragas.extract_evaluation_inputs_from_span") as extract_inputs_workflow:
             self.llmobs_service.annotate(span=extract_inputs_workflow, input_data=span_event)
@@ -165,9 +184,7 @@ class RagasBaseEvaluator:
 
             prompt = meta_input.get("prompt")
             if prompt is None:
-                logger.debug(
-                    "Failed to extract `prompt` from span for ragas evaluation",
-                )
+                logger.debug("Failed to extract `prompt` from span for ragas evaluation")
                 return None
             prompt_variables = prompt.get("variables")
 
@@ -194,28 +211,3 @@ class RagasBaseEvaluator:
                 return None
 
             return {"question": question, "contexts": contexts, "answer": answer}
-
-    def run_and_submit_evaluation(self, span_event: dict):
-        if not span_event:
-            return
-        score_result_or_failure, metric_metadata = self.evaluate(span_event)
-        telemetry_writer.add_count_metric(
-            TELEMETRY_APM_PRODUCT.LLMOBS,
-            "evaluators.run",
-            1,
-            tags=(
-                ("evaluator_label", self.LABEL),
-                ("state", score_result_or_failure if isinstance(score_result_or_failure, str) else "success"),
-            ),
-        )
-        if isinstance(score_result_or_failure, float):
-            self.llmobs_service.submit_evaluation(
-                span_context={"trace_id": span_event.get("trace_id"), "span_id": span_event.get("span_id")},
-                label=self.LABEL,
-                metric_type=self.METRIC_TYPE,
-                value=score_result_or_failure,
-                metadata=metric_metadata,
-            )
-
-    def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
-        raise NotImplementedError("evaluate method must be implemented by individual ragas metrics")
