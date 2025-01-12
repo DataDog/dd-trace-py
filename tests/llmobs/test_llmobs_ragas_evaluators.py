@@ -393,27 +393,23 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
         ]
     )
 
-
 @pytest.mark.vcr_logs
-def test_ragas_context_precision_emits_traces(ragas, llmobs):
+def test_ragas_context_precision_emits_traces(ragas, llmobs, llmobs_events):
     rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
     rcp_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
-    assert rcp_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_count == 2
-    calls = rcp_evaluator.llmobs_service._instance._llmobs_span_writer.enqueue.call_args_list
-
-    spans = [call[0][0] for call in calls]
-
-    # check name, io, span kinds match
-    assert spans[0] == _expected_ragas_context_precision_spans()[0]
+    ragas_spans = [event for event in llmobs_events if event["name"].startswith("dd-ragas.")]
+    ragas_spans = sorted(ragas_spans, key=lambda d: d["start_ns"])
+    assert len(ragas_spans) == 2
+    assert ragas_spans == _expected_ragas_context_precision_spans()
 
     # verify the trace structure
-    root_span = spans[0]
+    root_span = ragas_spans[0]
     root_span_id = root_span["span_id"]
     assert root_span["parent_id"] == "undefined"
     assert root_span["meta"] is not None
 
     root_span_trace_id = root_span["trace_id"]
-    for child_span in spans[1:]:
+    for child_span in ragas_spans[1:]:
         assert child_span["trace_id"] == root_span_trace_id
         assert child_span["parent_id"] == root_span_id
 
@@ -425,14 +421,11 @@ def test_llmobs_with_context_precision_emits_traces_and_evals_on_exit(mock_write
         pypath.append(env["PYTHONPATH"])
     env.update(
         {
-            "DD_API_KEY": os.getenv("DD_API_KEY", "dummy-api-key"),
-            "DD_SITE": "datad0g.com",
             "PYTHONPATH": ":".join(pypath),
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "dummy-openai-api-key"),
-            "DD_LLMOBS_ML_APP": "unnamed-ml-app",
             "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
             "_DD_LLMOBS_EVALUATORS": "ragas_context_precision",
-            "DD_LLMOBS_AGENTLESS_ENABLED": "true",
+            "DD_TRACE_ENABLED": "0",
         }
     )
     out, err, status, pid = run_python_code_in_subprocess(
@@ -458,7 +451,7 @@ with mock.patch(
         body="{}",
     ),
 ):
-    LLMObs.enable()
+    LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
     LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
 """,
         env=env,

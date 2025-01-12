@@ -170,7 +170,7 @@ interactions:
       DD-API-KEY:
       - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric
+    uri: https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric
   response:
     body:
       string: '{"data":{"id":"92ff21e8-7018-4a29-b8c7-21c24b9fa74d","type":"evaluation_metric","attributes":{"metrics":[{"id":"giRg5dS154","join_on":{"span":{"trace_id":"675a3f650000000010166e6542ea0ba8","span_id":"171867700624094790"}},"trace_id":"675a3f650000000010166e6542ea0ba8","span_id":"171867700624094790","timestamp_ms":1733967719288,"ml_app":"unnamed-ml-app","metric_type":"score","label":"ragas_context_precision","score_value":1,"tags":["ddtrace.version:2.15.0.dev406+ge04c8acf7.d20241210","ml_app:unnamed-ml-app"]}]}}}'
