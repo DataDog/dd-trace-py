@@ -5,4 +5,4 @@ from ddtrace._trace.pin import Pin
 
 
 # TODO: Move `ddtrace.Tracer`, `ddtrace.Span`, and `ddtrace.tracer` to this module
-__all__ = ["Context", Pin, TraceFilter, FilterRequestsOnUrl]
+__all__ = ["Context", "Pin", "TraceFilter", "FilterRequestsOnUrl"]
