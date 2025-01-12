@@ -11,6 +11,11 @@ and outputs of LLM calls used for Ragas
 """
 
 
+class AnswerRelevanceClassification(BaseModel):
+    question: str
+    noncommittal: int
+
+
 class StatementFaithfulnessAnswer(BaseModel):
     statement: str = Field(..., description="the original statement, word-by-word")
     reason: str = Field(..., description="the reason of the verdict")
