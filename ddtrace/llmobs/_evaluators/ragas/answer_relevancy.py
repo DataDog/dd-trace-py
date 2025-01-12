@@ -44,8 +44,8 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
         """
         super().__init__(llmobs_service)
         self.ragas_answer_relevancy_instance = self._get_answer_relevancy_instance()
-        self.answer_relevancy_output_parser = self.mini_ragas.RagasoutputParser(
-            pydantic_object=self.mini_ragas.AnswerRelevanceClassification
+        self.answer_relevancy_output_parser = self.ragas_dependencies.RagasoutputParser(
+            pydantic_object=self.ragas_dependencies.AnswerRelevanceClassification
         )
 
     def _get_answer_relevancy_instance(self):
@@ -54,13 +54,13 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
         ragas evaluator is updated with the latest ragas answer relevancy instance
         instance AND has an non-null llm
         """
-        if self.mini_ragas.answer_relevancy is None:
+        if self.ragas_dependencies.answer_relevancy is None:
             return None
-        ragas_answer_relevancy_instance = self.mini_ragas.answer_relevancy
+        ragas_answer_relevancy_instance = self.ragas_dependencies.answer_relevancy
         if not ragas_answer_relevancy_instance.llm:
-            ragas_answer_relevancy_instance.llm = self.mini_ragas.llm_factory()
+            ragas_answer_relevancy_instance.llm = self.ragas_dependencies.llm_factory()
         if not ragas_answer_relevancy_instance.embeddings:
-            ragas_answer_relevancy_instance.embeddings = self.mini_ragas.embedding_factory()
+            ragas_answer_relevancy_instance.embeddings = self.ragas_dependencies.embedding_factory()
         return ragas_answer_relevancy_instance
 
     def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
