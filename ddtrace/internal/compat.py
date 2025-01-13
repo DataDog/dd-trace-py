@@ -185,9 +185,6 @@ def get_connection_response(
     return conn.getresponse()
 
 
-CONTEXTVARS_IS_AVAILABLE = True
-
-
 try:
     from collections.abc import Iterable  # noqa:F401
 except ImportError:
