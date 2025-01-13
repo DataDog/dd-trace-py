@@ -27,6 +27,7 @@ SPAN_START_WHILE_DISABLED_WARNING = (
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
+VERTEXAI_APM_SPAN_NAME = "vertexai.request"
 
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
@@ -56,3 +57,7 @@ RAGAS_ML_APP_PREFIX = "dd-ragas"
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"
 INTERNAL_QUERY_VARIABLE_KEYS = "_dd_query_variable_keys"
+
+FAITHFULNESS_DISAGREEMENTS_METADATA = "_dd.faithfulness_disagreements"
+EVALUATION_KIND_METADATA = "_dd.evaluation_kind"
+EVALUATION_SPAN_METADATA = "_dd.evaluation_span"

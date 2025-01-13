@@ -5,8 +5,8 @@ from typing import Optional
 from typing import Text
 
 from ddtrace import tracer
+from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.cache import LFUCache
 
 from ..._deduplications import deduplication
 from .._iast_request_context import get_iast_reporter
@@ -46,12 +46,6 @@ def _check_positions_contained(needle, container):
 
 class VulnerabilityBase(Operation):
     vulnerability_type = ""
-    _redacted_report_cache = LFUCache()
-
-    @classmethod
-    def _reset_cache_for_testing(cls):
-        """Reset the redacted reports and deduplication cache. For testing purposes only."""
-        cls._redacted_report_cache.clear()
 
     @classmethod
     def wrap(cls, func: Callable) -> Callable:
@@ -60,9 +54,11 @@ class VulnerabilityBase(Operation):
             vulnerability and update the context with the report information.
             """
             if not is_iast_request_enabled():
-                log.debug(
-                    "[IAST] VulnerabilityBase.wrapper. No request quota or this vulnerability is outside the context"
-                )
+                if _is_iast_debug_enabled():
+                    log.debug(
+                        "[IAST] VulnerabilityBase.wrapper. No request quota or this vulnerability "
+                        "is outside the context"
+                    )
                 return wrapped(*args, **kwargs)
             elif cls.has_quota():
                 return func(wrapped, instance, args, kwargs)
@@ -90,6 +86,11 @@ class VulnerabilityBase(Operation):
             span = tracer.current_root_span()
             if span:
                 span_id = span.span_id
+                # Mark the span as kept to avoid being dropped by the agent.
+                #
+                # It is important to do it as soon as the vulnerability is reported
+                # to ensure that any downstream propagation performed has the new priority.
+                _asm_manual_keep(span)
 
         vulnerability = Vulnerability(
             type=vulnerability_type,

@@ -8,17 +8,23 @@
 import typing as t
 
 
-def gen_required_suites(template: dict, git_selections: list) -> None:
+def gen_required_suites(template: dict) -> None:
     """Generate the list of test suites that need to be run."""
-    from needs_testrun import for_each_testrun_needed as fetn
+    from needs_testrun import extract_git_commit_selections
+    from needs_testrun import for_each_testrun_needed
     from suitespec import get_suites
 
-    suites = get_suites()
-    jobs = set(template["jobs"].keys())
-
     required_suites = template["requires_tests"]["requires"] = []
-    fetn(
-        suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite), git_selections=git_selections
+    for_each_testrun_needed(
+        suites=sorted(
+            set(
+                n
+                for n, s in get_suites().items()
+                if not s.get("skip", False) and n.rpartition("::")[-1] in template["jobs"]
+            )
+        ),
+        action=lambda suite: required_suites.append(suite.rpartition("::")[-1]),
+        git_selections=extract_git_commit_selections(os.getenv("GIT_COMMIT_DESC", "")),
     )
 
     if not required_suites:
@@ -49,7 +55,7 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Style",
         command="hatch run lint:style",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h", "CMakeLists.txt"},
     )
     check(
         name="Typing",
@@ -74,12 +80,7 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
-        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "tests/.suitespec.json"},
-    )
-    check(
-        name="Validate suitespec JSON file",
-        command="python -m tests.suitespec",
-        paths={"docker*", "tests/.suitespec.json", "tests/suitespec.py"},
+        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
         name="Check suitespec coverage",
@@ -96,15 +97,6 @@ def gen_build_docs(template: dict) -> None:
         {"docker*", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
     ):
         template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
-
-
-def extract_git_commit_selections(git_commit_message: str) -> dict:
-    """Extract the selected suites from git commit message."""
-    suites = set()
-    for token in git_commit_message.split():
-        if token.lower().startswith("circleci:"):
-            suites.update(token[len("circleci:") :].lower().split(","))
-    return list(sorted(suites))
 
 
 # -----------------------------------------------------------------------------
@@ -142,7 +134,6 @@ sys.path.append(str(ROOT / "tests"))
 with YAML(output=CONFIG_GEN_FILE) as yaml:
     LOGGER.info("Loading configuration template from %s", CONFIG_TEMPLATE_FILE)
     config = yaml.load(CONFIG_TEMPLATE_FILE)
-    git_commit_selections = extract_git_commit_selections(os.getenv("GIT_COMMIT_DESC"))
 
     has_error = False
     LOGGER.info("Configuration generation steps:")
@@ -151,10 +142,7 @@ with YAML(output=CONFIG_GEN_FILE) as yaml:
             desc = func.__doc__.splitlines()[0]
             try:
                 start = time()
-                if name == "gen_required_suites":
-                    func(config, git_commit_selections)
-                else:
-                    func(config)
+                func(config)
                 end = time()
                 LOGGER.info("- %s: %s [took %dms]", name, desc, int((end - start) / 1e6))
             except Exception as e:

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where some root span where not appropriately tagged for ASM standalone.

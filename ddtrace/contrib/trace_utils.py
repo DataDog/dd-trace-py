@@ -1,6 +1,7 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
+
 from collections import deque
 import ipaddress
 import re
@@ -66,7 +67,6 @@ IP_PATTERNS = (
     "x-real-ip",
     "true-client-ip",
     "x-client-ip",
-    "x-forwarded",
     "forwarded-for",
     "x-cluster-client-ip",
     "fastly-client-ip",
@@ -431,6 +431,7 @@ def set_http_meta(
     method=None,  # type: Optional[str]
     url=None,  # type: Optional[str]
     target_host=None,  # type: Optional[str]
+    server_address=None,  # type: Optional[str]
     status_code=None,  # type: Optional[Union[int, str]]
     status_msg=None,  # type: Optional[str]
     query=None,  # type: Optional[str]
@@ -473,6 +474,9 @@ def set_http_meta(
 
     if target_host is not None:
         span.set_tag_str(net.TARGET_HOST, target_host)
+
+    if server_address is not None:
+        span.set_tag_str(net.SERVER_ADDRESS, server_address)
 
     if status_code is not None:
         try:

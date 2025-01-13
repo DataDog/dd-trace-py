@@ -1,7 +1,7 @@
 [[
   {
     "name": "internal",
-    "service": "",
+    "service": "tests.opentelemetry",
     "resource": "root",
     "trace_id": 0,
     "span_id": 1,
@@ -25,7 +25,7 @@
   },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "corountine 1",
        "trace_id": 0,
        "span_id": 2,
@@ -37,7 +37,7 @@
      },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "corountine 2",
        "trace_id": 0,
        "span_id": 3,
@@ -49,7 +49,7 @@
      },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "corountine 3",
        "trace_id": 0,
        "span_id": 4,
@@ -61,7 +61,7 @@
      },
      {
        "name": "internal",
-       "service": "",
+       "service": "tests.opentelemetry",
        "resource": "corountine 4",
        "trace_id": 0,
        "span_id": 5,

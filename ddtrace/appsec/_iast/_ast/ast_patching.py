@@ -3,9 +3,11 @@
 import ast
 import codecs
 import os
-import re
 from sys import builtin_module_names
+from sys import version_info
+import textwrap
 from types import ModuleType
+from typing import Iterable
 from typing import Optional
 from typing import Text
 from typing import Tuple
@@ -14,16 +16,59 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.utils.formats import asbool
 
 from .visitor import AstVisitor
 
 
 _VISITOR = AstVisitor()
 
+_PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast.",)
 IAST_DENYLIST: Tuple[Text, ...] = (
+    "altgraph.",
+    "dipy.",
+    "black.",
+    "mypy.",
+    "mypy_extensions.",
+    "autopep8.",
+    "pycodestyle.",
+    "pydicom.",
+    "pyinstaller.",
+    "pystray.",
+    "contourpy.",
+    "cx_logging.",
+    "dateutil.",
+    "pytz.",
+    "wcwidth.",
+    "win32ctypes.",
+    "xlib.",
+    "cycler.",
+    "cython.",
+    "dnspython.",
+    "elasticdeform.",
+    "numpy.",
+    "matplotlib.",
+    "skbase.",
+    "scipy.",
+    "networkx.",
+    "imageio.",
+    "fonttools.",
+    "nibabel.",
+    "nilearn.",
+    "gprof2dot.",
+    "h5py.",
+    "kiwisolver.",
+    "pandas.",
+    "pdf2image.",
+    "pefile.",
+    "pil.",
+    "threadpoolctl.",
+    "tifffile.",
+    "tqdm.",
+    "trx.",
     "flask.",
     "werkzeug.",
     "aiohttp._helpers.",
@@ -107,6 +152,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "difflib.",
     "dill.info.",
     "dill.settings.",
+    "silk.",  # django-silk package
     "django.apps.config.",
     "django.apps.registry.",
     "django.conf.",
@@ -276,8 +322,12 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pkg_resources.",
     "pluggy.",
     "protobuf.",
+    "psycopg.",  # PostgreSQL adapter for Python (v3)
+    "_psycopg.",  # PostgreSQL adapter for Python (v3)
+    "psycopg2.",  # PostgreSQL adapter for Python (v2)
     "pycparser.",  # this package is called when a module is imported, propagation is not needed
     "pytest.",  # Testing framework
+    "_pytest.",
     "setuptools.",
     "sklearn.",  # Machine learning library
     "sqlalchemy.orm.interfaces.",  # Performance optimization
@@ -302,6 +352,9 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "httpcore.",
     "google.auth.",
     "googlecloudsdk.",
+    "umap.",
+    "pynndescent.",
+    "numba.",
 )
 
 
@@ -315,6 +368,49 @@ if IAST.DENY_MODULES in os.environ:
 ENCODING = ""
 
 log = get_logger(__name__)
+
+
+class _TrieNode:
+    __slots__ = ("children", "is_end")
+
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+    def __iter__(self):
+        if self.is_end:
+            yield ("", None)
+        else:
+            for k, v in self.children.items():
+                yield (k, dict(v))
+
+
+def build_trie(words: Iterable[str]) -> _TrieNode:
+    root = _TrieNode()
+    for word in words:
+        node = root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = _TrieNode()
+            node = node.children[char]
+        node.is_end = True
+    return root
+
+
+_TRIE_ALLOWLIST = build_trie(IAST_ALLOWLIST)
+_TRIE_DENYLIST = build_trie(IAST_DENYLIST)
+
+
+def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
+    node = trie
+    for char in string:
+        node = node.children.get(char)
+        if not node:
+            return False
+
+        if node.is_end:
+            return True
+    return node.is_end
 
 
 def get_encoding(module_path: Text) -> Text:
@@ -331,11 +427,11 @@ def get_encoding(module_path: Text) -> Text:
     return ENCODING
 
 
-_NOT_PATCH_MODULE_NAMES = _stdlib_for_python_version() | set(builtin_module_names)
+_NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
 
 
 def _in_python_stdlib(module_name: str) -> bool:
-    return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
+    return module_name.split(".")[0].lower() in _NOT_PATCH_MODULE_NAMES
 
 
 def _should_iast_patch(module_name: Text) -> bool:
@@ -349,10 +445,10 @@ def _should_iast_patch(module_name: Text) -> bool:
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
     dotted_module_name = module_name.lower() + "."
-    if dotted_module_name.startswith(IAST_ALLOWLIST):
+    if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
         return True
-    if dotted_module_name.startswith(IAST_DENYLIST):
+    if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
         log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
         return False
     if _in_python_stdlib(module_name):
@@ -365,9 +461,8 @@ def visit_ast(
     source_text: Text,
     module_path: Text,
     module_name: Text = "",
-) -> Optional[str]:
+) -> Optional[ast.Module]:
     parsed_ast = ast.parse(source_text, module_path)
-
     _VISITOR.update_location(filename=module_path, module_name=module_name)
     modified_ast = _VISITOR.visit(parsed_ast)
 
@@ -378,44 +473,56 @@ def visit_ast(
     return modified_ast
 
 
-_FLASK_INSTANCE_REGEXP = re.compile(r"(\S*)\s*=.*Flask\(.*")
+_DIR_WRAPPER = textwrap.dedent(
+    f"""
 
 
-def _remove_flask_run(text: Text) -> Text:
+def {_PREFIX}dir():
+    orig_dir = globals().get("{_PREFIX}orig_dir__")
+
+    if orig_dir:
+        # Use the original __dir__ method and filter the results
+        results = [name for name in orig_dir() if not name.startswith("{_PREFIX}")]
+    else:
+        # List names from the module's __dict__ and filter out the unwanted names
+        results = [
+            name for name in globals()
+            if not (name.startswith("{_PREFIX}") or name == "__dir__")
+        ]
+
+    return results
+
+def {_PREFIX}set_dir_filter():
+    if "__dir__" in globals():
+        # Store the original __dir__ method
+        globals()["{_PREFIX}orig_dir__"] = __dir__
+
+    # Replace the module's __dir__ with the custom one
+    globals()["__dir__"] = {_PREFIX}dir
+
+{_PREFIX}set_dir_filter()
+
     """
-    Find and remove flask app.run() call. This is used for patching
-    the app.py file and exec'ing to replace the module without creating
-    a new instance.
-    """
-    flask_instance_name = re.search(_FLASK_INSTANCE_REGEXP, text)
-    if not flask_instance_name:
-        return text
-    groups = flask_instance_name.groups()
-    if not groups:
-        return text
-
-    instance_name = groups[-1]
-    new_text = re.sub(instance_name + r"\.run\(.*\)", "pass", text)
-    return new_text
+)
 
 
-def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, str]:
+def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
     module_name = module.__name__
 
     module_origin = origin(module)
     if module_origin is None:
         log.debug("astpatch_source couldn't find the module: %s", module_name)
-        return "", ""
+        return "", None
 
     module_path = str(module_origin)
     try:
         if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
             log.debug("empty file: %s", module_path)
-            return "", ""
+            return "", None
     except OSError:
         log.debug("astpatch_source couldn't find the file: %s", module_path, exc_info=True)
-        return "", ""
+        return "", None
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
     # If its pyc or pyo, change to .py and check that the file exists. If not,
@@ -425,30 +532,32 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
     if module_ext.lower() not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
         log.debug("extension not supported: %s for: %s", module_ext, module_path)
-        return "", ""
+        return "", None
 
     with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
             log.debug("unicode decode error for file: %s", module_path, exc_info=True)
-            return "", ""
+            return "", None
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
         log.debug("empty file: %s", module_path)
-        return "", ""
+        return "", None
 
-    if remove_flask_run:
-        source_text = _remove_flask_run(source_text)
+    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):
+        # Add the dir filter so __ddtrace stuff is not returned by dir(module)
+        # does not work in 3.7 because it enters into infinite recursion
+        source_text += _DIR_WRAPPER
 
-    new_source = visit_ast(
+    new_ast = visit_ast(
         source_text,
         module_path,
         module_name=module_name,
     )
-    if new_source is None:
+    if new_ast is None:
         log.debug("file not ast patched: %s", module_path)
-        return "", ""
+        return "", None
 
-    return module_path, new_source
+    return module_path, new_ast

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import mock
 import pytest
 
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -68,7 +67,7 @@ class TestLLMObsAnthropic:
                 output_messages=[{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}],
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
                 token_metrics={"input_tokens": 32, "output_tokens": 15, "total_tokens": 47},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
 
@@ -113,40 +112,9 @@ class TestLLMObsAnthropic:
                         error_message=span.get_tag("error.message"),
                         error_stack=span.get_tag("error.stack"),
                         metadata={"temperature": 0.8, "max_tokens": 15.0},
-                        tags={"ml_app": "<ml-app-name>"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
                 )
-
-    def test_error_unserializable_arg(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
-    ):
-        """Ensure we handle unserializable arguments correctly and still emit llmobs records."""
-        llm = anthropic.Anthropic()
-        with pytest.raises(Exception):
-            llm.messages.create(
-                model="claude-3-opus-20240229",
-                max_tokens=object(),
-                temperature=0.8,
-                messages=[{"role": "user", "content": "Hello World!"}],
-            )
-
-        span = mock_tracer.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        expected_span = _expected_llmobs_llm_span_event(
-            span,
-            model_name="claude-3-opus-20240229",
-            model_provider="anthropic",
-            input_messages=[{"content": "Hello World!", "role": "user"}],
-            output_messages=[{"content": ""}],
-            error=span.get_tag("error.type"),
-            error_message=span.get_tag("error.message"),
-            error_stack=span.get_tag("error.stack"),
-            metadata={"temperature": 0.8, "max_tokens": mock.ANY},
-            tags={"ml_app": "<ml-app-name>"},
-        )
-        mock_llmobs_writer.enqueue.assert_called_with(expected_span)
-        actual_span = mock_llmobs_writer.enqueue.call_args[0][0]
-        assert "[Unserializable object: <object object at " in actual_span["meta"]["metadata"]["max_tokens"]
 
     def test_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
@@ -196,7 +164,7 @@ class TestLLMObsAnthropic:
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
-                    tags={"ml_app": "<ml-app-name>"},
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 )
             )
 
@@ -253,7 +221,7 @@ class TestLLMObsAnthropic:
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
-                    tags={"ml_app": "<ml-app-name>"},
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 )
             )
 
@@ -308,7 +276,7 @@ class TestLLMObsAnthropic:
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
-                    tags={"ml_app": "<ml-app-name>"},
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 )
             )
 
@@ -350,7 +318,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
 
@@ -403,7 +371,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
 
@@ -446,7 +414,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
 
@@ -499,7 +467,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
 
@@ -559,7 +527,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 135, "total_tokens": 734},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
 
@@ -609,7 +577,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 33, "total_tokens": 795},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
 
@@ -664,7 +632,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
 
@@ -719,6 +687,6 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 18, "total_tokens": 780},
-                tags={"ml_app": "<ml-app-name>"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )

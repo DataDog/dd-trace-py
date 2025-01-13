@@ -85,6 +85,9 @@ class Probe(abc.ABC):
         for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
 
+    def is_global_rate_limited(self) -> bool:
+        return False
+
     def __hash__(self):
         return hash(self.probe_id)
 
@@ -245,12 +248,14 @@ class LogProbeMixin(AbstractProbeMixIn):
 
 @dataclass
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    pass
+    def is_global_rate_limited(self) -> bool:
+        return self.take_snapshot
 
 
 @dataclass
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    pass
+    def is_global_rate_limited(self) -> bool:
+        return self.take_snapshot
 
 
 @dataclass

@@ -5,12 +5,12 @@ import time
 import mock
 import pytest
 
-import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSamplingRule
-from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from tests.llmobs._utils import DummyEvaluator
+from tests.llmobs._utils import _dummy_evaluator_eval_metric_event
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -18,24 +18,11 @@ from tests.utils import override_global_config
 DUMMY_SPAN = Span("dummy_span")
 
 
-def _dummy_ragas_eval_metric_event(span_id, trace_id):
-    return LLMObsEvaluationMetricEvent(
-        span_id=span_id,
-        trace_id=trace_id,
-        score_value=1.0,
-        ml_app="unnamed-ml-app",
-        timestamp_ms=mock.ANY,
-        metric_type="score",
-        label="ragas_faithfulness",
-        tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
-    )
-
-
-def test_evaluator_runner_start(mock_evaluator_logs, mock_ragas_evaluator):
+def test_evaluator_runner_start(mock_evaluator_logs):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
-    evaluator_runner.evaluators.append(mock_ragas_evaluator)
+    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=mock.MagicMock()))
     evaluator_runner.start()
-    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r to %r", "EvaluatorRunner")])
+    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r", "EvaluatorRunner")])
 
 
 def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
@@ -47,20 +34,20 @@ def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
     )
 
 
-def test_evaluator_runner_periodic_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer, mock_ragas_evaluator):
-    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
-    evaluator_runner.evaluators.append(mock_ragas_evaluator(llmobs_service=LLMObs))
+def test_evaluator_runner_periodic_enqueues_eval_metric(llmobs, mock_llmobs_eval_metric_writer):
+    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
+    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=llmobs))
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
     evaluator_runner.periodic()
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
-        _dummy_ragas_eval_metric_event(span_id="123", trace_id="1234")
+        _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234")
     )
 
 
 @pytest.mark.vcr_logs
-def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer, mock_ragas_evaluator):
-    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
-    evaluator_runner.evaluators.append(mock_ragas_evaluator(llmobs_service=LLMObs))
+def test_evaluator_runner_timed_enqueues_eval_metric(llmobs, mock_llmobs_eval_metric_writer):
+    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
+    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=llmobs))
     evaluator_runner.start()
 
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
@@ -68,7 +55,7 @@ def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_me
     time.sleep(0.1)
 
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
-        _dummy_ragas_eval_metric_event(span_id="123", trace_id="1234")
+        _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234")
     )
 
 
@@ -77,15 +64,7 @@ def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subproces
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update(
-        {
-            "DD_API_KEY": os.getenv("DD_API_KEY", "dummy-api-key"),
-            "DD_SITE": "datad0g.com",
-            "PYTHONPATH": ":".join(pypath),
-            "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-            "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
-        }
-    )
+    env.update({"PYTHONPATH": ":".join(pypath), "_DD_LLMOBS_EVALUATOR_INTERVAL": "5"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import os
@@ -100,7 +79,7 @@ from tests.llmobs._utils import DummyEvaluator
 ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_evaluator_runner.send_score_metric.yaml")
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
-LLMObs.enable()
+LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app")
 LLMObs._instance._evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
 LLMObs._instance._evaluator_runner.start()
 LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, None)
@@ -110,6 +89,12 @@ LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"
     assert status == 0, err
     assert out == b""
     assert err == b""
+
+
+def test_evaluator_runner_unsupported_evaluator():
+    with override_env({"_DD_LLMOBS_EVALUATORS": "unsupported"}):
+        with pytest.raises(ValueError):
+            EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
 
 
 def test_evaluator_runner_sampler_single_rule(monkeypatch):

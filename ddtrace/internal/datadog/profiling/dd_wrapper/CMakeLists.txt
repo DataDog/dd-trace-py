@@ -12,14 +12,23 @@ get_filename_component(dd_wrapper_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ddtr
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 # Includes
-include(FetchContent)
-include(ExternalProject)
-include(FindLibdatadog)
 include(AnalysisFunc)
 include(FindClangtidy)
 include(FindCppcheck)
 include(FindInfer)
 include(CheckSymbolExists)
+
+# Load libdatadog
+include(FindLibdatadog)
+
+# Since this file is currently only loaded as a subdirectory, we need to propagate certain libdatadog variables up to
+# the parent scope.
+set(Datadog_INCLUDE_DIRS
+    ${Datadog_INCLUDE_DIRS}
+    PARENT_SCOPE)
+set(Datadog_LIBRARIES
+    ${Datadog_LIBRARIES}
+    PARENT_SCOPE)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -47,13 +56,11 @@ add_library(
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
-target_compile_features(dd_wrapper PUBLIC cxx_std_17)
-
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
 
 target_link_libraries(dd_wrapper PRIVATE ${Datadog_LIBRARIES} Threads::Threads)
 
-# Figure out the suffix.  Try to approximate the cpython way of doing things. C library
+# Figure out the suffix.  Try to approximate the cpython way of doing things.
 check_symbol_exists(__GLIBC__ "features.h" HAVE_GLIBC)
 check_symbol_exists(__MUSL__ "features.h" HAVE_MUSL)
 
@@ -75,7 +82,7 @@ string(TOLOWER ${PLATFORM_SUFFIX} PLATFORM_SUFFIX)
 # but as long as it encodes the major moving parts, it's fine
 set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
 
-set_target_properties(dd_wrapper PROPERTIES POSITION_INDEPENDENT_CODE ON OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
+set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
 
 # The name of the crashtracker executable has to be propagated to a a few different targets, and it needs to be inferred
 # at runtime, so we set it here.  Any component which used dd_wrapper will have access to a uniform name.

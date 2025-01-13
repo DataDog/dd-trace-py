@@ -1,10 +1,10 @@
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.reporter import Evidence
@@ -19,7 +19,9 @@ from tests.utils import override_global_config
 
 
 # FIXME: ideally all these should pass, through the key is that we don't leak any potential PII
-_ignore_list = {46, 47}
+_ignore_list = {
+    46,
+}
 
 
 @pytest.mark.parametrize(

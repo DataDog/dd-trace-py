@@ -23,6 +23,7 @@ Full grammar:
     arg_operation           =>  {"<arg_op_type>": [<argument_list>]}
     arg_op_type             =>  filter | substring | getmember | index
 """  # noqa
+
 from dataclasses import dataclass
 from itertools import chain
 import re
@@ -62,7 +63,9 @@ NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else 
 
 def short_circuit_instrs(op: str, label: Label) -> List[Instr]:
     value = "FALSE" if op == "and" else "TRUE"
-    if PY >= (3, 12):
+    if PY >= (3, 13):
+        return [Instr("COPY", 1), Instr("TO_BOOL"), Instr(f"POP_JUMP_IF_{value}", label), Instr("POP_TOP")]
+    elif PY >= (3, 12):
         return [Instr("COPY", 1), Instr(f"POP_JUMP_IF_{value}", label), Instr("POP_TOP")]
 
     return [Instr(f"JUMP_IF_{value}_OR_POP", label)]
@@ -84,6 +87,13 @@ def instanceof(value: Any, type_qname: str) -> bool:
             log.debug("Failed to check instanceof %s for value of type %s", type_qname, type(value))
 
     return False
+
+
+def get_local(_locals: Mapping[str, Any], name: str) -> Any:
+    try:
+        return _locals[name]
+    except KeyError:
+        raise NameError(f"No such local variable: '{name}'")
 
 
 class DDCompiler:
@@ -137,6 +147,9 @@ class DDCompiler:
             value.append(Instr("LOAD_FAST", "_locals"))
             value.append(IN_OPERATOR_INSTR)
         else:
+            if PY >= (3, 13):
+                # UNARY_NOT requires a boolean value
+                value.append(Instr("TO_BOOL"))
             value.append(Instr("UNARY_NOT"))
 
         return value
@@ -235,26 +248,25 @@ class DDCompiler:
             if arg == "@it":
                 return [Instr("LOAD_FAST", "_dd_it")]
 
-            return [
-                Instr("LOAD_FAST", "_locals"),
-                Instr("LOAD_CONST", self.__ref__(arg)),
-                Instr("BINARY_SUBSCR"),
-            ]
+            return self._call_function(
+                get_local, [Instr("LOAD_FAST", "_locals")], [Instr("LOAD_CONST", self.__ref__(arg))]
+            )
 
         return None
 
     def _call_function(self, func: Callable, *args: List[Instr]) -> List[Instr]:
-        if PY < (3, 11):
-            return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
-        elif PY >= (3, 12):
+        if PY >= (3, 13):
+            return [Instr("LOAD_CONST", func), Instr("PUSH_NULL")] + list(chain(*args)) + [Instr("CALL", len(args))]
+        if PY >= (3, 12):
             return [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL", len(args))]
+        if PY >= (3, 11):
+            return (
+                [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
+                + list(chain(*args))
+                + [Instr("PRECALL", len(args)), Instr("CALL", len(args))]
+            )
 
-        # Python 3.11
-        return (
-            [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
-            + list(chain(*args))
-            + [Instr("PRECALL", len(args)), Instr("CALL", len(args))]
-        )
+        return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
 
     def _compile_arg_operation(self, ast: DDASTType) -> Optional[List[Instr]]:
         # arg_operation  =>  {"<arg_op_type>": [<argument_list>]}

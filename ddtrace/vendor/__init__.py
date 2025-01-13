@@ -26,19 +26,6 @@ Notes:
   removed unnecessary compat utils
 
 
-monotonic
----------
-
-Website: https://pypi.org/project/monotonic/
-Source: https://github.com/atdt/monotonic
-Version: 1.5
-License: Apache License 2.0
-
-Notes:
-  The source `monotonic.py` was added as `monotonic/__init__.py`
-
-  No other changes were made
-
 debtcollector
 -------------
 
@@ -60,20 +47,6 @@ Version: 5.6.7
 License: BSD 3
 
 
-contextvars
--------------
-
-Source: https://github.com/MagicStack/contextvars
-Version: 2.4
-License: Apache License 2.0
-
-Notes:
-  - removal of metaclass usage
-  - formatting
-  - use a plain old dict instead of immutables.Map
-  - removal of `*` syntax
-
-
 sqlcommenter
 ------------
 
@@ -91,6 +64,33 @@ License: Apache License 2.0
 Notes:
   - We only vendor the packaging.version sub-module as this is all we currently
     need.
+
+
+ply
+---------
+
+Source: https://github.com/dabeaz/ply
+Version: 3.11
+License: BSD-3-Clause
+
+Notes:
+  - jsonpath-ng dependency
+    Did a "pip install jsonpath-ng"
+    Then went and looked at the contents of the ply packages
+    yacc.py and lex.py files here.
+    Didn't copy: cpp.py, ctokens.py, ygen.py (didn't see them used)
+
+
+jsonpath-ng
+---------
+
+Source: https://github.com/h2non/jsonpath-ng
+Version: 1.6.1
+License: Apache License 2.0
+
+Notes:
+  - Copied ply into vendors as well.
+    Changed "-" to "_" as was causing errors when importing.
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger

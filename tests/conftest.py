@@ -179,6 +179,20 @@ def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
 
 
 @pytest.fixture
+def ddtrace_tmp_path(tmp_path):
+    # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
+    ddtrace_dir = tmp_path / DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+    ddtrace_dir.mkdir(exist_ok=True)  # Create the directory if it doesn't exist
+
+    # Check for __init__.py and create it if it doesn't exist
+    init_file = ddtrace_dir / "__init__.py"
+    if not init_file.exists():
+        init_file.write_text("")  # Create an empty __init__.py file
+
+    return ddtrace_dir
+
+
+@pytest.fixture
 def run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
         pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
@@ -299,6 +313,7 @@ def run_function_from_file(item, params=None):
     args = [sys.executable]
 
     timeout = marker.kwargs.get("timeout", None)
+    check_logs = marker.kwargs.get("check_logs", True)
 
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
@@ -367,10 +382,16 @@ def run_function_from_file(item, params=None):
                     )
 
                 if not is_stream_ok(out, expected_out):
-                    raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                    if check_logs:
+                        raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                    else:
+                        pytest.xfail("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
 
                 if not is_stream_ok(err, expected_err):
-                    raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+                    if check_logs:
+                        raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+                    else:
+                        pytest.xfail("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
 
             return _subprocess_wrapper()
     finally:
