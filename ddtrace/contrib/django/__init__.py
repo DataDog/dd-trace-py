@@ -25,7 +25,6 @@ To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
         },
     }
 
-
 Configuration
 ~~~~~~~~~~~~~
 

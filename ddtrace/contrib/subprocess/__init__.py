@@ -5,7 +5,6 @@ Security is enabled with::
 
     DD_APPSEC_ENABLED=true
 
-
 Configuration
 ~~~~~~~~~~~~~
 

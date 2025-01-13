@@ -18,8 +18,7 @@ hashing with memcached - the key(s) will appear as a mangled hash.
 ::
 
     # Patch before importing dogpile.cache
-    from ddtrace import patch
-    patch(dogpile_cache=True)
+
 
     from dogpile.cache import make_region
 

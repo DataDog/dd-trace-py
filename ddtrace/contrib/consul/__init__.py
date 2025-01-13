@@ -5,11 +5,10 @@ Only supports tracing for the synchronous client.
 ``import ddtrace.auto`` will automatically patch your Consul client to make it work.
 ::
 
-    from ddtrace import Pin, patch
-    import consul
+    import ddtrace.auto
 
-    # If not patched yet, you can patch consul specifically
-    patch(consul=True)
+    from ddtrace import Pin
+    import consul
 
     # This will report a span with the default settings
     client = consul.Consul(host="127.0.0.1", port=8500)

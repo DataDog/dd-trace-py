@@ -9,10 +9,8 @@ Enabling
 The MariaDB integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
-    from ddtrace import patch
-    patch(mariadb=True)
 
 
 Global Configuration
@@ -33,12 +31,8 @@ Instance Configuration
 
 To configure the mariadb integration on an per-connection basis use the
 ``Pin`` API::
-
+    import ddtrace.auto
     from ddtrace import Pin
-    from ddtrace import patch
-
-    # Make sure to patch before importing mariadb
-    patch(mariadb=True)
 
     import mariadb.connector
 

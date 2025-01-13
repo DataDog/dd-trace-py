@@ -10,10 +10,9 @@ To trace the falcon web framework, install the trace middleware::
 
 You can also use the autopatching functionality::
 
+    import ddtrace.auto
     import falcon
-    from ddtrace import tracer, patch
-
-    patch(falcon=True)
+    from ddtrace import tracer
 
     app = falcon.API()
 

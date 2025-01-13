@@ -1,7 +1,7 @@
 """
 The Django patching works as follows:
 
-Django internals are instrumented via normal `patch()`.
+Django internals are instrumented via  ``ddtrace-run`` or ``import ddtrace.auto``.
 
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).

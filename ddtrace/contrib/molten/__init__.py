@@ -13,7 +13,6 @@ You may also enable molten tracing automatically via ``ddtrace-run``::
 
     ddtrace-run python app.py
 
-
 Configuration
 ~~~~~~~~~~~~~
 

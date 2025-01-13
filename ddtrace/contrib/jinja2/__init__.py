@@ -1,11 +1,9 @@
 """
 The ``jinja2`` integration traces templates loading, compilation and rendering.
-Auto instrumentation is available using the ``patch``. The following is an example::
+Auto instrumentation is available using ``import ddtrace.auto``. The following is an example::
 
-    from ddtrace import patch
+    import ddtrace.auto
     from jinja2 import Environment, FileSystemLoader
-
-    patch(jinja2=True)
 
     env = Environment(
         loader=FileSystemLoader("templates")

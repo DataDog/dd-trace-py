@@ -18,10 +18,8 @@ Patch ``loguru``
 
 If using :ref:`ddtrace-run<ddtracerun>` then set the environment variable ``DD_LOGS_INJECTION=true``.
 
-Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
-    from ddtrace import patch
-    patch(loguru=True)
 
 Proper Formatting
 ~~~~~~~~~~~~~~~~~

@@ -7,19 +7,12 @@ Enabling
 The fastapi integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
-
-    from ddtrace import patch
-    from fastapi import FastAPI
-
-    patch(fastapi=True)
-    app = FastAPI()
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
 When registering your own ASGI middleware using FastAPI's ``add_middleware()`` function,
 keep in mind that Datadog spans close after your middleware's call to ``await self.app()`` returns.
 This means that accesses of span data from within the middleware should be performed
 prior to this call.
-
 
 Configuration
 ~~~~~~~~~~~~~

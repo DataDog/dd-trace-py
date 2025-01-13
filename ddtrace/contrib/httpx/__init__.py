@@ -8,13 +8,7 @@ Enabling
 The ``httpx`` integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Alternatively, use :func:`patch()<ddtrace.patch>` to manually enable the integration::
-
-    from ddtrace import patch
-    patch(httpx=True)
-
-    # use httpx like usual
-
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~

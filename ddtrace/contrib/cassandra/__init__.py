@@ -3,11 +3,10 @@
 ``import ddtrace.auto`` will automatically patch your Cluster instance to make it work.
 ::
 
-    from ddtrace import Pin, patch
-    from cassandra.cluster import Cluster
+    import ddtrace.auto
 
-    # If not patched yet, you can patch cassandra specifically
-    patch(cassandra=True)
+    from ddtrace import Pin
+    from cassandra.cluster import Cluster
 
     # This will report spans with the default instrumentation
     cluster = Cluster(contact_points=["127.0.0.1"], port=9042)

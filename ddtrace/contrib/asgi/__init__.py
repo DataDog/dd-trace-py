@@ -34,7 +34,6 @@ function::
             span.set_tag(...)
         ...
 
-
 Configuration
 ~~~~~~~~~~~~~
 

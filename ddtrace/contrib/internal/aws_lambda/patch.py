@@ -239,7 +239,7 @@ def patch():
 
         handler_module._datadog_patch = True
     except AttributeError:
-        # User code might contain `ddtrace.patch_all()` or `ddtrace.patch(aws_lambda=True)`
+        # User code might contain `ddtrace.patch_all()`
         # which might cause a circular dependency. Skipping.
         return
     except Exception:

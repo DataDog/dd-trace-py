@@ -3,12 +3,11 @@ The Celery integration will trace all tasks that are executed in the
 background. Functions and class based tasks are traced only if the Celery API
 is used, so calling the function directly or via the ``run()`` method will not
 generate traces. However, calling ``apply()``, ``apply_async()`` and ``delay()``
-will produce tracing data. To trace your Celery application, call the patch method::
+will produce tracing data. To trace your Celery application use ``import ddtrace.auto``::
+
+    import ddtrace.auto
 
     import celery
-    from ddtrace import patch
-
-    patch(celery=True)
     app = celery.Celery()
 
     @app.task

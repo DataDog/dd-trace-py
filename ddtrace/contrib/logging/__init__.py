@@ -19,10 +19,7 @@ There are a few ways to tell ddtrace to patch the ``logging`` module:
 
 1. If using :ref:`ddtrace-run<ddtracerun>`, you can set the environment variable ``DD_LOGS_INJECTION=true``.
 
-2. Use :func:`patch()<ddtrace.patch>` to manually enable the integration::
-
-    from ddtrace import patch
-    patch(logging=True)
+2. Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
 3. (beta) Set ``log_injection_enabled`` at runtime via the Datadog UI.
 

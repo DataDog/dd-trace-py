@@ -3,11 +3,10 @@
 ``import ddtrace.auto`` will automatically patch your Redis Cluster client to make it work.
 ::
 
+    import ddtrace.auto
+
     from ddtrace import Pin, patch
     import rediscluster
-
-    # If not patched yet, you can patch redis specifically
-    patch(rediscluster=True)
 
     # This will report a span with the default settings
     client = rediscluster.StrictRedisCluster(startup_nodes=[{'host':'localhost', 'port':'7000'}])

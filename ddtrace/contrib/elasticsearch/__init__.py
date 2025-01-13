@@ -7,12 +7,10 @@ Enabling
 The elasticsearch integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
-
-    from ddtrace import patch
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
+    import ddtrace.auto
     from elasticsearch import Elasticsearch
 
-    patch(elasticsearch=True)
     # This will report spans with the default instrumentation
     es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
     # Example of instrumented query
@@ -25,14 +23,12 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
 OpenSearch is also supported (`opensearch-py`)::
 
-    from ddtrace import patch
+    import ddtrace.auto
     from opensearchpy import OpenSearch
 
-    patch(elasticsearch=True)
     os = OpenSearch()
     # Example of instrumented query
     os.indices.create(index='books', ignore=400)
-
 
 Configuration
 ~~~~~~~~~~~~~

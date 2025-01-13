@@ -12,13 +12,6 @@ using the ``DD_TRACE_HTTPLIB_ENABLED`` environment variable::
 
     DD_TRACE_HTTPLIB_ENABLED=true ddtrace-run ....
 
-The integration can also be enabled manually in code with
-:func:`patch_all()<ddtrace.patch_all>`::
-
-    from ddtrace import patch_all
-    patch_all(httplib=True)
-
-
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 

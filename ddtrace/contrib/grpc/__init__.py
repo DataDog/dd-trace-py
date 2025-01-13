@@ -8,10 +8,8 @@ Enabling
 The gRPC integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
-    from ddtrace import patch
-    patch(grpc=True)
 
     # use grpc like usual
 
@@ -44,10 +42,11 @@ Instance Configuration
 To configure the gRPC integration on an per-channel basis use the
 ``Pin`` API::
 
+    import ddtrace.auto
+
     import grpc
     from ddtrace import Pin, patch, Tracer
 
-    patch(grpc=True)
     custom_tracer = Tracer()
 
     # override the pin on the client
@@ -58,12 +57,12 @@ To configure the gRPC integration on an per-channel basis use the
 
 To configure the gRPC integration on the server use the ``Pin`` API::
 
+    import ddtrace.auto
     import grpc
     from grpc.framework.foundation import logging_pool
 
-    from ddtrace import Pin, patch, Tracer
+    from ddtrace import Pin, Tracer
 
-    patch(grpc=True)
     custom_tracer = Tracer()
 
     # override the pin on the server

@@ -3,11 +3,11 @@
 ``import ddtrace.auto`` will automatically patch your mongoengine connect method to make it work.
 ::
 
-    from ddtrace import Pin, patch
-    import mongoengine
-
     # If not patched yet, you can patch mongoengine specifically
-    patch(mongoengine=True)
+    import ddtrace.auto
+
+    from ddtrace import Pin
+    import mongoengine
 
     # At that point, mongoengine is instrumented with the default settings
     mongoengine.connect('db', alias='default')

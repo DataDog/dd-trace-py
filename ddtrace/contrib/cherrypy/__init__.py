@@ -14,7 +14,6 @@ and create a `TraceMiddleware` object::
 
     traced_app = TraceMiddleware(cherrypy, tracer, service="my-cherrypy-app")
 
-
 Configuration
 ~~~~~~~~~~~~~
 

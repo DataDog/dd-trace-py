@@ -25,11 +25,7 @@ Enabling
 The Vertex AI integration is enabled automatically when you use
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Vertex AI integration::
-
-    from ddtrace import config, patch
-
-    patch(vertexai=True)
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
 
 Global Configuration

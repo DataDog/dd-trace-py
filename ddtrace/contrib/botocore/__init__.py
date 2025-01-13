@@ -8,15 +8,7 @@ Enabling
 The botocore integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
-
-    from ddtrace import patch
-    patch(botocore=True)
-
-To patch only specific botocore modules, pass a list of the module names instead::
-
-    from ddtrace import patch
-    patch(botocore=['s3', 'sns'])
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
 Configuration
 ~~~~~~~~~~~~~

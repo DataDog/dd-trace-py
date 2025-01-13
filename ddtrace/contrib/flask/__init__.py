@@ -40,7 +40,6 @@ the `app.run()` to ensure the code inside the main module is patched to propagat
         ddtrace_iast_flask_patch()
         app.run()
 
-
 Configuration
 ~~~~~~~~~~~~~
 

@@ -8,8 +8,7 @@ the ``ddtrace-run`` command.
 Vertica is instrumented on import. To instrument Vertica manually use the
 ``patch`` function. Note the ordering of the following statements::
 
-    from ddtrace import patch
-    patch(vertica=True)
+
 
     import vertica_python
 

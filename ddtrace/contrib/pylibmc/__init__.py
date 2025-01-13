@@ -5,11 +5,11 @@
 
     # Be sure to import pylibmc and not pylibmc.Client directly,
     # otherwise you won't have access to the patched version
-    from ddtrace import Pin, patch
+    import ddtrace.auto
+
+    from ddtrace import Pin
     import pylibmc
 
-    # If not patched yet, you can patch pylibmc specifically
-    patch(pylibmc=True)
 
     # One client instrumented with default configuration
     client = pylibmc.Client(["localhost:11211"]

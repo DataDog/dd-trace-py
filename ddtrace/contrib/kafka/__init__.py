@@ -8,10 +8,9 @@ Enabling
 The kafka integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
-    from ddtrace import patch
-    patch(kafka=True)
+
     import confluent_kafka
     ...
 
@@ -30,12 +29,10 @@ Global Configuration
 
 To configure the kafka integration using the
 ``Pin`` API::
+    # Make sure to patch before importing confluent_kafka
+    import ddtrace.auto
 
     from ddtrace import Pin
-    from ddtrace import patch
-
-    # Make sure to patch before importing confluent_kafka
-    patch(kafka=True)
 
     import confluent_kafka
 

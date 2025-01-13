@@ -64,10 +64,7 @@ __all__ = [
 ]
 
 
-_DEPRECATED_MODULE_ATTRIBUTES = [
-    "Span",
-    "Tracer",
-]
+_DEPRECATED_MODULE_ATTRIBUTES = ["Span", "Tracer", "patch"]
 
 
 def __getattr__(name):
