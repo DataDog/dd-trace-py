@@ -330,9 +330,6 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
-            env={
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
-            },
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -411,7 +408,6 @@ venv = Venv(
             name="internal",
             env={
                 "DD_TRACE_AGENT_URL": "http://ddagent:8126",
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
@@ -516,9 +512,6 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            env={
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
-            },
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
