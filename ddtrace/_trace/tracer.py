@@ -41,6 +41,7 @@ from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.core import dispatch
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
@@ -849,7 +850,7 @@ class Tracer(object):
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
-
+        dispatch("trace.span_start", (span,))
         return span
 
     start_span = _start_span
@@ -865,6 +866,8 @@ class Tracer(object):
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
+
+        dispatch("trace.span_finish", (span,))
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
@@ -940,18 +943,23 @@ class Tracer(object):
         )
 
     def current_root_span(self) -> Optional[Span]:
-        """Returns the root span of the current execution.
+        """Returns the local root span of the current execution/process.
 
-        This is useful for attaching information related to the trace as a
-        whole without needing to add to child spans.
+        Note: This cannot be used to access the true root span of the trace
+        in a distributed tracing setup if the actual root span occurred in
+        another execution/process.
+
+        This is useful for attaching information to the local root span
+        of the current execution/process, which is often also service
+        entry span.
 
         For example::
 
-            # get the root span
-            root_span = tracer.current_root_span()
+            # get the local root span
+            local_root_span = tracer.current_root_span()
             # set the host just once on the root span
-            if root_span:
-                root_span.set_tag('host', '127.0.0.1')
+            if local_root_span:
+                local_root_span.set_tag('host', '127.0.0.1')
         """
         span = self.current_span()
         if span is None:
