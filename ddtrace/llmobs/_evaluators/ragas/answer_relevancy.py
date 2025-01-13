@@ -79,12 +79,7 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
         trace_metadata = {}  # type: dict[str, Union[str, dict, list]]
 
         # initialize data we annotate for tracing ragas
-        score, question, answer, answer_classifications = (
-            math.nan,
-            None,
-            None,
-            None,
-        )
+        score, question, answer, answer_classifications = (math.nan, None, None, None)
 
         with self.llmobs_service.workflow(
             "dd-ragas.answer_relevancy", ml_app=_get_ml_app_for_ragas_trace(span_event)
@@ -109,7 +104,6 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
                     context="\n".join(contexts),
                 )
 
-                # 'strictness' is a parameter that can be set to control the number of generations
                 trace_metadata["strictness"] = self.ragas_answer_relevancy_instance.strictness
                 result = self.ragas_answer_relevancy_instance.llm.generate_text(
                     prompt, n=self.ragas_answer_relevancy_instance.strictness
