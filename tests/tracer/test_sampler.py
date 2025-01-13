@@ -7,6 +7,10 @@ import mock
 import pytest
 
 from ddtrace._trace.context import Context
+from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampler import RateByServiceSampler
+from ddtrace._trace.sampler import RateSampler
+from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
@@ -20,10 +24,6 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateByServiceSampler
-from ddtrace.sampler import RateSampler
-from ddtrace.sampling_rule import SamplingRule
 
 from ..subprocesstest import run_in_subprocess
 from ..utils import DummyTracer
@@ -612,7 +612,7 @@ def test_sampling_rule_matches_exception():
     rule = SamplingRule(sample_rate=1.0, name=pattern)
     span = create_span(name="test.span")
 
-    with mock.patch("ddtrace.sampling_rule.log") as mock_log:
+    with mock.patch("ddtrace._trace.sampling_rule.log") as mock_log:
         assert (
             rule.matches(span) is False
         ), "SamplingRule should not match when its name pattern function throws an exception"
@@ -629,8 +629,8 @@ def test_sampling_rule_matches_exception():
     parametrize={"DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["true", "false"]},
 )
 def test_sampling_rule_sample():
+    from ddtrace._trace.sampling_rule import SamplingRule
     from ddtrace._trace.span import Span
-    from ddtrace.sampling_rule import SamplingRule
 
     for sample_rate in [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991]:
         rule = SamplingRule(sample_rate=sample_rate)
@@ -766,7 +766,7 @@ def test_datadog_sampler_init():
     )
 
 
-@mock.patch("ddtrace.sampler.RateSampler.sample")
+@mock.patch("ddtrace._trace.sampler.RateSampler.sample")
 def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     sampler = DatadogSampler()
     dummy_tracer.configure(sampler=sampler)
