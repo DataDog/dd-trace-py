@@ -7,7 +7,6 @@ from typing import Text
 from ddtrace import tracer
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.cache import LFUCache
 
 from ..._deduplications import deduplication
 from .._iast_request_context import get_iast_reporter
@@ -47,7 +46,6 @@ def _check_positions_contained(needle, container):
 
 class VulnerabilityBase(Operation):
     vulnerability_type = ""
-
 
     @classmethod
     def wrap(cls, func: Callable) -> Callable:
