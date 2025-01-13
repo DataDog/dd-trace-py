@@ -87,8 +87,8 @@ suites:
     retry: 2
     runner: hatch
     timeout: 50m
-    # only:
-    #   - 'main'
+    only:
+      - 'main'
   appsec_integrations:
     parallelism: 7
     paths:
