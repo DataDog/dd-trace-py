@@ -48,8 +48,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "cycler.",
     "cython.",
     "dnspython.",
-    "elasticdeform."
-    "numpy.",
+    "elasticdeform." "numpy.",
     "matplotlib.",
     "skbase.",
     "scipy.",
