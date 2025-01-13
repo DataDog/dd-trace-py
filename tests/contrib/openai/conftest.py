@@ -8,7 +8,7 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace import patch
+from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
 from ddtrace.filters import TraceFilter
 from ddtrace.llmobs import LLMObs
@@ -165,7 +165,7 @@ def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, o
             if api_key_in_env:
                 openai.api_key = openai_api_key
             openai.organization = openai_organization
-            patch(openai=True)
+            patch()
             yield
             unpatch()
 
