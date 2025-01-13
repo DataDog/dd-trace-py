@@ -74,7 +74,7 @@ suites:
     retry: 2
     runner: hatch
   appsec_iast_packages:
-    parallelism: 5
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -84,8 +84,11 @@ suites:
       - '@remoteconfig'
       - tests/appsec/iast/*
       - tests/appsec/iast_packages/*
-    runner: riot
-    snapshot: true
+    retry: 2
+    runner: hatch
+    timeout: 50m
+    only:
+      - 'main'
   appsec_integrations:
     parallelism: 7
     paths:

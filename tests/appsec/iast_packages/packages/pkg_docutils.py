@@ -43,7 +43,7 @@ def pkg_docutils_view():
 def pkg_docutils_propagation_view():
     import docutils.core
 
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
 
