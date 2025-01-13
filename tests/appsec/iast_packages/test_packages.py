@@ -745,16 +745,17 @@ PACKAGES = [
         "",
         test_e2e=False,
     ),
-    # scipy dropped Python 3.8 support in scipy > 1.10.1
-    PackageForTesting(
-        "scipy",
-        "1.13.0",
-        "1,2,3,4,5",
-        "Mean: 3.0, Standard Deviation: 1.581",
-        "",
-        import_name="scipy.special",
-        skip_python_version=[(3, 8)],
-    ),
+    ## Skip due to scipy added to the denylist
+    # # scipy dropped Python 3.8 support in scipy > 1.10.1
+    # PackageForTesting(
+    #     "scipy",
+    #     "1.13.0",
+    #     "1,2,3,4,5",
+    #     "Mean: 3.0, Standard Deviation: 1.581",
+    #     "",
+    #     import_name="scipy.special",
+    #     skip_python_version=[(3, 8)],
+    # ),
     PackageForTesting(
         "iniconfig",
         "2.0.0",
