@@ -8,12 +8,12 @@ features:
 
     The following are known issues and missing features from Stack V2
 
-  - ``gunicorn`` with Stack V2 results in performance degradation
-  - ``gevent`` support is lacking
+  - Services using ``gunicorn`` with Stack V2 results in performance degradation
+  - Support for ``gevent`` is lacking
   - Exception sampling is missing
 
-  If you find these as a blocker for enabling Stack V2 for your services, you
-  can turn it off via setting ``DD_PROFILING_STACK_V2_ENABLED=0``. If you
-  find any other issue, then  please proceed to escalate using appropriate
-  support channels or file an issue on the repository.
+    If you find these as a blocker for enabling Stack V2 for your services, you
+    can turn it off via setting ``DD_PROFILING_STACK_V2_ENABLED=0``. If you
+    find any other issue, then  please proceed to escalate using appropriate
+    support channels or file an issue on the repository.
 
