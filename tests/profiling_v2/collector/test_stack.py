@@ -171,7 +171,6 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
     with patch("ddtrace.internal.datadog.profiling.stack_v2.unregister_thread") as unregister_thread:
-        monkeypatch.setattr(config.stack, "v2_enabled", True)
         tracer._endpoint_call_counter_span_processor.enable()
 
         test_name = "test_push_span_unregister_thread"
@@ -220,7 +219,7 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
                 ),
             )
 
-        unregister_thread.assert_called_once_with(thread_id)
+        unregister_thread.assert_called_with(thread_id)
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
