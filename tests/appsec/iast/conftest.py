@@ -14,7 +14,6 @@ from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context import start_iast_context
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
-from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
