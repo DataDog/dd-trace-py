@@ -14,6 +14,6 @@ features:
 
   If you find these as a blocker for enabling Stack V2 for your services, you
   can turn it off via setting ``DD_PROFILING_STACK_V2_ENABLED=0``. If you
-  find any other issue, then  please proceed to escalate using appropirate
+  find any other issue, then  please proceed to escalate using appropriate
   support channels or file an issue on the repository.
 
