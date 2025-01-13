@@ -79,7 +79,7 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
         trace_metadata = {}  # type: dict[str, Union[str, dict, list]]
 
         # initialize data we annotate for tracing ragas
-        score, question, answer, answer_classifications = (math.nan, None, None, None)
+        score, answer_classifications = (math.nan, None)
 
         with self.llmobs_service.workflow(
             "dd-ragas.answer_relevancy", ml_app=_get_ml_app_for_ragas_trace(span_event)
@@ -95,13 +95,9 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
                     )
                     return "fail_extract_answer_relevancy_inputs", evaluation_metadata
 
-                question = cp_inputs["question"]
-                contexts = cp_inputs["contexts"]
-                answer = cp_inputs["answer"]
-
                 prompt = self.ragas_answer_relevancy_instance.question_generation.format(
-                    answer=answer,
-                    context="\n".join(contexts),
+                    answer=cp_inputs["answer"],
+                    context="\n".join(cp_inputs["contexts"]),
                 )
 
                 trace_metadata["strictness"] = self.ragas_answer_relevancy_instance.strictness
@@ -127,10 +123,12 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
 
                 # calculate cosine similarity between the question and generated questions
                 with self.llmobs_service.workflow("dd-ragas.calculate_similarity") as ragas_cs_workflow:
-                    cosine_sim = self.ragas_answer_relevancy_instance.calculate_similarity(question, gen_questions)
+                    cosine_sim = self.ragas_answer_relevancy_instance.calculate_similarity(
+                        cp_inputs["question"], gen_questions
+                    )
                     self.llmobs_service.annotate(
                         span=ragas_cs_workflow,
-                        input_data={"question": question, "generated_questions": gen_questions},
+                        input_data={"question": cp_inputs["question"], "generated_questions": gen_questions},
                         output_data=cosine_sim.mean(),
                     )
 
