@@ -775,7 +775,7 @@ class Tracer(object):
         service = config.service_mapping.get(service, service)
 
         links = context._span_links if not parent else []
-        if trace_id or links:
+        if trace_id or links or context._baggage:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
                 name=name,
