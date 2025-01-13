@@ -202,7 +202,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
 
     # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
-    CMDI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
+    CMDI_ADDRESS: Literal["server.sys.exec.cmd"] = "server.sys.exec.cmd"
+    SHI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
     LFI_ADDRESS: Literal["server.io.fs.file"] = "server.io.fs.file"
     SSRF_ADDRESS: Literal["server.io.net.url"] = "server.io.net.url"
     SQLI_ADDRESS: Literal["server.db.statement"] = "server.db.statement"
@@ -328,6 +329,7 @@ class DEFAULT(metaclass=Constant_Class):
 
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
+    BLOCKING: Literal["exploit_prevention"] = "exploit_prevention"
     STACK_TRACE_ID: Literal["stack_id"] = "stack_id"
     EP_ENABLED: Literal["DD_APPSEC_RASP_ENABLED"] = "DD_APPSEC_RASP_ENABLED"
     STACK_TRACE_ENABLED: Literal["DD_APPSEC_STACK_TRACE_ENABLED"] = "DD_APPSEC_STACK_TRACE_ENABLED"
@@ -339,6 +341,7 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
 
     class TYPE(metaclass=Constant_Class):
         CMDI: Literal["command_injection"] = "command_injection"
+        SHI: Literal["shell_injection"] = "shell_injection"
         LFI: Literal["lfi"] = "lfi"
         SSRF: Literal["ssrf"] = "ssrf"
         SQLI: Literal["sql_injection"] = "sql_injection"
@@ -346,6 +349,7 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     class ADDRESS(metaclass=Constant_Class):
         CMDI: Literal["CMDI_ADDRESS"] = "CMDI_ADDRESS"
         LFI: Literal["LFI_ADDRESS"] = "LFI_ADDRESS"
+        SHI: Literal["SHI_ADDRESS"] = "SHI_ADDRESS"
         SSRF: Literal["SSRF_ADDRESS"] = "SSRF_ADDRESS"
         SQLI: Literal["SQLI_ADDRESS"] = "SQLI_ADDRESS"
         SQLI_TYPE: Literal["SQLI_SYSTEM_ADDRESS"] = "SQLI_SYSTEM_ADDRESS"
