@@ -1,4 +1,4 @@
 ---
 upgrade:
   - |
-    botocore: makes boto-related integrations compatible with Python 3.13
+    botocore: Makes boto-related integrations compatible with Python 3.13
