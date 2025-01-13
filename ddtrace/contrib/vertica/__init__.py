@@ -38,23 +38,19 @@ To configure the Vertica integration on an instance-per-instance basis use the
     Pin.override(conn, service='myverticaservice')
 """
 
-from ddtrace.internal.utils.importlib import require_modules
+
+# Required to allow users to import from  `ddtrace.contrib.vertica.patch` directly
+import warnings as _w
 
 
-required_modules = ["vertica_python"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.vertica.patch` directly
-        import warnings as _w
+# Expose public methods
+from ddtrace.contrib.internal.vertica.patch import get_version
+from ddtrace.contrib.internal.vertica.patch import patch
+from ddtrace.contrib.internal.vertica.patch import unpatch
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.vertica.patch import get_version
-        from ddtrace.contrib.internal.vertica.patch import patch
-        from ddtrace.contrib.internal.vertica.patch import unpatch
-
-        __all__ = ["patch", "unpatch", "get_version"]
+__all__ = ["patch", "unpatch", "get_version"]

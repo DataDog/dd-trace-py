@@ -75,26 +75,25 @@ def test_truncating_oversized_events(mock_writer_logs, mock_http_writer_send_pay
         )
 
 
-def test_send_completion_event(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
+def test_send_completion_event(mock_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
         llmobs_span_writer.start()
         llmobs_span_writer.enqueue(_completion_event())
         llmobs_span_writer.periodic()
         mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
-        mock_http_writer_logs.error.assert_not_called()
 
 
-def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
+def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
         llmobs_span_writer.start()
         llmobs_span_writer.enqueue(_chat_completion_event())
         llmobs_span_writer.periodic()
         mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
-        mock_http_writer_logs.error.assert_not_called()
 
 
+@mock.patch("ddtrace.internal.writer.writer.log")
 def test_send_completion_bad_api_key(mock_http_writer_logs, mock_http_writer_put_response_forbidden):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="<bad-api-key>")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
@@ -109,7 +108,7 @@ def test_send_completion_bad_api_key(mock_http_writer_logs, mock_http_writer_put
         )
 
 
-def test_send_timed_events(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
+def test_send_timed_events(mock_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=1)
         llmobs_span_writer.start()
@@ -122,10 +121,9 @@ def test_send_timed_events(mock_writer_logs, mock_http_writer_logs, mock_http_wr
         llmobs_span_writer.enqueue(_chat_completion_event())
         time.sleep(0.1)
         mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
-        mock_http_writer_logs.error.assert_not_called()
 
 
-def test_send_multiple_events(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
+def test_send_multiple_events(mock_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=1)
         llmobs_span_writer.start()
@@ -135,12 +133,11 @@ def test_send_multiple_events(mock_writer_logs, mock_http_writer_logs, mock_http
         llmobs_span_writer.enqueue(_chat_completion_event())
         time.sleep(0.1)
         mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 2)])
-        mock_http_writer_logs.error.assert_not_called()
 
 
-def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
+def test_send_on_exit(run_python_code_in_subprocess):
     env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
     env.update(

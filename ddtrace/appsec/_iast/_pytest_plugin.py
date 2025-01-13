@@ -27,6 +27,8 @@ try:
         Optionally output the test as failed if vulnerabilities are found.
         """
         yield
+        if ddspan is None:
+            return
         data = ddspan.get_tag(IAST.JSON)
         if not data:
             return
