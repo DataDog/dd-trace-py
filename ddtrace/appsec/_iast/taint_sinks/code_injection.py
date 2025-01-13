@@ -30,24 +30,22 @@ def patch():
     if not asm_config._iast_enabled:
         return
 
-    if not set_and_check_module_is_patched("ast", default_attr="_datadog_code_injection_patch"):
+    if not set_and_check_module_is_patched("builtins", default_attr="_datadog_code_injection_patch"):
         return
 
     try_wrap_function_wrapper("builtins", "eval", _iast_coi)
     # TODO: wrap exec functions is very dangerous because it needs and modifies locals and globals from the original
     #  function
     # try_wrap_function_wrapper("builtins", "exec", _iast_coi_exec)
-    try_wrap_function_wrapper("ast", "literal_eval", _iast_coi)
 
     _set_metric_iast_instrumented_sink(VULN_CODE_INJECTION)
 
 
 def unpatch():
     try_unwrap("builtins", "eval")
-    try_unwrap("builtins", "exec")
-    try_unwrap("ast", "literal_eval")
+    # try_unwrap("builtins", "exec")
 
-    set_module_unpatched("ast", default_attr="_datadog_code_injection_patch")
+    set_module_unpatched("builtins", default_attr="_datadog_code_injection_patch")
 
 
 def _iast_coi(wrapped, instance, args, kwargs):
@@ -87,9 +85,6 @@ class CodeInjection(VulnerabilityBase):
 def _iast_report_code_injection(code_string: Text):
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CodeInjection.vulnerability_type)
     _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
-    print("LLEGA1!!!!!!!!!!!!!!!!!!!!!!!!!!")
     if is_iast_request_enabled():
-        print("LLEGA2!!!!!!!!!!!!!!!!!!!!!!!!!!")
         if is_pyobject_tainted(code_string):
-            print("LLEGA3!!!!!!!!!!!!!!!!!!!!!!!!!!")
             CodeInjection.report(evidence_value=code_string)
