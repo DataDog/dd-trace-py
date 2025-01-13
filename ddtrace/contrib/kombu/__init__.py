@@ -32,7 +32,9 @@ without the whole trace being dropped.
     Pin.override(producer, service='kombu-consumer')
 """
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: F401
 from ddtrace.internal.utils.importlib import require_modules
+from ddtrace.vendor.debtcollector import deprecate  # noqa: F401
 
 
 required_modules = ["kombu", "kombu.messaging"]
@@ -47,7 +49,14 @@ with require_modules(required_modules) as missing_modules:
             from . import patch as _  # noqa: F401, I001
 
         # Expose public methods
-        from ddtrace.contrib.internal.kombu.patch import get_version
-        from ddtrace.contrib.internal.kombu.patch import patch
+        from ddtrace.contrib.internal.kombu.patch import get_version  # noqa: F401
+        from ddtrace.contrib.internal.kombu.patch import patch  # noqa: F401
 
-        __all__ = ["patch", "get_version"]
+
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
+)

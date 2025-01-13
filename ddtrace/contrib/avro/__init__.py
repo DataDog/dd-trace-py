@@ -16,8 +16,17 @@ Configuration
 
 """
 # Expose public methods
-from ..internal.avro.patch import get_version
-from ..internal.avro.patch import patch
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+from ..internal.avro.patch import get_version  # noqa: F401,E402
+from ..internal.avro.patch import patch  # noqa: F401,E402
 
 
-__all__ = ["patch", "get_version"]
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
+)

@@ -49,9 +49,16 @@ Example::
     # Override service name
     config.elasticsearch['service'] = 'custom-service-name'
 """
-from ddtrace.contrib.internal.elasticsearch.patch import get_version
-from ddtrace.contrib.internal.elasticsearch.patch import get_versions
-from ddtrace.contrib.internal.elasticsearch.patch import patch
+from ddtrace.contrib.internal.elasticsearch.patch import get_version  # noqa: F401  # noqa: F401s
+from ddtrace.contrib.internal.elasticsearch.patch import patch  # noqa: F401
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-__all__ = ["patch", "get_version", "get_versions"]
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
+)

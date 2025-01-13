@@ -115,19 +115,32 @@ with _w.catch_warnings():
     from . import patch as _  # noqa: F401, I001
 
 # Expose public methods
-from ddtrace.contrib.internal.tornado.patch import get_version
-from ddtrace.contrib.internal.tornado.patch import patch
-from ddtrace.contrib.internal.tornado.patch import unpatch
+from ddtrace.contrib.internal.tornado.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.tornado.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.tornado.patch import unpatch  # noqa: F401
 from ddtrace.contrib.internal.tornado.stack_context import TracerStackContext
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
 from ddtrace.contrib.internal.tornado.stack_context import run_with_trace_context
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+
+def __getattr__(name):
+    if name in ("patch", "unpatch", "get_version"):
+        deprecate(
+            ("%s.%s is deprecated" % (__name__, name)),
+            message="Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+            category=DDTraceDeprecationWarning,
+            removal_version="3.0.0",
+        )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
 
 
 __all__ = [
-    "patch",
-    "unpatch",
     "context_provider",
     "run_with_trace_context",
     "TracerStackContext",
-    "get_version",
 ]

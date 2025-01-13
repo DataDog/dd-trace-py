@@ -39,9 +39,17 @@ For additional configuration refer to
 `Instrumenting Python Serverless Applications by Datadog <https://docs.datadoghq.com/serverless/installation/python>`_.
 """
 
-from ddtrace.contrib.internal.aws_lambda.patch import get_version
-from ddtrace.contrib.internal.aws_lambda.patch import patch
-from ddtrace.contrib.internal.aws_lambda.patch import unpatch
+from ddtrace.contrib.internal.aws_lambda.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.aws_lambda.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.aws_lambda.patch import unpatch  # noqa: F401
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-__all__ = ["patch", "unpatch", "get_version"]
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
+)
