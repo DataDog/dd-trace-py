@@ -14,7 +14,7 @@ Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
 This integration is configured automatically. The `datadog_lambda` package
-calls ``patch_all`` when ``DD_TRACE_ENABLED`` is set to ``true``.
+calls ``_patch_all`` when ``DD_TRACE_ENABLED`` is set to ``true``.
 It's not recommended to call ``patch`` for it manually. Since it would not do
 anything for other environments that do not meet the criteria above.
 
