@@ -402,16 +402,17 @@ PACKAGES = [
         import_module_to_validate="multidict._multidict_py",
         test_propagation=True,
     ),
+    ## Skip due to numpy added to the denylist
     # Python 3.12 fails in all steps with "import error" when import numpy
-    PackageForTesting(
-        "numpy",
-        "1.24.4",
-        "9 8 7 6 5 4 3",
-        [3, 4, 5, 6, 7, 8, 9],
-        5,
-        skip_python_version=[(3, 12)],
-        import_module_to_validate="numpy.core._internal",
-    ),
+    # PackageForTesting(
+    #     "numpy",
+    #     "1.24.4",
+    #     "9 8 7 6 5 4 3",
+    #     [3, 4, 5, 6, 7, 8, 9],
+    #     5,
+    #     skip_python_version=[(3, 12)],
+    #     import_module_to_validate="numpy.core._internal",
+    # ),
     PackageForTesting(
         "oauthlib",
         "3.2.2",
@@ -430,8 +431,9 @@ PACKAGES = [
         {"is_version_valid": True, "requirement": "example-package>=1.0.0", "specifier": ">=1.0.0", "version": "1.2.3"},
         "",
     ),
+    ## Skip due to pandas added to the denylist
     # Pandas dropped Python 3.8 support in pandas>2.0.3
-    PackageForTesting("pandas", "2.2.2", "foobar", "Written value: foobar", "", skip_python_version=[(3, 8)]),
+    # PackageForTesting("pandas", "2.2.2", "foobar", "Written value: foobar", "", skip_python_version=[(3, 8)]),
     PackageForTesting(
         "platformdirs",
         "4.2.2",
@@ -479,15 +481,16 @@ PACKAGES = [
     ),
     # # TODO: patching Pytest fails: ImportError: cannot import name 'Dir' from '_pytest.main'
     # PackageForTesting("pytest", "8.2.1", "", "", "", test_e2e=False),
-    PackageForTesting(
-        "python-dateutil",
-        "2.8.2",
-        "Sat Oct 11 17:13:46 UTC 2003",
-        "Sat, 11 Oct 2003 17:13:46 GMT",
-        "And the Easter of that year is: 2004-04-11",
-        import_name="dateutil",
-        import_module_to_validate="dateutil.relativedelta",
-    ),
+    ## Skip due to python-dateutil added to the denylist
+    # PackageForTesting(
+    #     "python-dateutil",
+    #     "2.8.2",
+    #     "Sat Oct 11 17:13:46 UTC 2003",
+    #     "Sat, 11 Oct 2003 17:13:46 GMT",
+    #     "And the Easter of that year is: 2004-04-11",
+    #     import_name="dateutil",
+    #     import_module_to_validate="dateutil.relativedelta",
+    # ),
     PackageForTesting(
         "python-multipart",
         "0.0.5",  # this version validates APPSEC-55240 issue, don't upgrade it
@@ -499,13 +502,14 @@ PACKAGES = [
         test_import=False,
         test_propagation=True,
     ),
-    PackageForTesting(
-        "pytz",
-        "2024.1",
-        "America/New_York",
-        "Current time in America/New_York: replaced_time",
-        "",
-    ),
+    ## Skip due to pytz added to the denylist
+    # PackageForTesting(
+    #     "pytz",
+    #     "2024.1",
+    #     "America/New_York",
+    #     "Current time in America/New_York: replaced_time",
+    #     "",
+    # ),
     PackageForTesting(
         "PyYAML",
         "6.0.1",
@@ -584,7 +588,8 @@ PACKAGES = [
         "",
         import_module_to_validate="tomlkit.items",
     ),
-    PackageForTesting("tqdm", "4.66.4", "", "", "", test_e2e=False, import_module_to_validate="tqdm.std"),
+    ## Skip due to tqdm added to the denylist
+    # PackageForTesting("tqdm", "4.66.4", "", "", "", test_e2e=False, import_module_to_validate="tqdm.std"),
     # Python 3.8 and 3.9 fail with ImportError: cannot import name 'get_host' from 'urllib3.util.url'
     PackageForTesting(
         "urllib3",
@@ -663,15 +668,16 @@ PACKAGES = [
         "",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
     ),
-    PackageForTesting(
-        "pillow",
-        "10.3.0",
-        "Hello, Pillow!",
-        "Image correctly generated",
-        "",
-        import_name="PIL.Image",
-        skip_python_version=[(3, 6), (3, 7), (3, 8)],
-    ),
+    ## Skip due to pillow added to the denylist
+    # PackageForTesting(
+    #     "pillow",
+    #     "10.3.0",
+    #     "Hello, Pillow!",
+    #     "Image correctly generated",
+    #     "",
+    #     import_name="PIL.Image",
+    #     skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    # ),
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
@@ -745,16 +751,17 @@ PACKAGES = [
         "",
         test_e2e=False,
     ),
-    # scipy dropped Python 3.8 support in scipy > 1.10.1
-    PackageForTesting(
-        "scipy",
-        "1.13.0",
-        "1,2,3,4,5",
-        "Mean: 3.0, Standard Deviation: 1.581",
-        "",
-        import_name="scipy.special",
-        skip_python_version=[(3, 8)],
-    ),
+    ## Skip due to scipy added to the denylist
+    # # scipy dropped Python 3.8 support in scipy > 1.10.1
+    # PackageForTesting(
+    #     "scipy",
+    #     "1.13.0",
+    #     "1,2,3,4,5",
+    #     "Mean: 3.0, Standard Deviation: 1.581",
+    #     "",
+    #     import_name="scipy.special",
+    #     skip_python_version=[(3, 8)],
+    # ),
     PackageForTesting(
         "iniconfig",
         "2.0.0",
