@@ -90,7 +90,6 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
-        VulnerabilityBase._reset_cache_for_testing()
         _start_iast_context_and_oce(MockSpan())
         weak_hash_patch()
         weak_cipher_patch()
