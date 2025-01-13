@@ -746,6 +746,7 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
 
 # TODO: support ignore profiler with stack_v2 and update this test
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skip(reason="ignore_profiler is not supported with stack v2")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_OUTPUT_PPROF="/tmp/test_ignore_profiler_gevent_task"),
