@@ -479,7 +479,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_parameter_name_post(self):
         @self.app.route("/sqli/", methods=["POST"])
-        def sqli_9():
+        def sqli_13():
             import sqlite3
 
             from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
@@ -537,7 +537,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_parameter_name_get(self):
         @self.app.route("/sqli/", methods=["GET"])
-        def sqli_10():
+        def sqli_14():
             import sqlite3
 
             from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
@@ -593,7 +593,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_http_request_parameter(self):
+    def test_flask_full_sqli_iast_http_request_parameter_value(self):
         @self.app.route("/sqli/parameter/", methods=["GET"])
         def sqli_9():
             import sqlite3
@@ -602,7 +602,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
-            # label test_flask_full_sqli_iast_http_request_parameter
+            # label test_flask_full_sqli_iast_http_request_parameter_value
             cur.execute(add_aspect("SELECT 1 FROM ", request.args.get("table")))
 
             return "OK", 200
@@ -625,7 +625,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             ]
 
             line, hash_value = get_line_and_hash(
-                "test_flask_full_sqli_iast_http_request_parameter", VULN_SQL_INJECTION, filename=TEST_FILE_PATH
+                "test_flask_full_sqli_iast_http_request_parameter_value", VULN_SQL_INJECTION, filename=TEST_FILE_PATH
             )
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
