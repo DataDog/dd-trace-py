@@ -88,8 +88,6 @@ class Contrib_TestClass_For_Threats:
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
-        interface.tracer._asm_enabled = asm_config._asm_enabled
-        interface.tracer._iast_enabled = asm_config._iast_enabled
         interface.tracer.configure(api_version="v0.4")
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
@@ -1310,10 +1308,18 @@ class Contrib_TestClass_For_Threats:
         + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))]
         + [
             (
-                "command_injection",
-                "cmd_1=$(cat /etc/passwd 1>%262 ; echo .)&cmd_2=$(uname -a 1>%262 ; echo .)",
+                "shell_injection",
+                "cmdsys_1=$(cat /etc/passwd 1>%262 ; echo .)&cmdrun_2=$(uname -a 1>%262 ; echo .)",
                 "rasp-932-100",
                 ("system", "rasp"),
+            )
+        ]
+        + [
+            (
+                "command_injection",
+                "cmda_1=/sbin/ping&cmds_2=/usr/bin/ls%20-la",
+                "rasp-932-110",
+                ("Popen", "rasp"),
             )
         ],
     )
@@ -1383,11 +1389,23 @@ class Contrib_TestClass_For_Threats:
                         trace
                     ), f"unknown top function {trace['frames'][0]} {[t['function'] for t in trace['frames'][:4]]}"
                 # assert mocked.call_args_list == []
+                expected_rule_type = "command_injection" if endpoint == "shell_injection" else endpoint
+                expected_variant = (
+                    "exec" if endpoint == "command_injection" else "shell" if endpoint == "shell_injection" else None
+                )
                 matches = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.match"]
-                assert matches == [(("rule_type", endpoint), ("waf_version", DDWAF_VERSION))], matches
+                if expected_variant:
+                    expected_tags = (
+                        ("rule_type", expected_rule_type),
+                        ("rule_variant", expected_variant),
+                        ("waf_version", DDWAF_VERSION),
+                    )
+                else:
+                    expected_tags = (("rule_type", expected_rule_type), ("waf_version", DDWAF_VERSION))
+                    assert matches == [expected_tags], matches
                 evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
                 # there may have been multiple evaluations of other rules too
-                assert (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)) in evals
+                assert expected_tags in evals
                 if action_level == 2:
                     assert get_tag("rasp.request.done") is None, get_tag("rasp.request.done")
                 else:
@@ -1511,7 +1529,7 @@ class Contrib_TestClass_For_Threats:
     def test_iast(self, interface, root_span, get_tag):
         from ddtrace.ext import http
 
-        url = "/rasp/command_injection/?cmd=."
+        url = "/rasp/command_injection/?cmds=."
         self.update_tracer(interface)
         response = interface.client.get(url)
         assert self.status(response) == 200
