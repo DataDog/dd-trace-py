@@ -72,6 +72,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
                 _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
             )
         ):
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"})
