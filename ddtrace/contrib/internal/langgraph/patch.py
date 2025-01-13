@@ -20,21 +20,29 @@ def get_version():
 config._add("langgraph", {})
 
 
+def _get_node_name(instance):
+    """Gets the name of the first step in a RunnableSeq instance as the node name."""
+    steps = getattr(instance, "steps", [])
+    first_step = steps[0] if steps else None
+    return getattr(first_step, "name", None)
+
+
 @with_traced_module
 def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     """
     Traces an invocation of a RunnableSeq, which represents a node in a graph.
-    Although this API is usable elsewhere, internal to LangGraph it is used to represent the
-    sequence containing node invocation (function, graph, callable), the channel write, and then any routing logic.
+    It represents the sequence containing node invocation (function, graph, callable), the channel write,
+    and then any routing logic.
 
     We utilize `instance.steps` to grab the first step as the node.
 
     One caveat is that if the node represents a subgraph (LangGraph), we should skip tracing at this step, as
-    we will trace the graph invocation separately with `traced_pregel_invoke`. For proper span linking logic,
-    we will mark the config for that graph as a subgraph.
+    we will trace the graph invocation separately with `traced_pregel_stream`.
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
-    node_name = instance.steps[0].name
+
+    node_name = _get_node_name(instance)
+
     if node_name in ("_write", "_route"):
         return func(*args, **kwargs)
     if node_name == "LangGraph":
@@ -63,7 +71,9 @@ def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
 async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwargs):
     """Async version of traced_runnable_seq_invoke."""
     integration: LangGraphIntegration = langgraph._datadog_integration
-    node_name = instance.steps[0].name
+
+    node_name = _get_node_name(instance)
+
     if node_name in ("_write", "_route"):
         return await func(*args, **kwargs)
     if node_name == "LangGraph":
@@ -99,9 +109,10 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
     Calling `invoke` on a graph calls `stream` under the hood.
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
+    name = getattr(instance, "name", "LangGraph")
     span = integration.trace(
         pin,
-        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name),
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, name),
         submit_to_llmobs=True,
     )
 
@@ -121,7 +132,7 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
             except StopIteration:
                 response = item[-1] if isinstance(item, tuple) else item
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": instance.name}, response=response, operation="graph"
+                    span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
                 )
                 span.finish()
                 break
@@ -137,9 +148,10 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
 def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
     """Async version of traced_pregel_stream."""
     integration: LangGraphIntegration = langgraph._datadog_integration
+    name = getattr(instance, "name", "LangGraph")
     span = integration.trace(
         pin,
-        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, instance.name),
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, name),
         submit_to_llmobs=True,
     )
 
@@ -159,7 +171,7 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
             except StopAsyncIteration:
                 response = item[-1] if isinstance(item, tuple) else item
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": instance.name}, response=response, operation="graph"
+                    span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
                 )
                 span.finish()
                 break
@@ -181,7 +193,7 @@ def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
     finished_tasks = getattr(instance, "tasks", {})
     result = func(*args, **kwargs)
     next_tasks = getattr(instance, "tasks", {})  # instance.tasks gets updated by loop.tick()
-    is_subgraph_node = instance.config.get("metadata", {}).get("_dd.subgraph", False)
+    is_subgraph_node = getattr(instance, "config", {}).get("metadata", {}).get("_dd.subgraph", False)
     integration.llmobs_handle_pregel_loop_tick(finished_tasks, next_tasks, result, is_subgraph_node)
     return result
 

@@ -1,7 +1,6 @@
 import operator
 from typing import Annotated
 from typing import TypedDict
-from unittest import mock
 
 from langgraph.graph import END
 from langgraph.graph import START
@@ -11,47 +10,69 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
-from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
 @pytest.fixture
-def ddtrace_global_config():
-    return {}
-
-
-@pytest.fixture
-def mock_tracer(ddtrace_global_config, mock_llmobs_writer):
+def mock_tracer():
     yield DummyTracer()
 
 
 @pytest.fixture
-def langgraph(mock_tracer, ddtrace_global_config):
-    with override_global_config(ddtrace_global_config):
-        if ddtrace_global_config.get("_llmobs_enabled", False):
-            # Have to disable and re-enable LLMObs to use to mock tracer.
-            LLMObs.disable()
-            LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
-        patch()
-        import langgraph
+def langgraph(mock_tracer):
+    patch()
+    import langgraph
 
-        pin = Pin.get_from(langgraph)
-        pin.override(langgraph, tracer=mock_tracer)
-        yield langgraph
-        unpatch()
+    pin = Pin.get_from(langgraph)
+    pin.override(langgraph, tracer=mock_tracer)
+    yield langgraph
+    unpatch()
+
+
+def default_global_config():
+    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app", "service": "tests.llmobs"}
+
+
+class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.events = []
+
+    def enqueue(self, event):
+        self.events.append(event)
 
 
 @pytest.fixture
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
+def llmobs_span_writer():
+    yield TestLLMObsSpanWriter(interval=1.0, timeout=1.0)
+
+
+@pytest.fixture
+def llmobs_env():
+    return {
+        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+    }
+
+
+@pytest.fixture
+def llmobs(
+    tracer,
+    llmobs_span_writer,
+):
+    with override_global_config(default_global_config()):
+        llmobs_service.enable(_tracer=tracer)
+        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        yield llmobs_service
+    llmobs_service.disable()
+
+
+@pytest.fixture
+def llmobs_events(llmobs, llmobs_span_writer):
+    return llmobs_span_writer.events
 
 
 class State(TypedDict):

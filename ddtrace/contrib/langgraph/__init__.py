@@ -9,10 +9,9 @@ All traces submitted from the LangGraph integration are tagged by:
 Enabling
 ~~~~~~~~
 
-The LangGraph integration is enabled automatically when you use
-:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
+The LangGraph integration is experimental and is not enabled by default.
 
-Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Vertex AI integration::
+Use :func:`patch() <ddtrace.patch>` or set ``DD_TRACE_LANGGRAPH_ENABLED=true`` to explicitly enable the LangGraph integration::
 
     from ddtrace import patch
 
