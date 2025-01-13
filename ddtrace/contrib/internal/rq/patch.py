@@ -92,9 +92,9 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor.debtcollector import deprecate
 
-from ...ext import SpanKind
-from ...ext import SpanTypes
-from .. import trace_utils
+from ....ext import SpanKind
+from ....ext import SpanTypes
+from ... import trace_utils
 
 
 deprecate(
