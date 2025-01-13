@@ -5,6 +5,6 @@ from ddtrace.vendor.debtcollector import deprecate
 
 deprecate(
     "The ddtrace.sampler module is deprecated and will be removed.",
-    message="Use ddtrace configurations to configure sampling rates.",
+    message="Use DD_TRACE_SAMPLING_RULES to configure sampling rates.",
     category=DDTraceDeprecationWarning,
 )
