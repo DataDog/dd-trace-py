@@ -23,6 +23,7 @@ from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
+from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import DEFAULT_BUFFER_SIZE
 from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
@@ -531,8 +532,8 @@ class Config(object):
         # Propagation styles
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
         #  take precedence over DD_TRACE_PROPAGATION_STYLE
-        # if DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore we set DD_TRACE_PROPAGATION_STYLE_EXTRACT to ["none"]
-        # since no extraction will heeded
+        # if DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore
+        # we set DD_TRACE_PROPAGATION_STYLE_EXTRACT to [_PROPAGATION_STYLE_NONE] since no extraction will heeded
         self._propagation_behavior_extract = _get_config(
             ["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"], _PROPAGATION_BEHAVIOR_DEFAULT, self._lower
         )
@@ -547,7 +548,7 @@ class Config(object):
                 """DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore,
                 setting DD_TRACE_PROPAGATION_STYLE_EXTRACT to empty list"""
             )
-            self._propagation_style_extract = ["none"]
+            self._propagation_style_extract = [_PROPAGATION_STYLE_NONE]
         self._propagation_style_inject = _parse_propagation_styles(
             _get_config(["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT)
         )
