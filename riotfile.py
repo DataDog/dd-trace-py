@@ -2969,6 +2969,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING_STACK_V2_ENABLED": "0",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
                 "CPUCOUNT": "12",
             },
