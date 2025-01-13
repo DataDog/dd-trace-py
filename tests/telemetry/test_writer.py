@@ -269,6 +269,7 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
     env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
+    env["DD_SITE"] = "datadoghq.com"
 
     # By default telemetry collection is enabled after 10 seconds, so we either need to
     # to sleep for 10 seconds or manually call _app_started() to generate the app started event.

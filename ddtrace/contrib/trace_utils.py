@@ -579,8 +579,12 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         current_context = tracer.current_trace_context()
 
         # We accept incoming contexts with only baggage or only span_links, however if we
-        # already have a current_context then a baggage only or span_link only context will be tossed out
-        if current_context and (not context.trace_id or current_context.trace_id == context.trace_id):
+        # already have a current_context then an incoming context not
+        # containing a trace_id or containing the same trace_id
+        # should not be activated.
+        if current_context and (
+            not context.trace_id or (context.trace_id and context.trace_id == current_context.trace_id)
+        ):
             log.debug(
                 "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
                 context.trace_id,

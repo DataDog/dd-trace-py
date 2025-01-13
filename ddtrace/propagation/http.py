@@ -40,7 +40,6 @@ from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
-from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ..internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import _PROPAGATION_STYLE_NONE
@@ -1142,7 +1141,7 @@ class HTTPPropagator(object):
         :return: New `Context` with propagated attributes.
         """
         context = Context()
-        if not headers or config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_IGNORE:
+        if not headers:
             return context
         try:
             style = ""

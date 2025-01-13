@@ -21,6 +21,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
+from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.constants import DEFAULT_BUFFER_SIZE
 from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
@@ -530,20 +531,28 @@ class Config(object):
         # Propagation styles
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
         #  take precedence over DD_TRACE_PROPAGATION_STYLE
-        self._propagation_style_extract = _parse_propagation_styles(
-            _get_config(
-                ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT
-            )
+        # if DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore we set DD_TRACE_PROPAGATION_STYLE_EXTRACT to []
+        # since no extraction will heeded
+        self._propagation_behavior_extract = _get_config(
+            ["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"], _PROPAGATION_BEHAVIOR_DEFAULT, self._lower
         )
+        if self._propagation_behavior_extract != _PROPAGATION_BEHAVIOR_IGNORE:
+            self._propagation_style_extract = _parse_propagation_styles(
+                _get_config(
+                    ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT
+                )
+            )
+        else:
+            log.debug(
+                """DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore,
+                setting DD_TRACE_PROPAGATION_STYLE_EXTRACT to empty list"""
+            )
+            self._propagation_style_extract = []
         self._propagation_style_inject = _parse_propagation_styles(
             _get_config(["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT)
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
-
-        self._propagation_behavior_extract = _get_config(
-            ["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"], _PROPAGATION_BEHAVIOR_DEFAULT, self._lower
-        )
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
