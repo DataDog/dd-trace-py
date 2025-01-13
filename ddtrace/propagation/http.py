@@ -1043,7 +1043,7 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extend with tracing attributes.
         :param Span non_active_span: Only to be used if injecting a non-active span.
         """
-        if config._propagation_style_inject == ["none"]:
+        if config._propagation_style_inject == [_PROPAGATION_STYLE_NONE]:
             return
         if non_active_span is not None and non_active_span.context is not span_context:
             log.error(
@@ -1117,7 +1117,7 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.
         """
-        if not headers or config._propagation_style_extract == ["none"]:
+        if not headers or config._propagation_style_extract == [_PROPAGATION_STYLE_NONE]:
             return Context()
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
