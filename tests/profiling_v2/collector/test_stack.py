@@ -11,7 +11,6 @@ import pytest
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
-from ddtrace.settings.profiling import config
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 
