@@ -3,8 +3,6 @@ import sys
 
 import pytest
 
-from ddtrace.settings.profiling import config as profiling_config
-from ddtrace.settings.profiling import config_str
 import tests.internal.crashtracker.utils as utils
 
 
