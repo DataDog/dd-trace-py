@@ -42,7 +42,7 @@ class Pin(object):
         _config=None,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
-        if tracer is not None:
+        if tracer is not None and tracer is not ddtrace.tracer:
             deprecate(
                 "Initializing ddtrace.Pin with `tracer` argument is deprecated",
                 message="All Pin instances should use the global tracer instance",
