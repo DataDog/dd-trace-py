@@ -114,7 +114,7 @@ def ddtrace_global_config():
 
 
 def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app"}
+    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app", "service": "tests.llmobs"}
 
 
 @pytest.fixture
