@@ -71,20 +71,20 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA+xUPW/bMBDd9SuIm63Ckp3I8VJ0SdE16MdQFxJNniSmFEmTp6aN4f9e0JYtGWmA
-        7u2i4b17p3ePPO4TxkBJWDMQLSfROZ2+s8/q+eFht+PN/erjk9zlT48fPmd3728kfoJZVNjtIwo6
-        q94I2zmNpKw50cIjJ4xds2JxW2TFfLE4Ep2VqKOscZQubdopo9J8ni/TeZFmq0HdWiUwwJp9TRhj
-        bH/8Rp9G4k9Ys/nsjHQYAm8Q1pcixsBbHRHgIahA3BDMRlJYQ2iO1quq2m9g12OIzjewZhv40nJi
-        KjBqkQnuFHHNbM3uPTcC325gxjZgrBG26xQR11E1P1RVNf2Hx7oPPM5peq0H/HAxrW3jvN2Ggb/g
-        tTIqtKVHHqyJBgNZB8lE/CKJ7H8SQxL5v5dEwti348L0V/OC87ZzVJL9jiY2vM2HhYFxTyfs3UCS
-        Ja4n+OpMXPUrJRJXOkziBcFFi3KUjvvJe6nshJge4Us3f+p9mlyZ5m/aj4QQ6Ahl6TxKJa4nHss8
-        xmfstbJLykfDEND/UAJLUujjSUisea9PFwnCr0DYlbUyDXrn1ek21a4scpQF394sBSSH5DcAAAD/
-        /wMAdUXwsG8FAAA=
+        H4sIAAAAAAAAAwAAAP//7FTBjtMwEL3nK6w5NygJpdnmgmAFWnHlgLQEJa4zScw6tteerFiq/jty
+        mzapFiTucMnhvXmTN88e7yPGQDZQMBA9JzFYFb+zn25/PtzefX6/S56e7/2Hx7v7tJeK55t8Daug
+        MLvvKOiseiXMYBWSNPpEC4ecMHRN89ebfJtus+2RGEyDKsg6S/HaxIPUMs6SbB0neZzeTOreSIEe
+        CvY1Yoyx/fEbfOoGf0DBktUZGdB73iEUlyLGwBkVEODeS09cE6xmUhhNqI/W67rel/A4og/OSyhY
+        CV96Tkx6Rj0ywa0krphp2UfHtcC3JaxYCdpoYYZBEnEVVMmhruvlPxy2o+dhTj0qNeGHi2llOuvM
+        zk/8BW+llr6vHHJvdDDoyViIFuIXSaT/k5iSyP69JCLGvh0XZryaF6wzg6WKzAPq0HCTTQsD854u
+        2O1EkiGuFvjNmbjqVzVIXCq/iBcEFz02s3TeTz420iyI5RG+dPO73qfJpe7+pv1MCIGWsKmsw0aK
+        64nnMofhGftT2SXlo2Hw6J6kwIokunASDbZ8VKeLBP7ZEw5VK3WHzjp5uk2trfIMm5zv3qwFRIfo
+        FwAAAP//AwBvdHJJbwUAAA==
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 901035cf0cd15e7d-EWR
+      - 90175a57ef0b4255-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -92,14 +92,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 12 Jan 2025 21:23:53 GMT
+      - Mon, 13 Jan 2025 18:12:10 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=oheO3zYPQqtzwCH36KcPYJSqTpJpQM2OWOWoKE2milY-1736717033-1.0.1.1-92pgnb67DubLHPDeJdheg8VlBIePfu48tfVPpY7wLqWglq9IGkPBUgc2yD9Aa_oyjkgXiUp1L4mo_SJ.HJ.5tw;
-        path=/; expires=Sun, 12-Jan-25 21:53:53 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=_hIzBnwWi.JmgnHbV_n6n7dTonHCjj4Hjj1dK_lP_HM-1736791930-1.0.1.1-FQtSV2lRxJoGA8CwSbN_LOqQ9_xMHDhef7wv.IE18f.FxorCmPhShV1B_f0t7xt0BrUQ2MCcm7DSe_PKqPO8Pw;
+        path=/; expires=Mon, 13-Jan-25 18:42:10 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=XXBvi8ZnbakvKR5akrqMruvFPwz2ZOOI5i1D8OerBSw-1736717033837-0.0.1.1-604800000;
+      - _cfuvid=NzMJ2rX6F12KiO6Xumt0fto5GVsgGTOMKaKxoHmB6T0-1736791930617-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -112,7 +112,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '611'
+      - '879'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -130,7 +130,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_f56aea9903630bd134bc8065bab7e998
+      - req_a903d340801ff2dc9836b15c54c49513
     status:
       code: 200
       message: OK
@@ -286,7 +286,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 901035d6dfc6de99-EWR
+      - 90175a5fea67c411-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -294,14 +294,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 12 Jan 2025 21:23:54 GMT
+      - Mon, 13 Jan 2025 18:12:11 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=6ceVqeMFYTdXn2aeYrsXWUZtp7M1BNv6diyCFFwYhAQ-1736717034-1.0.1.1-AyCADUBhWGl2am0sX5zaIk494uQEOOw6xyG6etqFq2aGcQUXX32PxR7zuKbC6Xaeoqg5ozg8omthjkIxMVmtPg;
-        path=/; expires=Sun, 12-Jan-25 21:53:54 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=Zmk1JGzic3EuzvIzjOaRQmaIzGJ74x.YquPeDyOCZqs-1736791931-1.0.1.1-6KPmj2tXuJXAXiqBJZVUD8MpO.8MYVZ5pROU_OXfJ.0MpbaI6lzTi3naLpKXPcmvDOI__h5SIGAMGyFYV5ygPw;
+        path=/; expires=Mon, 13-Jan-25 18:42:11 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=2epaBi9xbdb4sMl4F1O.cyEtO9UPvRcdc2dtCUUAzs4-1736717034314-0.0.1.1-604800000;
+      - _cfuvid=KoihxnMe5Lh0xnz1wfMOrsPFtoJP.8Ykuk5OysABbKg-1736791931216-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -318,13 +318,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '40'
+      - '95'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-7b5bffd4c4-d7r9z
+      - envoy-router-86c567f984-4pgwv
       x-envoy-upstream-service-time:
       - '31'
       x-ratelimit-limit-requests:
@@ -340,7 +340,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_a47eb6fba25ad422740aa4ec47a8fa88
+      - req_fbf5702676d468b13c0cf1f3021a2f75
     status:
       code: 200
       message: OK
@@ -360,8 +360,8 @@ interactions:
       content-type:
       - application/json
       cookie:
-      - __cf_bm=6ceVqeMFYTdXn2aeYrsXWUZtp7M1BNv6diyCFFwYhAQ-1736717034-1.0.1.1-AyCADUBhWGl2am0sX5zaIk494uQEOOw6xyG6etqFq2aGcQUXX32PxR7zuKbC6Xaeoqg5ozg8omthjkIxMVmtPg;
-        _cfuvid=2epaBi9xbdb4sMl4F1O.cyEtO9UPvRcdc2dtCUUAzs4-1736717034314-0.0.1.1-604800000
+      - __cf_bm=Zmk1JGzic3EuzvIzjOaRQmaIzGJ74x.YquPeDyOCZqs-1736791931-1.0.1.1-6KPmj2tXuJXAXiqBJZVUD8MpO.8MYVZ5pROU_OXfJ.0MpbaI6lzTi3naLpKXPcmvDOI__h5SIGAMGyFYV5ygPw;
+        _cfuvid=KoihxnMe5Lh0xnz1wfMOrsPFtoJP.8Ykuk5OysABbKg-1736791931216-0.0.1.1-604800000
       host:
       - api.openai.com
       user-agent:
@@ -503,7 +503,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 901035d8ae98de99-EWR
+      - 90175a62ae8dc411-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -511,7 +511,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 12 Jan 2025 21:23:54 GMT
+      - Mon, 13 Jan 2025 18:12:11 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -529,15 +529,15 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '51'
+      - '69'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-75cd6879cf-k9fl5
+      - envoy-router-6f4874f9bd-f4dmq
       x-envoy-upstream-service-time:
-      - '33'
+      - '42'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -551,7 +551,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_b971413950fced2c35232103e7abb6ca
+      - req_76b9eb3202c6ec88646a5947a9be083f
     status:
       code: 200
       message: OK

@@ -448,6 +448,7 @@ from tests.llmobs._utils import logs_vcr
 ctx = logs_vcr.use_cassette(
     "tests.llmobs.test_llmobs_ragas_answer_relevancy_evaluator.emits_traces_and_evaluations_on_exit.yaml"
 )
+import os
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
 with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}")):
