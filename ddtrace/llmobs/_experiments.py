@@ -7,12 +7,15 @@ import inspect
 import json
 import os
 import time
+import traceback
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 from urllib.parse import quote
 import uuid
 
 from ._utils import HTTPResponse
 from ._utils import http_request
+
+from decorators import agent
 
 import ddtrace
 
@@ -126,6 +129,9 @@ class Dataset:
         url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
         resp = exp_http_request("GET", url)
         records_data = resp.json()
+
+        if not records_data.get("data", []):
+            raise ValueError(f"Dataset '{name}' does not contain any records.")
 
         # Transform records into the expected format
         class_records = []
@@ -534,7 +540,7 @@ class Experiment:
                     },
                     "error": {
                         "message": error_message,
-                        "stack": None,
+                        "stack": traceback.format_exc(),
                         "type": type(e).__name__,
                     }
                 }
@@ -571,7 +577,7 @@ class Experiment:
                             },
                             "error": {
                                 "message": str(e),
-                                "stack": None,
+                                "stack": traceback.format_exc(),
                                 "type": type(e).__name__,
                             }
                         }
@@ -624,53 +630,49 @@ class Experiment:
         evaluations = []
         total_rows = len(self.outputs)
         completed = 0
-        error_count = 0  
+        error_count = 0
 
         _print_progress_bar(0, total_rows, prefix='Evaluating:', suffix='Complete')
 
         for idx, output_data in enumerate(self.outputs):
-            try:
-                output = output_data["output"]
-
-                dataset_row = self.dataset[idx]
-                input_data = dataset_row.get('input', {})
-                expected_output = dataset_row.get('expected_output', {})
-
-                evaluations_dict = {}
-                for evaluator in evaluators_to_use:
-                    try:
-                        evaluation_result = evaluator(input_data, output, expected_output)
-                        evaluations_dict[evaluator.__name__] = evaluation_result
-                    except Exception as e:
-                        error_count += 1
-                        if raise_errors:
-                            raise e
-
-                evaluations.append({
-                    "idx": idx,
-                    "evaluations": evaluations_dict,
-                    "error": None,
-                })
-
-            except Exception as e:
-                if raise_errors:
-                    raise e
-                error_count += 1
+            output = output_data["output"]
+            dataset_row = self.dataset[idx]
+            input_data = dataset_row.get('input', {})
+            expected_output = dataset_row.get('expected_output', {})
             
-                evaluations.append({
-                    "idx": idx,
-                    "evaluations": {},
-                    "error": {
-                        "message": str(e),
-                        "type": type(e).__name__,
-                        "stack": None,
-                    },
-                })
+            evaluations_dict = {}
+
+            # Run all evaluators for this output
+            for evaluator in evaluators_to_use:
+                try:
+                    evaluation_result = evaluator(input_data, output, expected_output)
+                    evaluations_dict[evaluator.__name__] = {
+                        "value": evaluation_result,
+                        "error": None
+                    }
+                except Exception as e:
+                    error_count += 1
+                    evaluations_dict[evaluator.__name__] = {
+                        "value": None,
+                        "error": {
+                            "message": str(e),
+                            "type": type(e).__name__,
+                            "stack": traceback.format_exc(),
+                        }
+                    }
+                    if raise_errors:
+                        raise e
+
+            # Add single evaluation entry for this output
+            evaluations.append({
+                "idx": idx,
+                "evaluations": evaluations_dict
+            })
 
             completed += 1
             _print_progress_bar(completed, total_rows, prefix='Evaluating:', suffix='Complete')
 
-        if len(evaluators_to_use) > 0:  
+        if len(evaluators_to_use) > 0:
             error_rate = (error_count / (total_rows * len(evaluators_to_use))) * 100
         else:
             error_rate = 0
@@ -679,7 +681,7 @@ class Experiment:
 
         if error_count > 0:
             print("If you'd like to halt execution on errors and see the full traceback, set `raise_errors=True` when running the experiment.")
-      
+
         self.has_evaluated = True
         return ExperimentResults(self.dataset, self, self.outputs, evaluations)
 
@@ -732,15 +734,18 @@ class ExperimentResults:
             evaluation_data = self.evaluations[idx]
             dataset_record = self.dataset._data[idx]
 
+            # Get base metadata and add tags to it
+            metadata = output_data.get('metadata', {})
+            metadata['tags'] = self.experiment.tags
+
             merged_result = {
                 "idx": idx,
                 "input": dataset_record.get('input', {}),
                 "expected_output": dataset_record.get('expected_output', {}),
                 "output": output_data.get('output'),
                 "evaluations": evaluation_data.get('evaluations', {}),
-                "metadata": output_data.get('metadata', {}),
+                "metadata": metadata,
                 "error": output_data.get('error'),
-                "tags": self.experiment.tags,
             }
             merged_results.append(merged_result)
         return merged_results
@@ -764,14 +769,14 @@ class ExperimentResults:
         return result
 
     def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
-        """Convert the experiment results to a pandas DataFrame, including the experiment config.
+        """Convert the experiment results to a pandas DataFrame.
 
         Args:
-            multiindex (bool): If True, expand nested dictionaries into MultiIndex columns.
+            multiindex (bool): If True, expand input/output/expected_output dictionaries into MultiIndex columns.
                             If False, keep the nested dictionaries as they are.
 
         Returns:
-            pd.DataFrame: A DataFrame representation of the experiment results.
+            pd.DataFrame: DataFrame representation of the experiment results.
 
         Raises:
             ImportError: If pandas is not installed.
@@ -784,86 +789,45 @@ class ExperimentResults:
                 "Please install it with `pip install pandas`"
             )
 
-        # Define the desired column order
-        COLUMN_ORDER = ['input', 'expected_output', 'output', 'evaluations', 'metadata', 'config', 'error']
-        
         # Convert merged_results to DataFrame directly
         df = pd.DataFrame(self.merged_results)
         
         if not multiindex:
-            # Reorder columns according to COLUMN_ORDER
-            cols = [col for col in COLUMN_ORDER if col in df.columns]
-            return df[cols]
+            return df
         
-        # For multiindex, we need to handle each column type differently
+        # Process input, output, and expected_output with MultiIndex
+        special_fields = ['input', 'output', 'expected_output']
         result_dfs = []
         
-        # Handle input column
-        input_df = pd.DataFrame({'input': df['input'].values})
+        # Handle special fields (input, output, expected_output)
+        for field in special_fields:
+            if field not in df.columns:
+                continue
+                
+            # Get the first non-null value to check type
+            first_value = next((v for v in df[field] if v is not None), None)
+            
+            if isinstance(first_value, dict):
+                # For dictionary values, expand into columns
+                field_df = pd.json_normalize(df[field].values)
+            else:
+                # For simple values, use 'value' as the subcolumn
+                field_df = pd.DataFrame({'value': df[field].values})
+            
+            # Create MultiIndex columns for this field
+            field_df.columns = pd.MultiIndex.from_tuples([(field, col) for col in field_df.columns])
+            result_dfs.append(field_df)
         
-        # Handle expected_output column
-        expected_output_df = pd.DataFrame({'expected_output': df['expected_output'].values})
-        
-        # Handle output column - expand the nested structure
-        output_df = pd.json_normalize(
-            df['output'].fillna({}).values,
-            sep='_'
-        ).add_prefix('output_')
-        
-        # Handle evaluations - flatten the dictionary
-        evaluations_df = pd.DataFrame(df['evaluations'].values.tolist())
-        if not evaluations_df.empty:
-            evaluations_df = evaluations_df.astype(object)  # Ensure columns are of object type
-            evaluations_df = evaluations_df.add_prefix('evaluations_')
-            # Replace NaN with None
-            evaluations_df = evaluations_df.where(pd.notna(evaluations_df), None)
-        
-        # Handle metadata - flatten the dictionary
-        metadata_df = pd.DataFrame(df['metadata'].values.tolist())
-        if not metadata_df.empty:
-            metadata_df = metadata_df.add_prefix('metadata_')
-        
-        # Handle config if it exists
-        if 'config' in df.columns:
-            config_df = pd.json_normalize(
-                df['config'].fillna({}).values,
-                sep='_'
-            ).add_prefix('config_')
-        else:
-            config_df = pd.DataFrame()
-        
-        # Handle error column - flatten the dictionary and preserve None values
-        error_dicts = df['error'].values.tolist()
-        error_df = pd.DataFrame(error_dicts)
-        if not error_df.empty:
-            error_df = error_df.add_prefix('error_')
+        # Add all other columns as-is
+        other_cols = [col for col in df.columns if col not in special_fields]
+        if other_cols:
+            other_df = df[other_cols]
+            result_dfs.append(other_df)
         
         # Combine all DataFrames
-        result_dfs = [
-            input_df,
-            expected_output_df,
-            output_df,
-            evaluations_df,
-            metadata_df,
-            config_df,
-            error_df
-        ]
-        
-        # Filter out empty DataFrames and concatenate
-        result_dfs = [df for df in result_dfs if not df.empty]
         final_df = pd.concat(result_dfs, axis=1)
         
         # Replace NaN with None
-        final_df = final_df.where(pd.notna(final_df), None)
-        
-        # Create MultiIndex columns
-        new_columns = pd.MultiIndex.from_tuples([
-            tuple(col.split('_', 1)) if '_' in col else (col, '')
-            for col in final_df.columns
-        ])
-        final_df.columns = new_columns
-        
-        # Replace NaN with None for the entire DataFrame
         final_df = final_df.where(pd.notna(final_df), None)
         
         return final_df
@@ -973,31 +937,31 @@ class ExperimentResults:
             spans.append(span)
 
             # Add evaluation metrics
-            for metric_name, metric_value in evaluations.items():
+            for metric_payload_name, metric_payload_value in evaluations.items():
                 # Skip None values
-                if metric_value is None:
-                    print(f"Skipping None value for metric: {metric_name}")
+                if metric_payload_value is None:
+                    print(f"Skipping None value for metric: {metric_payload_name}")
                     continue
                     
                 timestamp_ms = int(metadata.get("timestamp", time.time()) * 1000)
 
                 # Check for bool first, since bool is a subclass of int
-                if isinstance(metric_value, (bool, str)):
+                if isinstance(metric_payload_value["value"], (bool, str)):
                     metric_type = "categorical"
-                    metric_value = str(metric_value).lower()
-                elif isinstance(metric_value, (int, float)):
+                    metric_value = str(metric_payload_value["value"]).lower()
+                elif isinstance(metric_payload_value["value"], (int, float)):
                     metric_type = "score"
                 else:
-                    print(f"Unknown metric type: {type(metric_value)}")
                     metric_type = "categorical"
-                    metric_value = str(metric_value)
+                    metric_value = str(metric_payload_value["value"])
 
                 metric = {
                     "span_id": span["span_id"],
                     "metric_type": metric_type,
                     "timestamp_ms": timestamp_ms,
-                    "label": metric_name,
+                    "label": metric_payload_name,
                     "score_value" if metric_type == "score" else "categorical_value": metric_value,
+                    "error": metric_payload_value["error"],
                 }
 
                 metrics.append(metric)
