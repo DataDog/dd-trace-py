@@ -23,6 +23,7 @@ import pytest
 
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
+from ddtrace._trace.utils_botocore import span_tags
 from tests.utils import get_128_bit_trace_id_from_headers
 
 
@@ -104,6 +105,12 @@ class BotocoreTest(TracerTestCase):
         super(BotocoreTest, self).setUp()
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(botocore.parsers.ResponseParser)
+        # Setting the validated flag to False ensures the redaction paths configurations are re-validated
+        # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
+        # config.botocore.payload_tagging_request
+        # FIXME: Ensure AWSPayloadTagging._RESPONSE_REDACTION_PATHS_DEFAULTS is always in sync with
+        # config.botocore.payload_tagging_response
+        span_tags._PAYLOAD_TAGGER.validated = False
 
     def tearDown(self):
         super(BotocoreTest, self).tearDown()

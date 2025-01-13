@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracer: This fix resolves an issue where baggage header extraction was case sensitive and didn't accept the header prepended with HTTP.
+    Now the baggage header will be extracted regardless of casing and the HTTP format.
+    
