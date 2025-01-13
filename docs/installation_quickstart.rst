@@ -59,24 +59,6 @@ When ``ddtrace-run`` cannot be used, a similar start-up behavior can be achieved
 with the import of ``ddtrace.auto``. This should normally be imported as the
 first thing during the application start-up.
 
-If neither ``ddtrace-run`` nor ``import ddtrace.auto`` are suitable for your application, then
-:py:func:`ddtrace.patch_all` can be used to configure the tracer::
-
-    from ddtrace import config, patch_all
-
-    config.env = "dev"      # the environment the application is in
-    config.service = "app"  # name of your application
-    config.version = "0.1"  # version of your application
-    patch_all()
-
-
-.. note::
-    We recommend the use of ``ddtrace-run`` when possible. If you are importing
-    ``ddtrace.auto`` as a programmatic replacement for ``ddtrace``, then note
-    that integrations will take their configuration from the environment
-    variables. A call to :py:func:`ddtrace.patch_all` cannot be used to disable
-    an integration at this point.
-
 
 Service names also need to be configured for libraries that query other
 services (``requests``, ``grpc``, database libraries, etc).  Check out the
