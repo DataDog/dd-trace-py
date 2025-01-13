@@ -531,7 +531,7 @@ class Config(object):
         # Propagation styles
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
         #  take precedence over DD_TRACE_PROPAGATION_STYLE
-        # if DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore we set DD_TRACE_PROPAGATION_STYLE_EXTRACT to []
+        # if DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore we set DD_TRACE_PROPAGATION_STYLE_EXTRACT to ["none"]
         # since no extraction will heeded
         self._propagation_behavior_extract = _get_config(
             ["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"], _PROPAGATION_BEHAVIOR_DEFAULT, self._lower
@@ -547,7 +547,7 @@ class Config(object):
                 """DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore,
                 setting DD_TRACE_PROPAGATION_STYLE_EXTRACT to empty list"""
             )
-            self._propagation_style_extract = []
+            self._propagation_style_extract = ["none"]
         self._propagation_style_inject = _parse_propagation_styles(
             _get_config(["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT)
         )
