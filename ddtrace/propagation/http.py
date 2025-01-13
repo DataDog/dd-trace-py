@@ -101,6 +101,7 @@ _POSSIBLE_HTTP_HEADER_B3_SAMPLEDS = _possible_header(_HTTP_HEADER_B3_SAMPLED)
 _POSSIBLE_HTTP_HEADER_B3_FLAGS = _possible_header(_HTTP_HEADER_B3_FLAGS)
 _POSSIBLE_HTTP_HEADER_TRACEPARENT = _possible_header(_HTTP_HEADER_TRACEPARENT)
 _POSSIBLE_HTTP_HEADER_TRACESTATE = _possible_header(_HTTP_HEADER_TRACESTATE)
+_POSSIBLE_HTTP_BAGGAGE_HEADER = _possible_header(_HTTP_HEADER_BAGGAGE)
 
 
 # https://www.w3.org/TR/trace-context/#traceparent-header-field-values
@@ -922,7 +923,7 @@ class _BaggageHeader:
 
     @staticmethod
     def _extract(headers: Dict[str, str]) -> Context:
-        header_value = headers.get(_HTTP_HEADER_BAGGAGE)
+        header_value = _extract_header_value(_POSSIBLE_HTTP_BAGGAGE_HEADER, headers)
 
         if not header_value:
             return Context(baggage={})
