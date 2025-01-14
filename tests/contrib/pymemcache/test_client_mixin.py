@@ -4,8 +4,8 @@ import pytest
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.pymemcache.patch import patch
-from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.contrib.internal.pymemcache.patch import patch
+from ddtrace.contrib.internal.pymemcache.patch import unpatch
 from ddtrace.ext import memcached as memcachedx
 from ddtrace.ext import net
 from tests.utils import DummyTracer
