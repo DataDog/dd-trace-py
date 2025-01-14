@@ -473,7 +473,8 @@ venv = Venv(
                         Venv(
                             pys="3.9",
                             pkgs={
-                                "gevent": ["~=21.1.0", latest],
+                                # https://github.com/gevent/gevent/issues/2076
+                                "gevent": ["~=21.1.0", "<21.8.0"],
                                 "greenlet": "~=1.0",
                             },
                         ),
@@ -805,6 +806,7 @@ venv = Venv(
                 "django-q": latest,
                 "spyne": latest,
                 "zeep": latest,
+                "bcrypt": "==4.2.1",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
