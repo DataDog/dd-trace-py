@@ -15,12 +15,12 @@ Configuration
 ~~~~~~~~~~~~~
 
 """
-# Expose public methods
+
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
-from ..internal.avro.patch import get_version  # noqa: F401,E402
-from ..internal.avro.patch import patch  # noqa: F401,E402
+from ..internal.avro.patch import get_version  # noqa: F401
+from ..internal.avro.patch import patch  # noqa: F401
 
 
 deprecate(

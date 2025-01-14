@@ -29,7 +29,7 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
+
 from ddtrace.contrib.internal.sqlalchemy.engine import trace_engine
 from ddtrace.contrib.internal.sqlalchemy.patch import get_version  # noqa: F401
 from ddtrace.contrib.internal.sqlalchemy.patch import patch  # noqa: F401

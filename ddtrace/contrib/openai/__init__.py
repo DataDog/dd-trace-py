@@ -143,20 +143,7 @@ The OpenAI integration is enabled automatically when you use
 Note that these commands also enable the ``requests`` and ``aiohttp``
 integrations which trace HTTP requests from the OpenAI library.
 
-Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI integration::
-
-    from ddtrace import config, patch
-
-    # Note: be sure to configure the integration before calling ``patch()``!
-    # eg. config.openai["logs_enabled"] = True
-
-    patch(openai=True)
-
-    # to trace synchronous HTTP requests from the OpenAI library
-    # patch(openai=True, requests=True)
-
-    # to trace asynchronous HTTP requests from the OpenAI library
-    # patch(openai=True, aiohttp=True)
+Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
 
 
 Global Configuration
@@ -256,18 +243,10 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.openai.patch import get_version  # noqa: F401
-from ddtrace.contrib.internal.openai.patch import patch  # noqa: F401
-from ddtrace.contrib.internal.openai.patch import unpatch  # noqa: F401
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+
+from ddtrace.contrib.internal.openai.patch import get_version
+from ddtrace.contrib.internal.openai.patch import patch
+from ddtrace.contrib.internal.openai.patch import unpatch
 
 
-deprecate(
-    ("%s is deprecated" % (__name__)),
-    message="Avoid using this package directly. "
-    "Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
-    category=DDTraceDeprecationWarning,
-    removal_version="3.0.0",
-)
+__all__ = ["patch", "unpatch", "get_version"]

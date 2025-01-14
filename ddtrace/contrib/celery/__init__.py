@@ -61,7 +61,7 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
+
 from ddtrace.contrib.internal.celery.app import patch_app
 from ddtrace.contrib.internal.celery.app import unpatch_app
 from ddtrace.contrib.internal.celery.patch import get_version  # noqa: F401

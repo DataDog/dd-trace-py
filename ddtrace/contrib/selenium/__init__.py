@@ -22,7 +22,7 @@ The Selenium integration can be configured using the following options:
 
 DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS: The time in milliseconds to wait after flushing the RUM session.
 """
-# Expose public methods
+
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 

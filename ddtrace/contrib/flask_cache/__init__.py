@@ -44,7 +44,7 @@ Use a specific ``Cache`` implementation with::
 
 """
 
-# Expose public methods
+
 from ddtrace.contrib.internal.flask_cache.tracers import get_traced_cache
 from ddtrace.contrib.internal.flask_cache.tracers import get_version  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning

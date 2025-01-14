@@ -49,7 +49,8 @@ Example::
     # Override service name
     config.elasticsearch['service'] = 'custom-service-name'
 """
-from ddtrace.contrib.internal.elasticsearch.patch import get_version  # noqa: F401  # noqa: F401s
+from ddtrace.contrib.internal.elasticsearch.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.elasticsearch.patch import get_versions  # noqa: F401
 from ddtrace.contrib.internal.elasticsearch.patch import patch  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate

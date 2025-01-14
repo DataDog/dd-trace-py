@@ -15,7 +15,7 @@ Configuration
 ~~~~~~~~~~~~~
 
 """
-# Expose public methods
+
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 

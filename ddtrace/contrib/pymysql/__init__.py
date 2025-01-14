@@ -64,7 +64,7 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
+
 from ddtrace.contrib.internal.pymysql.patch import get_version  # noqa: F401
 from ddtrace.contrib.internal.pymysql.patch import patch  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning

@@ -13,7 +13,7 @@ Configuration
 The freezegun integration is not configurable, but may be disabled using DD_PATCH_MODULES=freezegun:false .
 """
 
-# Expose public methods
+
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
