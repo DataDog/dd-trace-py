@@ -1,4 +1,5 @@
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import _constants
 from ddtrace.appsec._ddwaf import version as _version
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.internal import telemetry
@@ -64,6 +65,15 @@ def _set_waf_init_metric(info):
         log.warning("Error reporting ASM WAF init metrics", exc_info=True)
 
 
+_TYPES_AND_TAGS = {
+    _constants.EXPLOIT_PREVENTION.TYPE.CMDI: (("rule_type", "command_injection"), ("rule_variant", "exec")),
+    _constants.EXPLOIT_PREVENTION.TYPE.SHI: (("rule_type", "command_injection"), ("rule_variant", "shell")),
+    _constants.EXPLOIT_PREVENTION.TYPE.LFI: (("rule_type", "lfi"),),
+    _constants.EXPLOIT_PREVENTION.TYPE.SSRF: (("rule_type", "ssrf"),),
+    _constants.EXPLOIT_PREVENTION.TYPE.SQLI: (("rule_type", "sql_injection"),),
+}
+
+
 def _set_waf_request_metrics(*args):
     try:
         result = _asm_request_context.get_waf_telemetry_results()
@@ -94,10 +104,7 @@ def _set_waf_request_metrics(*args):
                                 TELEMETRY_NAMESPACE.APPSEC,
                                 n,
                                 float(value),
-                                tags=(
-                                    ("rule_type", rule_type),
-                                    ("waf_version", DDWAF_VERSION),
-                                ),
+                                tags=_TYPES_AND_TAGS.get(rule_type, ()) + (("waf_version", DDWAF_VERSION),),
                             )
 
     except Exception:

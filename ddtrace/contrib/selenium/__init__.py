@@ -22,16 +22,10 @@ The Selenium integration can be configured using the following options:
 
 DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS: The time in milliseconds to wait after flushing the RUM session.
 """
-from ...internal.utils.importlib import require_modules
+# Expose public methods
+from ..internal.selenium.patch import get_version
+from ..internal.selenium.patch import patch
+from ..internal.selenium.patch import unpatch
 
 
-required_modules = ["selenium"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Expose public methods
-        from ..internal.selenium.patch import get_version
-        from ..internal.selenium.patch import patch
-        from ..internal.selenium.patch import unpatch
-
-        __all__ = ["get_version", "patch", "unpatch"]
+__all__ = ["get_version", "patch", "unpatch"]

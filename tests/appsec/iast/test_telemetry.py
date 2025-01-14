@@ -14,11 +14,14 @@ from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CMDI
+from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
+from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
@@ -118,6 +121,15 @@ def test_metric_instrumented_header_injection(no_request_sampling, telemetry_wri
         header_injection_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_HEADER_INJECTION)
+
+
+def test_metric_instrumented_code_injection(no_request_sampling, telemetry_writer):
+    # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
+    code_injection_unpatch()
+    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
+        code_injection_patch()
+
+    _assert_instrumented_sink(telemetry_writer, VULN_CODE_INJECTION)
 
 
 def test_metric_instrumented_sqli_sqlite3(no_request_sampling, telemetry_writer):
