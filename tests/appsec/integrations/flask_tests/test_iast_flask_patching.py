@@ -2,8 +2,8 @@ import pytest
 
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
-from tests.appsec.integrations.utils import _PORT
-from tests.appsec.integrations.utils import _request_200
+from tests.appsec.integrations.flask_tests.utils import _PORT
+from tests.appsec.integrations.flask_tests.utils import _request_200
 from tests.utils import flaky
 
 

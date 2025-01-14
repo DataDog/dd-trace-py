@@ -228,7 +228,7 @@ venv = Venv(
             },
         ),
         Venv(
-            name="appsec_integrations",
+            name="appsec_integrations_pygoat",
             command="pytest {cmdargs} tests/appsec/integrations/",
             pkgs={
                 "requests": latest,
