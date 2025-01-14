@@ -20,6 +20,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          ref: 'zach.montoya/poc/propagation-behavior'
 
       - name: Build agent
         run: ./build.sh -i agent
@@ -66,6 +67,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          ref: 'zach.montoya/poc/propagation-behavior'
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@v4
@@ -118,6 +120,8 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          ref: 'zach.montoya/poc/propagation-behavior'
+
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -291,6 +295,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          ref: 'zach.montoya/poc/propagation-behavior'
       - name: Checkout dd-trace-py
         uses: actions/checkout@v4
         with:
