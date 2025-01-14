@@ -19,6 +19,15 @@ from tests.llmobs._utils import ragas_context_precision_single_context_cassette
 pytest.importorskip("ragas", reason="Tests require ragas to be available on user env")
 
 
+@pytest.fixture
+def reset_ragas_context_precision_llm():
+    import ragas
+
+    previous_llm = ragas.metrics.context_precision.llm
+    yield
+    ragas.metrics.context_precision.llm = previous_llm
+
+
 def _llm_span_without_io():
     return _expected_llmobs_llm_span_event(Span("dummy"))
 
