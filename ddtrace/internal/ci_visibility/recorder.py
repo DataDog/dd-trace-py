@@ -148,7 +148,6 @@ def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
 class CIVisibilityTracer(Tracer):
     def __init__(self, *args, **kwargs):
         # Allows for multiple instances of the civis tracer to be created without logging a warning
-        self._instance = None
         super(CIVisibilityTracer, self).__init__(*args, **kwargs)
 
 

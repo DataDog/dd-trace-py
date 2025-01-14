@@ -610,8 +610,6 @@ class DummyTracer(Tracer):
     """
 
     def __init__(self, *args, **kwargs):
-        # Allows for multiple instances of the dummy tracer to be created without logging a warning
-        self._instance = None
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
