@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 
 import pytest
 
@@ -168,5 +169,6 @@ def configuration_endpoint():
         CONFIG_SERVER_PORT,
     ]
     process = subprocess.Popen(cmd, cwd=current_dir)
+    time.sleep(0.1)
     yield
     process.kill()
