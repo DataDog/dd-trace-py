@@ -90,11 +90,23 @@ suites:
       - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
-      - tests/appsec/*
+      - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
     runner: riot
     snapshot: true
+  appsec_integrations_flask:
+    parallelism: 7
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/integrations/flask_tests/*
+    retry: 2
+    runner: hatch
   appsec_threats_django:
     parallelism: 12
     paths:
