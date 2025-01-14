@@ -450,16 +450,23 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.internal.utils.http import Response
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import logs_vcr
-ctx = logs_vcr.use_cassette(
+
+cassette_ctx = logs_vcr.use_cassette(
     "tests.llmobs.test_llmobs_ragas_answer_relevancy_evaluator.emits_traces_and_evaluations_on_exit.yaml"
 )
-import os
-ctx.__enter__()
-atexit.register(lambda: ctx.__exit__())
-with mock.patch("ragas.metrics.answer_relevancy.calculate_similarity", return_value=numpy.array([1.0, 1.0, 1.0])):
-    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}")):
-        LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
-        LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
+mock_calc_sim_ctx = mock.patch(
+    "ragas.metrics.answer_relevancy.calculate_similarity", return_value=numpy.array([1.0, 1.0, 1.0])
+)
+
+cassette_ctx.__enter__()
+mock_calc_sim_ctx.start()
+
+atexit.register(lambda: cassette_ctx.__exit__())
+atexit.register(lambda: mock_calc_sim_ctx.stop())
+
+with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}")):
+    LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
+    LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
 """,
         env=env,
     )
