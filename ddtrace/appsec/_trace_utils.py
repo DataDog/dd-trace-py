@@ -72,7 +72,8 @@ def _track_user_login_common(
 
         if login:
             span.set_tag_str(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.{success_str}.usr.login", login)
-            span.set_tag_str("_dd.appsec.usr.login", login)
+            if login_events_mode != LOGIN_EVENTS_MODE.SDK:
+                span.set_tag_str("_dd.appsec.usr.login", login)
             span.set_tag_str("%s.login" % tag_prefix, login)
 
         if email:
