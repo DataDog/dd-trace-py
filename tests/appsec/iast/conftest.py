@@ -166,7 +166,8 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
 def configuration_endpoint():
     current_dir = os.path.dirname(__file__)
     status = None
-    while status != 200:
+    retries = 0
+    while status != 200 and retries < 5:
         cmd = [
             "python",
             os.path.join(current_dir, "fixtures", "integration", "http_config_server.py"),
@@ -181,6 +182,10 @@ def configuration_endpoint():
         response = conn.getresponse()
         result = Response.from_http_response(response)
         status = result.status
+        retries += 1
+
+    if retries == 5:
+        pytest.skip("Failed to start the configuration server")
 
     yield
     process.kill()
