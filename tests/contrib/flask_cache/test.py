@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from flask import Flask
 
-from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
+from ddtrace.contrib.internal.flask_cache.tracers import CACHE_BACKEND
 from ddtrace.contrib.internal.flask_cache.tracers import get_traced_cache
 from ddtrace.ext import net
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME

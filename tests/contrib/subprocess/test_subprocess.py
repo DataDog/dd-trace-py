@@ -5,10 +5,10 @@ import sys
 import pytest
 
 from ddtrace import Pin
+from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.contrib.internal.subprocess.patch import unpatch
-from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from tests.utils import override_config

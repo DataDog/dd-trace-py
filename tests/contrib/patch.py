@@ -748,7 +748,7 @@ class PatchTestCase(object):
 
                             wrap(module.__name__, module.patch.__name__, patch_wrapper)
 
-                        ModuleWatchdog.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
+                        ModuleWatchdog.register_module_hook("ddtrace.contrib.internal.%s.patch", patch_hook)
 
                         sys.stdout.write("O")
 
