@@ -41,7 +41,6 @@ from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
-from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
@@ -1043,7 +1042,7 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extend with tracing attributes.
         :param Span non_active_span: Only to be used if injecting a non-active span.
         """
-        if config._propagation_style_inject == [_PROPAGATION_STYLE_NONE]:
+        if not config._propagation_style_inject:
             return
         if non_active_span is not None and non_active_span.context is not span_context:
             log.error(
@@ -1117,7 +1116,7 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.
         """
-        if not headers or config._propagation_style_extract == [_PROPAGATION_STYLE_NONE]:
+        if not headers or not config._propagation_style_extract:
             return Context()
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}

@@ -2080,19 +2080,6 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
         },
     ),
-    (
-        # name, styles, headers, expected_context,
-        "none_and_other_prop_style_still_extracts",
-        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
-        ALL_HEADERS,
-        {
-            "trace_id": 13088165645273925489,
-            "span_id": 5678,
-            "sampling_priority": 1,
-            "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
-        },
-    ),
     # Testing that order matters
     (
         "order_matters_B3_SINGLE_HEADER_first",
@@ -2250,6 +2237,18 @@ EXTRACT_FIXTURES_ENV_ONLY = [
                 "tracestate": "dd=o:rum",
                 "traceparent": TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION[_HTTP_HEADER_TRACEPARENT],
             },
+        },
+    ),
+    (
+        "none_and_other_prop_style_still_extracts",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
+        ALL_HEADERS,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
 ]

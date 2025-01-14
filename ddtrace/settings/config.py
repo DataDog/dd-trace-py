@@ -21,6 +21,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
+from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import DEFAULT_BUFFER_SIZE
 from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
@@ -153,6 +154,9 @@ def _parse_propagation_styles(styles_str):
             log.warning("Unknown DD_TRACE_PROPAGATION_STYLE: {!r}, allowed values are %r", style, PROPAGATION_STYLE_ALL)
             continue
         styles.append(style)
+    # Remove "none" if it's present since it lacks a propagator
+    if _PROPAGATION_STYLE_NONE in styles:
+        styles.remove(_PROPAGATION_STYLE_NONE)
     return styles
 
 
