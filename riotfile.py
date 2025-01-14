@@ -330,9 +330,6 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
-            env={
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
-            },
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -411,7 +408,6 @@ venv = Venv(
             name="internal",
             env={
                 "DD_TRACE_AGENT_URL": "http://ddagent:8126",
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
@@ -516,9 +512,6 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            env={
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
-            },
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
@@ -1462,7 +1455,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
                 ),
             ],
@@ -1573,7 +1566,7 @@ venv = Venv(
         ),
         Venv(
             name="aiobotocore",
-            command="pytest {cmdargs} tests/contrib/aiobotocore",
+            command="pytest {cmdargs} --no-cov tests/contrib/aiobotocore",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "async_generator": ["~=1.10"],
@@ -1587,7 +1580,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"aiobotocore": latest},
                 ),
             ],
@@ -2700,6 +2693,11 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={"tornado": ["==6.2", "==6.3.1"]},
                 ),
+                Venv(
+                    # tornado fixed a bug affecting 3.13 in 6.4.1
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={"tornado": "==6.4.1"},
+                ),
             ],
         ),
         Venv(
@@ -2969,6 +2967,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING_STACK_V2_ENABLED": "0",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
                 "CPUCOUNT": "12",
             },
