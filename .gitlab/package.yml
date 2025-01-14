@@ -1,4 +1,10 @@
+.enable_vpa_for_package_stage:
+  variables:
+    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Auto
+    KUBERNETES_POD_LABELS_1: admission.datadoghq.com/mutate-resources-using-vpa=gitlab-job-pod
+
 download_ddtrace_artifacts:
+  extends: .enable_vpa_for_package_stage
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
   tags: [ "arch:amd64" ]
   stage: package
@@ -13,6 +19,7 @@ download_ddtrace_artifacts:
       - "pywheels/*.tar.gz"
 
 download_dependency_wheels:
+  extends: .enable_vpa_for_package_stage
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
   tags: [ "arch:amd64" ]
   stage: package
