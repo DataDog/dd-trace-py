@@ -18,7 +18,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.pin import _DD_PIN_NAME
+from ddtrace._trace.pin import _DD_PIN_NAME
 from ddtrace.trace import Pin
 
 
