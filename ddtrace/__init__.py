@@ -1,4 +1,5 @@
 import sys
+import os
 import warnings
 
 
@@ -41,20 +42,26 @@ _start_mini_agent()
 
 __version__ = get_version()
 
-# TODO: Deprecate accessing tracer from ddtrace.__init__ module in 4.0
-from ddtrace.trace import tracer
+# DEV: Import deprecated tracer module in order to retain side-effect of package
+# initialization, which added this module to sys.modules. We catch deprecation
+# warnings as this is only to retain a side effect of the package
+# initialization.
+# TODO: Remove this in v3.0 when the ddtrace/tracer.py module is removed
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from .tracer import Tracer as _
+
+# TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
+if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+    from ddtrace.trace import tracer  # noqa: F401
 
 __version__ = get_version()
-
-# a global tracer instance with integration settings
-tracer = Tracer()
 
 __all__ = [
     "patch",
     "patch_all",
     "Pin",
     "Span",
-    "tracer",
     "Tracer",
     "config",
     "DDTraceDeprecationWarning",
