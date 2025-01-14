@@ -3,12 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.rediscluster import get_version
-from ddtrace.contrib.rediscluster.patch import patch
+from ddtrace.contrib.internal.rediscluster.patch import get_version
+from ddtrace.contrib.internal.rediscluster.patch import patch
 
 
 try:
-    from ddtrace.contrib.rediscluster.patch import unpatch
+    from ddtrace.contrib.internal.rediscluster.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase
