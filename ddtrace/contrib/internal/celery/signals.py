@@ -3,7 +3,6 @@ from urllib.parse import urlparse
 from celery import current_app
 from celery import registry
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
@@ -24,6 +23,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)

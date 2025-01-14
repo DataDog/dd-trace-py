@@ -518,8 +518,8 @@ def _generate_in_subprocess(random_topic):
             "auto.offset.reset": "earliest",
         }
     )
-    ddtrace.Pin.override(producer, tracer=ddtrace.tracer)
-    ddtrace.Pin.override(consumer, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin.override(producer, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin.override(consumer, tracer=ddtrace.tracer)
 
     # We run all of these commands with retry attempts because the kafka-confluent API
     # sys.exits on connection failures, which causes the test to fail. We want to retry
@@ -799,7 +799,7 @@ import pytest
 import random
 import sys
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 
 from tests.contrib.kafka.test_kafka import consumer
@@ -1039,7 +1039,7 @@ import pytest
 import random
 import sys
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 

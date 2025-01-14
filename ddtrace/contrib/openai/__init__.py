@@ -242,7 +242,8 @@ To configure the OpenAI integration on a per-instance basis use the
 ``Pin`` API::
 
     import openai
-    from ddtrace import Pin, config
+    from ddtrace import config
+from ddtrace.trace import Pin
 
     Pin.override(openai, service="my-openai-service")
 """  # noqa: E501

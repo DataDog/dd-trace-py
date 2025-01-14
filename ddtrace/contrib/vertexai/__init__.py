@@ -77,7 +77,8 @@ To configure the Vertex AI integration on a per-instance basis use the
 ``Pin`` API::
 
     import vertexai
-    from ddtrace import Pin, config
+    from ddtrace import config
+from ddtrace.trace import Pin
 
     Pin.override(vertexai, service="my-vertexai-service")
 """  # noqa: E501

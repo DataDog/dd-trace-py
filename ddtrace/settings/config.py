@@ -34,7 +34,7 @@ from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
-from ..pin import Pin
+from ..trace import Pin
 from ._core import get_config as _get_config
 from ._inferred_base_service import detect_service
 from ._otel_remapper import otel_remapping as _otel_remapping

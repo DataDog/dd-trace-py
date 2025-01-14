@@ -26,7 +26,7 @@ from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-from .pin import Pin  # noqa: E402
+from .trace import Pin  # noqa: E402
 from ddtrace._trace.span import Span  # noqa: E402
 from ddtrace._trace.tracer import Tracer  # noqa: E402
 from ddtrace.vendor import debtcollector
