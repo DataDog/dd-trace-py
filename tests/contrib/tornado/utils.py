@@ -2,10 +2,10 @@ from importlib import reload as reload_module
 
 from tornado.testing import AsyncHTTPTestCase
 
-from ddtrace.contrib.futures import patch as patch_futures
-from ddtrace.contrib.futures import unpatch as unpatch_futures
-from ddtrace.contrib.tornado import patch
-from ddtrace.contrib.tornado import unpatch
+from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.contrib.internal.tornado.patch import patch
+from ddtrace.contrib.internal.tornado.patch import unpatch
 from tests.utils import TracerTestCase
 
 from .web import app

@@ -304,7 +304,7 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
 
 def _on_django_login(pin, request, user, mode, info_retriever, django_config):
     if user:
-        from ddtrace.contrib.django.compat import user_is_authenticated
+        from ddtrace.contrib.internal.django.compat import user_is_authenticated
 
         user_id, user_extra = info_retriever.get_user_info(
             login=django_config.include_user_login,
