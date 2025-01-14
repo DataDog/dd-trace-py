@@ -8,8 +8,8 @@ from psycopg2 import extensions
 from psycopg2 import extras
 
 from ddtrace import Pin
-from ddtrace.contrib.psycopg.patch import patch
-from ddtrace.contrib.psycopg.patch import unpatch
+from ddtrace.contrib.internal.psycopg.patch import patch
+from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG

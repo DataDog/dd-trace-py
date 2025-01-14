@@ -4,8 +4,8 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.anthropic.patch import patch
-from ddtrace.contrib.anthropic.patch import unpatch
+from ddtrace.contrib.internal.anthropic.patch import patch
+from ddtrace.contrib.internal.anthropic.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import DummyTracer

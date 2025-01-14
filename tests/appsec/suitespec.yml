@@ -76,19 +76,11 @@ suites:
   appsec_iast_packages:
     parallelism: 4
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
-      - '@remoteconfig'
-      - tests/appsec/iast/*
       - tests/appsec/iast_packages/*
     retry: 2
     runner: hatch
     timeout: 50m
-    only:
-      - 'main'
   appsec_integrations:
     parallelism: 7
     paths:
