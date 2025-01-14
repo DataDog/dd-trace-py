@@ -12,11 +12,18 @@ from tests.llmobs._utils import _expected_ragas_faithfulness_spans
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_prompt
 from tests.llmobs._utils import default_ragas_inputs
-from tests.llmobs._utils import ragas_context_precision_multiple_context_cassette
-from tests.llmobs._utils import ragas_context_precision_single_context_cassette
+from tests.llmobs._utils import logs_vcr
 
 
 pytest.importorskip("ragas", reason="Tests require ragas to be available on user env")
+
+if logs_vcr:
+    ragas_context_precision_single_context_cassette = logs_vcr.use_cassette(
+        "tests.llmobs.test_llmobs_ragas_evaluators.test_ragas_context_precision_single_context.yaml"
+    )
+    ragas_context_precision_multiple_context_cassette = logs_vcr.use_cassette(
+        "tests.llmobs.test_llmobs_ragas_evaluators.test_ragas_context_precision_multiple_context.yaml"
+    )
 
 
 @pytest.fixture
