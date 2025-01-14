@@ -14,7 +14,8 @@ from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context import start_iast_context
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
-from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
+from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
@@ -23,8 +24,8 @@ from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_pa
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
-from ddtrace.contrib.sqlite3.patch import patch as sqli_sqlite_patch
-from ddtrace.contrib.sqlite3.patch import unpatch as sqli_sqlite_unpatch
+from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite_patch
+from ddtrace.contrib.internal.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -60,20 +61,20 @@ def _end_iast_context_and_oce(span=None):
 
 def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False):
     try:
-        from ddtrace.contrib.langchain.patch import patch as langchain_patch
-        from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
+        from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
+        from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_unpatch
     except Exception:
         langchain_patch = lambda: True  # noqa: E731
         langchain_unpatch = lambda: True  # noqa: E731
     try:
-        from ddtrace.contrib.sqlalchemy.patch import patch as sqlalchemy_patch
-        from ddtrace.contrib.sqlalchemy.patch import unpatch as sqlalchemy_unpatch
+        from ddtrace.contrib.internal.sqlalchemy.patch import patch as sqlalchemy_patch
+        from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sqlalchemy_unpatch
     except Exception:
         sqlalchemy_patch = lambda: True  # noqa: E731
         sqlalchemy_unpatch = lambda: True  # noqa: E731
     try:
-        from ddtrace.contrib.psycopg.patch import patch as psycopg_patch
-        from ddtrace.contrib.psycopg.patch import unpatch as psycopg_unpatch
+        from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
+        from ddtrace.contrib.internal.psycopg.patch import unpatch as psycopg_unpatch
     except Exception:
         psycopg_patch = lambda: True  # noqa: E731
         psycopg_unpatch = lambda: True  # noqa: E731
@@ -90,7 +91,6 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
-        VulnerabilityBase._reset_cache_for_testing()
         _start_iast_context_and_oce(MockSpan())
         weak_hash_patch()
         weak_cipher_patch()
@@ -100,6 +100,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         sqlalchemy_patch()
         cmdi_patch()
         header_injection_patch()
+        code_injection_patch()
         langchain_patch()
         patch_common_modules()
         yield
@@ -112,6 +113,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         sqlalchemy_unpatch()
         cmdi_unpatch()
         header_injection_unpatch()
+        code_injection_unpatch()
         langchain_unpatch()
         _end_iast_context_and_oce()
 

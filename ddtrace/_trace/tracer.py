@@ -25,6 +25,9 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.sampler import BasePrioritySampler
+from ddtrace._trace.sampler import BaseSampler
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import ENV_KEY
@@ -63,9 +66,6 @@ from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.sampler import BasePrioritySampler
-from ddtrace.sampler import BaseSampler
-from ddtrace.sampler import DatadogSampler
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -1176,11 +1176,11 @@ class Tracer(object):
 
         if "_logs_injection" in items:
             if config._logs_injection:
-                from ddtrace.contrib.logging import patch
+                from ddtrace.contrib.internal.logging.patch import patch
 
                 patch()
             else:
-                from ddtrace.contrib.logging import unpatch
+                from ddtrace.contrib.internal.logging.patch import unpatch
 
                 unpatch()
 

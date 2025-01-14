@@ -10,7 +10,7 @@ from django.http import HttpResponse
 from django.urls import path
 import pytest
 
-from ddtrace.contrib.wsgi import DDWSGIMiddleware
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.contrib.django.utils import make_soap_request
 from tests.webclient import Client
