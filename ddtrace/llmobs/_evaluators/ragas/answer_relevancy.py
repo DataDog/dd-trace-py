@@ -87,8 +87,8 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
             try:
                 evaluation_metadata[EVALUATION_SPAN_METADATA] = self.llmobs_service.export_span(span=ragas_ar_workflow)
 
-                cp_inputs = self._extract_evaluation_inputs_from_span(span_event)
-                if cp_inputs is None:
+                ar_inputs = self._extract_evaluation_inputs_from_span(span_event)
+                if ar_inputs is None:
                     logger.debug(
                         "Failed to extract question and contexts from "
                         "span sampled for `ragas_answer_relevancy` evaluation"
@@ -96,8 +96,8 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
                     return "fail_extract_answer_relevancy_inputs", evaluation_metadata
 
                 prompt = self.ragas_answer_relevancy_instance.question_generation.format(
-                    answer=cp_inputs["answer"],
-                    context="\n".join(cp_inputs["contexts"]),
+                    answer=ar_inputs["answer"],
+                    context="\n".join(ar_inputs["contexts"]),
                 )
 
                 trace_metadata["strictness"] = self.ragas_answer_relevancy_instance.strictness
@@ -124,11 +124,11 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
                 # calculate cosine similarity between the question and generated questions
                 with self.llmobs_service.workflow("dd-ragas.calculate_similarity") as ragas_cs_workflow:
                     cosine_sim = self.ragas_answer_relevancy_instance.calculate_similarity(
-                        cp_inputs["question"], gen_questions
+                        ar_inputs["question"], gen_questions
                     )
                     self.llmobs_service.annotate(
                         span=ragas_cs_workflow,
-                        input_data={"question": cp_inputs["question"], "generated_questions": gen_questions},
+                        input_data={"question": ar_inputs["question"], "generated_questions": gen_questions},
                         output_data=cosine_sim.mean(),
                     )
 
