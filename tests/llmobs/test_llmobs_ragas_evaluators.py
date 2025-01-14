@@ -209,7 +209,7 @@ def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_log
             "PYTHONPATH": ":".join(pypath),
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "dummy-openai-api-key"),
             "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
-            "_DD_LLMOBS_EVALUATORS": "ragas_faithfulness",
+            "DD_LLMOBS_EVALUATORS": "ragas_faithfulness",
             "DD_TRACE_ENABLED": "0",
         }
     )

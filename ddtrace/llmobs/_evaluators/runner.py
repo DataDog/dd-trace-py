@@ -41,7 +41,7 @@ class EvaluatorRunner(PeriodicService):
         if len(self.evaluators) > 0:
             return
 
-        evaluator_str = os.getenv("_DD_LLMOBS_EVALUATORS")
+        evaluator_str = os.getenv("DD_LLMOBS_EVALUATORS")
         if evaluator_str is None:
             return
 

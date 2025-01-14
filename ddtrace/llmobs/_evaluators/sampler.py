@@ -46,7 +46,7 @@ class EvaluatorRunnerSamplingRule(SamplingRule):
 
 
 class EvaluatorRunnerSampler:
-    SAMPLING_RULES_ENV_VAR = "_DD_LLMOBS_EVALUATOR_SAMPLING_RULES"
+    SAMPLING_RULES_ENV_VAR = "DD_LLMOBS_EVALUATOR_SAMPLING_RULES"
 
     def __init__(self):
         self.rules = self.parse_rules()
@@ -60,7 +60,7 @@ class EvaluatorRunnerSampler:
     def parse_rules(self) -> List[EvaluatorRunnerSamplingRule]:
         rules = []
         sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR)
-        telemetry_writer.add_configuration("_DD_LLMOBS_EVALUATOR_SAMPLING_RULES", sampling_rules_str, origin="env")
+        telemetry_writer.add_configuration("DD_LLMOBS_EVALUATOR_SAMPLING_RULES", sampling_rules_str, origin="env")
 
         def parsing_failed_because(msg, maybe_throw_this):
             telemetry_writer.add_log(
