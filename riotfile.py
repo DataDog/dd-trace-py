@@ -2871,6 +2871,13 @@ venv = Venv(
             env={
                 "DD_AGENT_PORT": "9126",
             },
+            venvs=[
+                # Python 3.7 and 3.8
+                Venv(
+                    pys=["3.7", "3.8"],
+                    pkgs={"greenlet": "==3.1.0"},
+                ),
+            ],
         ),
         Venv(
             name="subprocess",
