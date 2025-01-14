@@ -38,14 +38,11 @@ from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_a
 
 _start_mini_agent()
 
-# DEV: Import deprecated tracer module in order to retain side-effect of package
-# initialization, which added this module to sys.modules. We catch deprecation
-# warnings as this is only to retain a side effect of the package
-# initialization.
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    from .tracer import Tracer as _
 
+__version__ = get_version()
+
+# TODO: Deprecate accessing tracer from ddtrace.__init__ module in 4.0
+from ddtrace.trace import tracer
 
 __version__ = get_version()
 
