@@ -317,7 +317,6 @@ def _on_django_login(
                 session_key = getattr(request, "session_key", None)
                 track_user_login_success_event(
                     pin.tracer,
-                    login=user_extra.get("login", None),
                     user_id=user_id,
                     session_id=session_key,
                     propagate=True,
