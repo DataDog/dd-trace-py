@@ -311,7 +311,7 @@ def test_ragas_answer_relevancy_has_modified_answer_relevancy_instance(
 
 @pytest.mark.vcr_logs
 def test_ragas_answer_relevancy_submits_evaluation(
-    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calc_similarity
+    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calculate_similarity
 ):
     """Test that evaluation is submitted for a valid llm span where question is in the prompt variables"""
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
@@ -337,7 +337,7 @@ def test_ragas_answer_relevancy_submits_evaluation(
 
 @pytest.mark.vcr_logs
 def test_ragas_answer_relevancy_submits_evaluation_on_span_with_question_in_messages(
-    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calc_similarity
+    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calculate_similarity
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
@@ -363,7 +363,7 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_question_in_mess
 
 @pytest.mark.vcr_logs
 def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
-    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calc_similarity
+    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calculate_similarity
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
     rf_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
@@ -400,7 +400,9 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
 
 
 @pytest.mark.vcr_logs
-def test_ragas_answer_relevancy_emits_traces(ragas, llmobs, llmobs_events, mock_ragas_answer_relevancy_calc_similarity):
+def test_ragas_answer_relevancy_emits_traces(
+    ragas, llmobs, llmobs_events, mock_ragas_answer_relevancy_calculate_similarity
+):
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
     rar_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
 
@@ -443,6 +445,7 @@ import os
 import time
 import atexit
 import mock
+import numpy
 from ddtrace.llmobs import LLMObs
 from ddtrace.internal.utils.http import Response
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
@@ -455,7 +458,8 @@ ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
 with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}")):
     LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
-    LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
+    with mock.patch("ragas.metrics.answer_relevancy.calculate_similarity", return_value=numpy.array([1.0, 1.0, 1.0])):
+        LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
 """,
         env=env,
     )

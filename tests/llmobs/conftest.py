@@ -169,7 +169,7 @@ def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
 
 
 @pytest.fixture
-def mock_ragas_answer_relevancy_calc_similarity():
+def mock_ragas_answer_relevancy_calculate_similarity():
     import numpy
 
     patcher = mock.patch("ragas.metrics.answer_relevancy.calculate_similarity")
