@@ -479,8 +479,6 @@ PACKAGES = [
         import_name="pydantic_core",
         import_module_to_validate="pydantic_core.core_schema",
     ),
-    # # TODO: patching Pytest fails: ImportError: cannot import name 'Dir' from '_pytest.main'
-    # PackageForTesting("pytest", "8.2.1", "", "", "", test_e2e=False),
     ## Skip due to python-dateutil added to the denylist
     # PackageForTesting(
     #     "python-dateutil",
