@@ -81,7 +81,7 @@ suites:
     retry: 2
     runner: hatch
     timeout: 50m
-  appsec_integrations:
+  appsec_integrations_pygoat:
     parallelism: 7
     paths:
       - '@bootstrap'
