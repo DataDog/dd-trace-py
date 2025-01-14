@@ -169,6 +169,17 @@ def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
 
 
 @pytest.fixture
+def mock_ragas_answer_relevancy_calc_similarity():
+    import numpy
+
+    patcher = mock.patch("ragas.metrics.answer_relevancy.calculate_similarity")
+    MockRagasCalcSim = patcher.start()
+    MockRagasCalcSim.return_value = numpy.array([1.0, 1.0, 1.0])
+    yield MockRagasCalcSim
+    patcher.stop()
+
+
+@pytest.fixture
 def tracer():
     return DummyTracer()
 

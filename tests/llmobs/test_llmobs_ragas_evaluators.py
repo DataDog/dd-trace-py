@@ -310,7 +310,9 @@ def test_ragas_answer_relevancy_has_modified_answer_relevancy_instance(
 
 
 @pytest.mark.vcr_logs
-def test_ragas_answer_relevancy_submits_evaluation(ragas, llmobs, mock_llmobs_submit_evaluation):
+def test_ragas_answer_relevancy_submits_evaluation(
+    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calc_similarity
+):
     """Test that evaluation is submitted for a valid llm span where question is in the prompt variables"""
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
@@ -335,7 +337,7 @@ def test_ragas_answer_relevancy_submits_evaluation(ragas, llmobs, mock_llmobs_su
 
 @pytest.mark.vcr_logs
 def test_ragas_answer_relevancy_submits_evaluation_on_span_with_question_in_messages(
-    ragas, llmobs, mock_llmobs_submit_evaluation
+    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calc_similarity
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
@@ -361,7 +363,7 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_question_in_mess
 
 @pytest.mark.vcr_logs
 def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
-    ragas, llmobs, mock_llmobs_submit_evaluation
+    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calc_similarity
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
     rf_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
@@ -398,7 +400,7 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
 
 
 @pytest.mark.vcr_logs
-def test_ragas_answer_relevancy_emits_traces(ragas, llmobs, llmobs_events):
+def test_ragas_answer_relevancy_emits_traces(ragas, llmobs, llmobs_events, mock_ragas_answer_relevancy_calc_similarity):
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
     rar_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
 
