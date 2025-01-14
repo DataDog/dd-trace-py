@@ -112,7 +112,22 @@ Note that these commands also enable the ``requests`` and ``aiohttp``
 integrations which trace HTTP requests to LLM providers, as well as the
 ``openai`` integration which traces requests to the OpenAI library.
 
-Use DD_TRACE_<INTEGRATION>_ENABLED environment variable to enable or disable this integration.
+Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the LangChain integration::
+    from ddtrace import config, patch
+
+    # Note: be sure to configure the integration before calling ``patch()``!
+    # eg. config.langchain["logs_enabled"] = True
+
+    patch(langchain=True)
+
+    # to trace synchronous HTTP requests
+    # patch(langchain=True, requests=True)
+
+    # to trace asynchronous HTTP requests (to the OpenAI library)
+    # patch(langchain=True, aiohttp=True)
+
+    # to include underlying OpenAI spans from the OpenAI integration
+    # patch(langchain=True, openai=True)
 
 
 Global Configuration
@@ -201,9 +216,17 @@ with _w.catch_warnings():
     from . import patch as _  # noqa: F401, I001
 
 
-from ddtrace.contrib.internal.langchain.patch import get_version
-from ddtrace.contrib.internal.langchain.patch import patch
-from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.contrib.internal.langchain.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.langchain.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.langchain.patch import unpatch  # noqa: F401
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-__all__ = ["patch", "unpatch", "get_version"]
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
+)
