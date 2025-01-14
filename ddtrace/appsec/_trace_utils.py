@@ -303,62 +303,69 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
 
 
 def _on_django_login(pin, request, user, mode, info_retriever, django_config):
-    if user:
-        from ddtrace.contrib.internal.django.compat import user_is_authenticated
+    try:
+        if user:
+            from ddtrace.contrib.internal.django.compat import user_is_authenticated
 
-        user_id, user_extra = info_retriever.get_user_info(
-            login=django_config.include_user_login,
-            email=django_config.include_user_email,
-            name=django_config.include_user_realname,
-        )
-        if user_is_authenticated(user):
-            with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-                session_key = getattr(request, "session_key", None)
-                track_user_login_success_event(
-                    pin.tracer,
-                    user_id=user_id,
-                    session_id=session_key,
-                    propagate=True,
-                    login_events_mode=mode,
-                    **user_extra,
-                )
-        else:
-            # Login failed and the user is unknown (may exist or not)
-            # DEV: DEAD CODE?
-            track_user_login_failure_event(
-                pin.tracer, user_id=user_id, login_events_mode=mode, login=user_extra.get("login", None)
-            )
-
-
-def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_config):
-    if not asm_config._asm_enabled:
-        return True, result_user
-
-    userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
-
-    for possible_key in userid_list:
-        if possible_key in kwargs:
-            user_id = kwargs[possible_key]
-            break
-    else:
-        user_id = None
-
-    if not result_user:
-        with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-            exists = info_retriever.user_exists()
-            user_id_found, user_extra = info_retriever.get_user_info(
+            user_id, user_extra = info_retriever.get_user_info(
                 login=django_config.include_user_login,
                 email=django_config.include_user_email,
                 name=django_config.include_user_realname,
             )
-            if user_extra.get("login") is None:
-                user_extra["login"] = user_id
-            user_id = user_id_found or user_id
-            track_user_login_failure_event(
-                pin.tracer, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra
-            )
+            if user_is_authenticated(user):
+                with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+                    session_key = getattr(request, "session_key", None)
+                    track_user_login_success_event(
+                        pin.tracer,
+                        user_id=user_id,
+                        session_id=session_key,
+                        propagate=True,
+                        login_events_mode=mode,
+                        **user_extra,
+                    )
+            else:
+                # Login failed and the user is unknown (may exist or not)
+                # DEV: DEAD CODE?
+                track_user_login_failure_event(
+                    pin.tracer, user_id=user_id, login_events_mode=mode, login=user_extra.get("login", None)
+                )
+    except Exception as e:
+        raise BaseException(f"DEBUG Error in _on_django_login: {e}")
 
-    return False, None
+
+def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_config):
+    try:
+        if not asm_config._asm_enabled:
+            return True, result_user
+
+        userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
+
+        for possible_key in userid_list:
+            if possible_key in kwargs:
+                user_id = kwargs[possible_key]
+                break
+        else:
+            user_id = None
+
+        if not result_user:
+            with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+                exists = info_retriever.user_exists()
+                user_id_found, user_extra = info_retriever.get_user_info(
+                    login=django_config.include_user_login,
+                    email=django_config.include_user_email,
+                    name=django_config.include_user_realname,
+                )
+                if user_extra.get("login") is None:
+                    user_extra["login"] = user_id
+                user_id = user_id_found or user_id
+
+                track_user_login_failure_event(
+                    pin.tracer, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra
+                )
+
+        return False, None
+    except Exception as e:
+        raise BaseException(f"DEBUG Error in _on_django_auth: {e}")
 
 
 core.on("django.login", _on_django_login)
