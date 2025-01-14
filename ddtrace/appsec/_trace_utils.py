@@ -157,7 +157,7 @@ def track_user_login_failure_event(
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
-    span = _track_user_login_common(tracer, False, metadata, login_events_mode)
+    span = _track_user_login_common(tracer, False, metadata, login_events_mode, login)
     if not span:
         return
     if exists is not None:
@@ -298,23 +298,16 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
         _asm_request_context.block_request()
 
 
-def _on_django_login(
-    pin,
-    request,
-    user,
-    mode,
-    info_retriever,
-    django_config,
-):
+def _on_django_login(pin, request, user, mode, info_retriever, django_config):
     if user:
         from ddtrace.contrib.django.compat import user_is_authenticated
 
+        user_id, user_extra = info_retriever.get_user_info(
+            login=django_config.include_user_login,
+            email=django_config.include_user_email,
+            name=django_config.include_user_realname,
+        )
         if user_is_authenticated(user):
-            user_id, user_extra = info_retriever.get_user_info(
-                login=django_config.include_user_login,
-                email=django_config.include_user_email,
-                name=django_config.include_user_realname,
-            )
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 session_key = getattr(request, "session_key", None)
                 track_user_login_success_event(
@@ -327,8 +320,10 @@ def _on_django_login(
                 )
         else:
             # Login failed and the user is unknown (may exist or not)
-            user_id = info_retriever.get_userid()
-            track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode)
+            # DEV: DEAD CODE?
+            track_user_login_failure_event(
+                pin.tracer, user_id=user_id, login_events_mode=mode, login=user_extra.get("login", None)
+            )
 
 
 def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_config):
@@ -347,17 +342,15 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
     if not result_user:
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             exists = info_retriever.user_exists()
-            if exists:
-                user_id, user_extra = info_retriever.get_user_info(
-                    login=django_config.include_user_login,
-                    email=django_config.include_user_email,
-                    name=django_config.include_user_realname,
-                )
-                track_user_login_failure_event(
-                    pin.tracer, user_id=user_id, login_events_mode=mode, exists=True, **user_extra
-                )
-            else:
-                track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode, exists=False)
+            user_id_found, user_extra = info_retriever.get_user_info(
+                login=django_config.include_user_login,
+                email=django_config.include_user_email,
+                name=django_config.include_user_realname,
+            )
+            user_id = user_id_found or user_id
+            track_user_login_failure_event(
+                pin.tracer, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra
+            )
 
     return False, None
 
