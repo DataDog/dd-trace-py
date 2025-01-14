@@ -2327,13 +2327,6 @@ EXTRACT_FIXTURES = [
             ],
         },
     ),
-    (
-        "valid_datadog_default_w_ignore_behavior",
-        None,
-        _PROPAGATION_BEHAVIOR_IGNORE,
-        DATADOG_HEADERS_VALID,
-        CONTEXT_EMPTY,
-    ),
     # All valid headers
     (
         "valid_all_headers_default_style_w_restart_behavior",
@@ -2458,6 +2451,15 @@ EXTRACT_FIXTURES_ENV_ONLY = [
                 "traceparent": TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION[_HTTP_HEADER_TRACEPARENT],
             },
         },
+    ),
+    # Only works for env since config is modified at startup to set
+    # propagation_style_extract to [None] if DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore
+    (
+        "valid_datadog_default_w_ignore_behavior",
+        None,
+        _PROPAGATION_BEHAVIOR_IGNORE,
+        DATADOG_HEADERS_VALID,
+        CONTEXT_EMPTY,
     ),
 ]
 
