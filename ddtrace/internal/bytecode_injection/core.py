@@ -46,6 +46,8 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
     Inject invocation of the hook function at the specified source code lines, or more specifically offsets,
     in the given code object. Injection is recursive, in case of nested code objects (e.g. inline functions).
     """
+    if len(injection_context.injection_offsets) == 0:
+        return (injection_context.original_code, [])
 
     code = injection_context.original_code
     new_code, new_consts, new_linetable, new_exctable, seen_lines = _inject_invocation_nonrecursive(
@@ -61,14 +63,20 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
             seen_lines.extend(nested_lines)
 
     if sys.version_info >= (3, 11):
-        code = code.replace(co_code=bytes(new_code), co_consts=tuple(new_consts), co_linetable=new_linetable,
-                            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-                            co_exceptiontable=new_exctable
-                            )
+        code = code.replace(
+            co_code=bytes(new_code),
+            co_consts=tuple(new_consts),
+            co_linetable=new_linetable,
+            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+            co_exceptiontable=new_exctable,
+        )
     else:
-        code = code.replace(co_code=bytes(new_code), co_consts=tuple(new_consts), co_linetable=new_linetable,
-                            co_stacksize=code.co_stacksize + 4  # TODO: Compute the value!
-                            )
+        code = code.replace(
+            co_code=bytes(new_code),
+            co_consts=tuple(new_consts),
+            co_linetable=new_linetable,
+            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+        )
 
     return (
         code,
@@ -151,8 +159,6 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
-
-
 ) -> t.Tuple[bytearray, t.List[object], bytes, bytes, t.List[int]]:
     """
     Inject invocation of the hook function at the specified source code lines, or more specifically offsets, in the
@@ -211,6 +217,7 @@ def _inject_invocation_nonrecursive(
     # key: old offset, value: how many instructions have been injected at that spot
     offsets_map: t.Dict[int, int] = {}
 
+    injection_occurred = False
     for old_offset in range(0, len(old_code), 2):
         opcode = old_code[old_offset]
         arg = old_code[old_offset + 1] | extended_arg
@@ -219,8 +226,8 @@ def _inject_invocation_nonrecursive(
         new_offsets[old_offset] = new_offset
 
         line = line_starts.get(old_offset)
-        injection_occurred = False
         if line is not None:
+            injection_occurred = False
             seen_lines.append(line)
             if old_offset in line_injection_offsets:
                 instructions = bytearray()
@@ -392,60 +399,55 @@ def _generate_adjusted_location_data(
 def _generate_adjusted_location_data_3_10(
     code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
 ) -> bytes:
-    """
-    See format here: https://github.com/python/cpython/blob/3.10/Objects/lnotab_notes.txt
-    """
-    print("Offsets map:", offsets_map)
-    print("Extended arg offsets:", extended_arg_offsets)
-    old_data = code.co_linetable
-    old_data_size = len(old_data)
-    new_data = bytearray()
-    old_offset = 0
+    new_linetable = bytearray()
 
+    # Iterate through existing variables
     offsets_iterator = iter(sorted(offsets_map.items(), key=lambda x: x[0]))
     extended_arg_iterator = iter(sorted(extended_arg_offsets, key=lambda x: x[0]))
 
-    next_map_offset, next_map_size = next(offsets_iterator, (None, None))
-    next_extended_arg_offset, next_extended_arg_size = next(extended_arg_iterator, (None, None))
+    next_map_offset, next_nb_code_added = next(offsets_iterator, (None, None))
+    next_extended_arg_offset, nb_extended_arg = next(extended_arg_iterator, (None, None))
 
-    for idx in range(0, old_data_size, 2):
-        offset_delta = old_data[idx]
-        new_data.append(offset_delta)
-        new_data.append(old_data[idx + 1])
-        # print('Adding offset delta:', offset_delta)
-        # print('Adding line delta:', old_data[idx + 1])
+    old_linetable = code.co_linetable
+    old_linetable_size = len(old_linetable)
 
-        next_offset = old_offset + offset_delta
-
-        while next_map_offset is not None and next_map_size is not None and next_offset >= next_map_offset:
-            offset_to_add = next_map_size << 1
-            n, r = divmod(offset_to_add, 255)
-            for _ in range(n):
-                new_data.append(255)
-                new_data.append(0x80)
-            if r:
-                new_data.append(r)
-                new_data.append(0x80)
-            next_map_offset, next_map_size = next(offsets_iterator, (None, None))
+    current_offset = 0
+    for idx in range(0, old_linetable_size, 2):
+        new_linetable.append(0)
+        new_linetable.append(old_linetable[idx + 1])
 
         while (
             next_extended_arg_offset is not None
-            and next_extended_arg_size is not None
-            and next_offset >= next_extended_arg_offset
+            and nb_extended_arg is not None
+            and current_offset + old_linetable[idx] > next_extended_arg_offset
         ):
-            offset_to_add = next_extended_arg_size << 1
-            n, r = divmod(offset_to_add, 255)
+            offset_to_add = nb_extended_arg << 1
+            n, r = divmod(offset_to_add, 254)
             for _ in range(n):
-                new_data.append(255)
-                new_data.append(0x80)
+                new_linetable.append(254)
+                new_linetable.append(0x0)
             if r:
-                new_data.append(r)
-                new_data.append(0x80)
-            next_extended_arg_offset, next_extended_arg_size = next(extended_arg_iterator, (None, None))
+                new_linetable.append(r)
+                new_linetable.append(0x0)
+            next_extended_arg_offset, nb_extended_arg = next(extended_arg_iterator, (None, None))
 
-        old_offset = next_offset
+        while next_map_offset is not None and next_nb_code_added is not None and current_offset >= next_map_offset:
+            offset_to_add = next_nb_code_added << 1
 
-    return bytes(new_data)
+            n, r = divmod(offset_to_add, 254)
+            for _ in range(n):
+                new_linetable.append(254)
+                new_linetable.append(0)
+            if r:
+                new_linetable.append(r)
+                new_linetable.append(0)
+            next_map_offset, next_nb_code_added = next(offsets_iterator, (None, None))
+
+        new_linetable.append(old_linetable[idx])
+        new_linetable.append(0)
+
+        current_offset += old_linetable[idx]
+    return bytes(new_linetable)
 
 
 def _generate_adjusted_location_data_3_11(

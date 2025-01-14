@@ -9,13 +9,11 @@ from ddtrace.internal.injection import HookType
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
-# This is primarily to make mypy happy without having to nest the rest of this module behind a version check
-# NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
-assert sys.version_info >= (3, 10) and sys.version_info < (3, 11)  # nosec
+assert sys.version_info[:2] == (3, 10)  # nosec
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
-    injection_context = InjectionContext(code, hook, lambda _: [o for o, _ in dis.findlinestarts(code)])
+    injection_context = InjectionContext(code, hook, lambda _s: [o for o, _ in dis.findlinestarts(_s.original_code)])
     new_code, lines = inject_invocation(injection_context, path, package)
 
     coverage_lines = CoverageLines()

@@ -3,13 +3,14 @@ import sys
 
 import pytest
 
-from ddtrace.internal.bytecode_injection.core import InjectionContext
-from ddtrace.internal.bytecode_injection.core import inject_invocation
 
+if sys.version_info[:2] >= (3, 10) and sys.version_info[:2] < (3, 12):
+    from ddtrace.internal.bytecode_injection.core import InjectionContext
+    from ddtrace.internal.bytecode_injection.core import inject_invocation
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
-    sys.version_info[:2] < (3, 10),
-    reason="Injection is only supported for 3.10+",
+    sys.version_info[:2] < (3, 10) or sys.version_info[:2] > (3, 11),
+    reason="Injection is currently only supported for 3.10 and 3.11",
 )
 
 
@@ -64,7 +65,7 @@ def test_injection_in_try_catch():
             raise ValueError("this is a value error")
         except ValueError as _:
             # in this spot we are going to inject accumulate(2)
-            some_var = 10
+            some_var = 10  # noqa: F841
         accumulate.append(3)
 
     def accumulate_2(*args):
@@ -107,33 +108,41 @@ def test_linetable_adjustment():
 
     for idx, (original_offset, original_line_start) in enumerate(selected_line_starts):
         assert original_line_start == selected_line_starts_post_injection[idx][LINE], "Every line is the same"
+        bytecode_injected_size = 8
+        # skip extended args
+        while injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size] == 144:
+            bytecode_injected_size += 2
 
         # offset of line points to the same instructions
         assert (
             original_code.co_code[original_offset]
-            == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET]]
+            == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size]
         ), "The corresponding opcode is the same"
 
         if original_code.co_code[original_offset] in dis.hasjrel:
             # In case of a jump, we assert that the (dereferenced) target is the same
             # DEV: expand to reverse jumps
             original_arg = original_code.co_code[original_offset + 1]
-            injected_arg = injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
+            injected_arg = injected_code.co_code[
+                selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + 1
+            ]
 
             # dereferencing the jump target (DEV: only depth 1, for now)
             assert (
                 original_code.co_code[original_offset + (original_arg << 1)]
-                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + (injected_arg << 1)]
+                == injected_code.co_code[
+                    selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + (injected_arg << 1)
+                ]
             ), "The corresponding target opcode is the same"
         else:
             assert (
                 original_code.co_code[original_offset + 1]
-                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
+                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + 1]
             ), "The corresponding argument is the same"
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 11),
+    sys.version_info[:2] != (3, 11),
     reason="Exception table was introduced in 3.11",
 )
 def test_exceptiontable_adjustment():
@@ -283,14 +292,14 @@ def test_try_finally_is_executed_when_callback_succeed():
 
 @skipif_bytecode_injection_not_supported
 def test_import_adjustment_if_injection_did_not_occur():
-    value = ''
+    value = ""
 
     def _callback(*args):
         nonlocal value
-        value += '<callback>'
+        value += "<callback>"
 
     def the_function():
-        from ddtrace.internal.compat import httplib
+        from ddtrace.internal.compat import httplib  # noqa
 
     original = the_function.__code__
 
@@ -306,31 +315,34 @@ def test_import_adjustment_if_injection_did_not_occur():
 
 @skipif_bytecode_injection_not_supported
 def test_import_adjustment_if_injection_did_occur():
-    value = ''
+    value = ""
     callback_args = tuple()
 
     def _callback(*args):
         nonlocal value
         nonlocal callback_args
-        value += '<callback>'
+        value += "<callback>"
         callback_args = args
 
     def the_function():
         nonlocal value
-        value += '<before>'
-        from ddtrace.internal.compat import httplib
-        value += '<after>'
+        value += "<before>"
+        from ddtrace.internal.compat import httplib  # noqa: F401
+
+        value += "<after>"
 
     original = the_function.__code__
 
     # Injection index from dis.dis(<function to inject into>)
-    ic = InjectionContext(original, _callback, lambda _: [14])
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    injection_indexes = {"3.10": 8, "3.11": 14}
+    ic = InjectionContext(original, _callback, lambda _: [injection_indexes[python_version]])
     injected, _ = inject_invocation(ic, the_function.__code__.co_filename, __name__)
     the_function.__code__ = injected
 
     the_function()
 
-    assert value == '<before><callback><after>'
+    assert value == "<before><callback><after>"
     assert len(callback_args) == 1
     # if the test gets here without an exception, it passed, as the error which occurs is that argument
     # for imports adjustment happened at the wrong time
@@ -353,7 +365,7 @@ def sample_function_short_jumps():
         raise ValueError("this is a value error")
     except ValueError as _:
         # in this spot we are going to inject accumulate(2)
-        some_var = 10
+        some_var = 10  # noqa: F841
 
     for i in range(3):
         print(i > 1)
@@ -366,7 +378,7 @@ def sample_function_short_jumps():
         raise ValueError("another value error")
     except ValueError as _:
         # in this spot we are going to inject accumulate(2)
-        some_var = 11
+        some_var = 11  # noqa: F841
 
     for i in range(3):
         print(i > 1)
