@@ -1,8 +1,0 @@
----
-features:
-  - |
-    langgraph: Introduces tracing support for the LangGraph framework's graph ``invoke()``, ``ainvoke()``, ``stream()``, and ``astream()`` calls.
-     See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#langgraph>`_ for more information.
-     This integration must be enabled explicitly with ``DD_TRACE_LANGGRAPH_ENABLED=true`` or ``patch(langgraph=True)``.
-  - |
-    LLM Observability: Adds support to automatically submit LangGraph graph calls to LLM Observability with ``DD_TRACE_LANGGRAPH_ENABLED=true`` or ``patch(langgraph=True)``.
