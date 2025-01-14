@@ -22,7 +22,8 @@ def mock_tracer():
 
 
 @pytest.fixture
-def langgraph(mock_tracer):
+def langgraph(monkeypatch, mock_tracer):
+    monkeypatch.setenv("_DD_TRACE_LANGGRAPH_ENABLED", "true")
     patch()
     import langgraph
 
@@ -48,14 +49,6 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
 @pytest.fixture
 def llmobs_span_writer():
     yield TestLLMObsSpanWriter(interval=1.0, timeout=1.0)
-
-
-@pytest.fixture
-def llmobs_env():
-    return {
-        "DD_API_KEY": "<default-not-a-real-key>",
-        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-    }
 
 
 @pytest.fixture
