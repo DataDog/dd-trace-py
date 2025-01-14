@@ -367,3 +367,39 @@ def _on_iast_fastapi_patch():
 
     # Instrumented on _iast_starlette_scope_taint
     _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+
+
+def _on_pre_tracedrequest_iast(ctx):
+    current_span = ctx.span
+    _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
+
+
+def _on_set_request_tags_iast(request, span, flask_config):
+    if _is_iast_enabled():
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+
+        if not is_iast_request_enabled():
+            return
+
+        request.cookies = taint_structure(
+            request.cookies,
+            OriginType.COOKIE_NAME,
+            OriginType.COOKIE,
+            override_pyobject_tainted=True,
+        )
+
+        request.args = taint_structure(
+            request.args,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )
+
+        request.form = taint_structure(
+            request.form,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )

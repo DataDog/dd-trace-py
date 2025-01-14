@@ -8,6 +8,7 @@ from typing import Optional  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
@@ -22,7 +23,6 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._log_writer import V2LogWriter
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
-from ddtrace.sampler import RateSampler
 from ddtrace.settings import IntegrationConfig
 
 
