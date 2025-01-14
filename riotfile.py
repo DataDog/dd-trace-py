@@ -2880,7 +2880,7 @@ venv = Venv(
                 # Python 3.9+
                 Venv(
                     pys=select_pys(min_version="3.9"),
-                )
+                ),
             ],
         ),
         Venv(
