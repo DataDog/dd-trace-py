@@ -116,7 +116,7 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the LangCh
     from ddtrace import config, patch
 
     # Note: be sure to configure the integration before calling ``patch()``!
-    # eg. config.langchain["logs_enabled"] = True
+    # config.langchain["logs_enabled"] = True
 
     patch(langchain=True)
 
