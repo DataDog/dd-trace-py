@@ -22,6 +22,10 @@ include:
   parallel: 4
   # DEV: This is the max retries that GitLab currently allows for
   retry: 2
+  variables:
+      # VPA Configuration
+    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Auto
+    KUBERNETES_POD_LABELS_1: admission.datadoghq.com/mutate-resources-using-vpa=gitlab-job-pod
   before_script:
     - !reference [.testrunner, before_script]
     - pip install riot==0.20.1
