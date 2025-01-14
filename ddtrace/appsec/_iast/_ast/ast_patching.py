@@ -16,6 +16,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.utils.formats import asbool
 
 from .visitor import AstVisitor
@@ -429,9 +430,18 @@ def get_encoding(module_path: Text) -> Text:
 
 _NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
 
+_IMPORTLIB_PACKAGES = set()
 
 def _in_python_stdlib(module_name: str) -> bool:
     return module_name.split(".")[0].lower() in _NOT_PATCH_MODULE_NAMES
+
+
+def _is_first_party(module_name: str):
+    if "vendor." or "vendored." in module_name:
+        return False
+
+    if not _IMPORTLIB_PACKAGES:
+        _IMPORTLIB_PACKAGES = set()
 
 
 def _should_iast_patch(module_name: Text) -> bool:
