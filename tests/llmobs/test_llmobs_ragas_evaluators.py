@@ -456,9 +456,9 @@ ctx = logs_vcr.use_cassette(
 import os
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
-with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}")):
-    LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
-    with mock.patch("ragas.metrics.answer_relevancy.calculate_similarity", return_value=numpy.array([1.0, 1.0, 1.0])):
+with mock.patch("ragas.metrics.answer_relevancy.calculate_similarity", return_value=numpy.array([1.0, 1.0, 1.0])):
+    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}")):
+        LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
         LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
 """,
         env=env,
