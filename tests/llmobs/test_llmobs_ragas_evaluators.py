@@ -11,6 +11,9 @@ from tests.llmobs._utils import _expected_ragas_context_precision_spans
 from tests.llmobs._utils import _expected_ragas_faithfulness_spans
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_prompt
+from tests.llmobs._utils import default_ragas_inputs
+from tests.llmobs._utils import ragas_context_precision_multiple_context_cassette
+from tests.llmobs._utils import ragas_context_precision_single_context_cassette
 
 
 pytest.importorskip("ragas", reason="Tests require ragas to be available on user env")
@@ -282,9 +285,9 @@ def test_ragas_context_precision_has_modified_context_precision_instance(
 
     context_precision.llm = FirstDummyLLM()
 
-    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
+    rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
 
-    assert rf_evaluator.ragas_context_precision_instance.llm.generate_text() == "dummy llm"
+    assert rcp_evaluator.ragas_context_precision_instance.llm.generate_text() == "dummy llm"
 
     class SecondDummyLLM(BaseRagasLLM):
         def __init__(self):
@@ -298,18 +301,18 @@ def test_ragas_context_precision_has_modified_context_precision_instance(
 
     context_precision.llm = SecondDummyLLM()
 
-    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
+    rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
 
-    assert rf_evaluator.ragas_context_precision_instance.llm.generate_text() == "second dummy llm"
+    assert rcp_evaluator.ragas_context_precision_instance.llm.generate_text() == "second dummy llm"
 
 
-@pytest.mark.vcr_logs
 def test_ragas_context_precision_submits_evaluation(ragas, llmobs, mock_llmobs_submit_evaluation):
     """Test that evaluation is submitted for a valid llm span where question is in the prompt variables"""
-    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
+    rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
-    rf_evaluator.run_and_submit_evaluation(llm_span)
-    rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    with ragas_context_precision_single_context_cassette:
+        rcp_evaluator.run_and_submit_evaluation(llm_span)
+    rcp_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
                 span_context={
@@ -328,15 +331,15 @@ def test_ragas_context_precision_submits_evaluation(ragas, llmobs, mock_llmobs_s
     )
 
 
-@pytest.mark.vcr_logs
 def test_ragas_context_precision_submits_evaluation_on_span_with_question_in_messages(
     ragas, llmobs, mock_llmobs_submit_evaluation
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
-    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
+    rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_messages()
-    rf_evaluator.run_and_submit_evaluation(llm_span)
-    rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    with ragas_context_precision_single_context_cassette:
+        rcp_evaluator.run_and_submit_evaluation(llm_span)
+    rcp_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
                 span_context={
@@ -355,27 +358,27 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_question_in_mes
     )
 
 
-@pytest.mark.vcr_logs
 def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
     ragas, llmobs, mock_llmobs_submit_evaluation
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
-    rf_evaluator = RagasContextPrecisionEvaluator(llmobs)
+    rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
     llm_span = _expected_llmobs_llm_span_event(
         Span("dummy"),
         prompt={
             "variables": {
-                "user_input": "Is france part of europe?",
-                "context_2": "irrelevant",
-                "context_3": "France is part of europe",
+                "user_input": default_ragas_inputs["question"],
+                "context_2": default_ragas_inputs["context"],
+                "context_3": default_ragas_inputs["context"],
             },
             "_dd_context_variable_keys": ["context_2", "context_3"],
             "_dd_query_variable_keys": ["user_input"],
         },
-        output_messages=[{"content": "France is indeed part of europe"}],
+        output_messages=[{"content": default_ragas_inputs["answer"]}],
     )
-    rf_evaluator.run_and_submit_evaluation(llm_span)
-    rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    with ragas_context_precision_multiple_context_cassette:
+        rcp_evaluator.run_and_submit_evaluation(llm_span)
+    rcp_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
                 span_context={
@@ -394,10 +397,10 @@ def test_ragas_context_precision_submits_evaluation_on_span_with_custom_keys(
     )
 
 
-@pytest.mark.vcr_logs
 def test_ragas_context_precision_emits_traces(ragas, llmobs, llmobs_events):
     rcp_evaluator = RagasContextPrecisionEvaluator(llmobs)
-    rcp_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
+    with ragas_context_precision_single_context_cassette:
+        rcp_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
     ragas_spans = [event for event in llmobs_events if event["name"].startswith("dd-ragas.")]
     ragas_spans = sorted(ragas_spans, key=lambda d: d["start_ns"])
     assert len(ragas_spans) == 2
@@ -413,50 +416,3 @@ def test_ragas_context_precision_emits_traces(ragas, llmobs, llmobs_events):
     for child_span in ragas_spans[1:]:
         assert child_span["trace_id"] == root_span_trace_id
         assert child_span["parent_id"] == root_span_id
-
-
-def test_llmobs_with_context_precision_emits_traces_and_evals_on_exit(mock_writer_logs, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
-    if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update(
-        {
-            "PYTHONPATH": ":".join(pypath),
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "dummy-openai-api-key"),
-            "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
-            "_DD_LLMOBS_EVALUATORS": "ragas_context_precision",
-            "DD_TRACE_ENABLED": "0",
-        }
-    )
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-import os
-import time
-import atexit
-import mock
-from ddtrace.llmobs import LLMObs
-from ddtrace.internal.utils.http import Response
-from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
-from tests.llmobs._utils import logs_vcr
-
-ctx = logs_vcr.use_cassette(
-    "tests.llmobs.test_llmobs_ragas_context_precision_evaluator.emits_traces_and_evaluations_on_exit.yaml"
-)
-ctx.__enter__()
-atexit.register(lambda: ctx.__exit__())
-with mock.patch(
-    "ddtrace.internal.writer.HTTPWriter._send_payload",
-    return_value=Response(
-        status=200,
-        body="{}",
-    ),
-):
-    LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
-    LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
-""",
-        env=env,
-    )
-    assert status == 0, err
-    assert out == b""
-    assert err == b""

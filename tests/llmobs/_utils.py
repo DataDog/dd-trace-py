@@ -714,3 +714,12 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "tags": expected_ragas_trace_tags(),
         },
     ]
+
+
+ragas_context_precision_single_context_cassette = logs_vcr.use_cassette(
+    "tests.llmobs.test_llmobs_ragas_evaluators.test_ragas_context_precision_single_context.yaml"
+)
+
+ragas_context_precision_multiple_context_cassette = logs_vcr.use_cassette(
+    "tests.llmobs.test_llmobs_ragas_evaluators.test_ragas_context_precision_multiple_context.yaml"
+)
