@@ -222,7 +222,7 @@ class Tracer(object):
                 category=DDTraceDeprecationWarning,
                 removal_version="3.0.0",
             )
-        self._instance = self
+        Tracer._instance = self
         self._filters: List[TraceFilter] = []
 
         # globally set tags
