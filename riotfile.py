@@ -473,8 +473,7 @@ venv = Venv(
                         Venv(
                             pys="3.9",
                             pkgs={
-                                # https://github.com/gevent/gevent/issues/2076
-                                "gevent": ["~=21.1.0", "<21.8.0"],
+                                "gevent": ["~=21.1.0", latest],
                                 "greenlet": "~=1.0",
                             },
                         ),
