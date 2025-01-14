@@ -132,6 +132,7 @@ def track_user_login_success_event(
     if in_asm_context():
         call_waf_callback(custom_data={"REQUEST_USER_ID": str(user_id), "LOGIN_SUCCESS": real_mode})
 
+    span.set_tag_str("_dd.appsec.usr.id", user_id)
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
 
