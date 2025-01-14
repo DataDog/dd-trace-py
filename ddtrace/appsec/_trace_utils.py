@@ -166,6 +166,7 @@ def track_user_login_failure_event(
     if user_id:
         if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
             user_id = _hash_user_id(user_id)
+        span.set_tag_str("_dd.appsec.usr.id", user_id)
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
     # if called from the SDK, set the login, email and name
     if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
@@ -347,6 +348,8 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
                 email=django_config.include_user_email,
                 name=django_config.include_user_realname,
             )
+            if user_extra.get("login") is None:
+                user_extra["login"] = user_id
             user_id = user_id_found or user_id
             track_user_login_failure_event(
                 pin.tracer, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra
