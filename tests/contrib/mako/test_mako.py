@@ -5,9 +5,9 @@ from mako.runtime import Context
 from mako.template import Template
 
 from ddtrace import Pin
-from ddtrace.contrib.mako import patch
-from ddtrace.contrib.mako import unpatch
-from ddtrace.contrib.mako.constants import DEFAULT_TEMPLATE_NAME
+from ddtrace.contrib.internal.mako.constants import DEFAULT_TEMPLATE_NAME
+from ddtrace.contrib.internal.mako.patch import patch
+from ddtrace.contrib.internal.mako.patch import unpatch
 from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME

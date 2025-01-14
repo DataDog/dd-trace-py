@@ -6,8 +6,8 @@ import jinja2
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib.jinja2 import patch
-from ddtrace.contrib.jinja2 import unpatch
+from ddtrace.contrib.internal.jinja2.patch import patch
+from ddtrace.contrib.internal.jinja2.patch import unpatch
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
