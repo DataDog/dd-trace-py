@@ -64,7 +64,7 @@ def test_injection_in_try_catch():
             raise ValueError("this is a value error")
         except ValueError as _:
             # in this spot we are going to inject accumulate(2)
-            some_var = 10
+            some_var = 10  # noqa: F841
         accumulate.append(3)
 
     def accumulate_2(*args):
@@ -283,14 +283,14 @@ def test_try_finally_is_executed_when_callback_succeed():
 
 @skipif_bytecode_injection_not_supported
 def test_import_adjustment_if_injection_did_not_occur():
-    value = ''
+    value = ""
 
     def _callback(*args):
         nonlocal value
-        value += '<callback>'
+        value += "<callback>"
 
     def the_function():
-        from ddtrace.internal.compat import httplib
+        from ddtrace.internal.compat import httplib  # noqa
 
     original = the_function.__code__
 
@@ -306,20 +306,21 @@ def test_import_adjustment_if_injection_did_not_occur():
 
 @skipif_bytecode_injection_not_supported
 def test_import_adjustment_if_injection_did_occur():
-    value = ''
+    value = ""
     callback_args = tuple()
 
     def _callback(*args):
         nonlocal value
         nonlocal callback_args
-        value += '<callback>'
+        value += "<callback>"
         callback_args = args
 
     def the_function():
         nonlocal value
-        value += '<before>'
-        from ddtrace.internal.compat import httplib
-        value += '<after>'
+        value += "<before>"
+        from ddtrace.internal.compat import httplib  # noqa: F401
+
+        value += "<after>"
 
     original = the_function.__code__
 
@@ -330,7 +331,7 @@ def test_import_adjustment_if_injection_did_occur():
 
     the_function()
 
-    assert value == '<before><callback><after>'
+    assert value == "<before><callback><after>"
     assert len(callback_args) == 1
     # if the test gets here without an exception, it passed, as the error which occurs is that argument
     # for imports adjustment happened at the wrong time
@@ -353,7 +354,7 @@ def sample_function_short_jumps():
         raise ValueError("this is a value error")
     except ValueError as _:
         # in this spot we are going to inject accumulate(2)
-        some_var = 10
+        some_var = 10  # noqa: F841
 
     for i in range(3):
         print(i > 1)
@@ -366,7 +367,7 @@ def sample_function_short_jumps():
         raise ValueError("another value error")
     except ValueError as _:
         # in this spot we are going to inject accumulate(2)
-        some_var = 11
+        some_var = 11  # noqa: F841
 
     for i in range(3):
         print(i > 1)

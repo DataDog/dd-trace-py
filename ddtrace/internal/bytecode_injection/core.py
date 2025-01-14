@@ -61,14 +61,20 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
             seen_lines.extend(nested_lines)
 
     if sys.version_info >= (3, 11):
-        code = code.replace(co_code=bytes(new_code), co_consts=tuple(new_consts), co_linetable=new_linetable,
-                            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
-                            co_exceptiontable=new_exctable
-                            )
+        code = code.replace(
+            co_code=bytes(new_code),
+            co_consts=tuple(new_consts),
+            co_linetable=new_linetable,
+            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+            co_exceptiontable=new_exctable,
+        )
     else:
-        code = code.replace(co_code=bytes(new_code), co_consts=tuple(new_consts), co_linetable=new_linetable,
-                            co_stacksize=code.co_stacksize + 4  # TODO: Compute the value!
-                            )
+        code = code.replace(
+            co_code=bytes(new_code),
+            co_consts=tuple(new_consts),
+            co_linetable=new_linetable,
+            co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
+        )
 
     return (
         code,
@@ -151,8 +157,6 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
-
-
 ) -> t.Tuple[bytearray, t.List[object], bytes, bytes, t.List[int]]:
     """
     Inject invocation of the hook function at the specified source code lines, or more specifically offsets, in the
