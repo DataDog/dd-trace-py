@@ -74,7 +74,7 @@ To configure the Gemini integration on a per-instance basis use the
 
     import google.generativeai as genai
     from ddtrace import config
-from ddtrace.trace import Pin
+    from ddtrace.trace import Pin
 
     Pin.override(genai, service="my-gemini-service")
 """  # noqa: E501

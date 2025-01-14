@@ -19,6 +19,7 @@ from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
+from .._trace.pin import Pin
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.constants import DEFAULT_BUFFER_SIZE
@@ -34,7 +35,6 @@ from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
-from .._trace.pin import Pin
 from ._core import get_config as _get_config
 from ._inferred_base_service import detect_service
 from ._otel_remapper import otel_remapping as _otel_remapping
