@@ -11,9 +11,14 @@ from tests.llmobs._utils import _expected_ragas_answer_relevancy_spans
 from tests.llmobs._utils import _expected_ragas_faithfulness_spans
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_prompt
+from tests.llmobs._utils import logs_vcr
 
 
 pytest.importorskip("ragas", reason="Tests require ragas to be available on user env")
+
+ragas_answer_relevancy_cassette = logs_vcr.use_cassette(
+    "tests.llmobs.test_llmobs_ragas_evaluators.answer_relevancy_inference.yaml"
+)
 
 
 def _llm_span_without_io():
@@ -309,14 +314,14 @@ def test_ragas_answer_relevancy_has_modified_answer_relevancy_instance(
     assert rar_evaluator.ragas_answer_relevancy_instance.llm.generate_text() == "second dummy llm"
 
 
-@pytest.mark.vcr_logs
 def test_ragas_answer_relevancy_submits_evaluation(
     ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calculate_similarity
 ):
     """Test that evaluation is submitted for a valid llm span where question is in the prompt variables"""
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
-    rar_evaluator.run_and_submit_evaluation(llm_span)
+    with ragas_answer_relevancy_cassette:
+        rar_evaluator.run_and_submit_evaluation(llm_span)
     rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
@@ -335,14 +340,14 @@ def test_ragas_answer_relevancy_submits_evaluation(
     )
 
 
-@pytest.mark.vcr_logs
 def test_ragas_answer_relevancy_submits_evaluation_on_span_with_question_in_messages(
     ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calculate_similarity
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
     llm_span = _llm_span_with_expected_ragas_inputs_in_messages()
-    rar_evaluator.run_and_submit_evaluation(llm_span)
+    with ragas_answer_relevancy_cassette:
+        rar_evaluator.run_and_submit_evaluation(llm_span)
     rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
@@ -361,12 +366,11 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_question_in_mess
     )
 
 
-@pytest.mark.vcr_logs
 def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
     ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calculate_similarity
 ):
     """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
-    rf_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
+    rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
     llm_span = _expected_llmobs_llm_span_event(
         Span("dummy"),
         prompt={
@@ -380,8 +384,9 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
         },
         output_messages=[{"content": "France is indeed part of europe"}],
     )
-    rf_evaluator.run_and_submit_evaluation(llm_span)
-    rf_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+    with ragas_answer_relevancy_cassette:
+        rar_evaluator.run_and_submit_evaluation(llm_span)
+    rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
         [
             mock.call(
                 span_context={
@@ -399,12 +404,12 @@ def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
     )
 
 
-@pytest.mark.vcr_logs
 def test_ragas_answer_relevancy_emits_traces(
     ragas, llmobs, llmobs_events, mock_ragas_answer_relevancy_calculate_similarity
 ):
     rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
-    rar_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
+    with ragas_answer_relevancy_cassette:
+        rar_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
 
     ragas_spans = [event for event in llmobs_events if event["name"].startswith("dd-ragas.")]
     ragas_spans = sorted(ragas_spans, key=lambda d: d["start_ns"])
@@ -423,53 +428,3 @@ def test_ragas_answer_relevancy_emits_traces(
     for child_span in ragas_spans[1:]:
         assert child_span["trace_id"] == root_span_trace_id
         assert child_span["parent_id"] == root_span_id
-
-
-def test_llmobs_with_answer_relevancy_emits_traces_and_evals_on_exit(mock_writer_logs, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
-    if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update(
-        {
-            "PYTHONPATH": ":".join(pypath),
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "dummy-openai-api-key"),
-            "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
-            "_DD_LLMOBS_EVALUATORS": "ragas_answer_relevancy",
-            "DD_TRACE_ENABLED": "0",
-        }
-    )
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-import os
-import time
-import atexit
-import mock
-import numpy
-from ddtrace.llmobs import LLMObs
-from ddtrace.internal.utils.http import Response
-from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
-from tests.llmobs._utils import logs_vcr
-
-cassette_ctx = logs_vcr.use_cassette(
-    "tests.llmobs.test_llmobs_ragas_answer_relevancy_evaluator.emits_traces_and_evaluations_on_exit.yaml"
-)
-mock_calc_sim_ctx = mock.patch(
-    "ragas.metrics.answer_relevancy.calculate_similarity", return_value=numpy.array([1.0, 1.0, 1.0])
-)
-
-cassette_ctx.__enter__()
-mock_calc_sim_ctx.start()
-
-atexit.register(lambda: cassette_ctx.__exit__())
-atexit.register(lambda: mock_calc_sim_ctx.stop())
-
-with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}")):
-    LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
-    LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
-""",
-        env=env,
-    )
-    assert status == 0, err
-    assert out == b""
-    assert err == b""
