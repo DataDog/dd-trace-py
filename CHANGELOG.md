@@ -4,6 +4,27 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.17.4
+
+
+### Bug Fixes
+
+  - Add more modules to the IAST patching denylist to improve startup time
+
+  - ASM: This fix resolves an issue where AppSec was using a patched JSON loads, creating telemetry errors.
+
+  -   - LLM Observability: This fix resolves an issue where `LLMObs.enable()` ignored global patch configurations, specifically  
+        the `DD_TRACE_<INTEGRATION>_ENABLED` and `DD_PATCH_MODULES` environment variables.
+
+  - ASGI: This fix resolves an issue parsing response cookies in FastAPI and awsgi
+
+  - ASM: This fix resolves an issue where AppSec was using a patched request and builtins functions, creating telemetry errors.
+
+  - langchain: resolves a JSON decoding issue resulting from tagging streamed outputs from chains ending with a PydanticOutputParser.
+
+
+---
+
 ## 2.18.1
 
 
