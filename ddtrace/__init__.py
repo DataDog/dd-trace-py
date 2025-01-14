@@ -39,9 +39,6 @@ from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_a
 
 _start_mini_agent()
 
-
-__version__ = get_version()
-
 # DEV: Import deprecated tracer module in order to retain side-effect of package
 # initialization, which added this module to sys.modules. We catch deprecation
 # warnings as this is only to retain a side effect of the package
