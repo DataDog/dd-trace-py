@@ -11,7 +11,7 @@ jobs:
   validate:
     name: Check requirements lockfiles
     runs-on: ubuntu-latest
-    container: ghcr.io/datadog/dd-trace-py/testrunner:0a50e839f4b1600f02157518b8d016451b346578@sha256:5dae9bc7872f69b31b612690f0748c7ad71ab90ef28a754b2ae93d0ba505837b
+    container: ghcr.io/datadog/dd-trace-py/testrunner:c7b888d09cdfba1186c49a91a7370b8bdccb5648@sha256:1ac945259f08e3029e7d0624822dcaee50d4fc85465d14439f009416e351f526
     steps:
       - uses: actions/checkout@v4
         with:
