@@ -97,6 +97,8 @@ suites:
     snapshot: true
   langgraph:
     parallelism: 3
+    env:
+      _DD_TRACE_LANGGRAPH_ENABLED: 'true'
     paths:
       - '@bootstrap'
       - '@core'

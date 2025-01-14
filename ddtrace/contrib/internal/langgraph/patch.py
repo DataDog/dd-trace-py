@@ -1,3 +1,4 @@
+import os
 import sys
 
 import langgraph
@@ -199,7 +200,8 @@ def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
 
 
 def patch():
-    if getattr(langgraph, "_datadog_patch", False):
+    should_patch = os.getenv("_DD_TRACE_LANGGRAPH_ENABLED", "false").lower() in ("true", "1")
+    if not should_patch or getattr(langgraph, "_datadog_patch", False):
         return
 
     langgraph._datadog_patch = True
