@@ -1,11 +1,15 @@
 import sys
 import types
-from types import ModuleType, CodeType
-from .hook import _default_datadog_exc_callback
+from types import CodeType
+from types import ModuleType
 
 from ddtrace.internal.bytecode_injection.core import CallbackType
-from ddtrace.settings.error_reporting import _er_config
 from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.settings.error_reporting import _er_config
+
+from .hook import _default_datadog_exc_callback
+
+
 if sys.version_info < (3, 12):
     from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
 
@@ -30,11 +34,11 @@ def _install_sys_monitoring_reporting():
         _default_datadog_exc_callback(exc=exception)
         return True
 
-    sys.monitoring.use_tool_id(sys.monitoring.DEBUGGER_ID, "datadog_handled_exceptions")
+    sys.monitoring.use_tool_id(_er_config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
     sys.monitoring.register_callback(
-        sys.monitoring.DEBUGGER_ID, sys.monitoring.events.EXCEPTION_HANDLED, _exc_event_handler
+        _er_config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED, _exc_event_handler
     )
-    sys.monitoring.set_events(sys.monitoring.DEBUGGER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+    sys.monitoring.set_events(_er_config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
 
 
 class HandledExceptionReportingInjector:
@@ -73,7 +77,7 @@ class HandledExceptionReportingInjector:
     def _instrument_obj(self, obj):
         if type(obj) in (types.FunctionType, types.MethodType, staticmethod) and not self._is_reserved(obj.__name__):
             # functions/methods
-            _inject_handled_exception_reporting(obj, callback=self._callback)  # type: ignore
+            _inject_handled_exception_reporting(obj, callback=self._callback)
         elif type(obj) is type:
             # classes
             for candidate in obj.__dict__.keys():
@@ -81,7 +85,7 @@ class HandledExceptionReportingInjector:
                     self._instrument_obj(obj.__dict__[candidate])
 
     def _is_reserved(self, name: str) -> bool:
-        return name.startswith("__") and name != '__call__'
+        return name.startswith("__") and name != "__call__"
 
 
 class HandledExceptionReportingWatchdog(BaseModuleWatchdog):

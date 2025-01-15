@@ -1,9 +1,8 @@
+import importlib
 import sys
 import traceback
-import ddtrace
-import importlib
 
-import typing as t
+import ddtrace
 from ddtrace.settings.error_reporting import _er_config
 
 
@@ -37,6 +36,6 @@ def _get_logger():
         return
 
     _debug_logger_path: str = _er_config._internal_logger
-    logger_path, logger_name = _debug_logger_path.rsplit('.', 1)
+    logger_path, logger_name = _debug_logger_path.rsplit(".", 1)
     module = importlib.import_module(logger_path)
     return getattr(module, logger_name)
