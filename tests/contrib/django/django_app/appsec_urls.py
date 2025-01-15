@@ -95,20 +95,6 @@ def checkuser_view(request, user_id):
     return HttpResponse(status=200)
 
 
-def sqli_http_request_parameter_name(request):
-    import bcrypt
-    from django.contrib.auth.hashers import BCryptSHA256PasswordHasher
-
-    password_django = BCryptSHA256PasswordHasher()
-    obj = password_django.encode("i'm a password", bcrypt.gensalt())
-    with connection.cursor() as cursor:
-        # label iast_enabled_sqli_http_request_parameter
-        first_get_key = [x for x in request.GET.keys()][0]
-        cursor.execute(add_aspect(add_aspect(first_get_key, obj), "'"))
-
-    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
-
-
 def sqli_http_request_parameter(request):
     import bcrypt
     from django.contrib.auth.hashers import BCryptSHA256PasswordHasher
@@ -118,6 +104,19 @@ def sqli_http_request_parameter(request):
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_request_parameter
         cursor.execute(add_aspect(add_aspect(request.GET["q"], obj), "'"))
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def sqli_http_request_parameter_name(request):
+    import bcrypt
+    from django.contrib.auth.hashers import BCryptSHA256PasswordHasher
+
+    password_django = BCryptSHA256PasswordHasher()
+    obj = password_django.encode("i'm a password", bcrypt.gensalt())
+    with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_request_parameter_name
+        cursor.execute(add_aspect(add_aspect(list(request.GET.keys())[0], obj), "'"))
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
