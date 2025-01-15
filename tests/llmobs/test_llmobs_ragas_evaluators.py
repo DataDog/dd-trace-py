@@ -277,7 +277,7 @@ def test_ragas_answer_relevancy_returns_none_if_inputs_extraction_fails(ragas, m
 def test_ragas_answer_relevancy_has_modified_answer_relevancy_instance(
     ragas, mock_llmobs_submit_evaluation, reset_ragas_answer_relevancy_llm, llmobs
 ):
-    """Context precision instance used in ragas evaluator should match the global ragas context precision instance"""
+    """Answer relevancy instance used in ragas evaluator should match the global ragas context precision instance"""
     from ragas.llms import BaseRagasLLM
     from ragas.metrics import answer_relevancy
 
