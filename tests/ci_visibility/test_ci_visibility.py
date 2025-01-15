@@ -125,7 +125,7 @@ def test_ci_visibility_service_enable():
             assert ci_visibility_instance._api_settings.skipping_enabled is False
             assert any(
                 isinstance(tracer_filter, TraceCiVisibilityFilter)
-                for tracer_filter in dummy_tracer._user_trace_proccessors
+                for tracer_filter in dummy_tracer._user_trace_processors
             )
             CIVisibility.disable()
 
@@ -155,7 +155,7 @@ def test_ci_visibility_service_enable_without_service():
             assert ci_visibility_instance._api_settings.skipping_enabled is False
             assert any(
                 isinstance(tracer_filter, TraceCiVisibilityFilter)
-                for tracer_filter in dummy_tracer._user_trace_proccessors
+                for tracer_filter in dummy_tracer._user_trace_processors
             )
             CIVisibility.disable()
 
