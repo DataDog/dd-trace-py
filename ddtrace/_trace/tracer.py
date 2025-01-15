@@ -195,6 +195,7 @@ class Tracer(object):
     """
 
     SHUTDOWN_TIMEOUT = 5
+    _instance = None
 
     def __init__(
         self,
@@ -209,7 +210,23 @@ class Tracer(object):
         :param url: The Datadog agent URL.
         :param dogstatsd_url: The DogStatsD URL.
         """
-
+        # Do not set self._instance if this is a subclass of Tracer. Here we only want
+        # to reference the global instance.
+        if type(self) is Tracer:
+            if Tracer._instance is None:
+                Tracer._instance = self
+            else:
+                # ddtrace library does not support context propagation for multiple tracers.
+                # All instances of ddtrace ContextProviders share the same ContextVars. This means that
+                # if you create multiple instances of Tracer, spans will be shared between them creating a
+                # broken experience.
+                # TODO(mabdinur): Convert this warning to an ValueError in 3.0.0
+                deprecate(
+                    "Support for multiple Tracer instances is deprecated",
+                    ". Use ddtrace.tracer instead.",
+                    category=DDTraceDeprecationWarning,
+                    removal_version="3.0.0",
+                )
         self._filters: List[TraceFilter] = []
 
         # globally set tags
