@@ -184,7 +184,7 @@ def taint_checking_disabled_view(request):
 
     assert not is_pyobject_tainted(request.body)
     assert not is_pyobject_tainted(request.GET["q"])
-    assert not is_pyobject_tainted(request.GET.keys()[0])
+    assert not is_pyobject_tainted(list(request.GET.keys())[0])
     assert not is_pyobject_tainted(request.META["QUERY_STRING"])
     assert not is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
     assert not is_pyobject_tainted(request.headers["User-Agent"])
