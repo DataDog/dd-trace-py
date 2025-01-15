@@ -459,6 +459,7 @@ class Tracer(object):
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
         :param priority_sampling: This parameter is deprecated and will be removed in a future version.
+        :param bool settings: This parameter is deprecated and will be removed.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
             This parameter is deprecated and will be removed.
         :param TraceWriter writer: This parameter is deprecated and will be removed.
@@ -475,7 +476,7 @@ class Tracer(object):
         if settings is not None:
             deprecate(
                 "Passing settings to ``tracer.configure(...)`` is deprecated",
-                message="Please use the trace_proccessor parameter instead of settings['FILTERS'].",
+                message="Please use the trace_processors parameter instead of settings['FILTERS'].",
                 version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
