@@ -450,6 +450,7 @@ _NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set
 
 _IMPORTLIB_PACKAGES = set()
 
+
 def _in_python_stdlib(module_name: str) -> bool:
     return module_name.split(".")[0].lower() in _NOT_PATCH_MODULE_NAMES
 
@@ -461,7 +462,9 @@ def _is_first_party(module_name: str):
 
     if not _IMPORTLIB_PACKAGES:
         _IMPORTLIB_PACKAGES = set(get_package_distributions())
-    from pprint import pprint; pprint(_IMPORTLIB_PACKAGES)
+    from pprint import pprint
+
+    pprint(_IMPORTLIB_PACKAGES)
 
     return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
 

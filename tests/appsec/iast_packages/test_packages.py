@@ -35,7 +35,7 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 # Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
 # Remember to set to False before pushing it!
 # JJJ
-_DEBUG_MODE = True
+_DEBUG_MODE = False
 
 
 class PackageForTesting:
@@ -238,7 +238,8 @@ PACKAGES = [
     #     fixme_propagation_fails=True,
     # ),
     ## Skip due to click added to the denylist
-    # PackageForTesting("click", "8.1.7", "", "Hello World!\nHello World!\n", "", import_module_to_validate="click.core"),
+    # PackageForTesting("click", "8.1.7", "", "Hello World!\nHello World!\n", "",
+    # import_module_to_validate="click.core"),
     PackageForTesting(
         "cryptography",
         "42.0.7",
@@ -436,7 +437,8 @@ PACKAGES = [
     #     "packaging",
     #     "24.0",
     #     "",
-    #     {"is_version_valid": True, "requirement": "example-package>=1.0.0", "specifier": ">=1.0.0", "version": "1.2.3"},
+    #     {"is_version_valid": True, "requirement": "example-package>=1.0.0",
+    #     "specifier": ">=1.0.0", "version": "1.2.3"},
     #     "",
     # ),
     ## Skip due to pandas added to the denylist
