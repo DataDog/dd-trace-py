@@ -201,7 +201,7 @@ def test_ragas_faithfulness_emits_traces(ragas, llmobs, llmobs_events):
 
 def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
     env.update(

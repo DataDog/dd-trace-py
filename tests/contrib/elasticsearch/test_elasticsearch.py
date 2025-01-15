@@ -6,14 +6,14 @@ import time
 
 import pytest
 
-from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib.elasticsearch.patch import get_version
-from ddtrace.contrib.elasticsearch.patch import get_versions
-from ddtrace.contrib.elasticsearch.patch import patch
-from ddtrace.contrib.elasticsearch.patch import unpatch
+from ddtrace.contrib.internal.elasticsearch.patch import get_version
+from ddtrace.contrib.internal.elasticsearch.patch import get_versions
+from ddtrace.contrib.internal.elasticsearch.patch import patch
+from ddtrace.contrib.internal.elasticsearch.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
 

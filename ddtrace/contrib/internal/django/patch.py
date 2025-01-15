@@ -17,7 +17,6 @@ import os
 import wrapt
 from wrapt.importer import when_imported
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
@@ -49,6 +48,7 @@ from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 

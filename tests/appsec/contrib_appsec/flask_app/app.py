@@ -60,7 +60,7 @@ def multi_view(param_int=0, param_str=""):
 def new_service(service_name: str):
     import ddtrace
 
-    ddtrace.Pin.override(Flask, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin.override(Flask, service=service_name, tracer=ddtrace.tracer)
     return service_name
 
 

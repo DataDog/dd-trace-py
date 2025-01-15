@@ -2,10 +2,10 @@
 import pytest
 import redis
 
-from ddtrace import Pin
-from ddtrace.contrib.redis.patch import patch
-from ddtrace.contrib.redis.patch import unpatch
+from ddtrace.contrib.internal.redis.patch import patch
+from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase

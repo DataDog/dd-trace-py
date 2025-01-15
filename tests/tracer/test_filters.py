@@ -4,8 +4,8 @@ import pytest
 
 from ddtrace._trace.span import Span
 from ddtrace.ext.http import URL
-from ddtrace.filters import FilterRequestsOnUrl
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import FilterRequestsOnUrl
+from ddtrace.trace import TraceFilter
 
 
 class FilterRequestOnUrlTests(TestCase):

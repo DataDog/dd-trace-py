@@ -1,6 +1,6 @@
-from ddtrace.contrib.fastapi import get_version
-from ddtrace.contrib.fastapi import patch
-from ddtrace.contrib.fastapi import unpatch
+from ddtrace.contrib.internal.fastapi.patch import get_version
+from ddtrace.contrib.internal.fastapi.patch import patch
+from ddtrace.contrib.internal.fastapi.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
