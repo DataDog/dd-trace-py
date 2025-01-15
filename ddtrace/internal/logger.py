@@ -237,21 +237,28 @@ class DDTelemetryLogger(DDLogger):
         super().handle(record)
 
 
-CWD = os.getcwd()
-
-
 def _format_stack_trace(exc_info):
     exc_type, exc_value, exc_traceback = exc_info
     if exc_traceback:
         tb = traceback.extract_tb(exc_traceback)
         formatted_tb = ["Traceback (most recent call last):"]
         for filename, lineno, funcname, srcline in tb:
-            relative_filename = _format_file_path(filename)
-            formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
-            formatted_tb.append(formatted_line)
+            if _should_redact(filename):
+                formatted_tb.append('  <REDACTED>')
+            else:
+                relative_filename = _format_file_path(filename)
+                formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
+                formatted_tb.append(formatted_line)
         formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
         return "\n".join(formatted_tb)
     return None
+
+
+def _should_redact(filename):
+    return not "ddtrace" in filename
+
+
+CWD = os.getcwd()
 
 
 def _format_file_path(filename):
@@ -267,4 +274,5 @@ class _TelemetryConfig:
         "true",
         "1",
     )
-    TELEMETRY_HEARTBEAT_INTERVAL = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
+    TELEMETRY_HEARTBEAT_INTERVAL = int(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
+
