@@ -64,6 +64,10 @@ class RagasDependencies:
 
         self.embedding_factory = embedding_factory
 
+        from ddtrace.llmobs._evaluators.ragas.models import ContextPrecisionVerification
+
+        self.ContextPrecisionVerification = ContextPrecisionVerification
+
         from ddtrace.llmobs._evaluators.ragas.models import StatementFaithfulnessAnswers
 
         self.StatementFaithfulnessAnswers = StatementFaithfulnessAnswers
