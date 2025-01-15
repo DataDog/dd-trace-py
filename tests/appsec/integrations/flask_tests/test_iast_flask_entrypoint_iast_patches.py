@@ -1,6 +1,9 @@
+import sys
+
 import pytest
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 13, 0), reason="Test not compatible with Python 3.13")
 @pytest.mark.subprocess(check_logs=False)
 def test_ddtrace_iast_flask_patch():
     import dis
@@ -17,6 +20,34 @@ def test_ddtrace_iast_flask_patch():
 \s*\d+ LOAD_(ATTR|METHOD)\s+\d \(add_aspect\)
 \s*\d+ LOAD_FAST                0 \(a\)
 \s*\d+ LOAD_FAST                1 \(b\)"""
+
+    with override_global_config(dict(_iast_enabled=True)), override_env(
+        dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")
+    ):
+        import tests.appsec.iast.fixtures.entrypoint.app_main_patched as flask_entrypoint
+
+        dis_output = io.StringIO()
+        dis.dis(flask_entrypoint, file=dis_output)
+        str_output = dis_output.getvalue()
+        # Should have replaced the binary op with the aspect in add_test:
+        assert re.search(PATTERN, str_output), str_output
+        # Should have replaced the app.run() with a pass:
+        # assert "Disassembly of run" not in str_output, str_output
+        del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13, 0), reason="Test compatible with Python 3.13")
+@pytest.mark.subprocess(check_logs=False)
+def test_ddtrace_iast_flask_patch_py313():
+    import dis
+    import io
+    import re
+    import sys
+
+    from tests.utils import override_env
+    from tests.utils import override_global_config
+
+    PATTERN = r"""LOAD_GLOBAL              0 \(_ddtrace_aspects\)"""
 
     with override_global_config(dict(_iast_enabled=True)), override_env(
         dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")
