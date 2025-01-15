@@ -448,7 +448,7 @@ def get_encoding(module_path: Text) -> Text:
 
 _NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
 
-_IMPORTLIB_PACKAGES = set()
+_IMPORTLIB_PACKAGES: set[str] = set()
 
 
 def _in_python_stdlib(module_name: str) -> bool:
