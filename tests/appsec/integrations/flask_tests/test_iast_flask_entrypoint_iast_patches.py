@@ -1,9 +1,7 @@
 import pytest
 
-from tests.utils import flaky
 
-
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(check_logs=False)
 def test_ddtrace_iast_flask_patch():
     import dis
     import io
@@ -35,7 +33,7 @@ def test_ddtrace_iast_flask_patch():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(check_logs=False)
 def test_ddtrace_iast_flask_patch_iast_disabled():
     import dis
     import io
@@ -62,7 +60,7 @@ def test_ddtrace_iast_flask_patch_iast_disabled():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(check_logs=False)
 def test_ddtrace_iast_flask_no_patch():
     import dis
     import io
@@ -93,7 +91,7 @@ def test_ddtrace_iast_flask_no_patch():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app"]
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(check_logs=False)
 def test_ddtrace_iast_flask_app_create_app_enable_iast_propagation():
     import dis
     import io
@@ -125,7 +123,7 @@ def test_ddtrace_iast_flask_app_create_app_enable_iast_propagation():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.views"]
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(check_logs=False)
 def test_ddtrace_iast_flask_app_create_app_patch_all():
     import dis
     import io
@@ -155,7 +153,6 @@ def test_ddtrace_iast_flask_app_create_app_patch_all():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.views"]
 
 
-@flaky(1736035200)
 @pytest.mark.subprocess(check_logs=False)
 def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation():
     import dis
@@ -187,7 +184,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.views"]
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(check_logs=False)
 def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation_disabled():
     import dis
     import io
