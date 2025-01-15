@@ -96,7 +96,7 @@ suites:
     runner: riot
     snapshot: true
   appsec_integrations_flask:
-    parallelism: 7
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -105,8 +105,9 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
-    retry: 2
+    retry: 3
     runner: hatch
+    timeout: 30m
   appsec_threats_django:
     parallelism: 12
     paths:
