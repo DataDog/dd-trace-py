@@ -445,7 +445,8 @@ class Tracer(object):
     ) -> None:
         """Configure a Tracer.
 
-        :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped.
+        :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped. 
+            This parameter is deprecated and will be removed.
         :param str hostname: Hostname running the Trace Agent. This parameter is deprecated and will be removed.
         :param int port: Port of the Trace Agent. This parameter is deprecated and will be removed.
         :param str uds_path: The Unix Domain Socket path of the agent. This parameter is deprecated and will be removed.
@@ -467,9 +468,9 @@ class Tracer(object):
         :param bool partial_flush_min_spans: This parameter is deprecated and will be removed.
         :param str api_version: This parameter is deprecated and will be removed.
         :param bool compute_stats_enabled: This parameter is deprecated and will be removed.
-        :param bool appsec_enabled: This parameter is deprecated and will be removed.
-        :param bool iast_enabled: This parameter is deprecated and will be removed.
-        :param bool appsec_standalone_enabled: This parameter is deprecated and will be removed.
+        :param bool appsec_enabled: Enables Application Security Montioring (ASM) for the tracer.
+        :param bool iast_enabled: Enables IAST support for the tracer
+        :param bool appsec_standalone_enabled: When tracing is disabled ensures ASM support is still enabled.
         :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
            Trace processors are used to modify and filter traces based on certain criteria.
         """
@@ -531,6 +532,13 @@ class Tracer(object):
     ) -> None:
         if enabled is not None:
             self.enabled = enabled
+            if log_deprecations:
+                deprecate(
+                    "Configuring partial flushing after application start is deprecated",
+                    message="Please use DD_TRACE_PARTIAL_FLUSH_ENABLED to enable/disable the partial flushing instead.",
+                    version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
 
         if priority_sampling is not None and log_deprecations:
             deprecate(
