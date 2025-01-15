@@ -15,8 +15,8 @@ from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.pin import Pin
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 # Original connect method

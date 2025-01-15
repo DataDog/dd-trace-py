@@ -1,4 +1,3 @@
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -15,6 +14,7 @@ from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.trace import Pin
 
 
 class Psycopg3TracedConnection(dbapi.TracedConnection):

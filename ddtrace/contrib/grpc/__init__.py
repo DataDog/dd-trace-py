@@ -45,7 +45,8 @@ To configure the gRPC integration on an per-channel basis use the
 ``Pin`` API::
 
     import grpc
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
 
     patch(grpc=True)
 
@@ -60,7 +61,8 @@ To configure the gRPC integration on the server use the ``Pin`` API::
     import grpc
     from grpc.framework.foundation import logging_pool
 
-    from ddtrace import Pin, patch, Tracer
+    from ddtrace import patch
+    from ddtrace.trace import Pin, Tracer
 
     patch(grpc=True)
 
