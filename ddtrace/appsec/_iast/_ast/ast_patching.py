@@ -29,10 +29,21 @@ _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 # Prefixes for modules where IAST patching is allowed
 # Only packages that have the test_propagation=True in test_packages and are not in the denylist must be here
 IAST_ALLOWLIST: Tuple[Text, ...] = (
-    "attrs",
-    "beautifulsoup4",
-    "charset-normalizer",
-
+    "attrs.",
+    "beautifulsoup4.",
+    "cachetools.",
+    "cryptography.",
+    "docutils.",
+    "idna.",
+    "iniconfig.",
+    "jinja2.",
+    "lxml.",
+    "multidict.",
+    "pygments.",
+    "pynacl.",
+    "pyparsing.",
+    "sqlalchemy.",
+    "yarl.",
 )
 
 # NOTE: For testing reasons, don't add astunparse here, see test_ast_patching.py
@@ -363,7 +374,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "wrapt.",
     "xlib.",
     "zipp.",
-    # This is a workaround for Sanic failures:
 )
 
 
@@ -476,11 +486,11 @@ def _should_iast_patch(module_name: Text) -> bool:
     # else: third party. Check that is in the allow list and not in the deny list
     dotted_module_name = module_name.lower() + "."
     if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
+        if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
+            return False
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
         return True
-    if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
-        log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
-        return False
+    log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
     return False
 
 
