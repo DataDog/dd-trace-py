@@ -101,13 +101,16 @@ class Tracer(opentracing.Tracer):
 
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))  # type: ignore[arg-type]
-        self._dd_tracer.configure(
+        trace_processors = None
+        if self._config.get(keys.SETTINGS):
+            trace_processors = self._config[keys.SETTINGS].get("FILTERS")
+        self._dd_tracer._configure(
             enabled=self._config.get(keys.ENABLED),
             hostname=self._config.get(keys.AGENT_HOSTNAME),
             https=self._config.get(keys.AGENT_HTTPS),
             port=self._config.get(keys.AGENT_PORT),
             sampler=self._config.get(keys.SAMPLER),
-            settings=self._config.get(keys.SETTINGS),
+            trace_processors=trace_processors,
             priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
             uds_path=self._config.get(keys.UDS_PATH),
             context_provider=dd_context_provider,  # type: ignore[arg-type]

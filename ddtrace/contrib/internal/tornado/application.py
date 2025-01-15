@@ -40,7 +40,7 @@ def tracer_config(__init__, app, args, kwargs):
     # this action is done twice because the patch() method uses the
     # global tracer while here we can have a different instance (even if
     # this is not usual).
-    tracer.configure(
+    tracer._configure(
         context_provider=context_provider,
         wrap_executor=decorators.wrap_executor,
         enabled=settings.get("enabled", None),

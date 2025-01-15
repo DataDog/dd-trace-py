@@ -123,7 +123,10 @@ def test_ci_visibility_service_enable():
             assert ci_visibility_instance._service == "test-service"
             assert ci_visibility_instance._api_settings.coverage_enabled is False
             assert ci_visibility_instance._api_settings.skipping_enabled is False
-            assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+            assert any(
+                isinstance(tracer_filter, TraceCiVisibilityFilter)
+                for tracer_filter in dummy_tracer._user_trace_proccessors
+            )
             CIVisibility.disable()
 
 
@@ -150,7 +153,10 @@ def test_ci_visibility_service_enable_without_service():
             assert ci_visibility_instance._service == "test-repo"  # Inherited from environment
             assert ci_visibility_instance._api_settings.coverage_enabled is False
             assert ci_visibility_instance._api_settings.skipping_enabled is False
-            assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+            assert any(
+                isinstance(tracer_filter, TraceCiVisibilityFilter)
+                for tracer_filter in dummy_tracer._user_trace_proccessors
+            )
             CIVisibility.disable()
 
 
