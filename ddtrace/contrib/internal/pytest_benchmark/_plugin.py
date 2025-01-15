@@ -1,9 +1,9 @@
 import pytest
 
-from ddtrace.contrib.pytest._utils import _extract_span
-from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
-from ddtrace.contrib.pytest_benchmark.constants import PLUGIN_METRICS
-from ddtrace.contrib.pytest_benchmark.constants import PLUGIN_OUTLIERS
+from ddtrace.contrib.internal.pytest._utils import _extract_span
+from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
+from ddtrace.contrib.internal.pytest_benchmark.constants import PLUGIN_METRICS
+from ddtrace.contrib.internal.pytest_benchmark.constants import PLUGIN_OUTLIERS
 from ddtrace.ext.test import TEST_TYPE
 
 
