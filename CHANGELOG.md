@@ -4,6 +4,12 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.18.2
+
+
+
+---
+
 ## 2.18.1
 
 
