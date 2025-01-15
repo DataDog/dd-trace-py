@@ -3,10 +3,12 @@ import os
 import mock
 import pytest
 
+from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.span import Span
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_ragas_answer_relevancy_spans
 from tests.llmobs._utils import _expected_ragas_context_precision_spans
 from tests.llmobs._utils import _expected_ragas_faithfulness_spans
 from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
@@ -16,6 +18,10 @@ from tests.llmobs._utils import logs_vcr
 
 
 pytest.importorskip("ragas", reason="Tests require ragas to be available on user env")
+
+ragas_answer_relevancy_cassette = logs_vcr.use_cassette(
+    "tests.llmobs.test_llmobs_ragas_evaluators.answer_relevancy_inference.yaml"
+)
 
 ragas_context_precision_single_context_cassette = logs_vcr.use_cassette(
     "tests.llmobs.test_llmobs_ragas_evaluators.test_ragas_context_precision_single_context.yaml"
@@ -420,6 +426,189 @@ def test_ragas_context_precision_emits_traces(ragas, llmobs, llmobs_events):
     ragas_spans = sorted(ragas_spans, key=lambda d: d["start_ns"])
     assert len(ragas_spans) == 2
     assert ragas_spans == _expected_ragas_context_precision_spans()
+
+    # verify the trace structure
+    root_span = ragas_spans[0]
+    root_span_id = root_span["span_id"]
+    assert root_span["parent_id"] == "undefined"
+    assert root_span["meta"] is not None
+
+    root_span_trace_id = root_span["trace_id"]
+    for child_span in ragas_spans[1:]:
+        assert child_span["trace_id"] == root_span_trace_id
+        assert child_span["parent_id"] == root_span_id
+
+
+def test_ragas_answer_relevancy_init(ragas, llmobs):
+    rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
+    assert rar_evaluator.llmobs_service == llmobs
+    assert rar_evaluator.ragas_answer_relevancy_instance == ragas.metrics.answer_relevancy
+    assert rar_evaluator.ragas_answer_relevancy_instance.llm == ragas.llms.llm_factory()
+    assert (
+        rar_evaluator.ragas_answer_relevancy_instance.embeddings.embeddings
+        == ragas.embeddings.embedding_factory().embeddings
+    )
+    assert (
+        rar_evaluator.ragas_answer_relevancy_instance.embeddings.run_config
+        == ragas.embeddings.embedding_factory().run_config
+    )
+
+
+def test_ragas_answer_relevancy_throws_if_dependencies_not_present(llmobs, mock_ragas_dependencies_not_present, ragas):
+    with pytest.raises(NotImplementedError, match="Failed to load dependencies for `ragas_answer_relevancy` evaluator"):
+        RagasAnswerRelevancyEvaluator(llmobs)
+
+
+def test_ragas_answer_relevancy_returns_none_if_inputs_extraction_fails(ragas, mock_llmobs_submit_evaluation, llmobs):
+    rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
+    failure_msg, _ = rar_evaluator.evaluate(_llm_span_without_io())
+    assert failure_msg == "fail_extract_answer_relevancy_inputs"
+    assert rar_evaluator.llmobs_service.submit_evaluation.call_count == 0
+
+
+def test_ragas_answer_relevancy_has_modified_answer_relevancy_instance(
+    ragas, mock_llmobs_submit_evaluation, reset_ragas_answer_relevancy_llm, llmobs
+):
+    """Answer relevancy instance used in ragas evaluator should match the global ragas context precision instance"""
+    from ragas.llms import BaseRagasLLM
+    from ragas.metrics import answer_relevancy
+
+    class FirstDummyLLM(BaseRagasLLM):
+        def __init__(self):
+            super().__init__()
+
+        def generate_text(self) -> str:
+            return "dummy llm"
+
+        def agenerate_text(self) -> str:
+            return "dummy llm"
+
+    answer_relevancy.llm = FirstDummyLLM()
+
+    rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
+
+    assert rar_evaluator.ragas_answer_relevancy_instance.llm.generate_text() == "dummy llm"
+
+    class SecondDummyLLM(BaseRagasLLM):
+        def __init__(self):
+            super().__init__()
+
+        def generate_text(self) -> str:
+            return "second dummy llm"
+
+        def agenerate_text(self) -> str:
+            return "second dummy llm"
+
+    answer_relevancy.llm = SecondDummyLLM()
+
+    rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
+
+    assert rar_evaluator.ragas_answer_relevancy_instance.llm.generate_text() == "second dummy llm"
+
+
+def test_ragas_answer_relevancy_submits_evaluation(
+    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calculate_similarity
+):
+    """Test that evaluation is submitted for a valid llm span where question is in the prompt variables"""
+    rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
+    llm_span = _llm_span_with_expected_ragas_inputs_in_prompt()
+    with ragas_answer_relevancy_cassette:
+        rar_evaluator.run_and_submit_evaluation(llm_span)
+    rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+        [
+            mock.call(
+                span_context={
+                    "span_id": llm_span.get("span_id"),
+                    "trace_id": llm_span.get("trace_id"),
+                },
+                label=RagasAnswerRelevancyEvaluator.LABEL,
+                metric_type=RagasAnswerRelevancyEvaluator.METRIC_TYPE,
+                value=mock.ANY,
+                metadata={
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                },
+            )
+        ]
+    )
+
+
+def test_ragas_answer_relevancy_submits_evaluation_on_span_with_question_in_messages(
+    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calculate_similarity
+):
+    """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
+    rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
+    llm_span = _llm_span_with_expected_ragas_inputs_in_messages()
+    with ragas_answer_relevancy_cassette:
+        rar_evaluator.run_and_submit_evaluation(llm_span)
+    rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+        [
+            mock.call(
+                span_context={
+                    "span_id": llm_span.get("span_id"),
+                    "trace_id": llm_span.get("trace_id"),
+                },
+                label=RagasAnswerRelevancyEvaluator.LABEL,
+                metric_type=RagasAnswerRelevancyEvaluator.METRIC_TYPE,
+                value=mock.ANY,
+                metadata={
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                },
+            )
+        ]
+    )
+
+
+def test_ragas_answer_relevancy_submits_evaluation_on_span_with_custom_keys(
+    ragas, llmobs, mock_llmobs_submit_evaluation, mock_ragas_answer_relevancy_calculate_similarity
+):
+    """Test that evaluation is submitted for a valid llm span where the last message content is the question"""
+    rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
+    llm_span = _expected_llmobs_llm_span_event(
+        Span("dummy"),
+        prompt={
+            "variables": {
+                "user_input": "Is france part of europe?",
+                "context_2": "irrelevant",
+                "context_3": "France is part of europe",
+            },
+            "_dd_context_variable_keys": ["context_2", "context_3"],
+            "_dd_query_variable_keys": ["user_input"],
+        },
+        output_messages=[{"content": "France is indeed part of europe"}],
+    )
+    with ragas_answer_relevancy_cassette:
+        rar_evaluator.run_and_submit_evaluation(llm_span)
+    rar_evaluator.llmobs_service.submit_evaluation.assert_has_calls(
+        [
+            mock.call(
+                span_context={
+                    "span_id": llm_span.get("span_id"),
+                    "trace_id": llm_span.get("trace_id"),
+                },
+                label=RagasAnswerRelevancyEvaluator.LABEL,
+                metric_type=RagasAnswerRelevancyEvaluator.METRIC_TYPE,
+                value=mock.ANY,
+                metadata={
+                    "_dd.evaluation_span": {"span_id": mock.ANY, "trace_id": mock.ANY},
+                },
+            )
+        ]
+    )
+
+
+def test_ragas_answer_relevancy_emits_traces(
+    ragas, llmobs, llmobs_events, mock_ragas_answer_relevancy_calculate_similarity
+):
+    rar_evaluator = RagasAnswerRelevancyEvaluator(llmobs)
+    with ragas_answer_relevancy_cassette:
+        rar_evaluator.evaluate(_llm_span_with_expected_ragas_inputs_in_prompt())
+
+    ragas_spans = [event for event in llmobs_events if event["name"].startswith("dd-ragas.")]
+    ragas_spans = sorted(ragas_spans, key=lambda d: d["start_ns"])
+
+    assert len(ragas_spans) == 3
+    # check name, io, span kinds match
+    assert ragas_spans == _expected_ragas_answer_relevancy_spans()
 
     # verify the trace structure
     root_span = ragas_spans[0]

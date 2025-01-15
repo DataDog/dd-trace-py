@@ -714,3 +714,61 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "tags": expected_ragas_trace_tags(),
         },
     ]
+
+
+def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+    return [
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": "undefined",
+            "name": "dd-ragas.answer_relevancy",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {"answer_classifications": mock.ANY, "strictness": mock.ANY},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.extract_evaluation_inputs_from_span",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.calculate_similarity",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+    ]
