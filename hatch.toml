@@ -334,12 +334,10 @@ dependencies = [
     "hypothesis",
     "gunicorn",
     "psycopg2-binary~=2.9.9",
-    "flask{matrix:flask}",
     "itsdangerous{matrix:itsdangerous:}",
     "MarkupSafe{matrix:markupsafe:}",
     "Werkzeug{matrix:werkzeug:}",
-    "langchain{matrix:langchain:}",
-    "langchain_experimental{matrix:langchain_experimental:}"
+    "flask{matrix:flask}",
 ]
 
 [envs.appsec_integrations_flask.scripts]
@@ -354,12 +352,12 @@ python = ["3.7", "3.8", "3.9"]
 flask = ["~=1.1"]
 # https://github.com/pallets/itsdangerous/issues/290
 # DEV: Breaking change made in 2.1.0 release
-itsdangerous = ["<2.1.0"]
+itsdangerous = ["~=2.1.0"]
 # https://github.com/pallets/markupsafe/issues/282
 # DEV: Breaking change made in 2.1.0 release
-markupsafe = ["<2.0"]
+markupsafe = ["~=1.1"]
 # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
-werkzeug = ["<2.0"]
+werkzeug = ["~=2.0"]
 
 [[envs.appsec_integrations_flask.matrix]]
 python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
@@ -372,8 +370,6 @@ flask = ["~=2.2"]
 [[envs.appsec_integrations_flask.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 flask = ["~=3.0"]
-langchain = ["==0.0.354"]
-langchain_experimental = ["==0.0.47"]
 
 ## ASM FastAPI
 
