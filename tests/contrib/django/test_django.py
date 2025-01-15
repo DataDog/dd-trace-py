@@ -24,9 +24,9 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.django.patch import instrument_view
-from ddtrace.contrib.django.patch import traced_get_response
-from ddtrace.contrib.django.utils import get_request_uri
+from ddtrace.contrib.internal.django.patch import instrument_view
+from ddtrace.contrib.internal.django.patch import traced_get_response
+from ddtrace.contrib.internal.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
@@ -1888,7 +1888,8 @@ def test_collecting_requests_handles_improperly_configured_error(client, test_sp
     """
     # patch django._patch - django.__init__.py imports patch.py module as _patch
     with mock.patch(
-        "ddtrace.contrib.django.utils.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
+        "ddtrace.contrib.internal.django.utils.user_is_authenticated",
+        side_effect=django.core.exceptions.ImproperlyConfigured,
     ):
         # If ImproperlyConfigured error bubbles up, should automatically fail the test.
         resp = client.get("/")

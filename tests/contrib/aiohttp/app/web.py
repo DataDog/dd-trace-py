@@ -11,7 +11,7 @@ except ImportError:
 else:
     import jinja2
 
-from ddtrace.contrib.aiohttp.middlewares import CONFIG_KEY
+from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
