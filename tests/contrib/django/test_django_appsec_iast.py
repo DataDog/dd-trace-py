@@ -273,7 +273,8 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter_name
         assert loaded["sources"] == [
             {
                 "name": "SELECT",
-                "origin": "http.request.parameter_name",
+                "origin": "http.request.parameter.name",
+                "value": "SELECT",
             }
         ]
 
