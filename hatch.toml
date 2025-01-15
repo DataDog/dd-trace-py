@@ -335,11 +335,11 @@ dependencies = [
     "gunicorn",
     "psycopg2-binary~=2.9.9",
     "flask{matrix:flask}",
-    "itsdangerous{matrix:itsdangerous}",
-    "markupsafe{matrix:markupsafe}",
-    "werkzeug{matrix:werkzeug}",
-    "langchain{matrix:langchain}",
-    "langchain_experimental{matrix:langchain_experimental}"
+    "itsdangerous{matrix:itsdangerous:}",
+    "MarkupSafe{matrix:markupsafe:}",
+    "Werkzeug{matrix:werkzeug:}",
+    "langchain{matrix:langchain:}",
+    "langchain_experimental{matrix:langchain_experimental:}"
 ]
 
 [envs.appsec_integrations_flask.scripts]
