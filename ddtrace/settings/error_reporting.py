@@ -16,12 +16,13 @@ def parse_modules(value: t.Union[str, None]) -> t.List[str]:
 
 class ErrorReportingConfig(Env):
     __prefix__ = "dd_trace"
-
-    reported_handled_exceptions = Env.var(
-        list, "experimental_reported_handled_exceptions", parser=parse_modules, default=[]
+    enable_handled_exceptions_reporting = Env.var(bool, "experimental_reported_handled_exceptions", default=False)
+    user_env_scope = Env.var(list, "experimental_reported_handled_exceptions_user", parser=parse_modules, default=[])
+    third_party_env_scope = Env.var(
+        list, "experimental_reported_handled_exceptions_third_party", parser=parse_modules, default=[]
     )
-
     _internal_logger = Env.var(str, "experimental_reported_handled_exceptions_logger", default="")
+    _report_after_unhandled = Env.var(bool, "experimental_report_handled_exceptions_after_unhandled", default=False)
 
     if sys.version_info >= (3, 12):
         """
@@ -36,6 +37,34 @@ class ErrorReportingConfig(Env):
         """
         HANDLED_EXCEPTIONS_MONITORING_ID = 3
 
+    _instrument_user_code = False
+    _instrument_third_party_code = False
+    _configured_user_modules: list[str] = list()
+    _configured_third_party: list[str] = list()
+    _enabled = False
+
+    def _init_scope(self):
+        if self.enable_handled_exceptions_reporting is True:
+            self._instrument_user_code = True
+            self._instrument_third_party_code = True
+        else:
+            if self.user_env_scope == ["all"]:
+                self._instrument_user_code = True
+            else:
+                self._configured_user_modules = self.user_env_scope
+
+            if self.third_party_env_scope == ["all"]:
+                self._instrument_third_party_code = True
+            else:
+                self._configured_third_party = self.third_party_env_scope
+
 
 _er_config = ErrorReportingConfig()
-_report_telemetry(_er_config)
+if (
+    (not _er_config.user_env_scope) is False
+    or (not _er_config.third_party_env_scope) is False
+    or _er_config.enable_handled_exceptions_reporting is True
+):
+    _er_config._enabled = True
+    _er_config._init_scope()
+    _report_telemetry(_er_config)

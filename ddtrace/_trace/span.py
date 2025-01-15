@@ -116,6 +116,7 @@ class Span(object):
         "_local_root_value",
         "_parent",
         "_ignored_exceptions",
+        "_exception_events",
         "_on_finish_callbacks",
         "_links",
         "_events",
@@ -206,6 +207,7 @@ class Span(object):
         self._events: List[SpanEvent] = []
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
+        self._exception_events: dict[int, SpanEvent] = {}
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._store: Optional[Dict[str, Any]] = None
 
@@ -500,8 +502,16 @@ class Span(object):
     def _add_event(
         self, name: str, attributes: Optional[Dict[str, str]] = None, timestamp: Optional[int] = None
     ) -> None:
-        """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
+
+    def _add_exception_event(self, event_hash: int, event: SpanEvent) -> None:
+        self._exception_events[event_hash] = event
+
+    def _add_on_finish_exception_cb(self, cb: Callable[["Span"], None]):
+        """Add a callback to the on_finish_callbacks list"""
+        if "EXCEPTION_CB" not in self._meta:
+            self._on_finish_callbacks.insert(0, cb)
+            self._meta["EXCEPTION_CB"] = ""
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
@@ -545,7 +555,6 @@ class Span(object):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-
         self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb

@@ -1116,7 +1116,7 @@ class Tracer(object):
             forksafe.unregister_before_fork(self._sample_before_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
-        if not _er_config.reported_handled_exceptions and sys.version_info >= (3, 12):
+        if _er_config._enabled is True and sys.version_info >= (3, 12):
             sys.monitoring.free_tool_id(_er_config.HANDLED_EXCEPTIONS_MONITORING_ID)  # type: ignore
 
     @staticmethod
