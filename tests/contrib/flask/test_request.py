@@ -244,6 +244,65 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertNotEqual(span.trace_id, 678910)
         self.assertIsNone(span.parent_id)
 
+    def test_inferred_spans_api_gateway(self):
+        """
+        When making a request starting from AWS API Gateway
+            We create an inferred span with the headers
+        """
+        @self.app.route("/")
+        def index():
+            return "Hello Flask", 200
+
+        # By default, no inferred spans should be created
+
+        res = self.client.get("/")
+
+        # Assert that without the feature, Flask is the root
+        span = self.find_span_by_name(self.get_spans(), "flask.request")
+        self.assertEqual(span.parent_id, None)
+
+        # With the inferred spans enabled
+        with self.override_global_config(dict(_inferred_proxy_services_enabled="true")):
+            res = self.client.get("/", headers= {
+                'x-dd-proxy': 'aws-apigateway',
+                'x-dd-proxy-request-time-ms': '1736973768000',
+                'x-dd-proxy-path': '/',
+                'x-dd-proxy-httpmethod': 'GET',
+                'x-dd-proxy-domain-name': 'local',
+                'x-dd-proxy-stage': 'stage'
+            })
+
+            web_span = self.find_span_by_name(self.get_spans(), "flask.request")
+            aws_gateway_span = web_span._parent
+
+            assert aws_gateway_span is not None
+            assert aws_gateway_span.name == "aws.apigateway"
+            assert aws_gateway_span.service == "local"
+            assert aws_gateway_span.resource == web_span.resource #TODO figure out why this fails
+            assert aws_gateway_span.span_type == "web"
+            assert aws_gateway_span.get_tag('http.url') == "local/"
+            assert aws_gateway_span.get_tag('http.method') == "GET"
+            assert aws_gateway_span.get_tag('http.status_code') == '200' #TODO figure out why this fails
+            assert aws_gateway_span.get_tag('http.route') == '/'
+            assert aws_gateway_span.get_tag('span.kind') == 'internal'
+            assert aws_gateway_span.get_tag('component') == "aws-apigateway"
+            assert aws_gateway_span.get_tag('_dd.inferred_span') == "1"
+            assert aws_gateway_span.start == 1736973768.0
+
+            assert aws_gateway_span.span_id == web_span.parent_id
+
+            assert web_span.name == "flask.request"
+            assert web_span.service == "flask"
+            assert web_span.resource == 'GET /'
+            assert web_span.span_type == "web"
+            assert web_span.get_tag('http.url') == "http://localhost/"
+            assert web_span.get_tag('http.method') == "GET"
+            assert web_span.get_tag('http.status_code') == '200' #TODO figure out why this fails
+            assert web_span.get_tag('http.route') == '/'
+            assert web_span.get_tag('span.kind') == 'server'
+            assert web_span.get_tag('component') == "flask"
+            assert web_span.get_tag('_dd.inferred_span') is None
+
     def test_request_query_string(self):
         """
         When making a request
