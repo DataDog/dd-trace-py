@@ -51,7 +51,7 @@ Instance Configuration
 To configure the integration on an per-connection basis use the
 ``Pin`` API::
 
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     from snowflake.connector import connect
 
     # This will report a span with the default settings

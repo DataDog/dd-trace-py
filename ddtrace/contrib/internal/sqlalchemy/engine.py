@@ -29,7 +29,7 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 def trace_engine(engine, tracer=None, service=None):

@@ -10,7 +10,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 from .constants import DEFAULT_TEMPLATE_NAME
 

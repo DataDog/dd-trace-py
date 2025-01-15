@@ -5,7 +5,7 @@ that we expect to be implicitly traced via `ddtrace-run`
 
 import redis
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from tests.contrib.config import REDIS_CONFIG
 from tests.utils import DummyWriter
 

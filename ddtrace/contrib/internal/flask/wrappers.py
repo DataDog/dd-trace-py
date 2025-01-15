@@ -7,7 +7,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
