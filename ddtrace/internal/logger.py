@@ -227,12 +227,7 @@ class DDTelemetryLogger(DDLogger):
             tags = {
                 "lib_language": "python",
             }
-            stack_trace = None
-            if record.exc_info:
-                _, _, traceback_object = record.exc_info
-                if traceback_object:
-                    stack_trace = "".join(traceback.format_tb(traceback_object))
-                    # TODO redact absolute file paths and unknown packages
+            stack_trace = _format_stack_trace(record.exc_info) if record.exc_info is not None else None
             if record.levelno >= logging.ERROR or stack_trace is not None:
                 # Report only an error or an exception with a stack trace
                 telemetry.telemetry_writer.add_log(
@@ -240,6 +235,30 @@ class DDTelemetryLogger(DDLogger):
                 )
 
         super().handle(record)
+
+
+CWD = os.getcwd()
+
+
+def _format_stack_trace(exc_info):
+    exc_type, exc_value, exc_traceback = exc_info
+    if exc_traceback:
+        tb = traceback.extract_tb(exc_traceback)
+        formatted_tb = ["Traceback (most recent call last):"]
+        for filename, lineno, funcname, srcline in tb:
+            relative_filename = _format_file_path(filename)
+            formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
+            formatted_tb.append(formatted_line)
+        formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
+        return "\n".join(formatted_tb)
+    return None
+
+
+def _format_file_path(filename):
+    try:
+        return os.path.relpath(filename, start=CWD)
+    except ValueError:
+        return filename
 
 
 class _TelemetryConfig:
