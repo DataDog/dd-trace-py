@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: fix incorrect telemetry data payload format.
