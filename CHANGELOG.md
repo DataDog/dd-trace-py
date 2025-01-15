@@ -4,6 +4,19 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.18.2
+
+
+### Bug Fixes
+
+- Add more modules to the IAST patching denylist to improve startup time
+- ASGI: This fix resolves an issue parsing response cookies in FastAPI and awsgi
+- profiling: Removed a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.
+- Integrations: Improved error handling for exceptions raised during the startup of ddtrace integrations. This reduces the likelihood of the ddtrace library raising unhandled exceptions.
+
+
+---
+
 ## 2.18.1
 
 
