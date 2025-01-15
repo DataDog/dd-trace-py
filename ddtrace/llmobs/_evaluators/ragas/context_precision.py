@@ -85,8 +85,8 @@ class RagasContextPrecisionEvaluator(BaseRagasEvaluator):
             try:
                 evaluation_metadata[EVALUATION_SPAN_METADATA] = self.llmobs_service.export_span(span=ragas_cp_workflow)
 
-                context_precision_inputs = self._extract_evaluation_inputs_from_span(span_event)
-                if context_precision_inputs is None:
+                ctx_precision_inputs = self._extract_evaluation_inputs_from_span(span_event)
+                if ctx_precision_inputs is None:
                     logger.debug(
                         "Failed to extract evaluation inputs from "
                         "span sampled for `ragas_context_precision` evaluation"
@@ -96,11 +96,11 @@ class RagasContextPrecisionEvaluator(BaseRagasEvaluator):
                 # create a prompt to evaluate the relevancy of each context chunk
                 context_precision_prompts = [
                     self.ragas_context_precision_instance.context_precision_prompt.format(
-                        question=context_precision_inputs["question"],
+                        question=ctx_precision_inputs["question"],
                         context=c,
-                        answer=context_precision_inputs["answer"],
+                        answer=ctx_precision_inputs["answer"],
                     )
-                    for c in context_precision_inputs["contexts"]
+                    for c in ctx_precision_inputs["contexts"]
                 ]
 
                 responses = []
