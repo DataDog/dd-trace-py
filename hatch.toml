@@ -339,7 +339,7 @@ dependencies = [
     "markupsafe{matrix:markupsafe}",
     "werkzeug{matrix:werkzeug}",
     "langchain{matrix:langchain}",
-    "langchain_experimental{matrix:langchain_experimental}",
+    "langchain_experimental{matrix:langchain_experimental}"
 ]
 
 [envs.appsec_integrations_flask.scripts]
