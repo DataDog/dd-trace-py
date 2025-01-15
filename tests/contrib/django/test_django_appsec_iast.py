@@ -282,6 +282,12 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter_name
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [
                 {"source": 0, "value": "SELECT"},
+                {
+                    "value": " ",
+                },
+                {
+                    "redacted": True,
+                },
             ]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
