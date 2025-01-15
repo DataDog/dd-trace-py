@@ -463,9 +463,6 @@ def _is_first_party(module_name: str):
 
     if not _IMPORTLIB_PACKAGES:
         _IMPORTLIB_PACKAGES = set(get_package_distributions())
-    from pprint import pprint
-
-    pprint(_IMPORTLIB_PACKAGES)
 
     return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
 
