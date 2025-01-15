@@ -109,11 +109,7 @@ def sqli_http_request_parameter(request):
 
 
 def sqli_http_request_parameter_name(request):
-    import bcrypt
-    from django.contrib.auth.hashers import BCryptSHA256PasswordHasher
-
-    password_django = BCryptSHA256PasswordHasher()
-    obj = password_django.encode("i'm a password", bcrypt.gensalt())
+    obj = " 1"
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_request_parameter_name
         cursor.execute(add_aspect(add_aspect(list(request.GET.keys())[0], obj), "'"))
