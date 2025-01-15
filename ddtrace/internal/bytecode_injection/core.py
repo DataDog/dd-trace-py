@@ -399,8 +399,6 @@ def _generate_adjusted_location_data_3_10(
     """
     See format here: https://github.com/python/cpython/blob/3.10/Objects/lnotab_notes.txt
     """
-    print("Offsets map:", offsets_map)
-    print("Extended arg offsets:", extended_arg_offsets)
     old_data = code.co_linetable
     old_data_size = len(old_data)
     new_data = bytearray()
@@ -416,8 +414,6 @@ def _generate_adjusted_location_data_3_10(
         offset_delta = old_data[idx]
         new_data.append(offset_delta)
         new_data.append(old_data[idx + 1])
-        # print('Adding offset delta:', offset_delta)
-        # print('Adding line delta:', old_data[idx + 1])
 
         next_offset = old_offset + offset_delta
 
