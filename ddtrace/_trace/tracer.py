@@ -445,7 +445,7 @@ class Tracer(object):
     ) -> None:
         """Configure a Tracer.
 
-        :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped. 
+        :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped.
             This parameter is deprecated and will be removed.
         :param str hostname: Hostname running the Trace Agent. This parameter is deprecated and will be removed.
         :param int port: Port of the Trace Agent. This parameter is deprecated and will be removed.
@@ -468,7 +468,7 @@ class Tracer(object):
         :param bool partial_flush_min_spans: This parameter is deprecated and will be removed.
         :param str api_version: This parameter is deprecated and will be removed.
         :param bool compute_stats_enabled: This parameter is deprecated and will be removed.
-        :param bool appsec_enabled: Enables Application Security Montioring (ASM) for the tracer.
+        :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
         :param bool appsec_standalone_enabled: When tracing is disabled ensures ASM support is still enabled.
         :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
@@ -481,8 +481,8 @@ class Tracer(object):
                 version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
-            if settings.get("FILTERS") is not None:
-                trace_processors += settings.get("FILTERS")
+            if isinstance(settings.get("FILTERS"), list):
+                trace_processors += settings.get("FILTERS")  # type: ignore
 
         return self._configure(
             enabled,

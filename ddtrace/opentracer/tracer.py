@@ -15,7 +15,6 @@ from ddtrace import Tracer as DatadogTracer
 from ddtrace import config as ddconfig
 from ddtrace._trace.context import Context as DatadogContext  # noqa:F401
 from ddtrace._trace.span import Span as DatadogSpan
-from ddtrace._trace.tracer import TraceProcessor
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import ConfigException
@@ -104,7 +103,7 @@ class Tracer(opentracing.Tracer):
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))  # type: ignore[arg-type]
         trace_processors = None
         if keys.SETTINGS in self._config:
-            trace_processors: TraceProcessor = self._config[keys.SETTINGS].get("FILTERS")
+            trace_processors = self._config[keys.SETTINGS].get("FILTERS")  # type: ignore[union-attr]
         self._dd_tracer._configure(
             enabled=self._config.get(keys.ENABLED),
             hostname=self._config.get(keys.AGENT_HOSTNAME),
