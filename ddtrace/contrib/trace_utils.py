@@ -576,7 +576,9 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         #
         #     app = Flask(__name__)  # Traced via Flask instrumentation
         #     app = DDWSGIMiddleware(app)  # Extra layer on top for WSGI
+        # this is what's saving us from resetting context over and over again
         current_context = tracer.current_trace_context()
+        # we'll error here because we don't have a trace_id etc.
         if current_context and current_context.trace_id == context.trace_id:
             log.debug(
                 "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501

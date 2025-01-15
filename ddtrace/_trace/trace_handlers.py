@@ -106,14 +106,18 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
     return span_kwargs
 
 
-def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
+def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, activate_distributed_headers, **kwargs) -> "Span":
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
     tracer = (ctx.get_item("middleware") or ctx["pin"]).tracer
-    distributed_headers_config = ctx.get_item("distributed_headers_config")
-    if distributed_headers_config:
+    import pdb; pdb.set_trace()
+    # this returns ddtrace.settings.integration.IntegrationConfig, we should change the naming to reflect this
+    #  from distributed_headers_config  to integration_config. Need to do this for calls of method too
+    integration_config = ctx.get_item("distributed_headers_config")
+    activate_distributed_headers = ctx.get_item("activate_distributed_headers")
+    if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
-            tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
+            tracer, int_config=integration_config, request_headers=ctx["distributed_headers"]
         )
     distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
