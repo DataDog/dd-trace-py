@@ -3,9 +3,9 @@ from inspect import Parameter
 import molten
 from molten import DependencyInjector
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.molten.patch import patch
 from ddtrace.contrib.internal.molten.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 

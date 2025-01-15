@@ -20,7 +20,6 @@ from typing import cast  # noqa:F401
 
 import wrapt
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -37,6 +36,7 @@ from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 if TYPE_CHECKING:  # pragma: no cover

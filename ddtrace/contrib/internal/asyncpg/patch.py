@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING  # noqa:I001
 from types import ModuleType
 import asyncpg
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT

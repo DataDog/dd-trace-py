@@ -39,7 +39,7 @@ Global Configuration
 To configure the graphql integration using the
 ``Pin`` API::
 
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     import graphql
 
     Pin.override(graphql, service="mygraphql")
