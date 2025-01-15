@@ -17,13 +17,12 @@ from tests.llmobs._utils import logs_vcr
 
 pytest.importorskip("ragas", reason="Tests require ragas to be available on user env")
 
-if logs_vcr:
-    ragas_context_precision_single_context_cassette = logs_vcr.use_cassette(
-        "tests.llmobs.test_llmobs_ragas_evaluators.test_ragas_context_precision_single_context.yaml"
-    )
-    ragas_context_precision_multiple_context_cassette = logs_vcr.use_cassette(
-        "tests.llmobs.test_llmobs_ragas_evaluators.test_ragas_context_precision_multiple_context.yaml"
-    )
+ragas_context_precision_single_context_cassette = logs_vcr.use_cassette(
+    "tests.llmobs.test_llmobs_ragas_evaluators.test_ragas_context_precision_single_context.yaml"
+)
+ragas_context_precision_multiple_context_cassette = logs_vcr.use_cassette(
+    "tests.llmobs.test_llmobs_ragas_evaluators.test_ragas_context_precision_multiple_context.yaml"
+)
 
 
 @pytest.fixture
