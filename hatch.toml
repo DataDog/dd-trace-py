@@ -331,6 +331,7 @@ dependencies = [
     "pytest",
     "pytest-cov",
     "requests",
+    "hypothesis",
     "gunicorn",
     "psycopg2-binary~=2.9.9",
 ]
