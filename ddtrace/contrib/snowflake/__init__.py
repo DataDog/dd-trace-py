@@ -9,13 +9,19 @@ Enabling
 The integration is not enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Use :func:`patch()<ddtrace.patch>` to manually enable the integration::
+Use ``DD_TRACE_SNOWFLAKE_ENABLED=true`` to enable it with ``ddtrace-run``
 
-    from ddtrace import patch, patch_all
+or :func:`patch()<ddtrace.patch>` to manually enable the integration::
+
+    from ddtrace import patch
     patch(snowflake=True)
+
+or use :func:`patch_all()<ddtrace.patch_all>` to manually enable the integration::
+
+    from ddtrace import patch_all
     patch_all(snowflake=True)
 
-or the ``DD_TRACE_SNOWFLAKE_ENABLED=true`` to enable it with ``ddtrace-run``.
+
 
 
 Global Configuration
