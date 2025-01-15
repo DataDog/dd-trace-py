@@ -1,7 +1,6 @@
 import aiomysql
 import wrapt
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
@@ -18,6 +17,7 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.trace import Pin
 
 
 config._add(

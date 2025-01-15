@@ -268,7 +268,9 @@ import ddtrace.settings.exception_replay
     env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
+    env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
     env["DD_SITE"] = "datadoghq.com"
+
     # By default telemetry collection is enabled after 10 seconds, so we either need to
     # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
     # This delay allows us to collect start up errors and dynamic configurations
@@ -446,6 +448,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": 3},
+        {"name": "DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT", "origin": "env_var", "value": "restart"},
         {"name": "DD_TRACE_PROPAGATION_EXTRACT_FIRST", "origin": "default", "value": False},
         {"name": "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "env_var", "value": "tracecontext"},
