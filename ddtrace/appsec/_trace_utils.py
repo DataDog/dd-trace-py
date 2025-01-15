@@ -73,7 +73,7 @@ def _track_user_login_common(
         if login:
             span.set_tag_str(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.{success_str}.usr.login", login)
             if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-                span.set_tag_str("_dd.appsec.usr.login", login)
+                span.set_tag_str(APPSEC.USER_LOGIN_USERNAME, login)
             span.set_tag_str("%s.login" % tag_prefix, login)
 
         if email:
@@ -134,7 +134,7 @@ def track_user_login_success_event(
         call_waf_callback(custom_data={"REQUEST_USER_ID": str(user_id), "LOGIN_SUCCESS": real_mode})
 
     if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-        span.set_tag_str("_dd.appsec.usr.id", str(user_id))
+        span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
 
@@ -169,7 +169,7 @@ def track_user_login_failure_event(
         if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
             user_id = _hash_user_id(user_id)
         if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-            span.set_tag_str("_dd.appsec.usr.id", str(user_id))
+            span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
     # if called from the SDK, set the login, email and name
     if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
