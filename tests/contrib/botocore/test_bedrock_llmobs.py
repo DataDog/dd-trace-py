@@ -4,10 +4,10 @@ import os
 import mock
 import pytest
 
-from ddtrace import Pin
-from ddtrace.contrib.botocore.patch import patch
-from ddtrace.contrib.botocore.patch import unpatch
+from ddtrace.contrib.internal.botocore.patch import patch
+from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import get_request_vcr

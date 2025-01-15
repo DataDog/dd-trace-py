@@ -15,7 +15,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.cherrypy import TraceMiddleware
+from ddtrace.contrib.internal.cherrypy.middleware import TraceMiddleware
 from ddtrace.ext import http
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
@@ -55,7 +55,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         )
 
     def test_and_emit_get_version(self):
-        from ddtrace.contrib.cherrypy import get_version
+        from ddtrace.contrib.internal.cherrypy.middleware import get_version
 
         version = get_version()
         assert type(version) == str
@@ -543,7 +543,7 @@ import time
 from cherrypy.test import helper
 from tests.utils import TracerTestCase
 from tests.contrib.cherrypy.web import StubApp
-from ddtrace.contrib.cherrypy import TraceMiddleware
+from ddtrace.contrib.internal.cherrypy.middleware import TraceMiddleware
 class TestCherrypy(TracerTestCase, helper.CPWebCase):
     @staticmethod
     def setup_server():
@@ -602,7 +602,7 @@ import time
 from cherrypy.test import helper
 from tests.utils import TracerTestCase
 from tests.contrib.cherrypy.web import StubApp
-from ddtrace.contrib.cherrypy import TraceMiddleware
+from ddtrace.contrib.internal.cherrypy.middleware import TraceMiddleware
 class TestCherrypy(TracerTestCase, helper.CPWebCase):
     @staticmethod
     def setup_server():
