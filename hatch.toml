@@ -326,7 +326,7 @@ python = ["3.9", "3.10", "3.11", "3.12"]
 ## ASM appsec_integrations_flask
 
 [envs.appsec_integrations_flask]
-template = "appsec_iast_packages"
+template = "appsec_integrations_flask"
 dependencies = [
     "pytest",
     "pytest-cov",
@@ -334,6 +334,12 @@ dependencies = [
     "hypothesis",
     "gunicorn",
     "psycopg2-binary~=2.9.9",
+    "flask{matrix:flask}",
+    "itsdangerous{matrix:itsdangerous}",
+    "markupsafe{matrix:markupsafe}",
+    "werkzeug{matrix:werkzeug}",
+    "langchain{matrix:langchain}",
+    "langchain_experimental{matrix:langchain_experimental}",
 ]
 
 [envs.appsec_integrations_flask.scripts]
