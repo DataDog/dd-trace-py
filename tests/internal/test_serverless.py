@@ -101,6 +101,7 @@ def test_slow_imports():
         "ddtrace.internal.telemetry.telemetry_writer",
         "email.mime.application",
         "email.mime.multipart",
+        "importlib.abc",
         "logging.handlers",
         "multiprocessing",
         "importlib.metadata",
