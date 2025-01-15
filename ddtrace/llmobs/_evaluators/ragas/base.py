@@ -11,7 +11,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
+from ddtrace.llmobs._constants import TEMP_RAGAS_ML_APP_PREFIX
 
 
 logger = get_logger(__name__)
@@ -95,8 +95,8 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
             ml_app = tag.split(":")[1]
             break
     if not ml_app:
-        return RAGAS_ML_APP_PREFIX
-    return "{}{}".format(RAGAS_ML_APP_PREFIX, ml_app)
+        return TEMP_RAGAS_ML_APP_PREFIX
+    return "{}{}".format(TEMP_RAGAS_ML_APP_PREFIX, ml_app)
 
 
 class BaseRagasEvaluator:

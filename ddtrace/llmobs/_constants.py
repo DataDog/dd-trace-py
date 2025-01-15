@@ -51,8 +51,9 @@ DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exce
 RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
 
 # The ml app of all ragas traces have this prefix that we use to detect
-# whether a span is generated from the ragas evaluation itself.
-RAGAS_ML_APP_PREFIX = "dd-ragas-"
+# whether a span is generated from the ragas evaluation itself. We then
+# remove this prefix from the ml app before we submit the span.
+TEMP_RAGAS_ML_APP_PREFIX = "_dd_ragas_"
 
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"
