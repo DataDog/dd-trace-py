@@ -15,7 +15,10 @@ import uuid
 from ._utils import HTTPResponse
 from ._utils import http_request
 
-from decorators import agent
+from .decorators import agent
+from ._llmobs import LLMObs  
+
+from ddtrace.context import Context
 
 import ddtrace
 
@@ -27,6 +30,14 @@ else:
 
 class FileType(Enum):
     CSV = 'csv'
+
+LLMObs.enable(
+    ml_app="experiment-jonathan",
+    integrations_enabled=True,
+    agentless_enabled=True,
+    site="datadoghq.com",
+    api_key=os.getenv("DD_API_KEY"),
+)
 
 
 class Dataset:
@@ -40,21 +51,29 @@ class Dataset:
         description (str): Optional description of the dataset
     """
 
-    def __init__(self, name: str, data: List[Dict[str, Union[str, Dict[str, Any]]]], description: str = "") -> None:
+    def __init__(self, name: str, data: Optional[List[Dict[str, Union[str, Dict[str, Any]]]]] = None, description: str = "") -> None:
         """
         Args:
             name: Name of the dataset
             data: List of dictionaries where 'input' and 'expected_output' values can be
-                 either strings or dictionaries of strings
+                 either strings or dictionaries of strings. If None, attempts to pull from Datadog.
             description: Optional description of the dataset
         """
         self.name = name
         self.description = description
-        self._validate_data(data)
-        self._data = data
 
-        # Post-push attributes
-        self._datadog_dataset_id = None
+        # If no data provided, attempt to pull from Datadog
+        if data is None:
+            print(
+                f"No data provided, pulling dataset '{name}' from Datadog..."
+            )
+            pulled_dataset = self.pull(name)
+            self._data = pulled_dataset._data
+            self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
+        else:
+            self._validate_data(data)
+            self._data = data
+            self._datadog_dataset_id = None
 
     def __iter__(self) -> Iterator[Dict[str, Union[str, Dict[str, Any]]]]:
         return iter(self._data)
@@ -151,8 +170,11 @@ class Dataset:
         dataset._datadog_dataset_id = dataset_id
         return dataset
 
-    def push(self) -> None:
+    def push(self, chunk_size: int = 300) -> None:
         """Push the dataset to Datadog.
+
+        Args:
+            chunk_size: Number of records to upload in each chunk. Defaults to 300.
 
         Returns:
             Dict[str, Any]: Dictionary containing dataset information including:
@@ -192,14 +214,27 @@ class Dataset:
                 "Please use a different name for your dataset."
             )
 
-        # Add records to the dataset
-        records_payload = {"data": {"type": "datasets", "attributes": {"records": self._data}}}
-        url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-        resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
-        data = resp.json()
+        # Split records into chunks and upload
+        total_records = len(self._data)
+        chunks = [self._data[i:i + chunk_size] for i in range(0, total_records, chunk_size)]
+        total_chunks = len(chunks)
+
+        # Only show progress bar for large datasets
+        show_progress = total_records > chunk_size
+        if show_progress:
+            print(f"\nUploading {total_records} records in {total_chunks} chunks...")
+            _print_progress_bar(0, total_chunks, prefix='Uploading:', suffix='Complete')
+
+        for i, chunk in enumerate(chunks):
+            records_payload = {"data": {"type": "datasets", "attributes": {"records": chunk}}}
+            url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+            resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
+            
+            if show_progress:
+                _print_progress_bar(i + 1, total_chunks, prefix='Uploading:', suffix='Complete')
 
         # Print url to the dataset in Datadog
-        print(f"Dataset '{self.name}' created: {BASE_URL}/llm/experiments/datasets/{dataset_id}\n\n")
+        print(f"\nDataset '{self.name}' created: {BASE_URL}/llm/experiments/datasets/{dataset_id}\n")
 
     @classmethod
     def from_csv(
@@ -485,10 +520,14 @@ class Experiment:
                           errors in the output. Defaults to False.
 
         Raises:
-            ValueError: If _jobs is not between 1 and 20
+            ValueError: If _jobs is not between 1 and 30
         """
-        if not 1 <= _jobs <= 20:
-            raise ValueError("Number of jobs must be between 1 and 20")
+        if not 1 <= _jobs <= 30:
+            raise ValueError("Number of jobs must be between 1 and 30")
+        
+        @agent
+        def instrumented_task(input_data, config=None): # To trace the task
+            return self.task(input_data, config)
         
         self.outputs = []
         total_rows = len(self.dataset)
@@ -498,14 +537,20 @@ class Experiment:
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
+            ddtrace.tracer.context_provider.activate(Context())
+            
             try:
                 input_data = row['input']
                 
                 if getattr(self.task, '_accepts_config', False):
-                    output = self.task(input_data, self.config)
+                    output = instrumented_task(input_data, self.config)
                 else:
-                    output = self.task(input_data)
-
+                    output = instrumented_task(input_data)
+                
+                # Periodic flush every 10 rows (approximate because it's concurrent)
+                if idx % 10 == 0:
+                    LLMObs.flush()
+                
                 output_data = {
                     "idx": idx,
                     "output": output,
@@ -560,6 +605,7 @@ class Experiment:
                         if raise_errors and output_data['error']['message']:
                             error_message = output_data['error']['message']
                             raise ExperimentTaskError(error_message, idx, output_data['error']['type'])
+                            
                         elif output_data['error']['message']:
                             error_count += 1
 
@@ -597,6 +643,9 @@ class Experiment:
 
         self.outputs = outputs_buffer
         self.has_run = True
+        
+        # Final flush at the end
+        LLMObs.flush()
 
         error_rate = (error_count / total_rows) * 100
         print(f"Task completed with {error_count} errors ({error_rate:.2f}% error rate)")
@@ -832,8 +881,11 @@ class ExperimentResults:
         
         return final_df
 
-    def push(self, overwrite: bool = False) -> None: # TODO: Implement overwrite
+    def push(self, chunk_size: int = 300) -> None:
         """Push the experiment results to Datadog.
+
+        Args:
+            chunk_size: Number of records to upload in each chunk. Defaults to 300.
 
         Raises:
             ValueError: If the dataset hasn't been pushed to Datadog first
@@ -896,93 +948,107 @@ class ExperimentResults:
         experiment_id = response_data["data"]["id"]
         self.experiment.name = response_data["data"]["attributes"]["name"]
 
-        spans = []
-        metrics = []
-        for result in self.merged_results:
-            idx = result['idx']
-            merged_result = result
-            output = merged_result.get('output')
-            input = merged_result.get('input', {})
-            evaluations = merged_result.get('evaluations', {})
-            expected_output = merged_result.get('expected_output', {})
-            metadata = merged_result.get('metadata', {})
-            error = merged_result.get('error', {})
+        # Process results in chunks
+        total_results = len(self.merged_results)
+        chunks = [self.merged_results[i:i + chunk_size] for i in range(0, total_results, chunk_size)]
+        total_chunks = len(chunks)
 
-            # When the dataset is not hosted, we use the hash of the input and expected output as the dataset record id
-            dataset_record_id = hashlib.md5((str(input) + str(expected_output)).encode('utf-8')).hexdigest()
+        # Only show progress bar for large result sets
+        show_progress = total_results > chunk_size
+        if show_progress:
+            print(f"\nUploading {total_results} results in {total_chunks} chunks...")
+            _print_progress_bar(0, total_chunks, prefix='Uploading:', suffix='Complete')
 
-            span = {
-                "span_id": _make_id(),
-                "project_id": project_id,
-                "experiment_id": experiment_id,
-                "dataset_id": self.experiment.dataset._datadog_dataset_id,
-                #TODO: Extract the record id from the dataset for hosted datasets
-                "dataset_record_id": dataset_record_id,
-                "start_ns": int(metadata.get("timestamp", time.time()) * 1e9),
-                "duration": float(metadata.get("duration", 0) * 1e9),
-                "status": "ok" if not error else "error",
-                "metrics": {},  # TODO: Fill in with actual metrics once we have tracing and llm spans
-                "meta": {
-                    "span": {"kind": "experiment"},
-                    "input": merged_result.get('input', {}),
-                    "output": output,
-                    "expected_output": merged_result.get('expected_output', {}),
-                    "error": {
-                        "message": error.get("message"),
-                        "type": error.get("type"),
-                        "stack": error.get("stack"),
-                    }
-                },
-            }
-            spans.append(span)
+        for chunk_idx, chunk in enumerate(chunks):
+            spans = []
+            metrics = []
+            
+            # Process each result in the chunk
+            for result in chunk:
+                idx = result['idx']
+                merged_result = result
+                output = merged_result.get('output')
+                input = merged_result.get('input', {})
+                evaluations = merged_result.get('evaluations', {})
+                expected_output = merged_result.get('expected_output', {})
+                metadata = merged_result.get('metadata', {})
+                error = merged_result.get('error', {})
 
-            # Add evaluation metrics
-            for metric_payload_name, metric_payload_value in evaluations.items():
-                # Skip None values
-                if metric_payload_value is None:
-                    print(f"Skipping None value for metric: {metric_payload_name}")
-                    continue
-                    
-                timestamp_ms = int(metadata.get("timestamp", time.time()) * 1000)
+                # When the dataset is not hosted, we use the hash of the input and expected output as the dataset record id
+                dataset_record_id = hashlib.md5((str(input) + str(expected_output)).encode('utf-8')).hexdigest()
 
-                # Check for bool first, since bool is a subclass of int
-                if isinstance(metric_payload_value["value"], (bool, str)):
-                    metric_type = "categorical"
-                    metric_value = str(metric_payload_value["value"]).lower()
-                elif isinstance(metric_payload_value["value"], (int, float)):
-                    metric_type = "score"
-                else:
-                    metric_type = "categorical"
-                    metric_value = str(metric_payload_value["value"])
-
-                metric = {
-                    "span_id": span["span_id"],
-                    "metric_type": metric_type,
-                    "timestamp_ms": timestamp_ms,
-                    "label": metric_payload_name,
-                    "score_value" if metric_type == "score" else "categorical_value": metric_value,
-                    "error": metric_payload_value["error"],
+                span = {
+                    "span_id": _make_id(),
+                    "project_id": project_id,
+                    "experiment_id": experiment_id,
+                    "dataset_id": self.experiment.dataset._datadog_dataset_id,
+                    #TODO: Extract the record id from the dataset for hosted datasets
+                    "dataset_record_id": dataset_record_id,
+                    "start_ns": int(metadata.get("timestamp", time.time()) * 1e9),
+                    "duration": float(metadata.get("duration", 0) * 1e9),
+                    "status": "ok" if not error else "error",
+                    "metrics": {},  # TODO: Fill in with actual metrics once we have tracing and llm spans
+                    "meta": {
+                        "span": {"kind": "experiment"},
+                        "input": merged_result.get('input', {}),
+                        "output": output,
+                        "expected_output": merged_result.get('expected_output', {}),
+                        "error": {
+                            "message": error.get("message"),
+                            "type": error.get("type"),
+                            "stack": error.get("stack"),
+                        }
+                    },
                 }
+                spans.append(span)
 
-                metrics.append(metric)
+                # Add evaluation metrics
+                for metric_payload_name, metric_payload_value in evaluations.items():
+                    # Skip None values
+                    if metric_payload_value is None:
+                        print(f"Skipping None value for metric: {metric_payload_name}")
+                        continue
+                        
+                    timestamp_ms = int(metadata.get("timestamp", time.time()) * 1000)
 
+                    # Check for bool first, since bool is a subclass of int
+                    if isinstance(metric_payload_value["value"], (bool, str)):
+                        metric_type = "categorical"
+                        metric_value = str(metric_payload_value["value"]).lower()
+                    elif isinstance(metric_payload_value["value"], (int, float)):
+                        metric_type = "score"
+                    else:
+                        metric_type = "categorical"
+                        metric_value = str(metric_payload_value["value"])
 
+                    metric = {
+                        "span_id": span["span_id"],
+                        "metric_type": metric_type,
+                        "timestamp_ms": timestamp_ms,
+                        "label": metric_payload_name,
+                        "score_value" if metric_type == "score" else "categorical_value": metric_value,
+                        "error": metric_payload_value["error"],
+                    }
 
-        # Prepare payload and send to Datadog
-        results_payload = {
-            "data": {
-                "type": "experiments",
-                "tags": self.experiment.tags + ["ddtrace.version:" + ddtrace.__version__],
-                "attributes": {"spans": spans, "metrics": metrics},
+                    metrics.append(metric)
+
+            # Prepare and send chunk payload
+            chunk_payload = {
+                "data": {
+                    "type": "experiments",
+                    "tags": self.experiment.tags + ["ddtrace.version:" + ddtrace.__version__],
+                    "attributes": {"spans": spans, "metrics": metrics},
+                }
             }
-        }
 
+            url = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+            exp_http_request("POST", url, body=json.dumps(chunk_payload).encode("utf-8"))
 
-        url = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
-        exp_http_request("POST", url, body=json.dumps(results_payload).encode("utf-8"))
+            if show_progress:
+                _print_progress_bar(chunk_idx + 1, total_chunks, prefix='Uploading:', suffix='Complete')
 
         # Print URL to the experiment in Datadog
-        print(f"Experiment '{self.experiment.name}' created: {BASE_URL}/llm/experiments/experiment-list/{experiment_id} \n\n")
+        print(f"\nExperiment '{self.experiment.name}' created: {BASE_URL}/llm/experiments/experiment-list/{experiment_id}\n")
 
     def export_to_jsonl(self, file_path):
         """
