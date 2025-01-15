@@ -112,7 +112,7 @@ def sqli_http_request_parameter_name(request):
     obj = " 1"
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_request_parameter_name
-        cursor.execute(add_aspect(add_aspect(list(request.GET.keys())[0], obj), "'"))
+        cursor.execute(add_aspect(list(request.GET.keys())[0], obj))
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
