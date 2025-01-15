@@ -114,7 +114,7 @@ def ddtrace_global_config():
 
 
 def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app"}
+    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app", "service": "tests.llmobs"}
 
 
 @pytest.fixture
@@ -151,11 +151,31 @@ def reset_ragas_faithfulness_llm():
 
 
 @pytest.fixture
+def reset_ragas_answer_relevancy_llm():
+    import ragas
+
+    previous_llm = ragas.metrics.answer_relevancy.llm
+    yield
+    ragas.metrics.answer_relevancy.llm = previous_llm
+
+
+@pytest.fixture
 def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
     patcher = mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate")
     LLMObsMockRagas = patcher.start()
     LLMObsMockRagas.return_value = 1.0
     yield RagasFaithfulnessEvaluator
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_ragas_answer_relevancy_calculate_similarity():
+    import numpy
+
+    patcher = mock.patch("ragas.metrics.answer_relevancy.calculate_similarity")
+    MockRagasCalcSim = patcher.start()
+    MockRagasCalcSim.return_value = numpy.array([1.0, 1.0, 1.0])
+    yield MockRagasCalcSim
     patcher.stop()
 
 

@@ -16,7 +16,7 @@ import falcon
 import sys
 
 from falcon import testing
-from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from tests.contrib.falcon.test_suite import FalconTestMixin
 from tests.utils import TracerTestCase
 
@@ -64,7 +64,7 @@ import falcon
 import sys
 
 from falcon import testing
-from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from tests.contrib.falcon.test_suite import FalconTestMixin
 from tests.utils import TracerTestCase
 

@@ -1,8 +1,8 @@
 import graphene
 import pytest
 
-from ddtrace.contrib.graphql import patch
-from ddtrace.contrib.graphql import unpatch
+from ddtrace.contrib.internal.graphql.patch import patch
+from ddtrace.contrib.internal.graphql.patch import unpatch
 from tests.utils import override_config
 
 

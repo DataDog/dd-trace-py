@@ -13,7 +13,6 @@ from hypothesis.strategies import tuples
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace._trace.context import Context
@@ -29,6 +28,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from ddtrace.trace import Pin
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
