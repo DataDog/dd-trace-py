@@ -1,8 +1,9 @@
-import dis
 import sys
+
 import pytest
 
 from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
+
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
     sys.version_info[:2] < (3, 10),
@@ -20,7 +21,7 @@ EXCEPT_VALUEERROR_1 = 64
 
 @skipif_bytecode_injection_not_supported
 def test_generic_except():
-    value = ''
+    value = ""
 
     def callback(*args):
         nonlocal value
@@ -30,20 +31,19 @@ def test_generic_except():
     def func():
         nonlocal value
         try:
-            value += '<try>'
-            raise ValueError('<error>')
-        except:
-            value += '<except>'
+            value += "<try>"
+            raise ValueError("<error>")
+        except:  # noqa: E722
+            value += "<except>"
 
     _inject_handled_exception_reporting(func, callback)
     func()
-
-    assert value == '<try><error><except>'
+    assert value == "<try><error><except>"
 
 
 @skipif_bytecode_injection_not_supported
 def test_generic_finally():
-    value = ''
+    value = ""
 
     def callback(*args):
         nonlocal value
@@ -53,22 +53,45 @@ def test_generic_finally():
     def func():
         nonlocal value
         try:
-            value += '<try>'
-            raise ValueError('<error>')
-        except:
-            value += '<except>'
+            value += "<try>"
+            raise ValueError("<error>")
+        except:  # noqa: E722
+            value += "<except>"
         finally:
-            value += '<finally>'
+            value += "<finally>"
 
     _inject_handled_exception_reporting(func, callback)
     func()
 
-    assert value == '<try><error><except><finally>'
+    assert value == "<try><error><except><finally>"
+
+
+@skipif_bytecode_injection_not_supported
+def test_matched_except_without_var_names():
+    value = ""
+
+    def callback(*args):
+        nonlocal value
+        _, e, _ = sys.exc_info()
+        value += str(e)
+
+    def func():
+        nonlocal value
+        try:
+            value += "<try>"
+            raise ValueError("<error>")
+        except ValueError:
+            value += "<except>"
+
+    _inject_handled_exception_reporting(func, callback)
+    func()
+
+    assert value == "<try><error><except>"
 
 
 @skipif_bytecode_injection_not_supported
 def test_matched_except():
-    value = ''
+    value = ""
 
     def callback(*args):
         nonlocal value
@@ -78,20 +101,20 @@ def test_matched_except():
     def func():
         nonlocal value
         try:
-            value += '<try>'
-            raise ValueError('<error>')
+            value += "<try>"
+            raise ValueError("<error>")
         except ValueError as _:
-            value += '<except>'
+            value += "<except>"
 
     _inject_handled_exception_reporting(func, callback)
     func()
 
-    assert value == '<try><error><except>'
+    assert value == "<try><error><except>"
 
 
 @skipif_bytecode_injection_not_supported
 def test_multiple_try_except_blocks():
-    value = ''
+    value = ""
 
     def callback(*args):
         nonlocal value
@@ -102,27 +125,27 @@ def test_multiple_try_except_blocks():
         nonlocal value
         a = 1
         try:
-            value += '<try1>'
-            raise ValueError('<error1>')
-        except ValueError as _:
-            value += '<except1>'
+            value += "<try1>"
+            raise ValueError("<error1>")
+        except ValueError:
+            value += "<except1>"
         b = a + 1
         try:
-            value += '<try2>'
-            raise ValueError('<error2>')
+            value += "<try2>"
+            raise ValueError("<error2>")
         except ValueError as _:
-            value += '<except2>'
+            value += "<except2>"
         _c = a + b
 
     _inject_handled_exception_reporting(func, callback)
     func()
 
-    assert value == '<try1><error1><except1><try2><error2><except2>'
+    assert value == "<try1><error1><except1><try2><error2><except2>"
 
 
 @skipif_bytecode_injection_not_supported
 def test_matched_multiple_except():
-    value = ''
+    value = ""
 
     def callback(*args):
         nonlocal value
@@ -132,17 +155,17 @@ def test_matched_multiple_except():
     def func():
         nonlocal value
         try:
-            value += '<try>'
-            raise ValueError('<error1>')
+            value += "<try>"
+            raise ValueError("<error1>")
         except NotImplementedError as _:
-            value += '<not implemented>'
-        except:
-            value += '<except>'
+            value += "<not implemented>"
+        except Exception:
+            value += "<except>"
 
     _inject_handled_exception_reporting(func, callback)
     func()
 
-    assert value == '<try><error1><except>'
+    assert value == "<try><error1><except>"
 
 
 @skipif_bytecode_injection_not_supported
@@ -157,7 +180,7 @@ def test_matched_finally():
         nonlocal value
         try:
             value |= TRY
-            raise ValueError('value error')
+            raise ValueError("value error")
         except ValueError as _:
             value |= EXCEPT_VALUEERROR
         finally:
@@ -171,7 +194,7 @@ def test_matched_finally():
 
 @skipif_bytecode_injection_not_supported
 def test_matched_nested():
-    value = ''
+    value = ""
 
     def callback(*args):
         nonlocal value
@@ -181,25 +204,25 @@ def test_matched_nested():
     def func():
         nonlocal value
         try:
-            value += '<try1>'
-            raise ValueError('<error1>')
+            value += "<try1>"
+            raise ValueError("<error1>")
         except ValueError as _1:
             try:
-                value += '<try2>'
-                raise ValueError('<error2>')
+                value += "<try2>"
+                raise ValueError("<error2>")
             except ValueError as _2:
-                value += '<except2>'
-            value += '<except1>'
+                value += "<except2>"
+            value += "<except1>"
 
     _inject_handled_exception_reporting(func, callback)
     func()
 
-    assert value == '<try1><error1><try2><error2><except2><except1>'
+    assert value == "<try1><error1><try2><error2><except2><except1>"
 
 
 @skipif_bytecode_injection_not_supported
 def test_matched_external_function():
-    value = ''
+    value = ""
 
     def callback(*args):
         nonlocal value
@@ -209,20 +232,20 @@ def test_matched_external_function():
     def func():
         nonlocal value
         try:
-            value += '<try1>'
+            value += "<try1>"
             a_function_throwing_a_value_error()
         except ValueError as _1:
-            value += '<except1>'
+            value += "<except1>"
 
     _inject_handled_exception_reporting(func, callback)
     func()
 
-    assert value == '<try1><external><except1>'
+    assert value == "<try1><external><except1>"
 
 
 @skipif_bytecode_injection_not_supported
 def test_matched_finally_multiple_except():
-    value = ''
+    value = ""
 
     def callback(*args):
         nonlocal value
@@ -232,36 +255,36 @@ def test_matched_finally_multiple_except():
     def func(which: int):
         nonlocal value
         try:
-            value += '<try>'
+            value += "<try>"
             if which == 1:
-                raise NotImplementedError('<not implemented>')
+                raise NotImplementedError("<not implemented>")
             elif which == 2:
-                raise ValueError('<value error>')
+                raise ValueError("<value error>")
             elif which == 3:
-                raise Exception('<exception>')
+                raise Exception("<exception>")
         except NotImplementedError as _:
-            value += '<except not implemented>'
+            value += "<except not implemented>"
         except ValueError as _:
-            value += '<except value error>'
-        except:
-            value += '<except *>'
+            value += "<except value error>"
+        except Exception:
+            value += "<except *>"
         finally:
-            value += '<finally>'
+            value += "<finally>"
 
     _inject_handled_exception_reporting(func, callback)
 
-    value = ''
+    value = ""
     func(1)
-    assert value == '<try><not implemented><except not implemented><finally>'
+    assert value == "<try><not implemented><except not implemented><finally>"
 
-    value = ''
+    value = ""
     func(2)
-    assert value == '<try><value error><except value error><finally>'
+    assert value == "<try><value error><except value error><finally>"
 
-    value = ''
+    value = ""
     func(3)
-    assert value == '<try><exception><except *><finally>'
+    assert value == "<try><exception><except *><finally>"
 
 
 def a_function_throwing_a_value_error():
-    raise ValueError('<external>')
+    raise ValueError("<external>")

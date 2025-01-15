@@ -414,7 +414,8 @@ class BaseModuleWatchdog(abc.ABC):
 
     def after_install(self) -> None:
         """
-        Called after the module watchdog is installed. Can be overridden by subclasses to so specific work after installation.
+        Called after the module watchdog is installed. Can be overridden by subclasses to so
+        specific work after installation.
         """
         pass
 

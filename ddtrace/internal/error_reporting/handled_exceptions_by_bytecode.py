@@ -11,7 +11,7 @@ from .hook import _default_datadog_exc_callback
 
 def _inject_handled_exception_reporting(func, callback: CallbackType | None = None):
     func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
-    if not '__code__' in dir(func):
+    if "__code__" not in dir(func):
         return
 
     original_code = func.__code__  # type: CodeType
@@ -33,7 +33,7 @@ def _inject_handled_exception_reporting(func, callback: CallbackType | None = No
 
     injection_context = InjectionContext(original_code, callback, injection_lines_cb)
 
-    code, _ = inject_invocation(injection_context, "path/to/file.py", "my.package")
+    code, _ = inject_invocation(injection_context, original_code.co_filename, "my.package")
     func.__code__ = code
 
 
@@ -41,6 +41,7 @@ def _find_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
     DUP_TOP = dis.opmap["DUP_TOP"]
     JUMP_IF_NOT_EXC_MATCH = dis.opmap["JUMP_IF_NOT_EXC_MATCH"]
     POP_TOP = dis.opmap["POP_TOP"]
+    LOAD_GLOBAL = dis.opmap["LOAD_GLOBAL"]
     SETUP_FINALLY = dis.opmap["SETUP_FINALLY"]
 
     injection_indexes = set()
@@ -51,6 +52,11 @@ def _find_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
         if offset in lines_offsets:
             injection_indexes.add(offset)
 
+    def inject_next_offset(offset: int):
+        while offset not in lines_offsets:
+            offset += 2
+        injection_indexes.add(offset)
+
     def first_offset_not_matching(start: int, *opcodes: int):
         while code.co_code[start] in opcodes:
             start += 2
@@ -59,30 +65,26 @@ def _find_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
     potential_marks = set()
 
     co_code = code.co_code
-    waiting_for_except = False
     for idx in range(0, len(code.co_code), 2):
         current_opcode = co_code[idx]
         current_arg = co_code[idx + 1]
         if current_opcode == JUMP_IF_NOT_EXC_MATCH:
-            target = current_arg << 1
-            potential_marks.add(target)
+            potential_marks.add((current_arg << 1))
             continue
 
         if idx in potential_marks:
             if current_opcode == DUP_TOP:
-                waiting_for_except = True
+                if co_code[idx + 2] == LOAD_GLOBAL and co_code[idx + 4] == JUMP_IF_NOT_EXC_MATCH:
+                    inject_next_offset(idx + 6)
+
             elif current_opcode == POP_TOP:
-                inject_conditionally(first_offset_not_matching(idx, POP_TOP))
+                inject_next_offset(first_offset_not_matching(idx, POP_TOP))
             continue
 
         if current_opcode == SETUP_FINALLY:
-            if waiting_for_except:
-                waiting_for_except = False
-                inject_conditionally(idx + 2)
-            else:
-                target = idx + (current_arg << 1) + 2
-                potential_marks.add(target)
-                continue
+            target = idx + (current_arg << 1) + 2
+            potential_marks.add(target)
+            continue
 
     return sorted(list(injection_indexes))
 
@@ -93,7 +95,6 @@ def _find_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
     POP_JUMP_FORWARD_IF_FALSE = dis.opmap["POP_JUMP_FORWARD_IF_FALSE"]
     POP_TOP = dis.opmap["POP_TOP"]
     PUSH_EXC_INFO = dis.opmap["PUSH_EXC_INFO"]
-    STORE_FAST = dis.opmap["STORE_FAST"]
 
     def mark_for_injection(index: int):
         if code.co_code[index] != POP_TOP:
@@ -120,19 +121,13 @@ def _find_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
 
     injection_indexes = set()
     co_code = code.co_code
-    for idx in range(len(code.co_code)):
+    for idx in range(0, len(code.co_code), 2):
         # Typed exception handlers
         if co_code[idx] == CHECK_EXC_MATCH and co_code[idx + 2] == POP_JUMP_FORWARD_IF_FALSE:
-            if co_code[idx + 2 + 2] == STORE_FAST:
-                injection_indexes.add(idx + 2 + 2 + 2)
-            # if the code unit AFTER the value pointed by POP_JUMP_FORWARD_IF_FALSE is not a CHECK_EXC_MATCH, then
-            # we should inject, as it could be an generic except
-            jump_pointed_offset = idx + 2 + (co_code[idx + 2 + 1] << 1) + 2
-            if first_opcode_not_matching(jump_pointed_offset + 2, CACHE) != CHECK_EXC_MATCH:
-                mark_for_injection(jump_pointed_offset)
+            injection_indexes.add(idx + 2 + 2 + 2)
 
         # Generic exception handlers
-        if co_code[idx] == PUSH_EXC_INFO and CHECK_EXC_MATCH != nth_non_cache_opcode(idx, 3):
+        elif co_code[idx] == PUSH_EXC_INFO and CHECK_EXC_MATCH != nth_non_cache_opcode(idx, 3):
             injection_indexes.add(first_offset_not_matching(idx + 2, POP_TOP, CACHE))
 
     return sorted(list(injection_indexes))
