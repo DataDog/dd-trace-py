@@ -27,57 +27,29 @@ _VISITOR = AstVisitor()
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 
 # Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast.",)
+# Only packages that have the test_propagation=True in test_packages and are not in the denylist must be here
+IAST_ALLOWLIST: Tuple[Text, ...] = (
+    "attrs",
+    "beautifulsoup4",
+    "charset-normalizer",
+
+)
+
+# NOTE: For testing reasons, don't add astunparse here, see test_ast_patching.py
 IAST_DENYLIST: Tuple[Text, ...] = (
-    "altgraph.",
-    "dipy.",
-    "black.",
-    "mypy.",
-    "mypy_extensions.",
-    "autopep8.",
-    "pycodestyle.",
-    "pydicom.",
-    "pyinstaller.",
-    "pystray.",
-    "contourpy.",
-    "cx_logging.",
-    "dateutil.",
-    "pytz.",
-    "wcwidth.",
-    "win32ctypes.",
-    "xlib.",
-    "cycler.",
-    "cython.",
-    "dnspython.",
-    "elasticdeform.",
-    "numpy.",
-    "matplotlib.",
-    "skbase.",
-    "scipy.",
-    "networkx.",
-    "imageio.",
-    "fonttools.",
-    "nibabel.",
-    "nilearn.",
-    "gprof2dot.",
-    "h5py.",
-    "kiwisolver.",
-    "pandas.",
-    "pdf2image.",
-    "pefile.",
-    "pil.",
-    "threadpoolctl.",
-    "tifffile.",
-    "tqdm.",
-    "trx.",
-    "flask.",
-    "werkzeug.",
+    "_psycopg.",  # PostgreSQL adapter for Python (v3)
+    "_pytest.",
     "aiohttp._helpers.",
     "aiohttp._http_parser.",
     "aiohttp._http_writer.",
     "aiohttp._websocket.",
     "aiohttp.log.",
     "aiohttp.tcp_helpers.",
+    "aioquic.",
+    "altgraph.",
+    "anyio.",
+    "api_pb2.",  # Patching crashes with these auto-generated modules, propagation is not needed
+    "api_pb2_grpc.",  # Patching crashes with these auto-generated modules, propagation is not needed
     "asyncio.base_events.",
     "asyncio.base_futures.",
     "asyncio.base_subprocess.",
@@ -100,11 +72,15 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "asyncio.transports.",
     "asyncio.trsock.",
     "asyncio.unix_events.",
+    "asyncpg.pgproto.",
     "attr._config.",
     "attr._next_gen.",
     "attr.filters.",
     "attr.setters.",
+    "autopep8.",
     "backports.",
+    "black.",
+    "blinker.",
     "boto3.docs.docstring.",
     "boto3.s3.",
     "botocore.docs.bcdoc.",
@@ -112,6 +88,8 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "botocore.vendored.requests.",
     "brotli.",
     "brotlicffi.",
+    "bytecode.",
+    "cattrs.",
     "cchardet.",
     "certifi.",
     "cffi.",
@@ -146,14 +124,23 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "colorama.",
     "concurrent.futures.",
     "configparser.",
+    "contourpy.",
     "coreschema.",
     "crispy_forms.",
+    "crypto.",  # This module is patched by the IAST patch methods, propagation is not needed
+    "cx_logging.",
+    "cycler.",
+    "cython.",
     "dateutil.",
+    "dateutil.",
+    "ddsketch.",
+    "ddtrace.",
     "defusedxml.",
+    "deprecated.",
     "difflib.",
     "dill.info.",
     "dill.settings.",
-    "silk.",  # django-silk package
+    "dipy.",
     "django.apps.config.",
     "django.apps.registry.",
     "django.conf.",
@@ -299,63 +286,84 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "django_filters.rest_framework.filterset.",
     "django_filters.utils.",
     "django_filters.widgets.",
-    "crypto.",  # This module is patched by the IAST patch methods, propagation is not needed
-    "deprecated.",
-    "api_pb2.",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "api_pb2_grpc.",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "asyncpg.pgproto.",
-    "blinker.",
-    "bytecode.",
-    "cattrs.",
-    "ddsketch.",
-    "ddtrace.",
+    "dnspython.",
+    "elasticdeform.",
     "envier.",
     "exceptiongroup.",
+    "flask.",
+    "fonttools.",
     "freezegun.",  # Testing utilities for time manipulation
+    "google.auth.",
+    "googlecloudsdk.",
+    "gprof2dot.",
+    "h11.",
+    "h5py.",
+    "httpcore.",
+    "httptools.",
+    "httpx.",
     "hypothesis.",  # Testing utilities
+    "imageio.",
     "importlib_metadata.",
     "inspect.",  # this package is used to get the stack frames, propagation is not needed
     "itsdangerous.",
+    "kiwisolver.",
+    "matplotlib.",
     "moto.",  # used for mocking AWS, propagation is not needed
+    "mypy.",
+    "mypy_extensions.",
+    "networkx.",
+    "nibabel.",
+    "nilearn.",
+    "numba.",
+    "numpy.",
     "opentelemetry-api.",
     "packaging.",
+    "pandas.",
+    "pdf2image.",
+    "pefile.",
+    "pil.",
     "pip.",
     "pkg_resources.",
     "pluggy.",
     "protobuf.",
     "psycopg.",  # PostgreSQL adapter for Python (v3)
-    "_psycopg.",  # PostgreSQL adapter for Python (v3)
     "psycopg2.",  # PostgreSQL adapter for Python (v2)
+    "pycodestyle.",
     "pycparser.",  # this package is called when a module is imported, propagation is not needed
+    "pydicom.",
+    "pyinstaller.",
+    "pynndescent.",
+    "pystray.",
     "pytest.",  # Testing framework
-    "_pytest.",
+    "pytz.",
+    "rich.",
+    "sanic.",
+    "scipy.",
     "setuptools.",
+    "silk.",  # django-silk package
+    "skbase.",
     "sklearn.",  # Machine learning library
+    "sniffio.",
     "sqlalchemy.orm.interfaces.",  # Performance optimization
+    "threadpoolctl.",
+    "tifffile.",
+    "tqdm.",
+    "trx.",
     "typing_extensions.",
+    "umap.",
     "unittest.mock.",
-    "uvloop.",
     "urlpatterns_reverse.tests.",  # assertRaises eat exceptions in native code, so we don't call the original function
+    "uvicorn.",
+    "uvloop.",
+    "wcwidth.",
+    "websocket.",
+    "websockets.",
+    "werkzeug.",
+    "win32ctypes.",
     "wrapt.",
+    "xlib.",
     "zipp.",
     # This is a workaround for Sanic failures:
-    "websocket.",
-    "h11.",
-    "aioquic.",
-    "httptools.",
-    "sniffio.",
-    "sanic.",
-    "rich.",
-    "httpx.",
-    "websockets.",
-    "uvicorn.",
-    "anyio.",
-    "httpcore.",
-    "google.auth.",
-    "googlecloudsdk.",
-    "umap.",
-    "pynndescent.",
-    "numba.",
 )
 
 
@@ -437,11 +445,15 @@ def _in_python_stdlib(module_name: str) -> bool:
 
 
 def _is_first_party(module_name: str):
-    if "vendor." or "vendored." in module_name:
+    global _IMPORTLIB_PACKAGES
+    if "vendor." in module_name or "vendored." in module_name:
         return False
 
     if not _IMPORTLIB_PACKAGES:
-        _IMPORTLIB_PACKAGES = set()
+        _IMPORTLIB_PACKAGES = set(get_package_distributions())
+    from pprint import pprint; pprint(_IMPORTLIB_PACKAGES)
+
+    return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
 
 
 def _should_iast_patch(module_name: Text) -> bool:
@@ -454,6 +466,14 @@ def _should_iast_patch(module_name: Text) -> bool:
     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
+    if _in_python_stdlib(module_name):
+        log.debug("IAST: denying %s. it's in the _in_python_stdlib", module_name)
+        return False
+
+    if _is_first_party(module_name):
+        return True
+
+    # else: third party. Check that is in the allow list and not in the deny list
     dotted_module_name = module_name.lower() + "."
     if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
@@ -461,10 +481,7 @@ def _should_iast_patch(module_name: Text) -> bool:
     if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
         log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
         return False
-    if _in_python_stdlib(module_name):
-        log.debug("IAST: denying %s. it's in the _in_python_stdlib", module_name)
-        return False
-    return True
+    return False
 
 
 def visit_ast(
