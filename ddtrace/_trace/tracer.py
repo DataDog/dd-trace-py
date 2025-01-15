@@ -551,7 +551,6 @@ class Tracer(object):
                     version="3.0.0",
                     category=DDTraceDeprecationWarning,
                 )
-            
 
         if partial_flush_min_spans is not None:
             self._partial_flush_min_spans = partial_flush_min_spans
@@ -610,7 +609,7 @@ class Tracer(object):
                     category=DDTraceDeprecationWarning,
                 )
             self._dogstatsd_url = dogstatsd_url
-        
+
         if any(x is not None for x in [hostname, port, uds_path, https]):
             if log_deprecations:
                 deprecate(

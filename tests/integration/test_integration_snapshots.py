@@ -79,12 +79,7 @@ def test_filters(writer, tracer):
                 s.set_tag(self.key, self.value)
             return trace
 
-    tracer.configure(
-        settings={
-            "FILTERS": [FilterMutate("boop", "beep")],
-        },
-        writer=writer,
-    )
+    tracer._configure(trace_processors=[FilterMutate("boop", "beep")], writer=writer)
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -99,7 +94,7 @@ def test_filters(writer, tracer):
 def test_synchronous_writer():
     tracer = Tracer()
     writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
-    tracer.configure(writer=writer)
+    tracer._configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
             pass

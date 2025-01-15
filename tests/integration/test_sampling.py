@@ -29,7 +29,7 @@ def snapshot_parametrized_with_writers(f):
             writer._headers = tracer._writer._headers
         else:
             writer = tracer._writer
-        tracer.configure(writer=writer)
+        tracer._configure(writer=writer)
         try:
             return f(writer, tracer)
         finally:
@@ -51,7 +51,7 @@ def test_sampling_with_defaults(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_sampling_with_default_sample_rate_1(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=1.0)
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace2"):
         tracer.trace("child").finish()
 
@@ -59,7 +59,7 @@ def test_sampling_with_default_sample_rate_1(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_sampling_with_default_sample_rate_tiny(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=0.000001)
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace3"):
         tracer.trace("child").finish()
 
@@ -67,7 +67,7 @@ def test_sampling_with_default_sample_rate_tiny(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_sampling_with_default_sample_rate_1_and_rule_1(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1.0)])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace4"):
         tracer.trace("child").finish()
 
@@ -75,7 +75,7 @@ def test_sampling_with_default_sample_rate_1_and_rule_1(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_sampling_with_default_sample_rate_1_and_rule_0(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace5"):
         tracer.trace("child").finish()
 
@@ -83,7 +83,7 @@ def test_sampling_with_default_sample_rate_1_and_rule_0(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_sampling_with_default_sample_rate_1_and_manual_drop(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=1)
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace6"):
         with tracer.trace("child") as span:
             span.set_tag(MANUAL_DROP_KEY)
@@ -92,7 +92,7 @@ def test_sampling_with_default_sample_rate_1_and_manual_drop(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_sampling_with_default_sample_rate_1_and_manual_keep(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=1)
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace7"):
         with tracer.trace("child") as span:
             span.set_tag(MANUAL_KEEP_KEY)
@@ -101,7 +101,7 @@ def test_sampling_with_default_sample_rate_1_and_manual_keep(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_sampling_with_rate_sampler_with_tiny_rate(writer, tracer):
     sampler = RateSampler(0.0000000001)
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace8"):
         tracer.trace("child").finish()
 
@@ -109,7 +109,7 @@ def test_sampling_with_rate_sampler_with_tiny_rate(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_sampling_with_sample_rate_1_and_rate_limit_0(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=1, rate_limit=0)
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace5"):
         tracer.trace("child").finish()
 
@@ -117,7 +117,7 @@ def test_sampling_with_sample_rate_1_and_rate_limit_0(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_sampling_with_sample_rate_1_and_rate_limit_3_and_rule_0(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)], rate_limit=3)
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace5"):
         tracer.trace("child").finish()
 
@@ -125,7 +125,7 @@ def test_sampling_with_sample_rate_1_and_rate_limit_3_and_rule_0(writer, tracer)
 @snapshot_parametrized_with_writers
 def test_sampling_with_rate_limit_3(writer, tracer):
     sampler = DatadogSampler(rate_limit=3)
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace("trace5"):
         tracer.trace("child").finish()
 
@@ -133,7 +133,7 @@ def test_sampling_with_rate_limit_3(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_extended_sampling_resource(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, resource=RESOURCE)])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     tracer.trace("should_not_send", resource=RESOURCE).finish()
     tracer.trace("should_send", resource="something else").finish()
 
@@ -141,7 +141,7 @@ def test_extended_sampling_resource(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_extended_sampling_tags(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS)])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     tracer._tags = TAGS
     tracer.trace("should_not_send").finish()
     tracer._tags = {"banana": "True"}
@@ -157,7 +157,7 @@ def test_extended_sampling_tags_glob(writer, tracer):
 
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=rule_tags)])
     assert sampler.rules[0].tags == {tag_key: "my*"}
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
 
     tracer._tags = TAGS
     tracer.trace("should_not_send").finish()
@@ -168,7 +168,7 @@ def test_extended_sampling_tags_glob(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_extended_sampling_tags_glob_insensitive_case_match(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, resource="BANANA")])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
 
     tracer._tags = TAGS
     tracer.trace("should_not_send", resource="bananA").finish()
@@ -178,7 +178,7 @@ def test_extended_sampling_tags_glob_insensitive_case_match(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_extended_sampling_tags_and_resource(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource=RESOURCE)])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
 
     tracer._tags = TAGS
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -192,7 +192,7 @@ def test_extended_sampling_tags_and_resource(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_extended_sampling_w_None_meta(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": None}, resource=RESOURCE)])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
 
     tracer._tags = {"test": None}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -206,7 +206,7 @@ def test_extended_sampling_w_None_meta(writer, tracer):
 @snapshot()
 def test_extended_sampling_w_metrics(tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": 123}, resource=RESOURCE)])
-    tracer.configure(sampler=sampler)
+    tracer._configure(sampler=sampler)
 
     tracer._tags = {"test": 123}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -228,7 +228,7 @@ def test_extended_sampling_glob_multi_rule(writer, tracer):
             SamplingRule(1, service="webserv?r", name="web.req*"),
         ]
     )
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
 
     tracer._tags = {"test": "tag"}
     tracer.trace(name="web.reqUEst", service="wEbServer").finish()
@@ -237,7 +237,7 @@ def test_extended_sampling_glob_multi_rule(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_extended_sampling_tags_and_resource_glob(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource="mycoolre$ou*")])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
 
     tracer._tags = TAGS
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -251,7 +251,7 @@ def test_extended_sampling_tags_and_resource_glob(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_extended_sampling_tags_and_service_glob(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, service="mycoolser????")])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
 
     tracer._tags = TAGS
     tracer.trace("should_not_send", service="mycoolservice").finish()
@@ -265,7 +265,7 @@ def test_extended_sampling_tags_and_service_glob(writer, tracer):
 @snapshot_parametrized_with_writers
 def test_extended_sampling_tags_and_name_glob(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, name="mycoolna*")])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
 
     tracer._tags = TAGS
     tracer.trace(name="mycoolname").finish()
@@ -282,7 +282,7 @@ def test_extended_sampling_float_special_case_do_not_match(writer, tracer):
     # should not match the rule, and should therefore be kept
     """
     sampler = DatadogSampler(rules=[SamplingRule(0, tags={"tag": "2*"})])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace(name="should_send") as span:
         span.set_tag("tag", 20.1)
 
@@ -293,7 +293,7 @@ def test_extended_sampling_float_special_case_match_star(writer, tracer):
     # should match the rule, and should therefore should be dropped
     """
     sampler = DatadogSampler(rules=[SamplingRule(0, tags={"tag": "*"})])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer._configure(sampler=sampler, writer=writer)
     with tracer.trace(name="should_send") as span:
         span.set_tag("tag", 20.1)
 
@@ -303,7 +303,7 @@ def test_rate_limiter_on_spans(tracer):
     Ensure that the rate limiter is applied to spans
     """
     # Rate limit is only applied if a sample rate or trace sample rule is set
-    tracer.configure(sampler=DatadogSampler(default_sample_rate=1, rate_limit=10))
+    tracer._configure(sampler=DatadogSampler(default_sample_rate=1, rate_limit=10))
     spans = []
     # Generate 10 spans with the start and finish time in same second
     for x in range(10):
@@ -329,7 +329,7 @@ def test_rate_limiter_on_long_running_spans(tracer):
     """
     Ensure that the rate limiter is applied on increasing time intervals
     """
-    tracer.configure(sampler=DatadogSampler(rate_limit=5))
+    tracer._configure(sampler=DatadogSampler(rate_limit=5))
 
     with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns", return_value=1617333414):
         span_m30 = tracer.trace(name="march 30")

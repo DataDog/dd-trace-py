@@ -112,7 +112,7 @@ def test_standard_tags():
 
 def test_debug_post_configure():
     tracer = ddtrace.Tracer()
-    tracer.configure(
+    tracer._configure(
         hostname="0.0.0.0",
         port=1234,
     )
@@ -132,7 +132,7 @@ def test_debug_post_configure():
     # Tracer doesn't support re-configure()-ing with a UDS after an initial
     # configure with normal http settings. So we need a new tracer instance.
     tracer = ddtrace.Tracer()
-    tracer.configure(uds_path="/file.sock")
+    tracer._configure(uds_path="/file.sock")
 
     f = debug.collect(tracer)
 
@@ -193,7 +193,7 @@ class TestGlobalConfig(SubprocessTestCase):
             # shove an unserializable object into the config log output
             # regression: this used to cause an exception to be raised
             ddtrace.config.version = AgentWriter(agent_url="foobar")
-            tracer.configure()
+            tracer._configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
 
     @run_in_subprocess(
@@ -206,7 +206,7 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
+            tracer._configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
         assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
 
@@ -219,7 +219,7 @@ class TestGlobalConfig(SubprocessTestCase):
     def test_tracer_log_disabled_error(self):
         tracer = ddtrace.Tracer()
         with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
+            tracer._configure()
         assert mock_logger.mock_calls == []
 
     @run_in_subprocess(
@@ -231,7 +231,7 @@ class TestGlobalConfig(SubprocessTestCase):
     def test_tracer_log_disabled(self):
         tracer = ddtrace.Tracer()
         with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
+            tracer._configure()
         assert mock_logger.mock_calls == []
 
     @run_in_subprocess(
@@ -243,7 +243,7 @@ class TestGlobalConfig(SubprocessTestCase):
         logging.basicConfig(level=logging.INFO)
         tracer = ddtrace.Tracer()
         with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
+            tracer._configure()
         assert mock_logger.mock_calls == []
 
 
@@ -317,7 +317,7 @@ def test_custom_writer():
 
 def test_different_samplers():
     tracer = ddtrace.Tracer()
-    tracer.configure(sampler=ddtrace._trace.sampler.RateSampler())
+    tracer._configure(sampler=ddtrace._trace.sampler.RateSampler())
     info = debug.collect(tracer)
 
     assert info.get("sampler_type") == "RateSampler"
@@ -326,7 +326,7 @@ def test_different_samplers():
 def test_startup_logs_sampling_rules():
     tracer = ddtrace.Tracer()
     sampler = ddtrace._trace.sampler.DatadogSampler(rules=[ddtrace._trace.sampler.SamplingRule(sample_rate=1.0)])
-    tracer.configure(sampler=sampler)
+    tracer._configure(sampler=sampler)
     f = debug.collect(tracer)
 
     assert f.get("sampler_rules") == [
@@ -337,7 +337,7 @@ def test_startup_logs_sampling_rules():
     sampler = ddtrace._trace.sampler.DatadogSampler(
         rules=[ddtrace._trace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
     )
-    tracer.configure(sampler=sampler)
+    tracer._configure(sampler=sampler)
     f = debug.collect(tracer)
 
     assert f.get("sampler_rules") == [
@@ -415,7 +415,7 @@ def test_debug_span_log():
 def test_partial_flush_log():
     tracer = ddtrace.Tracer()
 
-    tracer.configure(
+    tracer._configure(
         partial_flush_enabled=True,
         partial_flush_min_spans=300,
     )

@@ -73,7 +73,7 @@ def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envv
     t = Tracer()
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t.configure(compute_stats_enabled=True)
+    t._configure(compute_stats_enabled=True)
     assert any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     assert t._compute_stats
 
@@ -110,13 +110,13 @@ def test_apm_opt_out_compute_stats_and_configure(run_python_code_in_subprocess):
     t = Tracer()
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    t._configure(appsec_enabled=True, appsec_standalone_enabled=True)
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     # the stats computation is disabled
     assert not t._compute_stats
     # but it's reported as enabled
     assert t._writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
-    t.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+    t._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
     # Test via environment variable
     env = os.environ.copy()
@@ -239,7 +239,7 @@ def test_top_level(send_once_stats_tracer):
 @pytest.mark.snapshot()
 def test_single_span_sampling(stats_tracer, sampling_rule):
     sampler = DatadogSampler([sampling_rule])
-    stats_tracer.configure(sampler=sampler)
+    stats_tracer._configure(sampler=sampler)
     with stats_tracer.trace("parent", service="test"):
         with stats_tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule

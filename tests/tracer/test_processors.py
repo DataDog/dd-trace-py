@@ -244,7 +244,7 @@ def test_aggregator_partial_flush_2_spans():
 def test_trace_top_level_span_processor_partial_flushing():
     """Parent span and child span have the same service name"""
     tracer = Tracer()
-    tracer.configure(
+    tracer._configure(
         partial_flush_enabled=True,
         partial_flush_min_spans=2,
         writer=DummyWriter(),
@@ -271,7 +271,7 @@ def test_trace_top_level_span_processor_same_service_name():
     """Parent span and child span have the same service name"""
 
     tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test") as parent:
         with tracer.trace("child") as child:
@@ -285,7 +285,7 @@ def test_trace_top_level_span_processor_different_service_name():
     """Parent span and child span have the different service names"""
 
     tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service") as parent:
         with tracer.trace("child", service="top_level_test_service2") as child:
@@ -299,7 +299,7 @@ def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
 
     tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
         pass
@@ -619,7 +619,7 @@ def test_endpoint_call_counter_processor_disabled():
 def test_endpoint_call_counter_processor_real_tracer():
     tracer = Tracer()
     tracer._endpoint_call_counter_span_processor.enable()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
         with tracer.trace("child", service="top_level_test_service2"):
@@ -642,7 +642,7 @@ def test_endpoint_call_counter_processor_real_tracer():
 
 def test_trace_tag_processor_adds_chunk_root_tags():
     tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
         with tracer.trace("child") as child:
@@ -690,5 +690,5 @@ def test_tracer_reconfigured_with_active_span_does_not_crash():
     with ddtrace.tracer.trace("regression1") as exploding_span:
         # Reconfiguring the tracer clears active traces
         # Calling .finish() manually bypasses the code that catches the exception
-        ddtrace.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=1)
+        ddtrace.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=1)
         exploding_span.finish()

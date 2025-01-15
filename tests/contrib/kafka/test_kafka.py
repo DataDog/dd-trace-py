@@ -108,7 +108,7 @@ def tracer(should_filter_empty_polls):
     patch()
     t = Tracer()
     if should_filter_empty_polls:
-        t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+        t._configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
     t._writer._send_payload_with_backoff = t._writer._send_payload
     try:
@@ -505,7 +505,7 @@ def _generate_in_subprocess(random_topic):
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
-    ddtrace.tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+    ddtrace.tracer._configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
     ddtrace.tracer._writer._send_payload_with_backoff = ddtrace.tracer._writer._send_payload
     patch()
