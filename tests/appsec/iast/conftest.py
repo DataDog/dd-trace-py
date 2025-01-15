@@ -174,7 +174,7 @@ def configuration_endpoint():
             CONFIG_SERVER_PORT,
         ]
         process = subprocess.Popen(cmd, cwd=current_dir)
-        time.sleep(0.1)
+        time.sleep(0.2)
 
         url = f"http://localhost:{CONFIG_SERVER_PORT}/"
         conn = get_connection(url)
