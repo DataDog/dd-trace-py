@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.16.7
+
+
+### Bug Fixes
+
+- ASM: This fix resolves an issue where AppSec was using a patched JSON loads, creating telemetry errors.
+
+- LLM Observability: This fix resolves an issue where `LLMObs.enable()` ignored global patch configurations, specifically  
+  the `DD_TRACE_<INTEGRATION>_ENABLED` and `DD_PATCH_MODULES` environment variables.
+
+- ASM: This fix resolves an issue where AppSec was using a patched request and builtins functions, creating telemetry errors.
+
+
+---
+
 ## 2.18.1
 
 
