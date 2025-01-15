@@ -6,7 +6,6 @@ import logging
 import os
 import random
 import re
-from shutil import which
 import subprocess
 from typing import Dict  # noqa:F401
 from typing import Generator  # noqa:F401
@@ -89,6 +88,7 @@ def _get_executable_path(executable_name: str) -> Optional[str]:
     NOTE: cached() requires an argument which is why executable_name is passed in, even though it's really only ever
     used to find the git executable at this point.
     """
+    from shutil import which
     return which(executable_name, mode=os.X_OK)
 
 

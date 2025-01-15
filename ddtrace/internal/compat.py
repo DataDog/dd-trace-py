@@ -10,7 +10,6 @@ import os
 import platform
 import re
 import sys
-from tempfile import mkdtemp
 import threading
 from types import BuiltinFunctionType
 from types import BuiltinMethodType
@@ -263,6 +262,7 @@ class TemporaryDirectory(object):
     """
 
     def __init__(self, suffix="", prefix="tmp", _dir=None):
+        from tempfile import mkdtemp
         self._closed = False
         self.name = None  # Handle mkdtemp raising an exception
         self.name = mkdtemp(suffix, prefix, _dir)

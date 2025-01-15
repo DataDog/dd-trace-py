@@ -106,6 +106,7 @@ def test_slow_imports():
         "multiprocessing",
         "importlib.metadata",
         "importlib_metadata",
+        "shutil",
     ]
 
     class BlockListFinder:
