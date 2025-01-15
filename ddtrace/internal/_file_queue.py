@@ -1,6 +1,5 @@
 import os
 import os.path
-import secrets
 import tempfile
 import typing
 
@@ -61,6 +60,7 @@ class File_Queue:
 
     def __init__(self) -> None:
         try:
+            import secrets
             self._directory: typing.Optional[str] = tempfile.gettempdir()
             self.filename: typing.Optional[str] = os.path.join(self._directory, secrets.token_hex(8))
         except Exception as e:

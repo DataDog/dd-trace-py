@@ -107,6 +107,7 @@ def test_slow_imports():
         "importlib.metadata",
         "importlib_metadata",
         "shutil",
+        "secrets",
     ]
 
     class BlockListFinder:
