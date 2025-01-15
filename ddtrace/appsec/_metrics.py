@@ -5,7 +5,7 @@ from ddtrace.appsec._deduplications import deduplication
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -36,7 +36,7 @@ def _set_waf_updates_metric(info):
             tags = (("waf_version", DDWAF_VERSION),)
 
         telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_APPSEC,
+            TELEMETRY_NAMESPACE.APPSEC,
             "waf.updates",
             1.0,
             tags=tags,
@@ -56,7 +56,7 @@ def _set_waf_init_metric(info):
             tags = (("waf_version", DDWAF_VERSION),)
 
         telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_APPSEC,
+            TELEMETRY_NAMESPACE.APPSEC,
             "waf.init",
             1.0,
             tags=tags,
@@ -90,7 +90,7 @@ def _set_waf_request_metrics(*args):
             )
 
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE_TAG_APPSEC,
+                TELEMETRY_NAMESPACE.APPSEC,
                 "waf.requests",
                 1.0,
                 tags=tags_request,
@@ -101,7 +101,7 @@ def _set_waf_request_metrics(*args):
                     for rule_type, value in rasp[t].items():
                         if value:
                             telemetry.telemetry_writer.add_count_metric(
-                                TELEMETRY_NAMESPACE_TAG_APPSEC,
+                                TELEMETRY_NAMESPACE.APPSEC,
                                 n,
                                 float(value),
                                 tags=_TYPES_AND_TAGS.get(rule_type, ()) + (("waf_version", DDWAF_VERSION),),

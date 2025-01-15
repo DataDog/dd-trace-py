@@ -1,9 +1,9 @@
 import mock
 import mysql
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.mysql.patch import patch
 from ddtrace.contrib.internal.mysql.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib import shared_tests
 from tests.contrib.config import MYSQL_CONFIG
 from tests.opentracer.utils import init_tracer
