@@ -184,14 +184,13 @@ class LLMObs(Service):
             meta.pop("output")
         metrics = span._get_ctx_item(METRICS) or {}
         ml_app = _get_ml_app(span)
+        span._set_ctx_item(ML_APP, ml_app)
 
         is_ragas_integration_span = False
-
         if ml_app.startswith(constants.RAGAS_ML_APP_PREFIX):
             is_ragas_integration_span = True
-            ml_app = ml_app.replace(constants.RAGAS_ML_APP_PREFIX + "-", "")
+            ml_app = ml_app.replace(constants.RAGAS_ML_APP_PREFIX, "")
 
-        span._set_ctx_item(ML_APP, ml_app)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
 
         llmobs_span_event = {

@@ -80,7 +80,7 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
             break
     if not ml_app:
         return RAGAS_ML_APP_PREFIX
-    return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
+    return "{}{}".format(RAGAS_ML_APP_PREFIX, ml_app)
 
 
 class BaseRagasEvaluator:

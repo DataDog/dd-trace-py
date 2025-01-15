@@ -52,7 +52,7 @@ RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
 
 # The ml app of all ragas traces have this prefix that we use to detect
 # whether a span is generated from the ragas evaluation itself.
-RAGAS_ML_APP_PREFIX = "dd-ragas"
+RAGAS_ML_APP_PREFIX = "dd-ragas-"
 
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"
