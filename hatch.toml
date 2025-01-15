@@ -334,8 +334,8 @@ dependencies = [
     "hypothesis",
     "gunicorn",
     "psycopg2-binary~=2.9.9",
-    "itsdangerous{matrix:itsdangerous:}",
     "MarkupSafe{matrix:markupsafe:}",
+    "itsdangerous{matrix:itsdangerous:}",
     "Werkzeug{matrix:werkzeug:}",
     "flask{matrix:flask}",
 ]
@@ -344,27 +344,26 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/integrations/flask_tests/",
+    "export PATH=$PATH:/home/alberto.vara/projects/dd-python/dd-trace-py && export PYTHONPATH=$PYTHONPATH:/home/alberto.vara/projects/dd-python/dd-trace-py",
+    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
 ]
 
 [[envs.appsec_integrations_flask.matrix]]
-python = ["3.7", "3.8", "3.9"]
+python = ["3.8", "3.9"]
 flask = ["~=1.1"]
-# https://github.com/pallets/itsdangerous/issues/290
-# DEV: Breaking change made in 2.1.0 release
-itsdangerous = ["~=2.1.0"]
 # https://github.com/pallets/markupsafe/issues/282
 # DEV: Breaking change made in 2.1.0 release
 markupsafe = ["~=1.1"]
+itsdangerous = ["==2.0.1"]
 # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
-werkzeug = ["~=2.0"]
+werkzeug = ["==2.0.3"]
 
 [[envs.appsec_integrations_flask.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11"]
+python = ["3.8", "3.9", "3.10", "3.11"]
 flask = ["~=2.2"]
 
 [[envs.appsec_integrations_flask.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 flask = ["~=2.2"]
 
 [[envs.appsec_integrations_flask.matrix]]
