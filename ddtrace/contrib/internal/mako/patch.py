@@ -11,7 +11,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 from .constants import DEFAULT_TEMPLATE_NAME
 

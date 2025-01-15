@@ -1,7 +1,7 @@
 import dogpile
 
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 def _wrap_lock_ctor(func, instance, args, kwargs):

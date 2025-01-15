@@ -55,7 +55,7 @@ Instance Configuration
 To configure particular redis instances use the :class:`Pin <ddtrace.Pin>` API::
 
     import redis
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
 
     client = redis.StrictRedis(host="localhost", port=6379)
 

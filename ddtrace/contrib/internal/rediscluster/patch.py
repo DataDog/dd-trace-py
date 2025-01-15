@@ -23,7 +23,7 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
