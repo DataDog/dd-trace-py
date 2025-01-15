@@ -247,6 +247,56 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
 
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter_name(client, test_spans, tracer):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+            content_type="application/x-www-form-urlencoded",
+            url="/appsec/sqli_http_request_parameter_name/?SELECT=unused",
+            headers={"HTTP_USER_AGENT": "test/1.2.3"},
+        )
+
+        vuln_type = "SQL_INJECTION"
+
+        assert response.status_code == 200
+        assert response.content == b"test/1.2.3"
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash(
+            "iast_enabled_sqli_http_request_parameter_name", vuln_type, filename=TEST_FILE
+        )
+
+        assert loaded["sources"] == [
+            {
+                "name": "SELECT",
+                "origin": "http.request.parameter.name",
+                "value": "SELECT",
+            }
+        ]
+
+        assert loaded["vulnerabilities"][0]["type"] == vuln_type
+        assert loaded["vulnerabilities"][0]["evidence"] == {
+            "valueParts": [
+                {"source": 0, "value": "SELECT"},
+                {
+                    "value": " ",
+                },
+                {
+                    "redacted": True,
+                },
+            ]
+        }
+        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
