@@ -9,6 +9,7 @@ import textwrap
 from types import ModuleType
 from typing import Iterable
 from typing import Optional
+from typing import Set
 from typing import Text
 from typing import Tuple
 
@@ -448,7 +449,7 @@ def get_encoding(module_path: Text) -> Text:
 
 _NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
 
-_IMPORTLIB_PACKAGES: set[str] = set()
+_IMPORTLIB_PACKAGES: Set[str] = set()
 
 
 def _in_python_stdlib(module_name: str) -> bool:
