@@ -4,6 +4,39 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.19.0
+
+### New Features
+
+- azure_functions: This introduces support for Azure Functions.
+- ASM: This introduces "Standalone SCA billing", opting out for APM billing and applying to only SCA. Enable this by setting these two environment variables: `DD_APPSEC_SCA_ENABLED` and `DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED`
+- profiling: Adds an experimental integration with the PyTorch profiler which can be enabled by setting `DD_PROFILING_PYTORCH_ENABLED=true`. This feature instruments the PyTorch profiler API (<https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>) so that GPU profiling data can be sent to Datadog for visualization. This feature supports torch version \>= 1.8.1.
+- Code Security: This introduces stack trace reports for Code Security.
+### Upgrade Notes
+
+- Makes the library compatible with Python 3.13
+### Bug Fixes
+
+- botocore: Resolves formatting errors in the bedrock integration when parsing request model IDs, which can now accept AWS ARNs.
+- Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
+- profiling: Removed a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.- Add more modules to the IAST patching denylist to improve startup time
+- ASGI: This fix resolves an issue parsing response cookies in FastAPI and awsgi
+- asyncio: Resolves an issue where asyncio event loops fail to register when `ddtrace-run`/`import ddtrace.auto` is used and gevent is installed.
+
+- lib-injection: Fix missing lib-injection telemetry for common abort scenarios.
+
+- LLM Observability: This fix resolves an issue where `LLMObs.enable()` ignored global patch configurations, specifically  
+  the `DD_TRACE_<INTEGRATION>_ENABLED` and `DD_PATCH_MODULES` environment variables.
+
+- ASM: This fix resolves an issue where AppSec was using a patched request and builtins functions, creating telemetry errors.
+
+- datastreams: Logs at warning level for Kinesis errors that break the Data Streams Monitoring map.
+
+- library: Resolves deadlocks that could occur when sending instrumentation telemetry data after an unhandled exception is raised.
+
+
+---
+
 ## 2.18.1
 
 
