@@ -38,6 +38,8 @@ attrs
 autodetected
 autopatching
 aws
+AWS
+ARN
 backend
 backends
 backport
