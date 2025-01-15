@@ -534,8 +534,8 @@ class Tracer(object):
             self.enabled = enabled
             if log_deprecations:
                 deprecate(
-                    "Configuring partial flushing after application start is deprecated",
-                    message="Please use DD_TRACE_PARTIAL_FLUSH_ENABLED to enable/disable the partial flushing instead.",
+                    "Enabling/Disabling tracing after application start is deprecated",
+                    message="Please use DD_TRACE_ENABLED instead.",
                     version="3.0.0",
                     category=DDTraceDeprecationWarning,
                 )
