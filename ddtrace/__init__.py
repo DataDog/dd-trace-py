@@ -26,12 +26,17 @@ from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-from .pin import Pin  # noqa: E402
+from ddtrace._trace.pin import Pin  # noqa: E402
 from ddtrace._trace.span import Span  # noqa: E402
 from ddtrace._trace.tracer import Tracer  # noqa: E402
 from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
 
+
+# TODO(mabdinur): Remove this once we have a better way to start the mini agent
+from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent as _start_mini_agent
+
+_start_mini_agent()
 
 # DEV: Import deprecated tracer module in order to retain side-effect of package
 # initialization, which added this module to sys.modules. We catch deprecation
@@ -62,6 +67,7 @@ __all__ = [
 _DEPRECATED_MODULE_ATTRIBUTES = [
     "Span",
     "Tracer",
+    "Pin",
 ]
 
 

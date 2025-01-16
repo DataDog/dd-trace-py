@@ -1,10 +1,8 @@
-from datetime import datetime
 import json
 import logging
 import os
 import re
 import subprocess
-import sys
 from typing import List
 from typing import Optional
 
@@ -12,15 +10,14 @@ import mock
 import pytest
 
 import ddtrace
+import ddtrace._trace.sampler
 from ddtrace._trace.span import Span
 from ddtrace.internal import debug
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter
-import ddtrace.sampler
+from tests.integration.utils import AGENT_VERSION
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION == "testagent", reason="The test agent doesn't support startup logs.")
@@ -36,7 +33,14 @@ def re_matcher(pattern):
     return Match()
 
 
+@pytest.mark.subprocess()
 def test_standard_tags():
+    from datetime import datetime
+    import sys
+
+    import ddtrace
+    from ddtrace.internal import debug
+
     f = debug.collect(ddtrace.tracer)
 
     date = f.get("date")
@@ -94,7 +98,7 @@ def test_standard_tags():
     assert f.get("tracer_enabled") is True
     assert f.get("sampler_type") == "DatadogSampler"
     assert f.get("priority_sampler_type") == "N/A"
-    assert f.get("service") == "tests.integration"
+    assert f.get("service") == "ddtrace_subprocess_dir"
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
     assert f.get("enabled_cli") is False
@@ -110,8 +114,13 @@ def test_standard_tags():
     assert icfg["flask"] == "N/A"
 
 
+@pytest.mark.subprocess()
 def test_debug_post_configure():
-    tracer = ddtrace.Tracer()
+    import re
+
+    from ddtrace import tracer
+    from ddtrace.internal import debug
+
     tracer.configure(
         hostname="0.0.0.0",
         port=1234,
@@ -122,16 +131,21 @@ def test_debug_post_configure():
     agent_url = f.get("agent_url")
     assert agent_url == "http://0.0.0.0:1234"
 
-    assert f.get("is_global_tracer") is False
+    assert f.get("is_global_tracer") is True
     assert f.get("tracer_enabled") is True
 
     agent_error = f.get("agent_error")
     # Error code can differ between Python version
     assert re.match("^Agent not reachable.*Connection refused", agent_error)
 
-    # Tracer doesn't support re-configure()-ing with a UDS after an initial
-    # configure with normal http settings. So we need a new tracer instance.
-    tracer = ddtrace.Tracer()
+
+@pytest.mark.subprocess()
+def test_debug_post_configure_uds():
+    import re
+
+    from ddtrace import tracer
+    from ddtrace.internal import debug
+
     tracer.configure(uds_path="/file.sock")
 
     f = debug.collect(tracer)
@@ -317,7 +331,7 @@ def test_custom_writer():
 
 def test_different_samplers():
     tracer = ddtrace.Tracer()
-    tracer.configure(sampler=ddtrace.sampler.RateSampler())
+    tracer.configure(sampler=ddtrace._trace.sampler.RateSampler())
     info = debug.collect(tracer)
 
     assert info.get("sampler_type") == "RateSampler"
@@ -325,7 +339,7 @@ def test_different_samplers():
 
 def test_startup_logs_sampling_rules():
     tracer = ddtrace.Tracer()
-    sampler = ddtrace.sampler.DatadogSampler(rules=[ddtrace.sampler.SamplingRule(sample_rate=1.0)])
+    sampler = ddtrace._trace.sampler.DatadogSampler(rules=[ddtrace._trace.sampler.SamplingRule(sample_rate=1.0)])
     tracer.configure(sampler=sampler)
     f = debug.collect(tracer)
 
@@ -334,8 +348,8 @@ def test_startup_logs_sampling_rules():
         " tags='NO_RULE', provenance='default')"
     ]
 
-    sampler = ddtrace.sampler.DatadogSampler(
-        rules=[ddtrace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
+    sampler = ddtrace._trace.sampler.DatadogSampler(
+        rules=[ddtrace._trace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
     )
     tracer.configure(sampler=sampler)
     f = debug.collect(tracer)

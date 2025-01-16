@@ -39,28 +39,25 @@ Global Configuration
 To configure the graphql integration using the
 ``Pin`` API::
 
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     import graphql
 
     Pin.override(graphql, service="mygraphql")
 """
-from ddtrace.internal.utils.importlib import require_modules
 
 
-required_modules = ["graphql"]
+# Required to allow users to import from  `ddtrace.contrib.graphql.patch` directly
+import warnings as _w
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.graphql.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.graphql.patch import get_version
-        from ddtrace.contrib.internal.graphql.patch import patch
-        from ddtrace.contrib.internal.graphql.patch import unpatch
+# Expose public methods
+from ddtrace.contrib.internal.graphql.patch import get_version
+from ddtrace.contrib.internal.graphql.patch import patch
+from ddtrace.contrib.internal.graphql.patch import unpatch
 
-        __all__ = ["patch", "unpatch", "get_version"]
+
+__all__ = ["patch", "unpatch", "get_version"]

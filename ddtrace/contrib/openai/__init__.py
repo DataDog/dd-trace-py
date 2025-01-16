@@ -242,27 +242,25 @@ To configure the OpenAI integration on a per-instance basis use the
 ``Pin`` API::
 
     import openai
-    from ddtrace import Pin, config
+    from ddtrace import config
+    from ddtrace.trace import Pin
 
     Pin.override(openai, service="my-openai-service")
 """  # noqa: E501
-from ddtrace.internal.utils.importlib import require_modules
 
 
-required_modules = ["openai"]
+# Required to allow users to import from  `ddtrace.contrib.openai.patch` directly
+import warnings as _w
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.openai.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.openai.patch import get_version
-        from ddtrace.contrib.internal.openai.patch import patch
-        from ddtrace.contrib.internal.openai.patch import unpatch
+# Expose public methods
+from ddtrace.contrib.internal.openai.patch import get_version
+from ddtrace.contrib.internal.openai.patch import patch
+from ddtrace.contrib.internal.openai.patch import unpatch
 
-        __all__ = ["patch", "unpatch", "get_version"]
+
+__all__ = ["patch", "unpatch", "get_version"]

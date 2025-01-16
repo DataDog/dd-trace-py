@@ -233,7 +233,7 @@ def test_remoteconfig_sampling_rate_user(run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from ddtrace.sampler import DatadogSampler
+from ddtrace._trace.sampler import DatadogSampler
 from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
 
 with tracer.trace("test") as span:
@@ -288,7 +288,7 @@ def test_remoteconfig_sampling_rules(run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from ddtrace.sampler import DatadogSampler
+from ddtrace._trace.sampler import DatadogSampler
 from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
 
 with tracer.trace("test") as span:
@@ -379,7 +379,7 @@ def test_remoteconfig_sample_rate_and_rules(run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from ddtrace.sampler import DatadogSampler
+from ddtrace._trace.sampler import DatadogSampler
 from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
 
 with tracer.trace("rules") as span:

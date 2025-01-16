@@ -3,8 +3,8 @@ import sys
 import celery
 from celery import signals
 
-from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.pin import _DD_PIN_NAME
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -19,7 +19,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.pin import _DD_PIN_NAME
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -133,10 +133,6 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
                 if task_span:
                     task_span.set_exc_info(*sys.exc_info())
 
-                prerun_span = core.get_item("prerun_span")
-                if prerun_span:
-                    prerun_span.set_exc_info(*sys.exc_info())
-
                 raise
             finally:
                 task_span = core.get_item("task_span")
@@ -146,12 +142,5 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
                         task_span._pprint(),
                     )
                     task_span.finish()
-
-                prerun_span = core.get_item("prerun_span")
-                if prerun_span:
-                    log.debug(
-                        "The task_postrun signal was not called, so manually closing span: %s", prerun_span._pprint()
-                    )
-                    prerun_span.finish()
 
     return _traced_apply_async_inner

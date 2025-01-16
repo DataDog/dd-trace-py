@@ -1,7 +1,7 @@
 from django.test.client import RequestFactory
 import pytest
 
-from ddtrace.contrib.django.utils import DJANGO22
+from ddtrace.contrib.internal.django.utils import DJANGO22
 from ddtrace.contrib.internal.django.utils import _get_request_headers
 
 

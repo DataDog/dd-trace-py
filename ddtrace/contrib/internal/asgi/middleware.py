@@ -91,6 +91,18 @@ async def _blocked_asgi_app(scope, receive, send):
     await send({"type": "http.response.body", "body": b""})
 
 
+def _parse_response_cookies(response_headers):
+    cookies = {}
+    try:
+        result = response_headers.get("set-cookie", "").split("=", maxsplit=1)
+        if len(result) == 2:
+            cookie_key, cookie_value = result
+            cookies[cookie_key] = cookie_value
+    except Exception:
+        log.debug("failed to extract response cookies", exc_info=True)
+    return cookies
+
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
@@ -138,7 +150,13 @@ class TraceMiddleware:
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
-        pin = ddtrace.pin.Pin(service="asgi", tracer=self.tracer)
+        # Calling ddtrace.trace.Pin(...) with the `tracer` argument is deprecated
+        # Remove this if statement when the `tracer` argument is removed
+        if self.tracer is ddtrace.tracer:
+            pin = ddtrace.trace.Pin(service="asgi")
+        else:
+            pin = ddtrace.trace.Pin(service="asgi", tracer=self.tracer)
+
         with core.context_with_data(
             "asgi.__call__",
             remote_addr=scope.get("REMOTE_ADDR"),
@@ -211,7 +229,6 @@ class TraceMiddleware:
                 peer_ip = client[0]
             else:
                 peer_ip = None
-
             trace_utils.set_http_meta(
                 span,
                 self.integration_config,
@@ -234,15 +251,8 @@ class TraceMiddleware:
                 except Exception:
                     log.warning("failed to extract response headers", exc_info=True)
                     response_headers = None
-
                 if span and message.get("type") == "http.response.start" and "status" in message:
-                    cookies = {}
-                    try:
-                        cookie_key, cookie_value = response_headers.get("set-cookie", "").split("=", maxsplit=1)
-                        cookies[cookie_key] = cookie_value
-                    except Exception:
-                        log.debug("failed to extract response cookies", exc_info=True)
-
+                    cookies = _parse_response_cookies(response_headers)
                     status_code = message["status"]
                     trace_utils.set_http_meta(
                         span,

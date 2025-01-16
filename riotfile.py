@@ -330,9 +330,6 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
-            env={
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
-            },
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -411,7 +408,6 @@ venv = Venv(
             name="internal",
             env={
                 "DD_TRACE_AGENT_URL": "http://ddagent:8126",
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
@@ -473,7 +469,8 @@ venv = Venv(
                         Venv(
                             pys="3.9",
                             pkgs={
-                                "gevent": ["~=21.1.0", latest],
+                                # https://github.com/gevent/gevent/issues/2076
+                                "gevent": ["~=21.1.0", "<21.8.0"],
                                 "greenlet": "~=1.0",
                             },
                         ),
@@ -515,13 +512,10 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            env={
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
-            },
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.12"),
+                    pys=select_pys(),
                     pkgs={
                         "redis": latest,
                         "gevent": latest,
@@ -586,6 +580,7 @@ venv = Venv(
                 "vertica-python": ">=0.6.0,<0.7.0",
                 "kombu": ">=4.2.0,<4.3.0",
                 "pytest-randomly": latest,
+                "requests": latest,
             },
         ),
         Venv(
@@ -607,15 +602,30 @@ venv = Venv(
         Venv(
             name="falcon",
             command="pytest {cmdargs} tests/contrib/falcon",
-            pys=select_pys(min_version="3.7", max_version="3.12"),
             pkgs={
-                "falcon": [
-                    "~=3.0.0",
-                    "~=3.0",  # latest 3.x
-                    latest,
-                ],
                 "pytest-randomly": latest,
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pkgs={
+                        "falcon": [
+                            "~=3.0.0",
+                            "~=3.0",  # latest 3.x
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "falcon": [
+                            "~=4.0",  # latest 4.x
+                            latest,
+                        ],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="bottle",
@@ -805,6 +815,7 @@ venv = Venv(
                 "django-q": latest,
                 "spyne": latest,
                 "zeep": latest,
+                "bcrypt": "==4.2.1",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -829,7 +840,7 @@ venv = Venv(
                 ),
                 Venv(
                     # django started supporting psycopg3 in 4.2 for versions >3.1.8
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8", max_version="3.13"),
                     pkgs={
                         "django": ["~=4.2"],
                         "psycopg": latest,
@@ -1332,15 +1343,22 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             pkgs={
                 "pytest-randomly": latest,
-                "greenlet": "==3.0.3",
+                "psycopg2-binary": latest,
+                "mysql-connector-python": latest,
+                "sqlalchemy": latest,
             },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
+                        "greenlet": "==3.0.3",
                         "sqlalchemy": ["~=1.3.0", latest],
-                        "psycopg2-binary": latest,
-                        "mysql-connector-python": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "greenlet": "==3.1.0",
                     },
                 ),
             ],
@@ -1437,7 +1455,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
                 ),
             ],
@@ -1548,7 +1566,7 @@ venv = Venv(
         ),
         Venv(
             name="aiobotocore",
-            command="pytest {cmdargs} tests/contrib/aiobotocore",
+            command="pytest {cmdargs} --no-cov tests/contrib/aiobotocore",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "async_generator": ["~=1.10"],
@@ -1562,7 +1580,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"aiobotocore": latest},
                 ),
             ],
@@ -1571,7 +1589,7 @@ venv = Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
             pkgs={
-                "httpx": latest,
+                "httpx": "<=0.27.2",
                 "pytest-asyncio": "==0.21.1",
                 "python-multipart": latest,
                 "pytest-randomly": latest,
@@ -1585,20 +1603,32 @@ venv = Venv(
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
-                    pys=select_pys(min_version="3.11", max_version="3.12"),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={"fastapi": ["~=0.86.0", latest], "anyio": ">=3.4.0,<4.0"},
                 ),
             ],
         ),
         Venv(
             name="aiomysql",
-            pys=select_pys(min_version="3.7", max_version="3.12"),
             command="pytest {cmdargs} tests/contrib/aiomysql",
-            pkgs={
-                "pytest-randomly": latest,
-                "pytest-asyncio": "==0.21.1",
-                "aiomysql": ["~=0.1.0", latest],
-            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pkgs={
+                        "pytest-randomly": latest,
+                        "pytest-asyncio": "==0.21.1",
+                        "aiomysql": ["~=0.1.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "pytest-randomly": latest,
+                        "pytest-asyncio": latest,
+                        "aiomysql": ["~=0.1.0", latest],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="pytest",
@@ -1608,7 +1638,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
             },
             venvs=[
                 Venv(
@@ -1635,6 +1665,18 @@ venv = Venv(
                                 "pytest": ["~=7.0", latest],
                                 "pytest-cov": "==2.12.0",
                             },
+                            venvs=[
+                                Venv(
+                                    env={
+                                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                                    },
+                                ),
+                                Venv(
+                                    env={
+                                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                                    },
+                                ),
+                            ],
                         ),
                     ],
                 ),
@@ -1651,6 +1693,18 @@ venv = Venv(
                         "more_itertools": "<8.11.0",
                         "httpx": latest,
                     },
+                    venvs=[
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                            },
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -1695,6 +1749,11 @@ venv = Venv(
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
+                "pytest-bdd": [
+                    ">=4.0,<5.0",
+                    # FIXME: add support for v6.1
+                    ">=6.0,<6.1",
+                ],
             },
             venvs=[
                 Venv(
@@ -1723,7 +1782,6 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
                         "pytest-bdd": [
-                            ">=4.0,<5.0",
                             # FIXME: add support for v6.1
                             ">=6.0,<6.1",
                         ]
@@ -1801,10 +1859,17 @@ venv = Venv(
                 ),
                 Venv(
                     # grpcio added support for Python 3.12 in 1.59
-                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pys="3.12",
                     pkgs={
                         "grpcio": ["~=1.59.0", latest],
                         "pytest-asyncio": "==0.23.7",
+                    },
+                ),
+                Venv(
+                    # grpcio added support for Python 3.13 in 1.66.2
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "grpcio": ["~=1.66.2", latest],
                     },
                 ),
             ],
@@ -2003,7 +2068,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
                         "aiopg": ["~=1.0", "~=1.4.0"],
                     },
@@ -2161,7 +2226,7 @@ venv = Venv(
         ),
         Venv(
             name="avro",
-            pys=select_pys(min_version="3.7", max_version="3.12"),
+            pys=select_pys(min_version="3.7"),
             command="pytest {cmdargs} tests/contrib/avro",
             pkgs={
                 "avro": latest,
@@ -2171,7 +2236,7 @@ venv = Venv(
         Venv(
             name="protobuf",
             command="pytest {cmdargs} tests/contrib/protobuf",
-            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pys=select_pys(min_version="3.8"),
             pkgs={
                 "protobuf": latest,
                 "pytest-randomly": latest,
@@ -2323,7 +2388,7 @@ venv = Venv(
                     pkgs={"asyncpg": ["~=0.27", latest]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pys=select_pys(min_version="3.12"),
                     pkgs={"asyncpg": [latest]},
                 ),
             ],
@@ -2558,7 +2623,7 @@ venv = Venv(
                 ),
                 Venv(
                     # pyodbc added support for Python 3.11 in 4.0.35
-                    pys=select_pys(min_version="3.11", max_version="3.12"),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={"pyodbc": [latest]},
                 ),
             ],
@@ -2628,6 +2693,11 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={"tornado": ["==6.2", "==6.3.1"]},
                 ),
+                Venv(
+                    # tornado fixed a bug affecting 3.13 in 6.4.1
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={"tornado": "==6.4.1"},
+                ),
             ],
         ),
         Venv(
@@ -2643,6 +2713,10 @@ venv = Venv(
                     # mysqlclient added support for Python 3.9/3.10 in 2.1
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                     pkgs={"mysqlclient": ["~=2.1", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={"mysqlclient": "==2.2.6"},
                 ),
             ],
         ),
@@ -2821,7 +2895,7 @@ venv = Venv(
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(pys=select_pys(min_version="3.11", max_version="3.12"), pkgs={"confluent-kafka": latest}),
+                        Venv(pys=select_pys(min_version="3.11"), pkgs={"confluent-kafka": latest}),
                     ],
                 ),
             ],
@@ -2869,6 +2943,17 @@ venv = Venv(
             env={
                 "DD_AGENT_PORT": "9126",
             },
+            venvs=[
+                # Python 3.8
+                Venv(
+                    pys=["3.8"],
+                    pkgs={"greenlet": "==3.1.0"},
+                ),
+                # Python 3.9+
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                ),
+            ],
         ),
         Venv(
             name="subprocess",
@@ -2882,8 +2967,8 @@ venv = Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
             pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
-            pys=select_pys(min_version="3.7"),
             venvs=[
+                Venv(pys="3.7"),
                 Venv(pys=select_pys(min_version="3.8"), pkgs={"ragas": "==0.1.21", "langchain": latest}),
             ],
         ),
@@ -2893,6 +2978,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING_STACK_V2_ENABLED": "0",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
                 "CPUCOUNT": "12",
             },

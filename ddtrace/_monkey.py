@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 from wrapt.importer import when_imported
 
 from ddtrace.appsec import load_common_appsec_modules
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 from .appsec._iast._utils import _is_iast_enabled
 from .internal import telemetry
@@ -173,17 +174,25 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
+            imported_module.patch()
+            if hasattr(imported_module, "patch_submodules"):
+                imported_module.patch_submodules(patch_indicator)
         except Exception as e:
             if raise_errors:
                 raise
-            error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
-            log.error(error_msg, exc_info=True)
-            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
+            log.error(
+                "failed to enable ddtrace support for %s: %s",
+                module,
+                str(e),
+            )
+            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(
-                "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
+                TELEMETRY_NAMESPACE.TRACERS,
+                "integration_errors",
+                1,
+                (("integration_name", module), ("error_type", type(e).__name__)),
             )
         else:
-            imported_module.patch()
             if hasattr(imported_module, "get_versions"):
                 versions = imported_module.get_versions()
                 for name, v in versions.items():
@@ -196,15 +205,12 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                     module, True, PATCH_MODULES.get(module) is True, "", version=version
                 )
 
-            if hasattr(imported_module, "patch_submodules"):
-                imported_module.patch_submodules(patch_indicator)
-
     return on_import
 
 
 def patch_all(**patch_modules):
     # type: (bool) -> None
-    """Automatically patches all available modules.
+    """Enables ddtrace library instrumentation.
 
     In addition to ``patch_modules``, an override can be specified via an
     environment variable, ``DD_TRACE_<module>_ENABLED`` for each module.

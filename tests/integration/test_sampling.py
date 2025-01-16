@@ -1,15 +1,13 @@
-import mock
 import pytest
 
+from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampler import RateSampler
+from ddtrace._trace.sampler import SamplingRule
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateSampler
-from ddtrace.sampler import SamplingRule
+from tests.integration.utils import AGENT_VERSION
 from tests.utils import snapshot
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -19,6 +17,9 @@ TAGS = {"tag1": "mycooltag"}
 
 def snapshot_parametrized_with_writers(f):
     def _patch(writer, tracer):
+        old_sampler = tracer._sampler
+        old_writer = tracer._writer
+        old_tags = tracer._tags
         if writer == "sync":
             writer = AgentWriter(
                 tracer.agent_trace_url,
@@ -29,11 +30,13 @@ def snapshot_parametrized_with_writers(f):
             writer._headers = tracer._writer._headers
         else:
             writer = tracer._writer
-        tracer.configure(writer=writer)
         try:
             return f(writer, tracer)
         finally:
-            tracer.shutdown()
+            tracer.flush()
+            # Reset tracer configurations to avoid leaking state between tests
+            tracer.configure(sampler=old_sampler, writer=old_writer)
+            tracer._tags = old_tags
 
     wrapped = snapshot(include_tracer=True, token_override=f.__name__)(_patch)
     return pytest.mark.parametrize(
@@ -298,10 +301,14 @@ def test_extended_sampling_float_special_case_match_star(writer, tracer):
         span.set_tag("tag", 20.1)
 
 
+@pytest.mark.subprocess()
 def test_rate_limiter_on_spans(tracer):
     """
     Ensure that the rate limiter is applied to spans
     """
+    from ddtrace import tracer
+    from ddtrace.sampler import DatadogSampler
+
     # Rate limit is only applied if a sample rate or trace sample rule is set
     tracer.configure(sampler=DatadogSampler(default_sample_rate=1, rate_limit=10))
     spans = []
@@ -325,13 +332,19 @@ def test_rate_limiter_on_spans(tracer):
     assert dropped_span.context.sampling_priority < 0
 
 
+@pytest.mark.subprocess()
 def test_rate_limiter_on_long_running_spans(tracer):
     """
     Ensure that the rate limiter is applied on increasing time intervals
     """
+    import mock
+
+    from ddtrace import tracer
+    from ddtrace.sampler import DatadogSampler
+
     tracer.configure(sampler=DatadogSampler(rate_limit=5))
 
-    with mock.patch("ddtrace.internal.rate_limiter.compat.monotonic_ns", return_value=1617333414):
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns", return_value=1617333414):
         span_m30 = tracer.trace(name="march 30")
         span_m30.start = 1622347257  # Mar 30 2021
         span_m30.finish(1617333414)  # April 2 2021

@@ -3,12 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.graphql import get_version
-from ddtrace.contrib.graphql.patch import patch
+from ddtrace.contrib.internal.graphql.patch import get_version
+from ddtrace.contrib.internal.graphql.patch import patch
 
 
 try:
-    from ddtrace.contrib.graphql.patch import unpatch
+    from ddtrace.contrib.internal.graphql.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

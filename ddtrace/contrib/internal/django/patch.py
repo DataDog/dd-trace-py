@@ -17,7 +17,6 @@ import os
 import wrapt
 from wrapt.importer import when_imported
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
@@ -49,6 +48,7 @@ from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -215,7 +215,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         "django.cache",
         span_name="django.cache",
         span_type=SpanTypes.CACHE,
-        service=config.django.cache_service_name,
+        service=schematize_service_name(config.django.cache_service_name),
         resource=utils.resource_from_cache_prefix(func_name(func), instance),
         tags=tags,
         pin=pin,

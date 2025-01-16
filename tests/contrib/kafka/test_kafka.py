@@ -11,18 +11,18 @@ from confluent_kafka import admin as kafka_admin
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace import Tracer
-from ddtrace.contrib.kafka.patch import TracedConsumer
-from ddtrace.contrib.kafka.patch import patch
-from ddtrace.contrib.kafka.patch import unpatch
-from ddtrace.filters import TraceFilter
+from ddtrace.contrib.internal.kafka.patch import TracedConsumer
+from ddtrace.contrib.internal.kafka.patch import patch
+from ddtrace.contrib.internal.kafka.patch import unpatch
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.trace import Pin
+from ddtrace.trace import TraceFilter
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
@@ -37,6 +37,7 @@ DSM_TEST_PATH_HEADER_SIZE = 28
 SNAPSHOT_IGNORES = [
     "metrics.kafka.message_offset",
     "meta.error.stack",
+    "meta.error.message",
     "meta.messaging.kafka.bootstrap.servers",
     "meta.peer.service",
 ]
@@ -498,8 +499,8 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
 
 def _generate_in_subprocess(random_topic):
     import ddtrace
-    from ddtrace.contrib.kafka.patch import patch
-    from ddtrace.contrib.kafka.patch import unpatch
+    from ddtrace.contrib.internal.kafka.patch import patch
+    from ddtrace.contrib.internal.kafka.patch import unpatch
     from tests.contrib.kafka.test_kafka import KafkaConsumerPollFilter
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
@@ -517,8 +518,8 @@ def _generate_in_subprocess(random_topic):
             "auto.offset.reset": "earliest",
         }
     )
-    ddtrace.Pin.override(producer, tracer=ddtrace.tracer)
-    ddtrace.Pin.override(consumer, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin.override(producer, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin.override(consumer, tracer=ddtrace.tracer)
 
     # We run all of these commands with retry attempts because the kafka-confluent API
     # sys.exits on connection failures, which causes the test to fail. We want to retry
@@ -798,8 +799,8 @@ import pytest
 import random
 import sys
 
-from ddtrace import Pin
-from ddtrace.contrib.kafka.patch import patch
+from ddtrace.trace import Pin
+from ddtrace.contrib.internal.kafka.patch import patch
 
 from tests.contrib.kafka.test_kafka import consumer
 from tests.contrib.kafka.test_kafka import kafka_topic
@@ -1038,8 +1039,8 @@ import pytest
 import random
 import sys
 
-from ddtrace import Pin
-from ddtrace.contrib.kafka.patch import patch
+from ddtrace.trace import Pin
+from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 
 from tests.contrib.kafka.test_kafka import consumer
