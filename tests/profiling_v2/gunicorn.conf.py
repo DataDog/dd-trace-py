@@ -1,5 +1,6 @@
+from datetime import datetime
+from datetime import timezone
 import logging
-from datetime import datetime, timezone
 
 
 def post_fork(server, worker):
