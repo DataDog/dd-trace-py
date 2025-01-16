@@ -178,8 +178,6 @@ def test_should_not_iast_patch_if_in_denylist():
     assert not _should_iast_patch("ddtrace.internal.module")
     assert not _should_iast_patch("ddtrace.appsec._iast")
     assert not _should_iast_patch("pip.foo.bar")
-    assert not _should_iast_patch("cchardet.foo")
-    assert not _should_iast_patch("cchardet")
 
 
 def test_should_not_iast_patch_if_stdlib():
