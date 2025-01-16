@@ -1,5 +1,4 @@
 from ddtrace._trace.context import Context
-from ddtrace._trace.filters import FilterRequestsOnUrl
 from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
@@ -13,7 +12,6 @@ __all__ = [
     "Context",
     "Pin",
     "TraceFilter",
-    "FilterRequestsOnUrl",
     "Tracer",
     "Span",
     "tracer",
