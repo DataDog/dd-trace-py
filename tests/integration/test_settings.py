@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from .test_integration import AGENT_VERSION
+from tests.integration.utils import AGENT_VERSION
 
 
 def _get_telemetry_config_items(events, item_name):

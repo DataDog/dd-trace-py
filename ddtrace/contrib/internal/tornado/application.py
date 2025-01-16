@@ -58,6 +58,6 @@ def tracer_config(__init__, app, args, kwargs):
     # Required for backwards compatibility. Remove the else clause when
     # the `ddtrace.Pin` object no longer accepts the Pin argument.
     if tracer is ddtrace.tracer:
-        ddtrace.Pin(service=service).onto(template)
+        ddtrace.trace.Pin(service=service).onto(template)
     else:
-        ddtrace.Pin(service=service, tracer=tracer).onto(template)
+        ddtrace.trace.Pin(service=service, tracer=tracer).onto(template)

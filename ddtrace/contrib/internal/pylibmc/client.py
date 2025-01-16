@@ -54,9 +54,9 @@ class TracedClient(ObjectProxy):
         # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
         # Remove this if statement when the `tracer` argument is removed
         if tracer is ddtrace.tracer:
-            pin = ddtrace.Pin(service=schematized_service)
+            pin = ddtrace.trace.Pin(service=schematized_service)
         else:
-            pin = ddtrace.Pin(service=schematized_service, tracer=tracer)
+            pin = ddtrace.trace.Pin(service=schematized_service, tracer=tracer)
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to
@@ -69,7 +69,7 @@ class TracedClient(ObjectProxy):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
         traced_client = TracedClient(cloned)
-        pin = ddtrace.Pin.get_from(self)
+        pin = ddtrace.trace.Pin.get_from(self)
         if pin:
             pin.clone().onto(traced_client)
         return traced_client
@@ -160,7 +160,7 @@ class TracedClient(ObjectProxy):
 
     def _span(self, cmd_name):
         """Return a span timing the given command."""
-        pin = ddtrace.Pin.get_from(self)
+        pin = ddtrace.trace.Pin.get_from(self)
         if not pin or not pin.enabled():
             return self._no_span()
 

@@ -32,6 +32,26 @@ if TYPE_CHECKING:
     from typing import Any  # noqa:F401
 
 
+if python_supported_by_iast():
+    with override_env({"DD_IAST_ENABLED": "True"}):
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast.reporter import IastSpanReporter
+
+    def assert_origin(parameter, origin_type):  # type: (Any, Any) -> None
+        assert is_pyobject_tainted(parameter)
+        sources, _ = IastSpanReporter.taint_ranges_as_evidence_info(parameter)
+        assert sources[0].origin == origin_type
+
+else:
+
+    def assert_origin(pyobject, origin_type):  # type: (Any) -> bool
+        return True
+
+    def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
+        return True
+
+
 def include_view(request):
     return HttpResponse(status=200)
 
@@ -52,6 +72,8 @@ def body_view(request):
         return HttpResponse(data, status=200)
     else:
         data = request.POST
+        first_post_key = list(request.POST.keys())[0]
+        assert_origin(first_post_key, OriginType.PARAMETER_NAME)
         return HttpResponse(str(dict(data)), status=200)
 
 
@@ -82,6 +104,24 @@ def sqli_http_request_parameter(request):
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_request_parameter
         cursor.execute(add_aspect(add_aspect(request.GET["q"], obj), "'"))
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def sqli_http_request_parameter_name_get(request):
+    obj = " 1"
+    with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_request_parameter_name_get
+        cursor.execute(add_aspect(list(request.GET.keys())[0], obj))
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def sqli_http_request_parameter_name_post(request):
+    obj = " 1"
+    with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_request_parameter_name_post
+        cursor.execute(add_aspect(list(request.POST.keys())[0], obj))
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
@@ -119,35 +159,21 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
 
 
 def taint_checking_enabled_view(request):
-    if python_supported_by_iast():
-        with override_env({"DD_IAST_ENABLED": "True"}):
-            from ddtrace.appsec._iast._taint_tracking import OriginType
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-            from ddtrace.appsec._iast.reporter import IastSpanReporter
-
-        def assert_origin_path(path):  # type: (Any) -> None
-            assert is_pyobject_tainted(path)
-            sources, tainted_ranges_to_dict = IastSpanReporter.taint_ranges_as_evidence_info(path)
-            assert sources[0].origin == OriginType.PATH
-
-    else:
-
-        def assert_origin_path(pyobject):  # type: (Any) -> bool
-            return True
-
-        def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
-            return True
-
     # TODO: Taint request body
     # assert is_pyobject_tainted(request.body)
+    first_get_key = list(request.GET.keys())[0]
     assert is_pyobject_tainted(request.GET["q"])
+    assert is_pyobject_tainted(first_get_key)
     assert is_pyobject_tainted(request.META["QUERY_STRING"])
     assert is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
     # TODO: Taint request headers
     # assert is_pyobject_tainted(request.headers["User-Agent"])
-    assert_origin_path(request.path_info)
-    assert_origin_path(request.path)
-    assert_origin_path(request.META["PATH_INFO"])
+    assert_origin(request.path_info, OriginType.PATH)
+    assert_origin(request.path, OriginType.PATH)
+    assert_origin(request.META["PATH_INFO"], OriginType.PATH)
+    assert_origin(request.GET["q"], OriginType.PARAMETER)
+    assert_origin(first_get_key, OriginType.PARAMETER_NAME)
+
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
 
@@ -162,6 +188,7 @@ def taint_checking_disabled_view(request):
 
     assert not is_pyobject_tainted(request.body)
     assert not is_pyobject_tainted(request.GET["q"])
+    assert not is_pyobject_tainted(list(request.GET.keys())[0])
     assert not is_pyobject_tainted(request.META["QUERY_STRING"])
     assert not is_pyobject_tainted(request.META["HTTP_USER_AGENT"])
     assert not is_pyobject_tainted(request.headers["User-Agent"])
@@ -297,6 +324,16 @@ urlpatterns = [
     handler("taint-checking-enabled/$", taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler("taint-checking-disabled/$", taint_checking_disabled_view, name="taint_checking_disabled_view"),
     handler("sqli_http_request_parameter/$", sqli_http_request_parameter, name="sqli_http_request_parameter"),
+    handler(
+        "sqli_http_request_parameter_name_get/$",
+        sqli_http_request_parameter_name_get,
+        name="sqli_http_request_parameter_name_get",
+    ),
+    handler(
+        "sqli_http_request_parameter_name_post/$",
+        sqli_http_request_parameter_name_post,
+        name="sqli_http_request_parameter_name_post",
+    ),
     handler("sqli_http_request_header_name/$", sqli_http_request_header_name, name="sqli_http_request_header_name"),
     handler("sqli_http_request_header_value/$", sqli_http_request_header_value, name="sqli_http_request_header_value"),
     handler("sqli_http_request_cookie_name/$", sqli_http_request_cookie_name, name="sqli_http_request_cookie_name"),

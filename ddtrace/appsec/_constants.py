@@ -75,6 +75,8 @@ class APPSEC(metaclass=Constant_Class):
     CUSTOM_EVENT_PREFIX: Literal["appsec.events"] = "appsec.events"
     USER_LOGIN_EVENT_PREFIX: Literal["_dd.appsec.events.users.login"] = "_dd.appsec.events.users.login"
     USER_LOGIN_EVENT_PREFIX_PUBLIC: Literal["appsec.events.users.login"] = "appsec.events.users.login"
+    USER_LOGIN_USERID: Literal["_dd.appsec.usr.id"] = "_dd.appsec.usr.id"
+    USER_LOGIN_USERNAME: Literal["_dd.appsec.usr.login"] = "_dd.appsec.usr.login"
     USER_LOGIN_EVENT_SUCCESS_TRACK: Literal[
         "appsec.events.users.login.success.track"
     ] = "appsec.events.users.login.success.track"
@@ -180,6 +182,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     REQUEST_COOKIES: Literal["server.request.cookies"] = "server.request.cookies"
     REQUEST_HTTP_IP: Literal["http.client_ip"] = "http.client_ip"
     REQUEST_USER_ID: Literal["usr.id"] = "usr.id"
+    REQUEST_USERNAME: Literal["usr.login"] = "usr.login"
     RESPONSE_STATUS: Literal["server.response.status"] = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES: Literal["server.response.headers.no_cookies"] = "server.response.headers.no_cookies"
     RESPONSE_BODY: Literal["server.response.body"] = "server.response.body"
@@ -194,6 +197,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             REQUEST_COOKIES,
             REQUEST_HTTP_IP,
             REQUEST_USER_ID,
+            REQUEST_USERNAME,
             RESPONSE_STATUS,
             RESPONSE_HEADERS_NO_COOKIES,
             RESPONSE_BODY,
