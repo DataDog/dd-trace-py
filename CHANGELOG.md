@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.17.5
+
+
+### Bug Fixes
+
+- tracing(celery): Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
+
+
+---
+
 ## 2.18.1
 
 
