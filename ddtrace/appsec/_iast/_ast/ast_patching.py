@@ -377,13 +377,8 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "zipp.",
 )
 
-
-if IAST.PATCH_MODULES in os.environ:
-    IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
-
-if IAST.DENY_MODULES in os.environ:
-    IAST_DENYLIST += tuple(os.environ[IAST.DENY_MODULES].split(IAST.SEP_MODULES))
-
+USER_ALLOWLIST = tuple(os.environ.get(IAST.PATCH_MODULES, "").split(IAST.SEP_MODULES))
+USER_DENYLIST = tuple(os.environ.get(IAST.DENY_MODULES, "").split(IAST.SEP_MODULES))
 
 ENCODING = ""
 
@@ -419,6 +414,8 @@ def build_trie(words: Iterable[str]) -> _TrieNode:
 
 _TRIE_ALLOWLIST = build_trie(IAST_ALLOWLIST)
 _TRIE_DENYLIST = build_trie(IAST_DENYLIST)
+_TRIE_USER_ALLOWLIST = build_trie(USER_ALLOWLIST)
+_TRIE_USER_DENYLIST = build_trie(USER_DENYLIST)
 
 
 def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
@@ -486,6 +483,14 @@ def _should_iast_patch(module_name: Text) -> bool:
 
     # else: third party. Check that is in the allow list and not in the deny list
     dotted_module_name = module_name.lower() + "."
+
+    # User allow or deny list set by env var have priority
+    if _trie_has_prefix_for(_TRIE_USER_ALLOWLIST, dotted_module_name):
+        return True
+
+    if _trie_has_prefix_for(_TRIE_USER_DENYLIST, dotted_module_name):
+        return False
+
     if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
         if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
             return False
