@@ -13,12 +13,8 @@ from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-from ddtrace.appsec._iast._taint_tracking.aspects import decode_aspect
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
-from tests.utils import override_env
 
 
 def assert_origin(parameter: Any, origin_type: Any) -> None:
@@ -80,7 +76,7 @@ def sqli_http_request_parameter(request):
     obj = password_django.encode("i'm a password", bcrypt.gensalt())
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_request_parameter
-        cursor.execute(add_aspect(add_aspect(request.GET["q"], obj), "'"))
+        cursor.execute(request.GET["q"] + obj + "'")
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
@@ -89,7 +85,7 @@ def sqli_http_request_parameter_name_get(request):
     obj = " 1"
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_request_parameter_name_get
-        cursor.execute(add_aspect(list(request.GET.keys())[0], obj))
+        cursor.execute(list(request.GET.keys())[0] + obj)
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
@@ -98,7 +94,7 @@ def sqli_http_request_parameter_name_post(request):
     obj = " 1"
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_request_parameter_name_post
-        cursor.execute(add_aspect(list(request.POST.keys())[0], obj))
+        cursor.execute(list(request.POST.keys())[0] + obj)
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
@@ -108,7 +104,7 @@ def sqli_http_request_header_name(request):
 
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_request_header_name
-        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", key))
+        cursor.execute("SELECT 1 FROM sqlite_" + key)
 
     return HttpResponse(request.META["master"], status=200)
 
@@ -116,7 +112,7 @@ def sqli_http_request_header_name(request):
 def sqli_http_request_header_value(request):
     value = [x for x in request.META.values() if x == "master"][0]
     with connection.cursor() as cursor:
-        query = add_aspect("SELECT 1 FROM sqlite_", value)
+        query = "SELECT 1 FROM sqlite_" + value
         # label iast_enabled_sqli_http_request_header_value
         cursor.execute(query)
 
@@ -124,11 +120,8 @@ def sqli_http_request_header_value(request):
 
 
 def sqli_http_path_parameter(request, q_http_path_parameter):
-    with override_env({"DD_IAST_ENABLED": "True"}):
-        from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-
     with connection.cursor() as cursor:
-        query = add_aspect("SELECT 1 from ", q_http_path_parameter)
+        query = "SELECT 1 from " + q_http_path_parameter
         # label iast_enabled_full_sqli_http_path_parameter
         cursor.execute(query)
 
@@ -155,14 +148,6 @@ def taint_checking_enabled_view(request):
 
 
 def taint_checking_disabled_view(request):
-    if python_supported_by_iast():
-        with override_env({"DD_IAST_ENABLED": "True"}):
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-    else:
-
-        def is_pyobject_tainted(pyobject: Any) -> bool:
-            return False
-
     assert not is_pyobject_tainted(request.body)
     assert not is_pyobject_tainted(request.GET["q"])
     assert not is_pyobject_tainted(list(request.GET.keys())[0])
@@ -185,7 +170,7 @@ def sqli_http_request_cookie_name(request):
 
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_cookies_name
-        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", key))
+        cursor.execute("SELECT 1 FROM sqlite_" + key)
 
     return HttpResponse(request.COOKIES["master"], status=200)
 
@@ -195,7 +180,7 @@ def sqli_http_request_cookie_value(request):
 
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_cookies_value
-        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
+        cursor.execute("SELECT 1 FROM sqlite_" + value)
 
     return HttpResponse(request.COOKIES["master"], status=200)
 
@@ -205,19 +190,19 @@ def sqli_http_request_body(request):
     if key in request.POST:
         value = request.POST[key]
     else:
-        value = decode_aspect(bytes.decode, 1, request.body)
+        value = request.body.decode()
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_body
-        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
+        cursor.execute("SELECT 1 FROM sqlite_" + value)
 
     return HttpResponse(value, status=200)
 
 
 def source_body_view(request):
-    value = decode_aspect(bytes.decode, 1, request.body)
+    value = request.body.decode()
     with connection.cursor() as cursor:
         # label source_body_view
-        cursor.execute(add_aspect("SELECT 1 FROM sqlite_master WHERE type='1'", value))
+        cursor.execute("SELECT 1 FROM sqlite_master WHERE type='1'" + value)
     return HttpResponse(value, status=200)
 
 
@@ -264,15 +249,15 @@ def view_insecure_cookies_insecure_special_chars(request):
 
 
 def command_injection(request):
-    value = decode_aspect(bytes.decode, 1, request.body)
+    value = request.body.decode()
     # label iast_command_injection
-    os.system(add_aspect("dir -l ", value))
+    os.system("dir -l " + value)
 
     return HttpResponse("OK", status=200)
 
 
 def header_injection(request):
-    value = decode_aspect(bytes.decode, 1, request.body)
+    value = request.body.decode()
 
     response = HttpResponse("OK", status=200)
     # label iast_header_injection
