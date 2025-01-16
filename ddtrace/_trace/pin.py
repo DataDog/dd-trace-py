@@ -1,3 +1,8 @@
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
+
 import wrapt
 
 import ddtrace
