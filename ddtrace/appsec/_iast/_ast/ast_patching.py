@@ -462,6 +462,7 @@ def _is_first_party(module_name: str):
 
     if not _IMPORTLIB_PACKAGES:
         from ddtrace.internal.packages import get_package_distributions
+
         _IMPORTLIB_PACKAGES = set(get_package_distributions())
 
     return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
