@@ -121,12 +121,8 @@ def track_user_login_success_event(
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
-
-    if in_asm_context():
-        call_waf_callback(
-            custom_data={"REQUEST_USER_ID": str(user_id), "REQUEST_USERNAME": login, "LOGIN_SUCCESS": real_mode},
-            force_sent=True,
-        )
+    initial_login = login
+    initial_user_id = user_id
     if real_mode == LOGIN_EVENTS_MODE.ANON:
         name = email = None
         login = None if login is None else _hash_user_id(str(login))
@@ -139,6 +135,15 @@ def track_user_login_success_event(
     if login_events_mode != LOGIN_EVENTS_MODE.SDK:
         span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
+    if in_asm_context():
+        call_waf_callback(
+            custom_data={
+                "REQUEST_USER_ID": str(initial_user_id) if initial_user_id else None,
+                "REQUEST_USERNAME": initial_login,
+                "LOGIN_SUCCESS": real_mode,
+            },
+            force_sent=True,
+        )
 
 
 def track_user_login_failure_event(
