@@ -478,7 +478,7 @@ class Tracer(object):
             doesn't need to be changed from the default value
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
-            from the default value
+            from the default value. This parameter is deprecated and will be removed.
         :param priority_sampling: This parameter is deprecated and will be removed in a future version.
         :param bool settings: This parameter is deprecated and will be removed.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
@@ -496,7 +496,7 @@ class Tracer(object):
         """
         if settings is not None:
             deprecate(
-                "Passing settings to ``tracer.configure(...)`` is deprecated",
+                "Support for ``tracer.configure(...)`` with the settings parameter is deprecated",
                 message="Please use the trace_processors parameter instead of settings['FILTERS'].",
                 version="3.0.0",
                 category=DDTraceDeprecationWarning,
@@ -562,7 +562,7 @@ class Tracer(object):
 
         if priority_sampling is not None and log_deprecations:
             deprecate(
-                "Priority sampling on tracing clients is always enabled",
+                "Disabling priority sampling is deprecated",
                 message="Calling `tracer.configure(priority_sampling=....) has no effect",
                 version="3.0.0",
                 category=DDTraceDeprecationWarning,
@@ -586,7 +586,7 @@ class Tracer(object):
             if log_deprecations:
                 deprecate(
                     "Configuring partial flushing after application start is deprecated",
-                    message="Please use DD_TRACE_PARTIAL_FLUSH_MIN_SPANS to configure the partial flushing instead.",
+                    message="Please use DD_TRACE_PARTIAL_FLUSH_MIN_SPANS to set the flushing threshold instead.",
                     version="3.0.0",
                     category=DDTraceDeprecationWarning,
                 )
@@ -623,8 +623,8 @@ class Tracer(object):
             self._user_sampler = self._sampler
             if log_deprecations:
                 deprecate(
-                    "Configuring a custom sampler is deprecated",
-                    message="Please use DD_TRACE_SAMPLING_RULES to configure the sampler instead",
+                    "Configuring custom samplers is deprecated",
+                    message="Please use DD_TRACE_SAMPLING_RULES to configure the sample rates instead",
                     category=DDTraceDeprecationWarning,
                     removal_version="3.0.0",
                 )
@@ -633,7 +633,7 @@ class Tracer(object):
             if log_deprecations:
                 deprecate(
                     "Configuring dogstatsd_url after application start is deprecated",
-                    message="Please use DD_DOGSTATSD_URL to set dogstatsd url.",
+                    message="Please use DD_DOGSTATSD_URL instead.",
                     version="3.0.0",
                     category=DDTraceDeprecationWarning,
                 )
@@ -643,7 +643,7 @@ class Tracer(object):
             if log_deprecations:
                 deprecate(
                     "Configuring tracer agent connection after application start is deprecated",
-                    message="Please use DD_TRACE_AGENT_URL to set the agent url.",
+                    message="Please use DD_TRACE_AGENT_URL instead.",
                     version="3.0.0",
                     category=DDTraceDeprecationWarning,
                 )
@@ -674,7 +674,7 @@ class Tracer(object):
             if log_deprecations:
                 deprecate(
                     "Configuring tracer stats computation after application start is deprecated",
-                    message="Please use DD_TRACE_STATS_COMPUTATION_ENABLED to configure stats computation instead.",
+                    message="Please use DD_TRACE_STATS_COMPUTATION_ENABLED instead.",
                     version="3.0.0",
                     category=DDTraceDeprecationWarning,
                 )
@@ -689,7 +689,7 @@ class Tracer(object):
         if api_version is not None and log_deprecations:
             deprecate(
                 "Configuring Tracer API version after application start is deprecated",
-                message="Please use DD_TRACE_API_VERSION to override the default tracer api version.",
+                message="Please use DD_TRACE_API_VERSION instead.",
                 version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
@@ -755,6 +755,12 @@ class Tracer(object):
 
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
+            if log_deprecations:
+                deprecate(
+                    "Support for tracer.configure(...) with the wrap_executor parameter is deprecated",
+                    version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
 
         self._generate_diagnostic_logs()
 

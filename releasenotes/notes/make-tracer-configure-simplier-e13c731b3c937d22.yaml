@@ -17,3 +17,5 @@ deprecations:
       - partial_flush_enabled
       - partial_flush_min_spans
       - api_version
+      - compute_stats_enabled
+      - wrap_executor
