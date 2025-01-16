@@ -9,11 +9,13 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
+from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -136,7 +138,7 @@ def track_user_login_success_event(
         span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
     if in_asm_context():
-        call_waf_callback(
+        res = call_waf_callback(
             custom_data={
                 "REQUEST_USER_ID": str(initial_user_id) if initial_user_id else None,
                 "REQUEST_USERNAME": initial_login,
@@ -144,6 +146,8 @@ def track_user_login_success_event(
             },
             force_sent=True,
         )
+        if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+            raise BlockingException(get_blocked())
 
 
 def track_user_login_failure_event(
