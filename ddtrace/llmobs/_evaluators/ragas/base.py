@@ -26,8 +26,10 @@ class RagasDependencies:
     def __init__(self):
         import ragas
 
-        self.ragas_version = parse_version(ragas.__version__)
-        if self.ragas_version >= (0, 2, 0) or self.ragas_version < (0, 1, 10):
+        self.ragas_version = ragas.__version__  # type: str
+
+        parsed_version = parse_version(ragas.__version__)
+        if parsed_version >= (0, 2, 0) or parsed_version < (0, 1, 10):
             raise NotImplementedError(
                 "Ragas version: {} is not supported".format(self.ragas_version),
             )
