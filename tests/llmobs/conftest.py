@@ -1,7 +1,8 @@
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
+import json
 import os
-import socket
+import time
 import threading
 
 import mock
@@ -197,20 +198,22 @@ def llmobs_span_writer(_llmobs_backend):
     yield sw
 
 
-class LLMObsBackend(BaseHTTPRequestHandler):
+class LLMObsServer(BaseHTTPRequestHandler):
+    """A mock server for the LLMObs backend used to capture the requests made by the client.
+
+    Python's HTTPRequestHandler is a bit weird and uses a class rather than an instance
+    for running an HTTP server so the requests are stored in a class variable and reset in the pytest fixture.
+    """
+
     requests = []
 
     def __init__(self, *args, **kwargs) -> None:
-        print("test")
         super().__init__(*args, **kwargs)
 
     def do_POST(self) -> None:
-        print(f"Received POST request: {self.path}")
         content_length = int(self.headers["Content-Length"])
         body = self.rfile.read(content_length).decode("utf-8")
-
         self.requests.append({"path": self.path, "headers": dict(self.headers), "body": body})
-
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"OK")
@@ -218,9 +221,9 @@ class LLMObsBackend(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def _llmobs_backend():
-    LLMObsBackend.requests = []
+    LLMObsServer.requests = []
     # Create and start the HTTP server
-    server = HTTPServer(("localhost", 0), LLMObsBackend)
+    server = HTTPServer(("localhost", 0), LLMObsServer)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
@@ -228,7 +231,7 @@ def _llmobs_backend():
     # Provide the server details to the test
     server_address = f"http://{server.server_address[0]}:{server.server_address[1]}"
 
-    yield server_address, LLMObsBackend.requests
+    yield server_address, LLMObsServer.requests
 
     # Stop the server after the test
     server.shutdown()
@@ -236,9 +239,20 @@ def _llmobs_backend():
 
 
 @pytest.fixture
-def llmobs_backend_requests(_llmobs_backend):
+def llmobs_backend(_llmobs_backend):
     _, reqs = _llmobs_backend
-    return reqs
+
+    class _LLMObsBackend:
+        def wait_for_num_events(self, num, attempts=1000):
+            for _ in range(attempts):
+                if len(reqs) == num:
+                    return [json.loads(r["body"]) for r in reqs]
+                # time.sleep will yield the GIL so the server can process the request
+                time.sleep(0.001)
+            else:
+                raise TimeoutError(f"Expected {num} events, got {len(reqs)}")
+
+    return _LLMObsBackend()
 
 
 @pytest.fixture
