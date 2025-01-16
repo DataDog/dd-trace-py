@@ -65,7 +65,7 @@ __all__ = [
 ]
 
 
-_DEPRECATED_MODULE_ATTRIBUTES = [
+_DEPRECATED_TRACE_ATTRIBUTES = [
     "Span",
     "Tracer",
     "Pin",
@@ -73,10 +73,12 @@ _DEPRECATED_MODULE_ATTRIBUTES = [
 
 
 def __getattr__(name):
-    if name in _DEPRECATED_MODULE_ATTRIBUTES:
+    if name in _DEPRECATED_TRACE_ATTRIBUTES:
         debtcollector.deprecate(
             ("%s.%s is deprecated" % (__name__, name)),
+            message="Import from ddtrace.trace instead.",
             category=DDTraceDeprecationWarning,
+            removal_version="3.0.0",
         )
 
     if name in globals():
