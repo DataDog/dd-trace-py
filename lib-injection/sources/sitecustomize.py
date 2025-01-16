@@ -45,6 +45,7 @@ FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
 TELEMETRY_ENABLED = "DD_INJECTION_ENABLED" in os.environ
 DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
 INSTALLED_PACKAGES = {}
+DDTRACE_VERSION = "unknown"
 PYTHON_VERSION = "unknown"
 PYTHON_RUNTIME = "unknown"
 PKGS_ALLOW_LIST = {}
@@ -133,7 +134,7 @@ def create_count_metric(metric, tags=None):
     }
 
 
-def gen_telemetry_payload(telemetry_events, ddtrace_version="unknown"):
+def gen_telemetry_payload(telemetry_events, ddtrace_version):
     return {
         "metadata": {
             "language_name": "python",
@@ -233,6 +234,7 @@ def get_first_incompatible_sysarg():
 
 
 def _inject():
+    global DDTRACE_VERSION
     global INSTALLED_PACKAGES
     global PYTHON_VERSION
     global PYTHON_RUNTIME
@@ -353,10 +355,7 @@ def _inject():
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
             TELEMETRY_DATA.append(
-                gen_telemetry_payload(
-                    [create_count_metric("library_entrypoint.abort", ["reason:missing_" + site_pkgs_path])],
-                    DDTRACE_VERSION,
-                )
+                create_count_metric("library_entrypoint.abort", ["reason:missing_" + site_pkgs_path]),
             )
             return
 
@@ -369,14 +368,9 @@ def _inject():
         except BaseException as e:
             _log("failed to load ddtrace module: %s" % e, level="error")
             TELEMETRY_DATA.append(
-                gen_telemetry_payload(
-                    [
-                        create_count_metric(
-                            "library_entrypoint.error", ["error_type:import_ddtrace_" + type(e).__name__.lower()]
-                        )
-                    ],
-                    DDTRACE_VERSION,
-                )
+                create_count_metric(
+                    "library_entrypoint.error", ["error_type:import_ddtrace_" + type(e).__name__.lower()]
+                ),
             )
 
             return
@@ -408,28 +402,18 @@ def _inject():
 
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
                 TELEMETRY_DATA.append(
-                    gen_telemetry_payload(
+                    create_count_metric(
+                        "library_entrypoint.complete",
                         [
-                            create_count_metric(
-                                "library_entrypoint.complete",
-                                [
-                                    "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
-                                ],
-                            )
+                            "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
                         ],
-                        DDTRACE_VERSION,
-                    )
+                    ),
                 )
             except Exception as e:
                 TELEMETRY_DATA.append(
-                    gen_telemetry_payload(
-                        [
-                            create_count_metric(
-                                "library_entrypoint.error", ["error_type:init_ddtrace_" + type(e).__name__.lower()]
-                            )
-                        ],
-                        DDTRACE_VERSION,
-                    )
+                    create_count_metric(
+                        "library_entrypoint.error", ["error_type:init_ddtrace_" + type(e).__name__.lower()]
+                    ),
                 )
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
@@ -451,12 +435,11 @@ try:
         _inject()
     except Exception as e:
         TELEMETRY_DATA.append(
-            gen_telemetry_payload(
-                [create_count_metric("library_entrypoint.error", ["error_type:main_" + type(e).__name__.lower()])]
-            )
+            create_count_metric("library_entrypoint.error", ["error_type:main_" + type(e).__name__.lower()])
         )
     finally:
         if TELEMETRY_DATA:
-            send_telemetry(TELEMETRY_DATA)
+            payload = gen_telemetry_payload(TELEMETRY_DATA, DDTRACE_VERSION)
+            send_telemetry(payload)
 except Exception:
     pass  # absolutely never allow exceptions to propagate to the app

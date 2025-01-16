@@ -10,12 +10,8 @@ import pytest
 from ddtrace import Tracer
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.runtime import container
-from ddtrace.internal.writer import AgentWriter
-from tests.integration.utils import AGENT_VERSION
-from tests.integration.utils import BadEncoder
 from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
-from tests.integration.utils import send_invalid_payload_and_get_logs
 from tests.integration.utils import skip_if_testagent
 from tests.utils import call_program
 
@@ -23,8 +19,11 @@ from tests.utils import call_program
 FOUR_KB = 1 << 12
 
 
+@pytest.mark.subprocess()
 def test_configure_keeps_api_hostname_and_port():
-    tracer = Tracer()
+    from ddtrace import tracer
+    from tests.integration.utils import AGENT_VERSION
+
     assert tracer._writer.agent_url == "http://localhost:{}".format("9126" if AGENT_VERSION == "testagent" else "8126")
     tracer._configure(hostname="127.0.0.1", port=8127)
     assert tracer._writer.agent_url == "http://127.0.0.1:8127"
@@ -506,8 +505,12 @@ def test_validate_headers_in_payload_to_intake_with_nested_spans():
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
+@parametrize_with_all_encodings
 def test_trace_with_invalid_client_endpoint_generates_error_log():
-    t = Tracer()
+    import mock
+
+    from ddtrace import tracer as t
+
     for client in t._writer._clients:
         client.ENDPOINT = "/bad"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -526,7 +529,12 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
 
 
 @skip_if_testagent
+@pytest.mark.subprocess(err=None)
 def test_trace_with_invalid_payload_generates_error_log():
+    import mock
+
+    from tests.integration.utils import send_invalid_payload_and_get_logs
+
     log = send_invalid_payload_and_get_logs()
     log.error.assert_has_calls(
         [
@@ -541,11 +549,11 @@ def test_trace_with_invalid_payload_generates_error_log():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
 def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
-    from tests.integration.test_integration import send_invalid_payload_and_get_logs
+    from tests.integration.utils import send_invalid_payload_and_get_logs
 
     log = send_invalid_payload_and_get_logs()
     log.error.assert_has_calls(
@@ -562,12 +570,12 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
 def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
-    from tests.integration.test_integration import send_invalid_payload_and_get_logs
     from tests.integration.utils import BadEncoder
+    from tests.integration.utils import send_invalid_payload_and_get_logs
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
@@ -590,7 +598,11 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     )
 
 
+@pytest.mark.subprocess(err=None)
 def test_trace_with_failing_encoder_generates_error_log():
+    from tests.integration.utils import BadEncoder
+    from tests.integration.utils import send_invalid_payload_and_get_logs
+
     class ExceptionBadEncoder(BadEncoder):
         def encode(self):
             raise Exception()
@@ -620,8 +632,11 @@ def test_api_version_downgrade_generates_no_warning_logs():
     log.error.assert_not_called()
 
 
+@pytest.mark.subprocess()
 def test_synchronous_writer_shutdown_raises_no_exception():
-    tracer = Tracer()
+    from ddtrace import tracer
+    from ddtrace.internal.writer import AgentWriter
+
     tracer._configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
     tracer.shutdown()
 

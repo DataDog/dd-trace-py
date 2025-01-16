@@ -6,7 +6,6 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
@@ -24,6 +23,7 @@ from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._log_writer import V2LogWriter
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.settings import IntegrationConfig
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)

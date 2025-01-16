@@ -235,7 +235,9 @@ def test_django_login_sucess_anonymization(client, test_spans, tracer, use_login
         assert login_span.get_tag(user.ID) == "1"
         assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.ANON
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") is None
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == (
+            "anon_d1ad1f735a4381c2e8dbed0222db1136" if use_login else None
+        )
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") is None
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") is None
 
@@ -368,7 +370,10 @@ def test_django_login_sucess_anonymization_but_user_set_login(client, test_spans
         assert login_span.get_tag(user.ID) == "anon_d1ad1f735a4381c2e8dbed0222db1136"
         assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.ANON
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
+        assert (
+            login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
+            == "anon_d1ad1f735a4381c2e8dbed0222db1136"
+        )
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.email")
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.username")
 

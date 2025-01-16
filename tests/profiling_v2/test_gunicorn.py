@@ -13,7 +13,7 @@ from tests.profiling.collector import pprof_utils
 
 # DEV: gunicorn tests are hard to debug, so keeping these print statements for
 # future debugging
-DEBUG_PRINT = False
+DEBUG_PRINT = True
 
 
 def debug_print(*args):
@@ -37,6 +37,8 @@ def _run_gunicorn(*args):
             "127.0.0.1:7644",
             "--worker-tmp-dir",
             "/dev/shm",
+            "-c",
+            os.path.dirname(__file__) + "/gunicorn.conf.py",
             "--chdir",
             os.path.dirname(__file__),
         ]

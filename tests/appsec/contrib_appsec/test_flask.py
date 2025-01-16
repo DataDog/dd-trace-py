@@ -1,8 +1,8 @@
 from flask.testing import FlaskClient
 import pytest
 
-from ddtrace import Pin
 from ddtrace.internal.packages import get_version_for_package
+from ddtrace.trace import Pin
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
 
