@@ -4,7 +4,7 @@ from ddtrace._trace.utils_redis import _instrument_redis_execute_async_cluster_p
 from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
 from ddtrace.contrib.redis_utils import _run_redis_command_async
 from ddtrace.internal.utils.formats import stringify_cache_args
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 async def instrumented_async_execute_command(func, instance, args, kwargs):
