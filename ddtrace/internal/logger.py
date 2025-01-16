@@ -202,7 +202,6 @@ class DDTelemetryLogger(DDLogger):
             lambda: DDLogger.LoggingBucket(0, 0)
         )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
 
-
     def handle(self, record):
         # type: (logging.LogRecord) -> None
 
@@ -244,7 +243,7 @@ def _format_stack_trace(exc_info):
         formatted_tb = ["Traceback (most recent call last):"]
         for filename, lineno, funcname, srcline in tb:
             if _should_redact(filename):
-                formatted_tb.append('  <REDACTED>')
+                formatted_tb.append("  <REDACTED>")
             else:
                 relative_filename = _format_file_path(filename)
                 formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
@@ -275,4 +274,3 @@ class _TelemetryConfig:
         "1",
     )
     TELEMETRY_HEARTBEAT_INTERVAL = int(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
-
