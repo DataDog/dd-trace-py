@@ -262,6 +262,7 @@ class AppSecSpanProcessor(SpanProcessor):
         custom_data: Optional[Dict[str, Any]] = None,
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
+        force_sent: bool = False,
     ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
@@ -293,7 +294,7 @@ class AppSecSpanProcessor(SpanProcessor):
         force_keys = custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False) if custom_data else False
 
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
-            if key in data_already_sent:
+            if key in data_already_sent and not force_sent:
                 continue
             # ensure ephemeral addresses are sent, event when value is None
             if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES and custom_data:

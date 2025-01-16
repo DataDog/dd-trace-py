@@ -638,7 +638,23 @@ CUSTOM_RULE_METHOD = {
             "name": "test required",
             "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
             "transformers": [],
-        }
+        },
+        {
+            "conditions": [
+                {
+                    "operator": "match_regex",
+                    "parameters": {
+                        "inputs": [{"address": "usr.login"}],
+                        "options": {"case_sensitive": False},
+                        "regex": "GET",
+                    },
+                }
+            ],
+            "id": "32b243c7-26eb-4046-bbbb-custom",
+            "name": "test required",
+            "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+            "transformers": [],
+        },
     ]
 }
 
@@ -672,6 +688,7 @@ def test_required_addresses():
         "server.request.query",
         "server.response.headers.no_cookies",
         "usr.id",
+        "usr.login",
     }
 
 
