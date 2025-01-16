@@ -2390,6 +2390,15 @@ EXTRACT_FIXTURES = [
             ],
         },
     ),
+    (
+        "baggage_case_insensitive",
+        None,
+        None,
+        {"BAgGage": "key1=val1,key2=val2"},
+        {
+            "baggage": {"key1": "val1", "key2": "val2"},
+        },
+    ),
 ]
 
 # Only add fixtures here if they can't pass both test_propagation_extract_env
@@ -2563,15 +2572,6 @@ EXTRACT_OVERRIDE_FIXTURES = [
             "span_id": 16453819474850114513,
             "sampling_priority": 1,
             "dd_origin": None,
-        },
-    ),
-    (
-        "baggage_case_insensitive",
-        None,
-        None,
-        {"BAgGage": "key1=val1,key2=val2"},
-        {
-            "baggage": {"key1": "val1", "key2": "val2"},
         },
     ),
 ]
