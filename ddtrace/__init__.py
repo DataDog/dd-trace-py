@@ -48,11 +48,11 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from .tracer import Tracer as _
 
+__version__ = get_version()
+
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
-
-__version__ = get_version()
 
 __all__ = [
     "patch",
