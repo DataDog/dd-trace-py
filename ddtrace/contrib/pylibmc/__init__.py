@@ -5,7 +5,8 @@
 
     # Be sure to import pylibmc and not pylibmc.Client directly,
     # otherwise you won't have access to the patched version
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     import pylibmc
 
     # If not patched yet, you can patch pylibmc specifically

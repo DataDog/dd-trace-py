@@ -7,6 +7,7 @@ from sys import builtin_module_names
 from sys import version_info
 import textwrap
 from types import ModuleType
+from typing import Iterable
 from typing import Optional
 from typing import Text
 from typing import Tuple
@@ -27,6 +28,47 @@ _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast.",)
 IAST_DENYLIST: Tuple[Text, ...] = (
+    "altgraph.",
+    "dipy.",
+    "black.",
+    "mypy.",
+    "mypy_extensions.",
+    "autopep8.",
+    "pycodestyle.",
+    "pydicom.",
+    "pyinstaller.",
+    "pystray.",
+    "contourpy.",
+    "cx_logging.",
+    "dateutil.",
+    "pytz.",
+    "wcwidth.",
+    "win32ctypes.",
+    "xlib.",
+    "cycler.",
+    "cython.",
+    "dnspython.",
+    "elasticdeform.",
+    "numpy.",
+    "matplotlib.",
+    "skbase.",
+    "scipy.",
+    "networkx.",
+    "imageio.",
+    "fonttools.",
+    "nibabel.",
+    "nilearn.",
+    "gprof2dot.",
+    "h5py.",
+    "kiwisolver.",
+    "pandas.",
+    "pdf2image.",
+    "pefile.",
+    "pil.",
+    "threadpoolctl.",
+    "tifffile.",
+    "tqdm.",
+    "trx.",
     "flask.",
     "werkzeug.",
     "aiohttp._helpers.",
@@ -110,6 +152,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "difflib.",
     "dill.info.",
     "dill.settings.",
+    "silk.",  # django-silk package
     "django.apps.config.",
     "django.apps.registry.",
     "django.conf.",
@@ -327,6 +370,49 @@ ENCODING = ""
 log = get_logger(__name__)
 
 
+class _TrieNode:
+    __slots__ = ("children", "is_end")
+
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+    def __iter__(self):
+        if self.is_end:
+            yield ("", None)
+        else:
+            for k, v in self.children.items():
+                yield (k, dict(v))
+
+
+def build_trie(words: Iterable[str]) -> _TrieNode:
+    root = _TrieNode()
+    for word in words:
+        node = root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = _TrieNode()
+            node = node.children[char]
+        node.is_end = True
+    return root
+
+
+_TRIE_ALLOWLIST = build_trie(IAST_ALLOWLIST)
+_TRIE_DENYLIST = build_trie(IAST_DENYLIST)
+
+
+def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
+    node = trie
+    for char in string:
+        node = node.children.get(char)
+        if not node:
+            return False
+
+        if node.is_end:
+            return True
+    return node.is_end
+
+
 def get_encoding(module_path: Text) -> Text:
     """
     First tries to detect the encoding for the file,
@@ -341,11 +427,11 @@ def get_encoding(module_path: Text) -> Text:
     return ENCODING
 
 
-_NOT_PATCH_MODULE_NAMES = _stdlib_for_python_version() | set(builtin_module_names)
+_NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
 
 
 def _in_python_stdlib(module_name: str) -> bool:
-    return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
+    return module_name.split(".")[0].lower() in _NOT_PATCH_MODULE_NAMES
 
 
 def _should_iast_patch(module_name: Text) -> bool:
@@ -359,10 +445,10 @@ def _should_iast_patch(module_name: Text) -> bool:
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
     dotted_module_name = module_name.lower() + "."
-    if dotted_module_name.startswith(IAST_ALLOWLIST):
+    if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
         log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
         return True
-    if dotted_module_name.startswith(IAST_DENYLIST):
+    if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
         log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
         return False
     if _in_python_stdlib(module_name):

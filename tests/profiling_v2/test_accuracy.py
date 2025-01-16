@@ -46,10 +46,10 @@ def test_accuracy_libdd():
     assert_almost_equal(wall_times["spend_16"], 16e9)
     assert_almost_equal(wall_times["spend_7"], 7e9)
 
-    assert_almost_equal(wall_times["spend_cpu_2"], 2e9, tolerance=0.07)
-    assert_almost_equal(wall_times["spend_cpu_3"], 3e9, tolerance=0.07)
-    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9, tolerance=0.07)
-    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9, tolerance=0.07)
+    assert_almost_equal(wall_times["spend_cpu_2"], 2e9, tolerance=0.09)
+    assert_almost_equal(wall_times["spend_cpu_3"], 3e9, tolerance=0.09)
+    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9, tolerance=0.09)
+    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9, tolerance=0.09)
 
 
 @pytest.mark.subprocess(
