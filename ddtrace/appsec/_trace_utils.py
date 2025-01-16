@@ -121,17 +121,20 @@ def track_user_login_success_event(
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
+
+    if in_asm_context():
+        call_waf_callback(
+            custom_data={"REQUEST_USER_ID": str(user_id), "REQUEST_USERNAME": login, "LOGIN_SUCCESS": real_mode},
+            force_sent=True,
+        )
     if real_mode == LOGIN_EVENTS_MODE.ANON:
-        login = name = email = None
+        name = email = None
+        login = None if login is None else _hash_user_id(str(login))
     span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email, span)
     if not span:
         return
-
     if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
-
-    if in_asm_context():
-        call_waf_callback(custom_data={"REQUEST_USER_ID": str(user_id), "LOGIN_SUCCESS": real_mode})
 
     if login_events_mode != LOGIN_EVENTS_MODE.SDK:
         span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
@@ -159,6 +162,8 @@ def track_user_login_failure_event(
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
+    if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(login, str):
+        login = _hash_user_id(login)
     span = _track_user_login_common(tracer, False, metadata, login_events_mode, login)
     if not span:
         return
@@ -265,7 +270,7 @@ def should_block_user(tracer: Tracer, userid: str) -> bool:
     if get_blocked():
         return True
 
-    _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)})
+    _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)}, force_sent=True)
     return bool(get_blocked())
 
 
