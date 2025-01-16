@@ -180,7 +180,11 @@ def test_should_not_iast_patch_if_in_denylist():
     except AssertionError as e:
         print("Assertion Error: ", e)
         from pprint import pprint
-        from ddtrace.appsec._iast._ast.ast_patching import IAST_ALLOWLIST, IAST_DENYLIST, USER_ALLOWLIST, USER_DENYLIST
+
+        from ddtrace.appsec._iast._ast.ast_patching import IAST_ALLOWLIST
+        from ddtrace.appsec._iast._ast.ast_patching import IAST_DENYLIST
+        from ddtrace.appsec._iast._ast.ast_patching import USER_ALLOWLIST
+        from ddtrace.appsec._iast._ast.ast_patching import USER_DENYLIST
 
         print("Allowlist:")
         pprint(IAST_ALLOWLIST)
