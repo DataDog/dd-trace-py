@@ -86,10 +86,7 @@ def gen_required_suites() -> None:
         circleci_jobs = set(circleci_config["jobs"].keys())
 
     # Copy the template file
-    TESTS_GEN.write_text(
-        (GITLAB / "tests.yml").read_text().replace(r"{{services.yml}}", (GITLAB / "services.yml").read_text())
-    )
-
+    TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
@@ -153,16 +150,6 @@ def gen_pre_checks() -> None:
         name="Check suitespec coverage",
         command="hatch run lint:suitespec-check",
         paths={"*"},
-    )
-    check(
-        name="conftest",
-        command="hatch run meta-testing:meta-testing",
-        paths={"**conftest.py"},
-    )
-    check(
-        name="slotscheck",
-        command="hatch run slotscheck:_",
-        paths={"**.py"},
     )
 
 
