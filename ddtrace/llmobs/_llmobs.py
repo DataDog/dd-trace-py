@@ -272,10 +272,6 @@ class LLMObs(Service):
             log.debug("Error starting evaluator runner")
 
     def _stop_service(self) -> None:
-        # Remove listener hooks for span events
-        core.reset_listeners("trace.span_start", self._on_span_start)
-        core.reset_listeners("trace.span_finish", self._on_span_finish)
-
         try:
             self._evaluator_runner.stop()
             # flush remaining evaluation spans & evaluations
@@ -289,6 +285,10 @@ class LLMObs(Service):
             self._llmobs_eval_metric_writer.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
+
+        # Remove listener hooks for span events
+        core.reset_listeners("trace.span_start", self._on_span_start)
+        core.reset_listeners("trace.span_finish", self._on_span_finish)
 
         forksafe.unregister(self._child_after_fork)
 
