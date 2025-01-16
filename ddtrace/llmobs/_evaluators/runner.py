@@ -117,9 +117,14 @@ class EvaluatorRunner(PeriodicService):
         try:
             if not _wait_sync:
                 for evaluator in self.evaluators:
-                    for span_event, span in span_events_and_spans:
-                        if self.sampler.sample(evaluator.LABEL, span):
-                            self.executor.submit(evaluator.run_and_submit_evaluation, span_event)
+                    self.executor.map(
+                        lambda span_event: evaluator.run_and_submit_evaluation(span_event),
+                        [
+                            span_event
+                            for span_event, span in span_events_and_spans
+                            if self.sampler.sample(evaluator.LABEL, span)
+                        ],
+                    )
             else:
                 for evaluator in self.evaluators:
                     for span_event, span in span_events_and_spans:
