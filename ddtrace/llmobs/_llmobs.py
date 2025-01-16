@@ -527,7 +527,7 @@ class LLMObs(Service):
     ) -> Span:
         telemetry_writer.add_count_metric(
             namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
-            name="span.creation",
+            name="span.start",
             value=1,
             tags=(
                 ("autoinstrumented", "false"),

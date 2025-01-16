@@ -138,7 +138,7 @@ class BaseLLMIntegration:
                 span._set_ctx_item(PARENT_ID_KEY, str(parent_id))
         telemetry_writer.add_count_metric(
             namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
-            name="span.creation",
+            name="span.start",
             value=1,
             tags=(
                 ("integration", self._integration_name),
