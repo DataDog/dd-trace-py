@@ -2945,6 +2945,18 @@ venv = Venv(
                         ),
                     ],
                 ),
+                Venv(
+                    pys="3.13",
+                    pkgs={"uwsgi": latest, "protobuf": latest},
+                    venvs=[
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                        ),
+                    ],
+                ),
             ],
         ),
     ],
