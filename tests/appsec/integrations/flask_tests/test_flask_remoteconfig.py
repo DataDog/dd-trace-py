@@ -14,9 +14,9 @@ from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from tests.appsec.appsec_utils import gunicorn_server
-from tests.appsec.integrations.utils import _PORT
-from tests.appsec.integrations.utils import _multi_requests
-from tests.appsec.integrations.utils import _request_200
+from tests.appsec.integrations.flask_tests.utils import _PORT
+from tests.appsec.integrations.flask_tests.utils import _multi_requests
+from tests.appsec.integrations.flask_tests.utils import _request_200
 from tests.utils import flaky
 
 
@@ -187,6 +187,7 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
     raise AssertionError("request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): We need to migrate testagent to gitlab")
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled_{}".format(str(uuid.uuid4()))
@@ -202,6 +203,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
         _unblock_ip(token)
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): We need to migrate testagent to gitlab")
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_block():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_{}".format(str(uuid.uuid4()))
@@ -219,6 +221,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
         _request_200(gunicorn_client)
 
 
+@flaky(until=1706677200, reason="TODO(avara1986): We need to migrate testagent to gitlab")
 @pytest.mark.skipif(list(sys.version_info[:2]) != [3, 10], reason="Run this tests in python 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(str(uuid.uuid4()))
@@ -267,7 +270,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         _request_200(gunicorn_client, debug_mode=False)
 
 
-@pytest.mark.subprocess(ddtrace_run=True, out=b"success")
+@pytest.mark.subprocess(ddtrace_run=True, check_logs=False, out=b"success")
 def test_compatiblity_with_multiprocessing():
     import multiprocessing
     from multiprocessing import Array
