@@ -64,7 +64,7 @@ def __getattr__(name):
     if name in ("get_version",):
         deprecate(
             ("%s.%s is deprecated" % (__name__, name)),
-            message="Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+            message="Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to configure this integration.",
             category=DDTraceDeprecationWarning,
             removal_version="3.0.0",
         )
