@@ -24,9 +24,9 @@ _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 @pytest.fixture(autouse=True, scope="module")
 def clear_iast_env_vars():
     if IAST.PATCH_MODULES in os.environ:
-        os.environ.pop('_DD_IAST_PATCH_MODULES')
+        os.environ.pop("_DD_IAST_PATCH_MODULES")
     if IAST.DENY_MODULES in os.environ:
-        os.environ.pop('_DD_IAST_DENY_MODULES')
+        os.environ.pop("_DD_IAST_DENY_MODULES")
     yield
 
 
