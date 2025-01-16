@@ -163,6 +163,11 @@ def test_should_iast_patch_allow_first_party():
     assert _should_iast_patch("tests.appsec.iast.integration.print_str")
 
 
+def test_should_not_iast_patch_if_vendored():
+    assert not _should_iast_patch("foobar.vendor.requests")
+    assert not _should_iast_patch(("vendored.foobar.requests"))
+
+
 def test_should_iast_patch_deny_by_default_if_third_party():
     # note that modules here must be in the ones returned by get_package_distributions()
     # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
