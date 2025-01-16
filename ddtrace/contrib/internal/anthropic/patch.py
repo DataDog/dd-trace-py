@@ -18,7 +18,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import AnthropicIntegration
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)

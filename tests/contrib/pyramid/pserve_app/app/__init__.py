@@ -2,7 +2,7 @@ from pyramid.config import Configurator
 from pyramid.response import Response
 
 from ddtrace import tracer
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import TraceFilter
 
 
 class PingFilter(TraceFilter):
