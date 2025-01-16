@@ -26,6 +26,7 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
@@ -353,20 +354,34 @@ def test_span_creation_metrics():
 
             mock_tm.assert_has_calls(
                 [
-                    mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
+                    ),
                 ]
             )
             mock_tm.reset_mock()
             aggr.shutdown(None)
             mock_tm.assert_has_calls(
                 [
-                    mock.call("tracers", "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
+                    mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 1, tags=(("integration_name", "datadog"),)),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "datadog"),)
+                    ),
                 ]
             )
 

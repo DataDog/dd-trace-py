@@ -1,7 +1,6 @@
 import grpc
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
@@ -13,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)

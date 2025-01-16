@@ -24,7 +24,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 class OpenAIIntegration(BaseLLMIntegration):

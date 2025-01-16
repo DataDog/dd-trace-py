@@ -75,6 +75,8 @@ class APPSEC(metaclass=Constant_Class):
     CUSTOM_EVENT_PREFIX: Literal["appsec.events"] = "appsec.events"
     USER_LOGIN_EVENT_PREFIX: Literal["_dd.appsec.events.users.login"] = "_dd.appsec.events.users.login"
     USER_LOGIN_EVENT_PREFIX_PUBLIC: Literal["appsec.events.users.login"] = "appsec.events.users.login"
+    USER_LOGIN_USERID: Literal["_dd.appsec.usr.id"] = "_dd.appsec.usr.id"
+    USER_LOGIN_USERNAME: Literal["_dd.appsec.usr.login"] = "_dd.appsec.usr.login"
     USER_LOGIN_EVENT_SUCCESS_TRACK: Literal[
         "appsec.events.users.login.success.track"
     ] = "appsec.events.users.login.success.track"
