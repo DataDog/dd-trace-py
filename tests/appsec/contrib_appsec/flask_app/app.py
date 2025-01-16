@@ -188,22 +188,24 @@ def login_user():
                 return USERS[username]["id"]
             else:
                 appsec_trace_utils.track_user_login_failure_event(
-                    tracer, user_id=USERS[username]["id"], exists=True, login_events_mode="auto"
+                    tracer, user_id=USERS[username]["id"], exists=True, login_events_mode="auto", login=username
                 )
                 return None
         appsec_trace_utils.track_user_login_failure_event(
-            tracer, user_id=username, exists=False, login_events_mode="auto"
+            tracer, user_id=username, exists=False, login_events_mode="auto", login=username
         )
         return None
 
-    def login(user_id: str) -> None:
+    def login(user_id: str, login: str) -> None:
         """login user"""
-        appsec_trace_utils.track_user_login_success_event(tracer, user_id=user_id, login_events_mode="auto")
+        appsec_trace_utils.track_user_login_success_event(
+            tracer, user_id=user_id, login_events_mode="auto", login=login
+        )
 
     username = request.args.get("username")
     password = request.args.get("password")
     user_id = authenticate(username=username, password=password)
     if user_id is not None:
-        login(user_id)
+        login(user_id, username)
         return "OK"
     return "login failure", 401
