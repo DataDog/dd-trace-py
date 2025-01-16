@@ -3,9 +3,9 @@ import os
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
