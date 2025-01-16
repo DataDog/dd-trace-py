@@ -245,3 +245,19 @@ def test_only_generate_span_events_from_llmobs_spans(tracer, llmobs_events):
     assert len(llmobs_events) == 2
     assert llmobs_events[1] == _expected_llmobs_llm_span_event(root_span, "llm")
     assert llmobs_events[0] == expected_grandchild_llmobs_span
+
+
+def test_utf_inputs_outputs(llmobs, llmobs_events, llmobs_backend_requests):
+    """Test that latin1 encoded inputs and outputs are correctly decoded."""
+    with llmobs.llm(model_name="gpt-3.5-turbo-0125") as span:
+        llmobs.annotate(
+            span,
+            input_data="The first Super Bowl, which was formally known as the First AFL–NFL World Championship Game, was played on January 15, 1967.",
+        )
+
+    import time
+
+    time.sleep(1)
+    assert len(llmobs_backend_requests) == 1
+    assert llmobs_backend_requests[0]
+    print(llmobs_backend_requests)

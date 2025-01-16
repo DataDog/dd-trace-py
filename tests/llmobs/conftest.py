@@ -1,4 +1,8 @@
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import os
+import socket
+import threading
 
 import mock
 import pytest
@@ -175,15 +179,66 @@ def llmobs_env():
 class TestLLMObsSpanWriter(LLMObsSpanWriter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.events = []
+        self._events = []
 
     def enqueue(self, event):
-        self.events.append(event)
+        self._events.append(event)
+        super().enqueue(event)
+
+    def events(self):
+        return self._events
 
 
 @pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(interval=1.0, timeout=1.0)
+def llmobs_span_writer(_llmobs_backend):
+    url, _ = _llmobs_backend
+    sw = TestLLMObsSpanWriter(interval=1.0, timeout=1.0, agentless_url=url)
+    sw._headers["DD-API-KEY"] = "<test-key>"
+    yield sw
+
+
+class LLMObsBackend(BaseHTTPRequestHandler):
+    requests = []
+
+    def __init__(self, *args, **kwargs) -> None:
+        print("test")
+        super().__init__(*args, **kwargs)
+
+    def do_POST(self) -> None:
+        print(f"Received POST request: {self.path}")
+        content_length = int(self.headers["Content-Length"])
+        body = self.rfile.read(content_length).decode("utf-8")
+
+        self.requests.append({"path": self.path, "headers": dict(self.headers), "body": body})
+
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+
+@pytest.fixture
+def _llmobs_backend():
+    LLMObsBackend.requests = []
+    # Create and start the HTTP server
+    server = HTTPServer(("localhost", 0), LLMObsBackend)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    # Provide the server details to the test
+    server_address = f"http://{server.server_address[0]}:{server.server_address[1]}"
+
+    yield server_address, LLMObsBackend.requests
+
+    # Stop the server after the test
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.fixture
+def llmobs_backend_requests(_llmobs_backend):
+    _, reqs = _llmobs_backend
+    return reqs
 
 
 @pytest.fixture
@@ -211,4 +266,4 @@ def llmobs(
 
 @pytest.fixture
 def llmobs_events(llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+    return llmobs_span_writer.events()
