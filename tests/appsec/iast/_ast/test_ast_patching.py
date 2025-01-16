@@ -170,11 +170,27 @@ def test_should_iast_patch_deny_by_default_if_third_party():
 
 
 def test_should_not_iast_patch_if_in_denylist():
-    assert not _should_iast_patch("ddtrace.internal.module")
-    assert not _should_iast_patch("ddtrace.appsec._iast")
-    assert not _should_iast_patch("pip.foo.bar")
-    assert not _should_iast_patch("pkg_resources.foo")
-    assert not _should_iast_patch("pkg_resources")
+    # JJJ DEBUG
+    try:
+        assert not _should_iast_patch("ddtrace.internal.module")
+        assert not _should_iast_patch("ddtrace.appsec._iast")
+        assert not _should_iast_patch("pip.foo.bar")
+        assert not _should_iast_patch("pkg_resources.foo")
+        assert not _should_iast_patch("pkg_resources")
+    except AssertionError as e:
+        print("Assertion Error: ", e)
+        from pprint import pprint
+        from ddtrace.appsec._iast._ast.ast_patching import IAST_ALLOWLIST, IAST_DENYLIST, USER_ALLOWLIST, USER_DENYLIST
+
+        print("Allowlist:")
+        pprint(IAST_ALLOWLIST)
+        print("Denylist:")
+        pprint(IAST_DENYLIST)
+        print("User Allowlist:")
+        pprint(USER_ALLOWLIST)
+        print("User Denylist:")
+        pprint(USER_DENYLIST)
+        raise e
 
 
 def test_should_not_iast_patch_if_stdlib():
