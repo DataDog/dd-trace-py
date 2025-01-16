@@ -1,7 +1,18 @@
 from ddtrace._trace.context import Context
 from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.pin import Pin
+from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
 
 
-# TODO: Move `ddtrace.Tracer`, `ddtrace.Span`, and `ddtrace.tracer` to this module
-__all__ = ["Context", "Pin", "TraceFilter"]
+# a global tracer instance with integration settings
+tracer = Tracer()
+
+__all__ = [
+    "Context",
+    "Pin",
+    "TraceFilter",
+    "Tracer",
+    "Span",
+    "tracer",
+]
