@@ -105,7 +105,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
-    retry: 3
+    retry: 2
     runner: hatch
     timeout: 30m
   appsec_threats_django:
