@@ -108,6 +108,19 @@ suites:
     retry: 2
     runner: hatch
     timeout: 30m
+  appsec_integrations_django:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/integrations/django_tests/*
+    retry: 2
+    runner: hatch
+    timeout: 30m
   appsec_threats_django:
     parallelism: 12
     paths:

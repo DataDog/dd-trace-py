@@ -323,6 +323,36 @@ test = [
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
 
+## ASM appsec_integrations_django
+
+[envs.appsec_integrations_django]
+template = "appsec_integrations_django"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "pylibmc",
+    "bcrypt==4.2.1",
+    "pytest-django[testing]==3.10.0",
+    "Django{matrix:django}",
+]
+
+[envs.appsec_integrations_django.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
+]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+django = ["~=4.0"]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+django = ["~=3.2"]
+
 ## ASM appsec_integrations_flask
 
 [envs.appsec_integrations_flask]
@@ -368,6 +398,8 @@ flask = ["~=2.2"]
 [[envs.appsec_integrations_flask.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 flask = ["~=3.0"]
+
+
 
 ## ASM FastAPI
 
