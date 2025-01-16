@@ -69,7 +69,7 @@ with _w.catch_warnings():
     from . import patch as _  # noqa: F401, I001
 
 
-from ddtrace.contrib.internal.psycopg.patch import get_version  # noqa: F401  # noqa: F401s
+from ddtrace.contrib.internal.psycopg.patch import get_version  # noqa: F401
 from ddtrace.contrib.internal.psycopg.patch import patch  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
