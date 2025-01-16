@@ -531,28 +531,27 @@ def _llm_span_with_expected_ragas_inputs_in_messages(ragas_inputs=None):
 
 
 class DummyEvaluator:
-    LABEL = "dummy"
-
-    def __init__(self, llmobs_service):
+    def __init__(self, llmobs_service, label="dummy"):
         self.llmobs_service = llmobs_service
+        self.LABEL = label
 
     def run_and_submit_evaluation(self, span):
         self.llmobs_service.submit_evaluation(
             span_context=span,
-            label=DummyEvaluator.LABEL,
+            label=self.LABEL,
             value=1.0,
             metric_type="score",
         )
 
 
-def _dummy_evaluator_eval_metric_event(span_id, trace_id):
+def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
     return LLMObsEvaluationMetricEvent(
         join_on={"span": {"span_id": span_id, "trace_id": trace_id}},
         score_value=1.0,
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,
         metric_type="score",
-        label=DummyEvaluator.LABEL,
+        label=label or DummyEvaluator().LABEL,
         tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
     )
 
