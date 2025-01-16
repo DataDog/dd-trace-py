@@ -35,7 +35,7 @@ def snapshot_parametrized_with_writers(f):
         finally:
             tracer.flush()
             # Reset tracer configurations to avoid leaking state between tests
-            tracer.configure(sampler=old_sampler, writer=old_writer)
+            tracer._configure(sampler=old_sampler, writer=old_writer)
             tracer._tags = old_tags
 
     wrapped = snapshot(include_tracer=True, token_override=f.__name__)(_patch)
