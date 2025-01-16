@@ -115,15 +115,12 @@ class EvaluatorRunner(PeriodicService):
             self._buffer = []
 
         try:
-            if not _wait_sync:
-                for evaluator in self.evaluators:
-                    for span_event, span in span_events_and_spans:
-                        if self.sampler.sample(evaluator.LABEL, span):
+            for evaluator in self.evaluators:
+                for span_event, span in span_events_and_spans:
+                    if self.sampler.sample(evaluator.LABEL, span):
+                        if not _wait_sync:
                             self.executor.submit(evaluator.run_and_submit_evaluation, span_event)
-            else:
-                for evaluator in self.evaluators:
-                    for span_event, span in span_events_and_spans:
-                        if self.sampler.sample(evaluator.LABEL, span):
+                        else:
                             evaluator.run_and_submit_evaluation(span_event)
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)
