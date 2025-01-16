@@ -52,10 +52,7 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def llmobs(
-    tracer,
-    llmobs_span_writer,
-):
+def llmobs(tracer, llmobs_span_writer):
     with override_global_config(default_global_config()):
         llmobs_service.enable(_tracer=tracer)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer

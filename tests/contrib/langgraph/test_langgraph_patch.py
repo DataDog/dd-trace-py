@@ -53,8 +53,8 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(PregelLoop.tick)
 
     def test_ddtrace_run_patch_on_import(self):
-        # We check that the integration's patch function is called only
-        # after import of the relevant module when using ddtrace-run.
+        # Overriding the base test case due to langgraph's code structure not allowing
+        # langgraph to be patched by a direct import.
         with NamedTemporaryFile(mode="w", suffix=".py") as f:
             f.write(
                 """
