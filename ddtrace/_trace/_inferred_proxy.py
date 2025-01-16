@@ -3,6 +3,9 @@ from typing import Dict
 
 from ddtrace import config
 from ddtrace import Span
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import http
 from ddtrace.ext import SpanKind
@@ -43,10 +46,14 @@ def create_inferred_proxy_span_if_headers_exist(headers, child_of, tracer): #-> 
 
     log.debug(f'Successfully extracted inferred span info {proxy_context} for proxy: {proxy_context["proxy_system_name"]}')
 
+    proxy_method = proxy_context['method']
+    proxy_path = proxy_context['path']
+    proxy_resource_name = proxy_method + " " + proxy_path
+
     span = tracer.start_span(
         proxy_span_info['span_name'],
         service=proxy_context.get('domain_name', config._get_service()),
-        resource=proxy_span_info['span_name'],
+        resource=proxy_resource_name,
         span_type=SpanTypes.WEB,
         activate=True,
         child_of=child_of,
@@ -59,6 +66,17 @@ def create_inferred_proxy_span_if_headers_exist(headers, child_of, tracer): #-> 
 
     # we need a callback to finish the api gateway span, this callback will be added to the child spans finish callbacks
     def finish_callback(_):
+        web_span = _
+        # Fill in other details from the web span once we know it
+        if web_span and span:
+            span.set_tag('http.status_code', web_span.get_tag('http.status_code'))
+            span.error = web_span.error
+            if web_span.get_tag(ERROR_MSG):
+                span.set_tag(ERROR_MSG, web_span.get_tag(ERROR_MSG))
+            if web_span.get_tag(ERROR_TYPE):
+                span.set_tag(ERROR_TYPE, web_span.get_tag(ERROR_TYPE))
+            if web_span.get_tag(ERROR_STACK):
+                span.set_tag(ERROR_STACK, web_span.get_tag(ERROR_STACK))
         span.finish()
 
     headers = delete_inferred_header_keys(headers)

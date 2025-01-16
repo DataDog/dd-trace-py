@@ -297,7 +297,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             assert web_span.span_type == "web"
             assert web_span.get_tag('http.url') == "http://localhost/"
             assert web_span.get_tag('http.method') == "GET"
-            assert web_span.get_tag('http.status_code') == '200' #TODO figure out why this fails
+            assert web_span.get_tag('http.status_code') == '200'
             assert web_span.get_tag('http.route') == '/'
             assert web_span.get_tag('span.kind') == 'server'
             assert web_span.get_tag('component') == "flask"
