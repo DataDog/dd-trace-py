@@ -56,6 +56,18 @@ class RagasDependencies:
 
         self.get_segmenter = get_segmenter
 
+        from ragas.metrics import answer_relevancy
+
+        self.answer_relevancy = answer_relevancy
+
+        from ragas.embeddings import embedding_factory
+
+        self.embedding_factory = embedding_factory
+
+        from ddtrace.llmobs._evaluators.ragas.models import ContextPrecisionVerification
+
+        self.ContextPrecisionVerification = ContextPrecisionVerification
+
         from ddtrace.llmobs._evaluators.ragas.models import StatementFaithfulnessAnswers
 
         self.StatementFaithfulnessAnswers = StatementFaithfulnessAnswers
@@ -63,6 +75,10 @@ class RagasDependencies:
         from ddtrace.llmobs._evaluators.ragas.models import StatementsAnswers
 
         self.StatementsAnswers = StatementsAnswers
+
+        from ddtrace.llmobs._evaluators.ragas.models import AnswerRelevanceClassification
+
+        self.AnswerRelevanceClassification = AnswerRelevanceClassification
 
 
 def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
