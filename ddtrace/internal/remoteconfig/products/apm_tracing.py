@@ -1,0 +1,69 @@
+from ddtrace import config
+from ddtrace.internal.core.event_hub import dispatch
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
+from ddtrace.internal.remoteconfig._pubsub import PubSub
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
+
+
+requires = ["remote-configuration"]
+
+
+log = get_logger(__name__)
+
+
+def _rc_callback(data, test_tracer=None):
+    for metadata, data in zip(data["metadata"], data["config"]):
+        if metadata is None or not isinstance(data, dict):
+            continue
+
+        service_target = data.get("service_target")
+        if service_target is not None:
+            service = service_target.get("service")
+            if service is not None and service != config.service:
+                continue
+
+            env = service_target.get("env")
+            if env is not None and env != config.env:
+                continue
+
+        lib_config = data.get("lib_config")
+        if lib_config is not None:
+            dispatch("apm-tracing.rc", (lib_config,))
+
+
+class APMTracingAdapter(PubSub):
+    __publisher_class__ = RemoteConfigPublisher
+    __subscriber_class__ = RemoteConfigSubscriber
+    __shared_data__ = PublisherSubscriberConnector()
+
+    def __init__(self):
+        self._publisher = self.__publisher_class__(self.__shared_data__)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, _rc_callback, "APM_TRACING")
+
+
+def post_preload():
+    pass
+
+
+def start():
+    if config._remote_config_enabled:
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+        remoteconfig_poller.register("APM_TRACING", APMTracingAdapter(), restart_on_fork=True)
+
+
+def restart(join=False):
+    pass
+
+
+def stop(join=False):
+    if config._remote_config_enabled:
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+        remoteconfig_poller.unregister("APM_TRACING")
+
+
+def at_exit(join=False):
+    stop(join=join)
