@@ -551,7 +551,7 @@ def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,
         metric_type="score",
-        label=label or DummyEvaluator().LABEL,
+        label=label or "dummy",
         tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
     )
 
