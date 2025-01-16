@@ -68,7 +68,6 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
-from ddtrace.trace import TraceFilter
 from ddtrace.vendor.debtcollector import deprecate
 
 
