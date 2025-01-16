@@ -108,11 +108,20 @@ def sqli_http_request_parameter(request):
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
 
-def sqli_http_request_parameter_name(request):
+def sqli_http_request_parameter_name_get(request):
     obj = " 1"
     with connection.cursor() as cursor:
-        # label iast_enabled_sqli_http_request_parameter_name
+        # label iast_enabled_sqli_http_request_parameter_name_get
         cursor.execute(add_aspect(list(request.GET.keys())[0], obj))
+
+    return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def sqli_http_request_parameter_name_post(request):
+    obj = " 1"
+    with connection.cursor() as cursor:
+        # label iast_enabled_sqli_http_request_parameter_name_post
+        cursor.execute(add_aspect(list(request.POST.keys())[0], obj))
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
@@ -316,7 +325,14 @@ urlpatterns = [
     handler("taint-checking-disabled/$", taint_checking_disabled_view, name="taint_checking_disabled_view"),
     handler("sqli_http_request_parameter/$", sqli_http_request_parameter, name="sqli_http_request_parameter"),
     handler(
-        "sqli_http_request_parameter_name/$", sqli_http_request_parameter_name, name="sqli_http_request_parameter_name"
+        "sqli_http_request_parameter_name_get/$",
+        sqli_http_request_parameter_name_get,
+        name="sqli_http_request_parameter_name_get",
+    ),
+    handler(
+        "sqli_http_request_parameter_name_post/$",
+        sqli_http_request_parameter_name_post,
+        name="sqli_http_request_parameter_name_post",
     ),
     handler("sqli_http_request_header_name/$", sqli_http_request_header_name, name="sqli_http_request_header_name"),
     handler("sqli_http_request_header_value/$", sqli_http_request_header_value, name="sqli_http_request_header_value"),
