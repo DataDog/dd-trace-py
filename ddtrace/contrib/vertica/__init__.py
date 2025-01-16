@@ -33,11 +33,10 @@ To configure the Vertica integration on an instance-per-instance basis use the
 
     import vertica_python
 
-    custom_tracer = Tracer()
     conn = vertica_python.connect(**YOUR_VERTICA_CONFIG)
 
     # override the service and tracer to be used
-    Pin.override(conn, service='myverticaservice', tracer=custom_tracer)
+    Pin.override(conn, service='myverticaservice')
 """
 
 

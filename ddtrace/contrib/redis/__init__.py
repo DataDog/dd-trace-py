@@ -52,7 +52,7 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure particular redis instances use the :class:`Pin <ddtrace.Pin>` API::
+To configure particular redis instances use the :class:`Pin <ddtrace.trace.Pin>` API::
 
     import redis
     from ddtrace.trace import Pin
