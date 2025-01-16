@@ -10,7 +10,6 @@ from wrapt import ObjectProxy
 
 # project
 import ddtrace
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
@@ -26,6 +25,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.trace import Pin
 
 from .parse import parse_msg
 from .parse import parse_query

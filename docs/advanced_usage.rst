@@ -347,7 +347,7 @@ and the resulting trace will either be sent to the Agent or discarded.
 The library comes with a ``FilterRequestsOnUrl`` filter that can be used to
 filter out incoming requests to specific urls:
 
-.. autoclass:: ddtrace.filters.FilterRequestsOnUrl
+.. autoclass:: ddtrace.trace.FilterRequestsOnUrl
     :members:
 
 **Writing a custom filter**
@@ -358,7 +358,7 @@ providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
 the pipeline or ``None`` if the trace should be discarded::
 
     from ddtrace import Span, tracer
-    from ddtrace.filters import TraceFilter
+    from ddtrace.trace import TraceFilter
 
     class FilterExample(TraceFilter):
         def process_trace(self, trace):

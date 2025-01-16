@@ -18,7 +18,7 @@ class TestTraceAcceptedByAgent:
                 for _ in range(999):
                     with tracer.trace("child"):
                         pass
-            tracer.shutdown()
+            tracer.flush()
         log.warning.assert_not_called()
         log.error.assert_not_called()
 
@@ -39,7 +39,7 @@ class TestTraceAcceptedByAgent:
                 for _ in range(999):
                     with tracer.trace("child") as child:
                         child.set_tags(tags)
-            tracer.shutdown()
+            tracer.flush()
         log.warning.assert_not_called()
         log.error.assert_not_called()
 
@@ -60,7 +60,7 @@ class TestTraceAcceptedByAgent:
                 for _ in range(999):
                     with tracer.trace("child") as child:
                         child.set_metrics(metrics)
-            tracer.shutdown()
+            tracer.flush()
         log.warning.assert_not_called()
         log.error.assert_not_called()
 
@@ -79,6 +79,6 @@ class TestTraceAcceptedByAgent:
                 for _ in range(10):
                     with tracer.trace("child") as child:
                         child.set_link(**span_links_kwargs)
-            tracer.shutdown()
+            tracer.flush()
         log.warning.assert_not_called()
         log.error.assert_not_called()

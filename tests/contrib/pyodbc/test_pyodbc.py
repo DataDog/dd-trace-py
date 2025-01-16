@@ -1,9 +1,9 @@
 import pyodbc
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.pyodbc.patch import patch
 from ddtrace.contrib.internal.pyodbc.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

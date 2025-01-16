@@ -404,12 +404,12 @@ jobs:
           paths:
             - "."
 
-  appsec_integrations:
+  appsec_integrations_pygoat:
     <<: *machine_executor
     parallelism: 13
     steps:
       - run_test:
-          pattern: 'appsec_integrations'
+          pattern: 'appsec_integrations_pygoat'
           snapshot: true
           run_agent_checks: false
           docker_services: "pygoat"
