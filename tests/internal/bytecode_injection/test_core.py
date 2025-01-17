@@ -325,7 +325,9 @@ def test_import_adjustment_if_injection_did_occur():
     original = the_function.__code__
 
     # Injection index from dis.dis(<function to inject into>)
-    ic = InjectionContext(original, _callback, lambda _: [8])
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    injection_indexes = {"3.10": 8, "3.11": 14}
+    ic = InjectionContext(original, _callback, lambda _: [injection_indexes[python_version]])
     injected, _ = inject_invocation(ic, the_function.__code__.co_filename, __name__)
     the_function.__code__ = injected
 
