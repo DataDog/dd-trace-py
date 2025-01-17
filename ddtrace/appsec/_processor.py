@@ -166,7 +166,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def delayed_init(self) -> None:
         try:
-            if self._rules is not None:
+            if self._rules is not None and not hasattr(self, "_ddwaf"):
                 self._ddwaf = ddwaf.DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
