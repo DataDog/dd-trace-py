@@ -23,6 +23,7 @@ from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -127,7 +128,7 @@ def patch_conn(django, conn):
     for tag, attr in DB_CONN_ATTR_BY_TAG.items():
         if attr in settings_dict:
             try:
-                tags[tag] = trace_utils._convert_to_string(conn.settings_dict.get(attr))
+                tags[tag] = _convert_to_string(conn.settings_dict.get(attr))
             except Exception:
                 tags[tag] = str(conn.settings_dict.get(attr))
     conn._datadog_tags = tags

@@ -219,7 +219,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return WAF_DATA_NAMES.SQLI_ADDRESS in self._addresses_to_keep
 
     def on_span_start(self, span: Span) -> None:
-        from ddtrace.contrib import trace_utils
+        from ddtrace.contrib.internal import trace_utils
 
         if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
