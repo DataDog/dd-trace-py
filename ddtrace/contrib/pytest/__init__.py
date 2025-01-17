@@ -60,27 +60,15 @@ Global Configuration
 
    Default: ``"pytest.test"``
 """
+from ddtrace.contrib.internal.pytest.patch import get_version  # noqa: F401
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
-import os
 
-from ddtrace import config
-
-
-# pytest default settings
-config._add(
-    "pytest",
-    dict(
-        _default_service="pytest",
-        operation_name=os.getenv("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
-    ),
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
 )
-
-
-def get_version():
-    # type: () -> str
-    import pytest
-
-    return pytest.__version__
-
-
-__all__ = ["get_version"]
