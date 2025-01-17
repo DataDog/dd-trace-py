@@ -107,6 +107,8 @@ suites:
       - tests/appsec/integrations/flask_tests/*
     retry: 2
     runner: hatch
+    services:
+      - testagent
     timeout: 30m
   appsec_integrations_django:
     parallelism: 6
@@ -139,8 +141,6 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     runner: hatch
-    services:
-      - testagent
   appsec_threats_fastapi:
     parallelism: 9
     paths:
