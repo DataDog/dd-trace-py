@@ -186,11 +186,11 @@ class LLMObs(Service):
             meta.pop("output")
         metrics = span._get_ctx_item(METRICS) or {}
         ml_app = _get_ml_app(span)
-        span._set_ctx_item(ML_APP, ml_app)
 
         is_evaluation_span = _is_evaluation_span(span)
         span._set_ctx_item(IS_EVALUATION_SPAN, is_evaluation_span)
 
+        span._set_ctx_item(ML_APP, ml_app)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
 
         llmobs_span_event = {
