@@ -50,10 +50,9 @@ DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exce
 # Used to differentiate traces of Datadog-run operations vs user-application operations.
 RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
 
-# The ml app of all ragas traces have this prefix that we use to detect
-# whether a span is generated from the ragas evaluation itself. We then
-# remove this prefix from the ml app before we submit the span.
-TEMP_RAGAS_ML_APP_PREFIX = "_dd_ragas_"
+# All ragas traces have this context item set so we can differentiate
+# spans generated from the ragas integration vs user application spans.
+IS_EVALUATION_SPAN = "_is_evaluation_span"
 
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"

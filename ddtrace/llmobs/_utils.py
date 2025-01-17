@@ -12,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
+from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
@@ -125,6 +126,23 @@ def _get_span_name(span: Span) -> str:
         client_name = span.get_tag("openai.request.client") or "OpenAI"
         return "{}.{}".format(client_name, span.resource)
     return span.name
+
+
+def _is_evaluation_span(span: Span) -> bool:
+    """
+    Return whether or not a span is an evaluation span by checking the span's
+    nearest LLMObs span ancestor. Default to 'False'
+    """
+    is_evaluation_span = span._get_ctx_item(IS_EVALUATION_SPAN)
+    if is_evaluation_span is not None:
+        return is_evaluation_span
+    llmobs_parent = _get_nearest_llmobs_ancestor(span)
+    while llmobs_parent:
+        is_evaluation_span = llmobs_parent._get_ctx_item(IS_EVALUATION_SPAN)
+        if is_evaluation_span is not None:
+            return is_evaluation_span
+        llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
+    return is_evaluation_span or False
 
 
 def _get_ml_app(span: Span) -> str:

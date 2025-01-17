@@ -38,6 +38,7 @@ from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -59,6 +60,7 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
@@ -123,16 +125,16 @@ class LLMObs(Service):
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
         is_llm_span = span._get_ctx_item(SPAN_KIND) == "llm"
-        is_ragas_integration_span = False
+        is_evaluation_span = False
         try:
-            span_event, is_ragas_integration_span = self._llmobs_span_event(span)
+            span_event, is_evaluation_span = self._llmobs_span_event(span)
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span", span, exc_info=True
             )
         finally:
-            if not span_event or not is_llm_span or is_ragas_integration_span:
+            if not span_event or not is_llm_span or is_evaluation_span:
                 return
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
@@ -186,10 +188,8 @@ class LLMObs(Service):
         ml_app = _get_ml_app(span)
         span._set_ctx_item(ML_APP, ml_app)
 
-        is_ragas_integration_span = False
-        if ml_app.startswith(constants.TEMP_RAGAS_ML_APP_PREFIX):
-            is_ragas_integration_span = True
-            ml_app = ml_app.replace(constants.TEMP_RAGAS_ML_APP_PREFIX, "")
+        is_evaluation_span = _is_evaluation_span(span)
+        span._set_ctx_item(IS_EVALUATION_SPAN, is_evaluation_span)
 
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
 
@@ -210,9 +210,9 @@ class LLMObs(Service):
             llmobs_span_event["session_id"] = session_id
 
         llmobs_span_event["tags"] = cls._llmobs_tags(
-            span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
+            span, ml_app, session_id, is_ragas_integration_span=is_evaluation_span
         )
-        return llmobs_span_event, is_ragas_integration_span
+        return llmobs_span_event, is_evaluation_span
 
     @staticmethod
     def _llmobs_tags(
