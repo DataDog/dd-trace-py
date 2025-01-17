@@ -23,7 +23,7 @@ from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import _get_request_header_user_agent
+from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db

@@ -1,13 +1,14 @@
-from ddtrace.contrib.redis_utils import determine_row_count
-from ddtrace.contrib.redis_utils import stringify_cache_args
+from ddtrace.contrib.internal.redis_utils import determine_row_count
+from ddtrace.contrib.internal.redis_utils import stringify_cache_args
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 
 deprecate(
-    "The ddtrace.contrib.trace_utils_redis module is deprecated and will be removed.",
-    message="A new interface will be provided by the ddtrace.contrib.redis_utils module",
+    "The ddtrace.contrib.trace_utils_redis module is deprecated",
+    message="Import from ``ddtrace.contrib.trace_utils`` instead.",
     category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
 )
 
 

@@ -18,7 +18,7 @@ from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import _get_request_header_client_ip
+from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
