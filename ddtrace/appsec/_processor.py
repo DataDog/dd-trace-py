@@ -140,7 +140,7 @@ class AppSecSpanProcessor(SpanProcessor):
         load_appsec()
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
-        self._rules = None
+        self._rules: Optional[Dict[str, Any]] = None
         try:
             with open(self.rule_filename, "r") as f:
                 self._rules = json.load(f)
@@ -166,9 +166,10 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def delayed_init(self) -> None:
         try:
-            self._ddwaf = ddwaf.DDWaf(
-                self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
-            )
+            if self._rules is not None:
+                self._ddwaf = ddwaf.DDWaf(
+                    self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+                )
             _set_waf_init_metric(self._ddwaf.info)
         except Exception:
             # Partial of DDAS-0005-00
@@ -437,8 +438,8 @@ class AppSecSpanProcessor(SpanProcessor):
                     pass
 
 
-# load waf at the end only
-import ddtrace.appsec._ddwaf as ddwaf
-from ddtrace.appsec._metrics import _set_waf_init_metric
-from ddtrace.appsec._metrics import _set_waf_request_metrics
-from ddtrace.appsec._metrics import _set_waf_updates_metric
+# load waf at the end only to avoid possible circular imports with gevent
+import ddtrace.appsec._ddwaf as ddwaf  # noqa: E402
+from ddtrace.appsec._metrics import _set_waf_init_metric  # noqa: E402
+from ddtrace.appsec._metrics import _set_waf_request_metrics  # noqa: E402
+from ddtrace.appsec._metrics import _set_waf_updates_metric  # noqa: E402
