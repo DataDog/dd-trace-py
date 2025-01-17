@@ -6,38 +6,38 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
-from ddtrace import patch
+from ddtrace._monkey import patch
 from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
-from ddtrace.contrib.pytest._benchmark_utils import _set_benchmark_data_from_item
-from ddtrace.contrib.pytest._plugin_v1 import _extract_reason
-from ddtrace.contrib.pytest._plugin_v1 import _is_pytest_cov_enabled
-from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
-from ddtrace.contrib.pytest._types import pytest_CallInfo
-from ddtrace.contrib.pytest._types import pytest_Config
-from ddtrace.contrib.pytest._types import pytest_TestReport
-from ddtrace.contrib.pytest._utils import PYTEST_STATUS
-from ddtrace.contrib.pytest._utils import _get_module_path_from_item
-from ddtrace.contrib.pytest._utils import _get_names_from_item
-from ddtrace.contrib.pytest._utils import _get_session_command
-from ddtrace.contrib.pytest._utils import _get_source_file_info
-from ddtrace.contrib.pytest._utils import _get_test_id_from_item
-from ddtrace.contrib.pytest._utils import _get_test_parameters_json
-from ddtrace.contrib.pytest._utils import _is_enabled_early
-from ddtrace.contrib.pytest._utils import _is_test_unskippable
-from ddtrace.contrib.pytest._utils import _pytest_marked_to_skip
-from ddtrace.contrib.pytest._utils import _pytest_version_supports_atr
-from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
-from ddtrace.contrib.pytest._utils import _pytest_version_supports_retries
-from ddtrace.contrib.pytest._utils import _TestOutcome
-from ddtrace.contrib.pytest.constants import FRAMEWORK
-from ddtrace.contrib.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.pytest.plugin import is_enabled
-from ddtrace.contrib.unittest import unpatch as unpatch_unittest
+from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
+from ddtrace.contrib.internal.pytest._plugin_v1 import _extract_reason
+from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
+from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
+from ddtrace.contrib.internal.pytest._types import pytest_Config
+from ddtrace.contrib.internal.pytest._types import pytest_TestReport
+from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
+from ddtrace.contrib.internal.pytest._utils import _get_module_path_from_item
+from ddtrace.contrib.internal.pytest._utils import _get_names_from_item
+from ddtrace.contrib.internal.pytest._utils import _get_session_command
+from ddtrace.contrib.internal.pytest._utils import _get_source_file_info
+from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
+from ddtrace.contrib.internal.pytest._utils import _get_test_parameters_json
+from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
+from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
+from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
+from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
+from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
+from ddtrace.contrib.internal.pytest.plugin import is_enabled
+from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility.api import TestExcInfo
@@ -63,21 +63,21 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 if _pytest_version_supports_retries():
-    from ddtrace.contrib.pytest._retry_utils import get_retry_num
+    from ddtrace.contrib.internal.pytest._retry_utils import get_retry_num
 
 if _pytest_version_supports_efd():
-    from ddtrace.contrib.pytest._efd_utils import efd_get_failed_reports
-    from ddtrace.contrib.pytest._efd_utils import efd_get_teststatus
-    from ddtrace.contrib.pytest._efd_utils import efd_handle_retries
-    from ddtrace.contrib.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.internal.pytest._efd_utils import efd_get_failed_reports
+    from ddtrace.contrib.internal.pytest._efd_utils import efd_get_teststatus
+    from ddtrace.contrib.internal.pytest._efd_utils import efd_handle_retries
+    from ddtrace.contrib.internal.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
 
 if _pytest_version_supports_atr():
-    from ddtrace.contrib.pytest._atr_utils import atr_get_failed_reports
-    from ddtrace.contrib.pytest._atr_utils import atr_get_teststatus
-    from ddtrace.contrib.pytest._atr_utils import atr_handle_retries
-    from ddtrace.contrib.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
-    from ddtrace.contrib.pytest._atr_utils import quarantine_atr_get_teststatus
-    from ddtrace.contrib.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.internal.pytest._atr_utils import atr_get_failed_reports
+    from ddtrace.contrib.internal.pytest._atr_utils import atr_get_teststatus
+    from ddtrace.contrib.internal.pytest._atr_utils import atr_handle_retries
+    from ddtrace.contrib.internal.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.internal.pytest._atr_utils import quarantine_atr_get_teststatus
+    from ddtrace.contrib.internal.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
 
@@ -217,7 +217,7 @@ def pytest_configure(config: pytest_Config) -> None:
 
             # pytest-bdd plugin support
             if config.pluginmanager.hasplugin("pytest-bdd"):
-                from ddtrace.contrib.pytest._pytest_bdd_subplugin import _PytestBddSubPlugin
+                from ddtrace.contrib.internal.pytest._pytest_bdd_subplugin import _PytestBddSubPlugin
 
                 config.pluginmanager.register(_PytestBddSubPlugin(), "_datadog-pytest-bdd")
         else:

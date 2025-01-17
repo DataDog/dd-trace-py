@@ -4,10 +4,10 @@ import sys
 
 import pytest
 
-from ddtrace.contrib.pytest._utils import _extract_span as _extract_feature_span
-from ddtrace.contrib.pytest_bdd import get_version
-from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
-from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
+from ddtrace.contrib.internal.pytest._utils import _extract_span as _extract_feature_span
+from ddtrace.contrib.internal.pytest_bdd.constants import FRAMEWORK
+from ddtrace.contrib.internal.pytest_bdd.constants import STEP_KIND
+from ddtrace.contrib.internal.pytest_bdd.patch import get_version
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.logger import get_logger

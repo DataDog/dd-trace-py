@@ -7,10 +7,10 @@ import typing as t
 
 import pytest
 
-from ddtrace.contrib.pytest.constants import ATR_MIN_SUPPORTED_VERSION
-from ddtrace.contrib.pytest.constants import EFD_MIN_SUPPORTED_VERSION
-from ddtrace.contrib.pytest.constants import ITR_MIN_SUPPORTED_VERSION
-from ddtrace.contrib.pytest.constants import RETRIES_MIN_SUPPORTED_VERSION
+from ddtrace.contrib.internal.pytest.constants import ATR_MIN_SUPPORTED_VERSION
+from ddtrace.contrib.internal.pytest.constants import EFD_MIN_SUPPORTED_VERSION
+from ddtrace.contrib.internal.pytest.constants import ITR_MIN_SUPPORTED_VERSION
+from ddtrace.contrib.internal.pytest.constants import RETRIES_MIN_SUPPORTED_VERSION
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo

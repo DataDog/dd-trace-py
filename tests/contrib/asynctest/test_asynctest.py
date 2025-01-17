@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 
 import ddtrace
-from ddtrace.contrib.pytest.plugin import is_enabled
+from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
