@@ -148,7 +148,17 @@ def patch():
                     openai.resources, "%s.%s" % (".Async".join(resource.split(".")), method_name)
                 )
                 wrap(sync_method, _patched_endpoint(openai, integration, endpoint_hook))
-                wrap(async_method, _patched_endpoint_async(openai, integration, endpoint_hook))
+                # HERE
+                # wrap(async_method, _patched_endpoint_async(openai, integration, endpoint_hook))
+        from openai.resources.moderations import AsyncModerations
+        from wrapt import wrap_function_wrapper
+
+        # manually wrap to see if we avoid the "coroutine already executing" issue
+        wrap_function_wrapper(
+            "openai.resources.moderations",
+            "AsyncModerations.create",
+            _patched_endpoint_async(openai, integration, _endpoint_hooks._ModerationHook),
+        )
     else:
         import openai.api_requestor
 
@@ -272,16 +282,17 @@ def _patched_endpoint(openai, integration, patch_hook):
 
 def _patched_endpoint_async(openai, integration, patch_hook):
     # Same as _patched_endpoint but async
-    async def patched_endpoint(func, args, kwargs):
+    async def patched_endpoint(func, instance, args, kwargs):
         # FIXME: this is a temporary workaround for the fact that our bytecode wrapping seems to modify
         #        a function keyword argument into a cell when it shouldn't. This is only an issue on
         #        Python 3.11+.
-        if sys.version_info >= (3, 11) and kwargs.get("encoding_format", None):
-            kwargs["encoding_format"] = kwargs["encoding_format"].cell_contents
+        # if sys.version_info >= (3, 11) and kwargs.get("encoding_format", None):
+        #     kwargs["encoding_format"] = kwargs["encoding_format"].cell_contents
 
-        pin = Pin._find(openai, args[0])
-        if not pin or not pin.enabled():
-            return await func(*args, **kwargs)
+        pin = Pin()
+        # pin = Pin._find(openai, args[0])
+        # if not pin or not pin.enabled():
+        #     return await func(*args, **kwargs)
         g = _traced_endpoint(patch_hook, integration, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
