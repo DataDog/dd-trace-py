@@ -155,13 +155,13 @@ class LLMObs(Service):
         if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
             meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
         if span._get_ctx_item(INPUT_VALUE) is not None:
-            meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE))
+            meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
         if span_kind == "llm" and span._get_ctx_item(OUTPUT_MESSAGES) is not None:
             meta["output"]["messages"] = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
         if span._get_ctx_item(OUTPUT_VALUE) is not None:
-            meta["output"]["value"] = safe_json(span._get_ctx_item(OUTPUT_VALUE))
+            meta["output"]["value"] = safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False)
         if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
         if span._get_ctx_item(INPUT_PROMPT) is not None:

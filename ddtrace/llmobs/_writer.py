@@ -250,7 +250,8 @@ class LLMObsSpanWriter(HTTPWriter):
         headers = {}
         clients = []  # type: List[WriterClientBase]
         if is_agentless:
-            assert agentless_url, "agentless_url is required for agentless mode"
+            if not agentless_url:
+                raise ValueError("agentless_url is required for agentless mode")
             clients.append(LLMObsAgentlessEventClient())
             intake_url = agentless_url
             headers["DD-API-KEY"] = config._dd_api_key
