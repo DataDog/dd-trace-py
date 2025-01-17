@@ -18,6 +18,7 @@ from typing import Union
 from ddtrace import _hooks
 from ddtrace import config
 from ddtrace._trace.context import Context
+from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
@@ -68,7 +69,6 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
-from ddtrace.trace import TraceFilter
 from ddtrace.vendor.debtcollector import deprecate
 
 

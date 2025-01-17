@@ -10,8 +10,8 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids

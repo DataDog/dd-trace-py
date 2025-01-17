@@ -4,7 +4,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 deprecate(
-    "The ddtrace.filters module is deprecated and will be removed.",
-    message="Import ``TraceFilter`` and/or ``FilterRequestsOnUrl`` from the ddtrace.trace package.",
+    "The ddtrace.filters module and the ``FilterRequestsOnUrl`` class is deprecated and will be removed.",
+    message="Import ``TraceFilter`` from the ddtrace.trace package.",
     category=DDTraceDeprecationWarning,
 )

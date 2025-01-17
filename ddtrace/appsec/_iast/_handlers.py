@@ -171,8 +171,6 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         http_req = fn_args[0]
 
         http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
-        http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
-        http_req.POST = taint_structure(http_req.POST, OriginType.BODY, OriginType.BODY)
         if (
             getattr(http_req, "_body", None) is not None
             and len(getattr(http_req, "_body", None)) > 0
@@ -202,6 +200,8 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             except AttributeError:
                 log.debug("IAST can't set attribute http_req.body", exc_info=True)
 
+        http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
+        http_req.POST = taint_structure(http_req.POST, OriginType.PARAMETER_NAME, OriginType.BODY)
         http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
         http_req.path = taint_pyobject(
             http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
