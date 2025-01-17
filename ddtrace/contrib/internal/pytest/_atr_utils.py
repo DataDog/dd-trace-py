@@ -3,15 +3,15 @@ import typing as t
 import _pytest
 import pytest
 
-from ddtrace.contrib.pytest._retry_utils import RetryOutcomes
-from ddtrace.contrib.pytest._retry_utils import _get_outcome_from_retry
-from ddtrace.contrib.pytest._retry_utils import _get_retry_attempt_string
-from ddtrace.contrib.pytest._retry_utils import set_retry_num
-from ddtrace.contrib.pytest._types import _pytest_report_teststatus_return_type
-from ddtrace.contrib.pytest._types import pytest_TestReport
-from ddtrace.contrib.pytest._utils import PYTEST_STATUS
-from ddtrace.contrib.pytest._utils import _get_test_id_from_item
-from ddtrace.contrib.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
+from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
+from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
+from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
+from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
+from ddtrace.contrib.internal.pytest._types import pytest_TestReport
+from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
+from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
+from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId

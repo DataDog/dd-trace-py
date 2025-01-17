@@ -30,15 +30,15 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
-from ddtrace.contrib.pytest._utils import _extract_span
-from ddtrace.contrib.pytest._utils import _is_enabled_early
-from ddtrace.contrib.pytest._utils import _is_pytest_8_or_later
-from ddtrace.contrib.pytest._utils import _is_test_unskippable
-from ddtrace.contrib.pytest.constants import FRAMEWORK
-from ddtrace.contrib.pytest.constants import KIND
-from ddtrace.contrib.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.pytest.plugin import is_enabled
-from ddtrace.contrib.unittest import unpatch as unpatch_unittest
+from ddtrace.contrib.internal.pytest._utils import _extract_span
+from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
+from ddtrace.contrib.internal.pytest._utils import _is_pytest_8_or_later
+from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
+from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
+from ddtrace.contrib.internal.pytest.constants import KIND
+from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
+from ddtrace.contrib.internal.pytest.plugin import is_enabled
+from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
