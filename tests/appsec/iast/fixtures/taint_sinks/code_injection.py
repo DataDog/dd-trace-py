@@ -10,6 +10,34 @@ def pt_eval(origin_string):
     return r
 
 
+def pt_eval_globals(origin_string):
+    context = {"x": 5, "y": 10}
+    r = eval(origin_string, context)
+    return r
+
+
+def pt_eval_globals_locals(origin_string):
+    z = 15  # noqa: F841
+    globals_dict = {"x": 10}
+    locals_dict = {"y": 20}
+    r = eval(origin_string, globals_dict, locals_dict)
+    return r
+
+
+def pt_eval_lambda(fun):
+    return eval("lambda v,fun=fun:not fun(v)")
+
+
+def is_true(value):
+    return value is True
+
+
+def pt_eval_lambda_globals(origin_string):
+    globals_dict = {"square": lambda x: x * x}
+    r = eval(origin_string, globals=globals_dict)
+    return r
+
+
 def pt_literal_eval(origin_string):
     r = literal_eval(origin_string)
     return r
