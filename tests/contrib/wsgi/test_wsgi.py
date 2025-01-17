@@ -425,7 +425,7 @@ def test_distributed_tracing_existing_parent(tracer, test_spans):
 
         return middleware
 
-    app = TestApp(broken_middleware(wsgi.DDWSGIMiddleware(application, tracer=tracer), tracer))
+    app = TestApp(broken_middleware(DDWSGIMiddleware(application, tracer=tracer), tracer))
     resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
 
     assert config.wsgi.distributed_tracing is True
@@ -461,7 +461,7 @@ def test_distributed_tracing_existing_parent_ff_enabled(tracer, test_spans):
 
     # DEV: Default is False (ignore distributed headers when there is an active span)
     with override_global_config(dict(_extract_ignore_active_span=True)):
-        app = TestApp(broken_middleware(wsgi.DDWSGIMiddleware(application, tracer=tracer), tracer))
+        app = TestApp(broken_middleware(DDWSGIMiddleware(application, tracer=tracer), tracer))
         resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
 
     assert config.wsgi.distributed_tracing is True
