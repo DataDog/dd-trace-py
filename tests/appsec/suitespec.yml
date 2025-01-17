@@ -120,6 +120,8 @@ suites:
       - tests/appsec/integrations/django_tests/*
     retry: 2
     runner: hatch
+    services:
+      - testagent
     timeout: 30m
   appsec_threats_django:
     parallelism: 12
@@ -137,6 +139,8 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     runner: hatch
+    services:
+      - testagent
   appsec_threats_fastapi:
     parallelism: 9
     paths:
