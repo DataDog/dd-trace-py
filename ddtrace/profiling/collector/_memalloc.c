@@ -109,13 +109,19 @@ memalloc_init()
 }
 
 static void
-memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
+memalloc_assert_gil()
 {
     if (g_crash_on_no_gil && !PyGILState_Check()) {
         int* p = NULL;
         *p = 0;
         abort(); // should never reach here
     }
+}
+
+static void
+memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
+{
+    memalloc_assert_gil();
 
     uint64_t alloc_count = atomic_add_clamped(&global_alloc_tracker->alloc_count, 1, ALLOC_TRACKER_MAX_COUNT);
 
@@ -332,6 +338,8 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
+    memalloc_assert_gil();
+
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     memalloc_tb_deinit();
     if (memlock_trylock(&g_memalloc_lock)) {
@@ -388,6 +396,8 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
     IterEventsState* iestate = (IterEventsState*)type->tp_alloc(type, 0);
     if (!iestate)
         return NULL;
+
+    memalloc_assert_gil();
 
     /* reset the current traceback list */
     if (memlock_trylock(&g_memalloc_lock)) {

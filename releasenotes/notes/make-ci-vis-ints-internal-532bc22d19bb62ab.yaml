@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    ci vis: Moves the implementational details of the pytest, pytest_benchmark, pytest_bdd, and unittest integrations
+    from ``ddtrace.contrib.<integration>`` to ``ddtrace.contrib.internal.<integration>``.
