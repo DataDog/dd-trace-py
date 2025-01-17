@@ -59,6 +59,29 @@ def test_evaluator_runner_timed_enqueues_eval_metric(llmobs, mock_llmobs_eval_me
     )
 
 
+@pytest.mark.vcr_logs
+def test_evaluator_runner_multiple_evaluators(llmobs, mock_llmobs_eval_metric_writer):
+    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
+    evaluator_runner.evaluators += [
+        DummyEvaluator(llmobs_service=llmobs, label="1"),
+        DummyEvaluator(llmobs_service=llmobs, label="2"),
+        DummyEvaluator(llmobs_service=llmobs, label="3"),
+    ]
+    evaluator_runner.start()
+
+    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
+
+    time.sleep(0.1)
+
+    calls = [call[0][0] for call in mock_llmobs_eval_metric_writer.enqueue.call_args_list]
+    sorted_calls = sorted(calls, key=lambda x: x["label"])
+    assert sorted_calls == [
+        _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234", label="1"),
+        _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234", label="2"),
+        _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234", label="3"),
+    ]
+
+
 def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]

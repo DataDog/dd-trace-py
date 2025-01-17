@@ -332,23 +332,24 @@ configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
     from ddtrace import tracer
+    from ddtrace.trace import TraceFilter
+
+    class FilterbyName(TraceFilter):
+        def process_trace(self, trace):
+            for span in trace:
+                if span.name == "some_name"
+                    # drop the full trace chunk
+                    return None
+            return trace
 
     tracer.configure(settings={
         'FILTERS': [
-            FilterRequestsOnUrl(r'http://test\.example\.com'),
+            FilterbyName(),
         ],
     })
 
 The filters in the filters list will be applied sequentially to each trace
 and the resulting trace will either be sent to the Agent or discarded.
-
-**Built-in filters**
-
-The library comes with a ``FilterRequestsOnUrl`` filter that can be used to
-filter out incoming requests to specific urls:
-
-.. autoclass:: ddtrace.filters.FilterRequestsOnUrl
-    :members:
 
 **Writing a custom filter**
 
@@ -358,7 +359,7 @@ providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
 the pipeline or ``None`` if the trace should be discarded::
 
     from ddtrace import Span, tracer
-    from ddtrace.filters import TraceFilter
+    from ddtrace.trace import TraceFilter
 
     class FilterExample(TraceFilter):
         def process_trace(self, trace):

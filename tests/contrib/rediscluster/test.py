@@ -2,11 +2,11 @@
 import pytest
 import rediscluster
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.rediscluster.patch import REDISCLUSTER_VERSION
 from ddtrace.contrib.internal.rediscluster.patch import patch
 from ddtrace.contrib.internal.rediscluster.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase

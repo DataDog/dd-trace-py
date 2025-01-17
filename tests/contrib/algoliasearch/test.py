@@ -3,7 +3,7 @@ from ddtrace import patch_all
 from ddtrace.contrib.internal.algoliasearch.patch import algoliasearch_version
 from ddtrace.contrib.internal.algoliasearch.patch import patch
 from ddtrace.contrib.internal.algoliasearch.patch import unpatch
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

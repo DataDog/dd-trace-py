@@ -30,7 +30,7 @@ into the runtime execution of third-party libraries. The essential task of writi
 the functions in the third-party library that would serve as useful entrypoints and wrapping them with ``wrap_function_wrapper``.
 There are exceptions, but this is generally a useful starting point.
 
-The Pin API in ``ddtrace.pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
+The Pin API in ``ddtrace.trace.Pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
 that can store configuration data in memory in a manner that is accessible from within functions wrapped by Wrapt.
 ``Pin`` objects are most often used for storing configuration data scoped to a given integration, such as
 enable/disable flags and service name overrides.

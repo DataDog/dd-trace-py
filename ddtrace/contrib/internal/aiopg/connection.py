@@ -15,7 +15,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 AIOPG_VERSION = parse_version(__version__)
