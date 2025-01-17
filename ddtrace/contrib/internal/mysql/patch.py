@@ -3,7 +3,6 @@ import os
 import mysql.connector
 import wrapt
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
@@ -16,6 +15,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 config._add(

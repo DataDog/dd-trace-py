@@ -7,7 +7,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 def _wrap_get_create(func, instance, args, kwargs):
