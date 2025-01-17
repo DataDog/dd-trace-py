@@ -28,6 +28,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
@@ -67,6 +68,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -110,9 +112,9 @@ class LLMObs(Service):
         self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
 
-        # Register hooks for span events
-        core.on("trace.span_start", self._do_annotations)
-        core.on("trace.span_finish", self._on_span_finish)
+    def _on_span_start(self, span):
+        if self.enabled and span.span_type == SpanTypes.LLM:
+            self._do_annotations(span)
 
     def _on_span_finish(self, span):
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -276,6 +278,10 @@ class LLMObs(Service):
             log.debug("Error starting evaluator runner")
 
     def _stop_service(self) -> None:
+        # Remove listener hooks for span events
+        core.reset_listeners("trace.span_start", self._on_span_start)
+        core.reset_listeners("trace.span_finish", self._on_span_finish)
+
         try:
             self._evaluator_runner.stop()
             # flush remaining evaluation spans & evaluations
@@ -369,6 +375,10 @@ class LLMObs(Service):
         cls._instance = cls(tracer=_tracer)
         cls.enabled = True
         cls._instance.start()
+
+        # Register hooks for span events
+        core.on("trace.span_start", cls._instance._on_span_start)
+        core.on("trace.span_finish", cls._instance._on_span_finish)
 
         atexit.register(cls.disable)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
@@ -911,6 +921,127 @@ class LLMObs(Service):
         span._set_ctx_item(METRICS, metrics)
 
     @classmethod
+    def submit_evaluation_for(
+        cls,
+        label: str,
+        metric_type: str,
+        value: Union[str, int, float],
+        span: Optional[dict] = None,
+        span_with_tag_value: Optional[Dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
+        ml_app: Optional[str] = None,
+        timestamp_ms: Optional[int] = None,
+    ) -> None:
+        """
+        Submits a custom evaluation metric for a given span.
+
+        :param str label: The name of the evaluation metric.
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "score".
+        :param value: The value of the evaluation metric.
+                      Must be a string (categorical), integer (score), or float (score).
+        :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
+                            the span associated with this evaluation.
+        :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
+                            uniquely identifying the span associated with this evaluation.
+        :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
+        :param str ml_app: The name of the ML application
+        :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
+                                    If not set, the current time will be used.
+        """
+        if cls.enabled is False:
+            log.debug(
+                "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. ",
+                "Evaluation metric data will not be sent.",
+            )
+            return
+
+        has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
+
+        if not has_exactly_one_joining_key:
+            raise ValueError(
+                "Exactly one of `span` or `span_with_tag_value` must be specified to submit an evaluation metric."
+            )
+
+        join_on = {}
+        if span is not None:
+            if (
+                not isinstance(span, dict)
+                or not isinstance(span.get("span_id"), str)
+                or not isinstance(span.get("trace_id"), str)
+            ):
+                raise TypeError(
+                    "`span` must be a dictionary containing both span_id and trace_id keys. "
+                    "LLMObs.export_span() can be used to generate this dictionary from a given span."
+                )
+            join_on["span"] = span
+        elif span_with_tag_value is not None:
+            if (
+                not isinstance(span_with_tag_value, dict)
+                or not isinstance(span_with_tag_value.get("tag_key"), str)
+                or not isinstance(span_with_tag_value.get("tag_value"), str)
+            ):
+                raise TypeError(
+                    "`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' containing string values"
+                )
+            join_on["tag"] = {
+                "key": span_with_tag_value.get("tag_key"),
+                "value": span_with_tag_value.get("tag_value"),
+            }
+
+        timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
+
+        if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
+            raise ValueError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+
+        if not label:
+            raise ValueError("label must be the specified name of the evaluation metric.")
+
+        metric_type = metric_type.lower()
+        if metric_type not in ("categorical", "score"):
+            raise ValueError("metric_type must be one of 'categorical' or 'score'.")
+
+        if metric_type == "categorical" and not isinstance(value, str):
+            raise TypeError("value must be a string for a categorical metric.")
+        if metric_type == "score" and not isinstance(value, (int, float)):
+            raise TypeError("value must be an integer or float for a score metric.")
+
+        if tags is not None and not isinstance(tags, dict):
+            log.warning("tags must be a dictionary of string key-value pairs.")
+            tags = {}
+
+        evaluation_tags = {
+            "ddtrace.version": ddtrace.__version__,
+            "ml_app": ml_app,
+        }
+
+        if tags:
+            for k, v in tags.items():
+                try:
+                    evaluation_tags[ensure_text(k)] = ensure_text(v)
+                except TypeError:
+                    log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
+
+        ml_app = ml_app if ml_app else config._llmobs_ml_app
+        if not ml_app:
+            log.warning(
+                "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                "Ensure this configuration is set before running your application."
+            )
+            return
+
+        evaluation_metric = {
+            "join_on": join_on,
+            "label": str(label),
+            "metric_type": metric_type,
+            "timestamp_ms": timestamp_ms,
+            "{}_value".format(metric_type): value,
+            "ml_app": ml_app,
+            "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
+        }
+
+        cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
+
+    @classmethod
     def submit_evaluation(
         cls,
         span_context: Dict[str, str],
@@ -922,6 +1053,13 @@ class LLMObs(Service):
         timestamp_ms: Optional[int] = None,
         metadata: Optional[Dict[str, object]] = None,
     ) -> None:
+        deprecate(
+            "Using `LLMObs.submit_evaluation` is deprecated",
+            message="Please use `LLMObs.submit_evaluation_for` instead.",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
 
@@ -937,7 +1075,7 @@ class LLMObs(Service):
                                 evaluation metric.
         """
         if cls.enabled is False:
-            log.warning(
+            log.debug(
                 "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
             )
             return
@@ -1013,8 +1151,7 @@ class LLMObs(Service):
                     log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
 
         evaluation_metric = {
-            "span_id": span_id,
-            "trace_id": trace_id,
+            "join_on": {"span": {"span_id": span_id, "trace_id": trace_id}},
             "label": str(label),
             "metric_type": metric_type.lower(),
             "timestamp_ms": timestamp_ms,

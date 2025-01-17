@@ -7,15 +7,19 @@ import pytest
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 
 
-INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric"
+INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric"
 DD_SITE = "datad0g.com"
 dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
 
 def _categorical_metric_event():
     return {
-        "span_id": "12345678901",
-        "trace_id": "98765432101",
+        "join_on": {
+            "span": {
+                "span_id": "12345678901",
+                "trace_id": "98765432101",
+            },
+        },
         "metric_type": "categorical",
         "categorical_value": "very",
         "label": "toxicity",
@@ -26,8 +30,12 @@ def _categorical_metric_event():
 
 def _score_metric_event():
     return {
-        "span_id": "12345678902",
-        "trace_id": "98765432102",
+        "join_on": {
+            "span": {
+                "span_id": "12345678902",
+                "trace_id": "98765432102",
+            },
+        },
         "metric_type": "score",
         "label": "sentiment",
         "score_value": 0.9,
@@ -66,6 +74,18 @@ def test_send_metric_bad_api_key(mock_writer_logs):
         INTAKE_ENDPOINT,
         403,
         b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',  # noqa
+    )
+
+
+@pytest.mark.vcr_logs
+def test_send_metric_no_api_key(mock_writer_logs):
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(site="datad0g.com", api_key="", interval=1000, timeout=1)
+    llmobs_eval_metric_writer.start()
+    llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
+    llmobs_eval_metric_writer.periodic()
+    mock_writer_logs.warning.assert_called_with(
+        "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. ",
+        "Ensure this configuration is set before running your application.",
     )
 
 
@@ -125,6 +145,18 @@ def test_send_multiple_events(mock_writer_logs):
 
 
 def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "DD_API_KEY": os.getenv("DD_API_KEY", "dummy-api-key"),
+            "DD_SITE": "datad0g.com",
+            "PYTHONPATH": ":".join(pypath),
+            "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+        }
+    )
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import atexit
@@ -144,6 +176,7 @@ site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=0.01, timeout=1
 llmobs_eval_metric_writer.start()
 llmobs_eval_metric_writer.enqueue(_score_metric_event())
 """,
+        env=env,
     )
     assert status == 0, err
     assert out == b""

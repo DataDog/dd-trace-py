@@ -22,6 +22,7 @@ class JobSpec:
     timeout: t.Optional[int] = None
     skip: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
+    only: t.Optional[t.Set[str]] = None  # ignored
 
     def __str__(self) -> str:
         lines = []
@@ -59,6 +60,11 @@ class JobSpec:
         lines.append("  variables:")
         for key, value in env.items():
             lines.append(f"    {key}: {value}")
+
+        if self.only:
+            lines.append("  only:")
+            for value in self.only:
+                lines.append(f"    - {value}")
 
         if self.parallelism is not None:
             lines.append(f"  parallel: {self.parallelism}")

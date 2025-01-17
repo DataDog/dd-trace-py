@@ -22,7 +22,7 @@ def test_evaluator_runner_start(mock_evaluator_logs):
     evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
     evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=mock.MagicMock()))
     evaluator_runner.start()
-    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r to %r", "EvaluatorRunner")])
+    mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r", "EvaluatorRunner")])
 
 
 def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
@@ -61,18 +61,10 @@ def test_evaluator_runner_timed_enqueues_eval_metric(llmobs, mock_llmobs_eval_me
 
 def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update(
-        {
-            "DD_API_KEY": os.getenv("DD_API_KEY", "dummy-api-key"),
-            "DD_SITE": "datad0g.com",
-            "PYTHONPATH": ":".join(pypath),
-            "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-            "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
-        }
-    )
+    env.update({"PYTHONPATH": ":".join(pypath), "_DD_LLMOBS_EVALUATOR_INTERVAL": "5"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import os
@@ -87,7 +79,7 @@ from tests.llmobs._utils import DummyEvaluator
 ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_evaluator_runner.send_score_metric.yaml")
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
-LLMObs.enable()
+LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app")
 LLMObs._instance._evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
 LLMObs._instance._evaluator_runner.start()
 LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, None)
@@ -97,6 +89,12 @@ LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"
     assert status == 0, err
     assert out == b""
     assert err == b""
+
+
+def test_evaluator_runner_unsupported_evaluator():
+    with override_env({"_DD_LLMOBS_EVALUATORS": "unsupported"}):
+        with pytest.raises(ValueError):
+            EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
 
 
 def test_evaluator_runner_sampler_single_rule(monkeypatch):

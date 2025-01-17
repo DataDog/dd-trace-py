@@ -11,7 +11,6 @@ from grpc.aio._typing import RequestType
 from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
-from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
@@ -30,6 +29,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)

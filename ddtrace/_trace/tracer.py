@@ -18,6 +18,7 @@ from typing import Union
 from ddtrace import _hooks
 from ddtrace import config
 from ddtrace._trace.context import Context
+from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
@@ -25,13 +26,15 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.sampler import BasePrioritySampler
+from ddtrace._trace.sampler import BaseSampler
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
-from ddtrace.filters import TraceFilter
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
@@ -63,9 +66,6 @@ from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.sampler import BasePrioritySampler
-from ddtrace.sampler import BaseSampler
-from ddtrace.sampler import DatadogSampler
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -195,6 +195,7 @@ class Tracer(object):
     """
 
     SHUTDOWN_TIMEOUT = 5
+    _instance = None
 
     def __init__(
         self,
@@ -209,7 +210,23 @@ class Tracer(object):
         :param url: The Datadog agent URL.
         :param dogstatsd_url: The DogStatsD URL.
         """
-
+        # Do not set self._instance if this is a subclass of Tracer. Here we only want
+        # to reference the global instance.
+        if type(self) is Tracer:
+            if Tracer._instance is None:
+                Tracer._instance = self
+            else:
+                # ddtrace library does not support context propagation for multiple tracers.
+                # All instances of ddtrace ContextProviders share the same ContextVars. This means that
+                # if you create multiple instances of Tracer, spans will be shared between them creating a
+                # broken experience.
+                # TODO(mabdinur): Convert this warning to an ValueError in 3.0.0
+                deprecate(
+                    "Support for multiple Tracer instances is deprecated",
+                    ". Use ddtrace.tracer instead.",
+                    category=DDTraceDeprecationWarning,
+                    removal_version="3.0.0",
+                )
         self._filters: List[TraceFilter] = []
 
         # globally set tags
@@ -775,8 +792,7 @@ class Tracer(object):
         service = config.service_mapping.get(service, service)
 
         links = context._span_links if not parent else []
-
-        if trace_id:
+        if trace_id or links or context._baggage:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
                 name=name,
@@ -1176,11 +1192,11 @@ class Tracer(object):
 
         if "_logs_injection" in items:
             if config._logs_injection:
-                from ddtrace.contrib.logging import patch
+                from ddtrace.contrib.internal.logging.patch import patch
 
                 patch()
             else:
-                from ddtrace.contrib.logging import unpatch
+                from ddtrace.contrib.internal.logging.patch import unpatch
 
                 unpatch()
 

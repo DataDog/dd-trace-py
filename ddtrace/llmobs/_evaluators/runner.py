@@ -7,7 +7,9 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
+from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 
@@ -17,6 +19,8 @@ logger = get_logger(__name__)
 
 SUPPORTED_EVALUATORS = {
     RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,
+    RagasAnswerRelevancyEvaluator.LABEL: RagasAnswerRelevancyEvaluator,
+    RagasContextPrecisionEvaluator.LABEL: RagasContextPrecisionEvaluator,
 }
 
 
@@ -56,7 +60,7 @@ class EvaluatorRunner(PeriodicService):
                     raise e
                 finally:
                     telemetry_writer.add_count_metric(
-                        namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
+                        namespace=TELEMETRY_NAMESPACE.MLOBS,
                         name="evaluators.init",
                         value=1,
                         tags=(
@@ -64,13 +68,15 @@ class EvaluatorRunner(PeriodicService):
                             ("state", evaluator_init_state),
                         ),
                     )
+            else:
+                raise ValueError("Parsed unsupported evaluator: {}".format(evaluator))
 
     def start(self, *args, **kwargs):
         if not self.evaluators:
             logger.debug("no evaluators configured, not starting %r", self.__class__.__name__)
             return
         super(EvaluatorRunner, self).start()
-        logger.debug("started %r to %r", self.__class__.__name__)
+        logger.debug("started %r", self.__class__.__name__)
 
     def _stop_service(self) -> None:
         """
