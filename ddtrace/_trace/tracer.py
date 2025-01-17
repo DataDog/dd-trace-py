@@ -464,6 +464,15 @@ class Tracer(object):
     ) -> None:
         """Configure a Tracer.
 
+        :param object context_provider: The ``ContextProvider`` that will be used to retrieve
+            automatically the current call context. This is an advanced option that usually
+            doesn't need to be changed from the default value.
+        :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
+        :param bool iast_enabled: Enables IAST support for the tracer
+        :param bool appsec_standalone_enabled: When tracing is disabled ensures ASM support is still enabled.
+        :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
+           Trace processors are used to modify and filter traces based on certain criteria.
+
         :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped.
             This parameter is deprecated and will be removed.
         :param str hostname: Hostname running the Trace Agent. This parameter is deprecated and will be removed.
@@ -472,9 +481,6 @@ class Tracer(object):
         :param bool https: Whether to use HTTPS or HTTP. This parameter is deprecated and will be removed.
         :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
             This parameter is deprecated and will be removed.
-        :param object context_provider: The ``ContextProvider`` that will be used to retrieve
-            automatically the current call context. This is an advanced option that usually
-            doesn't need to be changed from the default value
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value. This parameter is deprecated and will be removed.
@@ -487,11 +493,6 @@ class Tracer(object):
         :param bool partial_flush_min_spans: This parameter is deprecated and will be removed.
         :param str api_version: This parameter is deprecated and will be removed.
         :param bool compute_stats_enabled: This parameter is deprecated and will be removed.
-        :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
-        :param bool iast_enabled: Enables IAST support for the tracer
-        :param bool appsec_standalone_enabled: When tracing is disabled ensures ASM support is still enabled.
-        :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
-           Trace processors are used to modify and filter traces based on certain criteria.
         """
         if settings is not None:
             deprecate(
