@@ -295,6 +295,12 @@
         "auto-instrumented": false
     },
     {
+        "integration": "valkey",
+        "minimum_tracer_supported": "6.0.0",
+        "max_tracer_supported": "6.0.2",
+        "auto-instrumented": true
+    },
+    {
         "integration": "vertexai",
         "minimum_tracer_supported": "1.71.1",
         "max_tracer_supported": "1.71.1",

@@ -28,6 +28,9 @@
   redis:
     name: registry.ddbuild.io/redis:7.0.7
     alias: redis
+  valkey:
+    name: registry.ddbuild.io/images/mirror/valkey:8.0-alpine
+    alias: valkey
   kafka:
     name: registry.ddbuild.io/images/mirror/apache/kafka:3.8.0
     alias: kafka
@@ -54,6 +57,9 @@
   rediscluster:
     name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
     alias: rediscluster
+  valkeycluster:
+    name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
+    alias: valkeycluster
   elasticsearch:
     name: registry.ddbuild.io/images/mirror/library/elasticsearch:7.17.23
     alias: elasticsearch
