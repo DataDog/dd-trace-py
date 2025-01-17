@@ -3,9 +3,10 @@ import sys
 
 import pytest
 
-from ddtrace.internal.bytecode_injection.core import InjectionContext
-from ddtrace.internal.bytecode_injection.core import inject_invocation
 
+if sys.version_info[:2] >= (3, 10):
+    from ddtrace.internal.bytecode_injection.core import InjectionContext
+    from ddtrace.internal.bytecode_injection.core import inject_invocation
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
     sys.version_info[:2] < (3, 10),
