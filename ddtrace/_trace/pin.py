@@ -6,6 +6,7 @@ from typing import Optional  # noqa:F401
 import wrapt
 
 import ddtrace
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.logger import get_logger
 
@@ -41,6 +42,12 @@ class Pin(object):
         _config=None,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
+        if tracer is not None and tracer is not ddtrace.tracer:
+            deprecate(
+                "Initializing ddtrace.Pin with `tracer` argument is deprecated",
+                message="All Pin instances should use the global tracer instance",
+                removal_version="3.0.0",
+            )
         tracer = tracer or ddtrace.tracer
         self.tags = tags
         self.tracer = tracer
@@ -72,15 +79,15 @@ class Pin(object):
     def _find(*objs):
         # type: (Any) -> Optional[Pin]
         """
-        Return the first :class:`ddtrace.trace.Pin` found on any of the provided objects or `None` if none were found
+        Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
 
 
             >>> pin = Pin._find(wrapper, instance, conn)
 
-        :param objs: The objects to search for a :class:`ddtrace.trace.Pin` on
+        :param objs: The objects to search for a :class:`ddtrace.pin.Pin` on
         :type objs: List of objects
-        :rtype: :class:`ddtrace.trace.Pin`, None
-        :returns: The first found :class:`ddtrace.trace.Pin` or `None` is none was found
+        :rtype: :class:`ddtrace.pin.Pin`, None
+        :returns: The first found :class:`ddtrace.pin.Pin` or `None` is none was found
         """
         for obj in objs:
             pin = Pin.get_from(obj)
@@ -98,10 +105,10 @@ class Pin(object):
 
             >>> pin = Pin.get_from(conn)
 
-        :param obj: The object to look for a :class:`ddtrace.trace.Pin` on
+        :param obj: The object to look for a :class:`ddtrace.pin.Pin` on
         :type obj: object
-        :rtype: :class:`ddtrace.trace.Pin`, None
-        :returns: :class:`ddtrace.trace.Pin` associated with the object or None
+        :rtype: :class:`ddtrace.pin.Pin`, None
+        :returns: :class:`ddtrace.pin.Pin` associated with the object, or None if none was found
         """
         if hasattr(obj, "__getddpin__"):
             return obj.__getddpin__()
@@ -132,6 +139,12 @@ class Pin(object):
             >>> # Override a pin for a specific connection
             >>> Pin.override(conn, service='user-db')
         """
+        if tracer is not None:
+            deprecate(
+                "Calling ddtrace.Pin.override(...) with the `tracer` argument is deprecated",
+                message="All Pin instances should use the global tracer instance",
+                removal_version="3.0.0",
+            )
         if not obj:
             return
 
@@ -192,6 +205,13 @@ class Pin(object):
         # do a shallow copy of Pin dicts
         if not tags and self.tags:
             tags = self.tags.copy()
+
+        if tracer is not None:
+            deprecate(
+                "Initializing ddtrace.Pin with `tracer` argument is deprecated",
+                message="All Pin instances should use the global tracer instance",
+                removal_version="3.0.0",
+            )
 
         # we use a copy instead of a deepcopy because we expect configurations
         # to have only a root level dictionary without nested objects. Using

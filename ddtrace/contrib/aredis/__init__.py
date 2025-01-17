@@ -50,7 +50,7 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure particular aredis instances use the :class:`Pin <ddtrace.Pin>` API::
+To configure particular aredis instances use the :class:`Pin <ddtrace.trace.Pin>` API::
 
     import aredis
     from ddtrace.trace import Pin
