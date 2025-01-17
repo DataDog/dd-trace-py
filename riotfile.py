@@ -2504,14 +2504,14 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
                         "openai[embeddings,datalib]": ["==1.1.1", "==1.30.1"],
                         "pillow": "==9.5.0",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "openai[datalib]": ["==1.30.1"],
                         "tiktoken": latest,
