@@ -109,7 +109,7 @@ suites:
     runner: hatch
     services:
       - testagent
-    timeout: 30m
+    timeout: 40m
   appsec_integrations_django:
     parallelism: 6
     paths:
