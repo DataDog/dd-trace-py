@@ -207,5 +207,35 @@ services:
             - DD_TRACE_AGENT_URL=http://testagent:8126
             - _DD_APPSEC_DEDUPLICATION_ENABLED=false
 
+    valkey:
+        image: valkey/valkey:8.0-alpine
+        ports:
+            - "127.0.0.1:6379:6379"
+
+    valkeycluster:
+        image: valkey/valkey:8.0-alpine
+        ports:
+            - "127.0.0.1:7000:7000"
+            - "127.0.0.1:7001:7001"
+            - "127.0.0.1:7002:7002"
+            - "127.0.0.1:7003:7003"
+            - "127.0.0.1:7004:7004"
+            - "127.0.0.1:7005:7005"
+        entrypoint:
+            - /bin/sh
+            - -c
+            - |
+                PORTS='7000 7001 7002 7003 7004 7005'
+                for PORT in $${PORTS}
+                do
+                    mkdir $${PORT}
+                    cd $${PORT}
+                    valkey-server --port $${PORT} --cluster-enabled yes --cluster-node-timeout 5000 --appendonly yes &
+                    cd ..
+                done
+                sleep 2
+                valkey-cli --cluster create 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 127.0.0.1:7003 127.0.0.1:7004 127.0.0.1:7005 --cluster-yes --cluster-replicas 1
+                sleep infinity
+
 volumes:
     ddagent:

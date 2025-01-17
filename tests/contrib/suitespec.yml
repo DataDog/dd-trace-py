@@ -240,6 +240,13 @@ components:
   urllib3:
     - ddtrace/contrib/urllib3/*
     - ddtrace/contrib/internal/urllib3/*
+  valkey:
+    - ddtrace/contrib/valkey/*
+    - ddtrace/contrib/internal/valkey/*
+    - ddtrace/_trace/utils_valkey.py
+    - ddtrace/contrib/valkey_utils.py
+    - ddtrace/contrib/trace_utils_valkey.py
+    - ddtrace/ext/valkey.py
   vertica:
     - ddtrace/contrib/vertica/*
     - ddtrace/contrib/internal/vertica/*
@@ -1176,4 +1183,19 @@ suites:
     runner: riot
     services:
       - redis
+    snapshot: true
+  valkey:
+    parallelism: 5
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@valkey'
+      - tests/contrib/valkey/*
+      - tests/snapshots/tests.contrib.valkey.*
+    pattern: ^valkey$
+    runner: riot
+    services:
+      - valkey
     snapshot: true

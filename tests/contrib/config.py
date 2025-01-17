@@ -97,3 +97,13 @@ KAFKA_CONFIG = {
     "host": os.getenv("TEST_KAFKA_HOST", "127.0.0.1"),
     "port": int(os.getenv("TEST_KAFKA_PORT", 29092)),
 }
+
+VALKEY_CONFIG = {
+    "host": os.getenv("TEST_VALKEY_HOST", "localhost"),
+    "port": int(os.getenv("TEST_VALKEY_PORT", 6379)),
+}
+
+VALKEY_CLUSTER_CONFIG = {
+    "host": "127.0.0.1",
+    "ports": os.getenv("TEST_VALKEYCLUSTER_PORTS", "7000,7001,7002,7003,7004,7005"),
+}

@@ -16,6 +16,7 @@ class SpanTypes(object):
     AUTH = "auth"
     SYSTEM = "system"
     LLM = "llm"
+    VALKEY = "valkey"
 
 
 class SpanKind(object):
@@ -35,5 +36,6 @@ EXIT_SPAN_TYPES = frozenset(
         SpanTypes.REDIS,
         SpanTypes.SQL,
         SpanTypes.WORKER,
+        SpanTypes.VALKEY,
     }
 )

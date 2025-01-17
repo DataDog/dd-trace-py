@@ -2948,6 +2948,16 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="valkey",
+            command="pytest {cmdargs} tests/contrib/valkey",
+            pkgs={
+                "valkey": latest,
+                "pytest-randomly": latest,
+                "pytest-asyncio": "==0.23.7",
+            },
+            pys=select_pys(min_version="3.8"),
+        ),
+        Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
