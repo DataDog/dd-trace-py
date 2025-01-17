@@ -18,7 +18,6 @@ from typing import Union
 from ddtrace import _hooks
 from ddtrace import config
 from ddtrace._trace.context import Context
-from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
