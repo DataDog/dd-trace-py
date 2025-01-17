@@ -35,6 +35,11 @@ def test_code_injection_eval(iast_context_defaults):
     assert vulnerability["evidence"].get("redacted") is None
 
 
+def test_code_injection_eval_lambda(iast_context_defaults):
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.code_injection")
+    assert mod.pt_eval_lambda(mod.is_true)(True) is False
+
+
 # TODO: wrap exec functions is very dangerous because it needs and modifies locals and globals from the original func
 # def test_code_injection_exec(iast_context_defaults):
 #     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.code_injection")

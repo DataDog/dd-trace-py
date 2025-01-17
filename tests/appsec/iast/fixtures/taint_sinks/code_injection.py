@@ -25,3 +25,11 @@ def pt_exec_with_globals(origin_string):
     exec(origin_string)
     my_var_in_pt_exec_with_globals += "def"
     return my_var_in_pt_exec_with_globals
+
+
+def pt_eval_lambda(fun):
+    return eval("lambda v,fun=fun:not fun(v)")
+
+
+def is_true(value):
+    return value is True
