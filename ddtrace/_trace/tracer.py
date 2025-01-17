@@ -501,8 +501,7 @@ class Tracer(object):
                 version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
-            if isinstance(settings.get("FILTERS"), list):
-                trace_processors += settings.get("FILTERS")  # type: ignore
+            trace_processors += settings.get("FILTERS") or []  # type: ignore
 
         return self._configure(
             enabled,
