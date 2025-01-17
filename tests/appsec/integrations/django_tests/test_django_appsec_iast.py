@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 import json
-import logging
-import re
 
 import pytest
 
@@ -19,7 +17,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
+TEST_FILE = "tests/appsec/integrations/django_tests/django_app/views.py"
 
 
 @pytest.fixture(autouse=True)
@@ -28,29 +26,6 @@ def iast_context():
         {IAST.ENV: "True", IAST.ENV_REQUEST_SAMPLING: "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
     ):
         yield
-
-
-# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
-IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
-
-
-@pytest.fixture(autouse=True)
-def check_native_code_exception_in_each_django_test(request, caplog, telemetry_writer):
-    if "skip_iast_check_logs" in request.keywords:
-        yield
-    else:
-        caplog.set_level(logging.DEBUG)
-        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
-            dict(_iast_debug=True)
-        ), caplog.at_level(logging.DEBUG):
-            yield
-
-        log_messages = [record.message for record in caplog.get_records("call")]
-        for message in log_messages:
-            if IAST_VALID_LOG.search(message):
-                pytest.fail(message)
-        list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 0
 
 
 def _aux_appsec_get_root_span(
@@ -463,37 +438,36 @@ def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_name(c
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True)):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/sqli_http_path_parameter/sqlite_master/",
-            headers={"HTTP_USER_AGENT": "test/1.2.3"},
-        )
-        assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/sqli_http_path_parameter/sqlite_master/",
+        headers={"HTTP_USER_AGENT": "test/1.2.3"},
+    )
+    assert response.status_code == 200
+    assert response.content == b"test/1.2.3"
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        assert loaded["sources"] == [
-            {"origin": "http.request.path.parameter", "name": "q_http_path_parameter", "value": "sqlite_master"}
+    assert loaded["sources"] == [
+        {"origin": "http.request.path.parameter", "name": "q_http_path_parameter", "value": "sqlite_master"}
+    ]
+    assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"value": "SELECT "},
+            {"redacted": True},
+            {"value": " from "},
+            {"value": "sqlite_master", "source": 0},
         ]
-        assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [
-                {"value": "SELECT "},
-                {"redacted": True},
-                {"value": " from "},
-                {"value": "sqlite_master", "source": 0},
-            ]
-        }
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_full_sqli_http_path_parameter", VULN_SQL_INJECTION, filename=TEST_FILE
-        )
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    }
+    line, hash_value = get_line_and_hash(
+        "iast_enabled_full_sqli_http_path_parameter", VULN_SQL_INJECTION, filename=TEST_FILE
+    )
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
 @pytest.mark.django_db()

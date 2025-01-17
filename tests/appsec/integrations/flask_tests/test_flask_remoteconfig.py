@@ -270,7 +270,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         _request_200(gunicorn_client, debug_mode=False)
 
 
-@pytest.mark.subprocess(ddtrace_run=True, check_logs=False, out=b"success")
+@pytest.mark.subprocess(ddtrace_run=True, err=None, out=b"success")
 def test_compatiblity_with_multiprocessing():
     import multiprocessing
     from multiprocessing import Array
