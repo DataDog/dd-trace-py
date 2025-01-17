@@ -11,7 +11,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - tracing(django): Fixes issue where django cache is represented as a django service rather than the third party service.
 - botocore: Resolves formatting errors in the bedrock integration when parsing request model IDs, which can now accept AWS ARNs.
-- Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
+- profiling: Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
 - profiling: Fixes a bug where profiling mutexes were not cleared on fork in the child process. This could cause deadlocks in certain configurations.
 - profiling: Removed a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.
 
