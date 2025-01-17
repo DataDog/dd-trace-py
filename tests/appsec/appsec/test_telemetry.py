@@ -108,7 +108,8 @@ def test_log_metric_error_ddwaf_init(telemetry_writer):
             _asm_static_rule_file=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"),
         )
     ):
-        AppSecSpanProcessor()
+        processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
