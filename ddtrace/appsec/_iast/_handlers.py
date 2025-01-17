@@ -171,8 +171,6 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         http_req = fn_args[0]
 
         http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
-        http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
-        http_req.POST = taint_structure(http_req.POST, OriginType.BODY, OriginType.BODY)
         if (
             getattr(http_req, "_body", None) is not None
             and len(getattr(http_req, "_body", None)) > 0
@@ -202,6 +200,8 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             except AttributeError:
                 log.debug("IAST can't set attribute http_req.body", exc_info=True)
 
+        http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
+        http_req.POST = taint_structure(http_req.POST, OriginType.PARAMETER_NAME, OriginType.BODY)
         http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
         http_req.path = taint_pyobject(
             http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
@@ -367,3 +367,39 @@ def _on_iast_fastapi_patch():
 
     # Instrumented on _iast_starlette_scope_taint
     _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+
+
+def _on_pre_tracedrequest_iast(ctx):
+    current_span = ctx.span
+    _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
+
+
+def _on_set_request_tags_iast(request, span, flask_config):
+    if _is_iast_enabled():
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+
+        if not is_iast_request_enabled():
+            return
+
+        request.cookies = taint_structure(
+            request.cookies,
+            OriginType.COOKIE_NAME,
+            OriginType.COOKIE,
+            override_pyobject_tainted=True,
+        )
+
+        request.args = taint_structure(
+            request.args,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )
+
+        request.form = taint_structure(
+            request.form,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )

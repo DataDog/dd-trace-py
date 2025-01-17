@@ -18,6 +18,7 @@ from typing import Union
 from ddtrace import _hooks
 from ddtrace import config
 from ddtrace._trace.context import Context
+from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
@@ -25,13 +26,15 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.sampler import BasePrioritySampler
+from ddtrace._trace.sampler import BaseSampler
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
-from ddtrace.filters import TraceFilter
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
@@ -41,6 +44,7 @@ from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.core import dispatch
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
@@ -62,9 +66,6 @@ from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.sampler import BasePrioritySampler
-from ddtrace.sampler import BaseSampler
-from ddtrace.sampler import DatadogSampler
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -194,6 +195,7 @@ class Tracer(object):
     """
 
     SHUTDOWN_TIMEOUT = 5
+    _instance = None
 
     def __init__(
         self,
@@ -208,7 +210,23 @@ class Tracer(object):
         :param url: The Datadog agent URL.
         :param dogstatsd_url: The DogStatsD URL.
         """
-
+        # Do not set self._instance if this is a subclass of Tracer. Here we only want
+        # to reference the global instance.
+        if type(self) is Tracer:
+            if Tracer._instance is None:
+                Tracer._instance = self
+            else:
+                # ddtrace library does not support context propagation for multiple tracers.
+                # All instances of ddtrace ContextProviders share the same ContextVars. This means that
+                # if you create multiple instances of Tracer, spans will be shared between them creating a
+                # broken experience.
+                # TODO(mabdinur): Convert this warning to an ValueError in 3.0.0
+                deprecate(
+                    "Support for multiple Tracer instances is deprecated",
+                    ". Use ddtrace.tracer instead.",
+                    category=DDTraceDeprecationWarning,
+                    removal_version="3.0.0",
+                )
         self._filters: List[TraceFilter] = []
 
         # globally set tags
@@ -774,8 +792,7 @@ class Tracer(object):
         service = config.service_mapping.get(service, service)
 
         links = context._span_links if not parent else []
-
-        if trace_id:
+        if trace_id or links or context._baggage:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
                 name=name,
@@ -849,7 +866,7 @@ class Tracer(object):
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
-
+        dispatch("trace.span_start", (span,))
         return span
 
     start_span = _start_span
@@ -865,6 +882,8 @@ class Tracer(object):
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
+
+        dispatch("trace.span_finish", (span,))
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
@@ -940,18 +959,23 @@ class Tracer(object):
         )
 
     def current_root_span(self) -> Optional[Span]:
-        """Returns the root span of the current execution.
+        """Returns the local root span of the current execution/process.
 
-        This is useful for attaching information related to the trace as a
-        whole without needing to add to child spans.
+        Note: This cannot be used to access the true root span of the trace
+        in a distributed tracing setup if the actual root span occurred in
+        another execution/process.
+
+        This is useful for attaching information to the local root span
+        of the current execution/process, which is often also service
+        entry span.
 
         For example::
 
-            # get the root span
-            root_span = tracer.current_root_span()
+            # get the local root span
+            local_root_span = tracer.current_root_span()
             # set the host just once on the root span
-            if root_span:
-                root_span.set_tag('host', '127.0.0.1')
+            if local_root_span:
+                local_root_span.set_tag('host', '127.0.0.1')
         """
         span = self.current_span()
         if span is None:
@@ -1168,11 +1192,11 @@ class Tracer(object):
 
         if "_logs_injection" in items:
             if config._logs_injection:
-                from ddtrace.contrib.logging import patch
+                from ddtrace.contrib.internal.logging.patch import patch
 
                 patch()
             else:
-                from ddtrace.contrib.logging import unpatch
+                from ddtrace.contrib.internal.logging.patch import unpatch
 
                 unpatch()
 

@@ -1,7 +1,7 @@
 from flask import Blueprint
 import pytest
 
-from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
 from tests.contrib.flask.test_errorhandler import EXPECTED_METADATA
 from tests.utils import assert_span_http_status_code
