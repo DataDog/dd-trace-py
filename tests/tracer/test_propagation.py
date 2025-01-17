@@ -1936,15 +1936,6 @@ EXTRACT_FIXTURES = [
         B3_SINGLE_HEADERS_VALID,
         CONTEXT_EMPTY,
     ),
-    (
-        "baggage_case_insensitive",
-        None,
-        None,
-        {"BAgGage": "key1=val1,key2=val2"},
-        {
-            "baggage": {"key1": "val1", "key2": "val2"},
-        },
-    ),
     # All valid headers
     (
         "valid_all_headers_default_style",
@@ -2137,20 +2128,6 @@ EXTRACT_FIXTURES = [
             "span_id": None,
             "sampling_priority": None,
             "dd_origin": None,
-        },
-    ),
-    (
-        # name, styles, headers, expected_context,
-        "none_and_other_prop_style_still_extracts",
-        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
-        None,
-        ALL_HEADERS,
-        {
-            "trace_id": 13088165645273925489,
-            "span_id": 5678,
-            "sampling_priority": 1,
-            "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     # Testing that order matters
@@ -2413,6 +2390,15 @@ EXTRACT_FIXTURES = [
             ],
         },
     ),
+    (
+        "baggage_case_insensitive",
+        None,
+        None,
+        {"BAgGage": "key1=val1,key2=val2"},
+        {
+            "baggage": {"key1": "val1", "key2": "val2"},
+        },
+    ),
 ]
 
 # Only add fixtures here if they can't pass both test_propagation_extract_env
@@ -2452,6 +2438,19 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             },
         },
     ),
+    (
+        "none_and_other_prop_style_still_extracts",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
+        None,
+        ALL_HEADERS,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
+        },
+    ),
     # Only works for env since config is modified at startup to set
     # propagation_style_extract to [None] if DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore
     (
@@ -2460,6 +2459,20 @@ EXTRACT_FIXTURES_ENV_ONLY = [
         _PROPAGATION_BEHAVIOR_IGNORE,
         DATADOG_HEADERS_VALID,
         CONTEXT_EMPTY,
+    ),
+    (
+        # name, styles, headers, expected_context,
+        "none_and_other_prop_style_still_extracts",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
+        None,
+        ALL_HEADERS,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
+        },
     ),
 ]
 
