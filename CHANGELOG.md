@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.19.1
+### Bug Fixes
+
+- Profiling
+  - Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
+  - Fixes a bug where profiling mutexes were not cleared on fork in the child process. This could cause deadlocks in certain configurations.
+  - Removes a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.
+
+- Tracing
+  - `django`: Fixes issue where django cache is represented as a django service rather than the third party service.
+  - `botocore`: Resolves formatting errors in the bedrock integration when parsing request model IDs, which can now accept AWS ARNs.
+
+
+---
+
 ## 2.19.0
 ### New Features
 - ASM
@@ -176,6 +191,15 @@ Tracing:
 ### Other Changes
 - Tracing
   - Removed x-forwarded from headers used for client IP resolution (but not from collected headers). We lack evidence of actual usage, and whether this should follow RFC 7239 or regular XFF list format.
+
+---
+## 2.17.5
+
+### Bug Fixes
+
+- Tracing
+  - `celery`: Fixes an issue where `celery.apply` spans from Celery pre-run got closed too soon leading to span tags being missing.
+
 
 ---
 
