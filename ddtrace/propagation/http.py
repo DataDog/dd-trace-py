@@ -42,7 +42,6 @@ from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
-from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
@@ -879,20 +878,6 @@ class _TraceContext:
                 headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
 
-class _NOP_Propagator:
-    @staticmethod
-    def _extract(headers):
-        # type: (Dict[str, str]) -> None
-        return None
-
-    # this method technically isn't needed with the current way we have HTTPPropagator.inject setup
-    # but if it changes then we might want it
-    @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context , Dict[str, str]) -> Dict[str, str]
-        return headers
-
-
 class _BaggageHeader:
     """Helper class to inject/extract Baggage Headers"""
 
@@ -964,7 +949,6 @@ _PROP_STYLES = {
     PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
-    _PROPAGATION_STYLE_NONE: _NOP_Propagator,
     _PROPAGATION_STYLE_BAGGAGE: _BaggageHeader,
 }
 
@@ -1068,6 +1052,8 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extend with tracing attributes.
         :param Span non_active_span: Only to be used if injecting a non-active span.
         """
+        if not config._propagation_style_inject:
+            return
         if non_active_span is not None and non_active_span.context is not span_context:
             log.error(
                 "span_context and non_active_span.context are not the same, but should be. non_active_span.context "
@@ -1141,7 +1127,7 @@ class HTTPPropagator(object):
         :return: New `Context` with propagated attributes.
         """
         context = Context()
-        if not headers:
+        if not headers or not config._propagation_style_extract:
             return context
         try:
             style = ""
