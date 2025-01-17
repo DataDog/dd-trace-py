@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates ``ddtrace.contrib.trace_utils_async`` and ``ddtrace.contrib.redis_utils`` modules.
+    Moves ``ddtrace.contrib.trace_utils_async.with_traced_module`` to ``ddtrace.contrib.trace_utils.with_traced_module_async``.  
+    Moves ``ddtrace.contrib.redis_utils.*`` to ``ddtrace.contrib.redis.*``.
