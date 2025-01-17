@@ -575,9 +575,9 @@ def __getattr__(name):
             # Note: The following ddtrace.contrib modules are expected to be part of the public API
             # TODO: Revisit whether integration utils should be part of the public API
             "ddtrace.contrib.redis_utils",
-            "ddtrace.contrib.trace_utils",
-            "ddtrace.contrib.trace_utils_async",
-            "ddtrace.contrib.trace_utils_redis",
+            "ddtrace.contrib.internal.trace_utils",
+            "ddtrace.contrib.internal.trace_utils_async",
+            "ddtrace.contrib.internal.trace_utils_redis",
             # TODO: The following contrib modules are part of the public API (unlike most integrations).
             # We should consider privatizing the internals of these integrations.
             "ddtrace.contrib.unittest.patch",

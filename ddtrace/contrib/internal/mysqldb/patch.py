@@ -10,7 +10,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
-from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
