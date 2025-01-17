@@ -9,9 +9,9 @@ import pytest
 import wrapt
 
 from ddtrace import config
-from ddtrace.contrib.httplib import patch
-from ddtrace.contrib.httplib import unpatch
-from ddtrace.contrib.httplib.patch import should_skip_request
+from ddtrace.contrib.internal.httplib.patch import patch
+from ddtrace.contrib.internal.httplib.patch import should_skip_request
+from ddtrace.contrib.internal.httplib.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
