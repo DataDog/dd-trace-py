@@ -25,9 +25,9 @@ def test_configure_keeps_api_hostname_and_port():
     from tests.integration.utils import AGENT_VERSION
 
     assert tracer._writer.agent_url == "http://localhost:{}".format("9126" if AGENT_VERSION == "testagent" else "8126")
-    tracer.configure(hostname="127.0.0.1", port=8127)
+    tracer._configure(hostname="127.0.0.1", port=8127)
     assert tracer._writer.agent_url == "http://127.0.0.1:8127"
-    tracer.configure(api_version="v0.5")
+    tracer._configure(api_version="v0.5")
     assert (
         tracer._writer.agent_url == "http://127.0.0.1:8127"
     ), "Previous overrides of hostname and port are retained after a configure() call without those arguments"
@@ -99,7 +99,7 @@ def test_single_trace_uds():
     from ddtrace import tracer as t
 
     sockdir = "/tmp/ddagent/trace.sock"
-    t.configure(uds_path=sockdir)
+    t._configure(uds_path=sockdir)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
@@ -117,7 +117,7 @@ def test_uds_wrong_socket_path():
     from ddtrace import tracer as t
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    t.configure(uds_path="/tmp/ddagent/nosockethere")
+    t._configure(uds_path="/tmp/ddagent/nosockethere")
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
@@ -291,7 +291,7 @@ def test_metrics_partial_flush_disabled():
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
-    t.configure(
+    t._configure(
         partial_flush_enabled=False,
     )
 
@@ -391,7 +391,7 @@ def test_trace_generates_error_logs_when_hostname_invalid():
 
     from ddtrace import tracer as t
 
-    t.configure(hostname="bad", port=1111)
+    t._configure(hostname="bad", port=1111)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("op").finish()
@@ -637,7 +637,7 @@ def test_synchronous_writer_shutdown_raises_no_exception():
     from ddtrace import tracer
     from ddtrace.internal.writer import AgentWriter
 
-    tracer.configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
+    tracer._configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
     tracer.shutdown()
 
 
@@ -761,7 +761,7 @@ def test_partial_flush_log():
     from ddtrace import tracer as t
 
     partial_flush_min_spans = 2
-    t.configure(
+    t._configure(
         partial_flush_min_spans=partial_flush_min_spans,
     )
 
