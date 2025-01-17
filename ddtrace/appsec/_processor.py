@@ -24,12 +24,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf import DDWaf_result
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
-from ddtrace.appsec._metrics import _set_waf_init_metric
-from ddtrace.appsec._metrics import _set_waf_request_metrics
-from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import ORIGIN_KEY
@@ -141,7 +136,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def __post_init__(self) -> None:
         from ddtrace.appsec import load_appsec
-        from ddtrace.appsec._ddwaf import DDWaf
 
         load_appsec()
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
@@ -169,12 +163,14 @@ class AppSecSpanProcessor(SpanProcessor):
             # TODO: try to log reasons
             log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rule_filename)
             raise
+
+    def delayed_init(self) -> None:
         try:
-            self._ddwaf = DDWaf(
+            self._ddwaf = ddwaf.DDWaf(
                 self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
             )
             _set_waf_init_metric(self._ddwaf.info)
-        except ValueError:
+        except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
             raise
@@ -190,6 +186,8 @@ class AppSecSpanProcessor(SpanProcessor):
         self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
+        if not hasattr(self, "_ddwaf"):
+            self.delayed_init()
         result = False
         if asm_config._asm_static_rule_file is not None:
             return result
@@ -220,6 +218,9 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib import trace_utils
+
+        if not hasattr(self, "_ddwaf"):
+            self.delayed_init()
 
         if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
             return
@@ -258,12 +259,12 @@ class AppSecSpanProcessor(SpanProcessor):
     def _waf_action(
         self,
         span: Span,
-        ctx: ddwaf_context_capsule,
+        ctx: "ddwaf.ddwaf_types.ddwaf_context_capsule",
         custom_data: Optional[Dict[str, Any]] = None,
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
         force_sent: bool = False,
-    ) -> Optional[DDWaf_result]:
+    ) -> Optional["ddwaf.DDWaf_result"]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -434,3 +435,10 @@ class AppSecSpanProcessor(SpanProcessor):
                     del self._span_to_waf_ctx[s]
                 except Exception:  # nosec B110
                     pass
+
+
+# load waf at the end only
+import ddtrace.appsec._ddwaf as ddwaf
+from ddtrace.appsec._metrics import _set_waf_init_metric
+from ddtrace.appsec._metrics import _set_waf_request_metrics
+from ddtrace.appsec._metrics import _set_waf_updates_metric
