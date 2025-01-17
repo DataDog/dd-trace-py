@@ -10,7 +10,7 @@ from ddtrace.internal.datadog.profiling import library_config
 
 library_config.set_envp(["%s=%s" % (k, v) for k, v in os.environ.items()])
 library_config.set_args(sys.argv)
-for key, value in library_config.get_config(debug_logs=True).items():
+for key, value in library_config.get_config(debug_logs=False).items():
     os.environ[key] = str(value).lower()
 
 
