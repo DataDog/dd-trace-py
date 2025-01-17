@@ -12,6 +12,8 @@ from flask import make_response
 import pytest
 
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -253,6 +255,14 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return "Hello Flask", 200
 
+        @self.app.route("/applicationerror")
+        def exception_endpoint():
+            raise Exception("Application error")
+
+        @self.app.route("/returnerrorcode")
+        def error_status_code():
+            return "Endpoint failed", 500 #TODO: try this with a different status code
+
         # By default, no inferred spans should be created
 
         res = self.client.get("/")
@@ -263,14 +273,24 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # With the inferred spans enabled
         with self.override_global_config(dict(_inferred_proxy_services_enabled="true")):
-            res = self.client.get("/", headers= {
+
+            # A request without headers has no inferred span
+            res = self.client.get("/")
+
+            web_span = self.find_span_by_name(self.get_spans(), "flask.request")
+            aws_gateway_span = web_span._parent
+
+            assert aws_gateway_span is None
+
+            test_headers= {
                 'x-dd-proxy': 'aws-apigateway',
                 'x-dd-proxy-request-time-ms': '1736973768000',
                 'x-dd-proxy-path': '/',
                 'x-dd-proxy-httpmethod': 'GET',
                 'x-dd-proxy-domain-name': 'local',
                 'x-dd-proxy-stage': 'stage'
-            })
+            }
+            res = self.client.get("/", headers=test_headers)
 
             web_span = self.find_span_by_name(self.get_spans(), "flask.request")
             aws_gateway_span = web_span._parent
@@ -302,6 +322,32 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             assert web_span.get_tag('span.kind') == 'server'
             assert web_span.get_tag('component') == "flask"
             assert web_span.get_tag('_dd.inferred_span') is None
+
+            # When hitting an application error, we extract the status and errors
+            res = self.client.get("/applicationerror", headers=test_headers)
+            web_span = self.find_span_by_name(self.get_spans(), "flask.request")
+            aws_gateway_span = web_span._parent
+
+            # Both spans should be marked as an error
+            assert web_span.error == 1
+            assert aws_gateway_span.error == 1
+            assert web_span.get_tag(ERROR_MSG) == aws_gateway_span.get_tag(ERROR_MSG)
+            assert web_span.get_tag(ERROR_TYPE) == aws_gateway_span.get_tag(ERROR_TYPE)
+            assert web_span.get_tag(ERROR_STACK) == aws_gateway_span.get_tag(ERROR_STACK)
+            assert aws_gateway_span.get_tag('http.status_code') == '500'
+            assert web_span.get_tag(ERROR_TYPE) is None #TODO: figure out why the web span has no error tags
+
+            # When hitting an endpoint with a custom error, we extract the errors
+            res = self.client.get("/returnerrorcode", headers=test_headers)
+
+            assert web_span.error == 1
+            assert aws_gateway_span.error == 1
+            assert web_span.get_tag(ERROR_MSG) == aws_gateway_span.get_tag(ERROR_MSG)
+            assert web_span.get_tag(ERROR_TYPE) == aws_gateway_span.get_tag(ERROR_TYPE)
+            assert web_span.get_tag(ERROR_STACK) == aws_gateway_span.get_tag(ERROR_STACK)
+            assert aws_gateway_span.get_tag('http.status_code') == '500'
+            assert web_span.get_tag(ERROR_TYPE) is None #TODO: figure out why the web span has no error tags
+
 
     def test_request_query_string(self):
         """
