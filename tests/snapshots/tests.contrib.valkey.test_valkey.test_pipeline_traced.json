@@ -16,10 +16,10 @@
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "valkey.raw_command": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx",
       "runtime-id": "3cf1df7fb079462ab81608355e026651",
       "server.address": "localhost",
-      "span.kind": "client"
+      "span.kind": "client",
+      "valkey.raw_command": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx"
     },
     "metrics": {
       "_dd.measured": 1,

@@ -16,10 +16,10 @@
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "valkey.raw_command": "GET cheese",
       "runtime-id": "9d4dd102c4394715976611e15b961233",
       "server.address": "localhost",
-      "span.kind": "client"
+      "span.kind": "client",
+      "valkey.raw_command": "GET cheese"
     },
     "metrics": {
       "_dd.measured": 1,
