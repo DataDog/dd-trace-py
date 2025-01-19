@@ -1,6 +1,6 @@
 from ddtrace import config
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg2FetchTracedCursor
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
@@ -102,7 +102,7 @@ def patched_connect_factory(psycopg_module):
                 if span.get_tag(db.SYSTEM) is None:
                     span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
 
-                span.set_tag(SPAN_MEASURED_KEY)
+                span.set_tag(_SPAN_MEASURED_KEY)
                 conn = connect_func(*args, **kwargs)
 
         return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
