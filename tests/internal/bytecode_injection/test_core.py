@@ -4,7 +4,7 @@ import sys
 import pytest
 
 
-if sys.version_info[:2] >= (3, 10):
+if sys.version_info[:2] >= (3, 10) and sys.version_info[:2] < (3, 2):
     from ddtrace.internal.bytecode_injection.core import InjectionContext
     from ddtrace.internal.bytecode_injection.core import inject_invocation
 
