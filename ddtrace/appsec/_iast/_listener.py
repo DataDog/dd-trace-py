@@ -1,9 +1,9 @@
-from ddtrace.appsec._asm_request_context import _check_django_stacktrace_leak
 from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._handlers import _on_grpc_response
 from ddtrace.appsec._iast._handlers import _on_pre_tracedrequest_iast
+from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
 from ddtrace.appsec._iast._handlers import _on_request_init
 from ddtrace.appsec._iast._handlers import _on_set_http_meta_iast
 from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast
@@ -19,12 +19,13 @@ def iast_listen():
     core.on("set_http_meta_for_asm", _on_set_http_meta_iast)
     core.on("django.patch", _on_django_patch)
     core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
-    core.on("django.finalize_response.pre", _check_django_stacktrace_leak)
+    core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("flask.patch", _on_flask_patch)
     core.on("flask.request_init", _on_request_init)
     core.on("flask._patched_request", _on_pre_tracedrequest_iast)
     core.on("flask.set_request_tags", _on_set_request_tags_iast)
+    core.on("flask.finalize_request.post", _on_flask_finalize_request_post)
 
     core.on("context.ended.wsgi.__call__", _iast_end_request)
     core.on("context.ended.asgi.__call__", _iast_end_request)

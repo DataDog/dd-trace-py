@@ -20,7 +20,7 @@ from ddtrace.internal.logger import get_logger
 
 from ._iast_request_context import is_iast_request_enabled
 from ._taint_tracking._taint_objects import taint_pyobject
-
+from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
 
 MessageMapContainer = None
 try:
@@ -403,3 +403,27 @@ def _on_set_request_tags_iast(request, span, flask_config):
             OriginType.PARAMETER,
             override_pyobject_tainted=True,
         )
+
+
+# JJJ try except... el decode podria fallar
+def _on_django_finalize_response_pre(response):
+    if not _is_iast_enabled() or not is_iast_request_enabled():
+        return
+
+    try:
+        content = response.content.decode("utf-8")
+        asm_check_stacktrace_leak(content)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _on_flask_finalize_request_post(response, _):
+    if not _is_iast_enabled() or not is_iast_request_enabled():
+        return
+
+    try:
+        content = response.content.decode("utf-8")
+        asm_check_stacktrace_leak(content)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+

@@ -21,7 +21,7 @@ class StacktraceLeak(VulnerabilityBase):
 
 
 def asm_check_stacktrace_leak(content: str) -> None:
-    if not _is_iast_enabled() or not is_iast_request_enabled() or not content:
+    if not content:
         return
 
     try:
@@ -91,4 +91,4 @@ def asm_check_stacktrace_leak(content: str) -> None:
         evidence = "Module: %s\nException: %s" % (module_name, exception_line)
         StacktraceLeak.report(evidence_value=evidence)
     except Exception as e:
-        iast_taint_log_error("[IAST] error in asm_check_cookies. {}".format(e))
+        iast_taint_log_error("[IAST] error in check stacktrace leak. {}".format(e))
