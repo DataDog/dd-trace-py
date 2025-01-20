@@ -259,7 +259,7 @@ class Span(OtelSpan):
             attrs.update(attributes)
 
         # Set the error type, error message and error stacktrace tags on the span
-        if escaped is True:
+        if escaped:
             self._ddspan._meta[ERROR_MSG] = attrs["exception.message"]
             self._ddspan._meta[ERROR_TYPE] = attrs["exception.type"]
             if "exception.stacktrace" in attrs:
