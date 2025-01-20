@@ -73,6 +73,14 @@ suites:
       - '@remoteconfig'
     retry: 2
     runner: hatch
+  iast_aggregated_leak_testing:
+    parallelism: 4
+    paths:
+      - '@appsec_iast'
+      - tests/appsec/iast_aggregated_memcheck/*
+    retry: 2
+    runner: hatch
+    timeout: 50m
   appsec_iast_packages:
     parallelism: 4
     paths:

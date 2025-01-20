@@ -258,6 +258,8 @@ def sink_points(string_tainted):
     except Exception:
         pass
 
+    _ = eval('"aa" + ' + string_tainted)
+
     # Weak Randomness vulnerability
     _ = random.randint(1, 10)
 
