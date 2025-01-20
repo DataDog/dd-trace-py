@@ -233,7 +233,7 @@ def test_remoteconfig_sampling_rate_user(run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from ddtrace.sampler import DatadogSampler
+from ddtrace._trace.sampler import DatadogSampler
 from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
 
 with tracer.trace("test") as span:
@@ -251,7 +251,7 @@ with tracer.trace("test") as span:
 assert span.get_metric("_dd.rule_psr") == 0.1
 
 custom_sampler = DatadogSampler(default_sample_rate=0.3)
-tracer.configure(sampler=custom_sampler)
+tracer._configure(sampler=custom_sampler)
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.3
@@ -288,7 +288,7 @@ def test_remoteconfig_sampling_rules(run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from ddtrace.sampler import DatadogSampler
+from ddtrace._trace.sampler import DatadogSampler
 from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
 
 with tracer.trace("test") as span:
@@ -316,7 +316,7 @@ with tracer.trace("test") as span:
 assert span.get_metric("_dd.rule_psr") == 0.1
 
 custom_sampler = DatadogSampler(DatadogSampler._parse_rules_from_str('[{"sample_rate":0.3, "name":"test"}]'))
-tracer.configure(sampler=custom_sampler)
+tracer._configure(sampler=custom_sampler)
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.3
@@ -379,7 +379,7 @@ def test_remoteconfig_sample_rate_and_rules(run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from ddtrace.sampler import DatadogSampler
+from ddtrace._trace.sampler import DatadogSampler
 from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
 
 with tracer.trace("rules") as span:

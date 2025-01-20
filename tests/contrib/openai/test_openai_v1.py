@@ -921,128 +921,78 @@ def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
                 )
 
 
-def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
+@pytest.mark.snapshot
+@pytest.mark.skipif(TIKTOKEN_AVAILABLE, reason="This test estimates token counts")
+def test_completion_stream_est_tokens(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-            expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
             resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
-            chunks = [c for c in resp]
-
-    completion = "".join([c.choices[0].text for c in chunks])
-    assert completion == expected_completion
-
-    traces = mock_tracer.pop_traces()
-    assert len(traces) == 1
-    assert len(traces[0]) == 1
-    assert traces[0][0].get_tag("openai.response.choices.0.text") == expected_completion
-    assert traces[0][0].get_tag("openai.response.choices.0.finish_reason") == "length"
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:tests.contrib.openai",
-        "openai.request.model:ada",
-        "model:ada",
-        "openai.request.endpoint:/v1/completions",
-        "openai.request.method:POST",
-        "openai.organization.id:",
-        "openai.organization.name:datadog-4",
-        "openai.user.api_key:sk-...key>",
-        "error:0",
-        "openai.estimated:true",
-    ]
-    if TIKTOKEN_AVAILABLE:
-        expected_tags = expected_tags[:-1]
-    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+            _ = [c for c in resp]
 
 
-async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tracer):
+@pytest.mark.skipif(not TIKTOKEN_AVAILABLE, reason="This test computes token counts using tiktoken")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
+def test_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-            expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
+            client = openai.OpenAI()
+            resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
+            _ = [c for c in resp]
+
+
+@pytest.mark.skipif(not TIKTOKEN_AVAILABLE, reason="This test computes token counts using tiktoken")
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
+async def test_completion_async_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with openai_vcr.use_cassette("completion_streamed.yaml"):
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             client = openai.AsyncOpenAI()
-            resp = await client.completions.create(model="ada", prompt="Hello world", stream=True)
-            chunks = [c async for c in resp]
-
-    completion = "".join([c.choices[0].text for c in chunks])
-    assert completion == expected_completion
-
-    traces = mock_tracer.pop_traces()
-    assert len(traces) == 1
-    assert len(traces[0]) == 1
-    assert traces[0][0].get_tag("openai.response.choices.0.text") == expected_completion
-    assert traces[0][0].get_tag("openai.response.choices.0.finish_reason") == "length"
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:tests.contrib.openai",
-        "openai.request.model:ada",
-        "model:ada",
-        "openai.request.endpoint:/v1/completions",
-        "openai.request.method:POST",
-        "openai.organization.id:",
-        "openai.organization.name:datadog-4",
-        "openai.user.api_key:sk-...key>",
-        "error:0",
-        "openai.estimated:true",
-    ]
-    if TIKTOKEN_AVAILABLE:
-        expected_tags = expected_tags[:-1]
-    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+            resp = await client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
+            _ = [c async for c in resp]
 
 
 @pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 6, 0),
+    parse_version(openai_module.version.VERSION) < (1, 6, 0) or not TIKTOKEN_AVAILABLE,
     reason="Streamed response context managers are only available v1.6.0+",
 )
-def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, mock_tracer):
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
+def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-            expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
             with client.completions.create(model="ada", prompt="Hello world", stream=True, n=None) as resp:
-                chunks = [c for c in resp]
-
-    completion = "".join([c.choices[0].text for c in chunks])
-    assert completion == expected_completion
-
-    traces = mock_tracer.pop_traces()
-    assert len(traces) == 1
-    assert len(traces[0]) == 1
-    assert traces[0][0].get_tag("openai.response.choices.0.text") == expected_completion
-    assert traces[0][0].get_tag("openai.response.choices.0.finish_reason") == "length"
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:tests.contrib.openai",
-        "openai.request.model:ada",
-        "model:ada",
-        "openai.request.endpoint:/v1/completions",
-        "openai.request.method:POST",
-        "openai.organization.id:",
-        "openai.organization.name:datadog-4",
-        "openai.user.api_key:sk-...key>",
-        "error:0",
-        "openai.estimated:true",
-    ]
-    if TIKTOKEN_AVAILABLE:
-        expected_tags = expected_tags[:-1]
-    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+                _ = [c for c in resp]
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
 def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    """Assert that streamed token chunk extraction logic works automatically."""
+    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Who won the world series in 2020?"}],
+                stream=True,
+                user="ddtrace-test",
+                n=None,
+            )
+            _ = [c for c in resp]
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+def test_chat_completion_stream_explicit_no_tokens(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    """Assert that streamed token chunk extraction logic is avoided if explicitly set to False by the user."""
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
@@ -1054,20 +1004,16 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
                     {"role": "user", "content": "Who won the world series in 2020?"},
                 ],
                 stream=True,
+                stream_options={"include_usage": False},
                 user="ddtrace-test",
                 n=None,
             )
-            prompt_tokens = 8
             span = snapshot_tracer.current_span()
             chunks = [c for c in resp]
             assert len(chunks) == 15
             completion = "".join([c.choices[0].delta.content for c in chunks if c.choices[0].delta.content is not None])
             assert completion == expected_completion
 
-    assert span.get_tag("openai.response.choices.0.message.content") == expected_completion
-    assert span.get_tag("openai.response.choices.0.message.role") == "assistant"
-    assert span.get_tag("openai.response.choices.0.finish_reason") == "stop"
-
     expected_tags = [
         "version:",
         "env:",
@@ -1087,56 +1033,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
     expected_tags += ["openai.estimated:true"]
     if TIKTOKEN_AVAILABLE:
         expected_tags = expected_tags[:-1]
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
-
-
-async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-            expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-            client = openai.AsyncOpenAI()
-            resp = await client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                ],
-                stream=True,
-                user="ddtrace-test",
-            )
-            prompt_tokens = 8
-            span = snapshot_tracer.current_span()
-            chunks = [c async for c in resp]
-            assert len(chunks) == 15
-            completion = "".join([c.choices[0].delta.content for c in chunks if c.choices[0].delta.content is not None])
-            assert completion == expected_completion
-
-    assert span.get_tag("openai.response.choices.0.message.content") == expected_completion
-    assert span.get_tag("openai.response.choices.0.message.role") == "assistant"
-    assert span.get_tag("openai.response.choices.0.finish_reason") == "stop"
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:tests.contrib.openai",
-        "openai.request.model:gpt-3.5-turbo",
-        "model:gpt-3.5-turbo",
-        "openai.request.endpoint:/v1/chat/completions",
-        "openai.request.method:POST",
-        "openai.organization.id:",
-        "openai.organization.name:datadog-4",
-        "openai.user.api_key:sk-...key>",
-        "error:0",
-    ]
-    assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.requests", 3000, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.remaining.requests", 2999, tags=expected_tags) in mock_metrics.mock_calls
-    expected_tags += ["openai.estimated:true"]
-    if TIKTOKEN_AVAILABLE:
-        expected_tags = expected_tags[:-1]
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.prompt", 8, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
@@ -1144,59 +1041,33 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
 )
-def test_chat_completion_stream_tokens(openai, openai_vcr, mock_metrics, snapshot_tracer):
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
+async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
-        expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-        client = openai.OpenAI()
-        resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Who won the world series in 2020?"}],
-            stream=True,
-            user="ddtrace-test",
-            n=None,
-            stream_options={"include_usage": True},
-        )
-        span = snapshot_tracer.current_span()
-        chunks = [c for c in resp]
-        completion = "".join(
-            [c.choices[0].delta.content for c in chunks if c.choices and c.choices[0].delta.content is not None]
-        )
-        assert completion == expected_completion
-
-    assert span.get_tag("openai.response.choices.0.message.content") == expected_completion
-    assert span.get_tag("openai.response.choices.0.message.role") == "assistant"
-    assert span.get_tag("openai.response.choices.0.finish_reason") == "stop"
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:tests.contrib.openai",
-        "openai.request.model:gpt-3.5-turbo",
-        "model:gpt-3.5-turbo",
-        "openai.request.endpoint:/v1/chat/completions",
-        "openai.request.method:POST",
-        "openai.organization.id:",
-        "openai.organization.name:datadog-4",
-        "openai.user.api_key:sk-...key>",
-        "error:0",
-    ]
-    assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.requests", 3000, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.remaining.requests", 2999, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.prompt", 17, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", 19, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", 36, tags=expected_tags) in mock_metrics.mock_calls
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                ],
+                stream=True,
+                n=None,
+                user="ddtrace-test",
+            )
+            _ = [c async for c in resp]
 
 
 @pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 6, 0),
-    reason="Streamed response context managers are only available v1.6.0+",
+    parse_version(openai_module.version.VERSION) < (1, 26, 0),
+    reason="Streamed response context managers are only available v1.6.0+, tokens available 1.26.0+",
 )
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
 async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
+    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-            expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
             client = openai.AsyncOpenAI()
             async with await client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -1207,41 +1078,7 @@ async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, 
                 user="ddtrace-test",
                 n=None,
             ) as resp:
-                prompt_tokens = 8
-                span = snapshot_tracer.current_span()
-                chunks = [c async for c in resp]
-                assert len(chunks) == 15
-                completion = "".join(
-                    [c.choices[0].delta.content for c in chunks if c.choices[0].delta.content is not None]
-                )
-                assert completion == expected_completion
-
-    assert span.get_tag("openai.response.choices.0.message.content") == expected_completion
-    assert span.get_tag("openai.response.choices.0.message.role") == "assistant"
-    assert span.get_tag("openai.response.choices.0.finish_reason") == "stop"
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:tests.contrib.openai",
-        "openai.request.model:gpt-3.5-turbo",
-        "model:gpt-3.5-turbo",
-        "openai.request.endpoint:/v1/chat/completions",
-        "openai.request.method:POST",
-        "openai.organization.id:",
-        "openai.organization.name:datadog-4",
-        "openai.user.api_key:sk-...key>",
-        "error:0",
-    ]
-    assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.requests", 3000, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.gauge("ratelimit.remaining.requests", 2999, tags=expected_tags) in mock_metrics.mock_calls
-    expected_tags += ["openai.estimated:true"]
-    if TIKTOKEN_AVAILABLE:
-        expected_tags = expected_tags[:-1]
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+                _ = [c async for c in resp]
 
 
 @pytest.mark.snapshot(
@@ -1274,8 +1111,8 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+pin = ddtrace.trace.Pin.get_from(openai)
+pin.tracer._configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(
@@ -1322,8 +1159,8 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+pin = ddtrace.trace.Pin.get_from(openai)
+pin.tracer._configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         client = openai.AsyncOpenAI()
@@ -1710,8 +1547,8 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+pin = ddtrace.trace.Pin.get_from(openai)
+pin.tracer._configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(model="ada", prompt="hello world")

@@ -25,7 +25,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
-from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
+from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -34,6 +34,8 @@ from tests.utils import override_global_config
 TEST_FILE_PATH = "tests/contrib/fastapi/test_fastapi_appsec_iast.py"
 
 fastapi_version = tuple([int(v) for v in _fastapi_version.split(".")])
+if sys.version_info > (3, 12):
+    pytest.skip(reason="IAST only supports Py3.12 and older", allow_module_level=True)
 
 
 def _aux_appsec_prepare_tracer(tracer):
@@ -43,7 +45,7 @@ def _aux_appsec_prepare_tracer(tracer):
     oce.reconfigure()
 
     # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer.configure(api_version="v0.4")
+    tracer._configure(api_version="v0.4")
 
 
 def get_response_body(response):

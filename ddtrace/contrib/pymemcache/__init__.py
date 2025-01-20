@@ -2,7 +2,8 @@
 
 ``import ddtrace.auto`` will automatically patch the pymemcache ``Client``::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
 
     # If not patched yet, patch pymemcache specifically
     patch(pymemcache=True)
