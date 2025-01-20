@@ -5,7 +5,8 @@ Only supports tracing for the synchronous client.
 ``import ddtrace.auto`` will automatically patch your Consul client to make it work.
 ::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     import consul
 
     # If not patched yet, you can patch consul specifically

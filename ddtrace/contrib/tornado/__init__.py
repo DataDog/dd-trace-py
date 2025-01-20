@@ -76,11 +76,6 @@ Tornado settings can be used to change some tracing configuration, like::
             'default_service': 'my-tornado-app',
             'tags': {'env': 'production'},
             'distributed_tracing': False,
-            'settings': {
-                'FILTERS':  [
-                    FilterRequestsOnUrl(r'http://test\\.example\\.com'),
-                ],
-            },
         },
     }
 

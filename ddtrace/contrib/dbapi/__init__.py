@@ -20,7 +20,7 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import sql
-from ...pin import Pin
+from ...trace import Pin
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped
 

@@ -57,10 +57,10 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure particular ``httpx`` client instances use the :class:`Pin <ddtrace.Pin>` API::
+To configure particular ``httpx`` client instances use the :class:`Pin <ddtrace.trace.Pin>` API::
 
     import httpx
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
 
     client = httpx.Client()
     # Override service name for this instance

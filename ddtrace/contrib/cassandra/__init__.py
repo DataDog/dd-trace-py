@@ -3,7 +3,8 @@
 ``import ddtrace.auto`` will automatically patch your Cluster instance to make it work.
 ::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     from cassandra.cluster import Cluster
 
     # If not patched yet, you can patch cassandra specifically

@@ -3,7 +3,8 @@
 ``import ddtrace.auto`` will automatically patch your Redis Cluster client to make it work.
 ::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     import rediscluster
 
     # If not patched yet, you can patch redis specifically

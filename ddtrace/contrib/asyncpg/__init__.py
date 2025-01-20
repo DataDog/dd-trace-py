@@ -38,7 +38,7 @@ To configure the service name used by the asyncpg integration on a per-instance
 basis use the ``Pin`` API::
 
     import asyncpg
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
 
     conn = asyncpg.connect("postgres://localhost:5432")
     Pin.override(conn, service="custom-service")

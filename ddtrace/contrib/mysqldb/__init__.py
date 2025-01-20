@@ -55,7 +55,7 @@ To configure the integration on an per-connection basis use the
 
     # Make sure to import MySQLdb and not the 'connect' function,
     # otherwise you won't have access to the patched version
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     import MySQLdb
 
     # This will report a span with the default settings

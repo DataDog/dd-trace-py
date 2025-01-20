@@ -5,7 +5,7 @@ import pytest
 from ddtrace.contrib.internal.vertexai.patch import patch
 from ddtrace.contrib.internal.vertexai.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from tests.contrib.vertexai.utils import MockAsyncPredictionServiceClient
 from tests.contrib.vertexai.utils import MockPredictionServiceClient
 from tests.utils import DummyTracer
@@ -44,7 +44,7 @@ def mock_tracer(ddtrace_global_config, vertexai):
         pin = Pin.get_from(vertexai)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin.override(vertexai, tracer=mock_tracer)
-        pin.tracer.configure()
+        pin.tracer._configure()
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use the mock tracer.
             LLMObs.disable()

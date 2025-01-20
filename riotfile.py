@@ -228,50 +228,16 @@ venv = Venv(
             },
         ),
         Venv(
-            name="appsec_integrations",
-            command="pytest {cmdargs} tests/appsec/integrations/",
+            name="appsec_integrations_pygoat",
+            pys=select_pys(min_version="3.10"),
+            command="pytest {cmdargs} tests/appsec/integrations/pygoat_tests/",
             pkgs={
                 "requests": latest,
-                "gunicorn": latest,
-                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
-            venvs=[
-                # Flask 1.x.x
-                Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={
-                        "flask": "~=1.0",
-                        # https://github.com/pallets/itsdangerous/issues/290
-                        # DEV: Breaking change made in 2.1.0 release
-                        "itsdangerous": "<2.1.0",
-                        # https://github.com/pallets/markupsafe/issues/282
-                        # DEV: Breaking change made in 2.1.0 release
-                        "markupsafe": "<2.0",
-                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
-                        "werkzeug": "<2.0",
-                    },
-                ),
-                # Flask 2.x.x
-                Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
-                    pkgs={
-                        "flask": "~=2.2",
-                    },
-                ),
-                # Flask 3.x.x
-                Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
-                    pkgs={
-                        "flask": "~=3.0",
-                        "langchain": "==0.0.354",
-                        "langchain_experimental": "==0.0.47",
-                    },
-                ),
-            ],
         ),
         Venv(
             name="profile-diff",
@@ -330,9 +296,6 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
-            env={
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
-            },
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -411,7 +374,6 @@ venv = Venv(
             name="internal",
             env={
                 "DD_TRACE_AGENT_URL": "http://ddagent:8126",
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
@@ -516,9 +478,6 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            env={
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
-            },
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
@@ -2814,6 +2773,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="langgraph",
+            command="pytest {cmdargs} tests/contrib/langgraph",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "langgraph": "~=0.2.60",
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pys=select_pys(min_version="3.8", max_version="3.12"),
@@ -2950,6 +2918,17 @@ venv = Venv(
             env={
                 "DD_AGENT_PORT": "9126",
             },
+            venvs=[
+                # Python 3.8
+                Venv(
+                    pys=["3.8"],
+                    pkgs={"greenlet": "==3.1.0"},
+                ),
+                # Python 3.9+
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                ),
+            ],
         ),
         Venv(
             name="subprocess",
@@ -2974,6 +2953,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING_STACK_V2_ENABLED": "0",
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
                 "CPUCOUNT": "12",
             },

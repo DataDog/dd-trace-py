@@ -28,7 +28,7 @@ Instance Configuration
 
 To override the service name for a queue::
 
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
 
     connection = redis.Redis()
     queue = rq.Queue(connection=connection)

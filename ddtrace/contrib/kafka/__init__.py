@@ -31,7 +31,7 @@ Global Configuration
 To configure the kafka integration using the
 ``Pin`` API::
 
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     from ddtrace import patch
 
     # Make sure to patch before importing confluent_kafka

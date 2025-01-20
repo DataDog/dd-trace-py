@@ -7,7 +7,8 @@ To trace sqlalchemy queries, add instrumentation to the engine class
 using the patch method that **must be called before** importing sqlalchemy::
 
     # patch before importing `create_engine`
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     patch(sqlalchemy=True)
 
     # use SQLAlchemy as usual

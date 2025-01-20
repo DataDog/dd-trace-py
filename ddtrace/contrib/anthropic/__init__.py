@@ -76,7 +76,8 @@ To configure the Anthropic integration on a per-instance basis use the
 ``Pin`` API::
 
     import anthropic
-    from ddtrace import Pin, config
+    from ddtrace import config
+    from ddtrace.trace import Pin
 
     Pin.override(anthropic, service="my-anthropic-service")
 """  # noqa: E501

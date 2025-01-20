@@ -13,7 +13,7 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.llmobs._integrations import VertexAIIntegration
 from ddtrace.llmobs._integrations.utils import extract_model_name_google
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 config._add(

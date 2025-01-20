@@ -3,7 +3,8 @@
 ``import ddtrace.auto`` will automatically patch your mongoengine connect method to make it work.
 ::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     import mongoengine
 
     # If not patched yet, you can patch mongoengine specifically
