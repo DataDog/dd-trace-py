@@ -24,7 +24,9 @@ Global Configuration
 
 """
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.importlib import require_modules
+from ddtrace.vendor.debtcollector import deprecate
 
 
 required_modules = ["azure.functions"]
@@ -38,9 +40,15 @@ with require_modules(required_modules) as missing_modules:
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.azure_functions.patch import get_version
-        from ddtrace.contrib.internal.azure_functions.patch import patch
-        from ddtrace.contrib.internal.azure_functions.patch import unpatch
+        from ddtrace.contrib.internal.azure_functions.patch import get_version  # noqa: F401
+        from ddtrace.contrib.internal.azure_functions.patch import patch  # noqa: F401
+        from ddtrace.contrib.internal.azure_functions.patch import unpatch  # noqa: F401
 
-        __all__ = ["patch", "unpatch", "get_version"]
+
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
+)

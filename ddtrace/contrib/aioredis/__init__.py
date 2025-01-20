@@ -1,12 +1,3 @@
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
-
-
-deprecate(
-    "The aioredis integration is deprecated.",
-    message="Please use the redis integration with redis>=4.2.0 instead.",
-    category=DDTraceDeprecationWarning,
-)
 """
 The aioredis integration instruments aioredis requests. Version 1.3 and above are fully
 supported.
@@ -77,9 +68,16 @@ with _w.catch_warnings():
     # Required to allow users to import from  `ddtrace.contrib.aioredis.patch` directly
     from . import patch as _  # noqa: F401, I001
 
-from ddtrace.contrib.internal.aioredis.patch import get_version  # noqa: E402
-from ddtrace.contrib.internal.aioredis.patch import patch  # noqa: E402
-from ddtrace.contrib.internal.aioredis.patch import unpatch  # noqa: E402
+from ddtrace.contrib.internal.aioredis.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.aioredis.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.aioredis.patch import unpatch  # noqa: F401
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-__all__ = ["patch", "unpatch", "get_version"]
+deprecate(
+    "The aioredis integration is deprecated",
+    message="Please use the redis integration with redis>=4.2.0 instead.",
+    removal_version="3.0.0",
+    category=DDTraceDeprecationWarning,
+)

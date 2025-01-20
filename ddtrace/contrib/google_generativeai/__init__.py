@@ -80,9 +80,18 @@ To configure the Gemini integration on a per-instance basis use the
 """  # noqa: E501
 
 
-from ..internal.google_generativeai.patch import get_version
-from ..internal.google_generativeai.patch import patch
-from ..internal.google_generativeai.patch import unpatch
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+from ..internal.google_generativeai.patch import get_version  # noqa: F401
+from ..internal.google_generativeai.patch import patch  # noqa: F401
+from ..internal.google_generativeai.patch import unpatch  # noqa: F401
 
 
-__all__ = ["patch", "unpatch", "get_version"]
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
+)

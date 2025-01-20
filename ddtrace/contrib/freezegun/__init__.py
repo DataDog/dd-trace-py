@@ -13,10 +13,19 @@ Configuration
 The freezegun integration is not configurable, but may be disabled using DD_PATCH_MODULES=freezegun:false .
 """
 
-# Expose public methods
-from ..internal.freezegun.patch import get_version
-from ..internal.freezegun.patch import patch
-from ..internal.freezegun.patch import unpatch
+
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+from ..internal.freezegun.patch import get_version  # noqa: F401
+from ..internal.freezegun.patch import patch  # noqa: F401
+from ..internal.freezegun.patch import unpatch  # noqa: F401
 
 
-__all__ = ["get_version", "patch", "unpatch"]
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
+)
